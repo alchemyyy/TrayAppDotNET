@@ -1,5 +1,3 @@
-using FanControlTrayAppDotNET.Models;
-
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
 /// <summary>Stages group mappings created while an unpublished flyout generation is built.</summary>

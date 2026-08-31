@@ -5,7 +5,7 @@ namespace BrightnessTrayAppDotNET.UI.Settings;
 public sealed partial class BrightnessSettingsWindow
 {
     private static string FormatCoordinate(double value) =>
-        value.ToString("F7", CultureInfo.InvariantCulture);
+        value.ToString(format: "F7", CultureInfo.InvariantCulture);
 
     private static bool TryParseCoordinate(string? text, out double value) =>
         double.TryParse(
@@ -20,13 +20,13 @@ public sealed partial class BrightnessSettingsWindow
           || longitude < -180.0 || longitude > 180.0);
 
     private static string FormatSunOverlayDate(DateTime date) =>
-        date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        date.ToString(format: "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static bool TryParseSunOverlayDate(string text, out DateTime result)
     {
         return DateTime.TryParseExact(
             text,
-            "yyyy-MM-dd",
+            format: "yyyy-MM-dd",
             CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeLocal,
             out result) || DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out result);
@@ -35,7 +35,7 @@ public sealed partial class BrightnessSettingsWindow
     private static string FormatDisabledPeriodTime(double t)
     {
         bool use24 = !CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern.Contains('h');
-        int totalMinutes = (int)Math.Round(Math.Clamp(t, 0.0, 1.0) * 24 * 60);
+        int totalMinutes = (int)Math.Round(Math.Clamp(t, min: 0.0, max: 1.0) * 24 * 60);
         if (totalMinutes >= 24 * 60) totalMinutes = 24 * 60 - 1;
         int hour = totalMinutes / 60;
         int minute = totalMinutes % 60;
@@ -61,12 +61,12 @@ public sealed partial class BrightnessSettingsWindow
         string value = text.Trim().ToLowerInvariant();
         bool isPM = false;
         bool isAM = false;
-        if (value.EndsWith("pm", StringComparison.Ordinal))
+        if (value.EndsWith(value: "pm", StringComparison.Ordinal))
         {
             isPM = true;
             value = value[..^2].TrimEnd();
         }
-        else if (value.EndsWith("am", StringComparison.Ordinal))
+        else if (value.EndsWith(value: "am", StringComparison.Ordinal))
         {
             isAM = true;
             value = value[..^2].TrimEnd();
@@ -84,7 +84,7 @@ public sealed partial class BrightnessSettingsWindow
 
         int hour;
         int minute;
-        int colonIndex = value.IndexOf(':', StringComparison.Ordinal);
+        int colonIndex = value.IndexOf(value: ':', StringComparison.Ordinal);
         if (colonIndex >= 0)
         {
             if (!int.TryParse(value[..colonIndex], NumberStyles.Integer, CultureInfo.InvariantCulture, out hour))

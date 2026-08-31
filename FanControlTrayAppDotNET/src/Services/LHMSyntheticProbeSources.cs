@@ -20,7 +20,7 @@ internal static class LHMSyntheticProbeSources
     /// </summary>
     public static string BuildMaxClockKey(string hardwareName)
     {
-        string controller = hardwareName.Replace(' ', '_');
+        string controller = hardwareName.Replace(oldChar: ' ', newChar: '_');
         return $"{controller}.{ClockFolderName}.{MaxClockLeaf}";
     }
 
@@ -29,7 +29,7 @@ internal static class LHMSyntheticProbeSources
     /// </summary>
     public static string BuildMaxEffectiveClockKey(string hardwareName)
     {
-        string controller = hardwareName.Replace(' ', '_');
+        string controller = hardwareName.Replace(oldChar: ' ', newChar: '_');
         return $"{controller}.{ClockFolderName}.{MaxEffectiveClockLeaf}";
     }
 

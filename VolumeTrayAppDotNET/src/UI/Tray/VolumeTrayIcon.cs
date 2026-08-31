@@ -44,7 +44,7 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         get;
         set
         {
-            float clamped = Math.Clamp(value, 0f, 1f);
+            float clamped = Math.Clamp(value, min: 0f, max: 1f);
             if (Math.Abs(field - clamped) < 0.0001f) return;
             Glyph oldGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
             field = clamped;

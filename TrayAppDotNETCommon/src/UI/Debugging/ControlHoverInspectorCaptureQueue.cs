@@ -10,7 +10,10 @@ internal sealed class ControlHoverInspectorCaptureQueue(
     Action<TopLevel, IInputElement> capture)
 {
     private readonly Action<Action> _schedule = schedule ?? throw new ArgumentNullException(nameof(schedule));
-    private readonly Action<TopLevel, IInputElement> _capture = capture ?? throw new ArgumentNullException(nameof(capture));
+
+    private readonly Action<TopLevel, IInputElement> _capture =
+        capture ?? throw new ArgumentNullException(nameof(capture));
+
     private PendingCapture? _pendingCapture;
     private bool _isScheduled;
 
@@ -30,10 +33,7 @@ internal sealed class ControlHoverInspectorCaptureQueue(
     }
 
     /// <summary>Discards a pending target without retaining its visual tree.</summary>
-    public void CancelPending()
-    {
-        _pendingCapture = null;
-    }
+    public void CancelPending() => _pendingCapture = null;
 
     private void Drain()
     {

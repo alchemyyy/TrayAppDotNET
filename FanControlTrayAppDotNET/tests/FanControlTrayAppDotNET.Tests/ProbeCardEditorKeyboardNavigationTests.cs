@@ -16,15 +16,15 @@ public sealed class ProbeCardEditorKeyboardNavigationTests
     {
         List<ProbeCardEditorNavigationPoint> points =
         [
-            new(0, 100),
-            new(100, 0),
-            new(200, 100),
-            new(125, 125),
-            new(100, 200)
+            new(X: 0, Y: 100),
+            new(X: 100, Y: 0),
+            new(X: 200, Y: 100),
+            new(X: 125, Y: 125),
+            new(X: 100, Y: 200)
         ];
 
         ProbeCardEditorNavigationDirection direction = (ProbeCardEditorNavigationDirection)directionValue;
-        int result = ProbeCardEditorKeyboardNavigation.FindDirectionalTarget(points, 3, direction);
+        int result = ProbeCardEditorKeyboardNavigation.FindDirectionalTarget(points, currentIndex: 3, direction);
 
         Assert.Equal(expectedIndex, result);
     }
@@ -34,17 +34,17 @@ public sealed class ProbeCardEditorKeyboardNavigationTests
     {
         List<ProbeCardEditorNavigationPoint> points =
         [
-            new(0, 0),
-            new(100, 0),
-            new(20, 30)
+            new(X: 0, Y: 0),
+            new(X: 100, Y: 0),
+            new(X: 20, Y: 30)
         ];
 
         int result = ProbeCardEditorKeyboardNavigation.FindDirectionalTarget(
             points,
-            0,
+            currentIndex: 0,
             ProbeCardEditorNavigationDirection.Right);
 
-        Assert.Equal(1, result);
+        Assert.Equal(expected: 1, result);
     }
 
     [Theory]

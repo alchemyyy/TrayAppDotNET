@@ -8,8 +8,8 @@ public sealed partial class EnvironmentalCurveEditor
     private (Series Series, EnvironmentalCurvePoint Point)? AddPointFromPointer(Point pos, Rect plot)
     {
         if (!plot.Contains(pos)) return null;
-        double t = Math.Clamp(FromScreenX(pos.X, plot), 0.0, 1.0);
-        double v = Math.Clamp(FromScreenY(pos.Y, plot), 0.0, 100.0);
+        double t = Math.Clamp(FromScreenX(pos.X, plot), min: 0.0, max: 1.0);
+        double v = Math.Clamp(FromScreenY(pos.Y, plot), min: 0.0, max: 100.0);
         List<EnvironmentalCurvePoint>? target = PickClosestVisibleSeries(t, pos.Y, plot);
         if (target == null) return null;
 
@@ -47,12 +47,12 @@ public sealed partial class EnvironmentalCurveEditor
     {
         if (_dragPoint == null) return;
 
-        _dragPoint.Value = Math.Clamp(FromScreenY(pos.Y, plot), 0.0, 100.0);
+        _dragPoint.Value = Math.Clamp(FromScreenY(pos.Y, plot), min: 0.0, max: 100.0);
         List<EnvironmentalCurvePoint> series = GetSeries(_dragSeries);
         SyncEdgeYIfEdge(_dragPoint, series);
         if (IsEndpoint(_dragPoint, series)) return;
 
-        double t = Math.Clamp(FromScreenX(pos.X, plot), 0.0, 1.0);
+        double t = Math.Clamp(FromScreenX(pos.X, plot), min: 0.0, max: 1.0);
         List<EnvironmentalCurvePoint> ordered = [.. series.OrderBy(p => p.Time)];
         int index = ordered.IndexOf(_dragPoint);
         if (index > 0) t = Math.Max(t, ordered[index - 1].Time + MinimumPointSeparation);
@@ -64,7 +64,7 @@ public sealed partial class EnvironmentalCurveEditor
     {
         if (_curveData == null) return;
 
-        double value = Math.Clamp(FromScreenY(pos.Y, plot), 0.0, 100.0);
+        double value = Math.Clamp(FromScreenY(pos.Y, plot), min: 0.0, max: 100.0);
         switch (_limitDragSeries, _limitDragKind)
         {
             case (Series.Brightness, LimitKind.Min):
@@ -174,7 +174,7 @@ public sealed partial class EnvironmentalCurveEditor
         List<EnvironmentalCurvePoint> series = GetSeries(_selectedSeries);
         if (dy != 0.0)
         {
-            _selectedPoint.Value = Math.Clamp(_selectedPoint.Value + dy, 0.0, 100.0);
+            _selectedPoint.Value = Math.Clamp(_selectedPoint.Value + dy, min: 0.0, max: 100.0);
             SyncEdgeYIfEdge(_selectedPoint, series);
         }
 
@@ -182,7 +182,7 @@ public sealed partial class EnvironmentalCurveEditor
         {
             List<EnvironmentalCurvePoint> ordered = [.. series.OrderBy(p => p.Time)];
             int index = ordered.IndexOf(_selectedPoint);
-            double next = Math.Clamp(_selectedPoint.Time + dx, 0.0, 1.0);
+            double next = Math.Clamp(_selectedPoint.Time + dx, min: 0.0, max: 1.0);
             if (index > 0) next = Math.Max(next, ordered[index - 1].Time + MinimumPointSeparation);
             if (index < ordered.Count - 1) next = Math.Min(next, ordered[index + 1].Time - MinimumPointSeparation);
             _selectedPoint.Time = next;
@@ -198,7 +198,7 @@ public sealed partial class EnvironmentalCurveEditor
 
         List<EnvironmentalCurvePoint> series = GetSeries(_selectedSeries);
         double offset = _selectedPoint.Time > 0.5 ? -KeyboardSpacebarOffset : KeyboardSpacebarOffset;
-        double t = Math.Clamp(_selectedPoint.Time + offset, 0.0, 1.0);
+        double t = Math.Clamp(_selectedPoint.Time + offset, min: 0.0, max: 1.0);
         if (AddPoint(series, t, _selectedPoint.Value))
         {
             _selectedPoint = FindNearestByTime(series, t);

@@ -13,8 +13,10 @@ public sealed class WatcherMonitor(
         postToUiThread ?? throw new ArgumentNullException(nameof(postToUiThread));
 
     private readonly Action _onWatcherDied = onWatcherDied ?? throw new ArgumentNullException(nameof(onWatcherDied));
+
     private readonly TimeSpan _pollInterval =
         pollInterval ?? TimeSpan.FromMilliseconds(TimeConstants.WatcherLivenessPollIntervalMs);
+
     private CancellationTokenSource? _cts;
     private Task? _pollTask;
     private bool _disposed;
@@ -63,13 +65,13 @@ public sealed class WatcherMonitor(
 
     public void Stop()
     {
-        CancellationTokenSource? cts = Interlocked.Exchange(ref _cts, null);
+        CancellationTokenSource? cts = Interlocked.Exchange(ref _cts, value: null);
         if (cts == null) return;
 
         try { cts.Cancel(); }
         catch (Exception ex) { TADNLog.Log($"WatcherMonitor.Stop: cancel: {ex.Message}"); }
 
-        Task? pollTask = Interlocked.Exchange(ref _pollTask, null);
+        Task? pollTask = Interlocked.Exchange(ref _pollTask, value: null);
         if (pollTask == null)
         {
             cts.Dispose();

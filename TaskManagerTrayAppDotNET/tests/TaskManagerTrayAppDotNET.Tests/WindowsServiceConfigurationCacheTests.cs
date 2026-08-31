@@ -11,13 +11,13 @@ public sealed class WindowsServiceConfigurationCacheTests
     {
         WindowsServiceConfigurationCache cache = new();
         WindowsServiceConfiguration configuration = new(
-            "Example description",
-            "ExampleGroup",
+            Description: "Example description",
+            Group: "ExampleGroup",
             WindowsServiceStartType.Automatic);
 
-        cache.Store("ExampleService", configuration);
+        cache.Store(serviceName: "ExampleService", configuration);
 
-        Assert.True(cache.TryGet("exampleservice", out WindowsServiceConfiguration cached));
+        Assert.True(cache.TryGet(serviceName: "exampleservice", out WindowsServiceConfiguration cached));
         Assert.Equal(configuration, cached);
     }
 
@@ -26,7 +26,7 @@ public sealed class WindowsServiceConfigurationCacheTests
     {
         WindowsServiceConfigurationCache cache = new();
         cache.Store(
-            "ExampleService",
+            serviceName: "ExampleService",
             new WindowsServiceConfiguration(
                 string.Empty,
                 string.Empty,
@@ -34,7 +34,7 @@ public sealed class WindowsServiceConfigurationCacheTests
 
         cache.Invalidate("EXAMPLESERVICE");
 
-        Assert.False(cache.TryGet("ExampleService", out _));
+        Assert.False(cache.TryGet(serviceName: "ExampleService", out _));
     }
 
     [Fact]
@@ -42,25 +42,22 @@ public sealed class WindowsServiceConfigurationCacheTests
     {
         WindowsServiceConfigurationCache cache = new();
         WindowsServiceConfiguration retained = new(
-            "Retained",
+            Description: "Retained",
             string.Empty,
             WindowsServiceStartType.Automatic);
-        cache.Store("RetainedService", retained);
+        cache.Store(serviceName: "RetainedService", retained);
         cache.Store(
-            "RemovedService",
+            serviceName: "RemovedService",
             new WindowsServiceConfiguration(
-                "Removed",
+                Description: "Removed",
                 string.Empty,
                 WindowsServiceStartType.Disabled));
-        HashSet<string> currentServices = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "retainedservice"
-        };
+        HashSet<string> currentServices = new(StringComparer.OrdinalIgnoreCase) { "retainedservice" };
 
         cache.RetainOnly(currentServices);
 
-        Assert.True(cache.TryGet("RetainedService", out WindowsServiceConfiguration cached));
+        Assert.True(cache.TryGet(serviceName: "RetainedService", out WindowsServiceConfiguration cached));
         Assert.Equal(retained, cached);
-        Assert.False(cache.TryGet("RemovedService", out _));
+        Assert.False(cache.TryGet(serviceName: "RemovedService", out _));
     }
 }

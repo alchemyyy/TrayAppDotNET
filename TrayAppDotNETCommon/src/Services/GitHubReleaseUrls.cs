@@ -11,10 +11,13 @@ public static class GitHubReleaseUrls
     public static string ReleaseAssetName(string applicationName, int version)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
-        return version <= 0 ? throw new ArgumentOutOfRangeException(nameof(version)) : $"{applicationName}_{version}.zip";
+        return version <= 0
+            ? throw new ArgumentOutOfRangeException(nameof(version))
+            : $"{applicationName}_{version}.zip";
     }
 
-    public static Uri LatestAppReleaseAssetUrl(string owner, string repositoryName, string applicationName, int version) =>
+    public static Uri LatestAppReleaseAssetUrl(string owner, string repositoryName, string applicationName,
+        int version) =>
         LatestReleaseAssetUrl(owner, repositoryName, ReleaseAssetName(applicationName, version));
 
     /// <summary>Builds the public GitHub releases page URL.</summary>

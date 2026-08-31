@@ -22,8 +22,9 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         TaskManagerWindowResources resources,
         Action<IReadOnlyList<ProcessHeaderButtonKind>> orderChanged)
         : this(
-            BuildItems(settings?.ProcessHeaderButtonOrder),
-            settings ?? throw new ArgumentNullException(nameof(settings)),
+            BuildItems(
+                (settings ?? throw new ArgumentNullException(nameof(settings))).ProcessHeaderButtonOrder),
+            settings,
             palette,
             resources,
             orderChanged)
@@ -37,8 +38,8 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         TaskManagerWindowResources resources,
         Action<IReadOnlyList<ProcessHeaderButtonKind>> orderChanged)
         : base(
-            "Arrange buttons",
-            "Drag buttons or use the arrows. The top item is the leftmost header button.",
+            title: "Arrange buttons",
+            description: "Drag buttons or use the arrows. The top item is the leftmost header button.",
             items,
             static item => item.Label,
             (item, notifyItemChanged) => BuildLabel(item, palette),
@@ -52,7 +53,7 @@ internal sealed class ProcessHeaderButtonArrangementWindow
             resources.AxamlTaskManagerReorderDialog.HeaderWindowHeight,
             resources.AxamlTaskManagerReorderDialog.HeaderWindowHeight,
             showSearch: false,
-            searchPlaceholder: string.Empty)
+            string.Empty)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
@@ -110,6 +111,6 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         ProcessHeaderButtonKind.Columns => "Columns",
         ProcessHeaderButtonKind.EndTask => "End task",
         ProcessHeaderButtonKind.RestartExplorer => "Restart explorer",
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown header button kind.")
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: "Unknown header button kind.")
     };
 }

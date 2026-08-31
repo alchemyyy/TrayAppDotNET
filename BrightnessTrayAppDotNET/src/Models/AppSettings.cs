@@ -236,7 +236,8 @@ public class KnownDisplayEntry
 /// Root application settings class.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
+public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings,
+    ITrayAppDotNETWarmWindowSettings,
     ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
     ITrayXmlSerializationCallbacks
 {
@@ -444,6 +445,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public DisplaySortDirection DefaultDisplaySortDirection { get; set; } = DisplaySortDirection.Standard;
     public MonitorIdentityStrategy MonitorIdentityStrategy { get; set; } = MonitorIdentityStrategy.DisplayNumber;
     public List<string> MonitorOrder { get; set; } = [];
+
     [XmlArrayItem("Monitor")]
     public List<MonitorOverrideEntry> MonitorOverrides { get; set; } = [];
 
@@ -503,6 +505,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // The delay is a dead window after each manual brightness write, so an immediate click across
     // the current curve target cannot snap the user straight back into curve control.
     public bool AutoEngageEnvironmentalCurveEnabled { get; set; }
+
     public int AutoEngageEnvironmentalCurveDelaySeconds { get; set; } =
         TimeConstants.AutoEngageEnvironmentalCurveDelayDefaultSeconds;
 
@@ -626,7 +629,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "settings.xml");
+        return Path.Combine(appFolder, path2: "settings.xml");
     }
 
     /// <summary>

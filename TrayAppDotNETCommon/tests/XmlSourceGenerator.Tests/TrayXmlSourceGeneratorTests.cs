@@ -7,7 +7,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using TrayAppDotNETCommon.Serialization;
-using TrayAppDotNETCommon.XmlSourceGenerator;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
@@ -25,81 +24,81 @@ public sealed class TrayXmlSourceGeneratorTests
         Type modeType = generated.Assembly.GetRequiredType("GeneratorSamples.Mode");
 
         object settings = Activator.CreateInstance(settingsType)!;
-        DateTime when = new(2026, 6, 20, 12, 34, 56, DateTimeKind.Utc);
+        DateTime when = new(year: 2026, month: 6, day: 20, hour: 12, minute: 34, second: 56, DateTimeKind.Utc);
 
-        Set(settings, "Name", "Main");
-        Set(settings, "Title", "Loaded title");
-        Set(settings, "Enabled", true);
-        Set(settings, "Count", 123);
-        Set(settings, "Optional", 45);
-        Set(settings, "Mode", Enum.Parse(modeType, "Manual"));
-        Set(settings, "When", when);
-        Set(settings, "Ignored", "do not persist");
+        Set(settings, property: "Name", value: "Main");
+        Set(settings, property: "Title", value: "Loaded title");
+        Set(settings, property: "Enabled", value: true);
+        Set(settings, property: "Count", value: 123);
+        Set(settings, property: "Optional", value: 45);
+        Set(settings, property: "Mode", Enum.Parse(modeType, value: "Manual"));
+        Set(settings, property: "When", when);
+        Set(settings, property: "Ignored", value: "do not persist");
 
-        object child = Get(settings, "Child")!;
-        Set(child, "Id", "child-1");
-        Set(child, "Weight", 2.5);
+        object child = Get(settings, property: "Child")!;
+        Set(child, property: "Id", value: "child-1");
+        Set(child, property: "Weight", value: 2.5);
 
-        IList tags = (IList)Get(settings, "Tags")!;
+        IList tags = (IList)Get(settings, property: "Tags")!;
         tags.Add("alpha");
         tags.Add("beta");
 
-        IList points = (IList)Get(settings, "Points")!;
+        IList points = (IList)Get(settings, property: "Points")!;
         object point = Activator.CreateInstance(pointType)!;
-        Set(point, "X", 10);
-        Set(point, "Y", 20);
+        Set(point, property: "X", value: 10);
+        Set(point, property: "Y", value: 20);
         points.Add(point);
 
-        IList entries = (IList)Get(settings, "Entries")!;
+        IList entries = (IList)Get(settings, property: "Entries")!;
         object entry = Activator.CreateInstance(entryType)!;
-        Set(entry, "Key", "one");
-        Set(entry, "Value", 1);
+        Set(entry, property: "Key", value: "one");
+        Set(entry, property: "Value", value: 1);
         entries.Add(entry);
 
         string xml = GeneratorHost.WriteXml(settings);
-        Assert.Contains("<Settings", xml);
-        Assert.Contains("Name=\"Main\"", xml);
-        Assert.Contains("<Title>Loaded title</Title>", xml);
-        Assert.Contains("Enabled=\"true\"", xml);
-        Assert.Contains("<Tags>", xml);
-        Assert.Contains("<Tag>alpha</Tag>", xml);
-        Assert.Contains("<Points>", xml);
-        Assert.Contains("<P X=\"10\" Y=\"20\"", xml);
-        Assert.Contains("<Entry Key=\"one\" Value=\"1\"", xml);
-        Assert.DoesNotContain("do not persist", xml);
-        Assert.Equal(1, GetStaticInt(settingsType, "Serializing"));
+        Assert.Contains(expectedSubstring: "<Settings", xml);
+        Assert.Contains(expectedSubstring: "Name=\"Main\"", xml);
+        Assert.Contains(expectedSubstring: "<Title>Loaded title</Title>", xml);
+        Assert.Contains(expectedSubstring: "Enabled=\"true\"", xml);
+        Assert.Contains(expectedSubstring: "<Tags>", xml);
+        Assert.Contains(expectedSubstring: "<Tag>alpha</Tag>", xml);
+        Assert.Contains(expectedSubstring: "<Points>", xml);
+        Assert.Contains(expectedSubstring: "<P X=\"10\" Y=\"20\"", xml);
+        Assert.Contains(expectedSubstring: "<Entry Key=\"one\" Value=\"1\"", xml);
+        Assert.DoesNotContain(expectedSubstring: "do not persist", xml);
+        Assert.Equal(expected: 1, GetStaticInt(settingsType, field: "Serializing"));
 
         object copy = GeneratorHost.ReadXml(settingsType, xml);
-        Assert.Equal("Main", Get(copy, "Name"));
-        Assert.Equal("Loaded title", Get(copy, "Title"));
-        Assert.Equal(true, Get(copy, "Enabled"));
-        Assert.Equal(123, Get(copy, "Count"));
-        Assert.Equal(45, Get(copy, "Optional"));
-        Assert.Equal(Enum.Parse(modeType, "Manual"), Get(copy, "Mode"));
-        Assert.Equal(when, Get(copy, "When"));
-        Assert.Equal("ignored-default", Get(copy, "Ignored"));
+        Assert.Equal(expected: "Main", Get(copy, property: "Name"));
+        Assert.Equal(expected: "Loaded title", Get(copy, property: "Title"));
+        Assert.Equal(expected: true, Get(copy, property: "Enabled"));
+        Assert.Equal(expected: 123, Get(copy, property: "Count"));
+        Assert.Equal(expected: 45, Get(copy, property: "Optional"));
+        Assert.Equal(Enum.Parse(modeType, value: "Manual"), Get(copy, property: "Mode"));
+        Assert.Equal(when, Get(copy, property: "When"));
+        Assert.Equal(expected: "ignored-default", Get(copy, property: "Ignored"));
 
-        object copyChild = Get(copy, "Child")!;
-        Assert.Equal("child-1", Get(copyChild, "Id"));
-        Assert.Equal(2.5, Get(copyChild, "Weight"));
+        object copyChild = Get(copy, property: "Child")!;
+        Assert.Equal(expected: "child-1", Get(copyChild, property: "Id"));
+        Assert.Equal(expected: 2.5, Get(copyChild, property: "Weight"));
 
-        IList copyTags = (IList)Get(copy, "Tags")!;
-        Assert.Equal(2, copyTags.Count);
-        Assert.Equal("alpha", copyTags[0]);
-        Assert.Equal("beta", copyTags[1]);
+        IList copyTags = (IList)Get(copy, property: "Tags")!;
+        Assert.Equal(expected: 2, copyTags.Count);
+        Assert.Equal(expected: "alpha", copyTags[0]);
+        Assert.Equal(expected: "beta", copyTags[1]);
 
-        IList copyPoints = (IList)Get(copy, "Points")!;
+        IList copyPoints = (IList)Get(copy, property: "Points")!;
         object? copyPoint = Assert.Single(copyPoints.Cast<object?>());
-        Assert.Equal(10, Get(copyPoint!, "X"));
-        Assert.Equal(20, Get(copyPoint!, "Y"));
+        Assert.Equal(expected: 10, Get(copyPoint!, property: "X"));
+        Assert.Equal(expected: 20, Get(copyPoint!, property: "Y"));
 
-        IList copyEntries = (IList)Get(copy, "Entries")!;
+        IList copyEntries = (IList)Get(copy, property: "Entries")!;
         object? copyEntry = Assert.Single(copyEntries.Cast<object?>());
-        Assert.Equal("one", Get(copyEntry!, "Key"));
-        Assert.Equal(1, Get(copyEntry!, "Value"));
+        Assert.Equal(expected: "one", Get(copyEntry!, property: "Key"));
+        Assert.Equal(expected: 1, Get(copyEntry!, property: "Value"));
 
-        Assert.Equal(1, GetStaticInt(settingsType, "Deserializing"));
-        Assert.Equal(1, GetStaticInt(settingsType, "Deserialized"));
+        Assert.Equal(expected: 1, GetStaticInt(settingsType, field: "Deserializing"));
+        Assert.Equal(expected: 1, GetStaticInt(settingsType, field: "Deserialized"));
     }
 
     [Fact]
@@ -123,14 +122,14 @@ public sealed class TrayXmlSourceGeneratorTests
             """;
 
         object copy = GeneratorHost.ReadXml(settingsType, xml);
-        Assert.Equal("Default", Get(copy, "Name"));
-        Assert.Equal("Loaded", Get(copy, "Title"));
-        Assert.Equal(7, Get(copy, "Count"));
-        Assert.Equal(Enum.Parse(modeType, "Auto"), Get(copy, "Mode"));
-        Assert.Equal("ignored-default", Get(copy, "Ignored"));
+        Assert.Equal(expected: "Default", Get(copy, property: "Name"));
+        Assert.Equal(expected: "Loaded", Get(copy, property: "Title"));
+        Assert.Equal(expected: 7, Get(copy, property: "Count"));
+        Assert.Equal(Enum.Parse(modeType, value: "Auto"), Get(copy, property: "Mode"));
+        Assert.Equal(expected: "ignored-default", Get(copy, property: "Ignored"));
 
-        IList tags = (IList)Get(copy, "Tags")!;
-        Assert.Equal("kept", Assert.Single(tags.Cast<object?>()));
+        IList tags = (IList)Get(copy, property: "Tags")!;
+        Assert.Equal(expected: "kept", Assert.Single(tags.Cast<object?>()));
     }
 
     [Fact]
@@ -138,8 +137,9 @@ public sealed class TrayXmlSourceGeneratorTests
     {
         GeneratorDriverRunResult result = GeneratorHost.RunGenerator(UnsupportedSource).RunResult;
         ImmutableArray<Diagnostic> diagnostics = result.Diagnostics;
-        int unsupportedCount = diagnostics.Count(static d => d is { Id: "TAXML001", Severity: DiagnosticSeverity.Error });
-        Assert.Equal(2, unsupportedCount);
+        int unsupportedCount =
+            diagnostics.Count(static d => d is { Id: "TAXML001", Severity: DiagnosticSeverity.Error });
+        Assert.Equal(expected: 2, unsupportedCount);
     }
 
     private static object? Get(object target, string property) =>
@@ -285,7 +285,7 @@ internal static class GeneratorHost
     public static GeneratorResult RunGenerator(string source)
     {
         string assemblyName = $"TrayXmlGeneratorTest_{Guid.NewGuid():N}";
-        CSharpParseOptions parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        CSharpParseOptions parseOptions = new(LanguageVersion.Preview);
         CSharpCompilation compilation = CSharpCompilation.Create(
             assemblyName,
             [CSharpSyntaxTree.ParseText(source, parseOptions)],
@@ -304,7 +304,8 @@ internal static class GeneratorHost
             out ImmutableArray<Diagnostic> generatorDiagnostics);
 
         GeneratorDriverRunResult runResult = driver.GetRunResult();
-        ImmutableArray<Diagnostic> compilationDiagnostics = [
+        ImmutableArray<Diagnostic> compilationDiagnostics =
+        [
             ..outputCompilation
                 .GetDiagnostics()
                 .AddRange(generatorDiagnostics)
@@ -326,8 +327,9 @@ internal static class GeneratorHost
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(xml), writable: false);
         MethodInfo read = typeof(TrayXmlSerializer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(static method => method is { Name: nameof(TrayXmlSerializer.Read), IsGenericMethodDefinition: true });
-        return read.MakeGenericMethod(type).Invoke(null, [stream])!;
+            .Single(static method => method is
+                { Name: nameof(TrayXmlSerializer.Read), IsGenericMethodDefinition: true });
+        return read.MakeGenericMethod(type).Invoke(obj: null, [stream])!;
     }
 
     private static MetadataReference[] CreateReferences()
@@ -339,7 +341,7 @@ internal static class GeneratorHost
         SortedSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
         foreach (string path in tpa.Split(Path.PathSeparator))
         {
-            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            if (path.EndsWith(value: ".dll", StringComparison.OrdinalIgnoreCase))
                 paths.Add(path);
         }
 

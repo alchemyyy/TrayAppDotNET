@@ -32,7 +32,7 @@ internal sealed record UserSessionInfo(
 
     public string AccountName => string.IsNullOrWhiteSpace(DomainName)
         ? UserName
-        : string.Concat(DomainName, "\\", UserName);
+        : string.Concat(DomainName, str1: "\\", UserName);
 
     public bool CanDisconnect => UserSessionActions.CanDisconnect(this);
 }
@@ -45,13 +45,13 @@ internal readonly record struct UserSessionActionResult(
     string ErrorMessage)
 {
     public static UserSessionActionResult Success() =>
-        new(true, UserSessionActionError.None, 0, string.Empty);
+        new(Succeeded: true, UserSessionActionError.None, NativeErrorCode: 0, string.Empty);
 
     public static UserSessionActionResult Failure(
         UserSessionActionError error,
         string errorMessage,
         int nativeErrorCode = 0) =>
-        new(false, error, nativeErrorCode, errorMessage);
+        new(Succeeded: false, error, nativeErrorCode, errorMessage);
 }
 
 /// <summary>Pure capability decisions for user-session actions.</summary>
@@ -103,5 +103,5 @@ internal sealed record UserGroupSnapshot(
 /// <summary>Deterministically ordered user groups and process children.</summary>
 internal sealed record UserSnapshot(IReadOnlyList<UserGroupSnapshot> Groups)
 {
-    public static UserSnapshot Empty { get; } = new(Array.Empty<UserGroupSnapshot>());
+    public static UserSnapshot Empty { get; } = new([]);
 }

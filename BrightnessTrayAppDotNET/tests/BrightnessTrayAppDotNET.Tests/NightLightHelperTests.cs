@@ -32,9 +32,9 @@ public sealed class NightLightHelperTests
         Assert.False(replacedFirst);
         Assert.True(replacedSecond);
         Assert.True(tookValue);
-        Assert.Equal(80, value);
+        Assert.Equal(expected: 80, value);
         Assert.False(queue.TryTake(out int ignoredValue));
-        Assert.Equal(0, ignoredValue);
+        Assert.Equal(expected: 0, ignoredValue);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class NightLightHelperTests
 
         Assert.False(restored);
         Assert.True(queue.TryTake(out int pendingValue));
-        Assert.Equal(90, pendingValue);
+        Assert.Equal(expected: 90, pendingValue);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class NightLightHelperTests
 
         Assert.True(restored);
         Assert.True(queue.TryTake(out int pendingValue));
-        Assert.Equal(35, pendingValue);
+        Assert.Equal(expected: 35, pendingValue);
     }
 
     [Fact]

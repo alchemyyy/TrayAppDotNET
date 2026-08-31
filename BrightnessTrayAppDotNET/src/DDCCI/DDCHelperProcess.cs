@@ -13,7 +13,7 @@ internal sealed class DDCHelperClient : IDisposable
     private const int CommandAttempts = 2;
     private const int HelperConnectTimeoutMs = 5000;
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-    internal static readonly Encoding PipeEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    internal static readonly Encoding PipeEncoding = new UTF8Encoding(false);
 
     private readonly Lock _gate = new();
     private Process? _process;
@@ -27,14 +27,15 @@ internal sealed class DDCHelperClient : IDisposable
         int timeoutMs,
         CancellationToken cancellationToken)
     {
-        string command = BuildCommand("CAPS", monitor);
+        string command = BuildCommand(verb: "CAPS", monitor);
         DDCCallOutcome<string[]> response = SendCommand(
             command,
             timeoutMs,
             cancellationToken,
             $"GetCapabilities('{monitor.Name}')");
         if (!response.Success) return DDCCallOutcome<string>.Fail(response.Error ?? "DDC helper failed.");
-        if (response.Value.Length < 2) return DDCCallOutcome<string>.Fail("DDC helper returned a malformed CAPS reply.");
+        if (response.Value.Length < 2)
+            return DDCCallOutcome<string>.Fail("DDC helper returned a malformed CAPS reply.");
 
         try
         {
@@ -52,7 +53,8 @@ internal sealed class DDCHelperClient : IDisposable
         int timeoutMs,
         CancellationToken cancellationToken)
     {
-        string command = BuildCommand("GETVCP", monitor, code.ToString("X2", CultureInfo.InvariantCulture));
+        string command = BuildCommand(verb: "GETVCP", monitor,
+            code.ToString(format: "X2", CultureInfo.InvariantCulture));
         DDCCallOutcome<string[]> response = SendCommand(
             command,
             timeoutMs,
@@ -79,9 +81,9 @@ internal sealed class DDCHelperClient : IDisposable
         CancellationToken cancellationToken)
     {
         string command = BuildCommand(
-            "SETVCP",
+            verb: "SETVCP",
             monitor,
-            code.ToString("X2", CultureInfo.InvariantCulture),
+            code.ToString(format: "X2", CultureInfo.InvariantCulture),
             value.ToString(CultureInfo.InvariantCulture));
         DDCCallOutcome<string[]> response = SendCommand(
             command,
@@ -292,10 +294,7 @@ internal sealed class DDCHelperClient : IDisposable
                 return false;
             }
 
-            _writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true)
-            {
-                AutoFlush = true
-            };
+            _writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
             _reader = new StreamReader(pipe, PipeEncoding, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
             return true;
         }
@@ -318,7 +317,7 @@ internal sealed class DDCHelperClient : IDisposable
         if (timeoutMs <= 0) return Timeout.Infinite;
 
         long elapsedMs = (long)Math.Ceiling(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
-        return (int)Math.Max(0, timeoutMs - elapsedMs);
+        return (int)Math.Max(val1: 0, timeoutMs - elapsedMs);
     }
 
     private void StopHelperProcess(bool kill, bool sendExit)
@@ -381,9 +380,11 @@ internal sealed class DDCHelperClient : IDisposable
             {
                 bool exited = process.WaitForExit(TimeConstants.ProcessExitDrainTimeoutMs);
                 if (!exited)
+                {
                     TADNLog.Log(
                         $"DDCHelperClient.StopHelperProcess: PID {process.Id} did not exit within "
                         + $"{TimeConstants.ProcessExitDrainTimeoutMs}ms after {(kill ? "kill" : "disconnect")}");
+                }
             }
         }
         catch (Exception ex)
@@ -405,7 +406,7 @@ internal sealed class DDCHelperClient : IDisposable
         try
         {
             if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
+                process.Kill(true);
         }
         catch (Exception ex)
         {
@@ -489,7 +490,7 @@ internal static class DDCHelperServer
 
         try
         {
-            using NamedPipeClientStream pipe = new(".", pipeName, PipeDirection.InOut);
+            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
             pipe.Connect(HelperPipeConnectTimeoutMs);
             using StreamReader reader = new(
                 pipe,
@@ -498,7 +499,7 @@ internal static class DDCHelperServer
                 leaveOpen: true);
             using StreamWriter writer = new(pipe, DDCHelperClient.PipeEncoding, bufferSize: 1024, leaveOpen: true);
             writer.AutoFlush = true;
-            using DisplayService displayService = new(useHelperProcess: false);
+            using DisplayService displayService = new(false);
             displayService.OperationTimeoutMs = 0;
             RunLoop(displayService, reader, writer);
             return true;
@@ -695,8 +696,7 @@ internal static class DDCHelperServer
 
         Thread watchdog = new(() => WatchParent(parentPID))
         {
-            IsBackground = true,
-            Name = "BrightnessTrayApp.DDCHelperParentWatchdog"
+            IsBackground = true, Name = "BrightnessTrayApp.DDCHelperParentWatchdog"
         };
         watchdog.Start();
     }

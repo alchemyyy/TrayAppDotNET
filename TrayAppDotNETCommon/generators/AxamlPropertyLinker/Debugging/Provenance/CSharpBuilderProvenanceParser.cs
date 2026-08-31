@@ -18,14 +18,11 @@ internal static class CSharpBuilderProvenanceParser
         CancellationToken cancellationToken)
     {
         InvocationExpressionSyntax invocation = (InvocationExpressionSyntax)context.Node;
-        IMethodSymbol? boundaryMethod = context.SemanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol
-            as IMethodSymbol;
-        if (boundaryMethod == null
+        if (context.SemanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol
+                boundaryMethod
             || boundaryMethod.ContainingType.ToDisplayString() != DebugUIProvenanceTypeName
             || invocation.ArgumentList.Arguments.Count == 0)
-        {
             return null;
-        }
 
         SyntaxNode? scope = FindExecutableScope(invocation);
         if (scope == null) return null;
@@ -93,9 +90,8 @@ internal static class CSharpBuilderProvenanceParser
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        IPropertySymbol? property = semanticModel.GetSymbolInfo(assignment.Left, cancellationToken).Symbol
-            as IPropertySymbol;
-        if (property == null || !AssignmentTargets(assignment, target, semanticModel, cancellationToken))
+        if (semanticModel.GetSymbolInfo(assignment.Left, cancellationToken).Symbol is not IPropertySymbol property
+            || !AssignmentTargets(assignment, target, semanticModel, cancellationToken))
             return null;
 
         IFieldSymbol? propertyField = FindAvaloniaPropertyField(property);
@@ -104,7 +100,7 @@ internal static class CSharpBuilderProvenanceParser
         return CreateAssignment(
             assignment,
             propertyField,
-            "CLRSetter",
+            operation: "CLRSetter",
             assignment.Right.ToString(),
             sourceMember,
             ResolveResourceKey(assignment.Right, semanticModel, cancellationToken));
@@ -117,9 +113,7 @@ internal static class CSharpBuilderProvenanceParser
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        IMethodSymbol? method = semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol
-            as IMethodSymbol;
-        if (method == null) return null;
+        if (semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol method) return null;
 
         string methodName = method.Name;
         if (methodName is "SetValue" or "SetCurrentValue" or "ClearValue" or "Bind")
@@ -127,14 +121,12 @@ internal static class CSharpBuilderProvenanceParser
             if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess
                 || !MatchesTarget(memberAccess.Expression, target, semanticModel, cancellationToken)
                 || invocation.ArgumentList.Arguments.Count == 0)
-            {
                 return null;
-            }
 
-            IFieldSymbol? propertyField = semanticModel.GetSymbolInfo(
-                invocation.ArgumentList.Arguments[0].Expression,
-                cancellationToken).Symbol as IFieldSymbol;
-            if (propertyField == null || !IsAvaloniaPropertyType(propertyField.Type)) return null;
+            if (semanticModel.GetSymbolInfo(
+                    invocation.ArgumentList.Arguments[0].Expression,
+                    cancellationToken).Symbol is not IFieldSymbol propertyField
+                || !IsAvaloniaPropertyType(propertyField.Type)) return null;
 
             string operation = methodName switch
             {
@@ -153,20 +145,18 @@ internal static class CSharpBuilderProvenanceParser
                 operation,
                 valueExpression,
                 sourceMember,
-                null);
+                resourceKey: null);
         }
 
         if (!method.IsStatic
-            || !methodName.StartsWith("Set", StringComparison.Ordinal)
+            || !methodName.StartsWith(value: "Set", StringComparison.Ordinal)
             || invocation.ArgumentList.Arguments.Count < 2
             || !MatchesTarget(
                 invocation.ArgumentList.Arguments[0].Expression,
                 target,
                 semanticModel,
                 cancellationToken))
-        {
             return null;
-        }
 
         string propertyFieldName = methodName[3..] + "Property";
         IFieldSymbol? attachedProperty = FindAvaloniaPropertyField(method.ContainingType, propertyFieldName);
@@ -175,10 +165,10 @@ internal static class CSharpBuilderProvenanceParser
         return CreateAssignment(
             invocation,
             attachedProperty,
-            "AttachedProperty",
+            operation: "AttachedProperty",
             invocation.ArgumentList.Arguments[1].Expression.ToString(),
             sourceMember,
-            null);
+            resourceKey: null);
     }
 
     private static CSharpBuilderAssignment CreateAssignment(
@@ -245,10 +235,10 @@ internal static class CSharpBuilderProvenanceParser
         CancellationToken cancellationToken)
     {
         if (expression is ThisExpressionSyntax)
-            return new TargetIdentity(null, true);
+            return new TargetIdentity(Symbol: null, IsThis: true);
 
         ISymbol? symbol = semanticModel.GetSymbolInfo(expression, cancellationToken).Symbol;
-        return symbol == null ? null : new TargetIdentity(symbol, false);
+        return symbol == null ? null : new TargetIdentity(symbol, IsThis: false);
     }
 
     private static bool MatchesTarget(
@@ -278,7 +268,8 @@ internal static class CSharpBuilderProvenanceParser
     {
         foreach (IFieldSymbol field in type.GetMembers(fieldName).OfType<IFieldSymbol>())
         {
-            if (field.IsStatic && IsAvaloniaPropertyType(field.Type)) return field;
+            if (field.IsStatic && IsAvaloniaPropertyType(field.Type))
+                return field;
         }
 
         return null;
@@ -288,7 +279,8 @@ internal static class CSharpBuilderProvenanceParser
     {
         for (ITypeSymbol? current = type; current != null; current = (current as INamedTypeSymbol)?.BaseType)
         {
-            if (current.ToDisplayString() == "Avalonia.AvaloniaProperty") return true;
+            if (current.ToDisplayString() == "Avalonia.AvaloniaProperty")
+                return true;
         }
 
         return false;
@@ -299,9 +291,8 @@ internal static class CSharpBuilderProvenanceParser
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        IPropertySymbol? property = semanticModel.GetSymbolInfo(expression, cancellationToken).Symbol
-            as IPropertySymbol;
-        if (property == null) return null;
+        if (semanticModel.GetSymbolInfo(expression, cancellationToken).Symbol is not IPropertySymbol property)
+            return null;
 
         foreach (SyntaxReference syntaxReference in property.DeclaringSyntaxReferences)
         {
@@ -310,11 +301,9 @@ internal static class CSharpBuilderProvenanceParser
                          .OfType<MemberAccessExpressionSyntax>())
             {
                 string accessorName = access.Name.Identifier.ValueText;
-                if (!accessorName.StartsWith("Axaml", StringComparison.Ordinal)
+                if (!accessorName.StartsWith(value: "Axaml", StringComparison.Ordinal)
                     || accessorName.Length == "Axaml".Length)
-                {
                     continue;
-                }
 
                 return accessorName["Axaml".Length..] + "." + property.Name;
             }
@@ -368,9 +357,7 @@ internal static class CSharpBuilderProvenanceParser
                 or AccessorDeclarationSyntax
                 or LocalFunctionStatementSyntax
                 or AnonymousFunctionExpressionSyntax)
-            {
                 return ancestor;
-            }
         }
 
         return null;

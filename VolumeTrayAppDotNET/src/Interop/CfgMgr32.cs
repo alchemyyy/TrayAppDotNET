@@ -45,28 +45,41 @@ internal static class CfgMgr32
     [StructLayout(LayoutKind.Explicit, Size = 16 + MaxDeviceIDLength * sizeof(char))]
     public struct CMNotifyFilter
     {
-        [FieldOffset(0)] public uint Size;
-        [FieldOffset(4)] public uint Flags;
-        [FieldOffset(8)] public uint FilterType;
-        [FieldOffset(12)] public uint Reserved;
+        [FieldOffset(0)]
+        public uint Size;
+
+        [FieldOffset(4)]
+        public uint Flags;
+
+        [FieldOffset(8)]
+        public uint FilterType;
+
+        [FieldOffset(12)]
+        public uint Reserved;
     }
 
     // DEVPKEY_Bluetooth_Battery: {104ea319-6ee2-4701-bd47-8ddbf425bbe5} pid 2. Byte 0-100.
     public static readonly DEVPROPKEY DEVPKEY_Bluetooth_Battery = new()
     {
-        fmtid = new Guid(0x104EA319, 0x6EE2, 0x4701, 0xBD, 0x47, 0x8D, 0xDB, 0xF4, 0x25, 0xBB, 0xE5), pid = 2
+        fmtid = new Guid(a: 0x104EA319, b: 0x6EE2, c: 0x4701, d: 0xBD, e: 0x47, f: 0x8D, g: 0xDB, h: 0xF4, i: 0x25,
+            j: 0xBB, k: 0xE5),
+        pid = 2
     };
 
     // DEVPKEY_Device_ContainerId: {8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c} pid 2. 16-byte GUID.
     public static readonly DEVPROPKEY DEVPKEY_Device_ContainerId = new()
     {
-        fmtid = new Guid(0x8C7ED206, 0x3F8A, 0x4827, 0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C), pid = 2
+        fmtid = new Guid(a: 0x8C7ED206, b: 0x3F8A, c: 0x4827, d: 0xB3, e: 0xAB, f: 0xAE, g: 0x9E, h: 0x1F, i: 0xAE,
+            j: 0xFC, k: 0x6C),
+        pid = 2
     };
 
     // DEVPKEY_Device_ClassGuid: {a45c254e-df1c-4efd-8020-67d146a850e0} pid 10. 16-byte GUID.
     public static readonly DEVPROPKEY DEVPKEY_Device_ClassGuid = new()
     {
-        fmtid = new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), pid = 10
+        fmtid = new Guid(a: 0xA45C254E, b: 0xDF1C, c: 0x4EFD, d: 0x80, e: 0x20, f: 0x67, g: 0xD1, h: 0x46, i: 0xA8,
+            j: 0x50, k: 0xE0),
+        pid = 10
     };
 
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]

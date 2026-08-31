@@ -12,9 +12,9 @@ internal static class PerformanceGraphRendering
         int darkenAmount)
     {
         double normalizedOpacity = double.IsFinite(opacity)
-            ? Math.Clamp(opacity, 0, 1)
+            ? Math.Clamp(opacity, min: 0, max: 1)
             : 0;
-        int normalizedDarkenAmount = Math.Clamp(darkenAmount, 0, byte.MaxValue);
+        int normalizedDarkenAmount = Math.Clamp(darkenAmount, min: 0, byte.MaxValue);
         byte alpha = (byte)Math.Round(
             lineColor.A / (double)byte.MaxValue * normalizedOpacity * byte.MaxValue,
             MidpointRounding.AwayFromZero);
@@ -26,5 +26,5 @@ internal static class PerformanceGraphRendering
     }
 
     private static byte Darken(byte component, int amount) =>
-        (byte)Math.Max(0, component - amount);
+        (byte)Math.Max(val1: 0, component - amount);
 }

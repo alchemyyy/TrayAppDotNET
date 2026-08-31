@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
-using TrayAppDotNETCommon.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -24,21 +23,26 @@ internal static class GPUDevicePropertyReader
 
     private static readonly Guid DisplayClassGUID =
         new("4d36e968-e325-11ce-bfc1-08002be10318");
+
     private static readonly DEVPROPKEY GPULUIDProperty = new(
         new Guid("60b193cb-5276-4d0f-96fc-f173abad3ec6"),
-        2);
+        propertyID: 2);
+
     private static readonly DEVPROPKEY GPUPhysicalAdapterIndexProperty = new(
         new Guid("60b193cb-5276-4d0f-96fc-f173abad3ec6"),
-        3);
+        propertyID: 3);
+
     private static readonly DEVPROPKEY DriverDateProperty = new(
         new Guid("a8b865dd-2e3d-4094-ad97-e593a70c75d6"),
-        2);
+        propertyID: 2);
+
     private static readonly DEVPROPKEY DriverVersionProperty = new(
         new Guid("a8b865dd-2e3d-4094-ad97-e593a70c75d6"),
-        3);
+        propertyID: 3);
+
     private static readonly DEVPROPKEY LocationInformationProperty = new(
         new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"),
-        15);
+        propertyID: 15);
 
     /// <summary>Finds the display-class device whose graphics-kernel LUID matches the sampler.</summary>
     public static GPUDeviceMetadata Read(GPUAdapterKey key, out string? error)
@@ -57,7 +61,7 @@ internal static class GPUDevicePropertyReader
 
         try
         {
-            for (int deviceIndex = 0; ; deviceIndex++)
+            for (int deviceIndex = 0;; deviceIndex++)
             {
                 SetupAPI.SP_DEVINFO_DATA deviceInformation = new()
                 {
@@ -81,9 +85,7 @@ internal static class GPUDevicePropertyReader
                         GPULUIDProperty,
                         out ulong adapterLUID)
                     || adapterLUID != key.LUID)
-                {
                     continue;
-                }
 
                 int physicalAdapterIndex = 0;
                 if (TryReadUInt32Property(
@@ -91,9 +93,7 @@ internal static class GPUDevicePropertyReader
                         ref deviceInformation,
                         GPUPhysicalAdapterIndexProperty,
                         out uint physicalAdapterIndexValue))
-                {
                     physicalAdapterIndex = checked((int)physicalAdapterIndexValue);
-                }
                 if (physicalAdapterIndex != key.PhysicalAdapterIndex) continue;
 
                 _ = TryReadStringProperty(
@@ -118,7 +118,7 @@ internal static class GPUDevicePropertyReader
 
                 error = null;
                 return new GPUDeviceMetadata(
-                    true,
+                    HasValue: true,
                     driverVersion,
                     driverDate,
                     locationInformation,
@@ -150,9 +150,7 @@ internal static class GPUDevicePropertyReader
                 out byte[] propertyData)
             || propertyType != DevpropTypeUInt32
             || propertyData.Length < sizeof(uint))
-        {
             return false;
-        }
 
         value = BinaryPrimitives.ReadUInt32LittleEndian(propertyData);
         return true;
@@ -173,9 +171,7 @@ internal static class GPUDevicePropertyReader
                 out byte[] propertyData)
             || propertyType != DevpropTypeUInt64
             || propertyData.Length < sizeof(ulong))
-        {
             return false;
-        }
 
         value = BinaryPrimitives.ReadUInt64LittleEndian(propertyData);
         return true;
@@ -196,9 +192,7 @@ internal static class GPUDevicePropertyReader
                 out byte[] propertyData)
             || propertyType != DevpropTypeFileTime
             || propertyData.Length < sizeof(long))
-        {
             return false;
-        }
 
         long fileTime = BinaryPrimitives.ReadInt64LittleEndian(propertyData);
         try
@@ -228,9 +222,7 @@ internal static class GPUDevicePropertyReader
                 out byte[] propertyData)
             || propertyType != DevpropTypeString
             || propertyData.Length < sizeof(char))
-        {
             return false;
-        }
 
         value = Encoding.Unicode.GetString(propertyData).TrimEnd('\0').Trim();
         return value.Length > 0;
@@ -251,13 +243,13 @@ internal static class GPUDevicePropertyReader
             ref deviceInformation,
             ref mutablePropertyKey,
             out propertyType,
-            null,
-            0,
+            propertyBuffer: null,
+            propertyBufferSize: 0,
             out uint requiredSize,
-            0);
+            flags: 0);
         if (!initialResult && Marshal.GetLastWin32Error() != ErrorInsufficientBuffer)
             return false;
-        if (requiredSize == 0 || requiredSize > int.MaxValue) return false;
+        if (requiredSize is 0 or > int.MaxValue) return false;
 
         propertyData = new byte[requiredSize];
         mutablePropertyKey = propertyKey;
@@ -269,7 +261,7 @@ internal static class GPUDevicePropertyReader
                 propertyData,
                 checked((uint)propertyData.Length),
                 out uint returnedSize,
-                0)
+                flags: 0)
             && returnedSize <= propertyData.Length)
         {
             if (returnedSize != propertyData.Length)
@@ -291,7 +283,7 @@ internal static class GPUDevicePropertyReader
             deviceInformationSet,
             ref deviceInformation,
             DicsFlagGlobal,
-            0,
+            hardwareProfile: 0,
             DiregDriver,
             KeyRead);
         if (driverKey == SetupAPI.INVALID_HANDLE_VALUE) return false;
@@ -300,15 +292,13 @@ internal static class GPUDevicePropertyReader
         {
             if (TryReadRegistryInteger(
                     driverKey,
-                    "HardwareInformation.qwMemorySize",
+                    valueName: "HardwareInformation.qwMemorySize",
                     out installedMemoryBytes))
-            {
                 return installedMemoryBytes > 0;
-            }
 
             return TryReadRegistryInteger(
                        driverKey,
-                       "HardwareInformation.MemorySize",
+                       valueName: "HardwareInformation.MemorySize",
                        out installedMemoryBytes)
                    && installedMemoryBytes > 0;
         }
@@ -331,7 +321,7 @@ internal static class GPUDevicePropertyReader
             valueName,
             IntPtr.Zero,
             ref valueType,
-            null,
+            data: null,
             ref dataSize);
         if (result != ErrorSuccess || dataSize == 0 || dataSize > sizeof(ulong))
             return false;
@@ -414,10 +404,10 @@ internal readonly record struct GPUDeviceMetadata(
     ulong InstalledMemoryBytes)
 {
     public static GPUDeviceMetadata Empty { get; } = new(
-        false,
+        HasValue: false,
         string.Empty,
-        null,
+        DriverDate: null,
         string.Empty,
-        false,
-        0);
+        HasInstalledMemory: false,
+        InstalledMemoryBytes: 0);
 }

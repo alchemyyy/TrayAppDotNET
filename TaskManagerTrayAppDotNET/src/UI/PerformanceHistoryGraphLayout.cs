@@ -23,13 +23,11 @@ internal static class PerformanceHistoryGraphLayout
             || !double.IsFinite(pointerPositionX)
             || !double.IsFinite(graphWidth)
             || graphWidth <= 0)
-        {
             return false;
-        }
 
         double windowStartTimestamp = history.CurrentTimestamp
                                       - (double)history.WindowDurationTicks;
-        double clampedPointerPositionX = Math.Clamp(pointerPositionX, 0, graphWidth);
+        double clampedPointerPositionX = Math.Clamp(pointerPositionX, min: 0, graphWidth);
         double targetTimestamp = windowStartTimestamp
                                  + clampedPointerPositionX
                                  / graphWidth
@@ -38,7 +36,7 @@ internal static class PerformanceHistoryGraphLayout
         long sampleTimestamp = history.GetTimestampChronological(sampleIndex);
         double elapsedWindowFraction = (sampleTimestamp - windowStartTimestamp)
                                        / history.WindowDurationTicks;
-        double samplePositionX = Math.Clamp(elapsedWindowFraction, 0, 1) * graphWidth;
+        double samplePositionX = Math.Clamp(elapsedWindowFraction, min: 0, max: 1) * graphWidth;
         sample = new PerformanceHistoryGraphHoverSample(
             sampleIndex,
             sampleTimestamp,

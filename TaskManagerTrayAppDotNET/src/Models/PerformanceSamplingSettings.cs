@@ -31,6 +31,6 @@ internal static class PerformanceSamplingSettings
         int maximumHistoryCount = normalizedHistoryLength
                                   * MillisecondsPerMinute
                                   / normalizedSampleInterval;
-        return Math.Max(1, maximumHistoryCount);
+        return Math.Max(val1: 1, maximumHistoryCount);
     }
 }

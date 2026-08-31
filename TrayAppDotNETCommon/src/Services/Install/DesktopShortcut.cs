@@ -39,7 +39,7 @@ public sealed class TrayAppDotNETDesktopShortcut(TrayAppDotNETDesktopShortcutOpt
         };
 
         if (string.IsNullOrWhiteSpace(shortcutPath))
-            return new TrayAppDotNETInstallResult(false, $"Desktop shortcuts are not supported for {scope}");
+            return new TrayAppDotNETInstallResult(Success: false, $"Desktop shortcuts are not supported for {scope}");
 
         try
         {
@@ -47,7 +47,10 @@ public sealed class TrayAppDotNETDesktopShortcut(TrayAppDotNETDesktopShortcutOpt
             {
                 if (File.Exists(shortcutPath)) File.Delete(shortcutPath);
                 if (File.Exists(shortcutPath))
-                    return new TrayAppDotNETInstallResult(false, $"Desktop shortcut was not removed: {shortcutPath}");
+                {
+                    return new TrayAppDotNETInstallResult(Success: false,
+                        $"Desktop shortcut was not removed: {shortcutPath}");
+                }
 
                 options.Log?.Invoke($"TrayAppDotNETDesktopShortcut.SetEnabled: removed {shortcutPath}");
                 return new TrayAppDotNETInstallResult(true);
@@ -56,13 +59,16 @@ public sealed class TrayAppDotNETDesktopShortcut(TrayAppDotNETDesktopShortcutOpt
             if (!File.Exists(targetExecutable))
             {
                 return new TrayAppDotNETInstallResult(
-                    false,
+                    Success: false,
                     $"Cannot create desktop shortcut because the installed executable is missing: {targetExecutable}");
             }
 
             string? shortcutDirectory = Path.GetDirectoryName(shortcutPath);
             if (string.IsNullOrWhiteSpace(shortcutDirectory))
-                return new TrayAppDotNETInstallResult(false, $"Cannot determine desktop directory for {shortcutPath}");
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    $"Cannot determine desktop directory for {shortcutPath}");
+            }
 
             Directory.CreateDirectory(shortcutDirectory);
             string temporaryPath = Path.Combine(
@@ -80,7 +86,10 @@ public sealed class TrayAppDotNETDesktopShortcut(TrayAppDotNETDesktopShortcutOpt
             }
 
             if (!File.Exists(shortcutPath))
-                return new TrayAppDotNETInstallResult(false, $"Desktop shortcut was not created: {shortcutPath}");
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    $"Desktop shortcut was not created: {shortcutPath}");
+            }
 
             options.Log?.Invoke(
                 $"TrayAppDotNETDesktopShortcut.SetEnabled: created {shortcutPath} -> {targetExecutable}");
@@ -90,7 +99,7 @@ public sealed class TrayAppDotNETDesktopShortcut(TrayAppDotNETDesktopShortcutOpt
         {
             options.Log?.Invoke(
                 $"TrayAppDotNETDesktopShortcut.SetEnabled({scope}, {enabled}): {exception}");
-            return new TrayAppDotNETInstallResult(false, exception.Message);
+            return new TrayAppDotNETInstallResult(Success: false, exception.Message);
         }
     }
 

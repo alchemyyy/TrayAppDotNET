@@ -22,7 +22,7 @@ internal enum DeviceRadioState
 internal partial interface IMediaRadioManager
 {
     [PreserveSig]
-    int GetRadioInstances(out IRadioInstanceCollection collection);
+    int GetRadioInstances(out IRadioInstanceCollection? collection);
 
     void UnusedOnSystemRadioStateChange();
 }
@@ -36,7 +36,7 @@ internal partial interface IRadioInstanceCollection
     int GetCount(out uint count);
 
     [PreserveSig]
-    int GetAt(uint index, out IRadioInstance instance);
+    int GetAt(uint index, out IRadioInstance? instance);
 }
 
 [Guid("70aa1c9e-f2b4-4c61-86d3-6b9fb75fd1a2")]

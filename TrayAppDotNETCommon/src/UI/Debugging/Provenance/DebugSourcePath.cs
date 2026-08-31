@@ -18,7 +18,7 @@ internal static class DebugSourcePath
     {
         if (string.IsNullOrWhiteSpace(sourceFilePath)) return "<unknown>";
 
-        string normalizedPath = sourceFilePath.Replace('\\', '/');
+        string normalizedPath = sourceFilePath.Replace(oldChar: '\\', newChar: '/');
         foreach (string projectDirectoryName in ProjectDirectoryNames)
         {
             string relativePrefix = projectDirectoryName + "/";

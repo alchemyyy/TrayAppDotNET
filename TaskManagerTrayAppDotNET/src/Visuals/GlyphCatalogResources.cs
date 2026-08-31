@@ -14,5 +14,5 @@ public sealed partial class GlyphCatalogResources : ResourceDictionary
     /// <summary>
     /// Reads a glyph from this dictionary.
     /// </summary>
-    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, "GlyphCatalog", name);
+    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, prefix: "GlyphCatalog", name);
 }

@@ -56,7 +56,6 @@ public sealed class AppSettings : AppSettingsCommon
         TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
-    private double _gridRowSpacing = GridRowSpacingDefault;
     private bool _gridRowSpacingWasDeserialized;
 
     public AppSettings()
@@ -151,13 +150,13 @@ public sealed class AppSettings : AppSettingsCommon
     /// <summary>Gets the visible gap added to the measured process-row text height.</summary>
     public double GridRowSpacing
     {
-        get => _gridRowSpacing;
+        get;
         set
         {
             _gridRowSpacingWasDeserialized = true;
-            SetField(ref _gridRowSpacing, NormalizeGridRowSpacing(value));
+            SetField(ref field, NormalizeGridRowSpacing(value));
         }
-    }
+    } = GridRowSpacingDefault;
 
     public int PerformanceHistoryLengthMinutes
     {
@@ -260,6 +259,7 @@ public sealed class AppSettings : AppSettingsCommon
             GridRowSpacing = GridRowHeight
                              - GridFontSize * LegacyGridRowTextHeightMultiplier;
         }
+
         PerformanceHistoryLengthMinutes =
             PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
                 PerformanceHistoryLengthMinutes);
@@ -473,7 +473,7 @@ public sealed class AppSettings : AppSettingsCommon
     {
         string appDirectory = GetDefaultDirectory();
         Directory.CreateDirectory(appDirectory);
-        return Path.Combine(appDirectory, "settings.xml");
+        return Path.Combine(appDirectory, path2: "settings.xml");
     }
 
     public static string GetDefaultDirectory() => Program.AppLocalAppDataDirectory;

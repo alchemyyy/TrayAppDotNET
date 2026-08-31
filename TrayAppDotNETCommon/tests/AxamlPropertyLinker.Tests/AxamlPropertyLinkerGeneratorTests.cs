@@ -7,7 +7,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
-using TrayAppDotNETCommon.AxamlPropertyLinker;
 using Xunit;
 
 namespace TrayAppDotNETCommon.AxamlPropertyLinker.Tests;
@@ -20,27 +19,28 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         AxamlGeneratorResult result = AxamlGeneratorHost.RunGenerator(
             SampleSource,
             [
-                new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
-                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
+                new AxamlTestFile(Path: "FlyoutButton.axaml", ResourceDictionaryAxaml),
+                new AxamlTestFile(Path: "SampleWindow.axaml", ControlAxaml)
             ]);
 
         string generatedSource = string.Join(
             Environment.NewLine,
             result.RunResult.GeneratedTrees.Select(static tree => tree.GetText().ToString()));
 
-        Assert.Contains("internal FlyoutButtonAxamlProperties AxamlFlyoutButton", generatedSource);
-        Assert.Contains("public double Width =>", generatedSource);
-        Assert.Contains("public int ZIndex =>", generatedSource);
-        Assert.Contains("public global::Avalonia.Thickness Margin =>", generatedSource);
-        Assert.Contains("public global::Avalonia.CornerRadius Radius =>", generatedSource);
-        Assert.Contains("public global::Avalonia.Media.TranslateTransform Offset =>", generatedSource);
-        Assert.Contains("public global::Avalonia.Media.Color BorderColor =>", generatedSource);
-        Assert.Contains("internal FlyoutAxamlProperties AxamlFlyout", generatedSource);
-        Assert.Contains("public double WindowWidth =>", generatedSource);
-        Assert.Contains("internal static class AxamlFlyoutButton", generatedSource);
-        Assert.Contains("public static double Width(object owner) =>", generatedSource);
-        Assert.Contains("internal static class AxamlFlyout", generatedSource);
-        Assert.Contains("public static double WindowWidth(object owner) =>", generatedSource);
+        Assert.Contains(expectedSubstring: "internal FlyoutButtonAxamlProperties AxamlFlyoutButton", generatedSource);
+        Assert.Contains(expectedSubstring: "public double Width =>", generatedSource);
+        Assert.Contains(expectedSubstring: "public int ZIndex =>", generatedSource);
+        Assert.Contains(expectedSubstring: "public global::Avalonia.Thickness Margin =>", generatedSource);
+        Assert.Contains(expectedSubstring: "public global::Avalonia.CornerRadius Radius =>", generatedSource);
+        Assert.Contains(expectedSubstring: "public global::Avalonia.Media.TranslateTransform Offset =>",
+            generatedSource);
+        Assert.Contains(expectedSubstring: "public global::Avalonia.Media.Color BorderColor =>", generatedSource);
+        Assert.Contains(expectedSubstring: "internal FlyoutAxamlProperties AxamlFlyout", generatedSource);
+        Assert.Contains(expectedSubstring: "public double WindowWidth =>", generatedSource);
+        Assert.Contains(expectedSubstring: "internal static class AxamlFlyoutButton", generatedSource);
+        Assert.Contains(expectedSubstring: "public static double Width(object owner) =>", generatedSource);
+        Assert.Contains(expectedSubstring: "internal static class AxamlFlyout", generatedSource);
+        Assert.Contains(expectedSubstring: "public static double WindowWidth(object owner) =>", generatedSource);
     }
 
     [Fact]
@@ -49,28 +49,29 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         AxamlGeneratedAssembly generated = AxamlGeneratorHost.CompileAndLoad(
             SampleSource,
             [
-                new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
-                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
+                new AxamlTestFile(Path: "FlyoutButton.axaml", ResourceDictionaryAxaml),
+                new AxamlTestFile(Path: "SampleWindow.axaml", ControlAxaml)
             ]);
 
         Type resourcesType = generated.Assembly.GetRequiredType("Samples.FlyoutButtonResources");
         object resources = Activator.CreateInstance(resourcesType)!;
-        object resourceAccessors = Get(resources, "AxamlFlyoutButton")!;
-        Assert.Equal(42.5, Get(resourceAccessors, "Width"));
-        Assert.Equal(7, Get(resourceAccessors, "ZIndex"));
-        Assert.Equal("Avalonia.Thickness", Get(resourceAccessors, "Margin")!.GetType().FullName);
-        Assert.Equal("Avalonia.CornerRadius", Get(resourceAccessors, "Radius")!.GetType().FullName);
-        Assert.Equal("Avalonia.Media.Color", Get(resourceAccessors, "BorderColor")!.GetType().FullName);
+        object resourceAccessors = Get(resources, property: "AxamlFlyoutButton")!;
+        Assert.Equal(expected: 42.5, Get(resourceAccessors, property: "Width"));
+        Assert.Equal(expected: 7, Get(resourceAccessors, property: "ZIndex"));
+        Assert.Equal(expected: "Avalonia.Thickness", Get(resourceAccessors, property: "Margin")!.GetType().FullName);
+        Assert.Equal(expected: "Avalonia.CornerRadius", Get(resourceAccessors, property: "Radius")!.GetType().FullName);
+        Assert.Equal(expected: "Avalonia.Media.Color",
+            Get(resourceAccessors, property: "BorderColor")!.GetType().FullName);
 
-        object originalOffset = Get(resourceAccessors, "Offset")!;
-        object clonedOffset = Get(resourceAccessors, "Offset")!;
+        object originalOffset = Get(resourceAccessors, property: "Offset")!;
+        object clonedOffset = Get(resourceAccessors, property: "Offset")!;
         Assert.NotSame(originalOffset, clonedOffset);
 
         Type windowType = generated.Assembly.GetRequiredType("Samples.SampleWindow");
         object window = Activator.CreateInstance(windowType)!;
-        object windowAccessors = Get(window, "AxamlFlyout")!;
-        Assert.Equal(350.0, Get(windowAccessors, "WindowWidth"));
-        Assert.Equal(8, Get(windowAccessors, "EdgePadding"));
+        object windowAccessors = Get(window, property: "AxamlFlyout")!;
+        Assert.Equal(expected: 350.0, Get(windowAccessors, property: "WindowWidth"));
+        Assert.Equal(expected: 8, Get(windowAccessors, property: "EdgePadding"));
     }
 
     [Fact]
@@ -79,24 +80,24 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         AxamlGeneratedAssembly generated = AxamlGeneratorHost.CompileAndLoad(
             SampleSource,
             [
-                new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
-                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
+                new AxamlTestFile(Path: "FlyoutButton.axaml", ResourceDictionaryAxaml),
+                new AxamlTestFile(Path: "SampleWindow.axaml", ControlAxaml)
             ]);
 
         Type resourcesType = generated.Assembly.GetRequiredType("Samples.FlyoutButtonResources");
         object resources = Activator.CreateInstance(resourcesType)!;
-        object resourceAccessors = Get(resources, "AxamlFlyoutButton")!;
+        object resourceAccessors = Get(resources, property: "AxamlFlyoutButton")!;
         System.Collections.IDictionary dictionary =
             Assert.IsAssignableFrom<System.Collections.IDictionary>(resources);
         dictionary["FlyoutButton.Width"] = 73.25;
-        Assert.Equal(73.25, Get(resourceAccessors, "Width"));
+        Assert.Equal(expected: 73.25, Get(resourceAccessors, property: "Width"));
 
         Type windowType = generated.Assembly.GetRequiredType("Samples.SampleWindow");
         object window = Activator.CreateInstance(windowType)!;
-        object windowAccessors = Get(window, "AxamlFlyout")!;
+        object windowAccessors = Get(window, property: "AxamlFlyout")!;
         MethodInfo setResource = windowType.GetMethod("SetResource")!;
         setResource.Invoke(window, ["Flyout.WindowWidth", 640.0]);
-        Assert.Equal(640.0, Get(windowAccessors, "WindowWidth"));
+        Assert.Equal(expected: 640.0, Get(windowAccessors, property: "WindowWidth"));
     }
 
     private static object? Get(object target, string property) =>
@@ -322,7 +323,7 @@ internal sealed class AxamlGeneratorHost
         string projectDirectory = "")
     {
         string assemblyName = $"AxamlPropertyLinkerTest_{Guid.NewGuid():N}";
-        CSharpParseOptions parseOptions = new CSharpParseOptions(
+        CSharpParseOptions parseOptions = new(
             LanguageVersion.Preview,
             preprocessorSymbols: isDebug ? ["DEBUG"] : []);
         CSharpCompilation compilation = CSharpCompilation.Create(
@@ -342,14 +343,15 @@ internal sealed class AxamlGeneratorHost
             [new AxamlPropertyLinkerGenerator().AsSourceGenerator()],
             additionalTexts,
             parseOptions,
-            new TestAnalyzerConfigOptionsProvider("Samples", projectDirectory));
+            new TestAnalyzerConfigOptionsProvider(rootNamespace: "Samples", projectDirectory));
         driver = driver.RunGeneratorsAndUpdateCompilation(
             compilation,
             out Compilation outputCompilation,
             out ImmutableArray<Diagnostic> generatorDiagnostics);
 
         GeneratorDriverRunResult runResult = driver.GetRunResult();
-        ImmutableArray<Diagnostic> compilationDiagnostics = [
+        ImmutableArray<Diagnostic> compilationDiagnostics =
+        [
             ..outputCompilation
                 .GetDiagnostics()
                 .AddRange(generatorDiagnostics)
@@ -368,7 +370,7 @@ internal sealed class AxamlGeneratorHost
         SortedSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
         foreach (string path in tpa.Split(Path.PathSeparator))
         {
-            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            if (path.EndsWith(value: ".dll", StringComparison.OrdinalIgnoreCase))
                 paths.Add(path);
         }
 

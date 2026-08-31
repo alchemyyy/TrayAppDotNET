@@ -10,7 +10,7 @@ namespace TrayAppDotNETCommon.UI;
 /// </summary>
 public sealed class TextBlockLayoutLifetime : AvaloniaObject
 {
-    private static readonly Size EmptyMeasureConstraint = new(0, 0);
+    private static readonly Size EmptyMeasureConstraint = new(width: 0, height: 0);
 
     public static readonly AttachedProperty<bool> ReleaseOnDetachProperty =
         AvaloniaProperty.RegisterAttached<TextBlockLayoutLifetime, TextBlock, bool>(
@@ -21,14 +21,14 @@ public sealed class TextBlockLayoutLifetime : AvaloniaObject
             "IsReleased");
 
     private static readonly IDisposable ReleaseOnDetachSubscription =
-        ReleaseOnDetachProperty.Changed.AddClassHandler<TextBlock>(
-            static (textBlock, _) => UpdateEventHandlers(textBlock));
+        ReleaseOnDetachProperty.Changed.AddClassHandler<TextBlock>(static (textBlock, _) =>
+            UpdateEventHandlers(textBlock));
 
-    private static readonly Style ReleaseOnDetachStyle = new(
-        static selector => selector.OfType<TextBlock>())
-    {
-        Setters = { new Setter(ReleaseOnDetachProperty, true) }
-    };
+    private static readonly Style ReleaseOnDetachStyle =
+        new(static selector => selector.OfType<TextBlock>())
+        {
+            Setters = { new Setter(ReleaseOnDetachProperty, value: true) }
+        };
 
     private TextBlockLayoutLifetime()
     {
@@ -75,7 +75,7 @@ public sealed class TextBlockLayoutLifetime : AvaloniaObject
     private static void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs eventArgs)
     {
         if (sender is TextBlock textBlock)
-            textBlock.SetValue(IsReleasedProperty, false);
+            textBlock.SetValue(IsReleasedProperty, value: false);
     }
 
     private static void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs eventArgs)
@@ -96,7 +96,7 @@ public sealed class TextBlockLayoutLifetime : AvaloniaObject
                 textBlock.Measure(EmptyMeasureConstraint);
 
             textBlock.InvalidateMeasure();
-            textBlock.SetValue(IsReleasedProperty, true);
+            textBlock.SetValue(IsReleasedProperty, value: true);
         }
         catch (Exception exception)
         {

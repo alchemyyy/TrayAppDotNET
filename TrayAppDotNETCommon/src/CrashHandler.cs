@@ -31,11 +31,11 @@ public static class CrashHandler
 
     private static readonly KeyValuePair<string, string>[] WatcherGcEnvironment =
     [
-        new("DOTNET_gcServer", "0"),
-        new("DOTNET_gcConcurrent", "0"),
-        new("DOTNET_GCConserveMemory", "9"),
-        new("DOTNET_GCHeapHardLimit", ToHexEnvironmentValue(WatcherHeapHardLimitBytes)),
-        new("DOTNET_GCRetainVM", "0")
+        new(key: "DOTNET_gcServer", value: "0"),
+        new(key: "DOTNET_gcConcurrent", value: "0"),
+        new(key: "DOTNET_GCConserveMemory", value: "9"),
+        new(key: "DOTNET_GCHeapHardLimit", ToHexEnvironmentValue(WatcherHeapHardLimitBytes)),
+        new(key: "DOTNET_GCRetainVM", value: "0")
     ];
 
     private static CrashHandlerOptions? _options;
@@ -180,16 +180,16 @@ public static class CrashHandler
                 environmentBlock = Marshal.StringToHGlobalUni(BuildMonitoredEnvironmentBlock());
 
                 if (!CreateProcess(
-                    exePath,
-                    commandLine,
-                    IntPtr.Zero,
-                    IntPtr.Zero,
-                    false,
-                    CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
-                    environmentBlock,
-                    workDir,
-                    ref startupInfo,
-                    out PROCESS_INFORMATION processInfo))
+                        exePath,
+                        commandLine,
+                        IntPtr.Zero,
+                        IntPtr.Zero,
+                        bInheritHandles: false,
+                        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+                        environmentBlock,
+                        workDir,
+                        ref startupInfo,
+                        out PROCESS_INFORMATION processInfo))
                     return default;
 
                 if (processInfo.hThread != IntPtr.Zero) Kernel32.CloseHandle(processInfo.hThread);
@@ -250,7 +250,11 @@ public static class CrashHandler
                 environment.Remove(key);
         }
 
-        string[] helperKeys = [.. environment.Keys.Where(key => key.StartsWith(WatcherOriginalEnvironmentPrefix, StringComparison.OrdinalIgnoreCase))];
+        string[] helperKeys =
+        [
+            .. environment.Keys.Where(key =>
+                key.StartsWith(WatcherOriginalEnvironmentPrefix, StringComparison.OrdinalIgnoreCase))
+        ];
         foreach (string helperKey in helperKeys)
             environment.Remove(helperKey);
 
@@ -276,10 +280,10 @@ public static class CrashHandler
         try
         {
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
         }
         catch
         {
@@ -299,7 +303,7 @@ public static class CrashHandler
         WatcherOriginalEnvironmentPrefix + key;
 
     private static string ToHexEnvironmentValue(int value) =>
-        "0x" + value.ToString("X", CultureInfo.InvariantCulture);
+        "0x" + value.ToString(format: "X", CultureInfo.InvariantCulture);
 
     private static bool IsUserExitCode(int exitCode) => exitCode is 0 or 1;
 
@@ -327,7 +331,7 @@ public static class CrashHandler
     private static void ShowError(string message)
     {
         CrashHandlerOptions options = Options;
-        _ = MessageBox(IntPtr.Zero, message, $"{options.ApplicationName} Crash Handler", 0x10);
+        _ = MessageBox(IntPtr.Zero, message, $"{options.ApplicationName} Crash Handler", type: 0x10);
     }
 
     private static CrashHandlerOptions Options =>

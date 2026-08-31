@@ -23,9 +23,11 @@ internal sealed class ProcessIconService : IDisposable
     private readonly Lock _workerGate = new();
     private readonly Queue<ProcessIconSource> _pendingRequests = new(MaximumPendingRequestCount);
     private readonly Queue<IconLoadResult> _completedResults = new(MaximumPendingRequestCount);
+
     private readonly Dictionary<ProcessIconSource, IconCacheEntry> _entries = new(
         MaximumCachedIconCount,
         ProcessIconSourceComparer.Instance);
+
     private readonly Action _applyCompletedResults;
     private long _accessSequence;
     private int _pendingEntryCount;
@@ -51,11 +53,7 @@ internal sealed class ProcessIconService : IDisposable
 
         if (_pendingEntryCount >= MaximumPendingRequestCount) return null;
 
-        IconCacheEntry entry = new()
-        {
-            State = IconCacheState.Pending,
-            LastAccessSequence = NextAccessSequence()
-        };
+        IconCacheEntry entry = new() { State = IconCacheState.Pending, LastAccessSequence = NextAccessSequence() };
         _entries.Add(source, entry);
         _pendingEntryCount++;
         QueueRequest(source);
@@ -99,7 +97,7 @@ internal sealed class ProcessIconService : IDisposable
 
         if (!scheduleWorker) return;
         ThreadPool.UnsafeQueueUserWorkItem(
-            static (ProcessIconService service) => service.ProcessRequests(),
+            static service => service.ProcessRequests(),
             this,
             preferLocal: false);
     }
@@ -228,9 +226,7 @@ internal sealed class ProcessIconService : IDisposable
     {
         if (!_entries.TryGetValue(result.Source, out IconCacheEntry? entry)
             || entry.State != IconCacheState.Pending)
-        {
             return false;
-        }
 
         _pendingEntryCount--;
         entry.State = IconCacheState.Unavailable;
@@ -260,13 +256,12 @@ internal sealed class ProcessIconService : IDisposable
         {
             ProcessIconSource oldestSource = default;
             IconCacheEntry? oldestEntry = null;
-            foreach (KeyValuePair<ProcessIconSource, IconCacheEntry> pair in _entries)
+            foreach ((ProcessIconSource source, IconCacheEntry candidate) in _entries)
             {
-                IconCacheEntry candidate = pair.Value;
                 if (candidate.State == IconCacheState.Pending) continue;
                 if (oldestEntry != null && candidate.LastAccessSequence >= oldestEntry.LastAccessSequence) continue;
 
-                oldestSource = pair.Key;
+                oldestSource = source;
                 oldestEntry = candidate;
             }
 
@@ -317,8 +312,8 @@ internal sealed class ProcessIconService : IDisposable
                 using IconExtraction.ShellImageFactory factory = new(factoryPointer);
                 factoryPointer = IntPtr.Zero;
                 IconExtraction.SIZE size = new() { cx = IconPixelSize, cy = IconPixelSize };
-                IconExtraction.SIIGBF flags = IconExtraction.SIIGBF.SIIGBF_ICONONLY
-                                               | IconExtraction.SIIGBF.SIIGBF_RESIZETOFIT;
+                const IconExtraction.SIIGBF flags = IconExtraction.SIIGBF.SIIGBF_ICONONLY
+                                                    | IconExtraction.SIIGBF.SIIGBF_RESIZETOFIT;
                 result = factory.GetImage(size, flags, out bitmapHandle);
                 return result < 0 || bitmapHandle == IntPtr.Zero
                     ? null
@@ -341,11 +336,11 @@ internal sealed class ProcessIconService : IDisposable
         IntPtr smallIconHandle = IntPtr.Zero;
         try
         {
-            uint iconSizes = ((uint)IconPixelSize << 16) | IconPixelSize;
+            const uint iconSizes = ((uint)IconPixelSize << 16) | IconPixelSize;
             int result = IconExtraction.SHDefExtractIconW(
                 executablePath,
-                0,
-                0,
+                iIndex: 0,
+                uFlags: 0,
                 out largeIconHandle,
                 out smallIconHandle,
                 iconSizes);
@@ -384,9 +379,7 @@ internal sealed class ProcessIconService : IDisposable
                 out IconExtraction.BITMAP bitmapInfo) == 0
             || bitmapInfo.bmWidth <= 0
             || bitmapInfo.bmHeight == 0)
-        {
             return null;
-        }
 
         int width = bitmapInfo.bmWidth;
         int height = Math.Abs(bitmapInfo.bmHeight);
@@ -418,7 +411,7 @@ internal sealed class ProcessIconService : IDisposable
             int copiedLineCount = IconExtraction.GetDIBits(
                 deviceContext,
                 bitmapHandle,
-                0,
+                start: 0,
                 (uint)height,
                 pixelsHandle.AddrOfPinnedObject(),
                 ref requestedFormat,
@@ -436,7 +429,7 @@ internal sealed class ProcessIconService : IDisposable
     {
         WriteableBitmap bitmap = new(
             new PixelSize(pixels.Width, pixels.Height),
-            new Vector(96, 96),
+            new Vector(x: 96, y: 96),
             PixelFormat.Bgra8888,
             AlphaFormat.Unpremul);
         try
@@ -472,7 +465,7 @@ internal sealed class ProcessIconService : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         IconsChanged = null;
         lock (_workerGate)

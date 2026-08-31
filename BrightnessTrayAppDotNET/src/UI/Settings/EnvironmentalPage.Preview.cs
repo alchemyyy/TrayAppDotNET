@@ -22,7 +22,7 @@ public sealed partial class BrightnessSettingsWindow
             || string.IsNullOrEmpty(stored.LastSunShiftDate)
             || !DateTime.TryParseExact(
                 stored.LastSunShiftDate,
-                "yyyy-MM-dd",
+                format: "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out DateTime fromDate)) return stored;
@@ -311,7 +311,10 @@ public sealed partial class BrightnessSettingsWindow
         if (source is not Visual visual) return false;
 
         foreach (Visual ancestor in visual.GetVisualAncestors())
-            if (ancestor is CalendarDayButton) return true;
+        {
+            if (ancestor is CalendarDayButton)
+                return true;
+        }
 
         return false;
     }

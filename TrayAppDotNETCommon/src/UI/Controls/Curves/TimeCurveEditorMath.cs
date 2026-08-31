@@ -10,28 +10,28 @@ public readonly record struct TimeCurvePlotGeometry(
     double InsetBottom,
     TimeCurveValueAxis Axis)
 {
-    public double PlotWidth => Math.Max(1.0, Width - 2.0 * InsetX);
-    public double PlotHeight => Math.Max(1.0, Height - InsetTop - InsetBottom);
+    public double PlotWidth => Math.Max(val1: 1.0, Width - 2.0 * InsetX);
+    public double PlotHeight => Math.Max(val1: 1.0, Height - InsetTop - InsetBottom);
 
     public double ScreenX(double time) =>
-        InsetX + Math.Clamp(time, 0.0, 1.0) * PlotWidth;
+        InsetX + Math.Clamp(time, min: 0.0, max: 1.0) * PlotWidth;
 
     public double ScreenY(double storageValue)
     {
         double display = Axis.ToDisplay(storageValue);
         double normalized = Math.Clamp(
             (display - Axis.DisplayMinimum) / Axis.DisplayRange,
-            0.0,
-            1.0);
+            min: 0.0,
+            max: 1.0);
         return InsetTop + (1.0 - normalized) * PlotHeight;
     }
 
     public double TimeFromScreenX(double x) =>
-        Math.Clamp((x - InsetX) / PlotWidth, 0.0, 1.0);
+        Math.Clamp((x - InsetX) / PlotWidth, min: 0.0, max: 1.0);
 
     public double StorageValueFromScreenY(double y)
     {
-        double normalized = 1.0 - Math.Clamp((y - InsetTop) / PlotHeight, 0.0, 1.0);
+        double normalized = 1.0 - Math.Clamp((y - InsetTop) / PlotHeight, min: 0.0, max: 1.0);
         double display = Axis.DisplayMinimum + normalized * Axis.DisplayRange;
         return Math.Clamp(Axis.ToStorage(display), Axis.StorageMinimum, Axis.StorageMaximum);
     }
@@ -73,10 +73,10 @@ public static class TimeCurveEditorMath
         int index = orderedPoints.IndexOf(point);
         if (index < 0 || point.Time is <= 0.0 or >= 1.0) return;
 
-        double next = Math.Clamp(point.Time, 0.0, 1.0);
+        double next = Math.Clamp(point.Time, min: 0.0, max: 1.0);
         if (index > 0) next = Math.Max(next, orderedPoints[index - 1].Time + minimumGap);
         if (index < orderedPoints.Count - 1) next = Math.Min(next, orderedPoints[index + 1].Time - minimumGap);
-        point.Time = Math.Clamp(next, 0.0, 1.0);
+        point.Time = Math.Clamp(next, min: 0.0, max: 1.0);
     }
 
     public static TPoint? PickNeighbourAfterRemoval<TPoint>(

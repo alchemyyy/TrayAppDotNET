@@ -9,7 +9,7 @@ public sealed class PerformanceGraphRenderingTests
     [Fact]
     public void UnderfillColorDarkensComponentsAndAppliesOpacity()
     {
-        Color lineColor = Color.FromArgb(byte.MaxValue, 10, 40, 100);
+        Color lineColor = Color.FromArgb(byte.MaxValue, r: 10, g: 40, b: 100);
 
         Color underfillColor = PerformanceGraphRendering.CreateUnderfillColor(
             lineColor,
@@ -25,7 +25,7 @@ public sealed class PerformanceGraphRenderingTests
     [Fact]
     public void UnderfillOpacityScalesTheLineAlpha()
     {
-        Color lineColor = Color.FromArgb(128, 100, 110, 120);
+        Color lineColor = Color.FromArgb(a: 128, r: 100, g: 110, b: 120);
 
         Color underfillColor = PerformanceGraphRendering.CreateUnderfillColor(
             lineColor,

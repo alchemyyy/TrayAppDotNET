@@ -24,6 +24,7 @@ internal static class KillHelperProtocol
     public const int FlagPowerThrottlingDisabled = 0x00000040;
     public const int FlagStackLocked = 0x00000080;
     public const int FlagLockCapacityReserved = 0x00000100;
+
     public const int RequiredHardeningFlags =
         FlagMailboxLocked |
         FlagStateLocked |
@@ -47,30 +48,72 @@ internal static class KillHelperProtocol
 [StructLayout(LayoutKind.Explicit, Size = KillHelperProtocol.MailboxSize)]
 internal struct KillHelperMailbox
 {
-    [FieldOffset(0)] public uint Magic;
-    [FieldOffset(4)] public uint Version;
-    [FieldOffset(8)] public int HelperState;
-    [FieldOffset(12)] public uint HelperProcessID;
-    [FieldOffset(16)] public int HelperFlags;
-    [FieldOffset(20)] public int HelperStartupError;
-    [FieldOffset(24)] public uint ParentProcessID;
-    [FieldOffset(28)] public int ControlFlags;
+    [FieldOffset(0)]
+    public uint Magic;
 
-    [FieldOffset(64)] public long ArmPayloadSequence;
-    [FieldOffset(72)] public long ArmRequestSequence;
-    [FieldOffset(80)] public long ArmGeneration;
-    [FieldOffset(88)] public long ArmCreationTime;
-    [FieldOffset(96)] public int ArmProcessID;
+    [FieldOffset(4)]
+    public uint Version;
 
-    [FieldOffset(128)] public long FirePayloadSequence;
-    [FieldOffset(136)] public long FireRequestSequence;
-    [FieldOffset(144)] public long FireGeneration;
-    [FieldOffset(152)] public long FireCreationTime;
-    [FieldOffset(160)] public int FireProcessID;
-    [FieldOffset(164)] public uint FireExitCode;
+    [FieldOffset(8)]
+    public int HelperState;
 
-    [FieldOffset(192)] public long FireResponseSequence;
-    [FieldOffset(200)] public int FireResult;
-    [FieldOffset(204)] public int FireError;
-    [FieldOffset(208)] public int FireResponseProcessID;
+    [FieldOffset(12)]
+    public uint HelperProcessID;
+
+    [FieldOffset(16)]
+    public int HelperFlags;
+
+    [FieldOffset(20)]
+    public int HelperStartupError;
+
+    [FieldOffset(24)]
+    public uint ParentProcessID;
+
+    [FieldOffset(28)]
+    public int ControlFlags;
+
+    [FieldOffset(64)]
+    public long ArmPayloadSequence;
+
+    [FieldOffset(72)]
+    public long ArmRequestSequence;
+
+    [FieldOffset(80)]
+    public long ArmGeneration;
+
+    [FieldOffset(88)]
+    public long ArmCreationTime;
+
+    [FieldOffset(96)]
+    public int ArmProcessID;
+
+    [FieldOffset(128)]
+    public long FirePayloadSequence;
+
+    [FieldOffset(136)]
+    public long FireRequestSequence;
+
+    [FieldOffset(144)]
+    public long FireGeneration;
+
+    [FieldOffset(152)]
+    public long FireCreationTime;
+
+    [FieldOffset(160)]
+    public int FireProcessID;
+
+    [FieldOffset(164)]
+    public uint FireExitCode;
+
+    [FieldOffset(192)]
+    public long FireResponseSequence;
+
+    [FieldOffset(200)]
+    public int FireResult;
+
+    [FieldOffset(204)]
+    public int FireError;
+
+    [FieldOffset(208)]
+    public int FireResponseProcessID;
 }

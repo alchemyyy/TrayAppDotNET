@@ -45,13 +45,14 @@ public static class COMActivation
                 if (releaseInputReference) UniqueComInterfaceMarshaller<T>.Free(unmanaged);
             }
 
-            return managed ?? throw new InvalidOperationException($"Failed to marshal COM interface {typeof(T).FullName}.");
+            return managed ??
+                   throw new InvalidOperationException($"Failed to marshal COM interface {typeof(T).FullName}.");
         }
     }
 
     public static void EnsureRegisteredForMarshalling()
     {
-        if (Interlocked.Exchange(ref _registeredForMarshalling, 1) != 0) return;
+        if (Interlocked.Exchange(ref _registeredForMarshalling, value: 1) != 0) return;
 
         try
         {

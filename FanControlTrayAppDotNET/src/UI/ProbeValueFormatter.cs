@@ -60,14 +60,7 @@ internal static class ProbeValueFormatter
 
         try
         {
-            Expression expression = new(transformString)
-            {
-                Parameters =
-                {
-                    ["x"] = value,
-                    ["X"] = value
-                }
-            };
+            Expression expression = new(transformString) { Parameters = { ["x"] = value, ["X"] = value } };
             object? result = expression.Evaluate();
             if (result is IConvertible convertible)
                 return Convert.ToDouble(convertible, CultureInfo.InvariantCulture);

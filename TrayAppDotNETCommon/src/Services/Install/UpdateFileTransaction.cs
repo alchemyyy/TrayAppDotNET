@@ -74,7 +74,7 @@ internal static class UpdateFileTransaction
 
         string[] sourceFiles =
         [
-            .. Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+            .. Directory.EnumerateFiles(sourceRoot, searchPattern: "*", SearchOption.AllDirectories)
                 .Order(StringComparer.OrdinalIgnoreCase)
         ];
 
@@ -147,7 +147,7 @@ internal static class UpdateFileTransaction
         {
             log($"Update: file replacement failed: {exception}");
             bool rollbackSucceeded = RollBack(plan.Files, log);
-            CleanupArtifacts(plan.Files, includeBackups: rollbackSucceeded, log);
+            CleanupArtifacts(plan.Files, rollbackSucceeded, log);
             return new UpdateFileTransactionResult(
                 rollbackSucceeded
                     ? UpdateFileTransactionStatus.FailedRolledBack
@@ -228,7 +228,7 @@ internal static class UpdateFileTransaction
                 if (file.DestinationExisted)
                 {
                     if (!File.Exists(file.BackupPath))
-                        throw new FileNotFoundException("Update backup is missing.", file.BackupPath);
+                        throw new FileNotFoundException(message: "Update backup is missing.", file.BackupPath);
 
                     ExecuteWithRetry(
                         () => File.Copy(file.BackupPath, file.DestinationPath, overwrite: true),
@@ -237,9 +237,7 @@ internal static class UpdateFileTransaction
                     File.SetAttributes(file.DestinationPath, file.DestinationAttributes);
                 }
                 else
-                {
                     DeleteIfPresent(file.DestinationPath, log);
-                }
 
                 file.WasApplied = false;
                 log($"Update: restored {file.RelativePath}");
@@ -296,7 +294,7 @@ internal static class UpdateFileTransaction
             int secondRead = second.Read(secondBuffer);
             if (firstRead != secondRead) return false;
             if (firstRead == 0) return true;
-            if (!firstBuffer.AsSpan(0, firstRead).SequenceEqual(secondBuffer.AsSpan(0, secondRead)))
+            if (!firstBuffer.AsSpan(start: 0, firstRead).SequenceEqual(secondBuffer.AsSpan(start: 0, secondRead)))
                 return false;
         }
     }

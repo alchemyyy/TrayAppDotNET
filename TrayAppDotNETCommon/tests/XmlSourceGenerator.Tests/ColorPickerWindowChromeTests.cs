@@ -15,7 +15,7 @@ public sealed class ColorPickerWindowChromeTests
         AvaloniaTestHost.Run(() =>
         {
             using TrayAppDotNETColorPickerWindow picker = new(
-                "Color",
+                title: "Color",
                 hasAlpha: true,
                 Colors.Blue,
                 Colors.Red,
@@ -33,17 +33,17 @@ public sealed class ColorPickerWindowChromeTests
 
     private static TrayAppDotNETColorPickerStrings Strings() =>
         new(
-            "Color",
-            "Close",
-            "Hue",
-            "Alpha",
-            "Red",
-            "Green",
-            "Blue",
-            "RGBA",
-            "ARGB",
-            "Default",
-            "Reset");
+            DefaultTitle: "Color",
+            CloseTooltip: "Close",
+            HueLabel: "Hue",
+            AlphaLabel: "Alpha",
+            RedLabel: "Red",
+            GreenLabel: "Green",
+            BlueLabel: "Blue",
+            RgbaHexLabel: "RGBA",
+            ArgbHexLabel: "ARGB",
+            DefaultButton: "Default",
+            ResetButton: "Reset");
 
     private static SettingsPalette Palette() => new(
         Colors.Black,

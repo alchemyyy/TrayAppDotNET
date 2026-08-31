@@ -49,8 +49,8 @@ internal sealed partial class WindowsServiceManager
             return WindowsServiceQueryResult.Failure(ErrorNotSupported, WindowsOnlyMessage());
 
         using SafeServiceHandle managerHandle = NativeMethods.OpenSCManagerW(
-            null,
-            null,
+            machineName: null,
+            databaseName: null,
             ServiceControlManagerConnect | ServiceControlManagerEnumerateService);
         if (managerHandle.IsInvalid)
             return QueryFailureFromLastError();
@@ -63,8 +63,9 @@ internal sealed partial class WindowsServiceManager
             if (initialError == 0)
             {
                 _configurationCache.RetainOnly(serviceNames);
-                return WindowsServiceQueryResult.Success(Array.Empty<WindowsServiceSnapshot>());
+                return WindowsServiceQueryResult.Success([]);
             }
+
             return QueryFailure(initialError);
         }
 
@@ -82,7 +83,7 @@ internal sealed partial class WindowsServiceManager
                 out uint bytesNeeded,
                 out uint servicesReturned,
                 ref resumeHandle,
-                null);
+                groupName: null);
             int errorCode = completed ? 0 : Marshal.GetLastPInvokeError();
 
             AppendServicePage(
@@ -113,19 +114,19 @@ internal sealed partial class WindowsServiceManager
 
         return QueryFailure(
             ErrorMoreData,
-            "Service enumeration exceeded the maximum number of native result pages.");
+            message: "Service enumeration exceeded the maximum number of native result pages.");
     }
 
     /// <summary>Starts a stopped service and waits for the running state.</summary>
-    public WindowsServiceOperationResult Start(string serviceName) =>
+    public static WindowsServiceOperationResult Start(string serviceName) =>
         RunAction(serviceName, WindowsServiceAction.Start, StartCore);
 
     /// <summary>Stops a running service and waits for the stopped state.</summary>
-    public WindowsServiceOperationResult Stop(string serviceName) =>
+    public static WindowsServiceOperationResult Stop(string serviceName) =>
         RunAction(serviceName, WindowsServiceAction.Stop, StopCore);
 
     /// <summary>Stops and starts a service without changing its startup configuration.</summary>
-    public WindowsServiceOperationResult Restart(string serviceName) =>
+    public static WindowsServiceOperationResult Restart(string serviceName) =>
         RunAction(serviceName, WindowsServiceAction.Restart, RestartCore);
 
     /// <summary>Changes the service start type to Disabled without stopping a running service.</summary>
@@ -153,8 +154,9 @@ internal sealed partial class WindowsServiceManager
                 normalizedServiceName,
                 WindowsServiceStatus.Unknown,
                 ErrorInvalidName,
-                "A service name is required.");
+                errorMessage: "A service name is required.");
         }
+
         if (!OperatingSystem.IsWindows())
         {
             return Failure(
@@ -167,8 +169,8 @@ internal sealed partial class WindowsServiceManager
         }
 
         using SafeServiceHandle managerHandle = NativeMethods.OpenSCManagerW(
-            null,
-            null,
+            machineName: null,
+            databaseName: null,
             ServiceControlManagerConnect);
         if (managerHandle.IsInvalid)
         {
@@ -208,7 +210,7 @@ internal sealed partial class WindowsServiceManager
         if (status == WindowsServiceStatus.Running)
             return WindowsServiceOperationResult.Success(action, serviceName, status);
         if (status != WindowsServiceStatus.StartPending &&
-            !NativeMethods.StartServiceW(serviceHandle, 0, IntPtr.Zero))
+            !NativeMethods.StartServiceW(serviceHandle, argumentCount: 0, IntPtr.Zero))
         {
             return FailureFromLastError(
                 action,
@@ -250,7 +252,7 @@ internal sealed partial class WindowsServiceManager
         WindowsServiceOperationResult stopResult = StopOpenedService(serviceHandle, serviceName, action);
         if (!stopResult.Succeeded) return stopResult;
 
-        if (!NativeMethods.StartServiceW(serviceHandle, 0, IntPtr.Zero))
+        if (!NativeMethods.StartServiceW(serviceHandle, argumentCount: 0, IntPtr.Zero))
         {
             return FailureFromLastError(
                 action,
@@ -285,13 +287,13 @@ internal sealed partial class WindowsServiceManager
                 ServiceNoChange,
                 ServiceDisabled,
                 ServiceNoChange,
-                null,
-                null,
+                binaryPathName: null,
+                loadOrderGroup: null,
                 IntPtr.Zero,
-                null,
-                null,
-                null,
-                null))
+                dependencies: null,
+                serviceStartName: null,
+                password: null,
+                displayName: null))
         {
             return FailureFromLastError(
                 action,
@@ -414,11 +416,11 @@ internal sealed partial class WindowsServiceManager
             ServiceWin32,
             ServiceStateAll,
             IntPtr.Zero,
-            0,
+            bufferSize: 0,
             out uint bytesNeeded,
             out _,
             ref resumeHandle,
-            null);
+            groupName: null);
         if (succeeded)
         {
             errorCode = 0;
@@ -483,9 +485,7 @@ internal sealed partial class WindowsServiceManager
     {
         if (!refreshConfiguration
             && _configurationCache.TryGet(serviceName, out WindowsServiceConfiguration cached))
-        {
             return cached;
-        }
 
         WindowsServiceConfiguration configuration = ReadConfiguration(managerHandle, serviceName);
         _configurationCache.Store(serviceName, configuration);
@@ -527,7 +527,7 @@ internal sealed partial class WindowsServiceManager
     {
         binaryPathName = string.Empty;
         startType = WindowsServiceStartType.Unknown;
-        _ = NativeMethods.QueryServiceConfigW(serviceHandle, IntPtr.Zero, 0, out uint bytesNeeded);
+        _ = NativeMethods.QueryServiceConfigW(serviceHandle, IntPtr.Zero, bufferSize: 0, out uint bytesNeeded);
         int errorCode = Marshal.GetLastPInvokeError();
         if (errorCode != ErrorInsufficientBuffer || bytesNeeded == 0 || bytesNeeded > MaximumNativeBufferSize)
             return false;
@@ -538,9 +538,7 @@ internal sealed partial class WindowsServiceManager
                 buffer.DangerousGetHandle(),
                 bytesNeeded,
                 out _))
-        {
             return false;
-        }
 
         NativeQueryServiceConfig configuration =
             Marshal.PtrToStructure<NativeQueryServiceConfig>(buffer.DangerousGetHandle());
@@ -565,7 +563,7 @@ internal sealed partial class WindowsServiceManager
             {
                 IntPtr argumentAddress = Marshal.ReadIntPtr(argumentList, argumentIndex * IntPtr.Size);
                 string argument = Marshal.PtrToStringUni(argumentAddress) ?? string.Empty;
-                if (!string.Equals(argument, "-k", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.Equals(argument, b: "-k", StringComparison.OrdinalIgnoreCase)) continue;
 
                 IntPtr groupAddress = Marshal.ReadIntPtr(argumentList, (argumentIndex + 1) * IntPtr.Size);
                 return WindowsServiceState.NormalizeOptionalText(Marshal.PtrToStringUni(groupAddress));
@@ -585,7 +583,7 @@ internal sealed partial class WindowsServiceManager
             serviceHandle,
             ServiceConfigDescription,
             IntPtr.Zero,
-            0,
+            bufferSize: 0,
             out uint bytesNeeded);
         int errorCode = Marshal.GetLastPInvokeError();
         if (errorCode != ErrorInsufficientBuffer || bytesNeeded == 0 || bytesNeeded > MaximumNativeBufferSize)
@@ -598,9 +596,7 @@ internal sealed partial class WindowsServiceManager
                 buffer.DangerousGetHandle(),
                 bytesNeeded,
                 out _))
-        {
             return string.Empty;
-        }
 
         NativeServiceDescription nativeDescription =
             Marshal.PtrToStructure<NativeServiceDescription>(buffer.DangerousGetHandle());
@@ -735,7 +731,7 @@ internal sealed partial class WindowsServiceManager
             if (byteCount > MaximumNativeBufferSize)
                 throw new ArgumentOutOfRangeException(nameof(byteCount));
 
-            SetHandle(Marshal.ReAllocHGlobal(handle, (IntPtr)byteCount));
+            SetHandle(Marshal.ReAllocHGlobal(handle, byteCount));
             ByteCount = byteCount;
         }
 
@@ -746,13 +742,8 @@ internal sealed partial class WindowsServiceManager
         }
     }
 
-    private sealed class SafeServiceHandle : SafeHandleZeroOrMinusOneIsInvalid
+    private sealed class SafeServiceHandle() : SafeHandleZeroOrMinusOneIsInvalid(true)
     {
-        public SafeServiceHandle()
-            : base(true)
-        {
-        }
-
         protected override bool ReleaseHandle() => NativeMethods.CloseServiceHandle(handle);
     }
 
@@ -866,8 +857,10 @@ internal readonly record struct WindowsServiceConfiguration(
 internal sealed class WindowsServiceConfigurationCache
 {
     private readonly Lock _gate = new();
+
     private readonly Dictionary<string, WindowsServiceConfiguration> _configurations =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly List<string> _staleServiceNames = [];
 
     public bool TryGet(string serviceName, out WindowsServiceConfiguration configuration)
@@ -896,7 +889,8 @@ internal sealed class WindowsServiceConfigurationCache
             _staleServiceNames.Clear();
             foreach (string serviceName in _configurations.Keys)
             {
-                if (!serviceNames.Contains(serviceName)) _staleServiceNames.Add(serviceName);
+                if (!serviceNames.Contains(serviceName))
+                    _staleServiceNames.Add(serviceName);
             }
 
             for (int serviceIndex = 0; serviceIndex < _staleServiceNames.Count; serviceIndex++)

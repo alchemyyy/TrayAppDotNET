@@ -13,8 +13,10 @@ internal sealed partial class StartupAppsService : IDisposable
 {
     private const string RunRegistrySubKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunOnceRegistrySubKey = @"Software\Microsoft\Windows\CurrentVersion\RunOnce";
+
     private const string StartupApprovedRegistryRoot =
         @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
+
     private const string StartupApprovedRunSubKey = StartupApprovedRegistryRoot + @"\Run";
     private const string StartupApprovedRun32SubKey = StartupApprovedRegistryRoot + @"\Run32";
     private const string StartupApprovedFolderSubKey = StartupApprovedRegistryRoot + @"\StartupFolder";
@@ -40,9 +42,9 @@ internal sealed partial class StartupAppsService : IDisposable
     public IReadOnlyList<StartupAppEntry> ReadEntries()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (!OperatingSystem.IsWindows()) return Array.Empty<StartupAppEntry>();
+        if (!OperatingSystem.IsWindows()) return [];
 
-        List<StartupAppEntry> entries = new();
+        List<StartupAppEntry> entries = [];
         RegistryView[] registryViews = Environment.Is64BitOperatingSystem
             ? [RegistryView.Registry64, RegistryView.Registry32]
             : [RegistryView.Registry32];
@@ -110,8 +112,9 @@ internal sealed partial class StartupAppsService : IDisposable
         {
             return StartupAppActionResult.Failure(
                 entry.Status,
-                "Startup application status changes are only supported on Windows.");
+                errorMessage: "Startup application status changes are only supported on Windows.");
         }
+
         if (desiredStatus is not (StartupAppStatus.Enabled or StartupAppStatus.Disabled))
             throw new ArgumentOutOfRangeException(nameof(desiredStatus));
         if (!entry.ApprovalTarget.IsValid)
@@ -120,6 +123,7 @@ internal sealed partial class StartupAppsService : IDisposable
                 entry.Status,
                 $"{entry.Name} does not have a writable StartupApproved target.");
         }
+
         if (entry.Status == desiredStatus) return StartupAppActionResult.Success(desiredStatus);
 
         StartupAppApprovalTarget target = entry.ApprovalTarget;
@@ -169,8 +173,8 @@ internal sealed partial class StartupAppsService : IDisposable
             StartupAppApprovalTarget approvalTargetTemplate = CreateRegistryApprovalTarget(
                 scope,
                 modelRegistryView,
-                valueName: string.Empty,
-                is64BitOperatingSystem: Environment.Is64BitOperatingSystem);
+                string.Empty,
+                Environment.Is64BitOperatingSystem);
             string approvalSubKey = approvalTargetTemplate.RegistrySubKey;
             StartupAppRegistryView approvalRegistryView = approvalTargetTemplate.RegistryView;
             RegistryKey? approvalBaseKey = null;
@@ -199,7 +203,7 @@ internal sealed partial class StartupAppsService : IDisposable
                 {
                     object? rawCommand = sourceKey.GetValue(
                         valueName,
-                        null,
+                        defaultValue: null,
                         RegistryValueOptions.DoNotExpandEnvironmentNames);
                     if (rawCommand is not string command || string.IsNullOrWhiteSpace(command)) continue;
 
@@ -219,10 +223,7 @@ internal sealed partial class StartupAppsService : IDisposable
                         modelRegistryView,
                         sourceSubKey,
                         valueName);
-                    StartupAppApprovalTarget approvalTarget = approvalTargetTemplate with
-                    {
-                        ValueName = valueName
-                    };
+                    StartupAppApprovalTarget approvalTarget = approvalTargetTemplate with { ValueName = valueName };
                     StartupAppEntry entry = new(
                         identity,
                         displayName,
@@ -268,7 +269,7 @@ internal sealed partial class StartupAppsService : IDisposable
         string[] startupFiles;
         try
         {
-            startupFiles = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly);
+            startupFiles = Directory.GetFiles(folderPath, searchPattern: "*", SearchOption.TopDirectoryOnly);
         }
         catch (Exception exception) when (IsExpectedFileAccessException(exception))
         {
@@ -309,9 +310,7 @@ internal sealed partial class StartupAppsService : IDisposable
                         || valueName.Equals(
                             DesktopConfigurationFileName,
                             StringComparison.OrdinalIgnoreCase))
-                    {
                         continue;
-                    }
 
                     string? targetCandidate = ResolveStartupFileTarget(startupFile);
                     string? executablePath = ResolveExistingFilePath(
@@ -390,7 +389,7 @@ internal sealed partial class StartupAppsService : IDisposable
         string trimmedCommand = command.Trim();
         if (trimmedCommand[0] == '"')
         {
-            int closingQuoteIndex = trimmedCommand.IndexOf('"', 1);
+            int closingQuoteIndex = trimmedCommand.IndexOf(value: '"', startIndex: 1);
             if (closingQuoteIndex <= 1) return null;
             return trimmedCommand[1..closingQuoteIndex].Trim();
         }
@@ -402,9 +401,7 @@ internal sealed partial class StartupAppsService : IDisposable
         int tokenEndIndex = 0;
         while (tokenEndIndex < trimmedCommand.Length
                && !char.IsWhiteSpace(trimmedCommand[tokenEndIndex]))
-        {
             tokenEndIndex++;
-        }
 
         string token = trimmedCommand[..tokenEndIndex].Trim().Trim('"');
         return token.Length > 0 ? token : null;
@@ -425,9 +422,7 @@ internal sealed partial class StartupAppsService : IDisposable
                 char nextCharacter = command[extensionEndIndex];
                 if (char.IsWhiteSpace(nextCharacter)
                     || nextCharacter is ',' or '"')
-                {
                     return extensionEndIndex;
-                }
             }
         }
 
@@ -456,12 +451,9 @@ internal sealed partial class StartupAppsService : IDisposable
         if (string.IsNullOrWhiteSpace(expandedCandidate)) return null;
         if (Uri.TryCreate(expandedCandidate, UriKind.Absolute, out Uri? candidateURI)
             && !candidateURI.IsFile)
-        {
             return null;
-        }
 
-        List<string> fileNames = new();
-        fileNames.Add(expandedCandidate);
+        List<string> fileNames = [expandedCandidate];
         if (searchExecutableName && string.IsNullOrEmpty(Path.GetExtension(expandedCandidate)))
             fileNames.Add(expandedCandidate + ".exe");
 
@@ -509,7 +501,7 @@ internal sealed partial class StartupAppsService : IDisposable
 
     private static List<string> BuildExecutableSearchDirectories()
     {
-        List<string> directories = new();
+        List<string> directories = [];
         HashSet<string> seenDirectories = new(StringComparer.OrdinalIgnoreCase);
         AddSearchDirectory(directories, seenDirectories, AppContext.BaseDirectory);
         AddSearchDirectory(directories, seenDirectories, Environment.CurrentDirectory);
@@ -548,11 +540,14 @@ internal sealed partial class StartupAppsService : IDisposable
     private static string? ResolveStartupFileTarget(string startupFile)
     {
         string extension = Path.GetExtension(startupFile);
-        if (extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(value: ".lnk", StringComparison.OrdinalIgnoreCase))
+        {
             return TryResolveShellLink(startupFile, out string shortcutTarget)
                 ? shortcutTarget
                 : null;
-        if (extension.Equals(".url", StringComparison.OrdinalIgnoreCase))
+        }
+
+        if (extension.Equals(value: ".url", StringComparison.OrdinalIgnoreCase))
             return ReadInternetShortcutTarget(startupFile);
         return startupFile;
     }
@@ -805,10 +800,8 @@ internal sealed partial class StartupAppsService : IDisposable
         bool is64BitOperatingSystem)
     {
         if (sourceRegistryView is not (
-                StartupAppRegistryView.Registry32 or StartupAppRegistryView.Registry64))
-        {
+            StartupAppRegistryView.Registry32 or StartupAppRegistryView.Registry64))
             throw new ArgumentOutOfRangeException(nameof(sourceRegistryView));
-        }
 
         StartupAppRegistryView approvalRegistryView = is64BitOperatingSystem
             ? StartupAppRegistryView.Registry64
@@ -849,7 +842,7 @@ internal sealed partial class StartupAppsService : IDisposable
 
     public void Dispose()
     {
-        _ = Interlocked.Exchange(ref _disposed, 1);
+        _ = Interlocked.Exchange(ref _disposed, value: 1);
         GC.SuppressFinalize(this);
     }
 

@@ -61,8 +61,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Icon = options.Icon;
 
-        _keepSettings = CreateChoiceRadio(isChecked: true);
-        _deleteSettings = CreateChoiceRadio(isChecked: false);
+        _keepSettings = CreateChoiceRadio(true);
+        _deleteSettings = CreateChoiceRadio(false);
 
         KeyDown += OnWindowKeyDown;
         _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
@@ -90,10 +90,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         }
     }
 
-    public Process? UninstallProcess
-    {
-        get => Interlocked.Exchange(ref _uninstallProcessOwner, null)?.Transfer();
-    }
+    public Process? UninstallProcess => Interlocked.Exchange(ref _uninstallProcessOwner, value: null)?.Transfer();
 
     public bool ConfirmedUninstall { get; private set; }
 
@@ -117,7 +114,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         chrome.Children.Add(BuildTitleBar(resources));
 
         Grid body = BuildBody(resources);
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, value: 1);
         chrome.Children.Add(body);
 
         return new Border
@@ -135,11 +132,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         Grid titleBar = new()
         {
             Background = Brushes.Transparent,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         titleBar.PointerPressed += OnTitleBarPointerPressed;
         resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
@@ -157,7 +150,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
         resources.Add(() => close.Click -= OnCancelClick);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(close, value: 1);
         titleBar.Children.Add(close);
         return titleBar;
     }
@@ -179,7 +172,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
             UninstallDescription(),
             Options.Palette,
             TrayAppDotNETDialogChromeLayout.DescriptionMargin);
-        Grid.SetRow(description, 1);
+        Grid.SetRow(description, value: 1);
         body.Children.Add(description);
 
         StackPanel choices = new();
@@ -196,11 +189,11 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
                 L(nameof(CommonStrings.Uninstaller_DeleteSettings_Description_Format)),
                 Options.SettingsDirectory),
             resources));
-        Grid.SetRow(choices, 2);
+        Grid.SetRow(choices, value: 2);
         body.Children.Add(choices);
 
         StackPanel buttons = BuildButtons(resources);
-        Grid.SetRow(buttons, 3);
+        Grid.SetRow(buttons, value: 3);
         body.Children.Add(buttons);
         return body;
     }
@@ -263,7 +256,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.Children.Add(radio);
-        Grid.SetColumn(text, 1);
+        Grid.SetColumn(text, value: 1);
         grid.Children.Add(text);
 
         Border card = new()
@@ -354,11 +347,11 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
     private void DisposeCore()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _closed = true;
         _windowResources.Dispose();
-        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, value: null);
         if (contentGeneration != null)
         {
             try
@@ -418,7 +411,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         private readonly Lock _gate = new();
         private readonly int _ownershipGraceMilliseconds;
         private Process? _process;
-        private System.Threading.Timer? _disposalTimer;
+        private Timer? _disposalTimer;
         private bool _finished;
 
         public UninstallProcessOwner(Process process, int ownershipGraceMilliseconds)
@@ -444,7 +437,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         public Process? Transfer()
         {
             Process? process;
-            System.Threading.Timer? disposalTimer;
+            Timer? disposalTimer;
             lock (_gate)
             {
                 if (_finished) return null;
@@ -465,7 +458,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         {
             lock (_gate)
             {
-                if (_finished || !ReferenceEquals(sender, _process)) return;
+                if (_finished || !ReferenceEquals(sender, _process))
+                    return;
             }
 
             ScheduleUnclaimedDisposal();
@@ -477,7 +471,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
             {
                 if (_finished || _disposalTimer != null) return;
 
-                _disposalTimer = new System.Threading.Timer(
+                _disposalTimer = new Timer(
                     static state => ((UninstallProcessOwner)state!).Dispose(),
                     this,
                     _ownershipGraceMilliseconds,
@@ -488,7 +482,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         public void Dispose()
         {
             Process? process;
-            System.Threading.Timer? disposalTimer;
+            Timer? disposalTimer;
             lock (_gate)
             {
                 if (_finished) return;

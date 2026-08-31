@@ -20,15 +20,15 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ]));
@@ -50,7 +50,8 @@ public sealed partial class VolumeSettingsWindow
                     Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_AlwaysShow))),
                 (CommunicationsButtonVisibility.WhenDuckingOn,
                     Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_WhenDuckingOn))),
-                (CommunicationsButtonVisibility.Hidden, Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Hidden)))
+                (CommunicationsButtonVisibility.Hidden,
+                    Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Hidden)))
             ],
             _settings.FlyoutCommunicationsButtonVisibility,
             v => _settings.FlyoutCommunicationsButtonVisibility = v,
@@ -65,8 +66,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowRecordingDevicesInFlyout,
             v => _settings.ShowRecordingDevicesInFlyout = v,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_SearchKeywords))
             ]));
@@ -106,8 +106,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowBluetoothRadioButtonInFlyoutHeader,
             value => _settings.ShowBluetoothRadioButtonInFlyoutHeader = value,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords))
             ]));
@@ -165,8 +164,10 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Description)),
             [
-                (SoundSettingsTarget.LegacySoundPanel, Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Legacy))),
-                (SoundSettingsTarget.WindowsSettingsApp, Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Modern)))
+                (SoundSettingsTarget.LegacySoundPanel,
+                    Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Legacy))),
+                (SoundSettingsTarget.WindowsSettingsApp,
+                    Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Modern)))
             ],
             _settings.SoundSettingsTarget,
             v => _settings.SoundSettingsTarget = v,
@@ -176,13 +177,16 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_Description)),
             [
-                (FlyoutDeviceLayoutStyle.AppsAboveDevice, Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsAbove))),
-                (FlyoutDeviceLayoutStyle.AppsBelowDevice, Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsBelow)))
+                (FlyoutDeviceLayoutStyle.AppsAboveDevice,
+                    Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsAbove))),
+                (FlyoutDeviceLayoutStyle.AppsBelowDevice,
+                    Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsBelow)))
             ],
             _settings.FlyoutDeviceLayout,
             v => _settings.FlyoutDeviceLayout = v,
@@ -195,8 +199,10 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Description)),
             [
-                (FlyoutDeviceTitlePosition.BelowSlider, Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_BelowSlider))),
-                (FlyoutDeviceTitlePosition.AboveSlider, Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_AboveSlider)))
+                (FlyoutDeviceTitlePosition.BelowSlider,
+                    Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_BelowSlider))),
+                (FlyoutDeviceTitlePosition.AboveSlider,
+                    Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_AboveSlider)))
             ],
             _settings.FlyoutDeviceTitlePosition,
             v => _settings.FlyoutDeviceTitlePosition = v,
@@ -210,7 +216,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_Description)),
             [
                 (FlyoutDeviceSortOrder.StateGrouped, Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_StateGrouped))),
-                (FlyoutDeviceSortOrder.WindowsEnumeration, Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_WindowsEnumeration)))
+                (FlyoutDeviceSortOrder.WindowsEnumeration,
+                    Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_WindowsEnumeration)))
             ],
             _settings.FlyoutDeviceSort,
             v => _settings.FlyoutDeviceSort = v,
@@ -240,15 +247,15 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_PeakMeter_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_PeakMeter_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Title)),
             Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Description)),
             _settings.UnifiedPeakMeter,
             v => _settings.UnifiedPeakMeter = v,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_SearchKeywords))
             ]));

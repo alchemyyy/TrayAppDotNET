@@ -20,14 +20,14 @@ public sealed class SystemPerformanceSamplerTests
             logicalProcessorPercents);
         SystemMemoryStatus memoryStatus = sampler.GetLastMemoryStatus();
 
-        Assert.InRange(sample.CPUAveragePercent, 0, 100);
-        Assert.InRange(sample.CPUHighestCorePercent, 0, 100);
-        Assert.InRange(sample.MemoryPercent, 0.01, 100);
+        Assert.InRange(sample.CPUAveragePercent, low: 0, high: 100);
+        Assert.InRange(sample.CPUHighestCorePercent, low: 0, high: 100);
+        Assert.InRange(sample.MemoryPercent, low: 0.01, high: 100);
         Assert.True(sampler.LastProcessorSampleAvailable);
         Assert.True(sampler.LastMemorySampleAvailable);
         Assert.True(logicalProcessorCount > 0);
         Assert.Equal(logicalProcessorCount, copiedProcessorCount);
-        Assert.All(logicalProcessorPercents, static percent => Assert.InRange(percent, 0, 100));
+        Assert.All(logicalProcessorPercents, static percent => Assert.InRange(percent, low: 0, high: 100));
         Assert.True(memoryStatus.TotalPhysicalBytes > 0);
         Assert.True(memoryStatus.AvailablePhysicalBytes <= memoryStatus.TotalPhysicalBytes);
     }
@@ -45,8 +45,8 @@ public sealed class SystemPerformanceSamplerTests
         SystemPerformanceSample baselineSample = sampler.Sample();
 
         Assert.False(sampler.LastProcessorSampleAvailable);
-        Assert.Equal(0, baselineSample.CPUAveragePercent);
-        Assert.Equal(0, baselineSample.CPUHighestCorePercent);
+        Assert.Equal(expected: 0, baselineSample.CPUAveragePercent);
+        Assert.Equal(expected: 0, baselineSample.CPUHighestCorePercent);
     }
 
     [Theory]

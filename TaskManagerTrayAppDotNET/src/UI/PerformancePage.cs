@@ -23,16 +23,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly PerformanceSnapshotService _snapshotService;
     private readonly PerformanceDeviceColumn _deviceColumn;
     private readonly SettingsVerticalScrollViewport _deviceScrollViewport;
+
     private readonly Dictionary<string, PerformanceDevicePresentation> _devices =
         new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, PerformanceDeviceCard> _deviceCards =
         new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, PerformanceHistory> _histories =
         new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, NetworkTransferRateHistories> _networkTransferRateHistories =
         new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, DiskTransferRateHistories> _diskTransferRateHistories =
         new(StringComparer.Ordinal);
+
     private readonly List<string> _staleDeviceIDs = [];
     private readonly TextBlock _detailTitle;
     private readonly TextBlock _detailHardwareName;
@@ -76,7 +82,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         TaskManagerWindowResources resources,
         PerformanceSnapshotService snapshotService,
         string? initialSelectedDeviceID)
-        : base("Performance", palette, resources)
+        : base(title: "Performance", palette, resources)
     {
         _settings = settings;
         _palette = palette;
@@ -130,11 +136,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 new RowDefinition(GridLength.Auto)
             }
         };
-        Grid.SetColumn(details, 1);
+        SetColumn(details, value: 1);
         MainContent.Children.Add(details);
 
         _detailTitle = TrayAppDotNETSettingsUI.Text(
-            "Performance",
+            text: "Performance",
             palette,
             resources.AxamlTaskManagerPerformance.DetailTitleFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -150,26 +156,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         Grid detailHeader = new()
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailHeaderMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
         };
         detailHeader.Children.Add(_detailTitle);
-        Grid.SetColumn(_detailHardwareName, 1);
+        SetColumn(_detailHardwareName, value: 1);
         detailHeader.Children.Add(_detailHardwareName);
         details.Children.Add(detailHeader);
 
         _detailGraphLabel = TrayAppDotNETSettingsUI.Text(
             string.Concat(
-                "% Utilization over ",
+                str0: "% Utilization over ",
                 PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock graphMaximumLabel = TrayAppDotNETSettingsUI.Text(
-            "100%",
+            text: "100%",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -177,14 +179,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _genericGraphHeader = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphLabelMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         _genericGraphHeader.Children.Add(_detailGraphLabel);
-        Grid.SetColumn(graphMaximumLabel, 1);
+        SetColumn(graphMaximumLabel, value: 1);
         _genericGraphHeader.Children.Add(graphMaximumLabel);
         PerformanceHistory initialHistory = CreateHistory();
         _detailGraph = new PerformanceHistoryGraph(
@@ -216,13 +214,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Children =
-            {
-                _detailGraph,
-                _cpuLogicalProcessorGrid,
-                _cpuDetailedView,
-                _gpuPerformanceDetailsView
-            }
+            Children = { _detailGraph, _cpuLogicalProcessorGrid, _cpuDetailedView, _gpuPerformanceDetailsView }
         };
         _graphSurface.PointerPressed += OnGraphSurfacePointerPressed;
         Grid graphArea = new()
@@ -238,7 +230,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         };
         graphArea.Children.Add(_genericGraphHeader);
-        Grid.SetRow(_graphSurface, 1);
+        SetRow(_graphSurface, value: 1);
         graphArea.Children.Add(_graphSurface);
         _graphWindowLabel = TrayAppDotNETSettingsUI.Text(
             PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes),
@@ -246,7 +238,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock graphMinimumLabel = TrayAppDotNETSettingsUI.Text(
-            "0",
+            text: "0",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -254,22 +246,18 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _genericGraphFooter = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphScaleMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         _genericGraphFooter.Children.Add(_graphWindowLabel);
-        Grid.SetColumn(graphMinimumLabel, 1);
+        SetColumn(graphMinimumLabel, value: 1);
         _genericGraphFooter.Children.Add(graphMinimumLabel);
-        Grid.SetRow(_genericGraphFooter, 2);
+        SetRow(_genericGraphFooter, value: 2);
         graphArea.Children.Add(_genericGraphFooter);
-        Grid.SetRow(graphArea, 1);
+        SetRow(graphArea, value: 1);
         details.Children.Add(graphArea);
 
         _memoryCompositionView = new MemoryCompositionView(palette, resources);
-        Grid.SetRow(_memoryCompositionView, 2);
+        SetRow(_memoryCompositionView, value: 2);
         details.Children.Add(_memoryCompositionView);
 
         _diskPerformanceDetailsView = new DiskPerformanceDetailsView(
@@ -277,18 +265,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             resources,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
-        Grid.SetRow(_diskPerformanceDetailsView, 2);
+        SetRow(_diskPerformanceDetailsView, value: 2);
         details.Children.Add(_diskPerformanceDetailsView);
 
         _primaryStatistics = new WrapPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Top
+            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top
         };
         _metadataStatistics = new StackPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Top
+            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top
         };
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
         {
@@ -304,15 +290,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     ? resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticValueFontSize
                     : resources.AxamlTaskManagerPerformance.DetailStatisticValueFontSize,
                 (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
-            StackPanel statistic = new()
-            {
-                IsVisible = false,
-                Children = { label, value }
-            };
+            StackPanel statistic = new() { IsVisible = false, Children = { label, value } };
             _statisticContainers[statisticIndex] = statistic;
             _statisticLabels[statisticIndex] = label;
             _statisticValues[statisticIndex] = value;
         }
+
         Grid statistics = new()
         {
             ColumnSpacing = resources.AxamlTaskManagerPerformance.DetailStatisticsColumnSpacing,
@@ -327,13 +310,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         };
         statistics.Children.Add(_primaryStatistics);
-        Grid.SetColumn(_metadataStatistics, 1);
+        SetColumn(_metadataStatistics, value: 1);
         statistics.Children.Add(_metadataStatistics);
-        Grid.SetRow(statistics, 3);
+        SetRow(statistics, value: 3);
         details.Children.Add(statistics);
 
         _memoryModuleDetailsPanel = new MemoryModuleDetailsPanel(palette, resources);
-        Grid.SetRow(_memoryModuleDetailsPanel, 4);
+        SetRow(_memoryModuleDetailsPanel, value: 4);
         details.Children.Add(_memoryModuleDetailsPanel);
 
         UpdateGraphUnderfillVisibility();
@@ -423,9 +406,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _settings.PerformanceSampleIntervalMilliseconds);
         if (historyLengthMinutes == _historyLengthMinutes
             && sampleIntervalMilliseconds == _sampleIntervalMilliseconds)
-        {
             return;
-        }
 
         _historyLengthMinutes = historyLengthMinutes;
         _sampleIntervalMilliseconds = sampleIntervalMilliseconds;
@@ -444,11 +425,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             if (_hasProcessedSnapshot
                 && wakeSnapshot.CapturedTimestamp <= _lastProcessedTimestamp)
-            {
                 return;
-            }
 
-            pendingSnapshots = new PerformanceSnapshot[] { wakeSnapshot };
+            pendingSnapshots = [wakeSnapshot];
         }
 
         if (RequiresFullHistoryRebuild(pendingSnapshots))
@@ -481,9 +460,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         PerformanceSnapshot latestSnapshot = _snapshotService.GetLatestSnapshot();
         if (archivedSnapshots.Count > 0
             && archivedSnapshots[^1].CapturedTimestamp > latestSnapshot.CapturedTimestamp)
-        {
             latestSnapshot = archivedSnapshots[^1];
-        }
 
         int logicalProcessorCount = GetLogicalProcessorCount(latestSnapshot.CPU);
         CPUCCDTopology CCDTopology = latestSnapshot.CPU.CCDTopology;
@@ -498,6 +475,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 if (logicalProcessorCount > 0) break;
             }
         }
+
         if (!CCDTopology.IsAvailable)
         {
             for (int snapshotIndex = archivedSnapshots.Count - 1;
@@ -715,9 +693,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _deviceCards.Add(orderItem.ID, card);
             }
             else
-            {
                 card.Update(device, history);
-            }
+
             card.SetSecondaryHistory(
                 device.Kind == PerformanceDeviceKind.CPU
                 && _settings.ShowCPUHighestCoreTrace
@@ -744,10 +721,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             for (int graphIndex = 0;
                  graphIndex < _cpuLogicalProcessorGraphs.Count;
                  graphIndex++)
-            {
                 _cpuLogicalProcessorGraphs[graphIndex].Refresh();
-            }
         }
+
         _cpuDetailedView.Refresh();
     }
 
@@ -766,9 +742,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_networkTransferRateHistories.TryGetValue(
                 deviceID,
                 out NetworkTransferRateHistories? histories))
-        {
             return histories;
-        }
 
         histories = new NetworkTransferRateHistories(
             CreateMetricHistory(),
@@ -782,9 +756,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_diskTransferRateHistories.TryGetValue(
                 deviceID,
                 out DiskTransferRateHistories? histories))
-        {
             return histories;
-        }
 
         histories = new DiskTransferRateHistories(
             CreateMetricHistory(),
@@ -805,9 +777,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             || !_devices.TryGetValue(
                 _selectedDeviceID,
                 out PerformanceDevicePresentation? selectedDevice))
-        {
             return null;
-        }
 
         switch (selectedDevice.Kind)
         {
@@ -821,9 +791,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     || !_cpuHighestCoreHistory.TryGetExact(
                         sampleTimestamp,
                         out double highestCPUUtilizationPercent))
-                {
                     return null;
-                }
 
                 return FormatCPUOverallHoverMetric(
                     highestCPUUtilizationPercent,
@@ -842,9 +810,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     || !histories.Receive.TryGetExact(
                         sampleTimestamp,
                         out double receiveBytesPerSecond))
-                {
                     return null;
-                }
 
                 return FormatNetworkTransferHoverMetric(
                     sendBytesPerSecond,
@@ -860,9 +826,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     || !diskHistories.Write.TryGetExact(
                         sampleTimestamp,
                         out double writeBytesPerSecond))
-                {
                     return null;
-                }
 
                 return FormatDiskTransferHoverMetric(
                     readBytesPerSecond,
@@ -880,9 +844,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (!_devices.TryGetValue(
                 deviceID,
                 out PerformanceDevicePresentation? device))
-        {
             return null;
-        }
 
         switch (device.Kind)
         {
@@ -899,9 +861,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     || !histories.Receive.TryGetExact(
                         sampleTimestamp,
                         out double receiveBytesPerSecond))
-                {
                     return null;
-                }
 
                 return FormatNetworkDeviceColumnHoverMetric(
                     sendBytesPerSecond,
@@ -917,9 +877,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     || !diskHistories.Write.TryGetExact(
                         sampleTimestamp,
                         out double writeBytesPerSecond))
-                {
                     return null;
-                }
 
                 return FormatDiskTransferHoverMetric(
                     readBytesPerSecond,
@@ -934,40 +892,40 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         double sendBytesPerSecond,
         double receiveBytesPerSecond) =>
         string.Concat(
-            "Send: ",
+            str0: "Send: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
-            "\nReceive: ",
+            str2: "\nReceive: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
 
     internal static string FormatCPUOverallHoverMetric(
         double highestCPUUtilizationPercent,
         double overallUtilizationPercent) =>
         string.Concat(
-            "Highest LP: ",
+            str0: "Highest LP: ",
             PerformanceDevicePresentationFactory.FormatPercent(
-                true,
+                isAvailable: true,
                 highestCPUUtilizationPercent),
-            "\nOverall util: ",
+            str2: "\nOverall util: ",
             PerformanceDevicePresentationFactory.FormatPercent(
-                true,
+                isAvailable: true,
                 overallUtilizationPercent));
 
     internal static string FormatNetworkDeviceColumnHoverMetric(
         double sendBytesPerSecond,
         double receiveBytesPerSecond) =>
         string.Concat(
-            "S: ",
+            str0: "S: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
-            "\nR: ",
+            str2: "\nR: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
 
     internal static string FormatDiskTransferHoverMetric(
         double readBytesPerSecond,
         double writeBytesPerSecond) =>
         string.Concat(
-            "R: ",
+            str0: "R: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(readBytesPerSecond),
-            "\nW: ",
+            str2: "\nW: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(writeBytesPerSecond));
 
     internal static string FormatMemoryDeviceColumnHoverMetric(double usedBytes)
@@ -979,7 +937,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             usedGigabytes.ToString(
                 usedGigabytes >= 100 ? "N0" : "N1",
                 CultureInfo.CurrentCulture),
-            " G");
+            str1: " G");
     }
 
     private bool RequiresFullHistoryRebuild(IReadOnlyList<PerformanceSnapshot> snapshots)
@@ -1000,26 +958,27 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     {
         if (!_histories.ContainsKey(snapshot.CPU.DeviceID)
             || !_histories.ContainsKey(snapshot.Memory.DeviceID))
-        {
             return true;
-        }
 
         ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
         for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
         {
-            if (!_histories.ContainsKey(GPUs[GPUIndex].DeviceID)) return true;
+            if (!_histories.ContainsKey(GPUs[GPUIndex].DeviceID))
+                return true;
         }
 
         ReadOnlySpan<NetworkPerformanceSnapshot> networks = snapshot.Networks.Span;
         for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
         {
-            if (!_histories.ContainsKey(networks[networkIndex].DeviceID)) return true;
+            if (!_histories.ContainsKey(networks[networkIndex].DeviceID))
+                return true;
         }
 
         ReadOnlySpan<DiskPerformanceSnapshot> disks = snapshot.Disks.Span;
         for (int diskIndex = 0; diskIndex < disks.Length; diskIndex++)
         {
-            if (!_histories.ContainsKey(disks[diskIndex].DeviceID)) return true;
+            if (!_histories.ContainsKey(disks[diskIndex].DeviceID))
+                return true;
         }
 
         return false;
@@ -1058,7 +1017,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         int columnCount = CalculateLogicalProcessorColumnCount(processorCount);
         int rowCount = (processorCount + columnCount - 1) / columnCount;
         double graphSpacing = Math.Max(
-            0,
+            val1: 0,
             _resources.AxamlTaskManagerPerformance.LogicalProcessorGraphSpacing);
         for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
         {
@@ -1069,6 +1028,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     new GridLength(graphSpacing)));
             }
         }
+
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
         {
             _cpuLogicalProcessorGrid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -1085,8 +1045,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceHistory history = CreateHistory();
             PerformanceHistoryGraph graph = new(history, accent, _palette, _resources)
             {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch
             };
             graph.SetUnderfillVisible(_settings.ShowPerformanceGraphUnderfill);
             int graphColumn = processorIndex % columnCount;
@@ -1099,10 +1058,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 trailingHitTestHeight);
             _cpuLogicalProcessorHistories.Add(history);
             _cpuLogicalProcessorGraphs.Add(graph);
-            Grid.SetColumn(hitTarget, graphColumn * 2);
-            Grid.SetRow(hitTarget, graphRow * 2);
-            if (trailingHitTestWidth > 0) Grid.SetColumnSpan(hitTarget, 2);
-            if (trailingHitTestHeight > 0) Grid.SetRowSpan(hitTarget, 2);
+            SetColumn(hitTarget, graphColumn * 2);
+            SetRow(hitTarget, graphRow * 2);
+            if (trailingHitTestWidth > 0) SetColumnSpan(hitTarget, value: 2);
+            if (trailingHitTestHeight > 0) SetRowSpan(hitTarget, value: 2);
             _cpuLogicalProcessorGrid.Children.Add(hitTarget);
         }
     }
@@ -1121,9 +1080,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             double distance = Math.Abs(candidateColumnCount - targetColumnCount);
             if (distance > bestDistance
                 || (distance == bestDistance && candidateColumnCount <= bestColumnCount))
-            {
                 continue;
-            }
 
             bestColumnCount = candidateColumnCount;
             bestDistance = distance;
@@ -1137,8 +1094,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _staleDeviceIDs.Clear();
         foreach (string deviceID in _histories.Keys)
         {
-            if (!_devices.ContainsKey(deviceID)) _staleDeviceIDs.Add(deviceID);
+            if (!_devices.ContainsKey(deviceID))
+                _staleDeviceIDs.Add(deviceID);
         }
+
         for (int staleIndex = 0; staleIndex < _staleDeviceIDs.Count; staleIndex++)
         {
             string deviceID = _staleDeviceIDs[staleIndex];
@@ -1164,9 +1123,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             || !eventArgs.GetCurrentPoint(_graphSurface).Properties.IsRightButtonPressed
             || !IsCPUSelected()
             || TopLevel.GetTopLevel(this) is not Window owner)
-        {
             return;
-        }
 
         PixelPoint screenPosition = _graphSurface.PointToScreen(
             eventArgs.GetPosition(_graphSurface));
@@ -1190,29 +1147,29 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         CloseCPUGraphContextMenu();
         ContextMenuEntryBuilder entries = new();
         entries.Add(new ContextMenuEntry(
-            "Logical processors",
+            Text: "Logical processors",
             () => SetCPUGraphView(CPUPerformanceGraphView.LogicalProcessors))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
-                            == CPUPerformanceGraphView.LogicalProcessors
+                                    == CPUPerformanceGraphView.LogicalProcessors
                 ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
         entries.Add(new ContextMenuEntry(
-            "Overall utilization",
+            Text: "Overall utilization",
             () => SetCPUGraphView(CPUPerformanceGraphView.OverallUtilization))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
-                            == CPUPerformanceGraphView.OverallUtilization
+                                    == CPUPerformanceGraphView.OverallUtilization
                 ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
         entries.Add(new ContextMenuEntry(
-            "Detailed view",
+            Text: "Detailed view",
             () => SetCPUGraphView(CPUPerformanceGraphView.DetailedView))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
-                            == CPUPerformanceGraphView.DetailedView
+                                    == CPUPerformanceGraphView.DetailedView
                 ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
@@ -1285,7 +1242,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _memoryCompositionView.IsVisible = false;
             _memoryModuleDetailsPanel.IsVisible = false;
             _diskPerformanceDetailsView.Hide();
-            SetStatistics(null, ReadOnlySpan<PerformanceStatistic>.Empty);
+            SetStatistics(deviceKind: null, ReadOnlySpan<PerformanceStatistic>.Empty);
             return;
         }
 
@@ -1323,9 +1280,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         }
         else
-        {
             _gpuPerformanceDetailsView.Hide();
-        }
+
         bool showMemoryDetails = selectedDevice.Kind == PerformanceDeviceKind.Memory;
         _memoryCompositionView.IsVisible = showMemoryDetails;
         if (showMemoryDetails)
@@ -1336,9 +1292,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _settings.ShowMemoryModuleSerialNumbers);
         }
         else
-        {
             _memoryModuleDetailsPanel.IsVisible = false;
-        }
+
         bool showDiskDetails = selectedDevice.Kind == PerformanceDeviceKind.Disk;
         if (showDiskDetails)
         {
@@ -1355,9 +1310,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         }
         else
-        {
             _diskPerformanceDetailsView.Hide();
-        }
+
         SetStatistics(selectedDevice.Kind, selectedDevice.Statistics.Span);
     }
 
@@ -1381,9 +1335,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (!_deviceCards.TryGetValue(
                 CPUPerformanceSnapshot.StableDeviceID,
                 out PerformanceDeviceCard? CPUCard))
-        {
             return;
-        }
 
         CPUCard.SetSecondaryHistory(
             _settings.ShowCPUHighestCoreTrace ? _cpuHighestCoreHistory : null);
@@ -1432,9 +1384,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_configuredStatisticCount == visibleCount
             && _configuredPrimaryStatisticCount == primaryStatisticCount
             && _configuredStatisticDeviceKind == deviceKind)
-        {
             return;
-        }
 
         _configuredStatisticCount = visibleCount;
         _configuredPrimaryStatisticCount = primaryStatisticCount;
@@ -1549,7 +1499,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _accent = device.Accent;
             _accentBrush = new SolidColorBrush(device.Accent);
             double trailingHitTestHeight = Math.Max(
-                0,
+                val1: 0,
                 resources.AxamlTaskManagerPerformance.DeviceColumnSpacing);
             Height = resources.AxamlTaskManagerPerformance.DeviceCardHeight + trailingHitTestHeight;
             Background = Brushes.Transparent;
@@ -1590,23 +1540,18 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
             StackPanel labels = new()
             {
-                VerticalAlignment = VerticalAlignment.Center,
-                Children = { _title, _subtitle, _summary }
+                VerticalAlignment = VerticalAlignment.Center, Children = { _title, _subtitle, _summary }
             };
             Grid content = new()
             {
-                ColumnDefinitions =
-                {
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star)
-                }
+                ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
             };
             content.Children.Add(_graph);
-            Grid.SetColumn(labels, 1);
+            SetColumn(labels, value: 1);
             content.Children.Add(labels);
             _surface = new Border
             {
-                Margin = new Thickness(0, 0, 0, trailingHitTestHeight),
+                Margin = new Thickness(left: 0, top: 0, right: 0, trailingHitTestHeight),
                 Padding = resources.AxamlTaskManagerPerformance.DeviceCardPadding,
                 CornerRadius = resources.AxamlTaskManagerPerformance.DeviceCardCornerRadius,
                 BorderThickness = resources.AxamlTaskManagerPerformance.DeviceCardBorderThickness,
@@ -1617,7 +1562,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
             PointerEntered += OnPointerEntered;
             PointerExited += OnPointerExited;
-            TrayAppDotNETToolTip.SetTip(this, "Select or drag to reorder. Use Ctrl+Up/Down from the keyboard.");
+            TrayAppDotNETToolTip.SetTip(this, tip: "Select or drag to reorder. Use Ctrl+Up/Down from the keyboard.");
             UpdateSurface();
         }
 
@@ -1630,6 +1575,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _accent = device.Accent;
                 _accentBrush = new SolidColorBrush(device.Accent);
             }
+
             _title.Text = device.Title;
             _subtitle.Text = device.Subtitle;
             _subtitle.IsVisible = ShouldShowSubtitle(device);
@@ -1698,7 +1644,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _graph = graph;
             _graph.IsHitTestVisible = false;
             Background = Brushes.Transparent;
-            Padding = new Thickness(0, 0, trailingHitTestWidth, trailingHitTestHeight);
+            Padding = new Thickness(left: 0, top: 0, trailingHitTestWidth, trailingHitTestHeight);
             Child = graph;
         }
 

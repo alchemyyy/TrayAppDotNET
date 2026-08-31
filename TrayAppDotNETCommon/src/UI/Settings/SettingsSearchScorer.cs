@@ -155,9 +155,7 @@ internal static class SettingsSearchScorer
             if (category is UnicodeCategory.NonSpacingMark
                 or UnicodeCategory.SpacingCombiningMark
                 or UnicodeCategory.EnclosingMark)
-            {
                 continue;
-            }
 
             if (Rune.IsLetterOrDigit(rune))
             {
@@ -345,9 +343,9 @@ internal static class SettingsSearchScorer
         SearchField field)
     {
         double synonymSimilarity = synonymGroupID != SettingsSearchQueryPart.NoSynonymGroup
-            && Array.BinarySearch(field.SynonymGroupIDs, synonymGroupID) >= 0
-                ? 1
-                : 0;
+                                   && Array.BinarySearch(field.SynonymGroupIDs, synonymGroupID) >= 0
+            ? 1
+            : 0;
         double lexicalSimilarity = queryText.Contains(' ')
             ? LexicalSimilarity(queryText, field.NormalizedText)
             : Math.Max(
@@ -361,7 +359,7 @@ internal static class SettingsSearchScorer
         if (normalizedQuery.Length == 0 || normalizedCandidate.Length == 0) return 0;
         if (string.Equals(normalizedQuery, normalizedCandidate, StringComparison.Ordinal)) return 1;
 
-        int queryLength = RuneLength(normalizedQuery.Replace(" ", string.Empty, StringComparison.Ordinal));
+        int queryLength = RuneLength(normalizedQuery.Replace(oldValue: " ", string.Empty, StringComparison.Ordinal));
         bool isShortASCIIQuery = queryLength <= ShortASCIIQueryLength && IsASCII(normalizedQuery);
         if (normalizedCandidate.StartsWith(normalizedQuery, StringComparison.Ordinal)) return 0.98;
         if (!isShortASCIIQuery && normalizedCandidate.Contains(normalizedQuery, StringComparison.Ordinal)) return 0.94;
@@ -474,9 +472,7 @@ internal static class SettingsSearchScorer
                     && rightIndex > 1
                     && leftRunes[leftIndex - 1] == rightRunes[rightIndex - 2]
                     && leftRunes[leftIndex - 2] == rightRunes[rightIndex - 1])
-                {
                     distance = Math.Min(distance, previousPrevious[rightIndex - 2] + 1);
-                }
 
                 current[rightIndex] = distance;
                 rowMinimum = Math.Min(rowMinimum, distance);
@@ -516,7 +512,7 @@ internal static class SettingsSearchScorer
         {
             ulong encoded = 0;
             for (int offset = 0; offset < nGramSize; offset++)
-                encoded = encoded << 21 | (uint)runes[startIndex + offset].Value;
+                encoded = (encoded << 21) | (uint)runes[startIndex + offset].Value;
             nGrams.Add(encoded);
         }
 
@@ -527,7 +523,8 @@ internal static class SettingsSearchScorer
     {
         foreach (Rune rune in value.EnumerateRunes())
         {
-            if (!rune.IsAscii) return false;
+            if (!rune.IsAscii)
+                return false;
         }
 
         return true;
@@ -542,5 +539,5 @@ internal static class SettingsSearchScorer
     }
 
     private static string[] Tokenize(string normalizedText) =>
-        normalizedText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        normalizedText.Split(separator: ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

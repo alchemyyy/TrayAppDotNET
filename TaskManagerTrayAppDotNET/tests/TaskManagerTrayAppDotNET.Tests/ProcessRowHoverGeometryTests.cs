@@ -16,14 +16,14 @@ public sealed class ProcessRowHoverGeometryTests
     public void HitTestMapsRowsUsingContentCoordinates(double positionY, int expectedVisibleIndex)
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(0, 0, 800, 300),
+            new Rect(x: 0, y: 0, width: 800, height: 300),
             VisibleRowCount: 10,
             HeaderHeight: 32,
             RowHeight: 20,
             StickyHeaderTop: 0,
             IsEnabled: true);
 
-        int visibleIndex = geometry.HitTest(new Point(100, positionY));
+        int visibleIndex = geometry.HitTest(new Point(x: 100, positionY));
 
         Assert.Equal(expectedVisibleIndex, visibleIndex);
     }
@@ -40,14 +40,14 @@ public sealed class ProcessRowHoverGeometryTests
         int expectedVisibleIndex)
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(200, 100, 600, 200),
+            new Rect(x: 200, y: 100, width: 600, height: 200),
             VisibleRowCount: 20,
             HeaderHeight: 32,
             RowHeight: 20,
             StickyHeaderTop: 100,
             IsEnabled: true);
 
-        int visibleIndex = geometry.HitTest(new Point(300, positionY));
+        int visibleIndex = geometry.HitTest(new Point(x: 300, positionY));
 
         Assert.Equal(expectedVisibleIndex, visibleIndex);
     }
@@ -56,44 +56,45 @@ public sealed class ProcessRowHoverGeometryTests
     public void HitTestRejectsPointsOutsideHorizontalViewport()
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(200, 100, 600, 200),
+            new Rect(x: 200, y: 100, width: 600, height: 200),
             VisibleRowCount: 20,
             HeaderHeight: 32,
             RowHeight: 20,
             StickyHeaderTop: 100,
             IsEnabled: true);
 
-        Assert.Equal(-1, geometry.HitTest(new Point(199.999, 132)));
-        Assert.Equal(-1, geometry.HitTest(new Point(800, 132)));
+        Assert.Equal(expected: -1, geometry.HitTest(new Point(x: 199.999, y: 132)));
+        Assert.Equal(expected: -1, geometry.HitTest(new Point(x: 800, y: 132)));
     }
 
     [Fact]
     public void HitTestRejectsRowsWhileHeaderInteractionSuppressesHover()
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(0, 0, 800, 300),
+            new Rect(x: 0, y: 0, width: 800, height: 300),
             VisibleRowCount: 10,
             HeaderHeight: 32,
             RowHeight: 20,
             StickyHeaderTop: 0,
             IsEnabled: false);
 
-        Assert.Equal(-1, geometry.HitTest(new Point(100, 32)));
+        Assert.Equal(expected: -1, geometry.HitTest(new Point(x: 100, y: 32)));
     }
 
     [Fact]
     public void GetRowBoundsReturnsFullHostWidth()
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(0, 0, 800, 300),
+            new Rect(x: 0, y: 0, width: 800, height: 300),
             VisibleRowCount: 10,
             HeaderHeight: 32,
             RowHeight: 20,
             StickyHeaderTop: 0,
             IsEnabled: true);
 
-        Assert.Equal(new Rect(0, 92, 1200, 20), geometry.GetRowBounds(3, 1200));
-        Assert.Equal(default, geometry.GetRowBounds(10, 1200));
+        Assert.Equal(new Rect(x: 0, y: 92, width: 1200, height: 20),
+            geometry.GetRowBounds(visibleIndex: 3, hostWidth: 1200));
+        Assert.Equal(expected: default, geometry.GetRowBounds(visibleIndex: 10, hostWidth: 1200));
     }
 
     [Theory]
@@ -106,7 +107,7 @@ public sealed class ProcessRowHoverGeometryTests
         bool expectedVisible)
     {
         ProcessRowHoverGeometry geometry = new(
-            new Rect(200, 100, 600, 200),
+            new Rect(x: 200, y: 100, width: 600, height: 200),
             VisibleRowCount: 20,
             HeaderHeight: 32,
             RowHeight: 20,

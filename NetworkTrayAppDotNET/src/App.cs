@@ -1,23 +1,22 @@
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
+#if DEBUG
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using Microsoft.Win32;
 using NetworkTrayAppDotNET.Interop;
-using NetworkTrayAppDotNET.Localization;
 using NetworkTrayAppDotNET.Models;
 using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.WarmWindows;
-#if DEBUG
-using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 
 namespace NetworkTrayAppDotNET;
@@ -74,7 +73,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         TADNLog.Initialize();
         TADNLog.Log("NetworkAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(Strings.ResourceManager, culture => Strings.Culture = culture);
+        LocalizationManager.Instance.Initialize(AppStrings.ResourceManager, culture => AppStrings.Culture = culture);
         WireCrashHandlers();
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
@@ -82,13 +81,14 @@ internal sealed class NetworkAvaloniaApp : Application
         if (Program.IsInstallerMode)
         {
             LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = AppTheme.LoadAppIcon(),
-                Palette = TrayMenuPalette(),
-                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-            });
+            TrayAppDotNETInstallerRunner.Show(this,
+                new TrayAppDotNETInstallerWindowOptions
+                {
+                    Layout = AppServices.InstallLayout,
+                    Icon = AppTheme.LoadAppIcon(),
+                    Palette = TrayMenuPalette(),
+                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -222,10 +222,10 @@ internal sealed class NetworkAvaloniaApp : Application
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
                     repositoryName: "TrayAppDotNET",
-                    applicationName: Program.ApplicationName,
-                    currentBuild: BuildInfo.BuildNumber,
-                    saveSettings: _settings.Save,
-                    sharedSettingsDirectory: Program.LocalAppDataRoot);
+                    Program.ApplicationName,
+                    BuildInfo.BuildNumber,
+                    _settings.Save,
+                    Program.LocalAppDataRoot);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;
@@ -517,16 +517,16 @@ internal sealed class NetworkAvaloniaApp : Application
         NetworkTrayMenuWindow menuWindow = new(
             settings,
             TrayMenuPalette(),
-            rounded: settings.EnableRoundedCorners,
-            fontSize: settings.ContextMenuFontSize,
-            networkSettingsText: L(nameof(AppStrings.Tray_NetworkSettings)),
-            adapterSettingsText: L(nameof(AppStrings.Tray_AdapterSettings)),
-            settingsText: L(nameof(AppStrings.Tray_Settings)),
-            exitText: L(nameof(AppStrings.Tray_Exit)),
-            openNetworkSettings: OpenNetworkSettings,
-            openAdapterSettings: OpenAdapterSettings,
-            openSettings: () => OpenSettings(),
-            exit: ExitApplication);
+            settings.EnableRoundedCorners,
+            settings.ContextMenuFontSize,
+            L(nameof(AppStrings.Tray_NetworkSettings)),
+            L(nameof(AppStrings.Tray_AdapterSettings)),
+            L(nameof(AppStrings.Tray_Settings)),
+            L(nameof(AppStrings.Tray_Exit)),
+            OpenNetworkSettings,
+            OpenAdapterSettings,
+            () => OpenSettings(),
+            ExitApplication);
         _trayMenuWindow = menuWindow;
         menuWindow.Closed += OnTrayMenuClosed;
         return menuWindow;

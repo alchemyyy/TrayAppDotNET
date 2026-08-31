@@ -55,7 +55,7 @@ internal sealed class PerformanceHistory
     public void Add(long timestamp, double value)
     {
         double normalizedValue = double.IsFinite(value)
-            ? Math.Clamp(value, 0, 100)
+            ? Math.Clamp(value, min: 0, max: 100)
             : 0;
         AdvanceTo(timestamp);
         if (Count > 0)
@@ -152,7 +152,7 @@ internal sealed class PerformanceHistory
         (_oldestIndex + chronologicalIndex) % _samples.Length;
 
     private static long CalculateWindowDurationTicks(int historyLengthMinutes) =>
-        checked((long)Stopwatch.Frequency * historyLengthMinutes * SecondsPerMinute);
+        checked(Stopwatch.Frequency * historyLengthMinutes * SecondsPerMinute);
 
     private readonly record struct PerformanceHistorySample(long Timestamp, double Value);
 }

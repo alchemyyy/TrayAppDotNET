@@ -9,7 +9,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     private const string DeviceDingThrottleKey = "device";
     private const string AppDingThrottleKey = "app";
 
-    private readonly AsyncThrottler<string> _feedbackThrottler = new(0, StringComparer.Ordinal);
+    private readonly AsyncThrottler<string> _feedbackThrottler = new(cooldownMs: 0, StringComparer.Ordinal);
     private readonly Lock _soundGate = new();
     private readonly AppSettings? _settings;
     private readonly Task<WAVTemplate?> _wavTemplateTask;
@@ -92,25 +92,23 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
 
     private bool ShouldSuppressDeviceDing(AudioDevice device)
     {
-        AppSettings? settings = _settings;
-        if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
+        if (_settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
 
         bool isPeakAvailable = device.TryReadDingSuppressionPeak(out float recentPeak);
         return DingSuppressionPeak.ShouldSuppressFeedback(
             recentPeak,
-            settings.DingSuppressionPeakThresholdPercent,
+            _settings.DingSuppressionPeakThresholdPercent,
             device.Volume,
             isPeakAvailable);
     }
 
     private bool ShouldSuppressAppDing(AudioAppGroup group)
     {
-        AppSettings? settings = _settings;
-        if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
+        if (_settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
 
         return DingSuppressionPeak.ShouldSuppressFeedback(
             group.ReadDingSuppressionPeak(),
-            settings.DingSuppressionPeakThresholdPercent,
+            _settings.DingSuppressionPeakThresholdPercent,
             group.Volume,
             isPeakAvailable: true);
     }
@@ -160,7 +158,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     {
         string wavPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            "Media",
+            path2: "Media",
             AppFeedbackWavName);
         return WAVTemplate.FromFile(wavPath);
     }

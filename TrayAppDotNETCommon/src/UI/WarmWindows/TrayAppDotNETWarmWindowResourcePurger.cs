@@ -8,14 +8,14 @@ public static class TrayAppDotNETWarmWindowResourcePurger
 
     public static async Task PurgeAsync(Action<Exception>? logError = null)
     {
-        if (Interlocked.Exchange(ref _purgeQueued, 1) != 0) return;
+        if (Interlocked.Exchange(ref _purgeQueued, value: 1) != 0) return;
 
         await RunPurgeAsync(logError);
     }
 
     public static void RequestAfterEviction(Action<Exception>? logError = null)
     {
-        if (Interlocked.Exchange(ref _purgeQueued, 1) != 0) return;
+        if (Interlocked.Exchange(ref _purgeQueued, value: 1) != 0) return;
 
         Dispatcher.UIThread.Post(
             () => _ = RunPurgeAsync(logError),
@@ -35,7 +35,7 @@ public static class TrayAppDotNETWarmWindowResourcePurger
         }
         finally
         {
-            Interlocked.Exchange(ref _purgeQueued, 0);
+            Interlocked.Exchange(ref _purgeQueued, value: 0);
         }
     }
 

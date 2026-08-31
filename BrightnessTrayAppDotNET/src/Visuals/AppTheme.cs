@@ -35,28 +35,40 @@ public sealed class AppTheme : CommonAppTheme
 
     public ThemeColor DisplayIdentifierBackground { get; set; } =
         AppThemeColorCatalog.Color(nameof(DisplayIdentifierBackground));
+
     public ThemeColor DisplayIdentifierBorder { get; set; } =
         AppThemeColorCatalog.Color(nameof(DisplayIdentifierBorder));
+
     public ThemeColor DisplayIdentifierShadow { get; set; } =
         AppThemeColorCatalog.Color(nameof(DisplayIdentifierShadow));
+
     public ThemeColor DisplayIdentifierForeground { get; set; } =
         AppThemeColorCatalog.Color(nameof(DisplayIdentifierForeground));
+
     public ThemeColor EnvironmentalBrightnessCurve { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalBrightnessCurve));
+
     public ThemeColor EnvironmentalNightLightCurve { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalNightLightCurve));
+
     public ThemeColor EnvironmentalCurrentTime { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalCurrentTime));
+
     public ThemeColor EnvironmentalTwilightBackdrop { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalTwilightBackdrop));
+
     public ThemeColor EnvironmentalNightBackdrop { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalNightBackdrop));
+
     public ThemeColor EnvironmentalGridLine { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalGridLine));
+
     public ThemeColor CurveDisabledBandOverlay { get; set; } =
         AppThemeColorCatalog.Color(nameof(CurveDisabledBandOverlay));
+
     public ThemeColor EnvironmentalPreviewTint { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalPreviewTint));
+
     public ThemeColor EnvironmentalMapPin { get; set; } =
         AppThemeColorCatalog.Color(nameof(EnvironmentalMapPin));
 
@@ -85,7 +97,7 @@ public sealed class AppTheme : CommonAppTheme
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "theme.xml");
+        return Path.Combine(appFolder, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
@@ -201,8 +213,7 @@ public sealed class AppTheme : CommonAppTheme
     public Color ResolveEnvironmentalMapHudBackdrop(AppSettings? settings, bool isLightTheme)
     {
         Color background = ResolveBackground(settings, isLightTheme);
-        byte alpha = (byte)Math.Clamp(EnvironmentalMapHudBackdropAlpha, 0, 255);
+        byte alpha = (byte)Math.Clamp(EnvironmentalMapHudBackdropAlpha, min: 0, max: 255);
         return Color.FromArgb(alpha, background.R, background.G, background.B);
     }
-
 }

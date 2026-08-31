@@ -78,7 +78,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         Func<Task<ExplorerRestartResult>> restartExplorer,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
-        : base("Processes", palette, resources)
+        : base(title: "Processes", palette, resources)
     {
         _snapshotService = snapshotService;
         _settings = settings;
@@ -134,13 +134,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _processCanvas.SetContextCopyPreview,
             reportMessage);
 
-        _runTaskButton = TrayAppDotNETSettingsUI.Button("Run new task", palette);
+        _runTaskButton = TrayAppDotNETSettingsUI.Button(text: "Run new task", palette);
         _runTaskButton.Click += OnRunTaskClick;
-        _restartExplorerButton = TrayAppDotNETSettingsUI.Button("Restart explorer", palette);
+        _restartExplorerButton = TrayAppDotNETSettingsUI.Button(text: "Restart explorer", palette);
         _restartExplorerButton.Click += OnRestartExplorerClick;
-        _columnsButton = TrayAppDotNETSettingsUI.Button("Columns..", palette);
+        _columnsButton = TrayAppDotNETSettingsUI.Button(text: "Columns..", palette);
         _columnsButton.Click += OnColumnsClick;
-        _endTaskButton = TrayAppDotNETSettingsUI.Button("End task", palette);
+        _endTaskButton = TrayAppDotNETSettingsUI.Button(text: "End task", palette);
         _endTaskButton.IsEnabled = false;
         _endTaskButton.Click += OnEndTaskClick;
         _groupProcessesToggle = TrayAppDotNETSettingsUI.Toggle(
@@ -154,7 +154,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _moreActionsButton.Padding = resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
         _moreActionsButton.Label.FontSize = resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
         _moreActionsButton.Click += OnMoreActionsClick;
-        TrayAppDotNETToolTip.SetTip(_moreActionsButton, "More");
+        TrayAppDotNETToolTip.SetTip(_moreActionsButton, tip: "More");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_moreActionsButton);
         _groupProcessesHeaderControl = BuildGroupProcessesHeaderControl(palette, resources);
         PopulateHeaderActions();
@@ -186,10 +186,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             confirmDeleteSavedSearch);
         _savedSearches.ClearButton.Margin = default;
         _savedSearches.SaveButton.Margin = new Thickness(
-            0,
-            0,
+            left: 0,
+            top: 0,
             resources.AxamlTaskManagerDetails.SearchActionSpacing,
-            0);
+            bottom: 0);
         _searchControls = new Grid
         {
             HorizontalAlignment = settings.LeftAlignProcessSearchBar
@@ -206,9 +206,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             }
         };
         _searchControls.Children.Add(_savedSearches.ClearButton);
-        Grid.SetColumn(_savedSearches.SaveButton, 1);
+        SetColumn(_savedSearches.SaveButton, value: 1);
         _searchControls.Children.Add(_savedSearches.SaveButton);
-        Grid.SetColumn(_searchBox, 2);
+        SetColumn(_searchBox, value: 2);
         _searchControls.Children.Add(_searchBox);
         UpdateSearchControlsPosition();
         _searchOverlay = new Grid();
@@ -222,9 +222,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
         _runInput.PlaceholderText = "Executable, document, or URI";
         _runInput.KeyDown += OnRunInputKeyDown;
-        _submitRunButton = TrayAppDotNETSettingsUI.Button("Run", palette);
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button("Cancel", palette);
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel(palette, resources);
         _runPanel.IsVisible = false;
@@ -258,15 +258,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _resizeGrip = new TaskManagerResizeGrip(resources);
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
-            default,
+            padding: default,
             resources.AxamlProcessTable.GridBackgroundColor,
             scrollBarStyle,
             scrollBarContextMenuOptions,
             _resizeGrip,
-            overlayVerticalScrollBar: true)
-        {
-            Margin = resources.AxamlTaskManagerDetails.TableMargin
-        };
+            overlayVerticalScrollBar: true) { Margin = resources.AxamlTaskManagerDetails.TableMargin };
         _tableScrollViewport.SetVerticalScrollBarTopInset(
             GetProcessTableVerticalScrollBarTopInset(resources));
         _columnHeaderBorder = new Border
@@ -277,9 +274,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             IsHitTestVisible = false
         };
         ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
-        Grid.SetColumnSpan(_columnHeaderBorder, 2);
+        SetColumnSpan(_columnHeaderBorder, value: 2);
         _tableScrollViewport.Children.Add(_columnHeaderBorder);
-        Grid.SetRow(_tableScrollViewport, 1);
+        SetRow(_tableScrollViewport, value: 1);
         MainContent.Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
@@ -305,12 +302,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         if (!_searchBox.IsEffectivelyVisible
             || _searchBox.Bounds.Width <= 0
             || topLevel == null)
-        {
             return false;
-        }
 
         PixelPoint screenLeft = _searchBox.PointToScreen(default);
-        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, 0));
+        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, y: 0));
         int searchLeft = Math.Min(screenLeft.X, screenRight.X);
         searchWidth = Math.Abs(screenRight.X - screenLeft.X);
         if (searchWidth <= 0) return false;
@@ -327,9 +322,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
         PixelPoint actionLeft = leftmostActionButton.PointToScreen(default);
         PixelPoint actionRight = leftmostActionButton.PointToScreen(
-            new Point(leftmostActionButton.Bounds.Width, 0));
+            new Point(leftmostActionButton.Bounds.Width, y: 0));
         int actionLeftX = Math.Min(actionLeft.X, actionRight.X);
-        leadingActionWidth = Math.Max(0, searchLeft - actionLeftX);
+        leadingActionWidth = Math.Max(val1: 0, searchLeft - actionLeftX);
         return true;
     }
 
@@ -363,7 +358,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         TaskManagerWindowResources resources)
     {
         TextBlock label = TrayAppDotNETSettingsUI.Text(
-            "Group processes",
+            text: "Group processes",
             palette,
             resources.AxamlTaskManagerDetails.ToolbarFontSize,
             (FontWeight)resources.AxamlTaskManagerDetails.ToolbarFontWeight);
@@ -393,7 +388,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(buttonKind),
                     buttonKind,
-                    "Unknown header button kind.")
+                    message: "Unknown header button kind.")
             };
             HeaderActions.Children.Add(button);
         }
@@ -412,15 +407,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
             ColumnDefinitions =
             {
-                inputColumn,
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
+                inputColumn, new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Auto)
             }
         };
         actions.Children.Add(_runInput);
-        Grid.SetColumn(_submitRunButton, 1);
+        SetColumn(_submitRunButton, value: 1);
         actions.Children.Add(_submitRunButton);
-        Grid.SetColumn(_cancelRunButton, 2);
+        SetColumn(_cancelRunButton, value: 2);
         actions.Children.Add(_cancelRunButton);
         return new Border
         {
@@ -497,10 +490,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _searchBox.Width = resources.AxamlTaskManagerDetails.SearchWidth;
         _savedSearches.ClearButton.Margin = default;
         _savedSearches.SaveButton.Margin = new Thickness(
-            0,
-            0,
+            left: 0,
+            top: 0,
             resources.AxamlTaskManagerDetails.SearchActionSpacing,
-            0);
+            bottom: 0);
         _savedSearches.ApplyAXAMLResources(resources);
         _searchControls.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         UpdateSearchControlsPosition();
@@ -567,7 +560,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         TaskManagerWindowResources resources)
     {
         double borderThickness = resources.AxamlProcessTable.GridLineThickness;
-        columnHeaderBorder.BorderThickness = new Thickness(0, 0, 0, borderThickness);
+        columnHeaderBorder.BorderThickness = new Thickness(left: 0, top: 0, right: 0, borderThickness);
         columnHeaderBorder.Height = resources.AxamlProcessTable.HeaderHeight + borderThickness / 2;
     }
 
@@ -577,10 +570,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _armTerminationTarget(target);
     }
 
-    private void OnRowHoverGeometryChanged(ProcessRowHoverGeometry geometry)
-    {
-        _hoverHighlight.SetGeometry(geometry);
-    }
+    private void OnRowHoverGeometryChanged(ProcessRowHoverGeometry geometry) => _hoverHighlight.SetGeometry(geometry);
 
     private void OnSelectionRowTopChanged(double? rowTop)
     {
@@ -596,10 +586,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _tableScrollViewport.AdjustVerticalOffset(adjustment.VerticalOffsetDelta);
     }
 
-    private void OnGridMetricsChanged(double fontSize, double rowHeight)
-    {
-        _selectionHighlight.Height = rowHeight;
-    }
+    private void OnGridMetricsChanged(double fontSize, double rowHeight) => _selectionHighlight.Height = rowHeight;
 
     private void OnGridZoomRequested(int direction)
     {
@@ -741,7 +728,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
         CloseHeaderActionsMenu();
         ContextMenuEntryBuilder entries = new();
-        entries.Add("Arrange buttons", ShowHeaderButtonArrangement);
+        entries.Add(text: "Arrange buttons", ShowHeaderButtonArrangement);
         entries.AddSeparator();
         AddElevatedHelperMenuEntry(entries);
         TaskManagerContextMenuWindow menuWindow = new(
@@ -760,20 +747,20 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         switch (status.State)
         {
             case ElevatedHelperState.NotRequested:
-                entries.Add("Enable elevated termination...", _requestElevatedTermination);
+                entries.Add(text: "Enable elevated termination...", _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Declined:
             case ElevatedHelperState.Failed:
-                entries.Add("Retry elevated termination...", _requestElevatedTermination);
+                entries.Add(text: "Retry elevated termination...", _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Starting:
-                entries.Add("Waiting for Windows approval", static () => { });
+                entries.Add(text: "Waiting for Windows approval", static () => { });
                 break;
             case ElevatedHelperState.Ready:
-                entries.Add("Elevated termination enabled", static () => { });
+                entries.Add(text: "Elevated termination enabled", static () => { });
                 break;
             case ElevatedHelperState.Disposed:
-                entries.Add("Elevated termination unavailable", static () => { });
+                entries.Add(text: "Elevated termination unavailable", static () => { });
                 break;
         }
     }
@@ -894,7 +881,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     /// <summary>Gets the process-grid top edge in the requested control's coordinate space.</summary>
     internal bool TryGetTableTop(Control relativeTo, out double tableTop)
     {
-        Point? tableOrigin = _tableScrollViewport.TranslatePoint(default, relativeTo);
+        Point? tableOrigin = _tableScrollViewport.TranslatePoint(point: default, relativeTo);
         if (!tableOrigin.HasValue)
         {
             tableTop = 0;
@@ -936,7 +923,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             if (_disposed) return;
             if (!result.Succeeded)
             {
-                _reportMessage("Restart explorer failed", result.ErrorMessage);
+                _reportMessage(arg1: "Restart explorer failed", result.ErrorMessage);
                 return;
             }
 
@@ -945,7 +932,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         catch (Exception exception)
         {
             TADNLog.Log($"Restart Explorer failed: {exception}");
-            if (!_disposed) _reportMessage("Restart explorer failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: "Restart explorer failed", exception.Message);
         }
         finally
         {
@@ -972,7 +959,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
             if (!_terminateProcess(request.Target, out string errorMessage))
             {
-                _reportMessage("End task failed", errorMessage);
+                _reportMessage(arg1: "End task failed", errorMessage);
                 return;
             }
 
@@ -981,7 +968,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         catch (Exception exception)
         {
             TADNLog.Log($"End task confirmation failed: {exception}");
-            if (!_disposed) _reportMessage("End task failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: "End task failed", exception.Message);
         }
         finally
         {
@@ -1066,17 +1053,20 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _headerButtonArrangementWindow.Close();
             _headerButtonArrangementWindow = null;
         }
+
         if (_columnChooserWindow != null)
         {
             _columnChooserWindow.Closed -= OnColumnChooserClosed;
             _columnChooserWindow.Close();
             _columnChooserWindow = null;
         }
+
         foreach (ProcessColumnPropertiesWindow propertiesWindow in _columnPropertyWindows.Values)
         {
             propertiesWindow.Closed -= OnColumnPropertiesWindowClosed;
             propertiesWindow.Close();
         }
+
         _columnPropertyWindows.Clear();
         _rowContextMenuController.Dispose();
         _tableScrollViewport.Dispose();

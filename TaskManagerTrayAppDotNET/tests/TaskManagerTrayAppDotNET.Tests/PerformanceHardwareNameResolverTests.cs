@@ -26,9 +26,9 @@ public sealed class PerformanceHardwareNameResolverTests
 
         string resolved = resolver.Resolve(
             PerformanceDeviceKind.Network,
-            "intel(R) Ethernet Converged Network Adapter X540-T2");
+            hardwareName: "intel(R) Ethernet Converged Network Adapter X540-T2");
 
-        Assert.Equal("Adapter X540-T2", resolved);
+        Assert.Equal(expected: "Adapter X540-T2", resolved);
     }
 
     [Fact]
@@ -38,18 +38,16 @@ public sealed class PerformanceHardwareNameResolverTests
         [
             new PerformanceHardwareNameReplacementRule
             {
-                DeviceKind = PerformanceDeviceKind.Network,
-                MatchPattern = "Adapter",
-                Replacement = "NIC"
+                DeviceKind = PerformanceDeviceKind.Network, MatchPattern = "Adapter", Replacement = "NIC"
             }
         ]);
 
         Assert.Equal(
-            "Test NIC",
-            resolver.Resolve(PerformanceDeviceKind.Network, "Test Adapter"));
+            expected: "Test NIC",
+            resolver.Resolve(PerformanceDeviceKind.Network, hardwareName: "Test Adapter"));
         Assert.Equal(
-            "Test Adapter",
-            resolver.Resolve(PerformanceDeviceKind.GPU, "Test Adapter"));
+            expected: "Test Adapter",
+            resolver.Resolve(PerformanceDeviceKind.GPU, hardwareName: "Test Adapter"));
     }
 
     [Fact]
@@ -59,20 +57,16 @@ public sealed class PerformanceHardwareNameResolverTests
         [
             new PerformanceHardwareNameReplacementRule
             {
-                DeviceKind = PerformanceDeviceKind.Disk,
-                MatchPattern = "(",
-                Replacement = "Broken"
+                DeviceKind = PerformanceDeviceKind.Disk, MatchPattern = "(", Replacement = "Broken"
             },
             new PerformanceHardwareNameReplacementRule
             {
-                DeviceKind = PerformanceDeviceKind.Disk,
-                MatchPattern = "^Samsung (.+)$",
-                Replacement = "$1"
+                DeviceKind = PerformanceDeviceKind.Disk, MatchPattern = "^Samsung (.+)$", Replacement = "$1"
             }
         ]);
 
         Assert.Equal(
-            "SSD 990 PRO",
-            resolver.Resolve(PerformanceDeviceKind.Disk, "Samsung SSD 990 PRO"));
+            expected: "SSD 990 PRO",
+            resolver.Resolve(PerformanceDeviceKind.Disk, hardwareName: "Samsung SSD 990 PRO"));
     }
 }

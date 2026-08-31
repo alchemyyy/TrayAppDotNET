@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text;
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 // Process metadata lookup for audio sessions. Icon extraction lives in AppIconResolver;
@@ -19,15 +18,16 @@ internal static class ProcessHelper
     {
         if (processId == 0) return null;
 
-        IntPtr handle = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+        IntPtr handle =
+            Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, processId);
         if (handle == IntPtr.Zero) return null;
 
         try
         {
             StringBuilder buffer = new(1024);
             uint size = (uint)buffer.Capacity;
-            if (Kernel32Process.QueryFullProcessImageNameW(handle, 0, buffer, ref size))
-                return buffer.ToString(0, (int)size);
+            if (Kernel32Process.QueryFullProcessImageNameW(handle, dwFlags: 0, buffer, ref size))
+                return buffer.ToString(startIndex: 0, (int)size);
         }
         finally { Kernel32.CloseHandle(handle); }
 

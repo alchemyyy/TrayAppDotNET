@@ -52,8 +52,8 @@ internal sealed class ElevatedKillHelperSession : IDisposable
     {
         requestSequence = 0;
         return Volatile.Read(ref _disposed) == 0 &&
-            _client != null &&
-            _client.TryRequestTermination(target, generation, out requestSequence);
+               _client != null &&
+               _client.TryRequestTermination(target, generation, out requestSequence);
     }
 
     /// <summary>Waits for a matching helper response without depending on the thread pool.</summary>
@@ -66,17 +66,17 @@ internal sealed class ElevatedKillHelperSession : IDisposable
         result = KillHelperProtocol.ResultNone;
         errorCode = 0;
         return Volatile.Read(ref _disposed) == 0 &&
-            _client != null &&
-            _client.TryWaitForResponse(
-                requestSequence,
-                timeoutMilliseconds,
-                out result,
-                out errorCode);
+               _client != null &&
+               _client.TryWaitForResponse(
+                   requestSequence,
+                   timeoutMilliseconds,
+                   out result,
+                   out errorCode);
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
         _client?.Dispose();
         _dispose?.Invoke();
     }

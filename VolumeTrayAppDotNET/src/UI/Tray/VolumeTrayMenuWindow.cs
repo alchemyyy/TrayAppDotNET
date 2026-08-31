@@ -98,7 +98,7 @@ public sealed class VolumeTrayMenuWindow : ContextMenuWindow
         int max = settings.TrayMenuDeviceNameMaxLength;
         if (raw.Length <= max) return raw;
 
-        int keep = Math.Max(0, max - TrayMenuTruncationSuffix.Length);
+        int keep = Math.Max(val1: 0, max - TrayMenuTruncationSuffix.Length);
         return keep == 0 ? raw[..Math.Min(raw.Length, max)] : raw[..keep] + TrayMenuTruncationSuffix;
     }
 

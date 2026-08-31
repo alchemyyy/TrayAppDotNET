@@ -1,6 +1,5 @@
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>

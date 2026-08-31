@@ -64,7 +64,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         ArgumentNullException.ThrowIfNull(buildPrimaryContent);
         ArgumentNullException.ThrowIfNull(palette);
         if (items.IsReadOnly)
-            throw new ArgumentException("The reorder item list must be mutable.", nameof(items));
+            throw new ArgumentException(message: "The reorder item list must be mutable.", nameof(items));
 
         _items = items;
         _readOnlyItems = items as IReadOnlyList<TItem> ?? new ReadOnlyListView(items);
@@ -73,10 +73,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _palette = palette;
         _enableRoundedCorners = enableRoundedCorners;
         _activateItem = activateItem;
-        _rows = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        _rows = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
         HorizontalAlignment = HorizontalAlignment.Stretch;
         Children.Add(_rows);
 
@@ -150,9 +147,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         if (_selectedItem != null
             && TaskManagerReorderListLogic.IndexOfReference(_readOnlyItems, _selectedItem) < 0)
-        {
             _selectedItem = null;
-        }
 
         List<TItem> visibleItems = TaskManagerReorderListLogic.FilterItems(
             _items,
@@ -184,7 +179,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         TaskManagerReorderResources resources)
     {
         Control primaryContent = _buildPrimaryContent(item)
-            ?? throw new InvalidOperationException("The reorder primary-content factory returned null.");
+                                 ?? throw new InvalidOperationException(
+                                     "The reorder primary-content factory returned null.");
         Border primaryHost = new()
         {
             Background = Brushes.Transparent,
@@ -203,8 +199,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             MoveDownToolTip,
             visibleIndex < visibleCount - 1,
             resources);
-        upButton.Click += (_, _) => MoveItem(item, -1);
-        downButton.Click += (_, _) => MoveItem(item, 1);
+        upButton.Click += (_, _) => MoveItem(item, direction: -1);
+        downButton.Click += (_, _) => MoveItem(item, direction: 1);
 
         StackPanel buttons = new()
         {
@@ -220,14 +216,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = resources.RowMinHeight,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         rowContent.Children.Add(primaryHost);
-        Grid.SetColumn(buttons, 1);
+        SetColumn(buttons, value: 1);
         rowContent.Children.Add(buttons);
 
         Border highlightSurface = new()
@@ -251,7 +243,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         slot.PointerEntered += (_, _) => OnRowPointerEntered(row);
         slot.PointerExited += (_, _) => OnRowPointerExited(row);
         slot.AddHandler(
-            InputElement.PointerPressedEvent,
+            PointerPressedEvent,
             (_, eventArgs) => OnRowPointerPressed(item, slot, eventArgs),
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
@@ -274,9 +266,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Height = resources.ButtonSize,
             MinHeight = resources.ButtonSize,
             Padding = resources.ButtonPadding,
-            IsEnabled = isEnabled
+            IsEnabled = isEnabled,
+            Label = { FontSize = resources.ButtonGlyphFontSize }
         };
-        button.Label.FontSize = resources.ButtonGlyphFontSize;
         TrayAppDotNETToolTip.SetTip(button, toolTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
         return button;
@@ -296,9 +288,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                 _visibleItems,
                 item,
                 targetVisibleIndex))
-        {
             return;
-        }
 
         RebuildRows();
         ItemsChanged?.Invoke();
@@ -357,7 +347,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _dragStart = eventArgs.GetPosition(_rows);
         _lastDragPointerPosition = _dragStart;
         _dragPointerOffsetY = eventArgs.GetPosition(slot).Y;
-        _draggedSlotHeight = Math.Max(1, slot.Bounds.Height);
+        _draggedSlotHeight = Math.Max(val1: 1, slot.Bounds.Height);
         _dragMidpoints = SnapshotRowMidpoints();
         _dropInsertionIndex = CalculateInsertionIndex(
             _dragMidpoints,
@@ -392,12 +382,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             double dragThreshold = TaskManagerReorderResources.Current.DragThreshold;
             if (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance
                 < dragThreshold * dragThreshold)
-            {
                 return;
-            }
 
             _isDragging = true;
-            ApplyDraggingVisual(slot, true);
+            ApplyDraggingVisual(slot, isDragging: true);
         }
 
         UpdateDraggedRowPosition(current);
@@ -466,6 +454,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             if (hadPublishedOrderPreview) PublishCurrentOrder();
             return;
         }
+
         if (!hadActiveDrag)
         {
             if (activateOnClick)
@@ -477,6 +466,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                     ItemsChanged?.Invoke();
                 }
             }
+
             return;
         }
 
@@ -512,9 +502,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         for (int rowIndex = 0; rowIndex < _visibleRows.Count; rowIndex++)
         {
             Border slot = _visibleRows[rowIndex].Slot;
-            Point? topLeft = slot.TranslatePoint(default, _rows);
+            Point? topLeft = slot.TranslatePoint(point: default, _rows);
             double top = topLeft?.Y ?? fallbackTop;
-            double height = Math.Max(1, slot.Bounds.Height);
+            double height = Math.Max(val1: 1, slot.Bounds.Height);
             midpoints[rowIndex] = top + height / 2;
             fallbackTop = top + height;
         }
@@ -545,7 +535,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         ApplyDragPreview();
         PublishDragPreview();
         draggedSlot.RenderTransform = new TranslateTransform(
-            0,
+            x: 0,
             pointerPosition.Y - _dragStart.Y);
     }
 
@@ -580,9 +570,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                 _visibleItems,
                 draggedItem,
                 targetVisibleIndex))
-        {
             return;
-        }
 
         _hasPublishedOrderPreview = true;
         OrderPreviewChanged?.Invoke(previewItems);
@@ -605,7 +593,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             sourceVisibleIndex,
             _dropInsertionIndex,
             _visibleRows.Count);
-        double displacement = Math.Max(1, draggedSlot.Bounds.Height);
+        double displacement = Math.Max(val1: 1, draggedSlot.Bounds.Height);
         for (int rowIndex = 0; rowIndex < _visibleRows.Count; rowIndex++)
         {
             Border slot = _visibleRows[rowIndex].Slot;
@@ -618,7 +606,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                 displacement);
             slot.RenderTransform = offset.Equals(0)
                 ? null
-                : new TranslateTransform(0, offset);
+                : new TranslateTransform(x: 0, offset);
         }
     }
 
@@ -671,10 +659,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                                  * TaskManagerReorderResources.Current.AutoScrollStep;
         scrollViewport.SetVerticalOffset(requestedOffset);
         SynchronizeViewportOffset();
-        if (scrollViewport.VerticalOffset.Equals(previousOffset))
-        {
-            SetAutoScrollDirection(0);
-        }
+        if (scrollViewport.VerticalOffset.Equals(previousOffset)) SetAutoScrollDirection(0);
     }
 
     private void OnScrollViewportVerticalOffsetChanged(object? sender, EventArgs eventArgs) =>
@@ -724,8 +709,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             if (!ReferenceEquals(row.Slot, draggedSlot))
                 row.Slot.RenderTransform = null;
         }
+
         draggedSlot.RenderTransform = null;
-        ApplyDraggingVisual(draggedSlot, false);
+        ApplyDraggingVisual(draggedSlot, isDragging: false);
     }
 
     private void CancelDrag()
@@ -792,7 +778,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     /// <summary>Releases pointer capture, generated rows, and hot-reload subscriptions.</summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
 #if DEBUG
         TaskManagerReorderResources.ResourcesReloaded -= OnResourcesReloaded;
@@ -873,19 +859,21 @@ internal static class TaskManagerReorderListLogic
         int sourceVisibleIndex = IndexOfReference(visibleItems, item);
         if (sourceVisibleIndex < 0) return false;
 
-        int clampedTargetIndex = Math.Clamp(targetVisibleIndex, 0, visibleItems.Count - 1);
+        int clampedTargetIndex = Math.Clamp(targetVisibleIndex, min: 0, visibleItems.Count - 1);
         if (clampedTargetIndex == sourceVisibleIndex) return false;
 
         HashSet<TItem> visibleSet = new(ReferenceEqualityComparer.Instance);
         for (int visibleIndex = 0; visibleIndex < visibleItems.Count; visibleIndex++)
         {
-            if (!visibleSet.Add(visibleItems[visibleIndex])) return false;
+            if (!visibleSet.Add(visibleItems[visibleIndex]))
+                return false;
         }
 
         List<int> visibleSlots = new(visibleItems.Count);
         for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
         {
-            if (visibleSet.Contains(items[itemIndex])) visibleSlots.Add(itemIndex);
+            if (visibleSet.Contains(items[itemIndex]))
+                visibleSlots.Add(itemIndex);
         }
 
         if (visibleSlots.Count != visibleItems.Count) return false;
@@ -915,12 +903,12 @@ internal static class TaskManagerReorderListLogic
     {
         if (visibleCount <= 0) return -1;
 
-        int clampedSourceIndex = Math.Clamp(sourceVisibleIndex, 0, visibleCount - 1);
-        int clampedInsertionIndex = Math.Clamp(insertionIndex, 0, visibleCount);
+        int clampedSourceIndex = Math.Clamp(sourceVisibleIndex, min: 0, visibleCount - 1);
+        int clampedInsertionIndex = Math.Clamp(insertionIndex, min: 0, visibleCount);
         int targetVisibleIndex = clampedInsertionIndex > clampedSourceIndex
             ? clampedInsertionIndex - 1
             : clampedInsertionIndex;
-        return Math.Clamp(targetVisibleIndex, 0, visibleCount - 1);
+        return Math.Clamp(targetVisibleIndex, min: 0, visibleCount - 1);
     }
 
     /// <summary>Resolves one sibling row's vertical displacement for a reorder preview.</summary>
@@ -943,7 +931,8 @@ internal static class TaskManagerReorderListLogic
     {
         for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
         {
-            if (ReferenceEquals(items[itemIndex], item)) return itemIndex;
+            if (ReferenceEquals(items[itemIndex], item))
+                return itemIndex;
         }
 
         return -1;

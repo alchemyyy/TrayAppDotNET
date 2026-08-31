@@ -21,7 +21,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 #endif
 
         IncrementalValuesProvider<AxamlClassModel?> axamlFiles = context.AdditionalTextsProvider
-            .Where(static text => text.Path.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase))
+            .Where(static text => text.Path.EndsWith(value: ".axaml", StringComparison.OrdinalIgnoreCase))
             .Select(static (text, cancellationToken) => ParseAdditionalText(text, cancellationToken));
 
         IncrementalValueProvider<string> rootNamespace = context.AnalyzerConfigOptionsProvider
@@ -46,7 +46,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
             List<AxamlClassModel> mergedClasses = MergeClasses(classes);
             sourceProductionContext.AddSource(
-                "AxamlPropertyLinker.StaticAccessors.g.cs",
+                hintName: "AxamlPropertyLinker.StaticAccessors.g.cs",
                 GenerateStaticAccessors(mergedClasses, generatedNamespace));
 
             foreach (AxamlClassModel axamlClass in mergedClasses)
@@ -75,22 +75,21 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         XElement? root = document.Root;
         if (root == null) return null;
 
-        XName classAttributeName = XName.Get("Class", XamlNamespace);
+        XName classAttributeName = XName.Get(localName: "Class", XamlNamespace);
         string? fullClassName = root.Attribute(classAttributeName)?.Value;
         if (string.IsNullOrWhiteSpace(fullClassName)) return null;
-        string classFullName = fullClassName!;
 
-        int classSeparatorIndex = classFullName.LastIndexOf('.');
-        if (classSeparatorIndex <= 0 || classSeparatorIndex == classFullName.Length - 1)
+        int classSeparatorIndex = fullClassName.LastIndexOf('.');
+        if (classSeparatorIndex <= 0 || classSeparatorIndex == fullClassName.Length - 1)
             return null;
 
-        string classNamespace = classFullName[..classSeparatorIndex];
-        string className = classFullName[(classSeparatorIndex + 1)..];
+        string classNamespace = fullClassName[..classSeparatorIndex];
+        string className = fullClassName[(classSeparatorIndex + 1)..];
         if (!IsQualifiedNamespace(classNamespace) || !IsIdentifier(className))
             return null;
 
         Dictionary<string, ResourceGroupBuilder> groupBuilders = new(StringComparer.Ordinal);
-        XName keyAttributeName = XName.Get("Key", XamlNamespace);
+        XName keyAttributeName = XName.Get(localName: "Key", XamlNamespace);
         foreach (XElement element in document.Descendants())
         {
             XAttribute? keyAttribute = element.Attribute(keyAttributeName);
@@ -114,7 +113,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         foreach (ResourceGroupBuilder groupBuilder in groupBuilders.Values.OrderBy(static group => group.Prefix))
             groups.Add(groupBuilder.Build());
 
-        bool isResourceDictionary = string.Equals(root.Name.LocalName, "ResourceDictionary", StringComparison.Ordinal);
+        bool isResourceDictionary =
+            string.Equals(root.Name.LocalName, b: "ResourceDictionary", StringComparison.Ordinal);
         return new AxamlClassModel(
             text.Path,
             classNamespace,
@@ -129,7 +129,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (separatorIndex <= 0 || separatorIndex == key.Length - 1)
             return null;
 
-        if (key.IndexOf('.', separatorIndex + 1) >= 0)
+        if (key.IndexOf(value: '.', separatorIndex + 1) >= 0)
             return null;
 
         string prefix = key[..separatorIndex];
@@ -151,7 +151,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             "CornerRadius" => ResourceKind.CornerRadius,
             "TranslateTransform" => ResourceKind.TranslateTransform,
             "Color" => ResourceKind.Color,
-            "String" => propertyName.EndsWith("Color", StringComparison.Ordinal)
+            "String" => propertyName.EndsWith(value: "Color", StringComparison.Ordinal)
                 ? ResourceKind.Color
                 : ResourceKind.String,
             _ => null
@@ -161,7 +161,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
     private static List<AxamlClassModel> MergeClasses(List<AxamlClassModel> classes)
     {
         Dictionary<string, AxamlClassBuilder> builders = new(StringComparer.Ordinal);
-        foreach (AxamlClassModel axamlClass in classes.OrderBy(static value => value.Path, StringComparer.OrdinalIgnoreCase))
+        foreach (AxamlClassModel axamlClass in classes.OrderBy(static value => value.Path,
+                     StringComparer.OrdinalIgnoreCase))
         {
             string key = axamlClass.Namespace + "." + axamlClass.ClassName;
             if (!builders.TryGetValue(key, out AxamlClassBuilder? builder))
@@ -179,7 +180,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         }
 
         List<AxamlClassModel> merged = [];
-        foreach (AxamlClassBuilder builder in builders.Values.OrderBy(static value => value.Namespace).ThenBy(static value => value.ClassName))
+        foreach (AxamlClassBuilder builder in builders.Values.OrderBy(static value => value.Namespace)
+                     .ThenBy(static value => value.ClassName))
             merged.Add(builder.Build());
 
         return merged;
@@ -330,86 +332,86 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
     private static string GenerateRuntime(string generatedNamespace) =>
         $$"""
-        // <auto-generated/>
-        #nullable enable
+          // <auto-generated/>
+          #nullable enable
 
-        namespace {{generatedNamespace}}
-        {
-            internal static class AxamlPropertyLinkerRuntime
-            {
-                public static double Double(object owner, string prefix, string name) =>
-                    Resource(owner, prefix, name) switch
-                    {
-                        double value => value,
-                        int value => value,
-                        string value => double.Parse(value, global::System.Globalization.CultureInfo.InvariantCulture),
-                        object value => global::System.Convert.ToDouble(value, global::System.Globalization.CultureInfo.InvariantCulture),
-                    };
+          namespace {{generatedNamespace}}
+          {
+              internal static class AxamlPropertyLinkerRuntime
+              {
+                  public static double Double(object owner, string prefix, string name) =>
+                      Resource(owner, prefix, name) switch
+                      {
+                          double value => value,
+                          int value => value,
+                          string value => double.Parse(value, global::System.Globalization.CultureInfo.InvariantCulture),
+                          object value => global::System.Convert.ToDouble(value, global::System.Globalization.CultureInfo.InvariantCulture),
+                      };
 
-                public static int Int(object owner, string prefix, string name) =>
-                    (int)global::System.Math.Round(Double(owner, prefix, name));
+                  public static int Int(object owner, string prefix, string name) =>
+                      (int)global::System.Math.Round(Double(owner, prefix, name));
 
-                public static string String(object owner, string prefix, string name) =>
-                    Resource(owner, prefix, name) switch
-                    {
-                        string value => value,
-                        object value => global::System.Convert.ToString(value, global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-                    };
+                  public static string String(object owner, string prefix, string name) =>
+                      Resource(owner, prefix, name) switch
+                      {
+                          string value => value,
+                          object value => global::System.Convert.ToString(value, global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                      };
 
-                public static global::Avalonia.Thickness Thickness(object owner, string prefix, string name) =>
-                    Resource(owner, prefix, name) is global::Avalonia.Thickness value
-                        ? value
-                        : throw InvalidType(prefix, name, nameof(global::Avalonia.Thickness));
+                  public static global::Avalonia.Thickness Thickness(object owner, string prefix, string name) =>
+                      Resource(owner, prefix, name) is global::Avalonia.Thickness value
+                          ? value
+                          : throw InvalidType(prefix, name, nameof(global::Avalonia.Thickness));
 
-                public static global::Avalonia.CornerRadius CornerRadius(object owner, string prefix, string name) =>
-                    Resource(owner, prefix, name) is global::Avalonia.CornerRadius value
-                        ? value
-                        : throw InvalidType(prefix, name, nameof(global::Avalonia.CornerRadius));
+                  public static global::Avalonia.CornerRadius CornerRadius(object owner, string prefix, string name) =>
+                      Resource(owner, prefix, name) is global::Avalonia.CornerRadius value
+                          ? value
+                          : throw InvalidType(prefix, name, nameof(global::Avalonia.CornerRadius));
 
-                public static global::Avalonia.Media.Color Color(object owner, string prefix, string name) =>
-                    Resource(owner, prefix, name) switch
-                    {
-                        global::Avalonia.Media.Color value => value,
-                        string value => global::Avalonia.Media.Color.Parse(value),
-                        object => throw InvalidType(prefix, name, nameof(global::Avalonia.Media.Color)),
-                    };
+                  public static global::Avalonia.Media.Color Color(object owner, string prefix, string name) =>
+                      Resource(owner, prefix, name) switch
+                      {
+                          global::Avalonia.Media.Color value => value,
+                          string value => global::Avalonia.Media.Color.Parse(value),
+                          object => throw InvalidType(prefix, name, nameof(global::Avalonia.Media.Color)),
+                      };
 
-                public static global::Avalonia.Media.TranslateTransform TranslateTransform(object owner, string prefix, string name)
-                {
-                    if (Resource(owner, prefix, name) is not global::Avalonia.Media.TranslateTransform value)
-                        throw InvalidType(prefix, name, nameof(global::Avalonia.Media.TranslateTransform));
+                  public static global::Avalonia.Media.TranslateTransform TranslateTransform(object owner, string prefix, string name)
+                  {
+                      if (Resource(owner, prefix, name) is not global::Avalonia.Media.TranslateTransform value)
+                          throw InvalidType(prefix, name, nameof(global::Avalonia.Media.TranslateTransform));
 
-                    return new global::Avalonia.Media.TranslateTransform(value.X, value.Y);
-                }
+                      return new global::Avalonia.Media.TranslateTransform(value.X, value.Y);
+                  }
 
-                private static object Resource(object owner, string prefix, string name)
-                {
-                    string key = prefix + name;
-                    if (owner is global::Avalonia.Controls.ResourceDictionary resources)
-                    {
-                        object? dictionaryValue = resources[key];
-                        if (dictionaryValue != null)
-                            return dictionaryValue;
-                    }
+                  private static object Resource(object owner, string prefix, string name)
+                  {
+                      string key = prefix + name;
+                      if (owner is global::Avalonia.Controls.ResourceDictionary resources)
+                      {
+                          object? dictionaryValue = resources[key];
+                          if (dictionaryValue != null)
+                              return dictionaryValue;
+                      }
 
-                    if (owner is global::Avalonia.Controls.IResourceNode resourceNode &&
-                        resourceNode.TryGetResource(key, null, out object? resourceNodeValue) &&
-                        resourceNodeValue != null)
-                    {
-                        return resourceNodeValue;
-                    }
+                      if (owner is global::Avalonia.Controls.IResourceNode resourceNode &&
+                          resourceNode.TryGetResource(key, null, out object? resourceNodeValue) &&
+                          resourceNodeValue != null)
+                      {
+                          return resourceNodeValue;
+                      }
 
-                    throw new global::System.InvalidOperationException($"Missing AXAML resource '{key}'.");
-                }
+                      throw new global::System.InvalidOperationException($"Missing AXAML resource '{key}'.");
+                  }
 
-                private static global::System.InvalidOperationException InvalidType(
-                    string prefix,
-                    string name,
-                    string expectedType) =>
-                    new($"AXAML resource '{prefix}{name}' is not a {expectedType}.");
-            }
-        }
-        """;
+                  private static global::System.InvalidOperationException InvalidType(
+                      string prefix,
+                      string name,
+                      string expectedType) =>
+                      new($"AXAML resource '{prefix}{name}' is not a {expectedType}.");
+              }
+          }
+          """;
 
     private static string ReturnType(ResourceKind kind)
     {
@@ -422,7 +424,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             ResourceKind.CornerRadius => "global::Avalonia.CornerRadius",
             ResourceKind.Color => "global::Avalonia.Media.Color",
             ResourceKind.TranslateTransform => "global::Avalonia.Media.TranslateTransform",
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: null)
         };
     }
 
@@ -437,7 +439,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             ResourceKind.CornerRadius => "CornerRadius",
             ResourceKind.Color => "Color",
             ResourceKind.TranslateTransform => "TranslateTransform",
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: null)
         };
     }
 
@@ -453,12 +455,13 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
     private static string ReadRootNamespace(AnalyzerConfigOptionsProvider optionsProvider)
     {
-        if (optionsProvider.GlobalOptions.TryGetValue("build_property.RootNamespace", out string? rootNamespace) &&
+        if (optionsProvider.GlobalOptions.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace) &&
             !string.IsNullOrWhiteSpace(rootNamespace) &&
             IsQualifiedNamespace(rootNamespace))
             return rootNamespace;
 
-        if (optionsProvider.GlobalOptions.TryGetValue("build_property.MSBuildProjectName", out string? projectName) &&
+        if (optionsProvider.GlobalOptions.TryGetValue(key: "build_property.MSBuildProjectName",
+                out string? projectName) &&
             !string.IsNullOrWhiteSpace(projectName) &&
             IsIdentifier(projectName))
             return projectName;
@@ -472,7 +475,10 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (parts.Length == 0) return false;
 
         foreach (string part in parts)
-            if (!IsIdentifier(part)) return false;
+        {
+            if (!IsIdentifier(part))
+                return false;
+        }
 
         return true;
     }
@@ -483,7 +489,10 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (!IsIdentifierStart(value[0])) return false;
 
         for (int index = 1; index < value.Length; index++)
-            if (!IsIdentifierPart(value[index])) return false;
+        {
+            if (!IsIdentifierPart(value[index]))
+                return false;
+        }
 
         return true;
     }

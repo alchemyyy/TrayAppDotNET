@@ -28,14 +28,14 @@ public sealed class DiskPerformanceSamplerTests
     {
         uint[] physicalDiskNumbers = DiskPerformanceSampler.ParsePhysicalDiskNumbers(deviceName);
 
-        Assert.Equal(new uint[] { expectedDiskNumber }, physicalDiskNumbers);
+        Assert.Equal(new[] { expectedDiskNumber }, physicalDiskNumbers);
     }
 
     [Fact]
     public void SelectsStrongestDeviceAssociatedPage83IdentifierDeterministically()
     {
-        TestStorageIdentifier scsiName = new(3, 8, 0, "eui.weak"u8.ToArray());
-        TestStorageIdentifier naa = new(1, 3, 0, new byte[] { 0x60, 0x01, 0x02, 0x03 });
+        TestStorageIdentifier scsiName = new(CodeSet: 3, Type: 8, Association: 0, "eui.weak"u8.ToArray());
+        TestStorageIdentifier naa = new(CodeSet: 1, Type: 3, Association: 0, [0x60, 0x01, 0x02, 0x03]);
         byte[] forwardDescriptor = CreatePage83Descriptor(scsiName, naa);
         byte[] reverseDescriptor = CreatePage83Descriptor(naa, scsiName);
 
@@ -48,16 +48,18 @@ public sealed class DiskPerformanceSamplerTests
 
         Assert.True(parsedForward);
         Assert.True(parsedReverse);
-        Assert.Equal("disk:vpd83:3:1:60010203", forwardDeviceID);
+        Assert.Equal(expected: "disk:vpd83:3:1:60010203", forwardDeviceID);
         Assert.Equal(forwardDeviceID, reverseDeviceID);
     }
 
     [Fact]
     public void IgnoresPortAssociatedAndZeroPage83Identifiers()
     {
+        // Zero bytes model an invalid identifier, not encoded text
+        // ReSharper disable once UseUtf8StringLiteral
         byte[] descriptor = CreatePage83Descriptor(
-            new TestStorageIdentifier(1, 3, 1, new byte[] { 1, 2, 3 }),
-            new TestStorageIdentifier(1, 2, 0, new byte[] { 0, 0, 0 }));
+            new TestStorageIdentifier(CodeSet: 1, Type: 3, Association: 1, [1, 2, 3]),
+            new TestStorageIdentifier(CodeSet: 1, Type: 2, Association: 0, [0, 0, 0]));
 
         bool parsed = DiskPerformanceSampler.TryCreatePage83DeviceID(
             descriptor,
@@ -71,11 +73,11 @@ public sealed class DiskPerformanceSamplerTests
     public void RejectsTruncatedAndLoopingPage83Descriptors()
     {
         byte[] descriptor = CreatePage83Descriptor(
-            new TestStorageIdentifier(1, 3, 0, new byte[] { 1, 2, 3 }),
-            new TestStorageIdentifier(1, 2, 0, new byte[] { 4, 5, 6 }));
+            new TestStorageIdentifier(CodeSet: 1, Type: 3, Association: 0, [1, 2, 3]),
+            new TestStorageIdentifier(CodeSet: 1, Type: 2, Association: 0, [4, 5, 6]));
         byte[] truncated = descriptor[..^1];
         byte[] loopingOffset = [.. descriptor];
-        BinaryPrimitives.WriteUInt16LittleEndian(loopingOffset.AsSpan(22), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(loopingOffset.AsSpan(22), value: 1);
 
         Assert.False(DiskPerformanceSampler.TryCreatePage83DeviceID(truncated, out _));
         Assert.False(DiskPerformanceSampler.TryCreatePage83DeviceID(loopingOffset, out _));
@@ -85,23 +87,23 @@ public sealed class DiskPerformanceSamplerTests
     public void CalculatesRatesFromKernelDiskCounters()
     {
         DiskPerformanceCounters previous = new(
-            1_000,
-            2_000,
-            10_000,
-            20_000,
-            30_000,
-            10,
-            20,
-            100_000);
+            BytesRead: 1_000,
+            BytesWritten: 2_000,
+            ReadTime: 10_000,
+            WriteTime: 20_000,
+            IdleTime: 30_000,
+            ReadCount: 10,
+            WriteCount: 20,
+            QueryTime: 100_000);
         DiskPerformanceCounters current = new(
-            3_000,
-            6_000,
-            4_010_000,
-            2_020_000,
-            5_030_000,
-            12,
-            21,
-            20_100_000);
+            BytesRead: 3_000,
+            BytesWritten: 6_000,
+            ReadTime: 4_010_000,
+            WriteTime: 2_020_000,
+            IdleTime: 5_030_000,
+            ReadCount: 12,
+            WriteCount: 21,
+            QueryTime: 20_100_000);
 
         bool calculated = DiskPerformanceSampler.TryCalculatePerformance(
             previous,
@@ -109,17 +111,19 @@ public sealed class DiskPerformanceSamplerTests
             out DiskPerformanceDelta delta);
 
         Assert.True(calculated);
-        Assert.Equal(75, delta.ActiveTimePercent, precision: 8);
-        Assert.Equal(1_000, delta.ReadBytesPerSecond, precision: 8);
-        Assert.Equal(2_000, delta.WriteBytesPerSecond, precision: 8);
-        Assert.Equal(200, delta.AverageResponseTimeMilliseconds, precision: 8);
+        Assert.Equal(expected: 75, delta.ActiveTimePercent, precision: 8);
+        Assert.Equal(expected: 1_000, delta.ReadBytesPerSecond, precision: 8);
+        Assert.Equal(expected: 2_000, delta.WriteBytesPerSecond, precision: 8);
+        Assert.Equal(expected: 200, delta.AverageResponseTimeMilliseconds, precision: 8);
     }
 
     [Fact]
     public void RejectsResetKernelDiskCounters()
     {
-        DiskPerformanceCounters previous = new(100, 100, 100, 100, 100, 10, 10, 100);
-        DiskPerformanceCounters current = new(99, 100, 100, 100, 100, 10, 10, 200);
+        DiskPerformanceCounters previous = new(BytesRead: 100, BytesWritten: 100, ReadTime: 100, WriteTime: 100,
+            IdleTime: 100, ReadCount: 10, WriteCount: 10, QueryTime: 100);
+        DiskPerformanceCounters current = new(BytesRead: 99, BytesWritten: 100, ReadTime: 100, WriteTime: 100,
+            IdleTime: 100, ReadCount: 10, WriteCount: 10, QueryTime: 200);
 
         bool calculated = DiskPerformanceSampler.TryCalculatePerformance(
             previous,
@@ -127,7 +131,7 @@ public sealed class DiskPerformanceSamplerTests
             out DiskPerformanceDelta delta);
 
         Assert.False(calculated);
-        Assert.Equal(default, delta);
+        Assert.Equal(expected: default, delta);
     }
 
     [Fact]
@@ -143,7 +147,8 @@ public sealed class DiskPerformanceSamplerTests
         Assert.True(firstSnapshots.Length >= physicalDiskNumbers.Length);
         Assert.Equal(
             firstSnapshots.Length,
-            firstSnapshots.Select(static snapshot => snapshot.DeviceID).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            firstSnapshots.Select(static snapshot => snapshot.DeviceID).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
         for (int diskIndex = 0; diskIndex < physicalDiskNumbers.Length; diskIndex++)
         {
             int expectedSortKey = checked((int)Math.Min(physicalDiskNumbers[diskIndex], int.MaxValue));
@@ -164,7 +169,7 @@ public sealed class DiskPerformanceSamplerTests
             descriptorSize = checked(descriptorSize + 16 + identifiers[identifierIndex].Value.Length);
 
         byte[] descriptor = new byte[descriptorSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(descriptor, 12);
+        BinaryPrimitives.WriteUInt32LittleEndian(descriptor, value: 12);
         BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), (uint)descriptor.Length);
         BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(8), (uint)identifiers.Length);
         int offset = 12;

@@ -20,7 +20,8 @@ internal static class CSharpBuilderProvenanceEmitter
         builder.AppendLine("{");
         builder.AppendLine("    internal static class CSharpBuilderProvenanceCatalog");
         builder.AppendLine("    {");
-        builder.AppendLine("        private static readonly global::TrayAppDotNETCommon.UI.Debugging.CSharpBuilderProvenanceEntry[] Entries =");
+        builder.AppendLine(
+            "        private static readonly global::TrayAppDotNETCommon.UI.Debugging.CSharpBuilderProvenanceEntry[] Entries =");
         builder.AppendLine("        [");
 
         foreach (CSharpBuilderBoundary boundary in boundaries
@@ -33,7 +34,8 @@ internal static class CSharpBuilderProvenanceEmitter
                 builder.Append("                ").Append(Literal(boundary.SourcePath)).AppendLine(",");
                 builder.Append("                ").Append(boundary.BoundaryLine).AppendLine(",");
                 builder.Append("                ").Append(assignment.PropertyReference).AppendLine(",");
-                builder.Append("                global::TrayAppDotNETCommon.UI.Debugging.DebugPropertyAssignmentOperation.")
+                builder.Append(
+                        "                global::TrayAppDotNETCommon.UI.Debugging.DebugPropertyAssignmentOperation.")
                     .Append(assignment.Operation).AppendLine(",");
                 builder.Append("                ").Append(Literal(assignment.ValueExpression)).AppendLine(",");
                 builder.Append("                ").Append(assignment.SourceLine).AppendLine(",");
@@ -49,7 +51,8 @@ internal static class CSharpBuilderProvenanceEmitter
         builder.AppendLine();
         builder.AppendLine("        [global::System.Runtime.CompilerServices.ModuleInitializer]");
         builder.AppendLine("        internal static void Register() =>");
-        builder.AppendLine("            global::TrayAppDotNETCommon.UI.Debugging.DebugUIProvenance.RegisterCSharpBuilders(Entries);");
+        builder.AppendLine(
+            "            global::TrayAppDotNETCommon.UI.Debugging.DebugUIProvenance.RegisterCSharpBuilders(Entries);");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine("#endif");

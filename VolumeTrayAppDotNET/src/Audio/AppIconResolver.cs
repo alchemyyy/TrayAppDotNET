@@ -58,7 +58,7 @@ internal static class AppIconResolver
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
             ReleaseEntry(Entry);
         }
     }
@@ -78,7 +78,8 @@ internal static class AppIconResolver
     {
         lock (s_cacheLock)
         {
-            if (s_shutdown) return null;
+            if (s_shutdown)
+                return null;
         }
 
         try
@@ -211,9 +212,7 @@ internal static class AppIconResolver
     {
         if (s_byIdentity.TryGetValue(identityKey, out CacheEntry? previousEntry)
             && !ReferenceEquals(previousEntry, entry))
-        {
             previousEntry.IdentityKeys.Remove(identityKey);
-        }
 
         entry.IdentityKeys.Remove(identityKey);
         entry.IdentityKeys.AddLast(identityKey);
@@ -227,9 +226,7 @@ internal static class AppIconResolver
             entry.IdentityKeys.RemoveFirst();
             if (s_byIdentity.TryGetValue(oldest.Value, out CacheEntry? mapped)
                 && ReferenceEquals(mapped, entry))
-            {
                 s_byIdentity.Remove(oldest.Value);
-            }
         }
     }
 
@@ -334,9 +331,7 @@ internal static class AppIconResolver
             victim.IsRetired = true;
             if (s_byContent.TryGetValue(victim.ContentHash, out CacheEntry? contentEntry)
                 && ReferenceEquals(contentEntry, victim))
-            {
                 s_byContent.Remove(victim.ContentHash);
-            }
 
             LinkedListNode<string>? identityNode = victim.IdentityKeys.First;
             while (identityNode != null)
@@ -344,9 +339,7 @@ internal static class AppIconResolver
                 LinkedListNode<string>? next = identityNode.Next;
                 if (s_byIdentity.TryGetValue(identityNode.Value, out CacheEntry? identityEntry)
                     && ReferenceEquals(identityEntry, victim))
-                {
                     s_byIdentity.Remove(identityNode.Value);
-                }
 
                 identityNode = next;
             }
@@ -361,7 +354,7 @@ internal static class AppIconResolver
         for (int index = 0; index < entries.Count; index++)
         {
             CacheEntry entry = entries[index];
-            if (Interlocked.Exchange(ref entry.BitmapDisposed, 1) != 0) continue;
+            if (Interlocked.Exchange(ref entry.BitmapDisposed, value: 1) != 0) continue;
 
             try
             {
@@ -429,8 +422,8 @@ internal static class AppIconResolver
             int cx = minX + cropW / 2;
             int cy = minY + cropH / 2;
             int half = side / 2;
-            int sx = Math.Max(0, Math.Min(width - side, cx - half));
-            int sy = Math.Max(0, Math.Min(height - side, cy - half));
+            int sx = Math.Max(val1: 0, Math.Min(width - side, cx - half));
+            int sy = Math.Max(val1: 0, Math.Min(height - side, cy - half));
             int sw = Math.Min(side, width - sx);
             int sh = Math.Min(side, height - sy);
 
@@ -483,7 +476,7 @@ internal static class AppIconResolver
     {
         WriteableBitmap bitmap = new(
             new PixelSize(pixels.Width, pixels.Height),
-            new Vector(96, 96),
+            new Vector(x: 96, y: 96),
             PixelFormat.Bgra8888,
             AlphaFormat.Unpremul);
 
@@ -523,7 +516,7 @@ internal static class AppIconResolver
             if (groupResData == IntPtr.Zero) return null;
 
             int iconId = IconExtraction.LookupIconIdFromDirectoryEx(
-                groupResData, true, IconSize, IconSize, IconExtraction.LoadImageFlags.LR_DEFAULTCOLOR);
+                groupResData, fIcon: true, IconSize, IconSize, IconExtraction.LoadImageFlags.LR_DEFAULTCOLOR);
             if (iconId == 0) return null;
 
             IntPtr iconResInfo = IconExtraction.FindResource(hModule, new IntPtr(iconId), IconExtraction.RT_ICON);
@@ -537,7 +530,7 @@ internal static class AppIconResolver
             if (iconResData == IntPtr.Zero || iconResSize == 0) return null;
 
             hIcon = IconExtraction.CreateIconFromResourceEx(
-                iconResData, iconResSize, true,
+                iconResData, iconResSize, fIcon: true,
                 IconExtraction.IconCursorVersion.Default,
                 IconSize, IconSize,
                 IconExtraction.LoadImageFlags.LR_DEFAULTCOLOR);
@@ -645,8 +638,8 @@ internal static class AppIconResolver
         IntPtr hSmall = IntPtr.Zero;
         try
         {
-            uint iconSize = ((uint)IconSize << 16) | IconSize;
-            int hr = IconExtraction.SHDefExtractIconW(iconFile, iconIndex, 0, out hLarge, out hSmall, iconSize);
+            const uint iconSize = ((uint)IconSize << 16) | IconSize;
+            int hr = IconExtraction.SHDefExtractIconW(iconFile, iconIndex, uFlags: 0, out hLarge, out hSmall, iconSize);
             if (hr < 0) return null;
 
             IntPtr selected = hLarge != IntPtr.Zero ? hLarge : hSmall;
@@ -721,7 +714,7 @@ internal static class AppIconResolver
             int copied = IconExtraction.GetDIBits(
                 hdc,
                 hBitmap,
-                0,
+                start: 0,
                 (uint)height,
                 pixelsHandle.AddrOfPinnedObject(),
                 ref bmi,
@@ -739,7 +732,8 @@ internal static class AppIconResolver
 
     private static bool IsPackagedProcess(uint processId)
     {
-        IntPtr handle = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+        IntPtr handle =
+            Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, processId);
         if (handle == IntPtr.Zero) return false;
 
         try
@@ -753,7 +747,8 @@ internal static class AppIconResolver
 
     private static string GetApplicationUserModelID(uint processId)
     {
-        IntPtr handle = Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+        IntPtr handle =
+            Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, processId);
         if (handle == IntPtr.Zero) return string.Empty;
 
         try

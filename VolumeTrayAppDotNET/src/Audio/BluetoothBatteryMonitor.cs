@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -40,7 +39,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     // Containers whose cached Classic Bluetooth record currently has fConnected set. This is the
     // physical-link signal used independently of Core Audio endpoint activation.
     private readonly HashSet<Guid> _connectedBluetoothContainers = [];
-    private readonly AsyncThrottler<string> _refreshThrottler = new(0, StringComparer.Ordinal);
+    private readonly AsyncThrottler<string> _refreshThrottler = new(cooldownMs: 0, StringComparer.Ordinal);
 
     private DispatcherTimer? _pollTimer;
     private DispatcherTimer? _connectionPollTimer;
@@ -241,8 +240,6 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                         $"knownContainers={_knownBluetoothContainers.Count} " +
                         $"connectedContainers={_connectedBluetoothContainers.Count}");
                 }, DispatcherPriority.Background);
-
-                if (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value)) return;
             }
             catch (Exception exception)
             {
@@ -295,7 +292,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     /// </summary>
     public void StopPolling()
     {
-        Volatile.Write(ref _activePollGeneration, 0);
+        Volatile.Write(ref _activePollGeneration, value: 0);
         DispatcherTimer? pollTimer = _pollTimer;
         DispatcherTimer? connectionPollTimer = _connectionPollTimer;
         _pollTimer = null;
@@ -444,7 +441,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             bluetoothClassMatches,
             batteryMatches,
             HasData: true,
-            HasConnectionData: connectionQuery.HasData);
+            connectionQuery.HasData);
     }
 
     private void ApplyCurrentState(
@@ -458,7 +455,8 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         List<Guid> newlyKnownContainers = [];
         foreach (Guid container in currentContainers)
         {
-            if (!_knownBluetoothContainers.Contains(container)) newlyKnownContainers.Add(container);
+            if (!_knownBluetoothContainers.Contains(container))
+                newlyKnownContainers.Add(container);
         }
 
         _idToContainer.Clear();
@@ -494,7 +492,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         }
 
         for (int i = 0; i < staleBatteryContainers.Count; i++)
-            ApplyBattery(staleBatteryContainers[i], null);
+            ApplyBattery(staleBatteryContainers[i], newValue: null);
 
         foreach (KeyValuePair<Guid, int> kv in currentBatteries)
             ApplyBattery(kv.Key, kv.Value);
@@ -537,7 +535,8 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         List<Guid> unknownContainers = [];
         foreach (Guid container in _connectedBluetoothContainers)
         {
-            if (!_knownBluetoothContainers.Contains(container)) unknownContainers.Add(container);
+            if (!_knownBluetoothContainers.Contains(container))
+                unknownContainers.Add(container);
         }
 
         for (int containerIndex = 0; containerIndex < unknownContainers.Count; containerIndex++)
@@ -679,12 +678,13 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     private static int? TryReadByteProperty(uint devInst, CfgMgr32.DEVPROPKEY key)
     {
         uint size = 0;
-        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, null, ref size, 0);
+        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, propertyBuffer: null, ref size,
+            ulFlags: 0);
         if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
         if (propType != CfgMgr32.DEVPROP_TYPE_BYTE || size < 1) return null;
 
         byte[] buf = new byte[size];
-        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, 0);
+        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, ulFlags: 0);
         if (cr != CfgMgr32.CR_SUCCESS) return null;
 
         int level = buf[0];
@@ -695,12 +695,13 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     private static Guid? TryReadGuidProperty(uint devInst, CfgMgr32.DEVPROPKEY key)
     {
         uint size = 0;
-        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, null, ref size, 0);
+        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, propertyBuffer: null, ref size,
+            ulFlags: 0);
         if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
         if (propType != CfgMgr32.DEVPROP_TYPE_GUID || size != 16) return null;
 
         byte[] buf = new byte[16];
-        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, 0);
+        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, ulFlags: 0);
         if (cr != CfgMgr32.CR_SUCCESS) return null;
 
         return new Guid(buf);
@@ -710,13 +711,14 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     // as a double-null-terminated multi-string.
     private static List<string> EnumeratePresentDevnodeIds()
     {
-        List<string> ids = new(capacity: 512);
+        List<string> ids = new(512);
 
-        int cr = CfgMgr32.CM_Get_Device_ID_List_SizeW(out uint size, null, CfgMgr32.CM_GETIDLIST_FILTER_PRESENT);
+        int cr = CfgMgr32.CM_Get_Device_ID_List_SizeW(out uint size, pszFilter: null,
+            CfgMgr32.CM_GETIDLIST_FILTER_PRESENT);
         if (cr != CfgMgr32.CR_SUCCESS || size == 0) return ids;
 
         char[] buffer = new char[size];
-        cr = CfgMgr32.CM_Get_Device_ID_ListW(null, buffer, size, CfgMgr32.CM_GETIDLIST_FILTER_PRESENT);
+        cr = CfgMgr32.CM_Get_Device_ID_ListW(pszFilter: null, buffer, size, CfgMgr32.CM_GETIDLIST_FILTER_PRESENT);
         if (cr != CfgMgr32.CR_SUCCESS) return ids;
 
         int start = 0;
@@ -750,12 +752,14 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                     $"BluetoothBatteryMonitor: CM_Unregister_Notification failed, cr=0x{result:X8}");
             }
         }
+
         _deviceNotificationCallback = null;
         try { IsRunning = false; }
         catch (Exception exception)
         {
             TADNLog.Log($"BluetoothBatteryMonitor running-state notification failed: {exception.Message}");
         }
+
         Safe.Dispose(_refreshThrottler);
         _idToContainer.Clear();
         _batteries.Clear();
@@ -789,9 +793,9 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                 [],
                 [],
                 [],
-                0,
-                0,
-                0,
+                ScannedCount: 0,
+                BluetoothClassMatches: 0,
+                BatteryMatches: 0,
                 HasData: false,
                 HasConnectionData: false);
     }

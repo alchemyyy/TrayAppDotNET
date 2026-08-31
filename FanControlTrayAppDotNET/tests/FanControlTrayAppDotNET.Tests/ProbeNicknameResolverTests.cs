@@ -25,7 +25,7 @@ public sealed class ProbeNicknameResolverTests
         bool reseeded = settings.EnsureDefaultProbeNicknameRules();
 
         Assert.False(reseeded);
-        Assert.Equal("Package", settings.ProbeNicknameRules[0].ReplacementString);
+        Assert.Equal(expected: "Package", settings.ProbeNicknameRules[0].ReplacementString);
     }
 
     /// <summary>
@@ -39,26 +39,18 @@ public sealed class ProbeNicknameResolverTests
             ProbeNicknamesInitialized = true,
             ProbeNicknameRules =
             [
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "^Custom$",
-                    ReplacementString = "Custom"
-                },
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "\\(Tdie\\)",
-                    ReplacementString = "Die"
-                }
+                new DeviceNicknameRule { TargetRegex = "^Custom$", ReplacementString = "Custom" },
+                new DeviceNicknameRule { TargetRegex = "\\(Tdie\\)", ReplacementString = "Die" }
             ]
         };
 
         bool loaded = settings.LoadDefaultProbeNicknameRules();
 
         Assert.True(loaded);
-        Assert.Equal(5, settings.ProbeNicknameRules.Count);
-        AssertDefaultProbeNicknameRules(settings.ProbeNicknameRules.GetRange(0, 4));
-        Assert.Equal("^Custom$", settings.ProbeNicknameRules[4].TargetRegex);
-        Assert.Equal("Custom", settings.ProbeNicknameRules[4].ReplacementString);
+        Assert.Equal(expected: 5, settings.ProbeNicknameRules.Count);
+        AssertDefaultProbeNicknameRules(settings.ProbeNicknameRules.GetRange(index: 0, count: 4));
+        Assert.Equal(expected: "^Custom$", settings.ProbeNicknameRules[4].TargetRegex);
+        Assert.Equal(expected: "Custom", settings.ProbeNicknameRules[4].ReplacementString);
     }
 
     /// <summary>
@@ -71,7 +63,7 @@ public sealed class ProbeNicknameResolverTests
         settings.EnsureDefaultProbeNicknameRules();
         ProbeNicknameResolver resolver = ProbeNicknameResolver.Create(settings);
 
-        Assert.Equal("CPU Package", resolver.Resolve("CPU Package (Tdie)"));
+        Assert.Equal(expected: "CPU Package", resolver.Resolve("CPU Package (Tdie)"));
     }
 
     /// <summary>
@@ -79,14 +71,14 @@ public sealed class ProbeNicknameResolverTests
     /// </summary>
     private static void AssertDefaultProbeNicknameRules(List<DeviceNicknameRule> rules)
     {
-        Assert.Equal(4, rules.Count);
-        Assert.Equal("\\(Tdie\\)", rules[0].TargetRegex);
+        Assert.Equal(expected: 4, rules.Count);
+        Assert.Equal(expected: "\\(Tdie\\)", rules[0].TargetRegex);
         Assert.Equal(string.Empty, rules[0].ReplacementString);
-        Assert.Equal("\\(Tctl/Tdie\\)", rules[1].TargetRegex);
+        Assert.Equal(expected: "\\(Tctl/Tdie\\)", rules[1].TargetRegex);
         Assert.Equal(string.Empty, rules[1].ReplacementString);
-        Assert.Equal("\\(SMU\\)", rules[2].TargetRegex);
+        Assert.Equal(expected: "\\(SMU\\)", rules[2].TargetRegex);
         Assert.Equal(string.Empty, rules[2].ReplacementString);
-        Assert.Equal("CPU Core", rules[3].TargetRegex);
-        Assert.Equal("Core", rules[3].ReplacementString);
+        Assert.Equal(expected: "CPU Core", rules[3].TargetRegex);
+        Assert.Equal(expected: "Core", rules[3].ReplacementString);
     }
 }

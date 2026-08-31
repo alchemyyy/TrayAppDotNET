@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
@@ -16,13 +16,11 @@ public sealed class ElevatedKillHelperSmokeTests
     {
         if (!string.Equals(
                 Environment.GetEnvironmentVariable(SmokeTestEnvironmentVariable),
-                "1",
+                b: "1",
                 StringComparison.Ordinal))
-        {
             return;
-        }
 
-        List<string> logMessages = new List<string>();
+        List<string> logMessages = [];
         using TemporaryVisibleOwnerWindow ownerWindow = new();
         Assert.NotEqual(IntPtr.Zero, ownerWindow.Handle);
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
@@ -46,7 +44,7 @@ public sealed class ElevatedKillHelperSmokeTests
                 out int result,
                 out int errorCode));
             Assert.Equal(KillHelperProtocol.ResultSuccess, result);
-            Assert.Equal(0, errorCode);
+            Assert.Equal(expected: 0, errorCode);
             Assert.True(process.WaitForExit(5_000));
         }
         finally
@@ -72,7 +70,7 @@ public sealed class ElevatedKillHelperSmokeTests
                 out int result,
                 out int errorCode));
             Assert.Equal(KillHelperProtocol.ResultIdentityMismatch, result);
-            Assert.NotEqual(0, errorCode);
+            Assert.NotEqual(expected: 0, errorCode);
             Assert.False(identityMismatchProcess.HasExited);
         }
         finally
@@ -86,7 +84,7 @@ public sealed class ElevatedKillHelperSmokeTests
     {
         ProcessStartInfo startInfo = new()
         {
-            FileName = Path.Combine(Environment.SystemDirectory, "ping.exe"),
+            FileName = Path.Combine(Environment.SystemDirectory, path2: "ping.exe"),
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -115,17 +113,18 @@ public sealed class ElevatedKillHelperSmokeTests
         {
             _windowThread = new Thread(RunWindowMessageLoop)
             {
-                IsBackground = true,
-                Name = "Elevated helper smoke test owner window"
+                IsBackground = true, Name = "Elevated helper smoke test owner window"
             };
             _windowThread.SetApartmentState(ApartmentState.STA);
             _windowThread.Start();
             if (!_windowCreated.Wait(TimeSpan.FromSeconds(10)))
                 throw new TimeoutException("The helper smoke test owner window was not created in time.");
             if (_creationException != null)
+            {
                 throw new InvalidOperationException(
-                    "The helper smoke test owner window could not be created.",
+                    message: "The helper smoke test owner window could not be created.",
                     _creationException);
+            }
         }
 
         public IntPtr Handle { get; private set; }
@@ -136,14 +135,14 @@ public sealed class ElevatedKillHelperSmokeTests
             try
             {
                 Handle = CreateWindowExW(
-                    0,
-                    "STATIC",
-                    "Task Manager elevated helper smoke test",
+                    extendedStyle: 0,
+                    className: "STATIC",
+                    windowName: "Task Manager elevated helper smoke test",
                     WindowStyleOverlapped | WindowStyleVisible,
                     CreateUseDefault,
                     CreateUseDefault,
-                    360,
-                    120,
+                    width: 360,
+                    height: 120,
                     IntPtr.Zero,
                     IntPtr.Zero,
                     IntPtr.Zero,
@@ -164,7 +163,8 @@ public sealed class ElevatedKillHelperSmokeTests
 
             if (Handle == IntPtr.Zero) return;
 
-            while (GetMessageW(out WindowMessage message, IntPtr.Zero, 0, 0) > 0)
+            while (GetMessageW(out WindowMessage message, IntPtr.Zero, messageFilterMinimum: 0,
+                       messageFilterMaximum: 0) > 0)
             {
                 _ = TranslateMessage(ref message);
                 _ = DispatchMessageW(ref message);

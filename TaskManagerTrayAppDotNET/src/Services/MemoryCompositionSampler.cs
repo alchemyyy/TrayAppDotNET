@@ -32,7 +32,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
 
     public MemoryCompositionSampler()
     {
-        if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != PdhSuccess) return;
+        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
 
         if (TryAddCounter(CacheBytesPath, out _cacheBytesCounter)
             && TryAddCounter(FreeBytesPath, out _freeBytesCounter)
@@ -40,9 +40,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
             && TryAddCounter(StandbyCoreBytesPath, out _standbyCoreBytesCounter)
             && TryAddCounter(StandbyNormalBytesPath, out _standbyNormalBytesCounter)
             && TryAddCounter(StandbyReserveBytesPath, out _standbyReserveBytesCounter))
-        {
             return;
-        }
 
         _ = PdhCloseQuery(_query);
         _query = IntPtr.Zero;
@@ -60,12 +58,12 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
         ulong modifiedBytes = 0;
         ulong standbyBytes = 0;
         if (_query != IntPtr.Zero && PdhCollectQueryData(_query) == PdhSuccess
-            && TryReadByteCounter(_cacheBytesCounter, out cacheBytes)
-            && TryReadByteCounter(_freeBytesCounter, out freeBytes)
-            && TryReadByteCounter(_modifiedBytesCounter, out modifiedBytes)
-            && TryReadByteCounter(_standbyCoreBytesCounter, out ulong standbyCoreBytes)
-            && TryReadByteCounter(_standbyNormalBytesCounter, out ulong standbyNormalBytes)
-            && TryReadByteCounter(_standbyReserveBytesCounter, out ulong standbyReserveBytes))
+                                  && TryReadByteCounter(_cacheBytesCounter, out cacheBytes)
+                                  && TryReadByteCounter(_freeBytesCounter, out freeBytes)
+                                  && TryReadByteCounter(_modifiedBytesCounter, out modifiedBytes)
+                                  && TryReadByteCounter(_standbyCoreBytesCounter, out ulong standbyCoreBytes)
+                                  && TryReadByteCounter(_standbyNormalBytesCounter, out ulong standbyNormalBytes)
+                                  && TryReadByteCounter(_standbyReserveBytesCounter, out ulong standbyReserveBytes))
         {
             standbyBytes = SaturatingAdd(
                 SaturatingAdd(standbyCoreBytes, standbyNormalBytes),
@@ -106,13 +104,13 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
                 ? Math.Max(fallbackCompressed, sample.EstimatedDataBytes)
                 : 0;
             return new NormalizedMemoryComposition(
-                false,
+                HasCompositionData: false,
                 fallbackInUse,
                 clampedFallbackAvailable,
-                0,
+                ModifiedBytes: 0,
                 clampedFallbackAvailable,
-                0,
-                0,
+                FreeBytes: 0,
+                CachedBytes: 0,
                 sample.HasCompressionData,
                 fallbackCompressed,
                 fallbackEstimated,
@@ -138,7 +136,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
             ? Math.Max(compressedBytes, sample.EstimatedDataBytes)
             : 0;
         return new NormalizedMemoryComposition(
-            true,
+            HasCompositionData: true,
             inUseBytes,
             availableBytes,
             modifiedBytes,
@@ -165,9 +163,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
         if (status != PdhSuccess
             || formattedValue.Status is not (PdhValidData or PdhNewData)
             || formattedValue.LargeValue < 0)
-        {
             return false;
-        }
 
         value = (ulong)formattedValue.LargeValue;
         return true;
@@ -274,8 +270,11 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
     [StructLayout(LayoutKind.Explicit, Size = 16)]
     private struct PDH_FORMATTED_COUNTER_VALUE
     {
-        [FieldOffset(0)] public uint Status;
-        [FieldOffset(8)] public long LargeValue;
+        [FieldOffset(0)]
+        public uint Status;
+
+        [FieldOffset(8)]
+        public long LargeValue;
     }
 
     [StructLayout(LayoutKind.Sequential)]

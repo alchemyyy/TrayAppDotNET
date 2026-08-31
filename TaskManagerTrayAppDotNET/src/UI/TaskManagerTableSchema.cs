@@ -41,17 +41,18 @@ internal readonly record struct TaskManagerTableSortValue : IComparable<TaskMana
     public static TaskManagerTableSortValue Empty => default;
 
     public static TaskManagerTableSortValue FromText(string? value) =>
-        new(TaskManagerTableSortValueKind.Text, value ?? string.Empty, 0, 0, 0);
+        new(TaskManagerTableSortValueKind.Text, value ?? string.Empty, signed: 0, unsigned: 0, decimalValue: 0);
 
     public static TaskManagerTableSortValue FromSigned(long value) =>
-        new(TaskManagerTableSortValueKind.Signed, null, value, 0, 0);
+        new(TaskManagerTableSortValueKind.Signed, text: null, value, unsigned: 0, decimalValue: 0);
 
     public static TaskManagerTableSortValue FromUnsigned(ulong value) =>
-        new(TaskManagerTableSortValueKind.Unsigned, null, 0, value, 0);
+        new(TaskManagerTableSortValueKind.Unsigned, text: null, signed: 0, value, decimalValue: 0);
 
     public static TaskManagerTableSortValue FromDecimal(double value) =>
         double.IsFinite(value)
-            ? new TaskManagerTableSortValue(TaskManagerTableSortValueKind.Decimal, null, 0, 0, value)
+            ? new TaskManagerTableSortValue(TaskManagerTableSortValueKind.Decimal, text: null, signed: 0, unsigned: 0,
+                value)
             : default;
 
     public int CompareTo(TaskManagerTableSortValue other)
@@ -152,11 +153,13 @@ internal sealed class TaskManagerTableSchema
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count == 0)
-            throw new ArgumentException("A table requires at least one column.", nameof(columns));
+            throw new ArgumentException(message: "A table requires at least one column.", nameof(columns));
         if (!double.IsFinite(minimumColumnWidth) || minimumColumnWidth <= 0)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(minimumColumnWidth),
-                "Minimum column width must be positive.");
+                message: "Minimum column width must be positive.");
+        }
 
         MinimumColumnWidth = minimumColumnWidth;
         Columns = new TaskManagerTableColumn[columns.Count];
@@ -165,18 +168,15 @@ internal sealed class TaskManagerTableSchema
         {
             TaskManagerTableColumn column = columns[columnIndex];
             if (string.IsNullOrWhiteSpace(column.Key))
-                throw new ArgumentException("Column keys cannot be empty.", nameof(columns));
+                throw new ArgumentException(message: "Column keys cannot be empty.", nameof(columns));
             if (string.IsNullOrWhiteSpace(column.Title))
-                throw new ArgumentException("Column titles cannot be empty.", nameof(columns));
+                throw new ArgumentException(message: "Column titles cannot be empty.", nameof(columns));
             if (!double.IsFinite(column.Width) || column.Width <= 0)
-                throw new ArgumentOutOfRangeException(nameof(columns), "Column widths must be positive.");
+                throw new ArgumentOutOfRangeException(nameof(columns), message: "Column widths must be positive.");
             if (!keys.Add(column.Key))
                 throw new ArgumentException($"Duplicate table column key '{column.Key}'.", nameof(columns));
 
-            Columns[columnIndex] = column with
-            {
-                Width = Math.Max(minimumColumnWidth, column.Width)
-            };
+            Columns[columnIndex] = column with { Width = Math.Max(minimumColumnWidth, column.Width) };
         }
     }
 
@@ -221,6 +221,7 @@ internal static class TaskManagerTableProjection
                 children = [];
                 childrenByParent.Add(row.ParentKey, children);
             }
+
             children.Add(row);
         }
 
@@ -252,6 +253,7 @@ internal static class TaskManagerTableProjection
                     break;
                 }
             }
+
             if (!rootMatches && !hasMatchingChild) continue;
 
             projectedRows.Add(root);
@@ -274,13 +276,15 @@ internal static class TaskManagerTableProjection
     {
         ArgumentNullException.ThrowIfNull(row);
         if (string.IsNullOrWhiteSpace(row.Key))
-            throw new ArgumentException("Table row keys cannot be empty.", nameof(row));
+            throw new ArgumentException(message: "Table row keys cannot be empty.", nameof(row));
         if (!rowKeys.Add(row.Key))
             throw new ArgumentException($"Duplicate table row key '{row.Key}'.", nameof(row));
         if (row.Cells == null || row.Cells.Length != columnCount)
+        {
             throw new ArgumentException(
                 $"Table row '{row.Key}' has {row.Cells?.Length ?? 0} cells; expected {columnCount}.",
                 nameof(row));
+        }
     }
 
     private static bool MatchesFilter(TaskManagerTableRow row, string filter)

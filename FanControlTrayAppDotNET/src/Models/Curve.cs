@@ -37,49 +37,64 @@ public class Curve : INotifyPropertyChanged
 
     // Blend factor [0..100] between linear interpolation (0) and monotonic cubic Hermite (100).
     // Maps to a 0..1 multiplier inside the sampler.
-    [XmlAttribute] public int SmoothingFactor { get; set; } = 50;
+    [XmlAttribute]
+    public int SmoothingFactor { get; set; } = 50;
 
     // Editor output unit. When true CurveNodes.Y is interpreted as RPM; otherwise it is duty %.
-    [XmlAttribute] public bool RPMMode { get; set; }
+    [XmlAttribute]
+    public bool RPMMode { get; set; }
 
-    [XmlAttribute] public int MinRPM { get; set; }
+    [XmlAttribute]
+    public int MinRPM { get; set; }
 
-    [XmlAttribute] public int MaxRPM { get; set; } = 3000;
+    [XmlAttribute]
+    public int MaxRPM { get; set; } = 3000;
 
-    [XmlAttribute] public int MinDutyCycle { get; set; }
+    [XmlAttribute]
+    public int MinDutyCycle { get; set; }
 
-    [XmlAttribute] public int MaxDutyCycle { get; set; } = 100;
+    [XmlAttribute]
+    public int MaxDutyCycle { get; set; } = 100;
 
     // When enabled, the editor and evaluator use a non-decreasing projection of the node list.
     // The raw node positions remain untouched until the user disables the feature from the editor.
-    [XmlAttribute] public bool PreventDecreasing { get; set; } = true;
+    [XmlAttribute]
+    public bool PreventDecreasing { get; set; } = true;
 
     // Output clamps. ClampDutyMin/Max bound the Y axis after interpolation.
-    [XmlAttribute] public int ClampDutyMin { get; set; }
+    [XmlAttribute]
+    public int ClampDutyMin { get; set; }
 
-    [XmlAttribute] public int ClampDutyMax { get; set; } = 100;
+    [XmlAttribute]
+    public int ClampDutyMax { get; set; } = 100;
 
     // Input clamps. ClampXMin/Max bound the X lookup before sampling. Values outside this range
     // clamp to the corresponding edge sample.
-    [XmlAttribute] public int ClampXMin { get; set; }
+    [XmlAttribute]
+    public int ClampXMin { get; set; }
 
-    [XmlAttribute] public int ClampXMax { get; set; } = 100;
+    [XmlAttribute]
+    public int ClampXMax { get; set; } = 100;
 
     // Minimum dwell time before the curve commits a new Y to the fan, in milliseconds. Used by
     // FanControlService to suppress rapid Y oscillations across a hot sample boundary.
-    [XmlAttribute] public int HysteresisMs { get; set; }
+    [XmlAttribute]
+    public int HysteresisMs { get; set; }
 
     // Key into DataSource.DataSources. Stored as a string so a curve can survive serialization
     // without holding a reference to a live DataSource instance.
-    [XmlAttribute] public string SelectedDataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string SelectedDataSourceKey { get; set; } = string.Empty;
 
     // Convenience lookup that resolves the key against the global registry. Returns null if the
     // referenced source has not been registered yet (e.g. before LHMService initial sweep).
-    [XmlIgnore] public DataSource? SelectedDataSource => DataSource.Find(SelectedDataSourceKey);
+    [XmlIgnore]
+    public DataSource? SelectedDataSource => DataSource.Find(SelectedDataSourceKey);
 
     // Monotonically incremented on every shape-affecting mutation. Caches that derive computed
     // state from a curve check this token instead of subscribing to PropertyChanged for every node.
-    [XmlIgnore] public int Version { get; private set; }
+    [XmlIgnore]
+    public int Version { get; private set; }
 
     public void BumpVersion()
     {
@@ -109,7 +124,7 @@ public class Curve : INotifyPropertyChanged
             ys[i] = ordered[i].Y;
         }
 
-        double smoothness = Math.Clamp(SmoothingFactor / 100.0, 0.0, 1.0);
+        double smoothness = Math.Clamp(SmoothingFactor / 100.0, min: 0.0, max: 1.0);
         double linear = InterpolateLinear(xs, ys, xClamped);
         if (smoothness <= 0.0) return ClampOutput(linear);
 
@@ -125,8 +140,8 @@ public class Curve : INotifyPropertyChanged
     public double ActiveYMinimum => RPMMode ? 0.0 : 0.0;
 
     public double ActiveYMaximum => RPMMode
-        ? Math.Max(1, MaxRPM)
-        : Math.Max(1, MaxDutyCycle);
+        ? Math.Max(val1: 1, MaxRPM)
+        : Math.Max(val1: 1, MaxDutyCycle);
 
     public string ActiveYSuffix => RPMMode ? "RPM" : "%";
 
@@ -134,10 +149,10 @@ public class Curve : INotifyPropertyChanged
 
     public void EnsureEditorDefaults(int defaultMaxRPM)
     {
-        if (MaxRPM <= 0) MaxRPM = Math.Max(1, defaultMaxRPM);
+        if (MaxRPM <= 0) MaxRPM = Math.Max(val1: 1, defaultMaxRPM);
         if (MaxDutyCycle <= 0) MaxDutyCycle = 100;
-        MinRPM = Math.Clamp(MinRPM, 0, MaxRPM);
-        MinDutyCycle = Math.Clamp(MinDutyCycle, 0, MaxDutyCycle);
+        MinRPM = Math.Clamp(MinRPM, min: 0, MaxRPM);
+        MinDutyCycle = Math.Clamp(MinDutyCycle, min: 0, MaxDutyCycle);
         ClampDutyMax = Math.Max(ClampDutyMin, ClampDutyMax);
     }
 

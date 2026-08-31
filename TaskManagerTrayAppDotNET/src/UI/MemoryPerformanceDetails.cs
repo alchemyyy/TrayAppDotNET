@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -16,7 +15,6 @@ internal sealed class MemoryCompositionView : StackPanel
     private readonly ColumnDefinition _modifiedColumn = new();
     private readonly ColumnDefinition _standbyColumn = new();
     private readonly ColumnDefinition _freeColumn = new();
-    private readonly Border _inUseSegment;
     private readonly Border _modifiedSegment;
     private readonly Border _standbySegment;
     private readonly Border _freeSegment;
@@ -34,7 +32,7 @@ internal sealed class MemoryCompositionView : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.MemoryCompositionMargin;
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(
-            "Memory composition",
+            text: "Memory composition",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -51,7 +49,7 @@ internal sealed class MemoryCompositionView : StackPanel
         {
             Opacity = resources.AxamlTaskManagerPerformance.MemoryCompositionModifiedOpacity
         };
-        _inUseSegment = CreateSegment(
+        Border inUseSegment = CreateSegment(
             inUseBrush,
             accentBrush,
             resources.AxamlTaskManagerPerformance.MemoryCompositionSegmentBorderThickness);
@@ -66,36 +64,24 @@ internal sealed class MemoryCompositionView : StackPanel
         _freeSegment = CreateSegment(
             Brushes.Transparent,
             accentBrush,
-            default);
+            borderThickness: default);
         _inUseTooltip = CreateTooltip();
         _modifiedTooltip = CreateTooltip();
         _standbyTooltip = CreateTooltip();
         _freeTooltip = CreateTooltip();
-        TrayAppDotNETToolTip.SetTip(_inUseSegment, _inUseTooltip);
+        TrayAppDotNETToolTip.SetTip(inUseSegment, _inUseTooltip);
         TrayAppDotNETToolTip.SetTip(_modifiedSegment, _modifiedTooltip);
         TrayAppDotNETToolTip.SetTip(_standbySegment, _standbyTooltip);
         TrayAppDotNETToolTip.SetTip(_freeSegment, _freeTooltip);
 
         Grid segments = new()
         {
-            ColumnDefinitions =
-            {
-                _inUseColumn,
-                _modifiedColumn,
-                _standbyColumn,
-                _freeColumn
-            },
-            Children =
-            {
-                _inUseSegment,
-                _modifiedSegment,
-                _standbySegment,
-                _freeSegment
-            }
+            ColumnDefinitions = { _inUseColumn, _modifiedColumn, _standbyColumn, _freeColumn },
+            Children = { inUseSegment, _modifiedSegment, _standbySegment, _freeSegment }
         };
-        Grid.SetColumn(_modifiedSegment, 1);
-        Grid.SetColumn(_standbySegment, 2);
-        Grid.SetColumn(_freeSegment, 3);
+        Grid.SetColumn(_modifiedSegment, value: 1);
+        Grid.SetColumn(_standbySegment, value: 2);
+        Grid.SetColumn(_freeSegment, value: 3);
 
         Border frame = new()
         {
@@ -131,9 +117,9 @@ internal sealed class MemoryCompositionView : StackPanel
 
         _inUseTooltip.Text = BuildInUseTooltip(memory);
         _modifiedTooltip.Text = string.Concat(
-            "Modified (",
+            str0: "Modified (",
             FormatMebibytes(modifiedBytes),
-            " MB)\nMemory whose contents must be written to disk before it can be used for another purpose");
+            str2: " MB)\nMemory whose contents must be written to disk before it can be used for another purpose");
         string standbyTitle = composition.HasCompositionData ? "Standby" : "Available";
         string standbyDescription = composition.HasCompositionData
             ? "Memory that contains cached data and code that is not actively in use"
@@ -145,7 +131,7 @@ internal sealed class MemoryCompositionView : StackPanel
             " MB)\n",
             standbyDescription);
         _freeTooltip.Text = string.Concat(
-            "Free (",
+            str0: "Free (",
             FormatMebibytes(freeBytes),
             " MB)\nMemory that is not currently in use, and that will be repurposed first when processes, "
             + "drivers, or the operating system need more memory");
@@ -154,9 +140,9 @@ internal sealed class MemoryCompositionView : StackPanel
     private string BuildInUseTooltip(MemoryPerformanceSnapshot memory)
     {
         string tooltip = string.Concat(
-            "In use (",
+            str0: "In use (",
             FormatMebibytes(memory.UsedPhysicalBytes),
-            " MB)\nMemory used by processes, drivers, or the operating system");
+            str2: " MB)\nMemory used by processes, drivers, or the operating system");
         MemoryCompositionSnapshot composition = memory.Composition;
         if (!composition.HasCompressionData) return tooltip;
 
@@ -182,9 +168,7 @@ internal sealed class MemoryCompositionView : StackPanel
         IBrush borderBrush,
         Thickness borderThickness) => new()
     {
-        Background = background,
-        BorderBrush = borderBrush,
-        BorderThickness = borderThickness
+        Background = background, BorderBrush = borderBrush, BorderThickness = borderThickness
     };
 
     private static GridLength Star(ulong value) =>
@@ -196,7 +180,7 @@ internal sealed class MemoryCompositionView : StackPanel
         ulong roundedMebibytes = mebibytes >= ulong.MaxValue
             ? ulong.MaxValue
             : (ulong)Math.Round(mebibytes, MidpointRounding.AwayFromZero);
-        return roundedMebibytes.ToString("0", CultureInfo.CurrentCulture);
+        return roundedMebibytes.ToString(format: "0", CultureInfo.CurrentCulture);
     }
 }
 
@@ -219,7 +203,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.MemoryModulesMargin;
 
         TextBlock heading = TrayAppDotNETSettingsUI.Text(
-            "Physical memory layout",
+            text: "Physical memory layout",
             palette,
             resources.AxamlTaskManagerPerformance.MemoryModuleHeadingFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -244,9 +228,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         IsVisible = modules.Length > 0;
         if (_displayedModules.Equals(modules)
             && _displayedSerialNumbers == showSerialNumbers)
-        {
             return;
-        }
 
         _displayedModules = modules;
         _displayedSerialNumbers = showSerialNumbers;
@@ -264,7 +246,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             ? "Unavailable"
             : module.BankLabel;
         TextBlock bank = TrayAppDotNETSettingsUI.Text(
-            string.Concat("Bank: ", bankLabel),
+            string.Concat(str0: "Bank: ", bankLabel),
             _palette,
             _resources.AxamlTaskManagerPerformance.MemoryModuleBankFontSize,
             (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -277,12 +259,12 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             {
                 bank,
                 BuildModuleRow(
-                    "Capacity",
+                    labelText: "Capacity",
                     module.CapacityBytes > 0
                         ? PerformanceDevicePresentationFactory.FormatBytes(module.CapacityBytes)
                         : "Unavailable"),
                 BuildModuleRow(
-                    "Part number",
+                    labelText: "Part number",
                     string.IsNullOrWhiteSpace(module.PartNumber)
                         ? "Unavailable"
                         : module.PartNumber)
@@ -291,7 +273,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         if (showSerialNumbers)
         {
             content.Children.Add(BuildModuleRow(
-                "Serial number",
+                labelText: "Serial number",
                 string.IsNullOrWhiteSpace(module.SerialNumber)
                     ? "Unavailable"
                     : module.SerialNumber));
@@ -328,14 +310,10 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         Grid row = new()
         {
             Margin = _resources.AxamlTaskManagerPerformance.MemoryModuleRowMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star)
-            },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) },
             Children = { label, value }
         };
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         return row;
     }
 }

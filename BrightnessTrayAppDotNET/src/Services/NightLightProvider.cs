@@ -45,7 +45,7 @@ internal static class NightLightProvider
     {
         if (ReferenceEquals(_settings, settings)) return;
 
-        FlushPendingLastStrengthSave(force: true);
+        FlushPendingLastStrengthSave(true);
 
         if (_settings != null) _settings.Changed -= OnSettingsChanged;
 
@@ -151,7 +151,7 @@ internal static class NightLightProvider
             return;
         }
 
-        percent = Math.Clamp(percent, 0, 100);
+        percent = Math.Clamp(percent, min: 0, max: 100);
         Backend backend = GetCachedBackend();
         if (backend == Backend.None) return;
 
@@ -227,7 +227,7 @@ internal static class NightLightProvider
         bool ok = backend switch
         {
             Backend.Registry => EnableRegistryBackend(strengthToApply),
-            Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(true, strengthToApply),
+            Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(enabled: true, strengthToApply),
             _ => false
         };
 
@@ -240,13 +240,13 @@ internal static class NightLightProvider
     private static int? ResolveEnableStrength(int? requestedStrength)
     {
         if (requestedStrength.HasValue)
-            return Math.Clamp(requestedStrength.Value, 0, 100);
+            return Math.Clamp(requestedStrength.Value, min: 0, max: 100);
 
         int currentStrength = NightLightRegistry.GetStrength();
         if (currentStrength > 0) return null;
 
         return _settings?.NightLightLastNonZeroStrength is { } lastStrength and > 0
-            ? Math.Clamp(lastStrength, 1, 100)
+            ? Math.Clamp(lastStrength, min: 1, max: 100)
             : 50;
     }
 
@@ -276,9 +276,7 @@ internal static class NightLightProvider
                 + "(write rejected or readback diverged from request).");
         }
         else
-        {
             EnabledStateChanged?.Invoke();
-        }
 
         return ok;
     }
@@ -378,7 +376,7 @@ internal static class NightLightProvider
         try
         {
             Dispatcher.UIThread.Post(
-                static () => FlushPendingLastStrengthSave(force: false),
+                static () => FlushPendingLastStrengthSave(false),
                 DispatcherPriority.Background);
         }
         catch (Exception ex)
@@ -421,6 +419,7 @@ internal static class NightLightProvider
             {
                 TADNLog.Log($"NightLightProvider last-strength rearm failed: {ex.Message}");
             }
+
             return;
         }
 

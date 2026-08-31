@@ -70,7 +70,7 @@ public static class TrayAppDotNETHotkeyKeys
         if ((modifiers & HotkeyModifiers.Alt) != 0) parts.Add("Alt");
         if ((modifiers & HotkeyModifiers.Shift) != 0) parts.Add("Shift");
         if ((modifiers & HotkeyModifiers.Win) != 0) parts.Add("Win");
-        return string.Join(" + ", parts);
+        return string.Join(separator: " + ", parts);
     }
 }
 

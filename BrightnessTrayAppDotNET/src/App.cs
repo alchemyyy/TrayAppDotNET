@@ -1,18 +1,19 @@
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
+#if DEBUG
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.DDCCI;
 using BrightnessTrayAppDotNET.Interop.NightLight;
-using BrightnessTrayAppDotNET.Localization;
-using BrightnessTrayAppDotNET.Services;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.UI.Settings;
 using BrightnessTrayAppDotNET.UI.Tray;
-using BrightnessTrayAppDotNET.Visuals;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
@@ -20,10 +21,6 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using TrayAppDotNETCommon.Utils;
-#if DEBUG
-using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using BrightnessHotkeyFiredEventArgs =
     TrayAppDotNETCommon.Services.HotkeyFiredEventArgs<BrightnessTrayAppDotNET.Models.BrightnessHotkeyAction>;
 using BrightnessHotkeyService =
@@ -103,13 +100,14 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (Program.IsInstallerMode)
         {
             LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = AppTheme.LoadAppIcon(),
-                Palette = CreatePalette(),
-                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-            });
+            TrayAppDotNETInstallerRunner.Show(this,
+                new TrayAppDotNETInstallerWindowOptions
+                {
+                    Layout = AppServices.InstallLayout,
+                    Icon = AppTheme.LoadAppIcon(),
+                    Palette = CreatePalette(),
+                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -141,12 +139,12 @@ internal sealed class BrightnessAvaloniaApp : Application
     private void WireCrashHandlers()
     {
         TrayAppDotNETAvalonia.WireCrashHandlers(
-            processExit: () =>
+            () =>
             {
                 TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.ProcessExitDrainTimeoutMs));
                 TADNLog.Shutdown();
             },
-            unobservedTaskException: args =>
+            args =>
             {
                 args.SetObserved();
                 TADNLog.Log($"FATAL UnobservedTaskException: {args.Exception}");
@@ -281,10 +279,10 @@ internal sealed class BrightnessAvaloniaApp : Application
             _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                 _settings,
                 repositoryName: "TrayAppDotNET",
-                applicationName: Program.ApplicationName,
-                currentBuild: BuildInfo.BuildNumber,
-                saveSettings: _settings.Save,
-                sharedSettingsDirectory: Program.LocalAppDataRoot);
+                Program.ApplicationName,
+                BuildInfo.BuildNumber,
+                _settings.Save,
+                Program.LocalAppDataRoot);
             _updateCheckService.StateChanged += OnUpdateStateChanged;
             _updateCheckService.Start();
             AppServices.UpdateCheckService = _updateCheckService;
@@ -317,7 +315,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             IsScrollEnabled = _settings?.TrayScrollEnabled ?? true,
             IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true,
             PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
-                ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault
+                                                  ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault
         };
         if (AppTheme.LoadAppNativeIcon() is { } initialIcon)
         {
@@ -438,10 +436,10 @@ internal sealed class BrightnessAvaloniaApp : Application
                 ShowBrightnessFlyout();
                 break;
             case BrightnessHotkeyAction.FullBright:
-                ApplyOrRestoreBrightness(TrayClickAction.FullBright, 100);
+                ApplyOrRestoreBrightness(TrayClickAction.FullBright, target: 100);
                 break;
             case BrightnessHotkeyAction.FullDim:
-                ApplyOrRestoreBrightness(TrayClickAction.FullDim, 0);
+                ApplyOrRestoreBrightness(TrayClickAction.FullDim, target: 0);
                 break;
             case BrightnessHotkeyAction.IncrementMasterBrightness:
                 AdjustAllMonitorBrightness(HotkeyStep);
@@ -484,7 +482,10 @@ internal sealed class BrightnessAvaloniaApp : Application
             if (_shuttingDown) return;
 
             try { RequestTrayRefresh(); }
-            catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed tray refresh: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed tray refresh: {ex.Message}");
+            }
 
             if (_hotkeyService == null || _settings == null) return;
 
@@ -515,7 +516,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 delta)
             : null;
 
-        flyout.NotifyUserBrightnessAdjustment(replayCurrentSliderValue: false);
+        flyout.NotifyUserBrightnessAdjustment(false);
         try
         {
             foreach (MonitorInfo monitor in monitors)
@@ -524,7 +525,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                                 && curveReleaseTargets.TryGetValue(monitor, out int curveReleaseTarget)
                     ? curveReleaseTarget
                     : monitor.Brightness + delta;
-                monitor.Brightness = Math.Clamp(target, 0, 100);
+                monitor.Brightness = Math.Clamp(target, min: 0, max: 100);
             }
         }
         finally
@@ -559,7 +560,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             if (monitor.SliderState != SliderState.CurveActive) continue;
             if (!monitor.HasCurveTargetBrightness) continue;
 
-            targets[monitor] = Math.Clamp(monitor.EffectiveRoundedBrightness + direction, 0, 100);
+            targets[monitor] = Math.Clamp(monitor.EffectiveRoundedBrightness + direction, min: 0, max: 100);
         }
 
         return targets.Count == 0 ? null : targets;
@@ -636,7 +637,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         int notches = wheelDelta / 120;
         if (notches == 0)
             notches = Math.Sign(wheelDelta);
-        int delta = notches * Math.Max(1, _settings.FlyoutScrollWheelStep);
+        int delta = notches * Math.Max(val1: 1, _settings.FlyoutScrollWheelStep);
         ApplyTrayWheelDelta(delta);
     }
 
@@ -705,10 +706,10 @@ internal sealed class BrightnessAvaloniaApp : Application
                 PowerOnAllMonitors();
                 break;
             case TrayClickAction.FullBright:
-                ApplyOrRestoreBrightness(action, 100);
+                ApplyOrRestoreBrightness(action, target: 100);
                 break;
             case TrayClickAction.FullDim:
-                ApplyOrRestoreBrightness(action, 0);
+                ApplyOrRestoreBrightness(action, target: 0);
                 break;
         }
     }
@@ -721,7 +722,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         List<MonitorInfo> monitors = [.. flyout.Monitors.Where(m => m.IsParticipatingInMaster)];
         if (monitors.Count == 0) return;
 
-        flyout.NotifyUserBrightnessAdjustment(replayCurrentSliderValue: false);
+        flyout.NotifyUserBrightnessAdjustment(false);
         try
         {
             bool stillInAppliedState =
@@ -817,7 +818,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (profileManager == null || _settings == null) return [];
 
         int count = Math.Min(
-            Math.Max(0, _theme?.ProfileButtons.ButtonCount ?? 4),
+            Math.Max(val1: 0, _theme?.ProfileButtons.ButtonCount ?? 4),
             profileManager.Profiles.Profiles.Count);
         List<BrightnessTrayMenuProfile> profiles = new(count);
         for (int i = 0; i < count; i++)
@@ -849,7 +850,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (_brightnessFlyout == null || _monitorService == null) return;
 
         foreach (MonitorInfo monitor in _brightnessFlyout.Monitors.Where(static m => m.SupportsPowerControl))
-            _ = _monitorService.SetPowerStateAsync(monitor, false);
+            _ = _monitorService.SetPowerStateAsync(monitor, on: false);
     }
 
     private void PowerOnAllMonitors()
@@ -857,7 +858,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (_brightnessFlyout == null || _monitorService == null) return;
 
         foreach (MonitorInfo monitor in _brightnessFlyout.Monitors.Where(static m => m.SupportsPowerControl))
-            _ = _monitorService.SetPowerStateAsync(monitor, true);
+            _ = _monitorService.SetPowerStateAsync(monitor, on: true);
     }
 
     private void PowerOffMonitor(MonitorInfo monitor)
@@ -865,7 +866,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (_monitorService == null) return;
         if (!monitor.SupportsPowerControl) return;
 
-        _ = _monitorService.SetPowerStateAsync(monitor, false);
+        _ = _monitorService.SetPowerStateAsync(monitor, on: false);
     }
 
     private void ShowBrightnessFlyout(bool activate = true, bool holdOpenForSettings = true)
@@ -922,7 +923,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             _settingsWindow.Closed -= OnSettingsWindowClosed;
             _settingsWindow = null;
         }
-
     }
 
     private void ShowUninstallerWindow(string installDir, BrightnessInstallScope scope)
@@ -1029,7 +1029,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             return ResolveNightLightTooltipStrength(
                 nightLightMonitor,
                 providerStrength: 0,
-                invertNightLightSlider: _settings?.InvertNightLightSlider == true);
+                _settings?.InvertNightLightSlider == true);
         }
 
         return NightLightProvider.GetStrength();
@@ -1044,7 +1044,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         int providerStrength,
         bool invertNightLightSlider)
     {
-        if (nightLightMonitor == null) return Math.Clamp(providerStrength, 0, 100);
+        if (nightLightMonitor == null) return Math.Clamp(providerStrength, min: 0, max: 100);
 
         int sliderStrength = nightLightMonitor.EffectiveRoundedBrightness;
         return invertNightLightSlider ? 100 - sliderStrength : sliderStrength;
@@ -1056,10 +1056,10 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             string monitorState = monitors.Count == 0
                 ? "<none>"
-                : string.Join(" | ", monitors.Select(m =>
+                : string.Join(separator: " | ", monitors.Select(m =>
                     $"{m.Name}:{m.SliderState}:b={m.RoundedBrightness}:eff={m.EffectiveRoundedBrightness}:failed={m.IsFailed}:part={m.IsParticipatingInMaster}"));
             string snapshot =
-                $"brightness={brightness}; tooltip='{tooltip.Replace("\r", "\\r").Replace("\n", "\\n")}'; "
+                $"brightness={brightness}; tooltip='{tooltip.Replace(oldValue: "\r", newValue: "\\r").Replace(oldValue: "\n", newValue: "\\n")}'; "
                 + $"flyoutNull={_brightnessFlyout == null}; flyoutVisible={_brightnessFlyout?.IsVisible.ToString() ?? "<null>"}; "
                 + $"tracking={_settings?.DynamicIconBrightnessTracking}; enabledOnly={_settings?.DynamicIconTrackEnabledOnly}; "
                 + $"monitors={monitorState}";
@@ -1100,7 +1100,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         };
 
         if (!double.IsFinite(value)) return _settings?.LastMasterBrightness ?? 100;
-        return (int)Math.Round(Math.Clamp(value, 0.0, 100.0));
+        return (int)Math.Round(Math.Clamp(value, min: 0.0, max: 100.0));
         static int EffectiveValue(MonitorInfo monitor) => monitor.EffectiveRoundedBrightness;
     }
 
@@ -1242,9 +1242,9 @@ internal sealed class BrightnessAvaloniaApp : Application
             theme.CloseButtonHover.For(isLight),
             theme.CloseButtonPressed.For(isLight),
             theme.CloseButtonGlyphActive.For(isLight),
-            hoverDeep: theme.HoverDeep.For(isLight),
-            pressedDeep: theme.PressedDeep.For(isLight),
-            controlBackgroundDeep: theme.ControlBackgroundDeep.For(isLight));
+            theme.HoverDeep.For(isLight),
+            theme.PressedDeep.For(isLight),
+            theme.ControlBackgroundDeep.For(isLight));
     }
 
     private void ApplyTrayIconSettings()
@@ -1383,6 +1383,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                     TADNLog.Log($"Brightness flyout warm-slot shutdown failed: {exception.Message}");
                 }
             }
+
             _brightnessFlyoutWarmSlot = null;
             Safe.Dispose(_trayMenuWarmSlot);
             _trayMenuWarmSlot = null;

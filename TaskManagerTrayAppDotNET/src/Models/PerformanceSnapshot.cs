@@ -12,7 +12,7 @@ internal sealed record PerformanceSnapshot(
 {
     public static PerformanceSnapshot Empty { get; } = new(
         DateTimeOffset.MinValue,
-        0,
+        CapturedTimestamp: 0,
         CPUPerformanceSnapshot.Empty,
         MemoryPerformanceSnapshot.Empty,
         ReadOnlyMemory<GPUPerformanceSnapshot>.Empty,
@@ -54,26 +54,26 @@ internal sealed record CPUPerformanceSnapshot(
     public static CPUPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.CPU,
-        0,
-        "CPU",
-        false,
-        0,
-        0,
+        SortKey: 0,
+        Name: "CPU",
+        HasUtilizationSample: false,
+        UtilizationPercent: 0,
+        HighestLogicalProcessorPercent: 0,
         ReadOnlyMemory<double>.Empty,
-        false,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        false,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        HasFrequencyData: false,
+        HighestCurrentSpeedHertz: 0,
+        BaseSpeedHertz: 0,
+        HighestRecordedSpeedHertz: 0,
+        SocketCount: 0,
+        CoreCount: 0,
+        LogicalProcessorCount: 0,
+        IsVirtualizationFirmwareEnabled: false,
+        L1CacheBytes: 0,
+        L2CacheBytes: 0,
+        L3CacheBytes: 0,
+        ProcessCount: 0,
+        ThreadCount: 0,
+        HandleCount: 0,
         TimeSpan.Zero);
 }
 
@@ -102,19 +102,19 @@ internal sealed record MemoryPerformanceSnapshot(
     public static MemoryPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.Memory,
-        0,
-        false,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        SortKey: 0,
+        HasMemoryData: false,
+        UtilizationPercent: 0,
+        TotalPhysicalBytes: 0,
+        AvailablePhysicalBytes: 0,
+        UsedPhysicalBytes: 0,
+        InstalledPhysicalBytes: 0,
+        CommittedBytes: 0,
+        CommitLimitBytes: 0,
+        CachedBytes: 0,
+        PagedPoolBytes: 0,
+        NonPagedPoolBytes: 0,
+        HardwareReservedBytes: 0,
         MemoryCompositionSnapshot.Empty,
         PhysicalMemoryHardwareSnapshot.Empty);
 }
@@ -131,14 +131,14 @@ internal readonly record struct MemoryCompositionSnapshot(
     ulong SavedBytes)
 {
     public static MemoryCompositionSnapshot Empty { get; } = new(
-        false,
-        0,
-        0,
-        0,
-        false,
-        0,
-        0,
-        0);
+        HasCompositionData: false,
+        ModifiedBytes: 0,
+        StandbyBytes: 0,
+        FreeBytes: 0,
+        HasCompressionData: false,
+        CompressedBytes: 0,
+        EstimatedDataBytes: 0,
+        SavedBytes: 0);
 }
 
 /// <summary>Static physical-memory array and module metadata read from CIM/WMI.</summary>
@@ -150,10 +150,10 @@ internal readonly record struct PhysicalMemoryHardwareSnapshot(
     ReadOnlyMemory<PhysicalMemoryModuleSnapshot> Modules)
 {
     public static PhysicalMemoryHardwareSnapshot Empty { get; } = new(
-        0,
-        0,
-        0,
-        "Unknown",
+        SpeedMegatransfersPerSecond: 0,
+        UsedSlotCount: 0,
+        TotalSlotCount: 0,
+        FormFactor: "Unknown",
         ReadOnlyMemory<PhysicalMemoryModuleSnapshot>.Empty);
 }
 

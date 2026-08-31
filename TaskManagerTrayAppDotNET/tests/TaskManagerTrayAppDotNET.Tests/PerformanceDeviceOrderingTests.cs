@@ -46,13 +46,13 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] items =
         [
-            Item("disk:1", PerformanceDeviceKind.Disk, 1),
-            Item("gpu:1", PerformanceDeviceKind.GPU, 1),
-            Item("network:0", PerformanceDeviceKind.Network, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("gpu:0", PerformanceDeviceKind.GPU, 0),
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("disk:0", PerformanceDeviceKind.Disk, 0)
+            Item(deviceID: "disk:1", PerformanceDeviceKind.Disk, sortKey: 1),
+            Item(deviceID: "gpu:1", PerformanceDeviceKind.GPU, sortKey: 1),
+            Item(deviceID: "network:0", PerformanceDeviceKind.Network, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "gpu:0", PerformanceDeviceKind.GPU, sortKey: 0),
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "disk:0", PerformanceDeviceKind.Disk, sortKey: 0)
         ];
 
         List<PerformanceDeviceOrderItem> resolved = PerformanceDeviceOrdering.Resolve(
@@ -62,7 +62,7 @@ public sealed class PerformanceDeviceOrderingTests
 
         Assert.Equal(
             ["cpu", "memory", "gpu:0", "gpu:1", "network:0", "disk:0", "disk:1"],
-            resolved.Select(static (PerformanceDeviceOrderItem item) => item.ID));
+            resolved.Select(static item => item.ID));
     }
 
     [Fact]
@@ -70,11 +70,11 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] items =
         [
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("gpu:0", PerformanceDeviceKind.GPU, 0),
-            Item("network:0", PerformanceDeviceKind.Network, 0),
-            Item("disk:0", PerformanceDeviceKind.Disk, 0)
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "gpu:0", PerformanceDeviceKind.GPU, sortKey: 0),
+            Item(deviceID: "network:0", PerformanceDeviceKind.Network, sortKey: 0),
+            Item(deviceID: "disk:0", PerformanceDeviceKind.Disk, sortKey: 0)
         ];
         PerformanceDeviceKind[] priority =
         [
@@ -89,7 +89,7 @@ public sealed class PerformanceDeviceOrderingTests
 
         Assert.Equal(
             ["disk:0", "network:0", "gpu:0", "memory", "cpu"],
-            resolved.Select(static (PerformanceDeviceOrderItem item) => item.ID));
+            resolved.Select(static item => item.ID));
     }
 
     [Fact]
@@ -97,14 +97,14 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] items =
         [
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("gpu:0", PerformanceDeviceKind.GPU, 0),
-            Item("gpu:1", PerformanceDeviceKind.GPU, 1),
-            Item("network:0", PerformanceDeviceKind.Network, 0),
-            Item("network:1", PerformanceDeviceKind.Network, 1),
-            Item("disk:0", PerformanceDeviceKind.Disk, 0),
-            Item("disk:1", PerformanceDeviceKind.Disk, 1)
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "gpu:0", PerformanceDeviceKind.GPU, sortKey: 0),
+            Item(deviceID: "gpu:1", PerformanceDeviceKind.GPU, sortKey: 1),
+            Item(deviceID: "network:0", PerformanceDeviceKind.Network, sortKey: 0),
+            Item(deviceID: "network:1", PerformanceDeviceKind.Network, sortKey: 1),
+            Item(deviceID: "disk:0", PerformanceDeviceKind.Disk, sortKey: 0),
+            Item(deviceID: "disk:1", PerformanceDeviceKind.Disk, sortKey: 1)
         ];
         string[] explicitDeviceIDs =
             ["disk:1", "cpu", "memory", "gpu:0", "network:0", "disk:0"];
@@ -116,12 +116,12 @@ public sealed class PerformanceDeviceOrderingTests
 
         Assert.Equal(
             ["disk:1", "cpu", "memory", "gpu:0", "gpu:1", "network:0", "network:1", "disk:0"],
-            resolved.Select(static (PerformanceDeviceOrderItem item) => item.ID));
+            resolved.Select(static item => item.ID));
         Assert.Equal(
             explicitDeviceIDs,
             resolved
-                .Where(static (PerformanceDeviceOrderItem item) => item.ID != "gpu:1" && item.ID != "network:1")
-                .Select(static (PerformanceDeviceOrderItem item) => item.ID));
+                .Where(static item => item.ID != "gpu:1" && item.ID != "network:1")
+                .Select(static item => item.ID));
     }
 
     [Fact]
@@ -129,11 +129,11 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] items =
         [
-            Item("disk:0", PerformanceDeviceKind.Disk, 0),
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("gpu:0", PerformanceDeviceKind.GPU, 0),
-            Item("network:0", PerformanceDeviceKind.Network, 0)
+            Item(deviceID: "disk:0", PerformanceDeviceKind.Disk, sortKey: 0),
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "gpu:0", PerformanceDeviceKind.GPU, sortKey: 0),
+            Item(deviceID: "network:0", PerformanceDeviceKind.Network, sortKey: 0)
         ];
         string[] explicitDeviceIDs = ["disk:0", "cpu", "memory", "network:0"];
 
@@ -144,7 +144,7 @@ public sealed class PerformanceDeviceOrderingTests
 
         Assert.Equal(
             ["disk:0", "cpu", "memory", "gpu:0", "network:0"],
-            resolved.Select(static (PerformanceDeviceOrderItem item) => item.ID));
+            resolved.Select(static item => item.ID));
     }
 
     [Fact]
@@ -152,10 +152,10 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] resolvedItems =
         [
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("gpu:0", PerformanceDeviceKind.GPU, 0),
-            Item("network:0", PerformanceDeviceKind.Network, 0)
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "gpu:0", PerformanceDeviceKind.GPU, sortKey: 0),
+            Item(deviceID: "network:0", PerformanceDeviceKind.Network, sortKey: 0)
         ];
         string[] explicitDeviceIDs = ["cpu", "gpu:stale", "memory", "gpu:0", "network:0"];
 
@@ -173,15 +173,15 @@ public sealed class PerformanceDeviceOrderingTests
     {
         PerformanceDeviceOrderItem[] resolvedItems =
         [
-            Item("cpu", PerformanceDeviceKind.CPU, 0),
-            Item("memory", PerformanceDeviceKind.Memory, 0),
-            Item("disk:0", PerformanceDeviceKind.Disk, 0)
+            Item(deviceID: "cpu", PerformanceDeviceKind.CPU, sortKey: 0),
+            Item(deviceID: "memory", PerformanceDeviceKind.Memory, sortKey: 0),
+            Item(deviceID: "disk:0", PerformanceDeviceKind.Disk, sortKey: 0)
         ];
 
         List<string> moved = PerformanceDeviceOrdering.Move(
             resolvedItems,
             [],
-            "disk:0",
+            deviceID: "disk:0",
             targetIndex: 0);
 
         Assert.Equal(["disk:0", "cpu", "memory"], moved);

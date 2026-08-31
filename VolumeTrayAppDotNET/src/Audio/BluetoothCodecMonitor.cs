@@ -178,13 +178,13 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
             // matchAnyKeywords = 0 selects every event on the provider, matching the reference
             // implementation. The provider only emits a small handful of event types, so we
             // pay no real cost being permissive.
-            _session.EnableProvider(ProviderGuid, TraceEventLevel.Verbose, 0);
+            _session.EnableProvider(ProviderGuid, TraceEventLevel.Verbose, matchAnyKeywords: 0);
 
             // Best-effort: enable the legacy diagnostic provider in parallel. Some older Windows
             // builds and some chipsets surface codec configuration here instead of the modern
             // provider. Wrapped in its own try because an unregistered provider can throw on
             // some TraceEvent versions.
-            try { _session.EnableProvider(LegacyProviderGuid, TraceEventLevel.Verbose, 0); }
+            try { _session.EnableProvider(LegacyProviderGuid, TraceEventLevel.Verbose, matchAnyKeywords: 0); }
             catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Start: legacy provider enable: {ex.Message}"); }
 
             _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BluetoothCodecMonitor.ETW" };

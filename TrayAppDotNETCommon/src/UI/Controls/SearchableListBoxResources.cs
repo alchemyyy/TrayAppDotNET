@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -9,9 +8,9 @@ public sealed partial class SearchableListBoxResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<SearchableListBoxResources> Resources =
         CommonAXAMLResourceStore<SearchableListBoxResources>.Create(
-            "Common searchable-list resources",
+            resourceName: "Common searchable-list resources",
             static () => new SearchableListBoxResources(),
-            "SearchableListBox.axaml");
+            sourceFileName: "SearchableListBox.axaml");
 #else
     private static readonly Lazy<SearchableListBoxResources> Resources =
         new(static () => new SearchableListBoxResources());

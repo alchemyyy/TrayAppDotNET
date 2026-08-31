@@ -164,9 +164,7 @@ internal static class AXAMLMarkupExtensionParser
         string key = candidate[..endIndex].Trim();
         if (key.Length >= 2 &&
             ((key[0] == '\'' && key[^1] == '\'') || (key[0] == '"' && key[^1] == '"')))
-        {
             key = key[1..^1];
-        }
 
         return key.Length == 0 ? null : key;
     }

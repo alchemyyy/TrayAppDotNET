@@ -31,7 +31,7 @@ internal sealed class BluetoothConnectionCountdownOverlay : Control, IDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMilliseconds);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
         ArgumentOutOfRangeException.ThrowIfNegative(opacity);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(opacity, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(opacity, other: 1);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(strokeThickness);
 
         _deadlineMilliseconds = deadlineMilliseconds;
@@ -63,16 +63,16 @@ internal sealed class BluetoothConnectionCountdownOverlay : Control, IDisposable
     {
         if (timeoutMilliseconds <= 0) return 0;
         long remainingMilliseconds = deadlineMilliseconds - nowMilliseconds;
-        return Math.Clamp((double)remainingMilliseconds / timeoutMilliseconds, 0, 1);
+        return Math.Clamp((double)remainingMilliseconds / timeoutMilliseconds, min: 0, max: 1);
     }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
 
-        double width = Math.Max(0, Bounds.Width);
-        double height = Math.Max(0, Bounds.Height);
-        double radius = Math.Max(0, Math.Min(width, height) / 2 - _outlinePen.Thickness / 2);
+        double width = Math.Max(val1: 0, Bounds.Width);
+        double height = Math.Max(val1: 0, Bounds.Height);
+        double radius = Math.Max(val1: 0, Math.Min(width, height) / 2 - _outlinePen.Thickness / 2);
         if (radius <= 0) return;
 
         Point center = new(width / 2, height / 2);
@@ -105,14 +105,14 @@ internal sealed class BluetoothConnectionCountdownOverlay : Control, IDisposable
                     top,
                     new Size(radius, radius),
                     rotationAngle: 0,
-                    isLargeArc: remainingFraction > 0.5,
+                    remainingFraction > 0.5,
                     SweepDirection.Clockwise,
                     isStroked: false);
                 geometryContext.LineTo(center, isStroked: false);
-                geometryContext.EndFigure(isClosed: true);
+                geometryContext.EndFigure(true);
             }
 
-            context.DrawGeometry(_fillBrush, null, remainingPie);
+            context.DrawGeometry(_fillBrush, pen: null, remainingPie);
         }
 
         context.DrawEllipse(Brushes.Transparent, _outlinePen, center, radius, radius);

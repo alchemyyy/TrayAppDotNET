@@ -17,13 +17,9 @@ public sealed class ProbeValueFormatterTests
     [InlineData(DataSourceTypeEnum.Clock, 5000000, "5000.00 MHz")]
     public void FormatValuePadsDecimalProbeValues(DataSourceTypeEnum type, long value, string expected)
     {
-        DataSource source = new()
-        {
-            DataSourceType = type,
-            Value = value
-        };
+        DataSource source = new() { DataSourceType = type, Value = value };
 
-        string formatted = ProbeValueFormatter.FormatValue(source, null);
+        string formatted = ProbeValueFormatter.FormatValue(source, probe: null);
 
         Assert.Equal(expected, formatted);
     }
@@ -34,19 +30,12 @@ public sealed class ProbeValueFormatterTests
     [Fact]
     public void FormatValuePadsTransformedProbeValues()
     {
-        DataSource source = new()
-        {
-            DataSourceType = DataSourceTypeEnum.Temperature,
-            Value = 40000
-        };
-        ProbeCardProbe probe = new()
-        {
-            TransformString = "x + 2"
-        };
+        DataSource source = new() { DataSourceType = DataSourceTypeEnum.Temperature, Value = 40000 };
+        ProbeCardProbe probe = new() { TransformString = "x + 2" };
 
         string formatted = ProbeValueFormatter.FormatValue(source, probe);
 
-        Assert.Equal("42.00 C", formatted);
+        Assert.Equal(expected: "42.00 C", formatted);
     }
 
     /// <summary>
@@ -57,13 +46,9 @@ public sealed class ProbeValueFormatterTests
     [InlineData(42500, "43 C")]
     public void FormatValueRoundsTruncatedProbeValues(long value, string expected)
     {
-        DataSource source = new()
-        {
-            DataSourceType = DataSourceTypeEnum.Temperature,
-            Value = value
-        };
+        DataSource source = new() { DataSourceType = DataSourceTypeEnum.Temperature, Value = value };
 
-        string formatted = ProbeValueFormatter.FormatValue(source, null, truncate: true);
+        string formatted = ProbeValueFormatter.FormatValue(source, probe: null, truncate: true);
 
         Assert.Equal(expected, formatted);
     }

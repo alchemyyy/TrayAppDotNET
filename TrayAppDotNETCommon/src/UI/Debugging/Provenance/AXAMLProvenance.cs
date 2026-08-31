@@ -34,10 +34,12 @@ public readonly record struct AXAMLProvenanceEntry(
 /// <summary>Stores generated AXAML catalogs registered by loaded TrayAppDotNET assemblies.</summary>
 internal static class AXAMLProvenanceRegistry
 {
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
     private static readonly Dictionary<Assembly, IReadOnlyList<AXAMLProvenanceEntry>> EntriesByAssembly = [];
+
     private static readonly Dictionary<string, List<AXAMLProvenanceEntry>> EntriesByProperty =
         new(StringComparer.Ordinal);
+
     private static readonly Dictionary<string, List<AXAMLProvenanceEntry>> ResourceDefinitionsByKey =
         new(StringComparer.Ordinal);
 
@@ -176,7 +178,7 @@ internal static class AXAMLProvenanceRegistry
     private static bool IsReusableCandidate(AXAMLProvenanceEntry candidate) =>
         IsPropertyRoleCandidate(candidate.Kind)
         || !string.IsNullOrWhiteSpace(candidate.Selector)
-        || candidate.ElementPath.Contains("Template[", StringComparison.Ordinal);
+        || candidate.ElementPath.Contains(value: "Template[", StringComparison.Ordinal);
 
     private static bool IsPropertyRoleCandidate(AXAMLProvenanceKind kind) =>
         kind is AXAMLProvenanceKind.StyleSetter
@@ -197,7 +199,7 @@ internal static class AXAMLProvenanceRegistry
     private static string PropertyLookupName(string propertyName)
     {
         string normalizedName = propertyName.Trim();
-        if (normalizedName.Length >= 2 && normalizedName[0] == '(' && normalizedName[^1] == ')')
+        if (normalizedName is ['(', .., ')'])
             normalizedName = normalizedName[1..^1];
 
         int separatorIndex = normalizedName.LastIndexOf('.');

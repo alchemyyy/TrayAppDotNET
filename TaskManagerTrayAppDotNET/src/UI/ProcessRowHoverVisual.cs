@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Rendering.Composition;
-using Avalonia.VisualTree;
-using TrayAppDotNETCommon.Interop;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -42,7 +40,7 @@ internal abstract class ProcessTableHighlightVisual : Control, IDisposable
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs eventArgs)
     {
-        ElementComposition.SetElementChildVisual(this, null);
+        ElementComposition.SetElementChildVisual(this, compositionVisual: null);
         _compositionVisual = null;
         base.OnDetachedFromVisualTree(eventArgs);
     }
@@ -75,7 +73,7 @@ internal abstract class ProcessTableHighlightVisual : Control, IDisposable
         }
 
         Rect bounds = highlightBounds.Value;
-        _compositionVisual.Offset = new Vector3D(bounds.X, bounds.Y, 0);
+        _compositionVisual.Offset = new Vector3D(bounds.X, bounds.Y, Z: 0);
         _compositionVisual.Size = new Vector(bounds.Width, bounds.Height);
         _compositionVisual.Visible = true;
     }
@@ -85,7 +83,7 @@ internal abstract class ProcessTableHighlightVisual : Control, IDisposable
         if (_disposed) return;
 
         _disposed = true;
-        ElementComposition.SetElementChildVisual(this, null);
+        ElementComposition.SetElementChildVisual(this, compositionVisual: null);
         _compositionVisual = null;
     }
 }
@@ -117,23 +115,17 @@ internal readonly record struct ProcessRowHoverGeometry(
             || Viewport.Height <= 0
             || !double.IsFinite(position.X)
             || !double.IsFinite(position.Y))
-        {
             return -1;
-        }
 
         if (position.X < Viewport.X
             || position.X >= Viewport.Right
             || position.Y < Viewport.Y
             || position.Y >= Viewport.Bottom)
-        {
             return -1;
-        }
 
         if (position.Y >= StickyHeaderTop
             && position.Y < StickyHeaderTop + HeaderHeight)
-        {
             return -1;
-        }
 
         double rowPosition = position.Y - HeaderHeight;
         if (rowPosition < 0) return -1;
@@ -150,12 +142,10 @@ internal readonly record struct ProcessRowHoverGeometry(
             || !double.IsFinite(HeaderHeight)
             || !double.IsFinite(RowHeight)
             || hostWidth <= 0)
-        {
             return default;
-        }
 
         return new Rect(
-            0,
+            x: 0,
             HeaderHeight + visibleIndex * RowHeight,
             hostWidth,
             RowHeight);
@@ -176,9 +166,7 @@ internal readonly record struct ProcessRowHoverGeometry(
             || Viewport.Height <= 0
             || HeaderHeight <= 0
             || RowHeight <= 0)
-        {
             return false;
-        }
 
         double rowTop = HeaderHeight + visibleIndex * RowHeight;
         double visibleTop = Math.Max(Viewport.Y, StickyHeaderTop + HeaderHeight);
@@ -235,13 +223,14 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         IntPtr windowHandle = topLevel?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         if (hostVisual == null || topLevel == null || windowHandle == IntPtr.Zero) return;
 
-        Point? clientOrigin = this.TranslatePoint(default, topLevel);
+        Point? clientOrigin = this.TranslatePoint(point: default, topLevel);
         ProcessRowHoverRenderState state = clientOrigin.HasValue
-                                             && TryCreateRenderState(clientOrigin.Value, topLevel, out ProcessRowHoverRenderState initialState)
+                                           && TryCreateRenderState(clientOrigin.Value, topLevel,
+                                               out ProcessRowHoverRenderState initialState)
             ? initialState
             : new ProcessRowHoverRenderState(
                 _geometry,
-                default,
+                ClientOrigin: default,
                 RenderScaling: 1,
                 HasCoordinateMap: false);
 
@@ -267,8 +256,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
     protected override Size ArrangeOverride(Size finalSize)
     {
         Size arrangedSize = base.ArrangeOverride(finalSize);
-        if (_compositionVisual != null)
-            _compositionVisual.Size = new Vector(arrangedSize.Width, arrangedSize.Height);
+        _compositionVisual?.Size = new Vector(arrangedSize.Width, arrangedSize.Height);
         SendRenderState();
 
         return arrangedSize;
@@ -276,11 +264,9 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
 
     private void OnTopLevelPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.Property == Visual.IsVisibleProperty
+        if (eventArgs.Property == IsVisibleProperty
             || eventArgs.Property == Window.WindowStateProperty)
-        {
             UpdateHandlerRunningState();
-        }
     }
 
     private void OnTopLevelScalingChanged(object? sender, EventArgs eventArgs) => SendRenderState();
@@ -289,13 +275,11 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
     {
         if (_compositionVisual == null || _topLevel == null) return;
 
-        Point? clientOrigin = this.TranslatePoint(default, _topLevel);
+        Point? clientOrigin = this.TranslatePoint(point: default, _topLevel);
         if (!clientOrigin.HasValue
             || !TryCreateRenderState(clientOrigin.Value, _topLevel, out ProcessRowHoverRenderState state)
-            || _hasLastSentState && _lastSentState == state)
-        {
+            || (_hasLastSentState && _lastSentState == state))
             return;
-        }
 
         _lastSentState = state;
         _hasLastSentState = true;
@@ -331,7 +315,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
                          && _isSamplingEnabled
                          && _compositionVisual != null
                          && _topLevel is { IsVisible: true }
-                         && (_topLevel is not Window window || window.WindowState != WindowState.Minimized);
+                             and not Window { WindowState: WindowState.Minimized };
         if (_isHandlerRunning == shouldRun) return;
 
         _isHandlerRunning = shouldRun;
@@ -353,7 +337,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         _isHandlerRunning = false;
         _hasLastSentState = false;
         _topLevel = null;
-        ElementComposition.SetElementChildVisual(this, null);
+        ElementComposition.SetElementChildVisual(this, compositionVisual: null);
         _compositionVisual = null;
     }
 
@@ -371,26 +355,18 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         double RenderScaling,
         bool HasCoordinateMap);
 
-    private sealed class ProcessRowHoverHandler : CompositionCustomVisualHandler
+    private sealed class ProcessRowHoverHandler(
+        Color color,
+        IntPtr windowHandle,
+        ProcessRowHoverRenderState state) : CompositionCustomVisualHandler
     {
         public static readonly object StartMessage = new();
         public static readonly object StopMessage = new();
 
-        private readonly ImmutableSolidColorBrush _brush;
-        private readonly IntPtr _windowHandle;
-        private ProcessRowHoverRenderState _state;
+        private readonly ImmutableSolidColorBrush _brush = new(color);
+        private ProcessRowHoverRenderState _state = state;
         private int _hoveredVisibleIndex = -1;
         private bool _isRunning;
-
-        public ProcessRowHoverHandler(
-            Color color,
-            IntPtr windowHandle,
-            ProcessRowHoverRenderState state)
-        {
-            _brush = new ImmutableSolidColorBrush(color);
-            _windowHandle = windowHandle;
-            _state = state;
-        }
 
         public override void OnMessage(object message)
         {
@@ -435,7 +411,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
             Rect rowBounds = _state.Geometry.GetRowBounds(latestVisibleIndex, EffectiveSize.X);
             if (rowBounds.Width <= 0 || rowBounds.Height <= 0) return;
 
-            drawingContext.DrawRectangle(_brush, null, rowBounds);
+            drawingContext.DrawRectangle(_brush, pen: null, rowBounds);
         }
 
         private void ApplyState(ProcessRowHoverRenderState state)
@@ -455,19 +431,15 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
             if (!_isRunning
                 || !_state.HasCoordinateMap
                 || !User32.GetCursorPos(out User32.POINT screenPosition))
-            {
                 return -1;
-            }
 
             IntPtr pointedWindow = User32.WindowFromPoint(screenPosition);
             if (pointedWindow == IntPtr.Zero
-                || User32.GetAncestor(pointedWindow, User32.GA_ROOT) != _windowHandle)
-            {
+                || User32.GetAncestor(pointedWindow, User32.GA_ROOT) != windowHandle)
                 return -1;
-            }
 
             User32.POINT clientPosition = screenPosition;
-            if (!User32.ScreenToClient(_windowHandle, ref clientPosition)) return -1;
+            if (!User32.ScreenToClient(windowHandle, ref clientPosition)) return -1;
 
             Point localPosition = new(
                 clientPosition.X / _state.RenderScaling - _state.ClientOrigin.X,
@@ -488,7 +460,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         private void InvalidateRow(ProcessRowHoverGeometry geometry, int visibleIndex)
         {
             Rect bounds = geometry.GetRowBounds(visibleIndex, EffectiveSize.X);
-            if (bounds.Width > 0 && bounds.Height > 0)
+            if (bounds is { Width: > 0, Height: > 0 })
                 Invalidate(bounds);
         }
     }
@@ -512,9 +484,7 @@ internal sealed class ProcessHeaderHoverVisual(Color color) : ProcessTableHighli
                 || !double.IsFinite(bounds.Height)
                 || bounds.Width < 0
                 || bounds.Height < 0)
-            {
                 throw new ArgumentOutOfRangeException(nameof(highlightBounds));
-            }
         }
 
         _highlightBounds = highlightBounds;

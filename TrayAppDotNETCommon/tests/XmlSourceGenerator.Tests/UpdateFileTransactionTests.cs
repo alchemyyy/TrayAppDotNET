@@ -9,12 +9,12 @@ public sealed class UpdateFileTransactionTests
     public void BuildPlanSkipsUnchangedSharedFilesAndPlacesExecutableLast()
     {
         using TestDirectories directories = new();
-        string sourceExecutable = directories.WriteSource("TestTrayAppDotNET.exe", "new app");
-        string targetExecutable = directories.WriteTarget("TestTrayAppDotNET.exe", "old app");
-        _ = directories.WriteSource("settings.json", "new settings");
-        _ = directories.WriteTarget("settings.json", "old settings");
-        _ = directories.WriteSource("libSkiaSharp.dll", "same native file");
-        _ = directories.WriteTarget("libSkiaSharp.dll", "same native file");
+        string sourceExecutable = directories.WriteSource(relativePath: "TestTrayAppDotNET.exe", content: "new app");
+        string targetExecutable = directories.WriteTarget(relativePath: "TestTrayAppDotNET.exe", content: "old app");
+        _ = directories.WriteSource(relativePath: "settings.json", content: "new settings");
+        _ = directories.WriteTarget(relativePath: "settings.json", content: "old settings");
+        _ = directories.WriteSource(relativePath: "libSkiaSharp.dll", content: "same native file");
+        _ = directories.WriteTarget(relativePath: "libSkiaSharp.dll", content: "same native file");
 
         UpdateFilePlan plan = UpdateFileTransaction.BuildPlan(
             directories.Source,
@@ -25,7 +25,7 @@ public sealed class UpdateFileTransactionTests
         Assert.False(plan.StopSiblingApps);
         Assert.DoesNotContain(
             plan.Files,
-            file => file.RelativePath.Equals("libSkiaSharp.dll", StringComparison.OrdinalIgnoreCase));
+            file => file.RelativePath.Equals(value: "libSkiaSharp.dll", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(sourceExecutable, plan.Files[^1].SourcePath);
     }
 
@@ -33,8 +33,8 @@ public sealed class UpdateFileTransactionTests
     public void BuildPlanRejectsPayloadWithoutInstalledExecutable()
     {
         using TestDirectories directories = new();
-        _ = directories.WriteSource("data.txt", "new data");
-        string targetExecutable = directories.WriteTarget("TestTrayAppDotNET.exe", "old app");
+        _ = directories.WriteSource(relativePath: "data.txt", content: "new data");
+        string targetExecutable = directories.WriteTarget(relativePath: "TestTrayAppDotNET.exe", content: "old app");
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             UpdateFileTransaction.BuildPlan(
@@ -43,17 +43,17 @@ public sealed class UpdateFileTransactionTests
                 targetExecutable,
                 static _ => { }));
 
-        Assert.Contains("does not contain", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedSubstring: "does not contain", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void ApplyReplacesEveryFileAndRemovesTransactionArtifacts()
     {
         using TestDirectories directories = new();
-        _ = directories.WriteSource("TestTrayAppDotNET.exe", "new app");
-        string targetExecutable = directories.WriteTarget("TestTrayAppDotNET.exe", "old app");
-        _ = directories.WriteSource("data.txt", "new data");
-        _ = directories.WriteTarget("data.txt", "old data");
+        _ = directories.WriteSource(relativePath: "TestTrayAppDotNET.exe", content: "new app");
+        string targetExecutable = directories.WriteTarget(relativePath: "TestTrayAppDotNET.exe", content: "old app");
+        _ = directories.WriteSource(relativePath: "data.txt", content: "new data");
+        _ = directories.WriteTarget(relativePath: "data.txt", content: "old data");
 
         UpdateFilePlan plan = UpdateFileTransaction.BuildPlan(
             directories.Source,
@@ -63,40 +63,41 @@ public sealed class UpdateFileTransactionTests
         UpdateFileTransactionResult result = UpdateFileTransaction.Apply(plan, static _ => { });
 
         Assert.Equal(UpdateFileTransactionStatus.Succeeded, result.Status);
-        Assert.Equal("new app", File.ReadAllText(targetExecutable));
-        Assert.Equal("new data", File.ReadAllText(Path.Combine(directories.Target, "data.txt")));
-        Assert.Empty(Directory.EnumerateFiles(directories.Target, "*.tadn-update-*"));
+        Assert.Equal(expected: "new app", File.ReadAllText(targetExecutable));
+        Assert.Equal(expected: "new data", File.ReadAllText(Path.Combine(directories.Target, path2: "data.txt")));
+        Assert.Empty(Directory.EnumerateFiles(directories.Target, searchPattern: "*.tadn-update-*"));
     }
 
     [Fact]
     public void ApplyRestoresFilesAlreadyReplacedWhenALaterCommitFails()
     {
         using TestDirectories directories = new();
-        string firstSource = directories.WriteSource("first.txt", "new first");
-        string firstTarget = directories.WriteTarget("first.txt", "old first");
-        string secondSource = directories.WriteSource("second.txt", "new second");
-        string secondTarget = directories.WriteTarget("second.txt", "old second");
+        string firstSource = directories.WriteSource(relativePath: "first.txt", content: "new first");
+        string firstTarget = directories.WriteTarget(relativePath: "first.txt", content: "old first");
+        string secondSource = directories.WriteSource(relativePath: "second.txt", content: "new second");
+        string secondTarget = directories.WriteTarget(relativePath: "second.txt", content: "old second");
         string firstTemporary = firstTarget + ".tmp";
         string firstBackup = firstTarget + ".bak";
         string secondTemporary = secondTarget + ".tmp";
 
         UpdateFilePlan plan = new(
             [
-                new UpdateFileOperation("first.txt", firstSource, firstTarget, firstTemporary, firstBackup),
+                new UpdateFileOperation(relativePath: "first.txt", firstSource, firstTarget, firstTemporary,
+                    firstBackup),
                 new UpdateFileOperation(
-                    "second.txt",
+                    relativePath: "second.txt",
                     secondSource,
                     secondTarget,
                     secondTemporary,
-                    "invalid\0backup")
+                    backupPath: "invalid\0backup")
             ],
             StopSiblingApps: false);
 
         UpdateFileTransactionResult result = UpdateFileTransaction.Apply(plan, static _ => { });
 
         Assert.Equal(UpdateFileTransactionStatus.FailedRolledBack, result.Status);
-        Assert.Equal("old first", File.ReadAllText(firstTarget));
-        Assert.Equal("old second", File.ReadAllText(secondTarget));
+        Assert.Equal(expected: "old first", File.ReadAllText(firstTarget));
+        Assert.Equal(expected: "old second", File.ReadAllText(secondTarget));
         Assert.False(File.Exists(firstTemporary));
         Assert.False(File.Exists(firstBackup));
     }
@@ -105,25 +106,25 @@ public sealed class UpdateFileTransactionTests
     public void ApplyRemovesNewFilesWhenALaterCommitFails()
     {
         using TestDirectories directories = new();
-        string newSource = directories.WriteSource("new.txt", "new file");
-        string newTarget = Path.Combine(directories.Target, "new.txt");
-        string existingSource = directories.WriteSource("existing.txt", "new existing");
-        string existingTarget = directories.WriteTarget("existing.txt", "old existing");
+        string newSource = directories.WriteSource(relativePath: "new.txt", content: "new file");
+        string newTarget = Path.Combine(directories.Target, path2: "new.txt");
+        string existingSource = directories.WriteSource(relativePath: "existing.txt", content: "new existing");
+        string existingTarget = directories.WriteTarget(relativePath: "existing.txt", content: "old existing");
 
         UpdateFilePlan plan = new(
             [
                 new UpdateFileOperation(
-                    "new.txt",
+                    relativePath: "new.txt",
                     newSource,
                     newTarget,
                     newTarget + ".tmp",
                     newTarget + ".bak"),
                 new UpdateFileOperation(
-                    "existing.txt",
+                    relativePath: "existing.txt",
                     existingSource,
                     existingTarget,
                     existingTarget + ".tmp",
-                    "invalid\0backup")
+                    backupPath: "invalid\0backup")
             ],
             StopSiblingApps: false);
 
@@ -131,7 +132,7 @@ public sealed class UpdateFileTransactionTests
 
         Assert.Equal(UpdateFileTransactionStatus.FailedRolledBack, result.Status);
         Assert.False(File.Exists(newTarget));
-        Assert.Equal("old existing", File.ReadAllText(existingTarget));
+        Assert.Equal(expected: "old existing", File.ReadAllText(existingTarget));
     }
 
     private sealed class TestDirectories : IDisposable
@@ -142,8 +143,8 @@ public sealed class UpdateFileTransactionTests
 
         public TestDirectories()
         {
-            Source = Path.Combine(_root, "source");
-            Target = Path.Combine(_root, "target");
+            Source = Path.Combine(_root, path2: "source");
+            Target = Path.Combine(_root, path2: "target");
             Directory.CreateDirectory(Source);
             Directory.CreateDirectory(Target);
         }

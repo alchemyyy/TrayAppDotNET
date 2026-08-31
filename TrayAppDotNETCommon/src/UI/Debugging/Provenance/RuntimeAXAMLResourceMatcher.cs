@@ -1,8 +1,9 @@
 #if DEBUG
-using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Reflection;
 
+// Provenance is an implementation grouping, not a namespace boundary
 namespace TrayAppDotNETCommon.UI.Debugging;
 
 /// <summary>Matches runtime values against the generated AXAML property containers owned by a window.</summary>
@@ -110,8 +111,8 @@ internal sealed class RuntimeAXAMLResourceMatcher
     }
 
     [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2075",
+        category: "Trimming",
+        checkId: "IL2075",
         Justification = "Debug-only inspection intentionally reflects the active window's generated AXAML containers.")]
     public static IReadOnlyList<RuntimeAXAMLResourceValue> CaptureResources(object owner)
     {
@@ -119,7 +120,9 @@ internal sealed class RuntimeAXAMLResourceMatcher
         HashSet<string> recordedKeys = new(StringComparer.Ordinal);
         int containerCount = 0;
 
-        for (Type? ownerType = owner.GetType(); ownerType != null && ownerType != typeof(object); ownerType = ownerType.BaseType)
+        for (Type? ownerType = owner.GetType();
+             ownerType != null && ownerType != typeof(object);
+             ownerType = ownerType.BaseType)
         {
             FieldInfo[] fields = ownerType.GetFields(
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
@@ -135,7 +138,8 @@ internal sealed class RuntimeAXAMLResourceMatcher
                     continue;
                 }
 
-                if (container == null || !container.GetType().Name.EndsWith("AxamlProperties", StringComparison.Ordinal))
+                if (container == null ||
+                    !container.GetType().Name.EndsWith(value: "AxamlProperties", StringComparison.Ordinal))
                     continue;
 
                 CaptureContainer(container, resources, recordedKeys);
@@ -148,8 +152,8 @@ internal sealed class RuntimeAXAMLResourceMatcher
     }
 
     [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2075",
+        category: "Trimming",
+        checkId: "IL2075",
         Justification = "Debug-only generated AXAML container properties are available in ordinary Debug builds.")]
     private static void CaptureContainer(
         object container,
@@ -193,14 +197,11 @@ internal sealed class RuntimeAXAMLResourceMatcher
         {
             if (resourceKey.Length > suffix.Length
                 && resourceKey.EndsWith(suffix, StringComparison.Ordinal))
-            {
                 return resourceKey[..^suffix.Length];
-            }
         }
 
         return resourceKey;
     }
-
 }
 
 /// <summary>Identifies one runtime property value within a bounded control component.</summary>
@@ -247,10 +248,10 @@ internal static class RuntimeValueComparisonKey
 
     private static string Number<TNumber>(TNumber value)
         where TNumber : IFormattable =>
-        "number:" + value.ToString(null, CultureInfo.InvariantCulture);
+        "number:" + value.ToString(format: null, CultureInfo.InvariantCulture);
 
     private static string FloatingPoint(double value) =>
-        "number:" + value.ToString("R", CultureInfo.InvariantCulture);
+        "number:" + value.ToString(format: "R", CultureInfo.InvariantCulture);
 
     private static string Fallback(object value)
     {

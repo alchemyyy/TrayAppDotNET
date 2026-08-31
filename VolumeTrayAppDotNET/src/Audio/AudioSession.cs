@@ -4,7 +4,6 @@ using System.Runtime.InteropServices.Marshalling;
 using Avalonia.Media;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Interop;
-
 using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
 using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
 using IAudioSessionControl2 = VolumeTrayAppDotNET.Interop.IAudioSessionControl2;
@@ -133,7 +132,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         get => _volume;
         set
         {
-            float clamped = Math.Clamp(value, 0f, 1f);
+            float clamped = Math.Clamp(value, min: 0f, max: 1f);
             if (Math.Abs(clamped - _volume) < VolumeEqualityEpsilon) return;
 
             // Update the cached value + raise PropertyChanged synchronously so the slider stays
@@ -248,7 +247,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // IsSystemSoundsSession returns S_OK when this IS the system-sounds session, S_FALSE otherwise.
         IsSystemSounds = _control2.IsSystemSoundsSession() == Ok;
 
-        _control2.GetSessionInstanceIdentifier(out string sessionInstanceID);
+        _control2.GetSessionInstanceIdentifier(out string? sessionInstanceID);
         SessionInstanceID = sessionInstanceID ?? string.Empty;
         _volumeWrite = new VolumeThrottle(volumeThrottler, "session:" + SessionInstanceID);
 
@@ -332,7 +331,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         if (!float.IsNaN(currentVolume) && !float.IsInfinity(currentVolume))
         {
-            float clampedVolume = Math.Clamp(currentVolume, 0f, 1f);
+            float clampedVolume = Math.Clamp(currentVolume, min: 0f, max: 1f);
             if (Math.Abs(clampedVolume - _volume) >= VolumeEqualityEpsilon)
             {
                 _volume = clampedVolume;
@@ -420,7 +419,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                         return;
                     }
 
-                    if (string.Equals(_displayName, "Unknown", StringComparison.Ordinal))
+                    if (string.Equals(_displayName, b: "Unknown", StringComparison.Ordinal))
                         resolvedName = ProcessHelper.GetDisplayNameForProcess(pid);
                 }
                 catch
@@ -449,7 +448,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                 AppIconResolver.IconHandle? retried = TryAcquireIcon(pid, isSystemSounds: false);
                 if (retried == null) continue;
 
-                DispatchMetadata(retried, null);
+                DispatchMetadata(retried, resolvedName: null);
                 return;
             }
         });
@@ -479,7 +478,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
                 if (handle != null) ApplyIconHandle(handle);
                 if (!string.IsNullOrEmpty(resolvedName)
-                    && !string.Equals(resolvedName, "Unknown", StringComparison.Ordinal))
+                    && !string.Equals(resolvedName, b: "Unknown", StringComparison.Ordinal))
                     DisplayName = resolvedName;
             });
         }
@@ -530,7 +529,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     {
         if (_disposed || _disconnected || IsSystemSounds) return;
 
-        bool stuckName = string.Equals(_displayName, "Unknown", StringComparison.Ordinal);
+        bool stuckName = string.Equals(_displayName, b: "Unknown", StringComparison.Ordinal);
         bool stuckIcon = _icon == null;
         if (!stuckName && !stuckIcon) return;
 
@@ -540,7 +539,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             string resolved = !string.IsNullOrEmpty(sessionName)
                 ? sessionName
                 : ProcessHelper.GetDisplayNameForProcess(ProcessID);
-            if (!string.IsNullOrEmpty(resolved) && !string.Equals(resolved, "Unknown", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(resolved) && !string.Equals(resolved, b: "Unknown", StringComparison.Ordinal))
                 DisplayName = resolved;
         }
 
@@ -625,7 +624,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     {
         if (_disposed || _disconnected) return;
         _meterLerp.PinRawPeaksToSilence();
-        _meterLerp.OnNewSample(interpolationSteps: 1);
+        _meterLerp.OnNewSample(1);
     }
 
     /// <summary>
@@ -652,27 +651,25 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // Stop watching the process before releasing COM proxies. If the watcher fires concurrently
         // the marshaled callback's _disposed guard collapses it to a no-op.
         if (_watchingProcess && _processExitMonitor != null)
-        {
-            RunDisposeStep("process watcher detach", () => _processExitMonitor.Unwatch(ProcessID));
-        }
+            RunDisposeStep(operation: "process watcher detach", () => _processExitMonitor.Unwatch(ProcessID));
 
         // Drop any queued SetMasterVolume so the throttler driver doesn't try to call into the
         // RCW we're about to release. A payload already in flight will catch the COM exception.
-        RunDisposeStep("pending volume write drop", _volumeWrite.Drop);
+        RunDisposeStep(operation: "pending volume write drop", _volumeWrite.Drop);
 
         RunDisposeStep(
-            "audio notification unregister",
+            operation: "audio notification unregister",
             () => _control.UnregisterAudioSessionNotification(_events));
 
         // Unpublish before releasing the session lease so observers never receive a disposed bitmap.
         AppIconResolver.IconHandle? iconHandle = _iconHandle;
         _iconHandle = null;
-        RunDisposeStep("icon unpublish", () => Icon = null);
+        RunDisposeStep(operation: "icon unpublish", () => Icon = null);
         PropertyChanged = null;
         Disconnected = null;
         StateChanged = null;
         if (iconHandle != null)
-            RunDisposeStep("icon lease release", iconHandle.Dispose);
+            RunDisposeStep(operation: "icon lease release", iconHandle.Dispose);
 
         // The COM RCWs still hold native references; release them deterministically so the
         // session control's IUnknown ref count drops as soon as we abandon it.

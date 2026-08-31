@@ -17,54 +17,52 @@ public sealed class GPUPerformanceSamplerTests
             out int physicalAdapterIndex);
 
         Assert.True(parsed);
-        Assert.Equal(0x000000010000C85AUL, adapterLUID);
-        Assert.Equal(2, physicalAdapterIndex);
+        Assert.Equal(expected: 0x000000010000C85AUL, adapterLUID);
+        Assert.Equal(expected: 2, physicalAdapterIndex);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("luid_bad")]
     [InlineData("luid_0x1_0x2_phys_bad")]
-    public void RejectsMalformedAdapterMemoryCounterIdentity(string instanceName)
-    {
+    public void RejectsMalformedAdapterMemoryCounterIdentity(string instanceName) =>
         Assert.False(GPUAdapterCounterInstanceParser.TryParse(instanceName, out _, out _));
-    }
 
     [Fact]
     public void AggregatesProcessInstancesByPhysicalEngine()
     {
         GPUEngineCounterSample[] samples =
         [
-            new GPUEngineCounterSample(2, "3D", 65),
-            new GPUEngineCounterSample(2, "3D", 50),
-            new GPUEngineCounterSample(4, "Copy", 12.5),
-            new GPUEngineCounterSample(-1, "Invalid", 50),
-            new GPUEngineCounterSample(5, "Invalid", double.NaN)
+            new(EngineIndex: 2, Name: "3D", UtilizationPercent: 65),
+            new(EngineIndex: 2, Name: "3D", UtilizationPercent: 50),
+            new(EngineIndex: 4, Name: "Copy", UtilizationPercent: 12.5),
+            new(EngineIndex: -1, Name: "Invalid", UtilizationPercent: 50),
+            new(EngineIndex: 5, Name: "Invalid", double.NaN)
         ];
 
         GPUPerformanceEngineSnapshot[] engines = GPUPerformanceSampler.AggregateEngineSamples(samples);
 
-        Assert.Equal(2, engines.Length);
-        Assert.Equal(2, engines[0].EngineIndex);
-        Assert.Equal("3D", engines[0].Name);
-        Assert.Equal(100, engines[0].UtilizationPercent);
-        Assert.Equal(4, engines[1].EngineIndex);
-        Assert.Equal("Copy", engines[1].Name);
-        Assert.Equal(12.5, engines[1].UtilizationPercent);
+        Assert.Equal(expected: 2, engines.Length);
+        Assert.Equal(expected: 2, engines[0].EngineIndex);
+        Assert.Equal(expected: "3D", engines[0].Name);
+        Assert.Equal(expected: 100, engines[0].UtilizationPercent);
+        Assert.Equal(expected: 4, engines[1].EngineIndex);
+        Assert.Equal(expected: "Copy", engines[1].Name);
+        Assert.Equal(expected: 12.5, engines[1].UtilizationPercent);
     }
 
     [Fact]
     public void PCIFallbackDeviceIDRetainsHardwareMetadata()
     {
         string deviceID = GPUPerformanceSampler.CreatePCIFallbackDeviceID(
-            0x10DE,
-            0x2684,
-            0x16A310DE,
-            0xA1,
-            1,
-            0);
+            vendorID: 0x10DE,
+            deviceID: 0x2684,
+            subsystemID: 0x16A310DE,
+            revision: 0xA1,
+            displayIndex: 1,
+            physicalAdapterIndex: 0);
 
-        Assert.Equal("gpu:pci:10DE:2684:16A310DE:A1:1:0", deviceID);
+        Assert.Equal(expected: "gpu:pci:10DE:2684:16A310DE:A1:1:0", deviceID);
     }
 
     [Fact]
@@ -76,7 +74,7 @@ public sealed class GPUPerformanceSamplerTests
         string canonicalKey = D3DKMTAdapterIdentityReader.CanonicalizeHardwarePNPKey(
             hardwarePNPKey);
 
-        Assert.Equal("pci/ven_10de&dev_2702/4&abc&0&0009", canonicalKey);
+        Assert.Equal(expected: "pci/ven_10de&dev_2702/4&abc&0&0009", canonicalKey);
     }
 
     [Fact]
@@ -84,25 +82,25 @@ public sealed class GPUPerformanceSamplerTests
     {
         GPUDeviceIdentity[] first =
         [
-            new GPUDeviceIdentity(
-                new GPUAdapterKey(10, 0),
-                "pci/adapter-a",
+            new(
+                new GPUAdapterKey(LUID: 10, PhysicalAdapterIndex: 0),
+                HardwarePNPKey: "pci/adapter-a",
                 Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                "fallback-a")
+                FallbackDeviceID: "fallback-a")
         ];
         GPUDeviceIdentity[] second =
         [
-            new GPUDeviceIdentity(
-                new GPUAdapterKey(20, 0),
-                "pci/adapter-a",
+            new(
+                new GPUAdapterKey(LUID: 20, PhysicalAdapterIndex: 0),
+                HardwarePNPKey: "pci/adapter-a",
                 Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                "fallback-b")
+                FallbackDeviceID: "fallback-b")
         ];
 
         string firstDeviceID = Assert.Single(GPUPerformanceSampler.ResolveStableDeviceIDs(first));
         string secondDeviceID = Assert.Single(GPUPerformanceSampler.ResolveStableDeviceIDs(second));
 
-        Assert.Equal("gpu:pnp:pci/adapter-a", firstDeviceID);
+        Assert.Equal(expected: "gpu:pnp:pci/adapter-a", firstDeviceID);
         Assert.Equal(firstDeviceID, secondDeviceID);
     }
 
@@ -111,21 +109,21 @@ public sealed class GPUPerformanceSamplerTests
     {
         GPUDeviceIdentity[] identities =
         [
-            new GPUDeviceIdentity(
-                new GPUAdapterKey(10, 0),
-                "pci/shared-adapter",
+            new(
+                new GPUAdapterKey(LUID: 10, PhysicalAdapterIndex: 0),
+                HardwarePNPKey: "pci/shared-adapter",
                 Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                "fallback-a"),
-            new GPUDeviceIdentity(
-                new GPUAdapterKey(20, 0),
-                "pci/shared-adapter",
+                FallbackDeviceID: "fallback-a"),
+            new(
+                new GPUAdapterKey(LUID: 20, PhysicalAdapterIndex: 0),
+                HardwarePNPKey: "pci/shared-adapter",
                 Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                "fallback-b")
+                FallbackDeviceID: "fallback-b")
         ];
 
         string[] deviceIDs = GPUPerformanceSampler.ResolveStableDeviceIDs(identities);
 
-        Assert.Equal("gpu:pnp:pci/shared-adapter", deviceIDs[0]);
+        Assert.Equal(expected: "gpu:pnp:pci/shared-adapter", deviceIDs[0]);
         Assert.Equal(deviceIDs[0], deviceIDs[1]);
     }
 
@@ -134,17 +132,17 @@ public sealed class GPUPerformanceSamplerTests
     {
         GPUDeviceIdentity[] identities =
         [
-            new GPUDeviceIdentity(
-                new GPUAdapterKey(10, 2),
-                null,
+            new(
+                new GPUAdapterKey(LUID: 10, PhysicalAdapterIndex: 2),
+                HardwarePNPKey: null,
                 Guid.Parse("33333333-3333-3333-3333-333333333333"),
-                "gpu:pci:enumeration-dependent")
+                FallbackDeviceID: "gpu:pci:enumeration-dependent")
         ];
 
         string deviceID = Assert.Single(GPUPerformanceSampler.ResolveStableDeviceIDs(identities));
 
         Assert.Equal(
-            "gpu:guid:33333333333333333333333333333333",
+            expected: "gpu:guid:33333333333333333333333333333333",
             deviceID);
     }
 
@@ -153,12 +151,13 @@ public sealed class GPUPerformanceSamplerTests
     {
         GPUAdapterMetadata[] adapters =
         [
-            new GPUAdapterMetadata(10, 0, "GPU", 1, 2, 3, 4, 5, 6, true)
+            new(LUID: 10, DisplayIndex: 0, Name: "GPU", VendorID: 1, DeviceID: 2, SubsystemID: 3, Revision: 4,
+                DedicatedMemoryCapacityBytes: 5, SharedMemoryCapacityBytes: 6, HasValue: true)
         ];
         GPUAdapterKey[] counterKeys =
         [
-            new GPUAdapterKey(10, 1),
-            new GPUAdapterKey(20, 0)
+            new(LUID: 10, PhysicalAdapterIndex: 1),
+            new(LUID: 20, PhysicalAdapterIndex: 0)
         ];
 
         GPUAdapterKey[] displayKeys = GPUPerformanceSampler.ResolveDisplayDeviceKeys(
@@ -166,11 +165,7 @@ public sealed class GPUPerformanceSamplerTests
             counterKeys);
 
         Assert.Equal(
-            new GPUAdapterKey[]
-            {
-                new(10, 0),
-                new(10, 1)
-            },
+            new GPUAdapterKey[] { new(LUID: 10, PhysicalAdapterIndex: 0), new(LUID: 10, PhysicalAdapterIndex: 1) },
             displayKeys);
     }
 
@@ -180,10 +175,8 @@ public sealed class GPUPerformanceSamplerTests
     [InlineData(@"PCI\VEN_10DE&DEV_2702\4&ABC&0&0009", false)]
     [InlineData(@"ACPI\QCOM0D50\0", false)]
     [InlineData(null, false)]
-    public void ClassifiesSoftwareEnumeratedDisplayPNPKeys(string? pnpKey, bool expectedVirtual)
-    {
+    public void ClassifiesSoftwareEnumeratedDisplayPNPKeys(string? pnpKey, bool expectedVirtual) =>
         Assert.Equal(expectedVirtual, GPUPerformanceSampler.IsVirtualDisplayPNPKey(pnpKey));
-    }
 
     [Fact]
     public void NativeD3DKMTIdentitiesAreStableWithinTheAdapterLifetime()
@@ -195,7 +188,7 @@ public sealed class GPUPerformanceSamplerTests
         for (int adapterIndex = 0; adapterIndex < adapters.Length; adapterIndex++)
         {
             GPUAdapterMetadata adapter = adapters[adapterIndex];
-            GPUAdapterKey key = new(adapter.LUID, 0);
+            GPUAdapterKey key = new(adapter.LUID, PhysicalAdapterIndex: 0);
             GPUAdapterPersistentIdentity firstIdentity = D3DKMTAdapterIdentityReader.Read(key);
             GPUAdapterPersistentIdentity secondIdentity = D3DKMTAdapterIdentityReader.Read(key);
 
@@ -213,7 +206,7 @@ public sealed class GPUPerformanceSamplerTests
                     adapter.SubsystemID,
                     adapter.Revision,
                     adapter.DisplayIndex,
-                    0));
+                    physicalAdapterIndex: 0));
         }
 
         string[] deviceIDs = GPUPerformanceSampler.ResolveStableDeviceIDs(identities);
@@ -238,10 +231,10 @@ public sealed class GPUPerformanceSamplerTests
         Assert.DoesNotContain(
             snapshots,
             static snapshot => snapshot.DeviceID.StartsWith(
-                                   "gpu:pnp:root/",
+                                   value: "gpu:pnp:root/",
                                    StringComparison.OrdinalIgnoreCase)
                                || snapshot.DeviceID.StartsWith(
-                                   "gpu:pnp:swd/",
+                                   value: "gpu:pnp:swd/",
                                    StringComparison.OrdinalIgnoreCase));
     }
 }

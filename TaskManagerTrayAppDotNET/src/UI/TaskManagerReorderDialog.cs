@@ -80,7 +80,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         if (scrollBarStyle.HasValue != (scrollBarContextMenuOptions != null))
         {
             throw new ArgumentException(
-                "A scrollbar style and context-menu options must be supplied together.",
+                message: "A scrollbar style and context-menu options must be supplied together.",
                 nameof(scrollBarStyle));
         }
 
@@ -91,7 +91,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         RoundedCornersEnabled = enableRoundedCorners;
         _workAreaMargin = resources.AxamlTaskManagerReorderDialog.WorkAreaMargin;
         _searchWidthRatio = resources.AxamlTaskManagerReorderDialog.SearchWidthRatio;
-        if (_searchWidthRatio <= 0 || _searchWidthRatio > 1)
+        if (_searchWidthRatio is <= 0 or > 1)
             throw new InvalidOperationException("The reorder-dialog search width ratio must be in (0, 1].");
 
         Title = title;
@@ -134,16 +134,16 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
         _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
         _closeButton.Click += OnCancelClick;
-        TrayAppDotNETToolTip.SetTip(_closeButton, "Close");
+        TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
         _titleBar = BuildTitleBar(title, palette, resources, _closeButton);
         _titleBar.PointerPressed += OnTitleBarPointerPressed;
 
-        _resetButton = TrayAppDotNETSettingsUI.Button("Reset", palette);
+        _resetButton = TrayAppDotNETSettingsUI.Button(text: "Reset", palette);
         _resetButton.Click += OnResetClick;
-        _cancelButton = TrayAppDotNETSettingsUI.Button("Cancel", palette);
+        _cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
         _cancelButton.Click += OnCancelClick;
-        _doneButton = TrayAppDotNETSettingsUI.Button("Done", palette);
+        _doneButton = TrayAppDotNETSettingsUI.Button(text: "Done", palette);
         _doneButton.Click += OnDoneClick;
 
         Control listHost;
@@ -187,10 +187,10 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             resources,
             _searchBox,
             headerTrailingControl);
-        Grid.SetRow(header, 1);
+        Grid.SetRow(header, value: 1);
         content.Children.Add(header);
 
-        Grid.SetRow(listHost, 2);
+        Grid.SetRow(listHost, value: 2);
         content.Children.Add(listHost);
 
         Border footer = BuildFooter(
@@ -200,7 +200,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             _resetButton,
             _cancelButton,
             _doneButton);
-        Grid.SetRow(footer, 3);
+        Grid.SetRow(footer, value: 3);
         content.Children.Add(footer);
 
         Content = new FlyoutFrame(
@@ -223,11 +223,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         Grid titleBar = new()
         {
             Background = Brushes.Transparent,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(
             title,
@@ -237,7 +233,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         titleText.VerticalAlignment = VerticalAlignment.Center;
         titleText.Margin = resources.AxamlTaskManagerReorderDialog.TitleMargin;
         titleBar.Children.Add(titleText);
-        Grid.SetColumn(closeButton, 1);
+        Grid.SetColumn(closeButton, value: 1);
         titleBar.Children.Add(closeButton);
         return titleBar;
     }
@@ -259,19 +255,16 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         Grid descriptionRow = new()
         {
             ColumnSpacing = resources.AxamlTaskManagerReorderDialog.DescriptionOptionSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         descriptionRow.Children.Add(descriptionText);
         if (trailingControl != null)
         {
             trailingControl.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(trailingControl, 1);
+            Grid.SetColumn(trailingControl, value: 1);
             descriptionRow.Children.Add(trailingControl);
         }
+
         content.Children.Add(descriptionRow);
         return new Border
         {
@@ -315,7 +308,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     private async void OnResetClick(object? sender, EventArgs eventArgs)
     {
         if (Volatile.Read(ref _disposed) != 0) return;
-        if (Interlocked.Exchange(ref _resetConfirmationPending, 1) != 0) return;
+        if (Interlocked.Exchange(ref _resetConfirmationPending, value: 1) != 0) return;
 
         bool confirmed;
         try
@@ -329,7 +322,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         }
         finally
         {
-            Volatile.Write(ref _resetConfirmationPending, 0);
+            Volatile.Write(ref _resetConfirmationPending, value: 0);
         }
 
         if (!confirmed || Volatile.Read(ref _disposed) != 0) return;
@@ -407,18 +400,18 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         if (workingArea is not PixelRect availableArea) return;
 
         double renderScaling = RenderScaling > 0 ? RenderScaling : 1;
-        double availableWidth = Math.Max(1, availableArea.Width / renderScaling - _workAreaMargin);
-        double availableHeight = Math.Max(1, availableArea.Height / renderScaling - _workAreaMargin);
+        double availableWidth = Math.Max(val1: 1, availableArea.Width / renderScaling - _workAreaMargin);
+        double availableHeight = Math.Max(val1: 1, availableArea.Height / renderScaling - _workAreaMargin);
         double nextWidth = Math.Min(MaxWidth, availableWidth);
         double nextHeight = Math.Min(MaxHeight, availableHeight);
         MinWidth = Math.Min(MinWidth, nextWidth);
         MinHeight = Math.Min(MinHeight, nextHeight);
         Width = nextWidth;
         Height = nextHeight;
-        if (_searchBox != null) _searchBox.Width = nextWidth * _searchWidthRatio;
+        _searchBox?.Width = nextWidth * _searchWidthRatio;
 
-        int windowWidthPixels = Math.Max(1, (int)Math.Ceiling(Width * renderScaling));
-        int windowHeightPixels = Math.Max(1, (int)Math.Ceiling(Height * renderScaling));
+        int windowWidthPixels = Math.Max(val1: 1, (int)Math.Ceiling(Width * renderScaling));
+        int windowHeightPixels = Math.Max(val1: 1, (int)Math.Ceiling(Height * renderScaling));
         int maximumX = Math.Max(availableArea.X, availableArea.X + availableArea.Width - windowWidthPixels);
         int maximumY = Math.Max(availableArea.Y, availableArea.Y + availableArea.Height - windowHeightPixels);
         Position = new PixelPoint(
@@ -433,7 +426,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0) return;
         _reorderList.CancelActiveDrag();
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         Closed -= OnClosed;
         Opened -= OnOpened;

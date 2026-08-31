@@ -1,10 +1,8 @@
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using TaskManagerTrayAppDotNET.Services;
-using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -27,8 +25,6 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     private readonly IBrush _headerHoverBrush;
     private readonly IBrush _rowHoverBrush;
     private readonly IBrush _selectionBrush;
-    private readonly IBrush _accentBrush;
-    private readonly IBrush _borderBrush;
     private readonly List<TaskManagerTableRow> _sourceRows = [];
     private readonly HashSet<string> _collapsedGroupKeys = new(StringComparer.Ordinal);
     private readonly HashSet<string> _groupKeysWithChildren = new(StringComparer.Ordinal);
@@ -98,6 +94,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             _columnTitles[columnIndex] = column.Title;
             _columnWidths[columnIndex] = column.Width;
         }
+
         RecalculateColumnLefts();
 
         _sortColumnIndex = 0;
@@ -109,16 +106,16 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         _headerHoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);
         _rowHoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);
         _selectionBrush = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected);
-        _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
-        _borderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
+        IBrush accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
+        IBrush borderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
         _headerHeight = resources.AxamlProcessTable.HeaderHeight;
         _headerFontSize = resources.AxamlProcessTable.HeaderFontSize;
         _cellPadding = resources.AxamlProcessTable.CellPadding;
         _iconSize = resources.AxamlProcessTable.ProcessIconSize;
         _iconGap = resources.AxamlProcessTable.ProcessIconGap;
         _treeIndentWidth = resources.AxamlProcessTable.TreeIndentWidth;
-        _gridPen = new Pen(_borderBrush, resources.AxamlProcessTable.GridLineThickness);
-        _selectionPen = new Pen(_accentBrush, resources.AxamlProcessTable.SelectionBorderThickness.Left);
+        _gridPen = new Pen(borderBrush, resources.AxamlProcessTable.GridLineThickness);
+        _selectionPen = new Pen(accentBrush, resources.AxamlProcessTable.SelectionBorderThickness.Left);
         _expanderPen = new Pen(_secondaryForegroundBrush, resources.AxamlProcessTable.TreeExpanderLineThickness);
 
         ClipToBounds = true;
@@ -158,8 +155,10 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     protected override double DetailsGridHeaderHeight => _headerHeight;
     protected override double DetailsGridRowHeight => _rowHeight;
     protected override double DetailsGridFontSize => _fontSize;
+
     protected override double DetailsGridDefaultViewportHeight =>
         _resources.AxamlProcessTable.DefaultViewportHeight;
+
     protected override bool CanResetDetailsGridZoom => _resizingColumnIndex < 0;
 
     /// <summary>Replaces all rows while preserving compatible sort, expansion, and selection state.</summary>
@@ -172,7 +171,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             _sourceRows.Add(rows[rowIndex]);
         RebuildGroupIndex();
-        RebuildProjection(notifySelectionRemoval: true);
+        RebuildProjection(true);
 #if DEBUG
         if (_hotReloadPendingSelectedRowKey != null && SelectedRow != null)
         {
@@ -190,7 +189,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
         _filterText = nextFilter;
-        RebuildProjection(notifySelectionRemoval: false);
+        RebuildProjection(false);
     }
 
     /// <summary>Updates live aggregate text in a column header without rebuilding rows.</summary>
@@ -276,11 +275,12 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
                 _schema.MinimumColumnWidth,
                 previousWidth);
         }
+
         RecalculateColumnLefts();
 
         _selectedRowKey = state.SelectedRowKey;
         _hotReloadPendingSelectedRowKey = state.SelectedRowKey;
-        RebuildProjection(notifySelectionRemoval: false);
+        RebuildProjection(false);
         if (SelectedRow != null)
         {
             _hotReloadPendingSelectedRowKey = null;
@@ -361,14 +361,16 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
                 Focus();
                 eventArgs.Handled = true;
             }
+
             return;
         }
 
-        if (!pointerPoint.Properties.IsLeftButtonPressed
-            && !pointerPoint.Properties.IsRightButtonPressed)
-        {
+        if (pointerPoint.Properties is
+            {
+                IsLeftButtonPressed: false,
+                IsRightButtonPressed: false
+            })
             return;
-        }
 
         int rowIndex = HitTestVisibleRow(position, viewport, headerTop);
         if (rowIndex < 0) return;
@@ -388,6 +390,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             else if (!row.IsGroup)
                 RowActivated?.Invoke(row);
         }
+
         eventArgs.Handled = true;
     }
 
@@ -423,9 +426,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         base.OnPointerReleased(eventArgs);
         if (_resizingColumnIndex < 0
             || !ReferenceEquals(_capturedResizePointer, eventArgs.Pointer))
-        {
             return;
-        }
 
         eventArgs.Pointer.Capture(null);
         _capturedResizePointer = null;
@@ -462,7 +463,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         switch (eventArgs.Key)
         {
             case Key.Up:
-                SelectVisibleIndex(Math.Max(0, selectedIndex < 0 ? 0 : selectedIndex - 1));
+                SelectVisibleIndex(Math.Max(val1: 0, selectedIndex < 0 ? 0 : selectedIndex - 1));
                 break;
             case Key.Down:
                 SelectVisibleIndex(Math.Min(
@@ -478,12 +479,12 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             case Key.Left:
                 if (SelectedRow is not { IsGroup: true } leftGroup) return;
                 _collapsedGroupKeys.Add(leftGroup.Key);
-                RebuildProjection(notifySelectionRemoval: false);
+                RebuildProjection(false);
                 break;
             case Key.Right:
                 if (SelectedRow is not { IsGroup: true } rightGroup) return;
                 _collapsedGroupKeys.Remove(rightGroup.Key);
-                RebuildProjection(notifySelectionRemoval: false);
+                RebuildProjection(false);
                 break;
             case Key.Enter:
                 if (SelectedRow is not { } selectedRow) return;
@@ -564,6 +565,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             _selectedRowKey = null;
             if (notifySelectionRemoval) SelectedRowChanged?.Invoke(null);
         }
+
         _hoveredRowIndex = -1;
         InvalidateMeasure();
         InvalidateVisual();
@@ -593,7 +595,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             _sortDescending = _schema.Columns[columnIndex].SortDescendingByDefault;
         }
 
-        RebuildProjection(notifySelectionRemoval: false);
+        RebuildProjection(false);
         SortChanged?.Invoke(_sortColumnIndex, _sortDescending);
     }
 
@@ -602,7 +604,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         if (!_groupKeysWithChildren.Contains(groupKey)) return;
 
         if (!_collapsedGroupKeys.Add(groupKey)) _collapsedGroupKeys.Remove(groupKey);
-        RebuildProjection(notifySelectionRemoval: false);
+        RebuildProjection(false);
     }
 
     private void SelectVisibleIndex(int rowIndex)
@@ -628,6 +630,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             TaskManagerTableRow row = _sourceRows[rowIndex];
             if (string.Equals(row.Key, rowKey, StringComparison.Ordinal)) return row;
         }
+
         return null;
     }
 
@@ -641,6 +644,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             if (string.Equals(_visibleRows[rowIndex].Key, rowKey, StringComparison.Ordinal))
                 return rowIndex;
         }
+
         return -1;
     }
 
@@ -648,12 +652,12 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     {
         TaskManagerTableRow row = _visibleRows[rowIndex];
         double rowTop = _headerHeight + rowIndex * _rowHeight;
-        Rect rowBounds = new(0, rowTop, Bounds.Width, _rowHeight);
+        Rect rowBounds = new(x: 0, rowTop, Bounds.Width, _rowHeight);
         if (rowIndex == _hoveredRowIndex) context.FillRectangle(_rowHoverBrush, rowBounds);
         if (string.Equals(row.Key, _selectedRowKey, StringComparison.Ordinal))
         {
             context.FillRectangle(_selectionBrush, rowBounds);
-            context.DrawRectangle(null, _selectionPen, rowBounds.Deflate(_selectionPen.Thickness / 2));
+            context.DrawRectangle(brush: null, _selectionPen, rowBounds.Deflate(_selectionPen.Thickness / 2));
         }
 
         for (int columnIndex = 0; columnIndex < _schema.Columns.Length; columnIndex++)
@@ -678,21 +682,23 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
                 DrawGroupExpander(context, row, columnLeft, rowTop);
                 leftInset += _treeIndentWidth;
             }
+
             if (row.IconSource.IsAvailable)
             {
                 IImage? icon = _processIconService.GetOrQueue(row.IconSource);
                 if (icon != null)
                 {
-                    double iconTop = rowTop + Math.Max(0, (_rowHeight - _iconSize) / 2);
+                    double iconTop = rowTop + Math.Max(val1: 0, (_rowHeight - _iconSize) / 2);
                     context.DrawImage(
                         icon,
                         new Rect(columnLeft + leftInset, iconTop, _iconSize, _iconSize));
                 }
+
                 leftInset += _iconSize + _iconGap;
             }
         }
 
-        double maximumWidth = Math.Max(0, columnWidth - leftInset - _cellPadding);
+        double maximumWidth = Math.Max(val1: 0, columnWidth - leftInset - _cellPadding);
         IBrush textBrush = row.IsEnabled ? _foregroundBrush : _secondaryForegroundBrush;
         Typeface typeface = row.IsGroup ? _groupTypeface : _tableTypeface;
         using TextLayout text = CreateTextLayout(
@@ -705,7 +711,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         // TextLayout performs right alignment within maximumWidth, so both alignments
         // must start at the content area's left edge
         double textX = columnLeft + leftInset;
-        double textY = rowTop + Math.Max(0, (_rowHeight - text.Height) / 2);
+        double textY = rowTop + Math.Max(val1: 0, (_rowHeight - text.Height) / 2);
         Rect textClip = new(columnLeft, rowTop, columnWidth, _rowHeight);
         using (context.PushClip(textClip))
             text.Draw(context, new Point(textX, textY));
@@ -748,7 +754,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
 
     private void DrawColumnGrid(DrawingContext context, Rect viewport)
     {
-        double gridTop = Math.Max(0, viewport.Y);
+        double gridTop = Math.Max(val1: 0, viewport.Y);
         double gridBottom = Math.Min(Bounds.Height, viewport.Bottom);
         for (int columnIndex = 0; columnIndex < _schema.Columns.Length; columnIndex++)
         {
@@ -759,7 +765,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
 
     private void DrawHeader(DrawingContext context, double headerTop)
     {
-        Rect headerBounds = new(0, headerTop, Bounds.Width, _headerHeight);
+        Rect headerBounds = new(x: 0, headerTop, Bounds.Width, _headerHeight);
         context.FillRectangle(_backgroundBrush, headerBounds);
         if (_hoveredHeaderColumnIndex >= 0)
         {
@@ -779,7 +785,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             double caretReserve = columnIndex == _sortColumnIndex
                 ? _resources.AxamlProcessTable.SortCaretRightMargin * 2
                 : 0;
-            double maximumWidth = Math.Max(0, columnWidth - _cellPadding * 2 - caretReserve);
+            double maximumWidth = Math.Max(val1: 0, columnWidth - _cellPadding * 2 - caretReserve);
             using TextLayout text = CreateTextLayout(
                 _columnTitles[columnIndex],
                 _tableTypeface,
@@ -789,16 +795,17 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
                 column.Alignment);
             // TextLayout performs right alignment within maximumWidth
             double textX = columnLeft + _cellPadding;
-            double textY = headerTop + Math.Max(0, (_headerHeight - text.Height) / 2);
+            double textY = headerTop + Math.Max(val1: 0, (_headerHeight - text.Height) / 2);
             using (context.PushClip(new Rect(columnLeft, headerTop, columnWidth, _headerHeight)))
                 text.Draw(context, new Point(textX, textY));
 
             if (columnIndex == _sortColumnIndex)
                 DrawSortCaret(context, columnLeft + columnWidth, headerTop);
         }
+
         context.DrawLine(
             _gridPen,
-            new Point(0, headerTop + _headerHeight),
+            new Point(x: 0, headerTop + _headerHeight),
             new Point(Bounds.Width, headerTop + _headerHeight));
     }
 
@@ -822,10 +829,8 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             || position.X >= viewport.Right
             || position.Y < viewport.Y
             || position.Y >= viewport.Bottom
-            || position.Y >= headerTop && position.Y < headerTop + _headerHeight)
-        {
+            || (position.Y >= headerTop && position.Y < headerTop + _headerHeight))
             return -1;
-        }
 
         return DetailsGridLayout.HitTestRow(
             position.Y,
@@ -843,6 +848,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             double left = _columnLefts[columnIndex];
             if (x >= left && x < left + _columnWidths[columnIndex]) return columnIndex;
         }
+
         return -1;
     }
 
@@ -854,6 +860,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             double right = _columnLefts[columnIndex] + _columnWidths[columnIndex];
             if (Math.Abs(x - right) <= hitRadius) return columnIndex;
         }
+
         return -1;
     }
 
@@ -884,7 +891,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             : _columnLefts[^1] + _columnWidths[^1];
 
     private double ResolveStickyHeaderTop(Rect viewport) =>
-        Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _headerHeight));
+        Math.Clamp(viewport.Y, min: 0, Math.Max(val1: 0, Bounds.Height - _headerHeight));
 
     private void OnIconsChanged()
     {
@@ -924,12 +931,12 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             typeface,
             fontSize,
             brush,
-            textAlignment: alignment == TaskManagerTableAlignment.Right
+            alignment == TaskManagerTableAlignment.Right
                 ? TextAlignment.Right
                 : TextAlignment.Left,
-            textWrapping: TextWrapping.NoWrap,
-            textTrimming: TextTrimming.CharacterEllipsis,
-            maxWidth: Math.Max(0, maximumWidth),
+            TextWrapping.NoWrap,
+            TextTrimming.CharacterEllipsis,
+            maxWidth: Math.Max(val1: 0, maximumWidth),
             maxLines: 1);
 
     private static string LimitText(string value)
@@ -937,7 +944,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         if (value.Length <= MaximumTextLayoutCharacters) return value;
 
         int prefixLength = MaximumTextLayoutCharacters - TextEllipsis.Length;
-        return string.Concat(value.AsSpan(0, prefixLength), TextEllipsis.AsSpan());
+        return string.Concat(value.AsSpan(start: 0, prefixLength), TextEllipsis.AsSpan());
     }
 }
 

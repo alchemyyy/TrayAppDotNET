@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Xml;
 using Avalonia;
 using Avalonia.Controls;
@@ -5,13 +8,9 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
-using BrightnessTrayAppDotNET.UI;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
@@ -283,8 +282,8 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     private void SetCoordinateFromMapPoint(Point mapPoint)
     {
         SetSelectedCoordinate(Projection.Unproject(new Point(
-            Math.Clamp(mapPoint.X, 0.0, MapWidth),
-            Math.Clamp(mapPoint.Y, 0.0, MapHeight))).ClampToWorld(), centerOnPin: false);
+            Math.Clamp(mapPoint.X, min: 0.0, MapWidth),
+            Math.Clamp(mapPoint.Y, min: 0.0, MapHeight))).ClampToWorld(), centerOnPin: false);
     }
 
     private void SetSelectedCoordinate(GeoCoordinate coordinate, bool centerOnPin)
@@ -312,6 +311,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
                 _isAutoPanRunning = true;
                 _autoPanGeneration = _autoPanFrames.Start();
             }
+
             QueueAutoPanFrame();
         }
         else
@@ -344,7 +344,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
             return;
         }
 
-        double seconds = Math.Max(0.0, (timestamp - _lastAutoPanFrameTime).TotalSeconds);
+        double seconds = Math.Max(val1: 0.0, (timestamp - _lastAutoPanFrameTime).TotalSeconds);
         _lastAutoPanFrameTime = timestamp;
         _viewport = _viewport.Pan(new Vector(_autoPanVelocity.X * seconds, _autoPanVelocity.Y * seconds));
         SetCoordinateFromMapPoint(_viewport.ViewportToMap(_lastDragViewport) - _pinDragOffset);

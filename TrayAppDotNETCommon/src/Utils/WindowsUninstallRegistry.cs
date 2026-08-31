@@ -44,22 +44,22 @@ public static class WindowsUninstallRegistry
             string installExecutable = Path.Combine(installDir, installedExecutableFileName);
             using RegistryKey key = OpenRoot(scope).CreateSubKey(identity.UninstallRegistrySubKeyPath, writable: true);
 
-            key.SetValue("DisplayName", identity.ApplicationName, RegistryValueKind.String);
-            key.SetValue("DisplayVersion", buildNumber.ToString(), RegistryValueKind.String);
-            key.SetValue("Publisher", identity.Publisher, RegistryValueKind.String);
-            key.SetValue("InstallLocation", installDir, RegistryValueKind.String);
-            key.SetValue("DisplayIcon", installExecutable, RegistryValueKind.String);
+            key.SetValue(name: "DisplayName", identity.ApplicationName, RegistryValueKind.String);
+            key.SetValue(name: "DisplayVersion", buildNumber.ToString(), RegistryValueKind.String);
+            key.SetValue(name: "Publisher", identity.Publisher, RegistryValueKind.String);
+            key.SetValue(name: "InstallLocation", installDir, RegistryValueKind.String);
+            key.SetValue(name: "DisplayIcon", installExecutable, RegistryValueKind.String);
             if (!string.IsNullOrEmpty(identity.HelpLink))
             {
-                key.SetValue("HelpLink", identity.HelpLink, RegistryValueKind.String);
-                key.SetValue("URLInfoAbout", identity.HelpLink, RegistryValueKind.String);
+                key.SetValue(name: "HelpLink", identity.HelpLink, RegistryValueKind.String);
+                key.SetValue(name: "URLInfoAbout", identity.HelpLink, RegistryValueKind.String);
             }
 
-            key.SetValue("UninstallString",
+            key.SetValue(name: "UninstallString",
                 $"\"{installExecutable}\" --uninstall \"{installDir}\" --scope {InstallScopeExtensions.ToArg(scope)}",
                 RegistryValueKind.String);
-            key.SetValue("NoModify", 1, RegistryValueKind.DWord);
-            key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+            key.SetValue(name: "NoModify", value: 1, RegistryValueKind.DWord);
+            key.SetValue(name: "NoRepair", value: 1, RegistryValueKind.DWord);
 
             // Best-effort EstimatedSize (in KB) so Add/Remove Programs shows a size.
             try
@@ -67,7 +67,7 @@ public static class WindowsUninstallRegistry
                 if (File.Exists(installExecutable))
                 {
                     long bytes = new FileInfo(installExecutable).Length;
-                    key.SetValue("EstimatedSize", (int)(bytes / 1024L), RegistryValueKind.DWord);
+                    key.SetValue(name: "EstimatedSize", (int)(bytes / 1024L), RegistryValueKind.DWord);
                 }
             }
             catch

@@ -1,15 +1,14 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI;
 using TaskManagerTrayAppDotNET.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
 
 namespace TaskManagerTrayAppDotNET;
 
@@ -66,13 +65,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
         if (Program.IsInstallerMode)
         {
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = null,
-                Palette = CreatePalette(),
-                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-            });
+            TrayAppDotNETInstallerRunner.Show(this,
+                new TrayAppDotNETInstallerWindowOptions
+                {
+                    Layout = AppServices.InstallLayout,
+                    Icon = null,
+                    Palette = CreatePalette(),
+                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -89,7 +89,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
 
         AppSettings settings = _settings
-            ?? throw new InvalidOperationException("Task Manager settings were not loaded.");
+                               ?? throw new InvalidOperationException("Task Manager settings were not loaded.");
         StartWatcherMonitor();
         _processIconService = new ProcessIconService();
         _processTerminationService = new ProcessTerminationService(TADNLog.Log);
@@ -188,9 +188,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _snapshotService == null ||
             _performanceSnapshotService == null ||
             _processTerminationService == null)
-        {
             throw new InvalidOperationException("Task Manager services must be loaded before creating the window.");
-        }
 
         _taskManagerWindow = new TaskManagerWindow(
             _settings,
@@ -280,7 +278,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _ => "CPU usage (average)"
         };
         int percent = (int)Math.Round(
-            Math.Clamp(sample.Select(dataSource), 0, 100),
+            Math.Clamp(sample.Select(dataSource), min: 0, max: 100),
             MidpointRounding.AwayFromZero);
         return $"{Constants.DisplayName}\n{label}: {percent}%";
     }
@@ -296,11 +294,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         ShowTaskManager();
     }
 
-    private void ShowTaskManager()
-    {
-        if (_taskManagerWindow == null) return;
-        _taskManagerWindow.ShowAtDefaultPositionAndActivate();
-    }
+    private void ShowTaskManager() => _taskManagerWindow?.ShowAtDefaultPositionAndActivate();
 
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() => ShowTrayMenu(point));

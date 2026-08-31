@@ -43,7 +43,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         {
             OpenColorPicker(
                 owner,
-                variantPickerTitle(title, true),
+                variantPickerTitle(title, arg2: true),
                 color,
                 isLight: true,
                 lightFallback,
@@ -59,7 +59,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         {
             OpenColorPicker(
                 owner,
-                variantPickerTitle(title, false),
+                variantPickerTitle(title, arg2: false),
                 color,
                 isLight: false,
                 darkFallback,
@@ -114,6 +114,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 TADNLog.Log($"Settings color picker close failed: {exception.Message}");
             }
         }
+
         _openColorPickers.Clear();
     }
 

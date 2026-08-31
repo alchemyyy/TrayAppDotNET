@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
-using TrayAppDotNETCommon.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -21,16 +20,13 @@ internal abstract class DetailsGridControl : Control, IDisposable
         Settle
     }
 
-    private readonly AsyncThrottler<ZoomWorkKind> _zoomThrottler = new(cooldownMs: 0);
+    private readonly AsyncThrottler<ZoomWorkKind> _zoomThrottler = new(0);
     private Rect _effectiveViewport;
     private int _zoomRequestVersion;
     private bool _isZoomActive;
     private volatile bool _disposed;
 
-    protected DetailsGridControl()
-    {
-        EffectiveViewportChanged += OnEffectiveViewportChanged;
-    }
+    protected DetailsGridControl() => EffectiveViewportChanged += OnEffectiveViewportChanged;
 
     public event Action<double, double>? GridMetricsChanged;
     public event Action<int>? GridZoomRequested;
@@ -66,9 +62,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
             throw new ArgumentOutOfRangeException(nameof(rowHeight));
         if (Math.Abs(DetailsGridFontSize - fontSize) < MetricEqualityTolerance
             && Math.Abs(DetailsGridRowHeight - rowHeight) < MetricEqualityTolerance)
-        {
             return;
-        }
 
         ApplyDetailsGridMetrics(fontSize, rowHeight);
         _isZoomActive = true;
@@ -116,9 +110,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
                 GridRowSpacingResetRequested?.Invoke();
             }
             else
-            {
                 GridRowSpacingRequested?.Invoke(direction);
-            }
         }
         else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
@@ -128,14 +120,11 @@ internal abstract class DetailsGridControl : Control, IDisposable
                 GridZoomResetRequested?.Invoke();
             }
             else
-            {
                 GridZoomRequested?.Invoke(direction);
-            }
         }
         else
-        {
             return;
-        }
+
         eventArgs.Handled = true;
     }
 
@@ -180,18 +169,18 @@ internal abstract class DetailsGridControl : Control, IDisposable
     /// <summary>Returns the viewport clipped to the current grid bounds.</summary>
     protected Rect ResolveDetailsGridViewport()
     {
-        if (_effectiveViewport.Width > 0 && _effectiveViewport.Height > 0)
+        if (_effectiveViewport is { Width: > 0, Height: > 0 })
         {
-            double left = Math.Clamp(_effectiveViewport.X, 0, Bounds.Width);
+            double left = Math.Clamp(_effectiveViewport.X, min: 0, Bounds.Width);
             double right = Math.Clamp(_effectiveViewport.Right, left, Bounds.Width);
-            double top = Math.Clamp(_effectiveViewport.Y, 0, Bounds.Height);
+            double top = Math.Clamp(_effectiveViewport.Y, min: 0, Bounds.Height);
             double bottom = Math.Clamp(_effectiveViewport.Bottom, top, Bounds.Height);
             return new Rect(left, top, right - left, bottom - top);
         }
 
         return new Rect(
-            0,
-            0,
+            x: 0,
+            y: 0,
             Bounds.Width,
             Math.Min(Bounds.Height, DetailsGridDefaultViewportHeight));
     }
@@ -221,7 +210,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
 
             double elapsedMilliseconds = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
             int remainingMilliseconds = Math.Max(
-                1,
+                val1: 1,
                 (int)Math.Ceiling(
                     TimeConstants.DetailsGridZoomSettleDelayMilliseconds - elapsedMilliseconds));
             int delayMilliseconds = Math.Min(
@@ -261,9 +250,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
             paintedRowsChanged |= paintedRowChanged;
             if (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
                 >= ZoomRebuildBatchBudgetMilliseconds)
-            {
                 break;
-            }
         }
 
         if (paintedRowsChanged && !ShouldDropZoomWork(requestVersion, context))
@@ -343,7 +330,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
     {
         if (ShouldDropZoomWork(requestVersion, context) || !_isZoomActive) return;
 
-        DetailsGridZoomRowRange rowRange = ResolveZoomRowRange(includeRetainedOverscan: true);
+        DetailsGridZoomRowRange rowRange = ResolveZoomRowRange(true);
         CommitDetailsGridRetainedRange(rowRange.FirstRow, rowRange.LastRowExclusive);
         _isZoomActive = false;
         OnDetailsGridZoomCompleted();

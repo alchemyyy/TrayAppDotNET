@@ -8,7 +8,7 @@ public sealed class ApplicationInstanceCoordinatorTests
     public void ApplicationMutexAllowsOnlyOneOwningThread()
     {
         SingleInstanceIdentity identity = new(
-            "TrayAppDotNETApplicationInstanceTest",
+            ApplicationName: "TrayAppDotNETApplicationInstanceTest",
             Guid.NewGuid().ToString("D"));
         ApplicationInstanceCoordinator first = Assert.IsType<ApplicationInstanceCoordinator>(
             ApplicationInstanceCoordinator.TryAcquire(identity, timeoutMs: 100));

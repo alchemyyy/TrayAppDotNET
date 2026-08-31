@@ -11,14 +11,15 @@ public sealed class FanFlyoutTopLevelOrderTests
     public void MovingFanBelowProbeUsesProbeSlotAndPreservesMixedOrder()
     {
         Fan fan = new() { FansName = "Fan", DataSourceKey = "Fan" };
-        using FanFlyoutCell fanCell = new(null, [fan]);
+        using FanFlyoutCell fanCell = new(groupSettings: null, [fan]);
         ProbeCard probeCard = new() { Name = "Probe" };
         Border fanVisual = new();
         Border probeVisual = new();
         List<FanDragSlot> dragSlots =
         [
-            new(fanCell, fanVisual, 0, 80, 88, 0, 80),
-            new(null, probeVisual, 88, 80, 88, 88, 168, probeCard)
+            new(fanCell, fanVisual, Top: 0, Height: 80, SlotHeight: 88, GroupInsertionTop: 0, GroupDropBottom: 80),
+            new(Cell: null, probeVisual, Top: 88, Height: 80, SlotHeight: 88, GroupInsertionTop: 88,
+                GroupDropBottom: 168, probeCard)
         ];
         FanDragSnapshot snapshot = new(
             dragSlots,
@@ -26,12 +27,12 @@ public sealed class FanFlyoutTopLevelOrderTests
             fan,
             fanCell,
             fanVisual,
-            0,
-            88,
-            36,
-            80,
-            0.5);
-        FanDragBounds dragBounds = new(58, 138, 80, 98, 98, true);
+            DragSourceTopLevelIndex: 0,
+            DragSourceSlotHeight: 88,
+            DragSourceFanSlotHeight: 36,
+            DragPlacementSourceHeight: 80,
+            DragPointerOffsetRatio: 0.5);
+        FanDragBounds dragBounds = new(Top: 58, Bottom: 138, Height: 80, Midpoint: 98, PointerY: 98, MovingDown: true);
         List<FanFlyoutWindow.FlyoutTopLevelItem> currentOrder =
         [
             FanFlyoutWindow.FlyoutTopLevelItem.FanCell(fanCell),
@@ -43,10 +44,10 @@ public sealed class FanFlyoutTopLevelOrderTests
             FanFlyoutWindow.MoveFanTopLevelItem(currentOrder, fan, evaluation.Placement.TopLevelIndex);
 
         Assert.Equal(FanDragPlacementKind.TopLevel, evaluation.Placement.Kind);
-        Assert.Equal(1, evaluation.Placement.TopLevelIndex);
+        Assert.Equal(expected: 1, evaluation.Placement.TopLevelIndex);
         FanDragSlotOffset probeOffset = Assert.Single(evaluation.Preview.TopLevelOffsets);
-        Assert.Equal(1, probeOffset.Index);
-        Assert.Equal(-88, probeOffset.Offset);
+        Assert.Equal(expected: 1, probeOffset.Index);
+        Assert.Equal(expected: -88, probeOffset.Offset);
         Assert.Collection(
             moved,
             item => Assert.Same(probeCard, item.ProbeCard),
@@ -57,7 +58,7 @@ public sealed class FanFlyoutTopLevelOrderTests
     public void MovingFanIntoGroupPreservesInterleavedProbe()
     {
         Fan fan = new() { FansName = "Fan", DataSourceKey = "Fan" };
-        using FanFlyoutCell fanCell = new(null, [fan]);
+        using FanFlyoutCell fanCell = new(groupSettings: null, [fan]);
         ProbeCard probeCard = new() { Name = "Probe" };
         FanGroup group = new() { Name = "Group" };
         using FanFlyoutCell groupCell = new(group, []);
@@ -91,21 +92,24 @@ public sealed class FanFlyoutTopLevelOrderTests
         Border probeVisual = new();
         List<FanDragSlot> dragSlots =
         [
-            new(groupCell, groupVisual, 0, 200, 208, 0, 200),
-            new(null, probeVisual, 208, 80, 88, 208, 288, probeCard)
+            new(groupCell, groupVisual, Top: 0, Height: 200, SlotHeight: 208, GroupInsertionTop: 0,
+                GroupDropBottom: 200),
+            new(Cell: null, probeVisual, Top: 208, Height: 80, SlotHeight: 88, GroupInsertionTop: 208,
+                GroupDropBottom: 288, probeCard)
         ];
         FanDragSnapshot snapshot = new(
             dragSlots,
             [],
-            null,
+            DraggedFan: null,
             groupCell,
             groupVisual,
-            0,
-            208,
-            36,
-            200,
-            0.5);
-        FanDragBounds dragBounds = new(58, 258, 200, 158, 158, true);
+            DragSourceTopLevelIndex: 0,
+            DragSourceSlotHeight: 208,
+            DragSourceFanSlotHeight: 36,
+            DragPlacementSourceHeight: 200,
+            DragPointerOffsetRatio: 0.5);
+        FanDragBounds dragBounds =
+            new(Top: 58, Bottom: 258, Height: 200, Midpoint: 158, PointerY: 158, MovingDown: true);
         List<FanFlyoutWindow.FlyoutTopLevelItem> currentOrder =
         [
             FanFlyoutWindow.FlyoutTopLevelItem.FanCell(groupCell),
@@ -117,10 +121,10 @@ public sealed class FanFlyoutTopLevelOrderTests
             FanFlyoutWindow.MoveGroupTopLevelItem(currentOrder, groupCell, evaluation.Placement.TopLevelIndex);
 
         Assert.Equal(FanDragPlacementKind.TopLevel, evaluation.Placement.Kind);
-        Assert.Equal(1, evaluation.Placement.TopLevelIndex);
+        Assert.Equal(expected: 1, evaluation.Placement.TopLevelIndex);
         FanDragSlotOffset probeOffset = Assert.Single(evaluation.Preview.TopLevelOffsets);
-        Assert.Equal(1, probeOffset.Index);
-        Assert.Equal(-208, probeOffset.Offset);
+        Assert.Equal(expected: 1, probeOffset.Index);
+        Assert.Equal(expected: -208, probeOffset.Offset);
         Assert.Collection(
             moved,
             item => Assert.Same(probeCard, item.ProbeCard),

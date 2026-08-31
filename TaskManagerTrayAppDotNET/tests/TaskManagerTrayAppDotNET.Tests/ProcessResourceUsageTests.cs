@@ -20,17 +20,17 @@ public sealed class ProcessResourceUsageTests
     [Fact]
     public void TransferRateUsesCounterDeltaAndElapsedTime()
     {
-        long previousTimestamp = 100;
+        const long previousTimestamp = 100;
         long currentTimestamp = previousTimestamp + Stopwatch.Frequency * 2;
 
         double bytesPerSecond = ProcessSnapshotService.CalculateTransferRate(
-            true,
-            1_000,
+            hasPreviousSample: true,
+            previousBytes: 1_000,
             previousTimestamp,
-            5_000,
+            currentBytes: 5_000,
             currentTimestamp);
 
-        Assert.Equal(2_000.0, bytesPerSecond);
+        Assert.Equal(expected: 2_000.0, bytesPerSecond);
     }
 
     [Theory]
@@ -51,7 +51,7 @@ public sealed class ProcessResourceUsageTests
             currentBytes,
             currentTimestamp);
 
-        Assert.Equal(0.0, bytesPerSecond);
+        Assert.Equal(expected: 0.0, bytesPerSecond);
     }
 
     [Fact]
@@ -63,14 +63,14 @@ public sealed class ProcessResourceUsageTests
         try
         {
             const int processID = 4_242;
-            WriteUnsignedColumn(columns, 0, SRUMSentBytesColumnID, 1_000);
-            WriteUnsignedColumn(columns, 1, SRUMReceivedBytesColumnID, 2_000);
-            WriteUnsignedColumn(columns, 2, SRUMProcessIDColumnID, processID);
+            WriteUnsignedColumn(columns, columnIndex: 0, SRUMSentBytesColumnID, value: 1_000);
+            WriteUnsignedColumn(columns, columnIndex: 1, SRUMReceivedBytesColumnID, value: 2_000);
+            WriteUnsignedColumn(columns, columnIndex: 2, SRUMProcessIDColumnID, processID);
             Marshal.WriteIntPtr(record, SRUMRecordUserSIDOffset, new IntPtr(1));
-            Marshal.WriteInt16(record, SRUMRecordColumnCountOffset, 3);
+            Marshal.WriteInt16(record, SRUMRecordColumnCountOffset, val: 3);
             Marshal.WriteIntPtr(record, SRUMRecordColumnsOffset, columns);
-            Marshal.WriteInt32(recordSet, 0, 1);
-            Marshal.WriteIntPtr(recordSet, 8, record);
+            Marshal.WriteInt32(recordSet, ofs: 0, val: 1);
+            Marshal.WriteIntPtr(recordSet, ofs: 8, record);
             Dictionary<int, ulong> cumulativeBytes = [];
 
             bool firstAccepted = ProcessNetworkUsageSampler.AccumulateRecordSet(
@@ -82,7 +82,7 @@ public sealed class ProcessResourceUsageTests
 
             Assert.True(firstAccepted);
             Assert.True(secondAccepted);
-            Assert.Equal(6_000UL, cumulativeBytes[processID]);
+            Assert.Equal(expected: 6_000UL, cumulativeBytes[processID]);
         }
         finally
         {
@@ -100,12 +100,12 @@ public sealed class ProcessResourceUsageTests
         IntPtr columns = AllocateZeroed(SRUMColumnSize * 2);
         try
         {
-            WriteUnsignedColumn(columns, 0, SRUMSentBytesColumnID, 1_000);
-            WriteUnsignedColumn(columns, 1, SRUMProcessIDColumnID, 4_242);
-            Marshal.WriteInt16(record, SRUMRecordColumnCountOffset, 2);
+            WriteUnsignedColumn(columns, columnIndex: 0, SRUMSentBytesColumnID, value: 1_000);
+            WriteUnsignedColumn(columns, columnIndex: 1, SRUMProcessIDColumnID, value: 4_242);
+            Marshal.WriteInt16(record, SRUMRecordColumnCountOffset, val: 2);
             Marshal.WriteIntPtr(record, SRUMRecordColumnsOffset, columns);
-            Marshal.WriteInt32(recordSet, 0, 1);
-            Marshal.WriteIntPtr(recordSet, 8, record);
+            Marshal.WriteInt32(recordSet, ofs: 0, val: 1);
+            Marshal.WriteIntPtr(recordSet, ofs: 8, record);
             Dictionary<int, ulong> cumulativeBytes = [];
 
             bool accepted = ProcessNetworkUsageSampler.AccumulateRecordSet(
@@ -126,7 +126,7 @@ public sealed class ProcessResourceUsageTests
     private static IntPtr AllocateZeroed(int byteCount)
     {
         IntPtr address = Marshal.AllocHGlobal(byteCount);
-        Marshal.Copy(new byte[byteCount], 0, address, byteCount);
+        Marshal.Copy(new byte[byteCount], startIndex: 0, address, byteCount);
         return address;
     }
 
@@ -137,7 +137,7 @@ public sealed class ProcessResourceUsageTests
         ulong value)
     {
         IntPtr column = IntPtr.Add(columns, checked(columnIndex * SRUMColumnSize));
-        Marshal.WriteInt16(column, 0, unchecked((short)columnID));
-        Marshal.WriteInt64(column, 8, unchecked((long)value));
+        Marshal.WriteInt16(column, ofs: 0, unchecked((short)columnID));
+        Marshal.WriteInt64(column, ofs: 8, unchecked((long)value));
     }
 }

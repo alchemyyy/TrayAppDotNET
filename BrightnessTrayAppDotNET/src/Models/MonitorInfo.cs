@@ -81,7 +81,9 @@ public static class SliderStateMachine
     public static SliderState OnUserReengage(SliderState current, bool inDisabledPeriod) =>
         current != SliderState.CurveReleased
             ? current
-            : inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
+            : inDisabledPeriod
+                ? SliderState.CurveSleeping
+                : SliderState.CurveActive;
 
     /// <summary>
     /// Curve flag flipped on. Disabled / Failed are sticky (user / hardware override curve);
@@ -91,7 +93,9 @@ public static class SliderStateMachine
     public static SliderState OnCurveEngaged(SliderState current, bool inDisabledPeriod) =>
         current is SliderState.Failed or SliderState.Disabled
             ? current
-            : inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
+            : inDisabledPeriod
+                ? SliderState.CurveSleeping
+                : SliderState.CurveActive;
 
     /// <summary>Restores curve control without discarding an explicitly persisted manual release.</summary>
     public static SliderState OnCurveRestored(SliderState current, bool inDisabledPeriod) =>
@@ -598,7 +602,7 @@ public class MonitorInfo : INotifyPropertyChanged
         get;
         set
         {
-            int clamped = Math.Max(1, value);
+            int clamped = Math.Max(val1: 1, value);
             if (field == clamped) return;
             field = clamped;
             OnPropertyChanged();
@@ -821,7 +825,8 @@ public class MonitorInfo : INotifyPropertyChanged
     /// </summary>
     public bool HasCurveTargetBrightness => _hasCurveTargetBrightness;
 
-    public void SeedCurveTargetBrightnessFromSlider() => CurveTargetBrightness = Math.Clamp(_brightness, 0.0, 100.0);
+    public void SeedCurveTargetBrightnessFromSlider() =>
+        CurveTargetBrightness = Math.Clamp(_brightness, min: 0.0, max: 100.0);
 
     public void ClearCurveTargetBrightness()
     {
@@ -845,11 +850,7 @@ public class MonitorInfo : INotifyPropertyChanged
     /// shove the thumb out from under the user's pointer mid-gesture.
     /// Plain field, not INPC: nothing in XAML binds to it - it's purely an apply-path gate.
     /// </summary>
-    public bool IsDragging
-    {
-        get;
-        set => field = value;
-    }
+    public bool IsDragging { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -912,7 +913,7 @@ public class MonitorInfo : INotifyPropertyChanged
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
             owner.ReleaseSuspension();
         }
     }

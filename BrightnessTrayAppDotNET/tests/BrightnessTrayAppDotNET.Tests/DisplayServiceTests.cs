@@ -20,24 +20,20 @@ public sealed class DisplayServiceTests
     [Fact]
     public void HelperProcessMayRunInlineWithoutParentTimeout()
     {
-        using DisplayService displayService = new(useHelperProcess: false);
+        using DisplayService displayService = new(false);
 
         displayService.OperationTimeoutMs = 0;
 
-        Assert.Equal(0, displayService.OperationTimeoutMs);
+        Assert.Equal(expected: 0, displayService.OperationTimeoutMs);
     }
 
     [Theory]
     [InlineData("GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241845)")]
     [InlineData("GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241845, 0xC026258B)")]
-    public void InvalidMessageChecksumIsRecognizedAcrossOldAndNewLogFormats(string error)
-    {
+    public void InvalidMessageChecksumIsRecognizedAcrossOldAndNewLogFormats(string error) =>
         Assert.True(DDCNativeError.IsInvalidMessageChecksum(error));
-    }
 
     [Fact]
-    public void GenericDDCFailureIsNotClassifiedAsInvalidMessageChecksum()
-    {
+    public void GenericDDCFailureIsNotClassifiedAsInvalidMessageChecksum() =>
         Assert.False(DDCNativeError.IsInvalidMessageChecksum("GetVCPFeature failed with a generic transport error"));
-    }
 }

@@ -4,7 +4,7 @@ namespace TrayAppDotNETCommon.UI.Controls.Maps;
 
 public readonly record struct MapViewportTransform(double Scale, Vector Offset)
 {
-    public static readonly MapViewportTransform Identity = new(1.0, default);
+    public static readonly MapViewportTransform Identity = new(Scale: 1.0, Offset: default);
 
     public Point ViewportToMap(Point viewport) =>
         new(
@@ -61,7 +61,7 @@ public readonly record struct MapViewportTransform(double Scale, Vector Offset)
 
     private static double EdgeRamp(double depth)
     {
-        double d = Math.Clamp(depth, 0.0, 1.0);
+        double d = Math.Clamp(depth, min: 0.0, max: 1.0);
         return d * d;
     }
 }

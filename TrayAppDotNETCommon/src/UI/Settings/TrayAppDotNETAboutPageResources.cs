@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
@@ -9,9 +8,9 @@ public sealed partial class TrayAppDotNETAboutPageResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<TrayAppDotNETAboutPageResources> Resources =
         CommonAXAMLResourceStore<TrayAppDotNETAboutPageResources>.Create(
-            "Common about-page resources",
+            resourceName: "Common about-page resources",
             static () => new TrayAppDotNETAboutPageResources(),
-            "TrayAppDotNETAboutPage.axaml");
+            sourceFileName: "TrayAppDotNETAboutPage.axaml");
 #else
     private static readonly Lazy<TrayAppDotNETAboutPageResources> Resources =
         new(static () => new TrayAppDotNETAboutPageResources());

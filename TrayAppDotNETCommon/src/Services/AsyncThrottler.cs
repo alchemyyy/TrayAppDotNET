@@ -12,14 +12,14 @@ public sealed class AsyncThrottler<TKey>(
     private readonly Dictionary<TKey, Slot> _slots = new(comparer ?? EqualityComparer<TKey>.Default);
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _shutdownTokenSource = new();
-    private readonly int _drainPollIntervalMs = Math.Max(1, drainPollIntervalMs);
-    private int _cooldownMs = Math.Max(0, cooldownMs);
+    private readonly int _drainPollIntervalMs = Math.Max(val1: 1, drainPollIntervalMs);
+    private int _cooldownMs = Math.Max(val1: 0, cooldownMs);
     private bool _disposed;
 
     public int CooldownMs
     {
         get => _cooldownMs;
-        set => _cooldownMs = Math.Max(0, value);
+        set => _cooldownMs = Math.Max(val1: 0, value);
     }
 
     public Task RunAsync(
@@ -35,7 +35,6 @@ public sealed class AsyncThrottler<TKey>(
         TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         Slot slot;
-        bool startDriver = false;
 
         lock (_gate)
         {
@@ -62,12 +61,11 @@ public sealed class AsyncThrottler<TKey>(
             if (!slot.DriverRunning)
             {
                 slot.DriverRunning = true;
-                startDriver = true;
+                _ = Task.Run(
+                    () => DriveSlotAsync(key, slot),
+                    _shutdownTokenSource.Token);
             }
         }
-
-        if (startDriver)
-            _ = Task.Run(() => DriveSlotAsync(key, slot));
 
         return completionSource.Task;
     }
@@ -216,11 +214,12 @@ public sealed class AsyncThrottler<TKey>(
                     slot.DriverRunning = false;
                     RemoveIdleSlotIfCurrent(key, slot);
                 }
+
                 return;
             }
 
             int cooldown = payloadCooldownOverrideMs.HasValue
-                ? Math.Max(0, payloadCooldownOverrideMs.Value)
+                ? Math.Max(val1: 0, payloadCooldownOverrideMs.Value)
                 : _cooldownMs;
             if (cooldown > 0)
             {
@@ -235,6 +234,7 @@ public sealed class AsyncThrottler<TKey>(
                         slot.DriverRunning = false;
                         RemoveIdleSlotIfCurrent(key, slot);
                     }
+
                     return;
                 }
             }

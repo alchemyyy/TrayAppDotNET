@@ -23,16 +23,16 @@ internal readonly record struct DiskDeviceMetadataSnapshot(
     DiskMediaKind MediaKind)
 {
     public static DiskDeviceMetadataSnapshot Unavailable(uint physicalDiskNumber) => new(
-        false,
+        HasDeviceData: false,
         physicalDiskNumber,
-        false,
+        HasVolumeData: false,
         string.Empty,
-        0,
-        0,
-        false,
-        false,
-        false,
-        false,
+        FormattedCapacityBytes: 0,
+        AvailableBytes: 0,
+        HasSystemDiskData: false,
+        IsSystemDisk: false,
+        HasPageFileData: false,
+        HasPageFile: false,
         DiskMediaKind.Unknown);
 }
 

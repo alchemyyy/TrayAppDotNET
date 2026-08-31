@@ -57,15 +57,15 @@ internal sealed class SystemPerformanceSampler : IDisposable
         {
             SaveCurrentProcessorTimes(processorCount);
             EnsureLogicalProcessorCapacity(processorCount);
-            Array.Clear(_lastLogicalProcessorPercents, 0, processorCount);
+            Array.Clear(_lastLogicalProcessorPercents, index: 0, processorCount);
             _lastLogicalProcessorCount = processorCount;
             _lastCPUAveragePercent = 0;
             _lastCPUHighestCorePercent = 0;
-            return new SystemPerformanceSample(0, 0, _lastMemoryPercent);
+            return new SystemPerformanceSample(CPUAveragePercent: 0, CPUHighestCorePercent: 0, _lastMemoryPercent);
         }
 
         EnsureLogicalProcessorCapacity(processorCount);
-        Array.Clear(_lastLogicalProcessorPercents, 0, processorCount);
+        Array.Clear(_lastLogicalProcessorPercents, index: 0, processorCount);
         _lastLogicalProcessorCount = processorCount;
         double aggregateIdleDelta = 0;
         double aggregateTotalDelta = 0;
@@ -78,9 +78,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
                     _currentProcessorTimes[processorIndex],
                     out double idleDelta,
                     out double totalDelta))
-            {
                 continue;
-            }
 
             aggregateIdleDelta += idleDelta;
             aggregateTotalDelta += totalDelta;
@@ -150,12 +148,10 @@ internal sealed class SystemPerformanceSampler : IDisposable
         if (!double.IsFinite(idleDelta)
             || !double.IsFinite(totalDelta)
             || totalDelta <= 0)
-        {
             return 0;
-        }
 
-        double boundedIdleDelta = Math.Clamp(idleDelta, 0, totalDelta);
-        return Math.Clamp((1.0 - boundedIdleDelta / totalDelta) * 100.0, 0, 100);
+        double boundedIdleDelta = Math.Clamp(idleDelta, min: 0, totalDelta);
+        return Math.Clamp((1.0 - boundedIdleDelta / totalDelta) * 100.0, min: 0, max: 100);
     }
 
     private bool TryReadProcessorTimes(out int processorCount)
@@ -164,7 +160,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
         uint activeProcessorCount = GetActiveProcessorCount(AllProcessorGroups);
         int requestedProcessorCount = activeProcessorCount is > 0 and <= int.MaxValue
             ? (int)activeProcessorCount
-            : Math.Max(1, Environment.ProcessorCount);
+            : Math.Max(val1: 1, Environment.ProcessorCount);
         int requestedBufferSize = checked(
             (requestedProcessorCount + ProcessorCapacitySlack) * NativeProcessorTimesSize);
         EnsureProcessorBuffer(requestedBufferSize);
@@ -203,9 +199,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
 
             if (!IsBufferSizeStatus(status)
                 || returnLength <= _processorBufferSize)
-            {
                 return false;
-            }
 
             EnsureProcessorBuffer(checked(returnLength + ProcessorCapacitySlack * NativeProcessorTimesSize));
         }
@@ -255,9 +249,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
         if (current.IdleTime < previous.IdleTime
             || current.KernelTime < previous.KernelTime
             || current.UserTime < previous.UserTime)
-        {
             return false;
-        }
 
         idleDelta = current.IdleTime - previous.IdleTime;
         double kernelDelta = current.KernelTime - previous.KernelTime;
@@ -268,10 +260,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
 
     private static bool TryReadMemoryStatus(out SystemMemoryStatus memoryStatus)
     {
-        MEMORYSTATUSEX nativeMemoryStatus = new()
-        {
-            Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>()
-        };
+        MEMORYSTATUSEX nativeMemoryStatus = new() { Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         if (!GlobalMemoryStatusEx(ref nativeMemoryStatus) || nativeMemoryStatus.TotalPhysicalMemory == 0)
         {
             memoryStatus = default;
@@ -287,7 +276,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
         memoryStatus = new SystemMemoryStatus(
             nativeMemoryStatus.TotalPhysicalMemory,
             availableMemory,
-            Math.Clamp(memoryPercent, 0, 100));
+            Math.Clamp(memoryPercent, min: 0, max: 100));
         return true;
     }
 

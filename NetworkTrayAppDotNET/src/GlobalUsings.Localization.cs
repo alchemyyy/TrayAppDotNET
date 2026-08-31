@@ -1,2 +1,2 @@
-global using AppStrings = global::NetworkTrayAppDotNET.Localization.Strings;
-global using CommonStrings = global::TrayAppDotNETCommon.Localization.CommonStrings;
+global using AppStrings = NetworkTrayAppDotNET.Localization.Strings;
+global using CommonStrings = TrayAppDotNETCommon.Localization.CommonStrings;

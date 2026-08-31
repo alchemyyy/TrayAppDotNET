@@ -42,30 +42,39 @@ public class DataSource : INotifyPropertyChanged
     // Period-delimited fully-qualified name. For LHM sources this is the LHM tree path with spaces
     // replaced by underscores; that lets us round-trip a serialized assignment back to a live source
     // even if the hardware is enumerated in a different order between runs.
-    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DataSourceKey { get; set; } = string.Empty;
 
     // User-facing name (rename target). Falls back to a parsed-from-key default until the user changes it.
-    [XmlAttribute] public string UserDefinedName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string UserDefinedName { get; set; } = string.Empty;
 
     // The hardware controller (motherboard / GPU / etc.) that owns this signal. Parsed from
     // DataSourceKey for LHM sources, manually supplied for custom sources.
-    [XmlAttribute] public string ControllerName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string ControllerName { get; set; } = string.Empty;
 
     // LHM HardwareType name for the owning controller. Empty means custom or legacy source.
-    [XmlAttribute] public string ControllerHardwareType { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string ControllerHardwareType { get; set; } = string.Empty;
 
     // Runtime-only liveness marker set by LHM discovery. Dead persisted sensors remain false.
-    [XmlIgnore] public bool IsLiveHardwareSensor { get; set; }
+    [XmlIgnore]
+    public bool IsLiveHardwareSensor { get; set; }
 
-    [XmlAttribute] public DataSourceTypeEnum DataSourceType { get; set; } = DataSourceTypeEnum.Unknown;
+    [XmlAttribute]
+    public DataSourceTypeEnum DataSourceType { get; set; } = DataSourceTypeEnum.Unknown;
 
     // User-facing graph metadata. Values are stored in the same human-readable units shown by the
     // editor, while Value itself remains the existing milli-unit long for change detection.
-    [XmlAttribute] public double MinimumValue { get; set; } = double.NaN;
+    [XmlAttribute]
+    public double MinimumValue { get; set; } = double.NaN;
 
-    [XmlAttribute] public double MaximumValue { get; set; } = double.NaN;
+    [XmlAttribute]
+    public double MaximumValue { get; set; } = double.NaN;
 
-    [XmlAttribute] public string Unit { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string Unit { get; set; } = string.Empty;
 
     // Stored as long: temperature in milli-degrees, voltage in millivolts, RPM as integer, duty
     // cycle as percent * 1000, etc. A long avoids float-quantization noise in change detection
@@ -103,7 +112,8 @@ public class DataSource : INotifyPropertyChanged
     // NCalc expression applied to the raw upstream value. Empty string == passthrough.
     // Examples: "x * 1.8 + 32" (Celsius to Fahrenheit), "max(x, 50)" (floor at 50).
     // The single free variable is named "x" by convention.
-    [XmlAttribute] public string TransformString { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string TransformString { get; set; } = string.Empty;
 
     // Producer-side setter that runs the TransformString before storing. If the expression
     // throws or fails to parse, the raw value is stored unchanged so a broken transform never
@@ -134,9 +144,11 @@ public class DataSource : INotifyPropertyChanged
         Value = rawValue;
     }
 
-    [XmlIgnore] public double DisplayValue => Value / 1000.0;
+    [XmlIgnore]
+    public double DisplayValue => Value / 1000.0;
 
-    [XmlIgnore] public string DisplayName =>
+    [XmlIgnore]
+    public string DisplayName =>
         string.IsNullOrWhiteSpace(UserDefinedName)
             ? string.IsNullOrWhiteSpace(DataSourceKey) ? "Data source" : DataSourceKey.Split('.').Last()
             : UserDefinedName;

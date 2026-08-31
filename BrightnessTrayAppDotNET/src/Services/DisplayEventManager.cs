@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia.Threading;
 using Microsoft.Win32;
-
 using TrayAppDotNETCommon.Serialization;
 
 namespace BrightnessTrayAppDotNET.Services;
@@ -72,8 +71,8 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         _devNotify = DeviceNotification.RegisterForDeviceInterface(
             _window.Handle,
             new Guid(Constants.MonitorDeviceInterfaceGUID),
-            "DisplayEventManager",
-            "hot-plug events will fall back to WM_DISPLAYCHANGE only.");
+            ownerLabel: "DisplayEventManager",
+            failureModeSuffix: "hot-plug events will fall back to WM_DISPLAYCHANGE only.");
 
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -214,7 +213,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
             long generation = ++_burstGeneration;
             try
             {
-                _burstTimer = new Timer(OnBurstTick, generation, 0, TimeConstants.DisplayEventBurstIntervalMs);
+                _burstTimer = new Timer(OnBurstTick, generation, dueTime: 0, TimeConstants.DisplayEventBurstIntervalMs);
             }
             catch
             {
@@ -298,7 +297,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
     private void ScanAndReconcile()
     {
-        if (Interlocked.Exchange(ref _scanInProgress, 1) == 1) return;
+        if (Interlocked.Exchange(ref _scanInProgress, value: 1) == 1) return;
 
         try
         {
@@ -329,7 +328,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
         finally
         {
-            Interlocked.Exchange(ref _scanInProgress, 0);
+            Interlocked.Exchange(ref _scanInProgress, value: 0);
         }
     }
 
@@ -481,10 +480,10 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
     {
         if (string.IsNullOrEmpty(s)) return null;
 
-        if (s.StartsWith("port:", StringComparison.Ordinal)) s = s[5..];
+        if (s.StartsWith(value: "port:", StringComparison.Ordinal)) s = s[5..];
 
-        if (!s.StartsWith("DISPLAY\\", StringComparison.OrdinalIgnoreCase) &&
-            !s.StartsWith("MONITOR\\", StringComparison.OrdinalIgnoreCase))
+        if (!s.StartsWith(value: "DISPLAY\\", StringComparison.OrdinalIgnoreCase) &&
+            !s.StartsWith(value: "MONITOR\\", StringComparison.OrdinalIgnoreCase))
             return null;
 
         string[] parts = s.Split('\\');

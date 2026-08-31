@@ -118,82 +118,106 @@ internal static class ProcessTableColumnCatalog
 
     public static readonly ProcessTableColumnDefinition[] Definitions =
     [
-        Static(ProcessTableColumnKind.Name, "Name", 280, ProcessTableColumnAlignment.Left, true),
-        Static(ProcessTableColumnKind.ProcessID, "PID", 82, ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.Status, "Status", 106, ProcessTableColumnAlignment.Left, true),
-        Static(ProcessTableColumnKind.UserName, "User name", 140, ProcessTableColumnAlignment.Left, true),
-        Static(ProcessTableColumnKind.SessionID, "Session ID", NarrowWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.JobObjectID, "Job object ID", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.CPU, "CPU", 68, ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.CPUTime, "CPU time", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.Lifetime, "Lifetime", CounterWidth, ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.Cycle, "Cycle", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.WorkingSet, "Working set (memory)", MemoryWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.PeakWorkingSet, "Peak working set (memory)", MemoryWidth,
+        Static(ProcessTableColumnKind.Name, title: "Name", width: 280, ProcessTableColumnAlignment.Left, visible: true),
+        Static(ProcessTableColumnKind.ProcessID, title: "PID", width: 82, ProcessTableColumnAlignment.Right,
+            visible: true),
+        Dynamic(ProcessTableColumnKind.Status, title: "Status", width: 106, ProcessTableColumnAlignment.Left,
+            visible: true),
+        Static(ProcessTableColumnKind.UserName, title: "User name", width: 140, ProcessTableColumnAlignment.Left,
+            visible: true),
+        Static(ProcessTableColumnKind.SessionID, title: "Session ID", NarrowWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.JobObjectID, title: "Job object ID", CounterWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.WorkingSetDelta, "Working set delta (memory)", MemoryWidth,
+        Dynamic(ProcessTableColumnKind.CPU, title: "CPU", width: 68, ProcessTableColumnAlignment.Right, visible: true),
+        Dynamic(ProcessTableColumnKind.CPUTime, title: "CPU time", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.Lifetime, title: "Lifetime", CounterWidth, ProcessTableColumnAlignment.Right,
+            visible: true),
+        Dynamic(ProcessTableColumnKind.Cycle, title: "Cycle", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.WorkingSet, title: "Working set (memory)", MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.ActivePrivateWorkingSet, "Memory (active private working set)", MemoryWidth,
+        Dynamic(ProcessTableColumnKind.PeakWorkingSet, title: "Peak working set (memory)", MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.PrivateMemory, "Memory (private working set)", 136,
-            ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.SharedWorkingSet, "Memory (shared working set)", 136,
-            ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.Disk, "Disk", 90, ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.Network, "Network", 90, ProcessTableColumnAlignment.Right, true),
-        Dynamic(ProcessTableColumnKind.CommitSize, "Commit size", MemoryWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.PagedPool, "Paged pool", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.NonPagedPool, "NP pool", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.PageFaults, "Page faults", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.PageFaultDelta, "PF Delta", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.BasePriority, "Base priority", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.Handles, "Handles", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.Threads, "Threads", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.UserObjects, "User objects", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.GDIObjects, "GDI objects", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOReads, "I/O reads", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOWrites, "I/O writes", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOOther, "I/O other", CounterWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOReadBytes, "I/O read bytes", MemoryWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOWriteBytes, "I/O write bytes", MemoryWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.IOOtherBytes, "I/O other bytes", MemoryWidth, ProcessTableColumnAlignment.Right),
-        Static(ProcessTableColumnKind.ImagePath, "Image path name", LongTextWidth, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.CommandLine, "Command line", 520, ProcessTableColumnAlignment.Left, true),
-        Static(ProcessTableColumnKind.OperatingSystemContext, "Operating system context", TextWidth,
-            ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.Platform, "Platform", CounterWidth, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.Elevated, "Elevated", BooleanWidth, ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.UACVirtualization, "UAC virtualization", 150,
-            ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.Description, "Description", 240, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.DataExecutionPrevention, "Data execution prevention", 190,
-            ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.IOPriority, "I/O priority", CounterWidth, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.PackageName, "Package name", 220, ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.EnterpriseContext, "Enterprise context", TextWidth,
-            ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.PowerThrottling, "Power throttling", 140,
-            ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.GPU, "GPU", NarrowWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.GPUEngine, "GPU engine", TextWidth, ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.DedicatedGPUMemory, "Dedicated GPU memory", MemoryWidth,
+        Dynamic(ProcessTableColumnKind.WorkingSetDelta, title: "Working set delta (memory)", MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.SharedGPUMemory, "Shared GPU memory", MemoryWidth,
+        Dynamic(ProcessTableColumnKind.ActivePrivateWorkingSet, title: "Memory (active private working set)",
+            MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.DPIAwareness, "DPI awareness", 150, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.Architecture, "Architecture", CounterWidth, ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.HardwareStackProtection, "Hardware-enforced Stack Protection", 250,
+        Dynamic(ProcessTableColumnKind.PrivateMemory, title: "Memory (private working set)", width: 136,
+            ProcessTableColumnAlignment.Right, visible: true),
+        Dynamic(ProcessTableColumnKind.SharedWorkingSet, title: "Memory (shared working set)", width: 136,
+            ProcessTableColumnAlignment.Right, visible: true),
+        Dynamic(ProcessTableColumnKind.Disk, title: "Disk", width: 90, ProcessTableColumnAlignment.Right,
+            visible: true),
+        Dynamic(ProcessTableColumnKind.Network, title: "Network", width: 90, ProcessTableColumnAlignment.Right,
+            visible: true),
+        Dynamic(ProcessTableColumnKind.CommitSize, title: "Commit size", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.PagedPool, title: "Paged pool", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.NonPagedPool, title: "NP pool", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.PageFaults, title: "Page faults", CounterWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.PageFaultDelta, title: "PF Delta", CounterWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.BasePriority, title: "Base priority", CounterWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.Handles, title: "Handles", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.Threads, title: "Threads", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.UserObjects, title: "User objects", CounterWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.GDIObjects, title: "GDI objects", CounterWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOReads, title: "I/O reads", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOWrites, title: "I/O writes", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOOther, title: "I/O other", CounterWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOReadBytes, title: "I/O read bytes", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOWriteBytes, title: "I/O write bytes", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.IOOtherBytes, title: "I/O other bytes", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Static(ProcessTableColumnKind.ImagePath, title: "Image path name", LongTextWidth,
             ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.ExtendedControlFlowGuard, "Extended Control Flow Guard", 220,
+        Static(ProcessTableColumnKind.CommandLine, title: "Command line", width: 520, ProcessTableColumnAlignment.Left,
+            visible: true),
+        Static(ProcessTableColumnKind.OperatingSystemContext, title: "Operating system context", TextWidth,
             ProcessTableColumnAlignment.Left),
-        Static(ProcessTableColumnKind.Isolation, "Isolation", CounterWidth, ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.NPU, "NPU", NarrowWidth, ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.NPUEngine, "NPU engine", TextWidth, ProcessTableColumnAlignment.Left),
-        Dynamic(ProcessTableColumnKind.DedicatedNPUMemory, "Dedicated NPU memory", MemoryWidth,
+        Static(ProcessTableColumnKind.Platform, title: "Platform", CounterWidth, ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.Elevated, title: "Elevated", BooleanWidth, ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.UACVirtualization, title: "UAC virtualization", width: 150,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.Description, title: "Description", width: 240, ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.DataExecutionPrevention, title: "Data execution prevention", width: 190,
+            ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.IOPriority, title: "I/O priority", CounterWidth,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.PackageName, title: "Package name", width: 220, ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.EnterpriseContext, title: "Enterprise context", TextWidth,
+            ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.PowerThrottling, title: "Power throttling", width: 140,
+            ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.GPU, title: "GPU", NarrowWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.GPUEngine, title: "GPU engine", TextWidth, ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.DedicatedGPUMemory, title: "Dedicated GPU memory", MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.SharedNPUMemory, "Shared NPU memory", MemoryWidth,
+        Dynamic(ProcessTableColumnKind.SharedGPUMemory, title: "Shared GPU memory", MemoryWidth,
             ProcessTableColumnAlignment.Right),
-        Dynamic(ProcessTableColumnKind.CPUUtility, "CPU utility", CounterWidth, ProcessTableColumnAlignment.Right)
+        Dynamic(ProcessTableColumnKind.DPIAwareness, title: "DPI awareness", width: 150,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.Architecture, title: "Architecture", CounterWidth,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.HardwareStackProtection, title: "Hardware-enforced Stack Protection", width: 250,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.ExtendedControlFlowGuard, title: "Extended Control Flow Guard", width: 220,
+            ProcessTableColumnAlignment.Left),
+        Static(ProcessTableColumnKind.Isolation, title: "Isolation", CounterWidth, ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.NPU, title: "NPU", NarrowWidth, ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.NPUEngine, title: "NPU engine", TextWidth, ProcessTableColumnAlignment.Left),
+        Dynamic(ProcessTableColumnKind.DedicatedNPUMemory, title: "Dedicated NPU memory", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.SharedNPUMemory, title: "Shared NPU memory", MemoryWidth,
+            ProcessTableColumnAlignment.Right),
+        Dynamic(ProcessTableColumnKind.CPUUtility, title: "CPU utility", CounterWidth,
+            ProcessTableColumnAlignment.Right)
     ];
 
     public static readonly ulong StaticMask = CreateLifetimeMask(ProcessTableColumnLifetime.Static);
@@ -305,7 +329,7 @@ internal static class ProcessTableLayout
         if (!double.IsFinite(rowSpacing))
             throw new ArgumentOutOfRangeException(nameof(rowSpacing));
 
-        return rowTextHeight + Math.Max(0, rowSpacing);
+        return rowTextHeight + Math.Max(val1: 0, rowSpacing);
     }
 
     /// <summary>
@@ -413,6 +437,7 @@ internal static class ProcessTableLayout
                 upperBound = columnIndex - 1;
                 continue;
             }
+
             if (x >= column.Right)
             {
                 lowerBound = columnIndex + 1;
@@ -434,9 +459,7 @@ internal static class ProcessTableLayout
             || !double.IsFinite(hitRadius)
             || x < 0
             || hitRadius < 0)
-        {
             return -1;
-        }
 
         int columnIndex = HitTestColumn(x, columns);
         if (columnIndex >= 0)
@@ -462,7 +485,8 @@ internal static class ProcessTableLayout
         Span<ProcessTableColumn> destination)
     {
         if (columns.Length != destination.Length)
-            throw new ArgumentException("Source and destination column counts must match.", nameof(destination));
+            throw new ArgumentException(message: "Source and destination column counts must match.",
+                nameof(destination));
         if ((uint)resizedColumnIndex >= (uint)columns.Length)
             throw new ArgumentOutOfRangeException(nameof(resizedColumnIndex));
         if (!double.IsFinite(width) || width <= 0)
@@ -501,7 +525,7 @@ internal static class ProcessTableLayout
             insertionIndex++;
         }
 
-        return Math.Clamp(insertionIndex, 0, columns.Length - 1);
+        return Math.Clamp(insertionIndex, min: 0, columns.Length - 1);
     }
 
     /// <summary>Returns the current-layout divider that represents a pending insertion.</summary>
@@ -512,9 +536,7 @@ internal static class ProcessTableLayout
     {
         if ((uint)sourceColumnIndex >= (uint)columns.Length
             || (uint)insertionIndex >= (uint)columns.Length)
-        {
             return double.NaN;
-        }
 
         if (insertionIndex <= sourceColumnIndex)
             return columns[insertionIndex].Left;
@@ -524,5 +546,4 @@ internal static class ProcessTableLayout
             ? columns[rightNeighborIndex].Left
             : columns[^1].Right;
     }
-
 }

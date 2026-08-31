@@ -16,8 +16,10 @@ public sealed partial class TaskManagerReorderResources : ResourceDictionary
     private const string DraggingOpacityKey = "TaskManagerReorder.DraggingOpacity";
     private const string AutoScrollEdgeSizeKey = "TaskManagerReorder.AutoScrollEdgeSize";
     private const string AutoScrollStepKey = "TaskManagerReorder.AutoScrollStep";
+
     private const string AutoScrollIntervalMillisecondsKey =
         "TaskManagerReorder.AutoScrollIntervalMilliseconds";
+
     private const string NormalZIndexKey = "TaskManagerReorder.NormalZIndex";
     private const string DraggingZIndexKey = "TaskManagerReorder.DraggingZIndex";
     private const string ButtonSizeKey = "TaskManagerReorder.ButtonSize";
@@ -28,10 +30,10 @@ public sealed partial class TaskManagerReorderResources : ResourceDictionary
 #if DEBUG
     private static readonly AXAMLResourceHotReloadStore<TaskManagerReorderResources> Resources =
         AXAMLResourceHotReloadStore<TaskManagerReorderResources>.Create(
-            "Task Manager reorder resources",
+            resourceName: "Task Manager reorder resources",
             static () => new TaskManagerReorderResources(),
             NotifyResourcesReloaded,
-            "TaskManagerReorderResources.axaml");
+            sourceFileName: "TaskManagerReorderResources.axaml");
 #else
     private static readonly Lazy<TaskManagerReorderResources> Resources =
         new(static () => new TaskManagerReorderResources());

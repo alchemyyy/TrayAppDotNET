@@ -8,10 +8,10 @@ public sealed partial class TaskManagerWindowResources : ResourceDictionary
 #if DEBUG
     private static readonly AXAMLResourceHotReloadStore<TaskManagerWindowResources> Resources =
         AXAMLResourceHotReloadStore<TaskManagerWindowResources>.Create(
-            "Task Manager window resources",
+            resourceName: "Task Manager window resources",
             static () => new TaskManagerWindowResources(),
             NotifyResourcesReloaded,
-            "TaskManagerWindow.axaml",
+            sourceFileName: "TaskManagerWindow.axaml",
             synchronizeReload: SynchronizeResources);
 #else
     private static readonly Lazy<TaskManagerWindowResources> Resources =

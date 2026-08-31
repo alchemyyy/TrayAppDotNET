@@ -21,7 +21,7 @@ internal static class TimeUtils
         if (double.IsNaN(fractionalHour) || double.IsInfinity(fractionalHour) || fractionalHour < 0) return null;
 
         long totalTicks = (long)Math.Round(fractionalHour * TimeSpan.TicksPerHour);
-        DateTime localMidnight = new(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+        DateTime localMidnight = new(year, month, day, hour: 0, minute: 0, second: 0, DateTimeKind.Unspecified);
         DateTime localDateTime = localMidnight.AddTicks(totalTicks);
 
         TimeSpan offset = TimeSpan.FromHours(timezoneOffsetHours);

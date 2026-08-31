@@ -34,24 +34,24 @@ internal sealed class ServicesPage : TaskManagerTablePage
         Func<WindowsServiceSnapshot, Task<bool>> confirmDisable,
         Action<string, string> reportMessage)
         : base(
-            "Services",
+            title: "Services",
             CreateSchema(resources),
             processIconService,
             settings,
             palette,
             resources,
             startProcess,
-            "Search services")
+            searchPlaceholder: "Search services")
     {
         _serviceManager = serviceManager;
         _startProcess = startProcess;
         _confirmDisable = confirmDisable;
         _reportMessage = reportMessage;
-        _startButton = AddHeaderAction("Start", OnStartClick, isEnabled: false);
-        _stopButton = AddHeaderAction("Stop", OnStopClick, isEnabled: false);
-        _restartButton = AddHeaderAction("Restart", OnRestartClick, isEnabled: false);
-        _disableButton = AddHeaderAction("Disable", OnDisableClick, isEnabled: false);
-        _openServicesButton = AddHeaderAction("Open Services", OnOpenServicesClick);
+        _startButton = AddHeaderAction(label: "Start", OnStartClick, isEnabled: false);
+        _stopButton = AddHeaderAction(label: "Stop", OnStopClick, isEnabled: false);
+        _restartButton = AddHeaderAction(label: "Restart", OnRestartClick, isEnabled: false);
+        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false);
+        _openServicesButton = AddHeaderAction(label: "Open Services", OnOpenServicesClick);
         _moreButton = AddMoreAction(OnMoreClick);
 
         _refreshTimer = new DispatcherTimer { Interval = RefreshInterval };
@@ -62,26 +62,26 @@ internal sealed class ServicesPage : TaskManagerTablePage
         new(
         [
             new TaskManagerTableColumn(
-                "name",
-                "Name",
+                Key: "name",
+                Title: "Name",
                 resources.AxamlTaskManagerTable.ServicesNameColumnWidth),
             new TaskManagerTableColumn(
-                "pid",
-                "PID",
+                Key: "pid",
+                Title: "PID",
                 resources.AxamlTaskManagerTable.ServicesPIDColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "description",
-                "Description",
+                Key: "description",
+                Title: "Description",
                 resources.AxamlTaskManagerTable.ServicesDescriptionColumnWidth),
             new TaskManagerTableColumn(
-                "status",
-                "Status",
+                Key: "status",
+                Title: "Status",
                 resources.AxamlTaskManagerTable.ServicesStatusColumnWidth),
             new TaskManagerTableColumn(
-                "group",
-                "Group",
+                Key: "group",
+                Title: "Group",
                 resources.AxamlTaskManagerTable.ServicesGroupColumnWidth)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
@@ -120,19 +120,20 @@ internal sealed class ServicesPage : TaskManagerTablePage
         _queryPending = true;
         try
         {
-            WindowsServiceQueryResult result = await Task.Run(
-                () => _serviceManager.QueryServices(refreshConfiguration));
+            WindowsServiceQueryResult
+                result = await Task.Run(() => _serviceManager.QueryServices(refreshConfiguration));
             if (_disposed || !_isPageActive) return;
             if (!result.Succeeded)
             {
                 if (reportFailure)
                 {
                     _reportMessage(
-                        "Services unavailable",
+                        arg1: "Services unavailable",
                         string.IsNullOrWhiteSpace(result.ErrorMessage)
                             ? "Windows could not enumerate local services."
                             : result.ErrorMessage);
                 }
+
                 return;
             }
 
@@ -142,6 +143,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
                 WindowsServiceSnapshot service = result.Services[serviceIndex];
                 rows.Add(CreateRow(service));
             }
+
             SetRows(rows);
             UpdateActionButtons(SelectedRow?.Tag as WindowsServiceSnapshot);
         }
@@ -149,7 +151,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         {
             TADNLog.Log($"Service refresh failed: {exception}");
             if (reportFailure && !_disposed)
-                _reportMessage("Services unavailable", exception.Message);
+                _reportMessage(arg1: "Services unavailable", exception.Message);
         }
         finally
         {
@@ -218,11 +220,11 @@ internal sealed class ServicesPage : TaskManagerTablePage
         {
             WindowsServiceOperationResult result = await Task.Run(() => action switch
             {
-                WindowsServiceAction.Start => _serviceManager.Start(service.ServiceName),
-                WindowsServiceAction.Stop => _serviceManager.Stop(service.ServiceName),
-                WindowsServiceAction.Restart => _serviceManager.Restart(service.ServiceName),
+                WindowsServiceAction.Start => WindowsServiceManager.Start(service.ServiceName),
+                WindowsServiceAction.Stop => WindowsServiceManager.Stop(service.ServiceName),
+                WindowsServiceAction.Restart => WindowsServiceManager.Restart(service.ServiceName),
                 WindowsServiceAction.Disable => _serviceManager.Disable(service.ServiceName),
-                _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown service action.")
+                _ => throw new ArgumentOutOfRangeException(nameof(action), action, message: "Unknown service action.")
             });
             if (_disposed) return;
             if (!result.Succeeded)
@@ -248,7 +250,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
                 UpdateActionButtons(SelectedRow?.Tag as WindowsServiceSnapshot);
                 await RefreshAsync(
                     reportFailure: false,
-                    refreshConfiguration: action == WindowsServiceAction.Disable);
+                    action == WindowsServiceAction.Disable);
             }
         }
     }
@@ -274,23 +276,23 @@ internal sealed class ServicesPage : TaskManagerTablePage
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        WindowsServiceSnapshot? service = SelectedRow?.Tag as WindowsServiceSnapshot;
-        if (service != null)
+        if (SelectedRow?.Tag is WindowsServiceSnapshot service)
         {
             WindowsServiceActionState state = WindowsServiceState.GetActionState(service);
             if (!_operationPending && state.CanStart)
-                entries.Add("Start", () => _ = RunActionAsync(WindowsServiceAction.Start, service));
+                entries.Add(text: "Start", () => _ = RunActionAsync(WindowsServiceAction.Start, service));
             if (!_operationPending && state.CanStop)
-                entries.Add("Stop", () => _ = RunActionAsync(WindowsServiceAction.Stop, service));
+                entries.Add(text: "Stop", () => _ = RunActionAsync(WindowsServiceAction.Stop, service));
             if (!_operationPending && state.CanRestart)
-                entries.Add("Restart", () => _ = RunActionAsync(WindowsServiceAction.Restart, service));
+                entries.Add(text: "Restart", () => _ = RunActionAsync(WindowsServiceAction.Restart, service));
             if (!_operationPending && state.CanDisable)
-                entries.Add("Disable", () => _ = RunActionAsync(WindowsServiceAction.Disable, service));
+                entries.Add(text: "Disable", () => _ = RunActionAsync(WindowsServiceAction.Disable, service));
             if (entries.Count > 0) entries.AddSeparator();
         }
-        entries.Add("Refresh", () =>
+
+        entries.Add(text: "Refresh", () =>
             _ = RefreshAsync(reportFailure: true, refreshConfiguration: true));
-        entries.Add("Open Services", () => _ = _startProcess("services.msc"));
+        entries.Add(text: "Open Services", () => _ = _startProcess("services.msc"));
         ShowActionMenu(_moreButton, entries.ToList());
     }
 

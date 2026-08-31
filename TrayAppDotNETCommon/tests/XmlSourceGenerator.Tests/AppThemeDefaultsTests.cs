@@ -32,23 +32,22 @@ public sealed class AppThemeDefaultsTests
     [Fact]
     public void ThemeColorReloadPreservesExistingResourceReferences()
     {
-        ThemeColor existingColor = new("112233", "445566");
+        ThemeColor existingColor = new(lightHex: "112233", darkHex: "445566");
         ResourceDictionary currentResources = new()
         {
-            ["AppTheme.Existing"] = existingColor,
-            ["AppTheme.Removed"] = new ThemeColor("000000")
+            ["AppTheme.Existing"] = existingColor, ["AppTheme.Removed"] = new ThemeColor("000000")
         };
         ResourceDictionary candidateResources = new()
         {
-            ["AppTheme.Existing"] = new ThemeColor("AABBCC", "DDEEFF"),
+            ["AppTheme.Existing"] = new ThemeColor(lightHex: "AABBCC", darkHex: "DDEEFF"),
             ["AppTheme.Added"] = new ThemeColor("123456")
         };
 
         AppThemeResourceReader.SynchronizeColors(currentResources, candidateResources);
 
         Assert.Same(existingColor, currentResources["AppTheme.Existing"]);
-        Assert.Equal("#AABBCC", existingColor.LightHex);
-        Assert.Equal("#DDEEFF", existingColor.DarkHex);
+        Assert.Equal(expected: "#AABBCC", existingColor.LightHex);
+        Assert.Equal(expected: "#DDEEFF", existingColor.DarkHex);
         Assert.True(currentResources.ContainsKey("AppTheme.Removed"));
         Assert.IsType<ThemeColor>(currentResources["AppTheme.Added"]);
     }
@@ -56,14 +55,8 @@ public sealed class AppThemeDefaultsTests
     [Fact]
     public void ColorReloadReplacesSingleColorResources()
     {
-        ResourceDictionary currentResources = new()
-        {
-            ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.White
-        };
-        ResourceDictionary candidateResources = new()
-        {
-            ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.Red
-        };
+        ResourceDictionary currentResources = new() { ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.White };
+        ResourceDictionary candidateResources = new() { ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.Red };
 
         AppThemeResourceReader.SynchronizeColors(currentResources, candidateResources);
 
@@ -75,13 +68,13 @@ public sealed class AppThemeDefaultsTests
     {
         string temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
-            "TrayAppDotNET.ThemeHotReloadTests",
+            path2: "TrayAppDotNET.ThemeHotReloadTests",
             Guid.NewGuid().ToString("N"));
-        string sourcePath = Path.Combine(temporaryDirectory, "AppTheme.axaml");
-        string callerFilePath = Path.Combine(temporaryDirectory, "AppThemeCatalog.cs");
+        string sourcePath = Path.Combine(temporaryDirectory, path2: "AppTheme.axaml");
+        string callerFilePath = Path.Combine(temporaryDirectory, path2: "AppThemeCatalog.cs");
         AppThemeHotReloadStore<AppThemeResources> store =
             AppThemeHotReloadStore<AppThemeResources>.Create(
-                "Test",
+                catalogName: "Test",
                 static () => new AppThemeResources(),
                 callerFilePath: callerFilePath);
         ThemeColor existingBackground = store.Current.Color(nameof(AppTheme.Background));
@@ -91,18 +84,18 @@ public sealed class AppThemeDefaultsTests
         Directory.CreateDirectory(temporaryDirectory);
         File.WriteAllText(
             sourcePath,
-            """
-            <ResourceDictionary
-                x:Class="TrayAppDotNETCommon.Visuals.AppThemeResources"
-                xmlns="https://github.com/avaloniaui"
-                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals">
-                <visuals:ThemeColor
-                    x:Key="AppTheme.Background"
-                    LightHex="#123456"
-                    DarkHex="#ABCDEF" />
-            </ResourceDictionary>
-            """);
+            contents: """
+                      <ResourceDictionary
+                          x:Class="TrayAppDotNETCommon.Visuals.AppThemeResources"
+                          xmlns="https://github.com/avaloniaui"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals">
+                          <visuals:ThemeColor
+                              x:Key="AppTheme.Background"
+                              LightHex="#123456"
+                              DarkHex="#ABCDEF" />
+                      </ResourceDictionary>
+                      """);
 
         AppThemeHotReload.ResourcesReloaded += onResourcesReloaded;
         try
@@ -110,9 +103,9 @@ public sealed class AppThemeDefaultsTests
             store.ReloadNow();
 
             Assert.Same(existingBackground, store.Current.Color(nameof(AppTheme.Background)));
-            Assert.Equal("#123456", existingBackground.LightHex);
-            Assert.Equal("#ABCDEF", existingBackground.DarkHex);
-            Assert.Equal(1, notificationCount);
+            Assert.Equal(expected: "#123456", existingBackground.LightHex);
+            Assert.Equal(expected: "#ABCDEF", existingBackground.DarkHex);
+            Assert.Equal(expected: 1, notificationCount);
         }
         finally
         {
@@ -127,8 +120,8 @@ public sealed class AppThemeDefaultsTests
     {
         using AppTheme theme = new();
 
-        Assert.Equal("#F3F3F3", theme.Background.LightHex);
-        Assert.Equal("#202020", theme.Background.DarkHex);
+        Assert.Equal(expected: "#F3F3F3", theme.Background.LightHex);
+        Assert.Equal(expected: "#202020", theme.Background.DarkHex);
     }
 
     [Fact]
@@ -136,12 +129,12 @@ public sealed class AppThemeDefaultsTests
     {
         using AppTheme theme = new();
 
-        Assert.Equal("#222222", theme.Accent.LightHex);
-        Assert.Equal("#DDDDDD", theme.Accent.DarkHex);
-        Assert.Equal("#DFDFDF", theme.SearchListItemSelected.LightHex);
-        Assert.Equal("#454545", theme.SearchListItemSelected.DarkHex);
-        Assert.Equal("#E9E9E9", theme.SearchListItemHover.LightHex);
-        Assert.Equal("#292929", theme.SearchListItemHover.DarkHex);
+        Assert.Equal(expected: "#222222", theme.Accent.LightHex);
+        Assert.Equal(expected: "#DDDDDD", theme.Accent.DarkHex);
+        Assert.Equal(expected: "#DFDFDF", theme.SearchListItemSelected.LightHex);
+        Assert.Equal(expected: "#454545", theme.SearchListItemSelected.DarkHex);
+        Assert.Equal(expected: "#E9E9E9", theme.SearchListItemHover.LightHex);
+        Assert.Equal(expected: "#292929", theme.SearchListItemHover.DarkHex);
     }
 
     [Fact]
@@ -186,8 +179,8 @@ public sealed class AppThemeDefaultsTests
 
         foreach ((string name, ThemeColor color) in structuralColors)
         {
-            AssertAchromatic(name, "light", color.Light);
-            AssertAchromatic(name, "dark", color.Dark);
+            AssertAchromatic(name, variant: "light", color.Light);
+            AssertAchromatic(name, variant: "dark", color.Dark);
         }
     }
 

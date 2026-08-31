@@ -24,7 +24,7 @@ public sealed class SettingsSearchScorerTests
         foreach (string groupDefinition in groupDefinitions)
         {
             string[] terms = groupDefinition.Split(
-                '|',
+                separator: '|',
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             Assert.True(terms.Length >= 2, $"Invalid synonym group: {groupDefinition}");
         }
@@ -32,12 +32,12 @@ public sealed class SettingsSearchScorerTests
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(commonDefinitions);
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Maximum rows before scrolling", "App drawer")
+            new(id: 1, primaryText: "Maximum rows before scrolling", contextText: "App drawer")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("highest", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "highest", documents, synonymMap);
 
-        Assert.Contains(1, matches);
+        Assert.Contains(expected: 1, matches);
     }
 
     [Fact]
@@ -45,14 +45,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Brightness update rate", "Monitors"),
-            new SettingsSearchDocument(2, "Update check interval", "About")
+            new(id: 1, primaryText: "Brightness update rate", contextText: "Monitors"),
+            new(id: 2, primaryText: "Update check interval", contextText: "About")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("brighness", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "brighness", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -60,14 +60,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Theme mode", "Appearance"),
-            new SettingsSearchDocument(2, "Update interval", "About")
+            new(id: 1, primaryText: "Theme mode", contextText: "Appearance"),
+            new(id: 2, primaryText: "Update interval", contextText: "About")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("tehme", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "tehme", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -75,14 +75,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Environmental controls", "Brightness"),
-            new SettingsSearchDocument(2, "Update interval", "About")
+            new(id: 1, primaryText: "Environmental controls", contextText: "Brightness"),
+            new(id: 2, primaryText: "Update interval", contextText: "About")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("environxxxxmental", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "environxxxxmental", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -90,14 +90,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Context menu font size", "Theme. Appearance"),
-            new SettingsSearchDocument(2, "Update check interval", "About. Updates")
+            new(id: 1, primaryText: "Context menu font size", contextText: "Theme. Appearance"),
+            new(id: 2, primaryText: "Update check interval", contextText: "About. Updates")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("theme", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "theme", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -105,26 +105,26 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(
-                1,
-                "Run on startup",
-                "Start the app automatically.",
-                "launch login sign in boot autostart",
-                "Startup",
-                "General"),
-            new SettingsSearchDocument(
-                2,
-                "Card spacing",
-                "Vertical distance between cards.",
-                "layout gap margin",
-                "Layout",
-                "Flyout")
+            new(
+                id: 1,
+                titleText: "Run on startup",
+                bodyText: "Start the app automatically.",
+                searchKeywords: "launch login sign in boot autostart",
+                subsectionText: "Startup",
+                pageText: "General"),
+            new(
+                id: 2,
+                titleText: "Card spacing",
+                bodyText: "Vertical distance between cards.",
+                searchKeywords: "layout gap margin",
+                subsectionText: "Layout",
+                pageText: "Flyout")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("launch when I sign in", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "launch when I sign in", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -132,25 +132,25 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Max apps per row", "App drawer"),
-            new SettingsSearchDocument(2, "Card spacing", "Layout")
+            new(id: 1, primaryText: "Max apps per row", contextText: "App drawer"),
+            new(id: 2, primaryText: "Card spacing", contextText: "Layout")
         ];
         string commonDefinitions = Assert.IsType<string>(
             TrayAppDotNETCommon.Localization.CommonStrings.ResourceManager.GetString(
                 nameof(TrayAppDotNETCommon.Localization.CommonStrings.SettingsWindow_SearchSynonymGroups_Common),
                 CultureInfo.InvariantCulture));
         string appDefinitions = Assert.IsType<string>(
-            VolumeTrayAppDotNET.Localization.Strings.ResourceManager.GetString(
-                nameof(VolumeTrayAppDotNET.Localization.Strings.SettingsWindow_SearchSynonymGroups_App),
+            Localization.Strings.ResourceManager.GetString(
+                nameof(Localization.Strings.SettingsWindow_SearchSynonymGroups_App),
                 CultureInfo.InvariantCulture));
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             commonDefinitions,
             appDefinitions);
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("highest", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "highest", documents, synonymMap);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -158,16 +158,16 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Maximum rows before scrolling", "App drawer"),
-            new SettingsSearchDocument(2, "Scroll speed", "Flyout")
+            new(id: 1, primaryText: "Maximum rows before scrolling", contextText: "App drawer"),
+            new(id: 2, primaryText: "Scroll speed", contextText: "Flyout")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "maximum|max|highest|upper limit|upper bound");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("upper limit", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "upper limit", documents, synonymMap);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -175,16 +175,16 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Network adapter", "Network"),
-            new SettingsSearchDocument(2, "Card spacing", "Layout")
+            new(id: 1, primaryText: "Network adapter", contextText: "Network"),
+            new(id: 2, primaryText: "Card spacing", contextText: "Layout")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "network interface|network adapter|NIC|network card|connection adapter");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("card", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "card", documents, synonymMap);
 
-        Assert.DoesNotContain(1, matches);
-        Assert.Contains(2, matches);
+        Assert.DoesNotContain(expected: 1, matches);
+        Assert.Contains(expected: 2, matches);
     }
 
     [Fact]
@@ -192,23 +192,23 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(
-                1,
-                "Installation",
-                "Manage the installed application.",
-                "setup install uninstall remove application program files",
-                "General",
-                "General")
+            new(
+                id: 1,
+                titleText: "Installation",
+                bodyText: "Manage the installed application.",
+                searchKeywords: "setup install uninstall remove application program files",
+                subsectionText: "General",
+                pageText: "General")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "install application|set up application|add application");
 
         HashSet<int> matches = SettingsSearchScorer.FindMatches(
-            "set up application",
+            query: "set up application",
             documents,
             synonymMap);
 
-        Assert.Contains(1, matches);
+        Assert.Contains(expected: 1, matches);
     }
 
     [Fact]
@@ -216,15 +216,15 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Max apps per row", "App drawer")
+            new(id: 1, primaryText: "Max apps per row", contextText: "App drawer")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "maximum|max|highest|upper limit",
             "maximum|highest|largest|greatest");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("largest", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "largest", documents, synonymMap);
 
-        Assert.Contains(1, matches);
+        Assert.Contains(expected: 1, matches);
     }
 
     [Fact]
@@ -232,13 +232,13 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Fan jumpstart", "Fan control")
+            new(id: 1, primaryText: "Fan jumpstart", contextText: "Fan control")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "autostart|run on startup|launch at login",
             "fan jumpstart|run on startup|spin-up boost");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("autostart", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "autostart", documents, synonymMap);
 
         Assert.Empty(matches);
     }
@@ -248,23 +248,23 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Battery below 10%", "Battery trigger")
+            new(id: 1, primaryText: "Battery below 10%", contextText: "Battery trigger")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             "battery below|battery under|charge below",
             "battery below|low battery|low charge");
 
         HashSet<int> comparisonMatches = SettingsSearchScorer.FindMatches(
-            "battery under",
+            query: "battery under",
             documents,
             synonymMap);
         HashSet<int> lowChargeMatches = SettingsSearchScorer.FindMatches(
-            "low charge",
+            query: "low charge",
             documents,
             synonymMap);
 
-        Assert.Contains(1, comparisonMatches);
-        Assert.Contains(1, lowChargeMatches);
+        Assert.Contains(expected: 1, comparisonMatches);
+        Assert.Contains(expected: 1, lowChargeMatches);
     }
 
     [Fact]
@@ -272,11 +272,11 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Maximize the window", "Window")
+            new(id: 1, primaryText: "Maximize the window", contextText: "Window")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse("max|highest");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("highest", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "highest", documents, synonymMap);
 
         Assert.Empty(matches);
     }
@@ -286,15 +286,15 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "最高音量", "音频"),
-            new SettingsSearchDocument(2, "主题颜色", "外观")
+            new(id: 1, primaryText: "最高音量", contextText: "音频"),
+            new(id: 2, primaryText: "主题颜色", contextText: "外观")
         ];
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse("最高|最大");
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("最大", documents, synonymMap);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "最大", documents, synonymMap);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -302,13 +302,13 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Volume", "General"),
-            new SettingsSearchDocument(2, "Theme", "Appearance")
+            new(id: 1, primaryText: "Volume", contextText: "General"),
+            new(id: 2, primaryText: "Theme", contextText: "Appearance")
         ];
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("v", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "v", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -316,16 +316,16 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Use dark theme", "Appearance"),
-            new SettingsSearchDocument(2, "Check for updates", "About")
+            new(id: 1, primaryText: "Use dark theme", contextText: "Appearance"),
+            new(id: 2, primaryText: "Check for updates", contextText: "About")
         ];
 
         HashSet<int> matches = SettingsSearchScorer.FindMatches(
-            "please make the interface dark",
+            query: "please make the interface dark",
             documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -333,14 +333,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Master volume", "Audio"),
-            new SettingsSearchDocument(2, "Theme mode", "Appearance")
+            new(id: 1, primaryText: "Master volume", contextText: "Audio"),
+            new(id: 2, primaryText: "Theme mode", contextText: "Appearance")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("set the volume", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "set the volume", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -348,11 +348,11 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Theme mode", "Appearance"),
-            new SettingsSearchDocument(2, "Update interval", "About")
+            new(id: 1, primaryText: "Theme mode", contextText: "Appearance"),
+            new(id: 2, primaryText: "Update interval", contextText: "About")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("theme interval", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "theme interval", documents);
 
         Assert.Empty(matches);
     }
@@ -362,14 +362,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Luminosité de l'écran", "Affichage"),
-            new SettingsSearchDocument(2, "Volume principal", "Audio")
+            new(id: 1, primaryText: "Luminosité de l'écran", contextText: "Affichage"),
+            new(id: 2, primaryText: "Volume principal", contextText: "Audio")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("luminosite", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "luminosite", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -377,14 +377,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Größe der Menüstraße", "Darstellung"),
-            new SettingsSearchDocument(2, "Lautstärke", "Audio")
+            new(id: 1, primaryText: "Größe der Menüstraße", contextText: "Darstellung"),
+            new(id: 2, primaryText: "Lautstärke", contextText: "Audio")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("menustrasse", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "menustrasse", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -392,14 +392,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "自动调节屏幕亮度", "显示"),
-            new SettingsSearchDocument(2, "主音量", "音频")
+            new(id: 1, primaryText: "自动调节屏幕亮度", contextText: "显示"),
+            new(id: 2, primaryText: "主音量", contextText: "音频")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("亮度", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "亮度", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -407,14 +407,14 @@ public sealed class SettingsSearchScorerTests
     {
         SettingsSearchDocument[] documents =
         [
-            new SettingsSearchDocument(1, "Graphics processing unit rendering", "Rendering"),
-            new SettingsSearchDocument(2, "Software rendering", "Rendering")
+            new(id: 1, primaryText: "Graphics processing unit rendering", contextText: "Rendering"),
+            new(id: 2, primaryText: "Software rendering", contextText: "Rendering")
         ];
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("gpu", documents);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "gpu", documents);
 
-        Assert.Contains(1, matches);
-        Assert.DoesNotContain(2, matches);
+        Assert.Contains(expected: 1, matches);
+        Assert.DoesNotContain(expected: 2, matches);
     }
 
     [Fact]
@@ -433,19 +433,26 @@ public sealed class SettingsSearchScorerTests
         Border themeCard = SearchCard("Use dark theme");
         StackPanel page = new()
         {
-            Children = { pageHeader, startupHeader, startupCard, appearanceHeader, themeCard }
+            Children =
+            {
+                pageHeader,
+                startupHeader,
+                startupCard,
+                appearanceHeader,
+                themeCard
+            }
         };
         TextBlock status = new();
         SettingsSearchView view = new(
             status,
-            "No settings match \"{0}\".",
-            [new SettingsSearchPageSource("General", page)]);
+            noMatchesFormat: "No settings match \"{0}\".",
+            [new SettingsSearchPageSource(Label: "General", page)]);
         IReadOnlyList<SettingsSearchDocument> documents = view.ReadDocuments();
         SettingsSearchDocument startupDocument = Assert.Single(
             documents,
-            static document => document.PrimaryText.Contains("Start automatically", StringComparison.Ordinal));
+            static document => document.PrimaryText.Contains(value: "Start automatically", StringComparison.Ordinal));
 
-        view.ApplyMatches([startupDocument.ID], "startup");
+        view.ApplyMatches([startupDocument.ID], query: "startup");
 
         Assert.True(page.IsVisible);
         Assert.True(pageHeader.IsVisible);
@@ -467,10 +474,10 @@ public sealed class SettingsSearchScorerTests
         TextBlock status = new();
         SettingsSearchView view = new(
             status,
-            "No settings match \"{0}\".",
-            [new SettingsSearchPageSource("About", page)]);
+            noMatchesFormat: "No settings match \"{0}\".",
+            [new SettingsSearchPageSource(Label: "About", page)]);
 
-        view.ApplyMatches([], "monitor");
+        view.ApplyMatches([], query: "monitor");
 
         Assert.False(page.IsVisible);
         Assert.False(pageHeader.IsVisible);
@@ -495,13 +502,13 @@ public sealed class SettingsSearchScorerTests
         };
         SettingsSearchView view = new(
             new TextBlock(),
-            "No settings match \"{0}\".",
-            [new SettingsSearchPageSource("General", page)]);
+            noMatchesFormat: "No settings match \"{0}\".",
+            [new SettingsSearchPageSource(Label: "General", page)]);
         SettingsSearchDocument themeDocument = Assert.Single(
             view.ReadDocuments(),
-            static document => document.PrimaryText.Contains("Use dark theme", StringComparison.Ordinal));
+            static document => document.PrimaryText.Contains(value: "Use dark theme", StringComparison.Ordinal));
 
-        view.ApplyMatches([themeDocument.ID], "theme");
+        view.ApplyMatches([themeDocument.ID], query: "theme");
 
         Assert.True(compositeLayout.IsVisible);
         Assert.False(startupCard.IsVisible);
@@ -513,24 +520,13 @@ public sealed class SettingsSearchScorerTests
     {
         StackPanel text = new()
         {
-            Children =
-            {
-                new TextBlock { Text = "Card title" },
-                new TextBlock { Text = "Card description" }
-            }
+            Children = { new TextBlock { Text = "Card title" }, new TextBlock { Text = "Card description" } }
         };
-        Grid cardLayout = new()
-        {
-            Children =
-            {
-                text,
-                new TextBlock { Text = "Control value" }
-            }
-        };
+        Grid cardLayout = new() { Children = { text, new TextBlock { Text = "Control value" } } };
 
         string extracted = SettingsSearchTextExtractor.Read([cardLayout]);
 
-        Assert.Equal("Card title. Card description. Control value", extracted);
+        Assert.Equal(expected: "Card title. Card description. Control value", extracted);
     }
 
     [Fact]
@@ -549,13 +545,13 @@ public sealed class SettingsSearchScorerTests
         };
         SettingsSearchView view = new(
             new TextBlock(),
-            "No settings match \"{0}\".",
-            [new SettingsSearchPageSource("General", page)]);
+            noMatchesFormat: "No settings match \"{0}\".",
+            [new SettingsSearchPageSource(Label: "General", page)]);
         SettingsSearchDocument document = Assert.Single(view.ReadDocuments());
 
-        HashSet<int> matches = SettingsSearchScorer.FindMatches("boot", [document]);
+        HashSet<int> matches = SettingsSearchScorer.FindMatches(query: "boot", [document]);
 
-        Assert.Equal("launch login boot", document.SearchKeywords);
+        Assert.Equal(expected: "launch login boot", document.SearchKeywords);
         Assert.Contains(document.ID, matches);
     }
 

@@ -1,12 +1,10 @@
 using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Utils;
 using TrayAppDotNETCommon.Visuals;
 
@@ -20,8 +18,10 @@ internal static class SearchableListBoxLayout
     public static double ListHeight => AXAMLResources.AxamlSearchableListBox.ListHeight;
     public static double SearchBoxHeight => AXAMLResources.AxamlSearchableListBox.SearchBoxHeight;
     public static double SearchBoxFontSize => AXAMLResources.AxamlSearchableListBox.SearchBoxFontSize;
+
     public static Thickness SearchBoxBorderThickness =>
         AXAMLResources.AxamlSearchableListBox.SearchBoxBorderThickness;
+
     public static Thickness SearchBoxPadding => AXAMLResources.AxamlSearchableListBox.SearchBoxPadding;
     public static double ClearButtonWidth => AXAMLResources.AxamlSearchableListBox.ClearButtonWidth;
     public static double ClearButtonHeight => AXAMLResources.AxamlSearchableListBox.ClearButtonHeight;
@@ -112,19 +112,16 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
 
         _searchRow = new Grid
         {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         _searchRow.Children.Add(_searchBox);
-        Grid.SetColumn(_clearButton, 1);
+        SetColumn(_clearButton, value: 1);
         _searchRow.Children.Add(_clearButton);
         Children.Add(_searchRow);
 
         _itemsPanel = new StackPanel();
-        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(_itemsPanel, palette, SearchableListBoxLayout.ScrollHostPadding);
+        _scrollHost =
+            TrayAppDotNETSettingsUI.ScrollHost(_itemsPanel, palette, SearchableListBoxLayout.ScrollHostPadding);
         _scrollHost.Height = SearchableListBoxLayout.ListHeight;
         _scrollHost.VerticalAlignment = VerticalAlignment.Stretch;
 
@@ -139,7 +136,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             ClipToBounds = true,
             Child = _scrollHost
         };
-        Grid.SetRow(_listBorder, 1);
+        SetRow(_listBorder, value: 1);
         Children.Add(_listBorder);
 
         _searchBox.TextChanged += OnSearchTextChanged;
@@ -185,7 +182,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
                 return;
             }
 
-            double height = Math.Max(1, value);
+            double height = Math.Max(val1: 1, value);
             _listBorder.Height = height;
             _listBorder.VerticalAlignment = VerticalAlignment.Top;
             _scrollHost.Height = height;
@@ -196,7 +193,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     public double SearchBoxHeight
     {
         get => _searchBox.Height;
-        set => _searchBox.Height = Math.Max(1, value);
+        set => _searchBox.Height = Math.Max(val1: 1, value);
     }
 
     public Thickness SearchBoxPadding
@@ -208,7 +205,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     public double ClearButtonWidth
     {
         get => _clearButton.Width;
-        set => _clearButton.Width = Math.Max(1, value);
+        set => _clearButton.Width = Math.Max(val1: 1, value);
     }
 
     public double ClearButtonHeight
@@ -216,7 +213,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         get => _clearButton.Height;
         set
         {
-            double height = Math.Max(1, value);
+            double height = Math.Max(val1: 1, value);
             _clearButton.Height = height;
             _clearButton.MinHeight = height;
         }
@@ -225,7 +222,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     public double ClearButtonFontSize
     {
         get => _clearButton.Label.FontSize;
-        set => _clearButton.Label.FontSize = Math.Max(1, value);
+        set => _clearButton.Label.FontSize = Math.Max(val1: 1, value);
     }
 
     public Thickness ClearButtonMargin
@@ -297,7 +294,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         get => _itemFontSize;
         set
         {
-            _itemFontSize = Math.Max(1, value);
+            _itemFontSize = Math.Max(val1: 1, value);
             RebuildItems();
         }
     }
@@ -406,10 +403,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
                 empty.Opacity = SearchableListBoxLayout.EmptyOpacity;
                 Border emptyHost = new()
                 {
-                    Background = Brushes.Transparent,
-                    Padding = _itemPadding,
-                    Margin = _itemMargin,
-                    Child = empty
+                    Background = Brushes.Transparent, Padding = _itemPadding, Margin = _itemMargin, Child = empty
                 };
                 candidatePanel.Children.Add(emptyHost);
             }
@@ -510,7 +504,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         if (index < 0)
             index = delta >= 0 ? -1 : 0;
 
-        int nextIndex = Math.Clamp(index + delta, 0, _visibleItems.Count - 1);
+        int nextIndex = Math.Clamp(index + delta, min: 0, _visibleItems.Count - 1);
         SettingsSearchableListBoxItem activeItem = _visibleItems[nextIndex];
         RebuildItems(_selectedItem, activeItem);
         QueueScrollActiveItemIntoView();
@@ -560,7 +554,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         if (index < 0 || index >= _itemsPanel.Children.Count) return;
         if (_itemsPanel.Children[index] is not { } row) return;
 
-        Point? rowPoint = row.TranslatePoint(new Point(0, 0), _itemsPanel);
+        Point? rowPoint = row.TranslatePoint(new Point(x: 0, y: 0), _itemsPanel);
         if (!rowPoint.HasValue) return;
 
         double viewportHeight = _scrollHost.ViewportHeight;
@@ -584,7 +578,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     /// <summary>Releases generated rows, queued work, and event handlers.</summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
         KeyDown -= OnKeyboardNavigation;
@@ -838,14 +832,14 @@ internal sealed class SettingsSearchableListBoxItemRow : Border, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         PointerEntered -= OnPointerEntered;
         PointerExited -= OnPointerExited;
         PointerPressed -= OnPointerPressed;
         KeyDown -= OnKeyDown;
         Child = null;
-        Control? content = Interlocked.Exchange(ref _content, null);
+        Control? content = Interlocked.Exchange(ref _content, value: null);
         if (content is IDisposable disposable)
             disposable.Dispose();
     }

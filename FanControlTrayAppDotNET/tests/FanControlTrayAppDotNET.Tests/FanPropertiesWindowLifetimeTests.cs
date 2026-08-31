@@ -14,7 +14,7 @@ public sealed class FanPropertiesWindowLifetimeTests
         bool cancel = FanPropertiesWindow.ShouldCancelPinnedClose(
             forceClose: false,
             isPinned: true,
-            closeReason: closeReason);
+            closeReason);
 
         Assert.True(cancel);
     }
@@ -28,7 +28,7 @@ public sealed class FanPropertiesWindowLifetimeTests
         bool cancel = FanPropertiesWindow.ShouldCancelPinnedClose(
             forceClose: false,
             isPinned: true,
-            closeReason: closeReason);
+            closeReason);
 
         Assert.False(cancel);
     }
@@ -39,7 +39,7 @@ public sealed class FanPropertiesWindowLifetimeTests
         bool cancel = FanPropertiesWindow.ShouldCancelPinnedClose(
             forceClose: true,
             isPinned: true,
-            closeReason: WindowCloseReason.WindowClosing);
+            WindowCloseReason.WindowClosing);
 
         Assert.False(cancel);
     }

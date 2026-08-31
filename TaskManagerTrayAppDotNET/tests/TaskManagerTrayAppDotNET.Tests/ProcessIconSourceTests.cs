@@ -28,11 +28,11 @@ public sealed class ProcessIconSourceTests
     public void CacheComparerIgnoresWindowsIdentityCasing()
     {
         ProcessIconSource left = new(
-            "C:\\Apps\\Example.exe",
-            "Example.Package_123!App");
+            ExecutablePath: "C:\\Apps\\Example.exe",
+            ApplicationUserModelID: "Example.Package_123!App");
         ProcessIconSource right = new(
-            "c:\\apps\\EXAMPLE.EXE",
-            "example.package_123!APP");
+            ExecutablePath: "c:\\apps\\EXAMPLE.EXE",
+            ApplicationUserModelID: "example.package_123!APP");
 
         bool areEqual = ProcessIconSourceComparer.Instance.Equals(left, right);
         int leftHash = ProcessIconSourceComparer.Instance.GetHashCode(left);
@@ -45,8 +45,8 @@ public sealed class ProcessIconSourceTests
     [Fact]
     public void CacheComparerKeepsDistinctExecutablePathsSeparate()
     {
-        ProcessIconSource left = new("C:\\Apps\\One\\Example.exe", null);
-        ProcessIconSource right = new("C:\\Apps\\Two\\Example.exe", null);
+        ProcessIconSource left = new(ExecutablePath: "C:\\Apps\\One\\Example.exe", ApplicationUserModelID: null);
+        ProcessIconSource right = new(ExecutablePath: "C:\\Apps\\Two\\Example.exe", ApplicationUserModelID: null);
 
         Assert.False(ProcessIconSourceComparer.Instance.Equals(left, right));
     }

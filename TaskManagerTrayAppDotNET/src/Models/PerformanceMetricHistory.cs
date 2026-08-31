@@ -22,7 +22,7 @@ internal sealed class PerformanceMetricHistory
         int normalizedHistoryLength = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
             historyLengthMinutes);
         _windowDurationTicks = checked(
-            (long)Stopwatch.Frequency * normalizedHistoryLength * SecondsPerMinute);
+            Stopwatch.Frequency * normalizedHistoryLength * SecondsPerMinute);
     }
 
     public int Count { get; private set; }
@@ -32,7 +32,7 @@ internal sealed class PerformanceMetricHistory
     /// <summary>Adds one finite raw value without normalizing it to a percentage.</summary>
     public void Add(long timestamp, double value)
     {
-        double normalizedValue = double.IsFinite(value) ? Math.Max(0, value) : 0;
+        double normalizedValue = double.IsFinite(value) ? Math.Max(val1: 0, value) : 0;
         AdvanceTo(timestamp);
         if (Count > 0)
         {

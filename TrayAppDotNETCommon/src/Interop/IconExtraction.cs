@@ -86,7 +86,9 @@ public static unsafe partial class IconExtraction
     [StructLayout(LayoutKind.Sequential)]
     public struct ICONINFO
     {
-        [MarshalAs(UnmanagedType.Bool)] public bool fIcon;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fIcon;
+
         public uint xHotspot;
         public uint yHotspot;
         public IntPtr hbmMask;

@@ -11,7 +11,7 @@ public sealed partial class AppThemeResources : ResourceDictionary
     public AppThemeResources() => AvaloniaXamlLoader.Load(this);
 
     /// <summary>Reads a volume theme color from this dictionary.</summary>
-    public Color Color(string name) => AppThemeResourceReader.SingleColor(this, "VolumeAppTheme", name);
+    public Color Color(string name) => AppThemeResourceReader.SingleColor(this, prefix: "VolumeAppTheme", name);
 }
 
 internal static class AppThemeColorCatalog
@@ -19,7 +19,7 @@ internal static class AppThemeColorCatalog
 #if DEBUG
     private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
         AppThemeHotReloadStore<AppThemeResources>.Create(
-            "Volume",
+            catalogName: "Volume",
             static () => new AppThemeResources());
 #else
     private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());

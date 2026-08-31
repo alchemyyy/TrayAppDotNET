@@ -16,8 +16,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayScrollEnabled,
             v => _settings.TrayScrollEnabled = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
-            searchKeywords:
+            () => RebuildShell(BrightnessSettingsPage.TrayIcon),
             [
                 L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_SearchKeywords))
             ]));
@@ -29,8 +28,7 @@ public sealed partial class BrightnessSettingsWindow
             AppSettings.FlyoutScrollWheelStepMax,
             v => _settings.FlyoutScrollWheelStep = v,
             p,
-            "%",
-            searchKeywords:
+            suffix: "%",
             [
                 L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_SearchKeywords))
             ])));
@@ -40,24 +38,23 @@ public sealed partial class BrightnessSettingsWindow
             _settings.PrecisionTouchpadScrollEnabled,
             v => _settings.PrecisionTouchpadScrollEnabled = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
-            searchKeywords:
+            () => RebuildShell(BrightnessSettingsPage.TrayIcon),
             [
                 L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords))
             ])));
-        stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title)),
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description)),
-            _settings.PrecisionTouchpadUnitsPerScrollStep,
-            AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
-            AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
-            v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
-            p,
-            L(nameof(AppStrings.Common_PercentSuffix)),
-            searchKeywords:
-            [
-                L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
-            ])));
+        stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true },
+            IntCard(
+                L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title)),
+                L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description)),
+                _settings.PrecisionTouchpadUnitsPerScrollStep,
+                AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
+                AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
+                v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
+                p,
+                L(nameof(AppStrings.Common_PercentSuffix)),
+                [
+                    L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
+                ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_TrayIcon_ContextMenu_Header)),
@@ -113,7 +110,7 @@ public sealed partial class BrightnessSettingsWindow
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Description)),
             p,
-            new Avalonia.Thickness(0, 0, 0, 8)));
+            new Avalonia.Thickness(left: 0, top: 0, right: 0, bottom: 8)));
         AddWheelActionCard(
             stack,
             L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title)),

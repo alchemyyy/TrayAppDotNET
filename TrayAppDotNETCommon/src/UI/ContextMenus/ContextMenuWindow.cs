@@ -25,7 +25,7 @@ public sealed record ContextMenuEntry(string Text, Action Click)
     public Glyph? LeadingGlyph { get; init; }
     public string? TrailingGlyph { get; init; }
     public Glyph? TrailingGlyphMetadata { get; init; }
-    public Func<IReadOnlyList<ContextMenuEntry>>? SubmenuFactory { get; init; }
+    public Func<IReadOnlyList<ContextMenuEntry>?>? SubmenuFactory { get; init; }
     public Action<bool>? HoverChanged { get; init; }
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
@@ -38,7 +38,8 @@ public sealed class ContextMenuEntryBuilder
 
     public int Count => _entries.Count;
 
-    public void Add(string text, Action click, string? trailingGlyph = null) => Add(new ContextMenuEntry(text, click) { TrailingGlyph = trailingGlyph });
+    public void Add(string text, Action click, string? trailingGlyph = null) =>
+        Add(new ContextMenuEntry(text, click) { TrailingGlyph = trailingGlyph });
 
     public void AddSubmenu(string text, Func<IReadOnlyList<ContextMenuEntry>> submenuFactory) =>
         Add(new ContextMenuEntry(text, static () => { }) { SubmenuFactory = submenuFactory });
@@ -70,6 +71,7 @@ public class ContextMenuWindowOptions
 
     /// <summary>Sets the minimum highlighted item height, or uses automatic sizing when left as NaN.</summary>
     public double ItemHeight { get; init; } = double.NaN;
+
     public Color? SeparatorColor { get; init; }
     public Color? ShadowColor { get; init; }
     public bool ScrollToBottom { get; init; }
@@ -89,6 +91,7 @@ public class ContextMenuWindowOptions
     public string SubmenuGlyph { get; init; } = "\uE76C";
     public ITrayAppDotNETTrayMenuSettings? ContextMenuSettings { get; init; }
     public bool UseSystemSubmenuShowDelay { get; init; }
+
     public int SubmenuShowDelayMilliseconds { get; init; } =
         TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
@@ -103,10 +106,10 @@ public class ContextMenuWindowOptions
     public Thickness RootPadding { get; init; } = new(2);
     public CornerRadius ItemCornerRadius { get; init; } = new(4);
     public Thickness ItemPadding { get; init; } = new(6);
-    public Thickness ItemMargin { get; init; } = new(2, 0);
-    public Thickness RuleMargin { get; init; } = new(-2, 0);
-    public Thickness LeadingGlyphMargin { get; init; } = new(0, 0, 8, 0);
-    public Thickness TrailingGlyphMargin { get; init; } = new(24, 0, 0, 0);
+    public Thickness ItemMargin { get; init; } = new(horizontal: 2, vertical: 0);
+    public Thickness RuleMargin { get; init; } = new(horizontal: -2, vertical: 0);
+    public Thickness LeadingGlyphMargin { get; init; } = new(left: 0, top: 0, right: 8, bottom: 0);
+    public Thickness TrailingGlyphMargin { get; init; } = new(left: 24, top: 0, right: 0, bottom: 0);
     public double ItemMinWidth { get; init; } = 150;
     public double RuleHeight { get; init; } = 1;
     public double RowRuleSpacing { get; init; } = 4;
@@ -140,10 +143,8 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     public event EventHandler? WarmDismissed;
 
     public ContextMenuWindow(IReadOnlyList<ContextMenuEntry> entries, ContextMenuWindowOptions options)
-        : this(options, parentMenu: null)
-    {
+        : this(options, parentMenu: null) =>
         InitializeStandardMenu(entries);
-    }
 
     /// <summary>Initializes the common menu window shell for a derived menu control.</summary>
     protected ContextMenuWindow(ContextMenuWindowOptions options)
@@ -220,7 +221,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             _submenuHoverTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(Math.Max(1, ResolveSubmenuShowDelayMilliseconds()))
+                Interval = TimeSpan.FromMilliseconds(Math.Max(val1: 1, ResolveSubmenuShowDelayMilliseconds()))
             };
             _submenuHoverTimer.Tick += OnSubmenuHoverTimerTick;
             _windowResources.Add(() =>
@@ -430,7 +431,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         if (ReferenceEquals(owner, _childMenuOwner) && _childMenu is { IsVisible: true }) return;
 
         CloseChildMenu();
-        Func<IReadOnlyList<ContextMenuEntry>>? submenuFactory = entry.SubmenuFactory;
+        Func<IReadOnlyList<ContextMenuEntry>?>? submenuFactory = entry.SubmenuFactory;
         if (submenuFactory == null) return;
 
         IReadOnlyList<ContextMenuEntry> submenuEntries;
@@ -448,10 +449,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         if (submenuEntries.Count == 0) return;
 
-        ContextMenuWindow childMenu = new(submenuEntries, _options, this)
-        {
-            ShowActivated = false
-        };
+        ContextMenuWindow childMenu = new(submenuEntries, _options, this) { ShowActivated = false };
         _childMenu = childMenu;
         _childMenuOwner = owner;
         owner.SetSubmenuOpen(true);
@@ -472,7 +470,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private void ShowAsSubmenu(ContextMenuItemControl owner)
     {
         ContextMenuWindow parentMenu = _parentMenu
-                                    ?? throw new InvalidOperationException("A submenu requires a parent menu.");
+                                       ?? throw new InvalidOperationException("A submenu requires a parent menu.");
         Opacity = 0;
         Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
         Show(parentMenu);
@@ -625,7 +623,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         TrayWorkArea.Resolve(
             Screens,
             cursorPoint,
-            new PixelRect(0, 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight));
+            new PixelRect(x: 0, y: 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight));
 
     internal static PixelPoint ResolveOverlayPosition(
         PixelRect containingBounds,
@@ -648,20 +646,20 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     internal static int ResolveOverlayAvailableHeight(PixelRect containingBounds, PixelRect anchorBounds) =>
         Math.Max(
-            1,
+            val1: 1,
             anchorBounds.Center.Y >= containingBounds.Center.Y
                 ? anchorBounds.Y - containingBounds.Y
                 : containingBounds.Bottom - anchorBounds.Bottom);
 
     private static PixelRect ScreenBounds(Control control)
     {
-        PixelPoint topLeft = control.PointToScreen(new Point(0, 0));
+        PixelPoint topLeft = control.PointToScreen(new Point(x: 0, y: 0));
         PixelPoint bottomRight = control.PointToScreen(new Point(control.Bounds.Width, control.Bounds.Height));
         return new PixelRect(
             topLeft.X,
             topLeft.Y,
-            Math.Max(1, bottomRight.X - topLeft.X),
-            Math.Max(1, bottomRight.Y - topLeft.Y));
+            Math.Max(val1: 1, bottomRight.X - topLeft.X),
+            Math.Max(val1: 1, bottomRight.Y - topLeft.Y));
     }
 
     private void ScrollToBottom()
@@ -669,7 +667,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         ScrollViewer? scrollViewer = _scrollViewer;
         if (scrollViewer == null) return;
 
-        double maxOffset = Math.Max(0, scrollViewer.Extent.Height - scrollViewer.Viewport.Height);
+        double maxOffset = Math.Max(val1: 0, scrollViewer.Extent.Height - scrollViewer.Viewport.Height);
         scrollViewer.Offset = new Vector(scrollViewer.Offset.X, maxOffset);
     }
 
@@ -814,7 +812,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             parentMenu._childMenuOwner = null;
         }
 
-        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, value: null);
         try
         {
             Content = null;
@@ -860,16 +858,14 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private static int ResolveSystemSubmenuShowDelayMilliseconds()
     {
         if (OperatingSystem.IsWindows() &&
-            User32.SystemParametersInfo(User32.SPI_GETMENUSHOWDELAY, 0, out int delayMilliseconds, 0))
-        {
-            return Math.Clamp(delayMilliseconds, 0, TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
-        }
+            User32.SystemParametersInfo(User32.SPI_GETMENUSHOWDELAY, uiParam: 0, out int delayMilliseconds, fWinIni: 0))
+            return Math.Clamp(delayMilliseconds, min: 0, TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
 
         return TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
     }
 
     private int ResolveSubmenuShowDelayMilliseconds() =>
-        (_options.ContextMenuSettings?.UseSystemSubmenuShowDelay ?? _options.UseSystemSubmenuShowDelay)
+        _options.ContextMenuSettings?.UseSystemSubmenuShowDelay ?? _options.UseSystemSubmenuShowDelay
             ? SystemSubmenuShowDelayMilliseconds
             : Math.Clamp(
                 _options.ContextMenuSettings?.SubmenuShowDelayMs ?? _options.SubmenuShowDelayMilliseconds,
@@ -925,7 +921,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 new RowDefinition(new GridLength(entry.HasBottomRule ? options.RowRuleSpacing : options.RowSpacing)));
             layout.RowDefinitions.Add(new RowDefinition(new GridLength(entry.HasBottomRule ? options.RuleHeight : 0)));
 
-            Grid.SetRow(_itemBorder, 1);
+            Grid.SetRow(_itemBorder, value: 1);
             layout.Children.Add(_itemBorder);
 
             Border rule = new()
@@ -935,7 +931,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 Margin = options.RuleMargin,
                 IsVisible = entry.HasBottomRule
             };
-            Grid.SetRow(rule, 3);
+            Grid.SetRow(rule, value: 3);
             layout.Children.Add(rule);
 
             Child = layout;
@@ -985,11 +981,11 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 leadingGlyphText.Margin = options.LeadingGlyphMargin;
                 leadingGlyphText.HorizontalAlignment = HorizontalAlignment.Center;
                 leadingGlyphText.VerticalAlignment = VerticalAlignment.Center;
-                Grid.SetColumn(leadingGlyphText, 0);
+                Grid.SetColumn(leadingGlyphText, value: 0);
                 content.Children.Add(leadingGlyphText);
             }
 
-            Grid.SetColumn(label, 1);
+            Grid.SetColumn(label, value: 1);
             content.Children.Add(label);
 
             if (string.IsNullOrEmpty(resolvedTrailingGlyph))
@@ -1005,7 +1001,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 trailingGlyphText.FontFamily = TrayAppDotNETSettingsUI.IconFont;
             trailingGlyphText.Margin = options.TrailingGlyphMargin;
             trailingGlyphText.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(trailingGlyphText, 2);
+            Grid.SetColumn(trailingGlyphText, value: 2);
             content.Children.Add(trailingGlyphText);
 
             return content;
@@ -1032,7 +1028,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = true;
             UpdateVisual();
-            _itemHoverChanged(this, _entry, true);
+            _itemHoverChanged(this, _entry, arg3: true);
             _hoverChanged?.Invoke(true);
         }
 
@@ -1041,7 +1037,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = false;
             UpdateVisual();
-            _itemHoverChanged(this, _entry, false);
+            _itemHoverChanged(this, _entry, arg3: false);
             _hoverChanged?.Invoke(false);
         }
 
@@ -1070,7 +1066,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             if (_disposed) return;
             bool invokesEntry = e.Key is Key.Enter or Key.Space ||
-                                e.Key == Key.Right && _entry.SubmenuFactory != null;
+                                (e.Key == Key.Right && _entry.SubmenuFactory != null);
             if (!invokesEntry) return;
 
             _invoke(this, _entry);
@@ -1083,7 +1079,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             _disposed = true;
             if (_isPointerOver)
             {
-                _itemHoverChanged(this, _entry, false);
+                _itemHoverChanged(this, _entry, arg3: false);
                 _hoverChanged?.Invoke(false);
             }
 

@@ -110,6 +110,7 @@ internal sealed class ControlHoverInspectorSession : IDisposable
         nameof(ControlHoverInspectorSession),
         exception => TADNLog.Log(
             $"Control hover inspector cleanup failed: {exception.GetType().Name}: {exception.Message}"));
+
     private readonly ControlHoverInspectorCaptureQueue _captureQueue;
 
     private ControlHoverInspectorWindow? _inspectorWindow;
@@ -251,9 +252,7 @@ internal sealed class ControlHoverInspectorSession : IDisposable
         if (!_captureQueue.HasPendingCapture
             && ReferenceEquals(topLevel, _lastTopLevel)
             && ReferenceEquals(hitElement, _lastHitElement))
-        {
             return;
-        }
 
         _captureQueue.Enqueue(topLevel, hitElement);
     }
@@ -382,7 +381,6 @@ internal sealed class ControlHoverInspectorSession : IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

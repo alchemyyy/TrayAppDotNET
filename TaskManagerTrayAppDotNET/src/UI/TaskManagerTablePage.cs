@@ -2,8 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
@@ -23,7 +21,6 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private readonly List<HeaderActionRegistration> _headerActionRegistrations = [];
     private readonly TaskManagerTableControl _table;
     private readonly SettingsScrollViewport _tableScrollViewport;
-    private readonly TaskManagerResizeGrip _resizeGrip;
     private readonly Border _columnHeaderBorder;
     private readonly Grid _informationHost;
     private readonly TextBlock _emptyMessage;
@@ -70,7 +67,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        _runTaskButton = AddHeaderAction("Run new task", OnRunTaskClick);
+        _runTaskButton = AddHeaderAction(label: "Run new task", OnRunTaskClick);
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
@@ -94,21 +91,17 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
         _runInput.PlaceholderText = "Executable, document, or URI";
         _runInput.KeyDown += OnRunInputKeyDown;
-        _submitRunButton = TrayAppDotNETSettingsUI.Button("Run", palette);
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button("Cancel", palette);
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel();
         _runPanel.IsVisible = false;
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
         MainContent.Children.Add(_runPanel);
 
-        _informationHost = new Grid
-        {
-            Margin = resources.AxamlTaskManagerTable.InformationMargin,
-            IsVisible = false
-        };
-        Grid.SetRow(_informationHost, 1);
+        _informationHost = new Grid { Margin = resources.AxamlTaskManagerTable.InformationMargin, IsVisible = false };
+        SetRow(_informationHost, value: 1);
         MainContent.Children.Add(_informationHost);
 
         _table = new TaskManagerTableControl(
@@ -126,27 +119,24 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
 
         Grid tableSurface = new();
         tableSurface.Children.Add(_table);
-        _emptyMessage = TrayAppDotNETSettingsUI.DescriptionText("No items to display.", palette);
+        _emptyMessage = TrayAppDotNETSettingsUI.DescriptionText(text: "No items to display.", palette);
         _emptyMessage.HorizontalAlignment = HorizontalAlignment.Center;
         _emptyMessage.VerticalAlignment = VerticalAlignment.Center;
         _emptyMessage.IsHitTestVisible = false;
         tableSurface.Children.Add(_emptyMessage);
 
-        _resizeGrip = new TaskManagerResizeGrip(resources);
+        TaskManagerResizeGrip resizeGrip = new(resources);
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
-            default,
+            padding: default,
             resources.AxamlProcessTable.GridBackgroundColor,
             TaskManagerScrollBarStyles.CreateProcessGrid(resources),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,
                 settings),
-            _resizeGrip,
-            overlayVerticalScrollBar: true)
-        {
-            Margin = resources.AxamlTaskManagerDetails.TableMargin
-        };
+            resizeGrip,
+            overlayVerticalScrollBar: true) { Margin = resources.AxamlTaskManagerDetails.TableMargin };
         _tableScrollViewport.SetVerticalScrollBarTopInset(resources.AxamlProcessTable.HeaderHeight);
         _columnHeaderBorder = new Border
         {
@@ -156,9 +146,9 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             IsHitTestVisible = false
         };
         ApplyColumnHeaderBorderResources();
-        Grid.SetColumnSpan(_columnHeaderBorder, 2);
+        SetColumnSpan(_columnHeaderBorder, value: 2);
         _tableScrollViewport.Children.Add(_columnHeaderBorder);
-        Grid.SetRow(_tableScrollViewport, 2);
+        SetRow(_tableScrollViewport, value: 2);
         MainContent.Children.Add(_tableScrollViewport);
 
         AttachedToVisualTree += OnAttachedToVisualTree;
@@ -181,12 +171,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         if (!_searchBox.IsEffectivelyVisible
             || _searchBox.Bounds.Width <= 0
             || topLevel == null)
-        {
             return false;
-        }
 
         PixelPoint screenLeft = _searchBox.PointToScreen(default);
-        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, 0));
+        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, y: 0));
         searchWidth = Math.Abs(screenRight.X - screenLeft.X);
         return searchWidth > 0;
     }
@@ -263,7 +251,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         button.Padding = _resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
         button.Label.FontSize = _resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
         GlyphApplicator.ApplyTo(button.Label, TaskManagerGlyphCatalog.MORE);
-        TrayAppDotNETToolTip.SetTip(button, "More");
+        TrayAppDotNETToolTip.SetTip(button, tip: "More");
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
         return button;
     }
@@ -307,7 +295,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             _settings);
         _actionMenuWindow = menuWindow;
         menuWindow.Closed += OnActionMenuClosed;
-        menuWindow.ShowAt(owner, anchor.PointToScreen(new Point(0, anchor.Bounds.Height)));
+        menuWindow.ShowAt(owner, anchor.PointToScreen(new Point(x: 0, anchor.Bounds.Height)));
     }
 
     protected virtual void HandleSelectedRowChanged(TaskManagerTableRow? row)
@@ -329,15 +317,13 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             ColumnSpacing = _resources.AxamlTaskManagerDetails.ToolbarSpacing,
             ColumnDefinitions =
             {
-                inputColumn,
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
+                inputColumn, new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Auto)
             }
         };
         actions.Children.Add(_runInput);
-        Grid.SetColumn(_submitRunButton, 1);
+        SetColumn(_submitRunButton, value: 1);
         actions.Children.Add(_submitRunButton);
-        Grid.SetColumn(_cancelRunButton, 2);
+        SetColumn(_cancelRunButton, value: 2);
         actions.Children.Add(_cancelRunButton);
         return new Border
         {
@@ -446,7 +432,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private void ApplyColumnHeaderBorderResources()
     {
         double borderThickness = _resources.AxamlProcessTable.GridLineThickness;
-        _columnHeaderBorder.BorderThickness = new Thickness(0, 0, 0, borderThickness);
+        _columnHeaderBorder.BorderThickness = new Thickness(left: 0, top: 0, right: 0, borderThickness);
         _columnHeaderBorder.Height = _resources.AxamlProcessTable.HeaderHeight + borderThickness / 2;
     }
 
@@ -534,6 +520,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             HeaderActionRegistration registration = _headerActionRegistrations[registrationIndex];
             registration.Button.Click -= registration.ClickHandler;
         }
+
         _headerActionRegistrations.Clear();
         CloseActionMenu();
         SelectedRowChanged = null;

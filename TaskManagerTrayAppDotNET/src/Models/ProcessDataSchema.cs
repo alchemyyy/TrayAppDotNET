@@ -94,18 +94,14 @@ internal sealed class ProcessDataSchema
             if (definition.Lifetime == ProcessTableColumnLifetime.Static
                 && !storesText
                 && UsesIdentityNumericStorage(definition.Kind))
-            {
                 continue;
-            }
 
             if (definition.Lifetime == ProcessTableColumnLifetime.Static
                 && storesText
                 && UsesIdentityTextStorage(definition.Kind))
-            {
                 continue;
-            }
 
-            switch ((definition.Lifetime, storesText))
+            switch (definition.Lifetime, storesText)
             {
                 case (ProcessTableColumnLifetime.Static, false):
                     staticNumericSlots[definitionIndex] = staticNumericCount;
@@ -169,7 +165,7 @@ internal sealed class ProcessDataSchema
     private static int[] CreateEmptySlots(int count)
     {
         int[] slots = new int[count];
-        Array.Fill(slots, -1);
+        Array.Fill(slots, value: -1);
         return slots;
     }
 }

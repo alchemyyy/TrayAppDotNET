@@ -1,7 +1,6 @@
 #if DEBUG
 using System.Reflection;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
 using TaskManagerTrayAppDotNET.UI;
@@ -23,7 +22,7 @@ public sealed class TaskManagerReorderListLifetimeTests
     [Fact]
     public async Task FailedInitialRowBuildDoesNotSubscribeToStaticHotReloadEvents()
     {
-        using HeadlessUnitTestSession session =
+        await using HeadlessUnitTestSession session =
             HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
         await session.Dispatch(
             static () =>
@@ -34,7 +33,7 @@ public sealed class TaskManagerReorderListLifetimeTests
                 int glyphSubscriberCount = GetStaticEventSubscriberCount(
                     typeof(GlyphCatalogHotReload),
                     nameof(GlyphCatalogHotReload.ResourcesReloaded));
-                List<ReorderItem> items = [new ReorderItem("Item")];
+                List<ReorderItem> items = [new("Item")];
 
                 InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
                     _ = new TaskManagerReorderList<ReorderItem>(
@@ -44,7 +43,7 @@ public sealed class TaskManagerReorderListLifetimeTests
                         CreatePalette(),
                         enableRoundedCorners: true));
 
-                Assert.Equal("expected builder failure", exception.Message);
+                Assert.Equal(expected: "expected builder failure", exception.Message);
                 Assert.Equal(
                     reorderSubscriberCount,
                     GetStaticEventSubscriberCount(
@@ -62,10 +61,10 @@ public sealed class TaskManagerReorderListLifetimeTests
     private static int GetStaticEventSubscriberCount(Type ownerType, string eventName)
     {
         FieldInfo eventField = ownerType.GetField(
-                eventName,
-                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException(
-                $"Static event backing field '{ownerType.FullName}.{eventName}' was not found.");
+                                   eventName,
+                                   BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                               ?? throw new InvalidOperationException(
+                                   $"Static event backing field '{ownerType.FullName}.{eventName}' was not found.");
         Delegate? handlers = eventField.GetValue(null) as Delegate;
         return handlers?.GetInvocationList().Length ?? 0;
     }
@@ -98,9 +97,7 @@ public sealed class TaskManagerReorderListLifetimeTests
         public string Name { get; } = name;
     }
 
-    private sealed class TestApplication : Application
-    {
-    }
+    private sealed class TestApplication : Application;
 
     private static class TestAppBuilder
     {

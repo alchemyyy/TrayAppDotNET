@@ -26,6 +26,6 @@ public sealed class BluetoothDeviceDisconnectorTests
     public void TryParseAddress_RejectsMissingOrMalformedAddresses(string? deviceInstanceId)
     {
         Assert.False(BluetoothDeviceDisconnector.TryParseAddress(deviceInstanceId, out ulong actual));
-        Assert.Equal(0ul, actual);
+        Assert.Equal(expected: 0ul, actual);
     }
 }

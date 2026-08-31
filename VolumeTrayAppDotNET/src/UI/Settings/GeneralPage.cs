@@ -56,15 +56,15 @@ public sealed partial class VolumeSettingsWindow
                 StoreInstallDescription));
         CreateRenderingSettingsSection(p).AddCards(stack);
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Notifications_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Notifications_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Title)),
             Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Description)),
             _settings.PlayDeviceVolumeChangeSound,
             v => _settings.PlayDeviceVolumeChangeSound = v,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords))
             ]));
@@ -94,8 +94,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying,
             v => _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying = v,
             p,
-            afterSave: RefreshCurrentPage,
-            searchKeywords:
+            RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords))
             ])));
@@ -114,7 +113,8 @@ public sealed partial class VolumeSettingsWindow
                     Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_SearchKeywords))
                 ])));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Title)),
             Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Description)),
@@ -134,7 +134,6 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.WheelVolumeStepPercent = v,
             p,
             Loc(nameof(AppStrings.Common_PercentSuffix)),
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
             ]));
@@ -209,17 +208,15 @@ public sealed partial class VolumeSettingsWindow
 
     private bool TryOwnUninstallMonitor(PostUninstallRefreshOwner owner)
     {
-        lock (_uninstallMonitorGate)
-        {
-            return !_uninstallMonitoringDisposed && _uninstallMonitors.Add(owner);
-        }
+        lock (_uninstallMonitorGate) return !_uninstallMonitoringDisposed && _uninstallMonitors.Add(owner);
     }
 
     private void OnUninstallProcessCompleted(PostUninstallRefreshOwner owner, int exitCode)
     {
         lock (_uninstallMonitorGate)
         {
-            if (!_uninstallMonitors.Remove(owner) || _uninstallMonitoringDisposed) return;
+            if (!_uninstallMonitors.Remove(owner) || _uninstallMonitoringDisposed)
+                return;
         }
 
         Dispatcher.UIThread.Post(
@@ -231,7 +228,8 @@ public sealed partial class VolumeSettingsWindow
     {
         lock (_uninstallMonitorGate)
         {
-            if (_uninstallMonitoringDisposed) return;
+            if (_uninstallMonitoringDisposed)
+                return;
         }
 
         if (IsClosing) return;
@@ -322,19 +320,19 @@ public sealed partial class VolumeSettingsWindow
             {
                 process.EnableRaisingEvents = true;
                 process.Exited += OnProcessExited;
-                if (process.HasExited) Complete(notify: true);
+                if (process.HasExited) Complete(true);
             }
             catch (Exception exception)
             {
                 if (!IsFinished)
                     TADNLog.Log($"Volume uninstall process monitoring failed: {exception.Message}");
-                Complete(notify: true);
+                Complete(true);
             }
         }
 
-        public void Dispose() => Complete(notify: false);
+        public void Dispose() => Complete(false);
 
-        private void OnProcessExited(object? sender, EventArgs e) => Complete(notify: true);
+        private void OnProcessExited(object? sender, EventArgs e) => Complete(true);
 
         private bool IsFinished
         {

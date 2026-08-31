@@ -121,8 +121,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
 
     /// <summary>Gets the currently selected shortcut options.</summary>
     public TrayAppDotNETInstallOptions SelectedInstallOptions => new(
-        CreateDesktopShortcut: _desktopShortcut.IsChecked == true,
-        CreateStartMenuShortcut: _startMenuShortcut.IsChecked == true);
+        _desktopShortcut.IsChecked == true,
+        _startMenuShortcut.IsChecked == true);
 
     private Border BuildRoot(UIResourceScope resources)
     {
@@ -132,7 +132,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         chrome.Children.Add(BuildTitleBar(resources));
 
         Grid body = BuildBody(resources);
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, value: 1);
         chrome.Children.Add(body);
 
         return new Border
@@ -150,11 +150,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         Grid titleBar = new()
         {
             Background = Brushes.Transparent,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         titleBar.PointerPressed += OnTitleBarPointerPressed;
         resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
@@ -172,7 +168,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
         resources.Add(() => close.Click -= OnCancelClick);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(close, value: 1);
         titleBar.Children.Add(close);
         return titleBar;
     }
@@ -195,26 +191,22 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
             L(nameof(CommonStrings.Installer_Description)),
             _options.Palette,
             TrayAppDotNETDialogChromeLayout.DescriptionMargin);
-        Grid.SetRow(description, 1);
+        Grid.SetRow(description, value: 1);
         body.Children.Add(description);
 
         StackPanel location = BuildLocationSelector(resources);
-        Grid.SetRow(location, 2);
+        Grid.SetRow(location, value: 2);
         body.Children.Add(location);
 
         StackPanel shortcuts = new()
         {
-            Children =
-            {
-                BuildShortcutCard(_desktopShortcut),
-                BuildShortcutCard(_startMenuShortcut)
-            }
+            Children = { BuildShortcutCard(_desktopShortcut), BuildShortcutCard(_startMenuShortcut) }
         };
-        Grid.SetRow(shortcuts, 3);
+        Grid.SetRow(shortcuts, value: 3);
         body.Children.Add(shortcuts);
 
         StackPanel buttons = BuildButtons(resources);
-        Grid.SetRow(buttons, 4);
+        Grid.SetRow(buttons, value: 4);
         body.Children.Add(buttons);
         return body;
     }
@@ -228,11 +220,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
 
         Grid buttons = new()
         {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Star)
-            },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
             Margin = TrayAppDotNETDialogChromeLayout.InstallerLocationButtonsMargin
         };
         _localLocationButton.Margin = TrayAppDotNETDialogChromeLayout.InstallerLocationButtonGap;
@@ -242,7 +230,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
 
         _systemLocationButton.Click += OnSystemLocationClick;
         resources.Add(() => _systemLocationButton.Click -= OnSystemLocationClick);
-        Grid.SetColumn(_systemLocationButton, 1);
+        Grid.SetColumn(_systemLocationButton, value: 1);
         buttons.Children.Add(_systemLocationButton);
 
         Border path = new()
@@ -415,11 +403,11 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
 
     private void DisposeCore()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _closed = true;
         _windowResources.Dispose();
-        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, value: null);
         if (contentGeneration != null)
         {
             try
@@ -461,7 +449,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
     {
         if (scope is InstallScope.LocalAppData or InstallScope.ProgramFiles) return;
 
-        throw new ArgumentOutOfRangeException(nameof(scope), scope, "The installer supports local and system scopes only.");
+        throw new ArgumentOutOfRangeException(nameof(scope), scope,
+            message: "The installer supports local and system scopes only.");
     }
 
     private static string L(string key) => LocalizationManager.Instance[key];

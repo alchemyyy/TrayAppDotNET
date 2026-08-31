@@ -45,7 +45,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            () => RebuildShell(BrightnessSettingsPage.Theme),
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
@@ -56,13 +56,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.UseWindows11SettingsNavigation,
             value => _settings.UseWindows11SettingsNavigation = value,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(BrightnessSettingsPage.Theme),
             [
                 L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "Text",
+            name: "Text",
             L(nameof(AppStrings.Settings_Theme_TextColor_Title)),
             L(nameof(AppStrings.Settings_Theme_TextColor_Description)),
             L(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
@@ -71,12 +70,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "Background",
+            name: "Background",
             L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
             L(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
             L(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
@@ -85,7 +83,6 @@ public sealed partial class BrightnessSettingsWindow
             theme.Background.Light,
             theme.Background.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
             ]));
@@ -99,8 +96,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(BrightnessSettingsPage.Theme),
             [
                 L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
@@ -133,12 +129,11 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Theme_SliderIndicator_Description)),
             sliderThumbCombo,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "FooterBackground",
+            name: "FooterBackground",
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_Title)),
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_Description)),
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_LightTooltip)),
@@ -147,7 +142,6 @@ public sealed partial class BrightnessSettingsWindow
             theme.FooterBackground.Light,
             theme.FooterBackground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_SearchKeywords))
             ]));
@@ -165,7 +159,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayIconStyle,
             v => _settings.TrayIconStyle = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            () => RebuildShell(BrightnessSettingsPage.Theme),
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_TrayIconStyle_SearchKeywords))
@@ -196,7 +190,7 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Static, VariantColorCard(
-            "TrayIcon",
+            name: "TrayIcon",
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
@@ -205,12 +199,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
-            "TrayIconBright",
+            name: "TrayIconBright",
             L(nameof(AppStrings.Settings_Theme_BrightColor_Title)),
             L(nameof(AppStrings.Settings_Theme_BrightColor_Description)),
             L(nameof(AppStrings.Settings_Theme_BrightColor_LightTooltip)),
@@ -219,12 +212,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_BrightColor_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
-            "TrayIconDim",
+            name: "TrayIconDim",
             L(nameof(AppStrings.Settings_Theme_DimColor_Title)),
             L(nameof(AppStrings.Settings_Theme_DimColor_Description)),
             L(nameof(AppStrings.Settings_Theme_DimColor_LightTooltip)),
@@ -233,7 +225,6 @@ public sealed partial class BrightnessSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_DimColor_SearchKeywords))
             ])));
@@ -242,7 +233,7 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Theme_Environmental_Header)),
             p));
         stack.Children.Add(VariantColorCard(
-            "EnvBrightnessCurve",
+            name: "EnvBrightnessCurve",
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_Title)),
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_Description)),
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_LightTooltip)),
@@ -251,12 +242,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalBrightnessCurve.Light,
             theme.EnvironmentalBrightnessCurve.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "EnvNightLightCurve",
+            name: "EnvNightLightCurve",
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_Title)),
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_Description)),
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_LightTooltip)),
@@ -265,12 +255,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalNightLightCurve.Light,
             theme.EnvironmentalNightLightCurve.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "EnvCurrentTime",
+            name: "EnvCurrentTime",
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_Title)),
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_Description)),
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_LightTooltip)),
@@ -279,12 +268,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalCurrentTime.Light,
             theme.EnvironmentalCurrentTime.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "EnvTwilightBackdrop",
+            name: "EnvTwilightBackdrop",
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_Title)),
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_Description)),
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_LightTooltip)),
@@ -293,12 +281,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalTwilightBackdrop.Light,
             theme.EnvironmentalTwilightBackdrop.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "EnvNightBackdrop",
+            name: "EnvNightBackdrop",
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_Title)),
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_Description)),
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_LightTooltip)),
@@ -307,12 +294,11 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalNightBackdrop.Light,
             theme.EnvironmentalNightBackdrop.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_NightBackdropColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "EnvGridLine",
+            name: "EnvGridLine",
             L(nameof(AppStrings.Settings_Theme_GridLineColor_Title)),
             L(nameof(AppStrings.Settings_Theme_GridLineColor_Description)),
             L(nameof(AppStrings.Settings_Theme_GridLineColor_LightTooltip)),
@@ -321,7 +307,6 @@ public sealed partial class BrightnessSettingsWindow
             theme.EnvironmentalGridLine.Light,
             theme.EnvironmentalGridLine.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_GridLineColor_SearchKeywords))
             ]));
@@ -344,11 +329,12 @@ public sealed partial class BrightnessSettingsWindow
     {
         Grid preview = new()
         {
-            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center
+            Width = 22, Margin = new Thickness(left: 0, top: 0, right: 10, bottom: 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        double width = Math.Max(1, option.Width);
-        double height = Math.Max(1, option.Height);
+        double width = Math.Max(val1: 1, option.Width);
+        double height = Math.Max(val1: 1, option.Height);
         if (option.IsCapsule)
         {
             preview.Children.Add(new Border
@@ -363,16 +349,16 @@ public sealed partial class BrightnessSettingsWindow
         }
         else
         {
-            TextBlock glyph = TrayAppDotNETSettingsUI.Text(option.Glyph, p, Math.Max(1, option.FontSize));
+            TextBlock glyph = TrayAppDotNETSettingsUI.Text(option.Glyph, p, Math.Max(val1: 1, option.FontSize));
             glyph.FontFamily = new FontFamily(option.FontFamily);
             glyph.Width = width;
             glyph.Height = height;
             glyph.TextAlignment = TextAlignment.Center;
             glyph.HorizontalAlignment = HorizontalAlignment.Center;
             glyph.VerticalAlignment = VerticalAlignment.Center;
-            glyph.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+            glyph.RenderTransformOrigin = new RelativePoint(x: 0.5, y: 0.5, RelativeUnit.Relative);
             if (Math.Abs(option.XScale - 1.0) > 0.001)
-                glyph.RenderTransform = new ScaleTransform(option.XScale, 1);
+                glyph.RenderTransform = new ScaleTransform(option.XScale, scaleY: 1);
             preview.Children.Add(glyph);
         }
 
@@ -385,7 +371,7 @@ public sealed partial class BrightnessSettingsWindow
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.Children.Add(preview);
-        Grid.SetColumn(name, 1);
+        Grid.SetColumn(name, value: 1);
         row.Children.Add(name);
         return row;
     }

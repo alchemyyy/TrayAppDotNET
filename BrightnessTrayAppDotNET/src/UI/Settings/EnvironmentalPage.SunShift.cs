@@ -7,7 +7,7 @@ public sealed partial class BrightnessSettingsWindow
 {
     private void StampSunShiftAnchor(EnvironmentalCurve curve)
     {
-        curve.LastSunShiftDate = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        curve.LastSunShiftDate = DateTime.Today.ToString(format: "yyyy-MM-dd", CultureInfo.InvariantCulture);
         curve.LastSunShiftLatitude = _settings.EnvironmentalLatitude;
         curve.LastSunShiftLongitude = _settings.EnvironmentalLongitude;
         curve.LastSunShiftUseDaylightSavings = curve.UseDaylightSavings;
@@ -24,7 +24,8 @@ public sealed partial class BrightnessSettingsWindow
 
     private void StampDisabledPeriodSunShiftAnchor(EnvironmentalCurve curve)
     {
-        curve.LastDisabledPeriodSunShiftDate = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        curve.LastDisabledPeriodSunShiftDate =
+            DateTime.Today.ToString(format: "yyyy-MM-dd", CultureInfo.InvariantCulture);
         curve.LastDisabledPeriodSunShiftLatitude = _settings.EnvironmentalLatitude;
         curve.LastDisabledPeriodSunShiftLongitude = _settings.EnvironmentalLongitude;
         curve.LastDisabledPeriodSunShiftUseDaylightSavings = curve.UseDaylightSavings;
@@ -50,7 +51,7 @@ public sealed partial class BrightnessSettingsWindow
             || string.IsNullOrEmpty(stored.LastDisabledPeriodSunShiftDate)
             || !DateTime.TryParseExact(
                 stored.LastDisabledPeriodSunShiftDate,
-                "yyyy-MM-dd",
+                format: "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out DateTime fromDate)) return (stored.DisabledPeriodStart, stored.DisabledPeriodEnd);

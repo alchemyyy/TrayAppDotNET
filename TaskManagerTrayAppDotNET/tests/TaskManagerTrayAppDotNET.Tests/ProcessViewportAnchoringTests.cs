@@ -9,8 +9,8 @@ public sealed class ProcessViewportAnchoringTests
     [Fact]
     public void SelectedProcessTakesPriorityOverHoveredProcess()
     {
-        ProcessInstanceKey selectedProcess = new(10, 100);
-        ProcessInstanceKey hoveredProcess = new(20, 200);
+        ProcessInstanceKey selectedProcess = new(ProcessID: 10, CreationTimeTicks: 100);
+        ProcessInstanceKey hoveredProcess = new(ProcessID: 20, CreationTimeTicks: 200);
 
         ProcessInstanceKey? anchorProcess = ProcessViewportAnchor.ResolveProcessIdentity(
             selectedProcess,
@@ -22,10 +22,10 @@ public sealed class ProcessViewportAnchoringTests
     [Fact]
     public void HoveredProcessIsUsedWhenThereIsNoSelection()
     {
-        ProcessInstanceKey hoveredProcess = new(20, 200);
+        ProcessInstanceKey hoveredProcess = new(ProcessID: 20, CreationTimeTicks: 200);
 
         ProcessInstanceKey? anchorProcess = ProcessViewportAnchor.ResolveProcessIdentity(
-            null,
+            selectedProcess: null,
             hoveredProcess);
 
         Assert.Equal(hoveredProcess, anchorProcess);
@@ -35,7 +35,7 @@ public sealed class ProcessViewportAnchoringTests
     public void ResolveAdjustmentCompensatesForChangedSortRank()
     {
         ProcessViewportAnchor anchor = new(
-            new ProcessInstanceKey(10, 100),
+            new ProcessInstanceKey(ProcessID: 10, CreationTimeTicks: 100),
             RowTop: 112,
             ContentHeight: 432);
 
@@ -45,7 +45,7 @@ public sealed class ProcessViewportAnchoringTests
 
         ProcessViewportAnchorAdjustment resolved = Assert.IsType<ProcessViewportAnchorAdjustment>(
             adjustment);
-        Assert.Equal(120, resolved.VerticalOffsetDelta);
+        Assert.Equal(expected: 120, resolved.VerticalOffsetDelta);
         Assert.False(resolved.ContentHeightChanged);
     }
 
@@ -53,7 +53,7 @@ public sealed class ProcessViewportAnchoringTests
     public void ResolveAdjustmentTracksMetricAndExtentChangesTogether()
     {
         ProcessViewportAnchor anchor = new(
-            new ProcessInstanceKey(10, 100),
+            new ProcessInstanceKey(ProcessID: 10, CreationTimeTicks: 100),
             RowTop: 112,
             ContentHeight: 432);
 
@@ -63,7 +63,7 @@ public sealed class ProcessViewportAnchoringTests
 
         ProcessViewportAnchorAdjustment resolved = Assert.IsType<ProcessViewportAnchorAdjustment>(
             adjustment);
-        Assert.Equal(20, resolved.VerticalOffsetDelta);
+        Assert.Equal(expected: 20, resolved.VerticalOffsetDelta);
         Assert.True(resolved.ContentHeightChanged);
     }
 
@@ -71,7 +71,7 @@ public sealed class ProcessViewportAnchoringTests
     public void ResolveAdjustmentSkipsAnUnchangedRowPosition()
     {
         ProcessViewportAnchor anchor = new(
-            new ProcessInstanceKey(10, 100),
+            new ProcessInstanceKey(ProcessID: 10, CreationTimeTicks: 100),
             RowTop: 112,
             ContentHeight: 432);
 

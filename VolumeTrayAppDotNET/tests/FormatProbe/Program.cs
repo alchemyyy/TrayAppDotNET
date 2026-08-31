@@ -959,9 +959,14 @@ internal static class Ole32
     public const uint CLSCTX_ALL = 0x17;
     public const uint COINIT_MULTITHREADED = 0x0;
 
-    [DllImport("ole32.dll")] public static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
-    [DllImport("ole32.dll")] public static extern void CoUninitialize();
-    [DllImport("ole32.dll")] public static extern int PropVariantClear(ref PROPVARIANT pvar);
+    [DllImport("ole32.dll")]
+    public static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
+
+    [DllImport("ole32.dll")]
+    public static extern void CoUninitialize();
+
+    [DllImport("ole32.dll")]
+    public static extern int PropVariantClear(ref PROPVARIANT pvar);
 }
 
 [ComImport, Guid("bcde0395-e52f-467c-8e3d-c4579291692e")]

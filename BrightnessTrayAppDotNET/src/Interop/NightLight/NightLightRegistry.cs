@@ -33,7 +33,7 @@ internal static class NightLightRegistry
     // single-flight + intermediate-collapse, not rate-limiting. Diagnostic callers can still use the synchronous
     // SetStrength method when they need immediate readback.
     private const string ThrottlerKey = "nightlight";
-    private static readonly AsyncThrottler<string> _throttler = new(0, StringComparer.Ordinal);
+    private static readonly AsyncThrottler<string> _throttler = new(cooldownMs: 0, StringComparer.Ordinal);
 
     private const string CloudStoreCurrentPath =
         @"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\";
@@ -91,10 +91,7 @@ internal static class NightLightRegistry
     /// </summary>
     public static bool IsInitialized() => GetStateStatus().IsInitialized;
 
-    public static bool IsEnabled()
-    {
-        return GetStateStatus().IsEnabled;
-    }
+    public static bool IsEnabled() => GetStateStatus().IsEnabled;
 
     /// <summary>Strength 0 (no tint) to 100 (max warmth).</summary>
     public static int GetStrength()
@@ -158,7 +155,7 @@ internal static class NightLightRegistry
     {
         if (!IsEnabled()) return false;
 
-        percent = Math.Clamp(percent, 0, 100);
+        percent = Math.Clamp(percent, min: 0, max: 100);
         WriteKelvin(NightLightKelvin.PercentToKelvin(percent));
         RefreshStateFileTime();
 
@@ -178,7 +175,7 @@ internal static class NightLightRegistry
     /// </summary>
     public static void EnqueueSetStrength(int percent, bool pulseAfterIfEnabled)
     {
-        int clamped = Math.Clamp(percent, 0, 100);
+        int clamped = Math.Clamp(percent, min: 0, max: 100);
         _ = _throttler.RunAsync(ThrottlerKey, _ => Task.Run(() =>
         {
             SetStrength(clamped);
@@ -228,7 +225,7 @@ internal static class NightLightRegistry
     /// <summary>Fire-and-forget enqueue of a kelvin update; bracket runs on the thread pool.</summary>
     public static void EnqueueSetStrengthSpaced(int percent)
     {
-        int clamped = Math.Clamp(percent, 0, 100);
+        int clamped = Math.Clamp(percent, min: 0, max: 100);
         // Push ALL of the entry-side work to the thread pool: CTS create/cancel/dispose for the resend timer,
         // throttler dictionary/lock ops, and the synchronous prefix of the throttler driver. At slider rates
         // (60+/sec) the cumulative microsecond cost of CancellationTokenSource churn alone has caused UI
@@ -262,7 +259,7 @@ internal static class NightLightRegistry
             // with two timers; the loser disposes its candidate.
             Timer candidate = new(
                 OnResendTimerFired, state: null, Timeout.Infinite, Timeout.Infinite);
-            timer = Interlocked.CompareExchange(ref _resendTimer, candidate, null) ?? candidate;
+            timer = Interlocked.CompareExchange(ref _resendTimer, candidate, comparand: null) ?? candidate;
             if (!ReferenceEquals(timer, candidate)) candidate.Dispose();
         }
 
@@ -311,7 +308,7 @@ internal static class NightLightRegistry
     /// </summary>
     public static void Shutdown()
     {
-        Timer? timer = Interlocked.Exchange(ref _resendTimer, null);
+        Timer? timer = Interlocked.Exchange(ref _resendTimer, value: null);
         if (timer == null) return;
 
         try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
@@ -404,8 +401,8 @@ internal static class NightLightRegistry
             // Insert "C2 46 01" immediately before the trailing BT_STOP byte.
             if (inner.Length == 0 || inner[^1] != 0x00) return inner;
             byte[] result = new byte[inner.Length + IsDraggingTag.Length + 1];
-            Array.Copy(inner, 0, result, 0, inner.Length - 1);
-            Array.Copy(IsDraggingTag, 0, result, inner.Length - 1, IsDraggingTag.Length);
+            Array.Copy(inner, sourceIndex: 0, result, destinationIndex: 0, inner.Length - 1);
+            Array.Copy(IsDraggingTag, sourceIndex: 0, result, inner.Length - 1, IsDraggingTag.Length);
             result[inner.Length - 1 + IsDraggingTag.Length] = 0x01; // BOOL value = true
             result[^1] = 0x00; // BT_STOP
             return result;
@@ -416,7 +413,7 @@ internal static class NightLightRegistry
             int removeLen = IsDraggingTag.Length + 1;
             if (existingPos + removeLen > inner.Length) return inner;
             byte[] result = new byte[inner.Length - removeLen];
-            Array.Copy(inner, 0, result, 0, existingPos);
+            Array.Copy(inner, sourceIndex: 0, result, destinationIndex: 0, existingPos);
             Array.Copy(inner, existingPos + removeLen, result, existingPos, inner.Length - existingPos - removeLen);
             return result;
         }
@@ -523,8 +520,8 @@ internal static class NightLightRegistry
             if (existingLen <= 0 || valueStart + existingLen > inner.Length) return inner;
 
             byte[] result = new byte[inner.Length - existingLen + newVarint.Length];
-            Array.Copy(inner, 0, result, 0, valueStart);
-            Array.Copy(newVarint, 0, result, valueStart, newVarint.Length);
+            Array.Copy(inner, sourceIndex: 0, result, destinationIndex: 0, valueStart);
+            Array.Copy(newVarint, sourceIndex: 0, result, valueStart, newVarint.Length);
             int afterValue = valueStart + existingLen;
             Array.Copy(inner, afterValue, result, valueStart + newVarint.Length, inner.Length - afterValue);
             return result;
@@ -536,9 +533,9 @@ internal static class NightLightRegistry
         if (inner.Length == 0 || inner[^1] != 0x00) return inner;
 
         byte[] inserted = new byte[inner.Length - 1 + FileTimeTag.Length + newVarint.Length + 1];
-        Array.Copy(inner, 0, inserted, 0, inner.Length - 1);
-        Array.Copy(FileTimeTag, 0, inserted, inner.Length - 1, FileTimeTag.Length);
-        Array.Copy(newVarint, 0, inserted, inner.Length - 1 + FileTimeTag.Length, newVarint.Length);
+        Array.Copy(inner, sourceIndex: 0, inserted, destinationIndex: 0, inner.Length - 1);
+        Array.Copy(FileTimeTag, sourceIndex: 0, inserted, inner.Length - 1, FileTimeTag.Length);
+        Array.Copy(newVarint, sourceIndex: 0, inserted, inner.Length - 1 + FileTimeTag.Length, newVarint.Length);
         inserted[^1] = 0x00;
         return inserted;
     }
@@ -572,9 +569,9 @@ internal static class NightLightRegistry
         layout = default;
         if (blob.Length < 20) return false;
 
-        if (!MatchesAt(blob, 0, OuterMagic)) return false;
+        if (!MatchesAt(blob, offset: 0, OuterMagic)) return false;
 
-        if (!MatchesAt(blob, 4, OuterHeader)) return false;
+        if (!MatchesAt(blob, offset: 4, OuterHeader)) return false;
 
         const int tsStart = 10;
         int tsLen = VarintLength(blob, tsStart);
@@ -697,14 +694,14 @@ internal static class NightLightRegistry
         byte[] result = new byte[size];
         int p = 0;
 
-        Array.Copy(original, 0, result, p, 10);
+        Array.Copy(original, sourceIndex: 0, result, p, length: 10);
         p += 10;
-        Array.Copy(freshTs, 0, result, p, freshTs.Length);
+        Array.Copy(freshTs, sourceIndex: 0, result, p, freshTs.Length);
         p += freshTs.Length;
-        Array.Copy(OuterInnerPrefix, 0, result, p, OuterInnerPrefix.Length);
+        Array.Copy(OuterInnerPrefix, sourceIndex: 0, result, p, OuterInnerPrefix.Length);
         p += OuterInnerPrefix.Length;
         result[p++] = (byte)newInner.Length;
-        Array.Copy(newInner, 0, result, p, newInner.Length);
+        Array.Copy(newInner, sourceIndex: 0, result, p, newInner.Length);
         p += newInner.Length;
         Array.Copy(original, layout.TailStart, result, p, tailLen);
 
@@ -741,8 +738,8 @@ internal static class NightLightRegistry
     private static byte[] InsertEnabledMarker(byte[] inner)
     {
         byte[] result = new byte[inner.Length + EnabledMarker.Length];
-        Array.Copy(inner, 0, result, 0, OuterMagic.Length);
-        Array.Copy(EnabledMarker, 0, result, OuterMagic.Length, EnabledMarker.Length);
+        Array.Copy(inner, sourceIndex: 0, result, destinationIndex: 0, OuterMagic.Length);
+        Array.Copy(EnabledMarker, sourceIndex: 0, result, OuterMagic.Length, EnabledMarker.Length);
         Array.Copy(
             inner, OuterMagic.Length,
             result, OuterMagic.Length + EnabledMarker.Length,
@@ -753,7 +750,7 @@ internal static class NightLightRegistry
     private static byte[] RemoveEnabledMarker(byte[] inner)
     {
         byte[] result = new byte[inner.Length - EnabledMarker.Length];
-        Array.Copy(inner, 0, result, 0, OuterMagic.Length);
+        Array.Copy(inner, sourceIndex: 0, result, destinationIndex: 0, OuterMagic.Length);
         Array.Copy(
             inner, OuterMagic.Length + EnabledMarker.Length,
             result, OuterMagic.Length,
@@ -766,7 +763,7 @@ internal static class NightLightRegistry
     private static byte[] Slice(byte[] src, int start, int length)
     {
         byte[] dst = new byte[length];
-        Array.Copy(src, start, dst, 0, length);
+        Array.Copy(src, start, dst, destinationIndex: 0, length);
         return dst;
     }
 

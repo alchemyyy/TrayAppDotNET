@@ -71,17 +71,13 @@ public sealed class FanFlyoutCellRetentionTests
         return new WeakReference<FanDragCellArrangement>(arrangement);
     }
 
-    private static Fan CreateFan(string name) => new()
-    {
-        FansName = name,
-        DataSourceKey = name
-    };
+    private static Fan CreateFan(string name) => new() { FansName = name, DataSourceKey = name };
 
     private static void ForceCollection()
     {
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
         }
     }

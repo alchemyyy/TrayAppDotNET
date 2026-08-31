@@ -37,11 +37,14 @@ public readonly record struct TimeCurveValueAxis(
     double DisplayMinimum,
     double DisplayMaximum)
 {
-    public static readonly TimeCurveValueAxis Percent = new(0.0, 100.0, 0.0, 100.0);
-    public static readonly TimeCurveValueAxis CenteredOffset = new(0.0, 100.0, -100.0, 100.0);
+    public static readonly TimeCurveValueAxis Percent = new(StorageMinimum: 0.0, StorageMaximum: 100.0,
+        DisplayMinimum: 0.0, DisplayMaximum: 100.0);
 
-    public double StorageRange => Math.Max(0.001, StorageMaximum - StorageMinimum);
-    public double DisplayRange => Math.Max(0.001, DisplayMaximum - DisplayMinimum);
+    public static readonly TimeCurveValueAxis CenteredOffset = new(StorageMinimum: 0.0, StorageMaximum: 100.0,
+        DisplayMinimum: -100.0, DisplayMaximum: 100.0);
+
+    public double StorageRange => Math.Max(val1: 0.001, StorageMaximum - StorageMinimum);
+    public double DisplayRange => Math.Max(val1: 0.001, DisplayMaximum - DisplayMinimum);
 
     public double ToDisplay(double storageValue) =>
         DisplayMinimum + (storageValue - StorageMinimum) / StorageRange * DisplayRange;
@@ -62,9 +65,9 @@ public readonly record struct NormalizedTimeRange(double Start, double End)
     {
         if (IsEmpty) return false;
 
-        double t = Math.Clamp(time, 0.0, 1.0);
-        double start = Math.Clamp(Start, 0.0, 1.0);
-        double end = Math.Clamp(End, 0.0, 1.0);
+        double t = Math.Clamp(time, min: 0.0, max: 1.0);
+        double start = Math.Clamp(Start, min: 0.0, max: 1.0);
+        double end = Math.Clamp(End, min: 0.0, max: 1.0);
 
         return start <= end
             ? t >= start && t <= end
@@ -73,8 +76,8 @@ public readonly record struct NormalizedTimeRange(double Start, double End)
 
     public IEnumerable<(double Start, double End)> Segments()
     {
-        double start = Math.Clamp(Start, 0.0, 1.0);
-        double end = Math.Clamp(End, 0.0, 1.0);
+        double start = Math.Clamp(Start, min: 0.0, max: 1.0);
+        double end = Math.Clamp(End, min: 0.0, max: 1.0);
         if (start == end) yield break;
 
         if (start <= end)

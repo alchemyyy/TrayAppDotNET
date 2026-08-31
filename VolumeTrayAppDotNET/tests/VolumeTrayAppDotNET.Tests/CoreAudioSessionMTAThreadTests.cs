@@ -1,7 +1,6 @@
 using VolumeTrayAppDotNET.Audio;
 using Xunit;
 
-
 namespace VolumeTrayAppDotNET.Tests;
 
 public sealed class CoreAudioSessionMTAThreadTests

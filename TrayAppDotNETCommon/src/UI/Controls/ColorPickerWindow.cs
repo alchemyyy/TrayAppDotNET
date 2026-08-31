@@ -100,12 +100,12 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         _enableRoundedCorners = enableRoundedCorners;
 
         Color seed = startingColor ?? AppTheme.ColorPickerDefaultColor;
-        if (!hasAlpha) seed = Color.FromArgb(0xFF, seed.R, seed.G, seed.B);
+        if (!hasAlpha) seed = Color.FromArgb(a: 0xFF, seed.R, seed.G, seed.B);
         _currentColor = seed;
         _baselineColor = seed;
 
         Color fallback = defaultColor ?? seed;
-        if (!hasAlpha) fallback = Color.FromArgb(0xFF, fallback.R, fallback.G, fallback.B);
+        if (!hasAlpha) fallback = Color.FromArgb(a: 0xFF, fallback.R, fallback.G, fallback.B);
         _defaultColor = fallback;
 
         Title = string.IsNullOrWhiteSpace(title) ? strings.DefaultTitle : title;
@@ -214,11 +214,11 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         Control titleBar = BuildTitleBar(title, resources);
-        Grid.SetRow(titleBar, 0);
+        Grid.SetRow(titleBar, value: 0);
         root.Children.Add(titleBar);
 
         Grid body = BuildBody(resources);
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, value: 1);
         root.Children.Add(body);
 
         return new Border
@@ -245,7 +245,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, _palette);
         titleText.VerticalAlignment = VerticalAlignment.Center;
         titleText.Margin = ColorPickerLayout.TitleMargin;
-        Grid.SetColumn(titleText, 0);
+        Grid.SetColumn(titleText, value: 0);
         titleBar.Children.Add(titleText);
 
         TrayAppDotNETCaptionCloseButton close = new(_palette);
@@ -253,7 +253,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCloseClick;
         resources.Add(() => close.Click -= OnCloseClick);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(close, value: 1);
         titleBar.Children.Add(close);
 
         return titleBar;
@@ -267,11 +267,11 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         Grid pickerGrid = BuildPickerGrid();
-        Grid.SetRow(pickerGrid, 0);
+        Grid.SetRow(pickerGrid, value: 0);
         body.Children.Add(pickerGrid);
 
         Grid footer = BuildFooterGrid(resources);
-        Grid.SetRow(footer, 2);
+        Grid.SetRow(footer, value: 2);
         body.Children.Add(footer);
 
         return body;
@@ -284,32 +284,32 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         grid.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.ChannelBandHeight)));
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        Grid.SetRow(_rValueLabel, 0);
-        Grid.SetColumn(_rValueLabel, 6);
+        Grid.SetRow(_rValueLabel, value: 0);
+        Grid.SetColumn(_rValueLabel, value: 6);
         grid.Children.Add(_rValueLabel);
-        Grid.SetRow(_gValueLabel, 0);
-        Grid.SetColumn(_gValueLabel, 8);
+        Grid.SetRow(_gValueLabel, value: 0);
+        Grid.SetColumn(_gValueLabel, value: 8);
         grid.Children.Add(_gValueLabel);
-        Grid.SetRow(_bValueLabel, 0);
-        Grid.SetColumn(_bValueLabel, 10);
+        Grid.SetRow(_bValueLabel, value: 0);
+        Grid.SetColumn(_bValueLabel, value: 10);
         grid.Children.Add(_bValueLabel);
 
-        Grid.SetRow(_svPicker, 0);
-        Grid.SetRowSpan(_svPicker, 2);
-        Grid.SetColumn(_svPicker, 0);
+        Grid.SetRow(_svPicker, value: 0);
+        Grid.SetRowSpan(_svPicker, value: 2);
+        Grid.SetColumn(_svPicker, value: 0);
         grid.Children.Add(_svPicker);
 
-        AddSlider(grid, _hueSlider, 2, spanValueRow: true);
-        AddSlider(grid, _alphaSlider, 4, spanValueRow: true);
-        AddSlider(grid, _rSlider, 6, spanValueRow: false);
-        AddSlider(grid, _gSlider, 8, spanValueRow: false);
-        AddSlider(grid, _bSlider, 10, spanValueRow: false);
+        AddSlider(grid, _hueSlider, column: 2, spanValueRow: true);
+        AddSlider(grid, _alphaSlider, column: 4, spanValueRow: true);
+        AddSlider(grid, _rSlider, column: 6, spanValueRow: false);
+        AddSlider(grid, _gSlider, column: 8, spanValueRow: false);
+        AddSlider(grid, _bSlider, column: 10, spanValueRow: false);
 
-        AddFooterLabel(grid, _strings.HueLabel, 2);
-        AddFooterLabel(grid, _strings.AlphaLabel, 4);
-        AddFooterLabel(grid, _strings.RedLabel, 6);
-        AddFooterLabel(grid, _strings.GreenLabel, 8);
-        AddFooterLabel(grid, _strings.BlueLabel, 10);
+        AddFooterLabel(grid, _strings.HueLabel, column: 2);
+        AddFooterLabel(grid, _strings.AlphaLabel, column: 4);
+        AddFooterLabel(grid, _strings.RedLabel, column: 6);
+        AddFooterLabel(grid, _strings.GreenLabel, column: 8);
+        AddFooterLabel(grid, _strings.BlueLabel, column: 10);
 
         return grid;
     }
@@ -323,13 +323,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         grid.Margin = ColorPickerLayout.FooterMargin;
 
         Grid rgbaRow = HexRow(_strings.RgbaHexLabel, _rgbaBox);
-        Grid.SetRow(rgbaRow, 0);
-        Grid.SetColumn(rgbaRow, 0);
+        Grid.SetRow(rgbaRow, value: 0);
+        Grid.SetColumn(rgbaRow, value: 0);
         grid.Children.Add(rgbaRow);
 
         Grid argbRow = HexRow(_strings.ArgbHexLabel, _argbBox);
-        Grid.SetRow(argbRow, 2);
-        Grid.SetColumn(argbRow, 0);
+        Grid.SetRow(argbRow, value: 2);
+        Grid.SetColumn(argbRow, value: 0);
         grid.Children.Add(argbRow);
 
         Grid buttons = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -348,14 +348,14 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         resetButton.Click += OnResetClick;
         resources.Add(() => resetButton.Click -= OnResetClick);
 
-        Grid.SetColumn(defaultButton, 0);
+        Grid.SetColumn(defaultButton, value: 0);
         buttons.Children.Add(defaultButton);
-        Grid.SetColumn(resetButton, 2);
+        Grid.SetColumn(resetButton, value: 2);
         buttons.Children.Add(resetButton);
 
-        Grid.SetRow(buttons, 2);
-        Grid.SetColumn(buttons, 2);
-        Grid.SetColumnSpan(buttons, 9);
+        Grid.SetRow(buttons, value: 2);
+        Grid.SetColumn(buttons, value: 2);
+        Grid.SetColumnSpan(buttons, value: 9);
         grid.Children.Add(buttons);
 
         return grid;
@@ -381,7 +381,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     private static void AddSlider(Grid grid, Control slider, int column, bool spanValueRow)
     {
         Grid.SetRow(slider, spanValueRow ? 0 : 1);
-        if (spanValueRow) Grid.SetRowSpan(slider, 2);
+        if (spanValueRow) Grid.SetRowSpan(slider, value: 2);
         Grid.SetColumn(slider, column);
         slider.VerticalAlignment = VerticalAlignment.Stretch;
         grid.Children.Add(slider);
@@ -389,17 +389,19 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
     private void AddFooterLabel(Grid grid, string text, int column)
     {
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
+        TextBlock label =
+            TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.Margin = ColorPickerLayout.FooterLabelMargin;
-        Grid.SetRow(label, 2);
+        Grid.SetRow(label, value: 2);
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
     }
 
     private TextBlock ChannelValueLabel(string text)
     {
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
+        TextBlock label =
+            TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.TextAlignment = TextAlignment.Center;
         label.Width = ColorPickerLayout.ChannelValueWidth;
@@ -424,10 +426,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         TextBlock label = TrayAppDotNETSettingsUI.Text(labelText, _palette, ColorPickerLayout.LabelFontSize,
             FontWeight.SemiBold);
         label.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(label, 0);
+        Grid.SetColumn(label, value: 0);
         row.Children.Add(label);
 
-        Grid.SetColumn(box, 2);
+        Grid.SetColumn(box, value: 2);
         row.Children.Add(box);
         return row;
     }
@@ -492,7 +494,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     private void OnHueChanged(object? sender, double value)
     {
         if (_closed || _suppressSlider) return;
-        _freePickHue = Math.Clamp(value, 0, 360);
+        _freePickHue = Math.Clamp(value, min: 0, max: 360);
         (double _, double saturation, double brightness) =
             RgbToHsv(_currentColor.R, _currentColor.G, _currentColor.B);
         Color rgb = HsvToRgb(_freePickHue, saturation, brightness);
@@ -535,7 +537,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     {
         if (_closed || _suppressRgba) return;
         if (!TryParseHex(_rgbaBox.Text, argbOrder: false, out Color parsed)) return;
-        if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
+        if (!_hasAlpha) parsed = Color.FromArgb(a: 0xFF, parsed.R, parsed.G, parsed.B);
         ApplyColor(parsed, ColorApplySource.RgbaText);
     }
 
@@ -543,7 +545,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     {
         if (_closed || _suppressArgb) return;
         if (!TryParseHex(_argbBox.Text, argbOrder: true, out Color parsed)) return;
-        if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
+        if (!_hasAlpha) parsed = Color.FromArgb(a: 0xFF, parsed.R, parsed.G, parsed.B);
         ApplyColor(parsed, ColorApplySource.ArgbText);
     }
 
@@ -551,7 +553,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     {
         if (_closed) return;
         if (!_hasAlpha)
-            color = Color.FromArgb(0xFF, color.R, color.G, color.B);
+            color = Color.FromArgb(a: 0xFF, color.R, color.G, color.B);
         if (!force && color == _currentColor) return;
 
         _currentColor = color;
@@ -565,7 +567,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         if (source != ColorApplySource.Hue && source != ColorApplySource.SaturationValue && sat > 0)
             _freePickHue = hue;
 
-        _svPicker.SetState(HsvToRgb(_freePickHue, 1.0, 1.0), sat, val, _currentColor);
+        _svPicker.SetState(HsvToRgb(_freePickHue, sat: 1.0, val: 1.0), sat, val, _currentColor);
 
         _suppressSlider = true;
         try
@@ -661,13 +663,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
     private void DisposeCore()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _closed = true;
         _pendingNotification = null;
         ColorChanged = null;
         _windowResources.Dispose();
-        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, value: null);
         if (contentGeneration == null) return;
 
         try
@@ -700,7 +702,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
     private static string FormatRgba(Color color) => $"{color.R:X2}{color.G:X2}{color.B:X2}{color.A:X2}";
 
-    private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, 0, 255));
+    private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, min: 0, max: 255));
 
     private static bool TryParseHex(string? input, bool argbOrder, out Color color)
     {
@@ -715,17 +717,17 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
             if (hex.Length == 6)
             {
                 color = Color.FromArgb(
-                    0xFF,
-                    Convert.ToByte(hex[..2], 16),
-                    Convert.ToByte(hex[2..4], 16),
-                    Convert.ToByte(hex[4..6], 16));
+                    a: 0xFF,
+                    Convert.ToByte(hex[..2], fromBase: 16),
+                    Convert.ToByte(hex[2..4], fromBase: 16),
+                    Convert.ToByte(hex[4..6], fromBase: 16));
                 return true;
             }
 
-            byte b0 = Convert.ToByte(hex[..2], 16);
-            byte b1 = Convert.ToByte(hex[2..4], 16);
-            byte b2 = Convert.ToByte(hex[4..6], 16);
-            byte b3 = Convert.ToByte(hex[6..8], 16);
+            byte b0 = Convert.ToByte(hex[..2], fromBase: 16);
+            byte b1 = Convert.ToByte(hex[2..4], fromBase: 16);
+            byte b2 = Convert.ToByte(hex[4..6], fromBase: 16);
+            byte b3 = Convert.ToByte(hex[6..8], fromBase: 16);
             color = argbOrder
                 ? Color.FromArgb(b0, b1, b2, b3)
                 : Color.FromArgb(b3, b0, b1, b2);
@@ -739,12 +741,12 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
     internal static Color HsvToRgb(double hue, double sat, double val)
     {
-        sat = Math.Clamp(sat, 0, 1);
-        val = Math.Clamp(val, 0, 1);
+        sat = Math.Clamp(sat, min: 0, max: 1);
+        val = Math.Clamp(val, min: 0, max: 1);
         if (sat <= 0)
         {
             byte gray = (byte)Math.Round(val * 255);
-            return Color.FromArgb(0xFF, gray, gray, gray);
+            return Color.FromArgb(a: 0xFF, gray, gray, gray);
         }
 
         double h = (hue % 360 + 360) % 360 / 60.0;
@@ -765,10 +767,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         };
 
         return Color.FromArgb(
-            0xFF,
-            (byte)Math.Round(Math.Clamp(r, 0, 1) * 255),
-            (byte)Math.Round(Math.Clamp(g, 0, 1) * 255),
-            (byte)Math.Round(Math.Clamp(b, 0, 1) * 255));
+            a: 0xFF,
+            (byte)Math.Round(Math.Clamp(r, min: 0, max: 1) * 255),
+            (byte)Math.Round(Math.Clamp(g, min: 0, max: 1) * 255),
+            (byte)Math.Round(Math.Clamp(b, min: 0, max: 1) * 255));
     }
 
     internal static (double Hue, double Sat, double Val) RgbToHsv(byte r, byte g, byte b)
@@ -832,8 +834,8 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
     public void SetState(Color hueColor, double saturation, double value, Color currentColor)
     {
         _hueColor = hueColor;
-        _saturation = Math.Clamp(saturation, 0, 1);
-        _value = Math.Clamp(value, 0, 1);
+        _saturation = Math.Clamp(saturation, min: 0, max: 1);
+        _value = Math.Clamp(value, min: 0, max: 1);
         _currentColor = currentColor;
         InvalidateVisual();
     }
@@ -844,32 +846,32 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
         Rect bounds = new(Bounds.Size);
         if (bounds.Width <= 0 || bounds.Height <= 0) return;
 
-        context.FillRectangle(new SolidColorBrush(_hueColor), bounds, 6);
+        context.FillRectangle(new SolidColorBrush(_hueColor), bounds, cornerRadius: 6);
         context.FillRectangle(
             CreateGradient(AppTheme.ColorPickerWhite, AppTheme.ColorPickerTransparentWhite, horizontal: true),
             bounds,
-            6);
+            cornerRadius: 6);
         context.FillRectangle(
             CreateGradient(AppTheme.ColorPickerTransparentBlack, AppTheme.ColorPickerBlack, horizontal: false),
             bounds,
-            6);
-        context.DrawRectangle(new Pen(new SolidColorBrush(_palette.Border)), bounds, 6);
+            cornerRadius: 6);
+        context.DrawRectangle(new Pen(new SolidColorBrush(_palette.Border)), bounds, cornerRadius: 6);
 
-        double x = Math.Clamp(_saturation * bounds.Width, 0, bounds.Width);
-        double y = Math.Clamp((1 - _value) * bounds.Height, 0, bounds.Height);
+        double x = Math.Clamp(_saturation * bounds.Width, min: 0, bounds.Width);
+        double y = Math.Clamp((1 - _value) * bounds.Height, min: 0, bounds.Height);
         Point center = new(x, y);
         context.DrawEllipse(
             Brushes.Transparent,
             new Pen(new SolidColorBrush(AppTheme.ColorPickerBlack)),
             center,
-            8,
-            8);
+            radiusX: 8,
+            radiusY: 8);
         context.DrawEllipse(
             new SolidColorBrush(_currentColor),
             new Pen(new SolidColorBrush(AppTheme.ColorPickerWhite)),
             center,
-            7,
-            7);
+            radiusX: 7,
+            radiusY: 7);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -889,6 +891,7 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
             _dragging = false;
             throw;
         }
+
         UpdateFromPoint(e.GetPosition(this));
         e.Handled = true;
     }
@@ -929,24 +932,25 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _dragging = false;
-        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, value: null);
         try { capturedPointer?.Capture(null); }
         catch (Exception exception)
         {
             TADNLog.Log($"Color picker pointer release failed: {exception.Message}");
         }
+
         SelectionChanged = null;
     }
 
     private void UpdateFromPoint(Point point)
     {
-        double width = Math.Max(Bounds.Width, 1);
-        double height = Math.Max(Bounds.Height, 1);
-        _saturation = Math.Clamp(point.X / width, 0, 1);
-        _value = Math.Clamp(1 - point.Y / height, 0, 1);
+        double width = Math.Max(Bounds.Width, val2: 1);
+        double height = Math.Max(Bounds.Height, val2: 1);
+        _saturation = Math.Clamp(point.X / width, min: 0, max: 1);
+        _value = Math.Clamp(1 - point.Y / height, min: 0, max: 1);
         InvalidateVisual();
         SelectionChanged?.Invoke(this, new TrayAppDotNETSaturationValueChangedEventArgs(_saturation, _value));
     }
@@ -954,11 +958,11 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
     private static LinearGradientBrush CreateGradient(Color start, Color end, bool horizontal) =>
         new()
         {
-            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            StartPoint = new RelativePoint(x: 0, y: 0, RelativeUnit.Relative),
             EndPoint = horizontal
-                ? new RelativePoint(1, 0, RelativeUnit.Relative)
-                : new RelativePoint(0, 1, RelativeUnit.Relative),
-            GradientStops = { new GradientStop(start, 0), new GradientStop(end, 1) }
+                ? new RelativePoint(x: 1, y: 0, RelativeUnit.Relative)
+                : new RelativePoint(x: 0, y: 1, RelativeUnit.Relative),
+            GradientStops = { new GradientStop(start, offset: 0), new GradientStop(end, offset: 1) }
         };
 }
 
@@ -1039,6 +1043,7 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
             _dragging = false;
             throw;
         }
+
         Value = ValueFromY(e.GetPosition(this).Y);
         e.Handled = true;
     }
@@ -1108,15 +1113,16 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _dragging = false;
-        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, value: null);
         try { capturedPointer?.Capture(null); }
         catch (Exception exception)
         {
             TADNLog.Log($"Color slider pointer release failed: {exception.Message}");
         }
+
         ValueChanged = null;
     }
 
@@ -1132,64 +1138,64 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
     private void RenderChannel(DrawingContext context, Rect bounds)
     {
         double x = bounds.Center.X - 2;
-        Rect track = new(x, 0, 4, bounds.Height);
-        context.FillRectangle(new SolidColorBrush(_palette.SliderTrack), track, 2);
+        Rect track = new(x, y: 0, width: 4, bounds.Height);
+        context.FillRectangle(new SolidColorBrush(_palette.SliderTrack), track, cornerRadius: 2);
 
         double y = ThumbCenterY(bounds);
-        Rect progress = new(x, y, 4, Math.Max(0, bounds.Height - y));
-        context.FillRectangle(new SolidColorBrush(_palette.SliderProgress), progress, 2);
+        Rect progress = new(x, y, width: 4, Math.Max(val1: 0, bounds.Height - y));
+        context.FillRectangle(new SolidColorBrush(_palette.SliderProgress), progress, cornerRadius: 2);
 
-        Rect thumb = new(bounds.Center.X - 11, y - 5, 22, 10);
-        context.FillRectangle(new SolidColorBrush(_palette.SliderThumb), thumb, 5);
+        Rect thumb = new(bounds.Center.X - 11, y - 5, width: 22, height: 10);
+        context.FillRectangle(new SolidColorBrush(_palette.SliderThumb), thumb, cornerRadius: 5);
     }
 
     private void RenderGradient(DrawingContext context, Rect bounds)
     {
-        Rect bar = new(0.5, 0.5, bounds.Width - 1, bounds.Height - 1);
-        context.FillRectangle(CreateBarGradient(), bar, 4);
-        context.DrawRectangle(new Pen(new SolidColorBrush(_palette.Border)), bar, 4);
+        Rect bar = new(x: 0.5, y: 0.5, bounds.Width - 1, bounds.Height - 1);
+        context.FillRectangle(CreateBarGradient(), bar, cornerRadius: 4);
+        context.DrawRectangle(new Pen(new SolidColorBrush(_palette.Border)), bar, cornerRadius: 4);
 
         double thumbY = ThumbCenterY(bounds);
-        Rect thumb = new(1, thumbY - 4, Math.Max(0, bounds.Width - 2), 8);
+        Rect thumb = new(x: 1, thumbY - 4, Math.Max(val1: 0, bounds.Width - 2), height: 8);
         Color fill = _kind == TrayAppDotNETColorSliderKind.Hue
-            ? TrayAppDotNETColorPickerWindow.HsvToRgb(Value, 1.0, 1.0)
+            ? TrayAppDotNETColorPickerWindow.HsvToRgb(Value, sat: 1.0, val: 1.0)
             : CurrentColor;
-        context.FillRectangle(new SolidColorBrush(fill), thumb, 2);
-        context.DrawRectangle(new Pen(new SolidColorBrush(ThumbBorderColor())), thumb, 2);
+        context.FillRectangle(new SolidColorBrush(fill), thumb, cornerRadius: 2);
+        context.DrawRectangle(new Pen(new SolidColorBrush(ThumbBorderColor())), thumb, cornerRadius: 2);
     }
 
     private LinearGradientBrush CreateBarGradient()
     {
         LinearGradientBrush brush = new()
         {
-            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative)
+            StartPoint = new RelativePoint(x: 0, y: 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(x: 0, y: 1, RelativeUnit.Relative)
         };
 
         if (_kind == TrayAppDotNETColorSliderKind.Hue)
         {
-            brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueRed, 0));
+            brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueRed, offset: 0));
             brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueMagenta, 1.0 / 6.0));
             brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueBlue, 2.0 / 6.0));
             brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueCyan, 3.0 / 6.0));
             brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueLime, 4.0 / 6.0));
             brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueYellow, 5.0 / 6.0));
-            brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueRed, 1));
+            brush.GradientStops.Add(new GradientStop(AppTheme.ColorPickerHueRed, offset: 1));
             return brush;
         }
 
         Color top = Color.FromArgb(ToByte(ValueFromY(0)), CurrentColor.R, CurrentColor.G, CurrentColor.B);
         Color bottom = Color.FromArgb(ToByte(ValueFromY(Bounds.Height)), CurrentColor.R, CurrentColor.G,
             CurrentColor.B);
-        brush.GradientStops.Add(new GradientStop(top, 0));
-        brush.GradientStops.Add(new GradientStop(bottom, 1));
+        brush.GradientStops.Add(new GradientStop(top, offset: 0));
+        brush.GradientStops.Add(new GradientStop(bottom, offset: 1));
         return brush;
     }
 
     private double ValueFromY(double y)
     {
-        double height = Math.Max(Bounds.Height, 1);
-        double normalized = Math.Clamp(y / height, 0, 1);
+        double height = Math.Max(Bounds.Height, val2: 1);
+        double normalized = Math.Clamp(y / height, min: 0, max: 1);
         double range = Maximum - Minimum;
         return IsDirectionReversed
             ? Minimum + normalized * range
@@ -1204,7 +1210,7 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
         double normalized = IsDirectionReversed
             ? (Value - Minimum) / range
             : (Maximum - Value) / range;
-        return Math.Clamp(normalized * bounds.Height, 0, bounds.Height);
+        return Math.Clamp(normalized * bounds.Height, min: 0, bounds.Height);
     }
 
     private Color ThumbBorderColor()
@@ -1220,6 +1226,5 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
         return luminance < 128 ? AppTheme.ColorPickerWhite : AppTheme.ColorPickerBlack;
     }
 
-    private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, 0, 255));
+    private static byte ToByte(double value) => (byte)Math.Round(Math.Clamp(value, min: 0, max: 255));
 }
-

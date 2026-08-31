@@ -46,7 +46,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
         _needsGPUEngine = needsGPUEngine;
         _needsNPUEngine = needsNPUEngine;
 
-        if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != PdhSuccess) return;
+        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
         if (needsUtilization || needsGPUEngine || needsNPUEngine)
             _utilizationCounter = AddCounter(UtilizationPath);
         if (needsDedicatedMemory)
@@ -57,9 +57,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
         if (_utilizationCounter != IntPtr.Zero
             || _dedicatedMemoryCounter != IntPtr.Zero
             || _sharedMemoryCounter != IntPtr.Zero)
-        {
             return;
-        }
 
         _ = PdhCloseQuery(_query);
         _query = IntPtr.Zero;
@@ -113,7 +111,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
                 processIDs,
                 processCount,
                 sampleEveryProcess,
-                true);
+                isDedicated: true);
         }
 
         if (_sharedMemoryCounter != IntPtr.Zero
@@ -130,7 +128,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
                 processIDs,
                 processCount,
                 sampleEveryProcess,
-                false);
+                isDedicated: false);
         }
     }
 
@@ -183,7 +181,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
     {
         if (requiredSize <= _counterBufferSize) return;
 
-        uint capacity = Math.Max(4_096U, _counterBufferSize);
+        uint capacity = Math.Max(val1: 4_096U, _counterBufferSize);
         while (capacity < requiredSize)
             capacity = checked(capacity * 2);
 
@@ -207,21 +205,17 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
                 || double.IsNaN(item.Value.DoubleValue)
                 || double.IsInfinity(item.Value.DoubleValue)
                 || item.Name == IntPtr.Zero)
-            {
                 continue;
-            }
 
             ReadOnlySpan<char> instanceName = ReadNullTerminatedSpan((char*)item.Name);
             if (!AcceleratorCounterInstanceParser.TryParseEngine(instanceName, out AcceleratorCounterInstance instance)
                 || !ShouldSampleProcess(instance.ProcessID, processIDs, processCount, sampleEveryProcess))
-            {
                 continue;
-            }
 
             AcceleratorAdapter descriptor = _adapterClassifier.GetAdapter(instance.AdapterLUID);
             if (!NeedsAdapter(descriptor.Kind)) continue;
 
-            double utilization = Math.Clamp(item.Value.DoubleValue, 0, 100);
+            double utilization = Math.Clamp(item.Value.DoubleValue, min: 0, max: 100);
             _samples.TryGetValue(instance.ProcessID, out ProcessAcceleratorSample sample);
             switch (descriptor.Kind)
             {
@@ -238,6 +232,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
                                 instanceName[instance.EngineTypeStart..]);
                         }
                     }
+
                     break;
                 case AcceleratorKind.NPU:
                     if (!sample.HasNPUUtilization || utilization > sample.NPUUtilization)
@@ -252,6 +247,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
                                 instanceName[instance.EngineTypeStart..]);
                         }
                     }
+
                     break;
             }
 
@@ -273,22 +269,18 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
             if (!HasValidStatus(item.Value.Status)
                 || item.Value.LargeValue < 0
                 || item.Name == IntPtr.Zero)
-            {
                 continue;
-            }
 
             ReadOnlySpan<char> instanceName = ReadNullTerminatedSpan((char*)item.Name);
             if (!AcceleratorCounterInstanceParser.TryParseMemory(instanceName, out AcceleratorCounterInstance instance)
                 || !ShouldSampleProcess(instance.ProcessID, processIDs, processCount, sampleEveryProcess))
-            {
                 continue;
-            }
 
             AcceleratorAdapter descriptor = _adapterClassifier.GetAdapter(instance.AdapterLUID);
             if (!NeedsAdapter(descriptor.Kind)) continue;
 
             _samples.TryGetValue(instance.ProcessID, out ProcessAcceleratorSample sample);
-            switch ((descriptor.Kind, isDedicated))
+            switch (descriptor.Kind, isDedicated)
             {
                 case (AcceleratorKind.GPU, true):
                     sample.DedicatedGPUMemory = SaturatingAdd(
@@ -452,10 +444,10 @@ internal static class AcceleratorCounterInstanceParser
     private const string EngineTypeDelimiter = "_engtype_";
 
     public static bool TryParseEngine(ReadOnlySpan<char> value, out AcceleratorCounterInstance instance) =>
-        TryParse(value, true, out instance);
+        TryParse(value, hasEngine: true, out instance);
 
     public static bool TryParseMemory(ReadOnlySpan<char> value, out AcceleratorCounterInstance instance) =>
-        TryParse(value, false, out instance);
+        TryParse(value, hasEngine: false, out instance);
 
     private static bool TryParse(
         ReadOnlySpan<char> value,
@@ -469,9 +461,7 @@ internal static class AcceleratorCounterInstanceParser
         if (!TryReadDecimal(value, ref position, LUIDDelimiter, out int processID)
             || !TryReadHexadecimal(value, ref position, LowLUIDDelimiter, out uint highLUID)
             || !TryReadHexadecimal(value, ref position, PhysicalAdapterDelimiter, out uint lowLUID))
-        {
             return false;
-        }
 
         int physicalAdapterIndex;
         int engineIndex = -1;
@@ -481,9 +471,7 @@ internal static class AcceleratorCounterInstanceParser
             if (!TryReadDecimal(value, ref position, EngineDelimiter, out physicalAdapterIndex)
                 || !TryReadDecimal(value, ref position, EngineTypeDelimiter, out engineIndex)
                 || position >= value.Length)
-            {
                 return false;
-            }
 
             engineTypeStart = position;
         }
@@ -492,9 +480,7 @@ internal static class AcceleratorCounterInstanceParser
                      NumberStyles.None,
                      CultureInfo.InvariantCulture,
                      out physicalAdapterIndex))
-        {
             return false;
-        }
 
         ulong adapterLUID = ((ulong)highLUID << 32) | lowLUID;
         instance = new AcceleratorCounterInstance(
@@ -578,8 +564,8 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
                 _factory = IntPtr.Zero;
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             _factory = IntPtr.Zero;
         }
@@ -639,11 +625,7 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
     {
         if (_factory == IntPtr.Zero) return false;
 
-        NATIVE_LUID nativeLUID = new()
-        {
-            LowPart = (uint)adapterLUID,
-            HighPart = unchecked((int)(adapterLUID >> 32))
-        };
+        NATIVE_LUID nativeLUID = new() { LowPart = (uint)adapterLUID, HighPart = unchecked((int)(adapterLUID >> 32)) };
         Guid adapterInterfaceID = AdapterInterfaceID;
         IntPtr adapter = IntPtr.Zero;
         IntPtr* factoryVTable = *(IntPtr**)_factory;
@@ -657,8 +639,8 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
             bool isGraphics = SupportsAttribute(adapter, D3D12GraphicsAttribute);
             return SupportsAttribute(adapter, NPUAttribute)
                    || SupportsAttribute(adapter, MediaAcceleratorAttribute)
-                   || SupportsAttribute(adapter, CoreComputeAttribute) && !isGraphics
-                   || SupportsAttribute(adapter, GenericMachineLearningAttribute) && !isGraphics;
+                   || (SupportsAttribute(adapter, CoreComputeAttribute) && !isGraphics)
+                   || (SupportsAttribute(adapter, GenericMachineLearningAttribute) && !isGraphics);
         }
         finally
         {
@@ -676,16 +658,16 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
 
     private static string NormalizeEngineType(ReadOnlySpan<char> engineType)
     {
-        if (engineType.Equals("3d", StringComparison.OrdinalIgnoreCase)) return "3D";
-        if (engineType.Equals("copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
-        if (engineType.Equals("compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
-        if (engineType.Equals("videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
-        if (engineType.Equals("videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
-        if (engineType.Equals("videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
-        if (engineType.Equals("legacyoverlay", StringComparison.OrdinalIgnoreCase)) return "Legacy Overlay";
-        if (engineType.Equals("sceneassembly", StringComparison.OrdinalIgnoreCase)) return "Scene Assembly";
-        if (engineType.Equals("opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
-        if (engineType.Equals("security", StringComparison.OrdinalIgnoreCase)) return "Security";
+        if (engineType.Equals(other: "3d", StringComparison.OrdinalIgnoreCase)) return "3D";
+        if (engineType.Equals(other: "copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
+        if (engineType.Equals(other: "compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
+        if (engineType.Equals(other: "videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
+        if (engineType.Equals(other: "videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
+        if (engineType.Equals(other: "videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
+        if (engineType.Equals(other: "legacyoverlay", StringComparison.OrdinalIgnoreCase)) return "Legacy Overlay";
+        if (engineType.Equals(other: "sceneassembly", StringComparison.OrdinalIgnoreCase)) return "Scene Assembly";
+        if (engineType.Equals(other: "opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
+        if (engineType.Equals(other: "security", StringComparison.OrdinalIgnoreCase)) return "Security";
         return engineType.ToString();
     }
 

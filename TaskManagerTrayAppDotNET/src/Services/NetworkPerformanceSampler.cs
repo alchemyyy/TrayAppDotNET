@@ -27,6 +27,7 @@ internal sealed unsafe class NetworkPerformanceSampler
 
     private readonly Dictionary<string, NetworkCounterState> _previousCounters =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly HashSet<string> _activeDeviceIDs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<NetworkCandidate> _candidates = [];
 
@@ -69,9 +70,7 @@ internal sealed unsafe class NetworkPerformanceSampler
                         (flags & NotMediaConnectedFlag) != 0,
                         (flags & EndPointInterfaceFlag) != 0,
                         row.OperStatus == IfOperStatusUp))
-                {
                     continue;
-                }
 
                 string deviceID = CreateDeviceID(row.InterfaceGuid, row.InterfaceLUID);
                 long bytesReceived = ToSignedCounter(row.InOctets);
@@ -102,12 +101,10 @@ internal sealed unsafe class NetworkPerformanceSampler
                     timestamp);
                 _activeDeviceIDs.Add(deviceID);
 
-                string alias;
-                string description;
                 char* aliasPointer = row.Alias;
-                alias = ReadFixedString(aliasPointer, InterfaceStringLength);
+                string alias = ReadFixedString(aliasPointer, InterfaceStringLength);
                 char* descriptionPointer = row.Description;
-                description = ReadFixedString(descriptionPointer, InterfaceStringLength);
+                string description = ReadFixedString(descriptionPointer, InterfaceStringLength);
 
                 _candidates.Add(new NetworkCandidate(
                     deviceID,
@@ -147,7 +144,7 @@ internal sealed unsafe class NetworkPerformanceSampler
                 candidate.Name,
                 candidate.Description,
                 candidate.InterfaceType,
-                true,
+                IsOperational: true,
                 candidate.HasThroughputSample,
                 candidate.ReceiveBytesPerSecond,
                 candidate.SendBytesPerSecond,
@@ -196,9 +193,7 @@ internal sealed unsafe class NetworkPerformanceSampler
             || currentBytesReceived < previousBytesReceived
             || currentBytesSent < previousBytesSent
             || currentTimestamp <= previousTimestamp)
-        {
             return false;
-        }
 
         double elapsedSeconds = (currentTimestamp - previousTimestamp) / (double)Stopwatch.Frequency;
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return false;
@@ -230,7 +225,7 @@ internal sealed unsafe class NetworkPerformanceSampler
         int length = 0;
         while (length < maximumLength && value[length] != '\0')
             length++;
-        return length == 0 ? string.Empty : new string(value, 0, length).Trim();
+        return length == 0 ? string.Empty : new string(value, startIndex: 0, length).Trim();
     }
 
     private static long ToSignedCounter(ulong value) =>
@@ -265,7 +260,7 @@ internal sealed unsafe class NetworkPerformanceSampler
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private unsafe struct MIB_IF_ROW2
+    private struct MIB_IF_ROW2
     {
         public ulong InterfaceLUID;
         public uint InterfaceIndex;

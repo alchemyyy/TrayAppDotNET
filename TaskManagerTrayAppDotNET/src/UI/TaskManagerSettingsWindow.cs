@@ -1,7 +1,7 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using System.ComponentModel;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
@@ -38,7 +38,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         _settings = settings;
         _showUninstaller = showUninstaller;
         _settings.PropertyChanged += OnSettingsPropertyChanged;
-        ConfigureCompactSettingsWindow("Task Manager settings", icon: null);
+        ConfigureCompactSettingsWindow(title: "Task Manager settings", icon: null);
         Topmost = settings.AlwaysOnTop;
         InitializeSettingsShell();
 #if DEBUG
@@ -72,27 +72,27 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     [
         new(
             TaskManagerSettingsPage.General,
-            "General",
+            Label: "General",
             () => NamePage(TaskManagerSettingsPage.General, BuildGeneralPage()),
             SettingsNavigationGlyphs.General),
         new(
             TaskManagerSettingsPage.TrayIcon,
-            "Tray icon",
+            Label: "Tray icon",
             () => NamePage(TaskManagerSettingsPage.TrayIcon, BuildTrayIconPage()),
             SettingsNavigationGlyphs.TrayIcon),
         new(
             TaskManagerSettingsPage.Performance,
-            "Performance",
+            Label: "Performance",
             () => NamePage(TaskManagerSettingsPage.Performance, BuildPerformancePage()),
             SettingsNavigationGlyphs.Devices),
         new(
             TaskManagerSettingsPage.Theme,
-            "Appearance",
+            Label: "Appearance",
             () => NamePage(TaskManagerSettingsPage.Theme, BuildThemePage()),
             SettingsNavigationGlyphs.Theme),
         new(
             TaskManagerSettingsPage.About,
-            "About",
+            Label: "About",
             () => NamePage(TaskManagerSettingsPage.About, BuildAboutPage()),
             SettingsNavigationGlyphs.About)
     ];
@@ -120,21 +120,22 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack("General", palette);
+        StackPanel stack = PageStack(title: "General", palette);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(palette);
         stack.Children.Add(commonSection.BuildStartupCard());
         stack.Children.Add(BoolCard(
-            "Autosave settings",
-            "Save changes to the Task Manager settings file as they are made.",
+            title: "Autosave settings",
+            description: "Save changes to the Task Manager settings file as they are made.",
             _settings.Autosave,
             value => _settings.Autosave = value,
             palette,
             searchKeywords: ["save settings automatically"]));
         stack.Children.Add(BuildWindowManagementCard(palette));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
         stack.Children.Add(BoolCard(
-            "Skip Explorer restart confirmation",
+            title: "Skip Explorer restart confirmation",
+            description:
             "Restart Windows Explorer immediately from the Processes page without asking for confirmation.",
             _settings.SkipRestartExplorerConfirmation,
             value => _settings.SkipRestartExplorerConfirmation = value,
@@ -183,10 +184,10 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private StackPanel BuildTrayIconPage()
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack("Tray icon", palette);
+        StackPanel stack = PageStack(title: "Tray icon", palette);
         stack.Children.Add(ComboCard(
-            "Style",
-            "Show only the latest value or a recency-weighted sliding history.",
+            title: "Style",
+            description: "Show only the latest value or a recency-weighted sliding history.",
             [
                 (nameof(TrayGraphStyle.Current), "Current"),
                 (nameof(TrayGraphStyle.Marquee), "Marquee")
@@ -200,8 +201,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             searchKeywords: ["graph current marquee history sliding"]));
         stack.Children.Add(ComboCard(
-            "Data source",
-            "Choose the system utilization measured by the tray graph.",
+            title: "Data source",
+            description: "Choose the system utilization measured by the tray graph.",
             [
                 (nameof(TrayGraphDataSource.CPUAverage), "CPU Usage (Average)"),
                 (nameof(TrayGraphDataSource.CPUHighestCore), "CPU Usage (Highest Core)"),
@@ -221,56 +222,56 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private StackPanel BuildPerformancePage()
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack("Performance", palette);
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("History and sampling", palette));
+        StackPanel stack = PageStack(title: "Performance", palette);
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "History and sampling", palette));
         stack.Children.Add(IntCard(
-            "History length",
-            "Keep each Performance graph's samples for this many minutes.",
+            title: "History length",
+            description: "Keep each Performance graph's samples for this many minutes.",
             _settings.PerformanceHistoryLengthMinutes,
             PerformanceSamplingSettings.MinimumHistoryLengthMinutes,
             PerformanceSamplingSettings.MaximumHistoryLengthMinutes,
             value => _settings.PerformanceHistoryLengthMinutes = value,
             palette,
-            " min",
+            suffix: " min",
             ["performance graph history retention minutes"]));
         stack.Children.Add(IntCard(
-            "Sampling interval",
-            "Wait this many milliseconds between Performance samples.",
+            title: "Sampling interval",
+            description: "Wait this many milliseconds between Performance samples.",
             _settings.PerformanceSampleIntervalMilliseconds,
             PerformanceSamplingSettings.MinimumSampleIntervalMilliseconds,
             PerformanceSamplingSettings.MaximumSampleIntervalMilliseconds,
             value => _settings.PerformanceSampleIntervalMilliseconds = value,
             palette,
-            " ms",
+            suffix: " ms",
             ["performance refresh update rate frequency milliseconds"]));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Graphs", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Graphs", palette));
         stack.Children.Add(BoolCard(
-            "Fill graph areas",
-            "Draw a translucent shaded area beneath Performance graph lines.",
+            title: "Fill graph areas",
+            description: "Draw a translucent shaded area beneath Performance graph lines.",
             _settings.ShowPerformanceGraphUnderfill,
             value => _settings.ShowPerformanceGraphUnderfill = value,
             palette,
             searchKeywords: ["performance graph underfill shade translucent area"]));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("CPU", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "CPU", palette));
         stack.Children.Add(BoolCard(
-            "Show highest core trace",
-            "Draw a thinner, dimmer highest-logical-processor trace behind the overall CPU graph.",
+            title: "Show highest core trace",
+            description: "Draw a thinner, dimmer highest-logical-processor trace behind the overall CPU graph.",
             _settings.ShowCPUHighestCoreTrace,
             value => _settings.ShowCPUHighestCoreTrace = value,
             palette,
             searchKeywords: ["CPU core logical processor utilization graph overlay"]));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Memory", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Memory", palette));
         stack.Children.Add(BoolCard(
-            "Show memory module serial numbers",
+            title: "Show memory module serial numbers",
             "Display each physical memory module's serial number in the Memory performance details. "
             + "Serial numbers are hidden by default.",
             _settings.ShowMemoryModuleSerialNumbers,
             value => _settings.ShowMemoryModuleSerialNumbers = value,
             palette,
             searchKeywords: ["RAM DIMM privacy serial number"]));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Device column", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Device column", palette));
         stack.Children.Add(BuildDevicePriorityCard(palette));
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Hardware names", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Hardware names", palette));
         stack.Children.Add(BuildHardwareNameReplacementCard(palette));
         return stack;
     }
@@ -279,14 +280,14 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     {
         StackPanel content = new();
         content.Children.Add(TrayAppDotNETSettingsUI.TitleText(
-            "Hardware name replacements",
+            text: "Hardware name replacements",
             palette));
         content.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             "Apply case-insensitive .NET regular expression replacements to device hardware names. "
             + "Rules run from top to bottom, and replacements support $1 and ${name} captures.",
             palette));
 
-        SettingsButton addButton = Button("+ Add replacement", palette);
+        SettingsButton addButton = Button(text: "+ Add replacement", palette);
         addButton.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
         addButton.Margin = _taskManagerResources.AxamlTaskManagerSettings
             .HardwareNameRulesActionMargin;
@@ -358,7 +359,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             matchPattern.Text ?? string.Empty);
         TrayAppDotNETToolTip.SetTip(
             matchPattern,
-            "Case-insensitive .NET regular expression matched against the hardware name.");
+            tip: "Case-insensitive .NET regular expression matched against the hardware name.");
 
         TextBox replacement = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -372,7 +373,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             replacement.Text ?? string.Empty);
         TrayAppDotNETToolTip.SetTip(
             replacement,
-            "Replacement text. Use $1 or ${name} to insert a regex capture.");
+            tip: "Replacement text. Use $1 or ${name} to insert a regex capture.");
 
         SettingsButton deleteButton = new(
             TaskManagerGlyphCatalog.CLOSE,
@@ -389,7 +390,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 .HardwareNameRuleDeleteButtonPadding
         };
         deleteButton.Click += (_, _) => DeleteHardwareNameReplacementRule(ruleIndex);
-        TrayAppDotNETToolTip.SetTip(deleteButton, "Delete replacement");
+        TrayAppDotNETToolTip.SetTip(deleteButton, tip: "Delete replacement");
 
         Grid row = new()
         {
@@ -404,11 +405,11 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             }
         };
         row.Children.Add(deviceKind);
-        Grid.SetColumn(matchPattern, 1);
+        Grid.SetColumn(matchPattern, value: 1);
         row.Children.Add(matchPattern);
-        Grid.SetColumn(replacement, 2);
+        Grid.SetColumn(replacement, value: 2);
         row.Children.Add(replacement);
-        Grid.SetColumn(deleteButton, 3);
+        Grid.SetColumn(deleteButton, value: 3);
         row.Children.Add(deleteButton);
 
         return new Border
@@ -466,9 +467,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 _settings.PerformanceHardwareNameReplacementRules);
         if ((uint)ruleIndex >= (uint)rules.Count
             || string.Equals(rules[ruleIndex].MatchPattern, matchPattern, StringComparison.Ordinal))
-        {
             return;
-        }
 
         rules[ruleIndex].MatchPattern = matchPattern;
         _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
@@ -481,9 +480,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 _settings.PerformanceHardwareNameReplacementRules);
         if ((uint)ruleIndex >= (uint)rules.Count
             || string.Equals(rules[ruleIndex].Replacement, replacement, StringComparison.Ordinal))
-        {
             return;
-        }
 
         rules[ruleIndex].Replacement = replacement;
         _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
@@ -508,11 +505,11 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 palette));
         }
 
-        SettingsButton resetButton = TrayAppDotNETSettingsUI.Button("Reset default priority", palette);
+        SettingsButton resetButton = TrayAppDotNETSettingsUI.Button(text: "Reset default priority", palette);
         resetButton.IsEnabled = !priority.SequenceEqual(PerformanceDeviceOrdering.DefaultPriority);
         resetButton.Click += (_, _) => ResetPerformanceDevicePriority();
         SettingsButton resetDeviceOrderButton = TrayAppDotNETSettingsUI.Button(
-            "Clear dragged device order",
+            text: "Clear dragged device order",
             palette);
         _resetPerformanceDeviceOrderButton = resetDeviceOrderButton;
         resetDeviceOrderButton.IsEnabled = _settings.PerformanceDeviceOrder.Count > 0;
@@ -526,8 +523,9 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         rows.Children.Add(resetActions);
 
         StackPanel content = new();
-        content.Children.Add(TrayAppDotNETSettingsUI.TitleText("Default device priority", palette));
+        content.Children.Add(TrayAppDotNETSettingsUI.TitleText(text: "Default device priority", palette));
         content.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
+            text:
             "Sets the category order for newly detected devices and devices that have not been reordered on the Performance page.",
             palette));
         content.Children.Add(rows);
@@ -558,12 +556,12 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             (FontWeight)_taskManagerResources.AxamlTaskManagerSettings.DevicePriorityLabelFontWeight);
         label.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
 
-        SettingsButton moveUp = TrayAppDotNETSettingsUI.Button("Move up", palette);
+        SettingsButton moveUp = TrayAppDotNETSettingsUI.Button(text: "Move up", palette);
         moveUp.IsEnabled = priorityIndex > 0;
-        moveUp.Click += (_, _) => MovePerformanceDevicePriority(kind, -1);
-        SettingsButton moveDown = TrayAppDotNETSettingsUI.Button("Move down", palette);
+        moveUp.Click += (_, _) => MovePerformanceDevicePriority(kind, offset: -1);
+        SettingsButton moveDown = TrayAppDotNETSettingsUI.Button(text: "Move down", palette);
         moveDown.IsEnabled = priorityIndex + 1 < priorityCount;
-        moveDown.Click += (_, _) => MovePerformanceDevicePriority(kind, 1);
+        moveDown.Click += (_, _) => MovePerformanceDevicePriority(kind, offset: 1);
         StackPanel actions = new()
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
@@ -581,9 +579,9 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             }
         };
         row.Children.Add(rank);
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         row.Children.Add(label);
-        Grid.SetColumn(actions, 2);
+        Grid.SetColumn(actions, value: 2);
         row.Children.Add(actions);
         return new Border
         {
@@ -627,9 +625,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     {
         if (eventArgs.PropertyName != nameof(AppSettings.PerformanceDeviceOrder)
             || _resetPerformanceDeviceOrderButton == null)
-        {
             return;
-        }
 
         _resetPerformanceDeviceOrderButton.IsEnabled = _settings.PerformanceDeviceOrder.Count > 0;
     }
@@ -652,7 +648,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             Spacing = _taskManagerResources.AxamlTaskManagerSettings.WindowManagementOptionSpacing
         };
         options.Children.Add(CreateWindowManagementCheckBox(
-            "Always on top",
+            text: "Always on top",
             _settings.AlwaysOnTop,
             value =>
             {
@@ -661,18 +657,18 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             },
             palette));
         options.Children.Add(CreateWindowManagementCheckBox(
-            "Close to Tray",
+            text: "Close to Tray",
             _settings.CloseToTray,
             value => _settings.CloseToTray = value,
             palette));
         options.Children.Add(CreateWindowManagementCheckBox(
-            "Minimize to Tray",
+            text: "Minimize to Tray",
             _settings.MinimizeToTray,
             value => _settings.MinimizeToTray = value,
             palette));
 
         StackPanel content = new();
-        content.Children.Add(TrayAppDotNETSettingsUI.TitleText("Window management", palette));
+        content.Children.Add(TrayAppDotNETSettingsUI.TitleText(text: "Window management", palette));
         content.Children.Add(options);
         return RawCard(
             content,
@@ -703,24 +699,24 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private StackPanel BuildThemePage()
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack("Appearance", palette);
+        StackPanel stack = PageStack(title: "Appearance", palette);
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes grid", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes grid", palette));
         stack.Children.Add(DoubleCard(
-            "Font size",
-            "Set the text size used by process rows.",
+            title: "Font size",
+            description: "Set the text size used by process rows.",
             _settings.GridFontSize,
             AppSettings.GridFontSizeMinimum,
             AppSettings.GridFontSizeMaximum,
             value => _settings.GridFontSize = value,
             palette,
-            " DIP",
+            suffix: " DIP",
             ["grid text size", "zoom"],
             decimalPlaces: 1,
             step: 0.5));
         stack.Children.Add(ComboCard(
-            "Font weight",
-            "Set the text weight used by process rows and column headers.",
+            title: "Font weight",
+            description: "Set the text weight used by process rows and column headers.",
             [
                 (nameof(DetailsGridFontWeight.Thin), "Thin"),
                 (nameof(DetailsGridFontWeight.ExtraLight), "Extra light"),
@@ -742,36 +738,37 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             searchKeywords: ["grid text thickness", "bold"]));
         stack.Children.Add(DoubleCard(
-            "Row spacing",
-            "Set the visible vertical gap between process rows.",
+            title: "Row spacing",
+            description: "Set the visible vertical gap between process rows.",
             _settings.GridRowSpacing,
             AppSettings.GridRowSpacingMinimum,
             AppSettings.GridRowSpacingMaximum,
             value => _settings.GridRowSpacing = value,
             palette,
-            " DIP",
+            suffix: " DIP",
             ["grid height", "zoom"],
             decimalPlaces: 1,
             step: 0.5));
         stack.Children.Add(BoolCard(
-            "Live column resizing",
-            "Resize column contents while dragging instead of applying the new width on release.",
+            title: "Live column resizing",
+            description: "Resize column contents while dragging instead of applying the new width on release.",
             _settings.EnableLiveDetailsColumnResizing,
             value => _settings.EnableLiveDetailsColumnResizing = value,
             palette,
             searchKeywords: ["column resize preview"]));
         stack.Children.Add(BoolCard(
-            "Left-align search bar",
+            title: "Left-align search bar",
+            description:
             "Align the Processes search bar with the left edge of the page area instead of centering it in the window.",
             _settings.LeftAlignProcessSearchBar,
             value => _settings.LeftAlignProcessSearchBar = value,
             palette,
             searchKeywords: ["process search position", "search alignment"]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Theme", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Theme", palette));
         stack.Children.Add(ComboCard(
-            "Theme mode",
-            "Choose whether Task Manager follows Windows or uses a fixed light or dark theme.",
+            title: "Theme mode",
+            description: "Choose whether Task Manager follows Windows or uses a fixed light or dark theme.",
             [
                 (nameof(TrayAppDotNETThemeMode.System), "System"),
                 (nameof(TrayAppDotNETThemeMode.Light), "Light"),
@@ -784,7 +781,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                     _settings.ThemeMode = value;
             },
             palette,
-            afterSave: () => RebuildShell(TaskManagerSettingsPage.Theme),
+            () => RebuildShell(TaskManagerSettingsPage.Theme),
             searchKeywords: ["light dark system"]));
         stack.Children.Add(BoolCard(
             L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
@@ -792,28 +789,28 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             _settings.UseWindows11SettingsNavigation,
             value => _settings.UseWindows11SettingsNavigation = value,
             palette,
-            afterSave: () => RebuildShell(TaskManagerSettingsPage.Theme),
-            searchKeywords: [L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))]));
+            () => RebuildShell(TaskManagerSettingsPage.Theme),
+            [L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Window", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Window", palette));
         stack.Children.Add(BoolCard(
-            "Rounded corners",
-            "Use rounded corners on Task Manager and its menus.",
+            title: "Rounded corners",
+            description: "Use rounded corners on Task Manager and its menus.",
             _settings.EnableRoundedCorners,
             value => _settings.EnableRoundedCorners = value,
             palette,
-            afterSave: () => RebuildShell(TaskManagerSettingsPage.Theme),
-            searchKeywords: ["square sharp corners"]));
+            () => RebuildShell(TaskManagerSettingsPage.Theme),
+            ["square sharp corners"]));
         stack.Children.Add(BoolCard(
-            "Collapse navigation when narrow",
-            "Show only navigation icons when the Task Manager window is narrower than 750 pixels.",
+            title: "Collapse navigation when narrow",
+            description: "Show only navigation icons when the Task Manager window is narrower than 750 pixels.",
             _settings.CollapseSidebarWhenNarrow,
             value => _settings.CollapseSidebarWhenNarrow = value,
             palette,
             searchKeywords: ["sidebar left menu responsive"]));
         stack.Children.Add(ComboCard(
-            "Animations",
-            "Choose whether interface animations follow Windows, remain disabled, or remain enabled.",
+            title: "Animations",
+            description: "Choose whether interface animations follow Windows, remain disabled, or remain enabled.",
             [
                 (nameof(TrayAppDotNETAnimationMode.System), "System"),
                 (nameof(TrayAppDotNETAnimationMode.Disabled), "Disabled"),
@@ -826,12 +823,12 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                     _settings.AnimationMode = value;
             },
             palette,
-            afterSave: ApplyAnimationMode,
+            ApplyAnimationMode,
             searchKeywords: ["motion transitions"]));
 
         stack.Children.Add(IntCard(
-            "Tooltip delay",
-            "Set how long the pointer must hover before a tooltip appears.",
+            title: "Tooltip delay",
+            description: "Set how long the pointer must hover before a tooltip appears.",
             _settings.ToolTipShowDelayMs,
             ToolTipDelayMinimumMilliseconds,
             ToolTipDelayMaximumMilliseconds,
@@ -842,7 +839,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
             },
             palette,
-            " ms",
+            suffix: " ms",
             ["hover tooltip timing"]));
 
         return stack;
@@ -929,5 +926,4 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
         RebuildShell(TaskManagerSettingsPage.Theme);
     }
-
 }

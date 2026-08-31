@@ -4,6 +4,8 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace VolumeTrayAppDotNET.Visuals;
 
+// Avalonia generates the other partial from GlyphCatalog.axaml
+// ReSharper disable once PartialTypeWithSinglePart
 public sealed partial class GlyphCatalogResources : ResourceDictionary
 {
     /// <summary>
@@ -14,5 +16,5 @@ public sealed partial class GlyphCatalogResources : ResourceDictionary
     /// <summary>
     /// Reads a glyph from this dictionary.
     /// </summary>
-    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, "GlyphCatalog", name);
+    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, prefix: "GlyphCatalog", name);
 }

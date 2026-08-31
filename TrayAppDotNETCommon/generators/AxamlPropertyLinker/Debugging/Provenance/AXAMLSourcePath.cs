@@ -6,7 +6,7 @@ internal static class AXAMLSourcePath
     {
         if (string.IsNullOrWhiteSpace(sourcePath)) return string.Empty;
 
-        string normalizedSourcePath = sourcePath.Replace('\\', '/');
+        string normalizedSourcePath = sourcePath.Replace(oldChar: '\\', newChar: '/');
         if (!Path.IsPathFullyQualified(sourcePath) || string.IsNullOrWhiteSpace(projectDirectory))
             return normalizedSourcePath.TrimStart('/');
 
@@ -15,7 +15,7 @@ internal static class AXAMLSourcePath
         DirectoryInfo projectSourceDirectory = new(fullProjectDirectory);
         DirectoryInfo? projectDirectoryInfo = string.Equals(
             projectSourceDirectory.Name,
-            "src",
+            b: "src",
             StringComparison.OrdinalIgnoreCase)
             ? projectSourceDirectory.Parent
             : projectSourceDirectory;
@@ -25,18 +25,18 @@ internal static class AXAMLSourcePath
         {
             string repositoryRelativePath = Path.GetRelativePath(repositoryDirectory.FullName, sourcePath);
             if (!IsOutsideDirectory(repositoryRelativePath))
-                return repositoryRelativePath.Replace('\\', '/');
+                return repositoryRelativePath.Replace(oldChar: '\\', newChar: '/');
         }
 
         string projectRelativePath = Path.GetRelativePath(fullProjectDirectory, sourcePath);
         if (!IsOutsideDirectory(projectRelativePath))
-            return projectRelativePath.Replace('\\', '/');
+            return projectRelativePath.Replace(oldChar: '\\', newChar: '/');
 
         return normalizedSourcePath;
     }
 
     private static bool IsOutsideDirectory(string relativePath) =>
-        relativePath.Equals("..", StringComparison.Ordinal) ||
-        relativePath.StartsWith("../", StringComparison.Ordinal) ||
-        relativePath.StartsWith("..\\", StringComparison.Ordinal);
+        relativePath.Equals(value: "..", StringComparison.Ordinal) ||
+        relativePath.StartsWith(value: "../", StringComparison.Ordinal) ||
+        relativePath.StartsWith(value: "..\\", StringComparison.Ordinal);
 }

@@ -51,7 +51,7 @@ public sealed class SettingsNavigationTests
 
             AppSettings loaded = AppSettings.LoadOrDefault(settingsPath);
 
-            Assert.Equal(312.5, loaded.SettingsSidebarWidth);
+            Assert.Equal(expected: 312.5, loaded.SettingsSidebarWidth);
         }
         finally
         {
@@ -75,18 +75,18 @@ public sealed class SettingsNavigationTests
                 .OfType<SettingsNavItem>()
                 .ToArray();
 
-            Assert.Equal(8, navigationItems.Length);
-            AssertNavigationGlyph(navigationItems[0], "\uE71D");
-            AssertNavigationGlyph(navigationItems[1], "\uE8A7");
-            AssertNavigationGlyph(navigationItems[2], "\uE957");
-            AssertNavigationGlyph(navigationItems[3], "\uE7F4");
-            AssertNavigationGlyph(navigationItems[4], "\uE92E");
+            Assert.Equal(expected: 8, navigationItems.Length);
+            AssertNavigationGlyph(navigationItems[0], expectedGlyph: "\uE71D");
+            AssertNavigationGlyph(navigationItems[1], expectedGlyph: "\uE8A7");
+            AssertNavigationGlyph(navigationItems[2], expectedGlyph: "\uE957");
+            AssertNavigationGlyph(navigationItems[3], expectedGlyph: "\uE7F4");
+            AssertNavigationGlyph(navigationItems[4], expectedGlyph: "\uE92E");
             EnvironmentalCurveGlyphIcon environmentalIcon = Assert.Single(
                 navigationItems[5].GetVisualDescendants().OfType<EnvironmentalCurveGlyphIcon>());
-            Assert.Equal(21, environmentalIcon.Width);
-            Assert.Equal(21, environmentalIcon.Height);
-            AssertNavigationGlyph(navigationItems[6], "\uE790");
-            AssertNavigationGlyph(navigationItems[7], "\uE946");
+            Assert.Equal(expected: 21, environmentalIcon.Width);
+            Assert.Equal(expected: 21, environmentalIcon.Height);
+            AssertNavigationGlyph(navigationItems[6], expectedGlyph: "\uE790");
+            AssertNavigationGlyph(navigationItems[7], expectedGlyph: "\uE946");
 
             Border selectedIndicator = FindIndicator(navigationItems[0]);
             SolidColorBrush indicatorBrush = Assert.IsType<SolidColorBrush>(selectedIndicator.Background);
@@ -120,5 +120,5 @@ public sealed class SettingsNavigationTests
     private static Border FindIndicator(SettingsNavItem navigationItem) =>
         Assert.Single(
             navigationItem.GetVisualDescendants().OfType<Border>(),
-            static border => border.Width == 3 && border.Height == 16);
+            static border => border is { Width: 3, Height: 16 });
 }

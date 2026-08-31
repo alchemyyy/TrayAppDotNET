@@ -15,11 +15,11 @@ public sealed class AcceleratorPerformanceSamplerTests
             out AcceleratorCounterInstance instance);
 
         Assert.True(parsed);
-        Assert.Equal(12_220, instance.ProcessID);
-        Assert.Equal(0x000000010000C85AUL, instance.AdapterLUID);
-        Assert.Equal(2, instance.PhysicalAdapterIndex);
-        Assert.Equal(5, instance.EngineIndex);
-        Assert.Equal("Copy", name[instance.EngineTypeStart..]);
+        Assert.Equal(expected: 12_220, instance.ProcessID);
+        Assert.Equal(expected: 0x000000010000C85AUL, instance.AdapterLUID);
+        Assert.Equal(expected: 2, instance.PhysicalAdapterIndex);
+        Assert.Equal(expected: 5, instance.EngineIndex);
+        Assert.Equal(expected: "Copy", name[instance.EngineTypeStart..]);
     }
 
     [Fact]
@@ -32,19 +32,17 @@ public sealed class AcceleratorPerformanceSamplerTests
             out AcceleratorCounterInstance instance);
 
         Assert.True(parsed);
-        Assert.Equal(1_116, instance.ProcessID);
-        Assert.Equal(0xD3ECUL, instance.AdapterLUID);
-        Assert.Equal(0, instance.PhysicalAdapterIndex);
-        Assert.Equal(-1, instance.EngineIndex);
-        Assert.Equal(-1, instance.EngineTypeStart);
+        Assert.Equal(expected: 1_116, instance.ProcessID);
+        Assert.Equal(expected: 0xD3ECUL, instance.AdapterLUID);
+        Assert.Equal(expected: 0, instance.PhysicalAdapterIndex);
+        Assert.Equal(expected: -1, instance.EngineIndex);
+        Assert.Equal(expected: -1, instance.EngineTypeStart);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("pid_bad_luid_0x0_0x1_phys_0")]
     [InlineData("pid_12_luid_0x0_0x1_phys_0_eng_0")]
-    public void RejectsMalformedEngineCounterIdentity(string name)
-    {
+    public void RejectsMalformedEngineCounterIdentity(string name) =>
         Assert.False(AcceleratorCounterInstanceParser.TryParseEngine(name, out _));
-    }
 }

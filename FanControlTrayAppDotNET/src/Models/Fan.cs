@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
 
@@ -233,14 +234,15 @@ public class Fan : INotifyPropertyChanged
     [XmlIgnore]
     public string FanDisplayedValueSuffix => RPMMode ? RPMDisplayedValueSuffix : DutyCycleDisplayedValueSuffix;
 
-    [XmlIgnore] public string FanDisplayedValueText => $"{FanDisplayedValue}{FanDisplayedValueSuffix}";
+    [XmlIgnore]
+    public string FanDisplayedValueText => $"{FanDisplayedValue}{FanDisplayedValueSuffix}";
 
     [XmlIgnore]
     public double FanDisplayedValueSlotWidth => RPMMode ? RPMDisplayedValueWidth : DutyCycleDisplayedValueWidth;
 
     [XmlIgnore]
     public int FanSliderMaximum =>
-        RPMMode ? Math.Max(100, MaxRPM > 0 ? MaxRPM : Math.Max(_observedMaxRPM, FanDisplayedValue)) : 100;
+        RPMMode ? Math.Max(val1: 100, MaxRPM > 0 ? MaxRPM : Math.Max(_observedMaxRPM, FanDisplayedValue)) : 100;
 
     /// <summary>
     /// Converts a stored fan-property value to the requested target unit.
@@ -387,6 +389,7 @@ public class Fan : INotifyPropertyChanged
     // their FanGroup while the group assignment is active.
 
     [XmlAttribute]
+    [AllowNull]
     public string AssignedCurveName
     {
         get;
@@ -401,7 +404,8 @@ public class Fan : INotifyPropertyChanged
         }
     } = string.Empty;
 
-    [XmlIgnore] public FanGroup? AssignedGroup => FanGroup.Find(Group);
+    [XmlIgnore]
+    public FanGroup? AssignedGroup => FanGroup.Find(Group);
 
     [XmlIgnore]
     public Curve? AssignedCurve =>
@@ -418,23 +422,29 @@ public class Fan : INotifyPropertyChanged
 
     // Period-delimited LHM tree path that locates this fan's Control entry. Spaces -> underscores.
     // Also serves as this Fan's key when serialized so curves/triggers can reference it.
-    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DataSourceKey { get; set; } = string.Empty;
 
     // Parsed from DataSourceKey. ControllerModel is the motherboard / GPU model; ControlsName
     // is LHM's intermediate "Controls" sub-tree; FansName is the specific header label.
-    [XmlAttribute] public string ControllerModel { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string ControllerModel { get; set; } = string.Empty;
 
-    [XmlAttribute] public string ControlsName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string ControlsName { get; set; } = string.Empty;
 
-    [XmlAttribute] public string FansName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string FansName { get; set; } = string.Empty;
 
     // Flyout-facing controller subtitle. Pairs the LHM-assigned fan ID with the controller model
     // so users can disambiguate identically-named headers across multiple controllers.
-    [XmlIgnore] public string ControllerDisplayLabel => $"{FansName} - {ControllerModel}";
+    [XmlIgnore]
+    public string ControllerDisplayLabel => $"{FansName} - {ControllerModel}";
 
     // User-facing rename. Falls back to FansName for display when empty.
 
     [XmlAttribute]
+    [AllowNull]
     public string UserDefinedName
     {
         get;
@@ -569,6 +579,7 @@ public class Fan : INotifyPropertyChanged
     // Reference by name into DeadbandsList.DeadbandsLists. Empty == no deadbands applied.
 
     [XmlAttribute]
+    [AllowNull]
     public string DeadbandsName
     {
         get;
@@ -582,7 +593,8 @@ public class Fan : INotifyPropertyChanged
         }
     } = string.Empty;
 
-    [XmlIgnore] public DeadbandsList? Deadbands => DeadbandsList.Find(DeadbandsName);
+    [XmlIgnore]
+    public DeadbandsList? Deadbands => DeadbandsList.Find(DeadbandsName);
 
     // Group assignment. When empty, the fan renders in its own cell in the flyout. When set,
     // fans sharing the same group string render together in one cell. Null and empty are
@@ -733,14 +745,15 @@ public class Fan : INotifyPropertyChanged
 
         double converted = targetRPMMode
             ? value / (double)DutyCycleMaximum * rpmReference
-            : value / (double)Math.Max(1, rpmReference) * DutyCycleMaximum;
+            : value / (double)Math.Max(val1: 1, rpmReference) * DutyCycleMaximum;
         return (int)Math.Round(converted);
     }
 
     private static List<Trigger> CloneTriggers(IEnumerable<Trigger> triggers)
     {
         List<Trigger> cloned = [];
-        foreach (Trigger trigger in triggers) cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled });
+        foreach (Trigger trigger in triggers)
+            cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled });
 
         return cloned;
     }

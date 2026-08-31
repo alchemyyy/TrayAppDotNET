@@ -12,7 +12,6 @@ using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
-using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -25,8 +24,10 @@ internal static class SettingsUILayout
     public static Thickness NavActionMargin => AXAMLResources.AxamlSettingsUI.NavActionMargin;
     public static double NavIndicatorWidth => AXAMLResources.AxamlSettingsUI.NavIndicatorWidth;
     public static double NavIndicatorHeight => AXAMLResources.AxamlSettingsUI.NavIndicatorHeight;
+
     public static CornerRadius NavIndicatorCornerRadius =>
         AXAMLResources.AxamlSettingsUI.NavIndicatorCornerRadius;
+
     public static Thickness NavIndicatorMargin => AXAMLResources.AxamlSettingsUI.NavIndicatorMargin;
     public static CornerRadius NavItemCornerRadius => AXAMLResources.AxamlSettingsUI.NavItemCornerRadius;
     public static Thickness NavItemPadding => AXAMLResources.AxamlSettingsUI.NavItemPadding;
@@ -39,8 +40,10 @@ internal static class SettingsUILayout
     public static double Windows11NavIconColumnWidth => AXAMLResources.AxamlSettingsUI.Windows11NavIconColumnWidth;
     public static Thickness Windows11NavIconMargin => AXAMLResources.AxamlSettingsUI.Windows11NavIconMargin;
     public static Thickness Windows11NavLabelMargin => AXAMLResources.AxamlSettingsUI.Windows11NavLabelMargin;
+
     public static double Windows11CompactNavItemWidth =>
         AXAMLResources.AxamlSettingsUI.Windows11CompactNavItemWidth;
+
     public static CornerRadius ButtonCornerRadius => AXAMLResources.AxamlSettingsUI.ButtonCornerRadius;
     public static double ButtonMinHeight => AXAMLResources.AxamlSettingsUI.ButtonMinHeight;
     public static Thickness ButtonPadding => AXAMLResources.AxamlSettingsUI.ButtonPadding;
@@ -67,15 +70,19 @@ internal static class SettingsUILayout
     public static double ScrollWheelStep => AXAMLResources.AxamlSettingsUI.ScrollWheelStep;
     public static double ScrollBarTotalWidth => AXAMLResources.AxamlSettingsUI.ScrollBarTotalWidth;
     public static double ScrollBarCollapsedTrackWidth => AXAMLResources.AxamlSettingsUI.ScrollBarCollapsedTrackWidth;
+
     public static double ScrollBarExpansionHitTestDepthRatio =>
         AXAMLResources.AxamlSettingsUI.ScrollBarExpansionHitTestDepthRatio;
+
     public static double ScrollBarThumbMargin => AXAMLResources.AxamlSettingsUI.ScrollBarThumbMargin;
     public static double ScrollBarMinThumbHeight => AXAMLResources.AxamlSettingsUI.ScrollBarMinThumbHeight;
     public static Thickness ComboItemPadding => AXAMLResources.AxamlSettingsUI.ComboItemPadding;
     public static double ComboIndicatorWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorWidth;
     public static double ComboIndicatorHeight => AXAMLResources.AxamlSettingsUI.ComboIndicatorHeight;
+
     public static CornerRadius ComboIndicatorCornerRadius =>
         AXAMLResources.AxamlSettingsUI.ComboIndicatorCornerRadius;
+
     public static double ComboIndicatorColumnWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorColumnWidth;
     public static double ComboIndicatorGapWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorGapWidth;
     public static CornerRadius ComboItemCornerRadius => AXAMLResources.AxamlSettingsUI.ComboItemCornerRadius;
@@ -100,13 +107,17 @@ internal static class SettingsUILayout
     public static Thickness NumberTextPadding => AXAMLResources.AxamlSettingsUI.NumberTextPadding;
     public static Thickness NumberSuffixMargin => AXAMLResources.AxamlSettingsUI.NumberSuffixMargin;
     public static CornerRadius NumberValueCornerRadius => AXAMLResources.AxamlSettingsUI.NumberValueCornerRadius;
+
     public static double NumberSuffixPlaceholderOpacity =>
         AXAMLResources.AxamlSettingsUI.NumberSuffixPlaceholderOpacity;
+
     public static double NumberSuffixFontSize => AXAMLResources.AxamlSettingsUI.NumberSuffixFontSize;
     public static double NumberValueFontSize => AXAMLResources.AxamlSettingsUI.NumberValueFontSize;
     public static double NumberAutoWidthReserve => AXAMLResources.AxamlSettingsUI.NumberAutoWidthReserve;
+
     public static CornerRadius SpinnerButtonCornerRadius =>
         AXAMLResources.AxamlSettingsUI.SpinnerButtonCornerRadius;
+
     public static double SpinnerGlyphFontSize => AXAMLResources.AxamlSettingsUI.SpinnerGlyphFontSize;
     public static double SectionHeaderFontSize => AXAMLResources.AxamlSettingsUI.SectionHeaderFontSize;
     public static Thickness SectionHeaderMargin => AXAMLResources.AxamlSettingsUI.SectionHeaderMargin;
@@ -317,9 +328,9 @@ public sealed class SettingsPalette
             CloseButtonHover,
             CloseButtonPressed,
             CloseButtonGlyphActive,
-            hoverDeep: HoverDeep,
-            pressedDeep: PressedDeep,
-            controlBackgroundDeep: ControlBackgroundDeep);
+            HoverDeep,
+            PressedDeep,
+            ControlBackgroundDeep);
 
     internal Color GetColor(int index) => _colors[index];
 
@@ -489,8 +500,7 @@ public sealed class SettingsNavItem : Border
     /// <summary>Refreshes custom icon colors that cannot bind to the shared palette brush.</summary>
     internal void RefreshPalette()
     {
-        if (_customNavigationIcon != null)
-            _customNavigationIcon.IconColor = _palette.Foreground;
+        _customNavigationIcon?.IconColor = _palette.Foreground;
 
         UpdateVisual();
     }
@@ -512,7 +522,7 @@ public sealed class SettingsNavItem : Border
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.Children.Add(_indicator);
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         row.Children.Add(label);
         return row;
     }
@@ -544,7 +554,7 @@ public sealed class SettingsNavItem : Border
         }
 
         label.Margin = SettingsUILayout.Windows11NavLabelMargin;
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         content.Children.Add(label);
         row.Children.Add(content);
         return row;
@@ -603,7 +613,7 @@ public sealed class SettingsNavAction : Border
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.Children.Add(indicator);
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         row.Children.Add(label);
 
         _outer = new Border
@@ -781,10 +791,8 @@ public sealed class SettingsButton : Border
     /// Creates a settings button label from a glyph object.
     /// </summary>
     public SettingsButton(Glyph glyph, SettingsPalette palette, bool transparentBase = false, bool navGutter = false)
-        : this(glyph.Text, palette, transparentBase, navGutter)
-    {
+        : this(glyph.Text, palette, transparentBase, navGutter) =>
         GlyphApplicator.ApplyTo(_label, glyph);
-    }
 
     internal SettingsButton(
         Glyph glyph,
@@ -801,10 +809,8 @@ public sealed class SettingsButton : Border
             hoverBackground,
             pressedBackground,
             transparentBase,
-            navGutter)
-    {
+            navGutter) =>
         GlyphApplicator.ApplyTo(_label, glyph);
-    }
 
     public event EventHandler? Click;
 
@@ -835,6 +841,7 @@ public sealed class SettingsButton : Border
                 ? Brushes.Transparent
                 : TrayAppDotNETSettingsUI.Brush(_normalBackground);
         }
+
         DebugUIProvenance.RecordBuilder(this);
     }
 
@@ -853,7 +860,7 @@ public sealed class SettingsButton : Border
             Margin = SettingsUILayout.NavIndicatorMargin
         });
 
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         row.Children.Add(label);
         return row;
     }
@@ -1138,7 +1145,7 @@ public sealed class SettingsScrollHost : Grid, IDisposable
     public void SetVerticalOffset(double offset)
     {
         double maxOffset = MaxOffset;
-        double next = maxOffset <= 0 ? 0 : Math.Clamp(offset, 0, maxOffset);
+        double next = maxOffset <= 0 ? 0 : Math.Clamp(offset, min: 0, maxOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
     }
 
@@ -1153,17 +1160,17 @@ public sealed class SettingsScrollHost : Grid, IDisposable
 
         double next = Math.Clamp(
             _scrollViewer.Offset.Y - e.Delta.Y * SettingsUILayout.ScrollWheelStep,
-            0,
+            min: 0,
             maxOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
         e.Handled = true;
     }
 
-    private double MaxOffset => Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+    private double MaxOffset => Math.Max(val1: 0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         _scrollBar.Dispose();
@@ -1171,7 +1178,6 @@ public sealed class SettingsScrollHost : Grid, IDisposable
         _scrollViewer.Content = null;
         Children.Clear();
     }
-
 }
 
 /// <summary>Vertical scroll viewport with a reserved right track and a TADN-painted scrollbar.</summary>
@@ -1193,7 +1199,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (scrollBarStyle.TrackThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), "Track thickness must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), message: "Track thickness must be positive.");
 
         IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
         Background = backgroundBrush;
@@ -1202,12 +1208,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        _contentHost = new Border
-        {
-            Background = backgroundBrush,
-            Padding = padding,
-            Child = content
-        };
+        _contentHost = new Border { Background = backgroundBrush, Padding = padding, Child = content };
         _scrollViewer = new ScrollViewer
         {
             Background = backgroundBrush,
@@ -1224,7 +1225,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
             TrayAppDotNETCursors.Arrow,
             contextMenuOptions);
         _scrollBar.Attach(_scrollViewer);
-        Grid.SetColumn(_scrollBar, 1);
+        SetColumn(_scrollBar, value: 1);
         Children.Add(_scrollBar);
     }
 
@@ -1239,8 +1240,8 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
     public void SetVerticalOffset(double offset)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        double maximumOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
-        double nextOffset = maximumOffset <= 0 ? 0 : Math.Clamp(offset, 0, maximumOffset);
+        double maximumOffset = Math.Max(val1: 0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double nextOffset = maximumOffset <= 0 ? 0 : Math.Clamp(offset, min: 0, maximumOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextOffset);
     }
 
@@ -1263,7 +1264,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
-        double maximumOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double maximumOffset = Math.Max(val1: 0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
         if (maximumOffset <= 0)
         {
             base.OnPointerWheelChanged(eventArgs);
@@ -1272,7 +1273,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
 
         double nextOffset = Math.Clamp(
             _scrollViewer.Offset.Y - eventArgs.Delta.Y * SettingsUILayout.ScrollWheelStep,
-            0,
+            min: 0,
             maximumOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextOffset);
         eventArgs.Handled = true;
@@ -1289,7 +1290,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         _scrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
@@ -1323,7 +1324,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (scrollBarStyle.TrackThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), "Track thickness must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), message: "Track thickness must be positive.");
 
         IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
         Background = backgroundBrush;
@@ -1333,12 +1334,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
         RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        _contentHost = new Border
-        {
-            Background = backgroundBrush,
-            Padding = padding,
-            Child = content
-        };
+        _contentHost = new Border { Background = backgroundBrush, Padding = padding, Child = content };
         _scrollViewer = new ScrollViewer
         {
             Background = backgroundBrush,
@@ -1346,7 +1342,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
         };
-        if (overlayVerticalScrollBar) Grid.SetColumnSpan(_scrollViewer, 2);
+        if (overlayVerticalScrollBar) SetColumnSpan(_scrollViewer, value: 2);
         Children.Add(_scrollViewer);
 
         _verticalScrollBar = new SettingsScrollBar(
@@ -1355,7 +1351,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             TrayAppDotNETCursors.Arrow,
             contextMenuOptions);
         _verticalScrollBar.Attach(_scrollViewer);
-        Grid.SetColumn(_verticalScrollBar, 1);
+        SetColumn(_verticalScrollBar, value: 1);
         Children.Add(_verticalScrollBar);
 
         _horizontalScrollBar = new SettingsScrollBar(
@@ -1364,18 +1360,17 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             TrayAppDotNETCursors.Arrow,
             contextMenuOptions);
         _horizontalScrollBar.Attach(_scrollViewer);
-        Grid.SetRow(_horizontalScrollBar, 1);
+        SetRow(_horizontalScrollBar, value: 1);
         Children.Add(_horizontalScrollBar);
 
         _cornerHost = new Border
         {
-            Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor),
-            Child = cornerContent
+            Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor), Child = cornerContent
         };
         _cornerHost.PointerEntered += OnCornerPointerEntered;
         _cornerHost.PointerExited += OnCornerPointerExited;
-        Grid.SetColumn(_cornerHost, 1);
-        Grid.SetRow(_cornerHost, 1);
+        SetColumn(_cornerHost, value: 1);
+        SetRow(_cornerHost, value: 1);
         Children.Add(_cornerHost);
     }
 
@@ -1390,14 +1385,14 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     public void SetOffsets(double horizontalOffset, double verticalOffset)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        double horizontalMaximum = Math.Max(0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
-        double verticalMaximum = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double horizontalMaximum = Math.Max(val1: 0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
+        double verticalMaximum = Math.Max(val1: 0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
         double nextHorizontalOffset = horizontalMaximum <= 0
             ? 0
-            : Math.Clamp(horizontalOffset, 0, horizontalMaximum);
+            : Math.Clamp(horizontalOffset, min: 0, horizontalMaximum);
         double nextVerticalOffset = verticalMaximum <= 0
             ? 0
-            : Math.Clamp(verticalOffset, 0, verticalMaximum);
+            : Math.Clamp(verticalOffset, min: 0, verticalMaximum);
         _scrollViewer.Offset = new Vector(nextHorizontalOffset, nextVerticalOffset);
     }
 #endif
@@ -1407,14 +1402,14 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         bool useHorizontal =
             (eventArgs.KeyModifiers & KeyModifiers.Shift) != 0 ||
             Math.Abs(eventArgs.Delta.X) > Math.Abs(eventArgs.Delta.Y);
-        double verticalMaximum = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
-        double horizontalMaximum = Math.Max(0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
+        double verticalMaximum = Math.Max(val1: 0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double horizontalMaximum = Math.Max(val1: 0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
         if (useHorizontal && horizontalMaximum > 0)
         {
             double delta = eventArgs.Delta.X != 0 ? eventArgs.Delta.X : eventArgs.Delta.Y;
             double next = Math.Clamp(
                 _scrollViewer.Offset.X - delta * SettingsUILayout.ScrollWheelStep,
-                0,
+                min: 0,
                 horizontalMaximum);
             _scrollViewer.Offset = new Vector(next, _scrollViewer.Offset.Y);
             eventArgs.Handled = true;
@@ -1425,7 +1420,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         {
             double next = Math.Clamp(
                 _scrollViewer.Offset.Y - eventArgs.Delta.Y * SettingsUILayout.ScrollWheelStep,
-                0,
+                min: 0,
                 verticalMaximum);
             _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
             eventArgs.Handled = true;
@@ -1460,14 +1455,14 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (!double.IsFinite(offsetDelta))
-            throw new ArgumentOutOfRangeException(nameof(offsetDelta), "Offset delta must be finite.");
+            throw new ArgumentOutOfRangeException(nameof(offsetDelta), message: "Offset delta must be finite.");
 
         double verticalMaximum = Math.Max(
-            0,
+            val1: 0,
             _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
         double nextVerticalOffset = verticalMaximum <= 0
             ? 0
-            : Math.Clamp(_scrollViewer.Offset.Y + offsetDelta, 0, verticalMaximum);
+            : Math.Clamp(_scrollViewer.Offset.Y + offsetDelta, min: 0, verticalMaximum);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextVerticalOffset);
     }
 
@@ -1476,14 +1471,17 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (!double.IsFinite(topInset) || topInset < 0)
-            throw new ArgumentOutOfRangeException(nameof(topInset), "Top inset must be finite and non-negative.");
+        {
+            throw new ArgumentOutOfRangeException(nameof(topInset),
+                message: "Top inset must be finite and non-negative.");
+        }
 
-        _verticalScrollBar.Margin = new Thickness(0, topInset, 0, 0);
+        _verticalScrollBar.Margin = new Thickness(left: 0, topInset, right: 0, bottom: 0);
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         _verticalScrollBar.Dispose();
@@ -1563,9 +1561,9 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
     {
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (style.TrackThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(style), "Track thickness must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(style), message: "Track thickness must be positive.");
         if (style.IdleThumbThickness <= 0 || style.HoverThumbThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(style), "Thumb thicknesses must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(style), message: "Thumb thicknesses must be positive.");
 
         _orientation = orientation;
         _contextMenuOptions = contextMenuOptions;
@@ -1574,7 +1572,7 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         _idleThumbBrush = TrayAppDotNETSettingsUI.Brush(style.IdleThumbColor);
         _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
         _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
-        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
+        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), thickness: 1);
         UpdateLayoutThickness();
         Cursor = cursor;
         Focusable = false;
@@ -1617,16 +1615,16 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (style.TrackThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(style), "Track thickness must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(style), message: "Track thickness must be positive.");
         if (style.IdleThumbThickness <= 0 || style.HoverThumbThickness <= 0)
-            throw new ArgumentOutOfRangeException(nameof(style), "Thumb thicknesses must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(style), message: "Thumb thicknesses must be positive.");
 
         _style = style;
         _trackBrush = TrayAppDotNETSettingsUI.Brush(style.TrackColor);
         _idleThumbBrush = TrayAppDotNETSettingsUI.Brush(style.IdleThumbColor);
         _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
         _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
-        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
+        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), thickness: 1);
         UpdateLayoutThickness();
         InvalidateVisual();
     }
@@ -1648,8 +1646,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         double visualTrackThickness = VisualTrackThickness;
         double expansionOrigin = ExpansionOrigin;
         Rect track = _orientation == Orientation.Vertical
-            ? new Rect(expansionOrigin, 0, visualTrackThickness, Bounds.Height)
-            : new Rect(0, expansionOrigin, Bounds.Width, visualTrackThickness);
+            ? new Rect(expansionOrigin, y: 0, visualTrackThickness, Bounds.Height)
+            : new Rect(x: 0, expansionOrigin, Bounds.Width, visualTrackThickness);
         context.FillRectangle(_trackBrush, track);
         if (_viewer == null) return;
 
@@ -1708,6 +1706,7 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
             e.Handled = true;
             return;
         }
+
         if (buttonLength > 0 && pointerAxis >= TrackLength - buttonLength)
         {
             ScrollLine(1);
@@ -1731,6 +1730,7 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
             _isDragging = false;
             throw;
         }
+
         SetOffsetFromPointer(pointerAxis);
         InvalidateVisual();
         e.Handled = true;
@@ -1776,8 +1776,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
     private double CollapsedTrackThickness => Math.Max(
         _style.TrackThickness * Math.Clamp(
             SettingsUILayout.ScrollBarExpansionHitTestDepthRatio,
-            0,
-            1),
+            min: 0,
+            max: 1),
         Math.Max(
             _style.IdleThumbThickness,
             _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness));
@@ -1800,8 +1800,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         {
             if (_viewer == null) return 0;
             return _orientation == Orientation.Vertical
-                ? Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height)
-                : Math.Max(0, _viewer.Extent.Width - _viewer.Viewport.Width);
+                ? Math.Max(val1: 0, _viewer.Extent.Height - _viewer.Viewport.Height)
+                : Math.Max(val1: 0, _viewer.Extent.Width - _viewer.Viewport.Width);
         }
     }
 
@@ -1809,29 +1809,29 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
     {
         if (_viewer == null) return default;
 
-        double trackLength = Math.Max(0, TrackLength);
+        double trackLength = Math.Max(val1: 0, TrackLength);
         double viewport = _orientation == Orientation.Vertical
-            ? Math.Max(0, _viewer.Viewport.Height)
-            : Math.Max(0, _viewer.Viewport.Width);
+            ? Math.Max(val1: 0, _viewer.Viewport.Height)
+            : Math.Max(val1: 0, _viewer.Viewport.Width);
         double extent = _orientation == Orientation.Vertical
             ? Math.Max(viewport, _viewer.Extent.Height)
             : Math.Max(viewport, _viewer.Extent.Width);
         double buttonLength = ButtonLength;
-        double scrollingTrackLength = Math.Max(0, trackLength - buttonLength * 2);
+        double scrollingTrackLength = Math.Max(val1: 0, trackLength - buttonLength * 2);
         double thumbLength = extent <= 0
             ? 0
             : Math.Min(
                 scrollingTrackLength,
                 Math.Max(_style.MinimumThumbLength, scrollingTrackLength * viewport / extent));
-        double available = Math.Max(0, scrollingTrackLength - thumbLength);
+        double available = Math.Max(val1: 0, scrollingTrackLength - thumbLength);
         double axisOffset = MaxOffset <= 0
             ? 0
-            : Math.Clamp(CurrentOffset / MaxOffset * available, 0, available);
+            : Math.Clamp(CurrentOffset / MaxOffset * available, min: 0, available);
         double visualTrackThickness = VisualTrackThickness;
         double crossOffset = ExpansionOrigin + Math.Clamp(
             visualTrackThickness - ThumbThickness - _style.ThumbEndMargin,
-            0,
-            Math.Max(0, visualTrackThickness - ThumbThickness));
+            min: 0,
+            Math.Max(val1: 0, visualTrackThickness - ThumbThickness));
         return _orientation == Orientation.Vertical
             ? new Rect(crossOffset, buttonLength + axisOffset, ThumbThickness, thumbLength)
             : new Rect(buttonLength + axisOffset, crossOffset, thumbLength, ThumbThickness);
@@ -1843,14 +1843,14 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 
         Rect thumb = ThumbRect();
         double buttonLength = ButtonLength;
-        double available = Math.Max(0, TrackLength - buttonLength * 2 - ThumbLength(thumb));
+        double available = Math.Max(val1: 0, TrackLength - buttonLength * 2 - ThumbLength(thumb));
         if (available <= 0)
         {
             SetCurrentOffset(0);
             return;
         }
 
-        double start = Math.Clamp(pointerAxis - _dragOffset - buttonLength, 0, available);
+        double start = Math.Clamp(pointerAxis - _dragOffset - buttonLength, min: 0, available);
         SetCurrentOffset(start / available * MaxOffset);
     }
 
@@ -1862,22 +1862,22 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 
     private void SetCurrentOffset(double offset)
     {
-        if (_viewer == null) return;
-        _viewer.Offset = _orientation == Orientation.Vertical
-            ? new Vector(_viewer.Offset.X, offset)
-            : new Vector(offset, _viewer.Offset.Y);
+        ScrollViewer? viewer = _viewer;
+        viewer?.Offset = _orientation == Orientation.Vertical
+            ? new Vector(viewer.Offset.X, offset)
+            : new Vector(offset, viewer.Offset.Y);
     }
 
     private void ScrollLine(int direction) =>
         SetCurrentOffset(Math.Clamp(
             CurrentOffset + direction * SettingsUILayout.ScrollWheelStep,
-            0,
+            min: 0,
             MaxOffset));
 
     private void ScrollPage(int direction) =>
         SetCurrentOffset(Math.Clamp(
             CurrentOffset + direction * ViewportLength,
-            0,
+            min: 0,
             MaxOffset));
 
     private void ScrollHere(double pointerAxis)
@@ -1899,12 +1899,12 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         double thumbLength,
         double maximumOffset)
     {
-        double available = Math.Max(0, trackLength - buttonLength * 2 - thumbLength);
+        double available = Math.Max(val1: 0, trackLength - buttonLength * 2 - thumbLength);
         if (available <= 0 || maximumOffset <= 0) return 0;
 
         double thumbStart = Math.Clamp(
             pointerAxis - buttonLength - thumbLength / 2,
-            0,
+            min: 0,
             available);
         return thumbStart / available * maximumOffset;
     }
@@ -1995,8 +1995,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
     private double ViewportLength => _viewer == null
         ? 0
         : _orientation == Orientation.Vertical
-            ? Math.Max(0, _viewer.Viewport.Height)
-            : Math.Max(0, _viewer.Viewport.Width);
+            ? Math.Max(val1: 0, _viewer.Viewport.Height)
+            : Math.Max(val1: 0, _viewer.Viewport.Width);
 
     private void DrawHoverButtons(DrawingContext context)
     {
@@ -2010,24 +2010,24 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         const double arrowRadius = 2.5;
         if (_orientation == Orientation.Vertical)
         {
-            DrawChevron(context, crossCenter, buttonCenter, arrowRadius, -1, isVertical: true);
+            DrawChevron(context, crossCenter, buttonCenter, arrowRadius, direction: -1, isVertical: true);
             DrawChevron(
                 context,
                 crossCenter,
                 TrackLength - buttonCenter,
                 arrowRadius,
-                1,
+                direction: 1,
                 isVertical: true);
             return;
         }
 
-        DrawChevron(context, buttonCenter, crossCenter, arrowRadius, -1, isVertical: false);
+        DrawChevron(context, buttonCenter, crossCenter, arrowRadius, direction: -1, isVertical: false);
         DrawChevron(
             context,
             TrackLength - buttonCenter,
             crossCenter,
             arrowRadius,
-            1,
+            direction: 1,
             isVertical: false);
     }
 
@@ -2064,8 +2064,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
             SettingsUILayout.ScrollBarThumbMargin,
             SettingsUILayout.ScrollBarMinThumbHeight,
             Colors.Transparent,
-            Color.FromArgb(140, sliderColor.R, sliderColor.G, sliderColor.B),
-            Color.FromArgb(217, sliderColor.R, sliderColor.G, sliderColor.B),
+            Color.FromArgb(a: 140, sliderColor.R, sliderColor.G, sliderColor.B),
+            Color.FromArgb(a: 217, sliderColor.R, sliderColor.G, sliderColor.B),
             sliderColor,
             sliderColor,
             ShowButtonsOnHover: false);
@@ -2087,10 +2087,10 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         CloseContextMenu();
-        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, value: null);
         _isDragging = false;
         _isExternallyExpanded = false;
         if (capturedPointer != null)
@@ -2142,12 +2142,11 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
     private bool _isSelected;
     private int _disposed;
 
-    public SettingsComboBoxItem(object tag, string text, SettingsPalette palette)
-        : this(tag, text, palette, contentFactory: null)
-    {
-    }
-
-    public SettingsComboBoxItem(object tag, string text, SettingsPalette palette, Func<Control>? contentFactory)
+    public SettingsComboBoxItem(
+        object tag,
+        string text,
+        SettingsPalette palette,
+        Func<Control>? contentFactory = null)
     {
         Tag = tag;
         Text = text;
@@ -2177,7 +2176,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboIndicatorGapWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.Children.Add(_selectionBar);
-        Grid.SetColumn(_itemContent, 2);
+        Grid.SetColumn(_itemContent, value: 2);
         row.Children.Add(_itemContent);
 
         _inner = new Border
@@ -2254,7 +2253,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         PointerEntered -= OnPointerEntered;
@@ -2264,7 +2263,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         Pressed = null;
         _inner.Child = null;
         Child = null;
-        Control? itemContent = Interlocked.Exchange(ref _itemContent, null);
+        Control? itemContent = Interlocked.Exchange(ref _itemContent, value: null);
         if (itemContent is IDisposable disposable)
             disposable.Dispose();
     }
@@ -2354,7 +2353,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboArrowColumnWidth)));
         row.Children.Add(_selectionPresenter);
-        SetColumn(arrow, 1);
+        SetColumn(arrow, value: 1);
         row.Children.Add(arrow);
 
         _surface = new Border
@@ -2371,10 +2370,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
         _popupScrollHost = new SettingsScrollHost(
             _itemsPanel,
             palette,
-            SettingsUILayout.ComboPopupScrollPadding)
-        {
-            MaxHeight = SettingsUILayout.ComboPopupMaxHeight
-        };
+            SettingsUILayout.ComboPopupScrollPadding) { MaxHeight = SettingsUILayout.ComboPopupMaxHeight };
 
         _popupBorder = new Border
         {
@@ -2405,7 +2401,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
         _popup.PropertyChanged += OnPopupPropertyChanged;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
 
-        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, 0.4);
+        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, disabledOpacity: 0.4);
         UpdateSurface();
     }
 
@@ -2627,7 +2623,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
     /// <summary>Closes the popup and releases generated selection and item content.</summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
@@ -2799,9 +2795,9 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         _palette = palette;
         _minimum = min;
         _maximum = max;
-        _decimalPlaces = Math.Clamp(decimalPlaces, 0, MaximumDecimalPlaces);
+        _decimalPlaces = Math.Clamp(decimalPlaces, min: 0, MaximumDecimalPlaces);
         _numberFormat = CreateNumberFormat(_decimalPlaces);
-        _baseWidth = Math.Max(1, width);
+        _baseWidth = Math.Max(val1: 1, width);
         MinWidth = _baseWidth;
         Height = SettingsUILayout.NumberBoxHeight;
         Focusable = true;
@@ -2839,7 +2835,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                 if (c == '-' &&
                     Minimum < 0 &&
                     _textBox.SelectionStart == 0 &&
-                    !(_textBox.Text ?? string.Empty).Contains('-', StringComparison.Ordinal))
+                    !(_textBox.Text ?? string.Empty).Contains(value: '-', StringComparison.Ordinal))
                     continue;
                 if (IsDecimalSeparator(c) &&
                     DecimalPlaces > 0 &&
@@ -2860,7 +2856,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         valueGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         valueGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         valueGrid.Children.Add(_textBox);
-        SetColumn(_suffixText, 1);
+        SetColumn(_suffixText, value: 1);
         valueGrid.Children.Add(_suffixText);
 
         _valueBorder = new Border
@@ -2878,9 +2874,9 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         _upButton = new SettingsSpinnerButton(GlyphCatalog.CHEVRON_UP, palette);
         _downButton = new SettingsSpinnerButton(GlyphCatalog.CHEVRON_DOWN, palette);
         spinnerGrid.Children.Add(_upButton);
-        SetRow(_downButton, 1);
+        SetRow(_downButton, value: 1);
         spinnerGrid.Children.Add(_downButton);
-        SetColumn(spinnerGrid, 1);
+        SetColumn(spinnerGrid, value: 1);
         Children.Add(spinnerGrid);
 
         _valueBorder.PointerEntered += (_, _) =>
@@ -2958,7 +2954,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
 
         Value = value;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
-        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, 0.4);
+        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, disabledOpacity: 0.4);
         UpdateValueBorder();
     }
 
@@ -3015,7 +3011,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         get => _decimalPlaces;
         set
         {
-            int normalized = Math.Clamp(value, 0, MaximumDecimalPlaces);
+            int normalized = Math.Clamp(value, min: 0, MaximumDecimalPlaces);
             if (_decimalPlaces == normalized) return;
 
             _decimalPlaces = normalized;
@@ -3151,9 +3147,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
             || roundedValue < Minimum
             || roundedValue > Maximum
             || _value == roundedValue)
-        {
             return;
-        }
 
         double? oldValue = _value;
         _value = roundedValue;
@@ -3207,12 +3201,13 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private bool IsSelfOrDescendant(Visual? visual)
     {
         if (visual == null) return false;
-        return ReferenceEquals(visual, this) || visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, this));
+        return ReferenceEquals(visual, this) ||
+               visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, this));
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
         DetachOutsidePointerHandler();
@@ -3349,7 +3344,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private static string CreateNumberFormat(int decimalPlaces) =>
         decimalPlaces == 0
             ? "0"
-            : $"0.{new string('#', decimalPlaces)}";
+            : $"0.{new string(c: '#', decimalPlaces)}";
 
     private static double NormalizeStep(double value) =>
         double.IsFinite(value) ? Math.Max(MinimumStep, value) : 1;
@@ -3362,13 +3357,13 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     {
         string currentSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
         return character == '.' ||
-               currentSeparator.Length == 1 && character == currentSeparator[0];
+               (currentSeparator.Length == 1 && character == currentSeparator[0]);
     }
 
     private static bool ContainsDecimalSeparator(string text)
     {
         string currentSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-        return text.Contains('.', StringComparison.Ordinal) ||
+        return text.Contains(value: '.', StringComparison.Ordinal) ||
                text.Contains(currentSeparator, StringComparison.Ordinal);
     }
 
@@ -3447,10 +3442,8 @@ internal sealed class SettingsSpinnerButton : Border
     /// Creates a spinner button from a glyph object.
     /// </summary>
     public SettingsSpinnerButton(Glyph glyph, SettingsPalette palette)
-        : this(glyph.Text, palette)
-    {
+        : this(glyph.Text, palette) =>
         GlyphApplicator.ApplyTo(_glyph, glyph);
-    }
 
     public event EventHandler? Click;
 
@@ -3569,7 +3562,7 @@ public static class TrayAppDotNETSettingsUI
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
             rightControl.Margin = SettingsUILayout.RightControlMargin;
-            Grid.SetColumn(rightControl, 1);
+            Grid.SetColumn(rightControl, value: 1);
             grid.Children.Add(rightControl);
         }
 
@@ -3721,7 +3714,7 @@ public static class TrayAppDotNETSettingsUI
     {
         ArgumentNullException.ThrowIfNull(textBox);
         textBox.ClearSelection();
-        TopLevel.GetTopLevel(textBox)?.FocusManager?.Focus(null);
+        TopLevel.GetTopLevel(textBox)?.FocusManager.Focus(null);
     }
 
     private static void OnStandardTextBoxKeyUp(object? sender, KeyEventArgs eventArgs)
@@ -3762,7 +3755,8 @@ public static class TrayAppDotNETSettingsUI
         textBox.Resources["TextControlPlaceholderForegroundPointerOver"] = disabled;
         textBox.Resources["TextControlPlaceholderForegroundFocused"] = disabled;
         textBox.Resources["TextControlPlaceholderForegroundDisabled"] = disabled;
-        textBox.Resources["TextControlSelectionHighlightColor"] = AppTheme.ResolveTextSelectionHighlight(palette.Accent);
+        textBox.Resources["TextControlSelectionHighlightColor"] =
+            AppTheme.ResolveTextSelectionHighlight(palette.Accent);
         textBox.Resources["TextControlSelectionHighlightForeground"] = foreground;
         DebugUIProvenance.RecordBuilder(textBox);
     }
@@ -3778,10 +3772,7 @@ public static class TrayAppDotNETSettingsUI
 
     public static StackPanel Horizontal(params Control[] controls)
     {
-        StackPanel panel = new()
-        {
-            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
-        };
+        StackPanel panel = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         foreach (Control control in controls)
             panel.Children.Add(control);
         DebugUIProvenance.RecordBuilder(panel);

@@ -6,8 +6,8 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.ContextMenus;
+using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
@@ -18,7 +18,7 @@ public sealed class SettingsVerticalScrollViewportTests
     public void ReservesOnlyTheRightScrollbarTrack() => AvaloniaTestHost.Run(() =>
     {
         Border content = new();
-        Color background = Color.FromRgb(0x19, 0x19, 0x19);
+        Color background = Color.FromRgb(r: 0x19, g: 0x19, b: 0x19);
         SettingsScrollBarStyle style = CreateStyle(trackThickness: 16, hoverThumbThickness: 9);
         ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
         using SettingsVerticalScrollViewport viewport = new(
@@ -28,12 +28,12 @@ public sealed class SettingsVerticalScrollViewportTests
             style,
             contextMenuOptions);
 
-        Assert.Equal(2, viewport.ColumnDefinitions.Count);
+        Assert.Equal(expected: 2, viewport.ColumnDefinitions.Count);
         Assert.Single(viewport.RowDefinitions);
 
         ScrollViewer scrollViewer = Assert.Single(viewport.Children.OfType<ScrollViewer>());
-        Assert.Equal(0, Grid.GetColumn(scrollViewer));
-        Assert.Equal(0, Grid.GetRow(scrollViewer));
+        Assert.Equal(expected: 0, Grid.GetColumn(scrollViewer));
+        Assert.Equal(expected: 0, Grid.GetRow(scrollViewer));
         Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Hidden, scrollViewer.VerticalScrollBarVisibility);
 
@@ -44,9 +44,9 @@ public sealed class SettingsVerticalScrollViewportTests
         Assert.Equal(background, backgroundBrush.Color);
 
         SettingsScrollBar scrollBar = Assert.Single(viewport.Children.OfType<SettingsScrollBar>());
-        Assert.Equal(1, Grid.GetColumn(scrollBar));
-        Assert.Equal(0, Grid.GetRow(scrollBar));
-        Assert.Equal(12, scrollBar.Width);
+        Assert.Equal(expected: 1, Grid.GetColumn(scrollBar));
+        Assert.Equal(expected: 0, Grid.GetRow(scrollBar));
+        Assert.Equal(expected: 12, scrollBar.Width);
     });
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class SettingsVerticalScrollViewportTests
         ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
         using SettingsVerticalScrollViewport viewport = new(
             new Border(),
-            default,
+            padding: default,
             Colors.Black,
             CreateStyle(trackThickness: 16, hoverThumbThickness: 9),
             contextMenuOptions);
@@ -63,10 +63,10 @@ public sealed class SettingsVerticalScrollViewportTests
 
         viewport.SetScrollBarStyle(CreateStyle(trackThickness: 20, hoverThumbThickness: 12));
 
-        Assert.Equal(15, scrollBar.Width);
-        Assert.Equal(2, viewport.ColumnDefinitions.Count);
+        Assert.Equal(expected: 15, scrollBar.Width);
+        Assert.Equal(expected: 2, viewport.ColumnDefinitions.Count);
         Assert.Single(viewport.RowDefinitions);
-        Assert.Equal(1, Grid.GetColumn(scrollBar));
+        Assert.Equal(expected: 1, Grid.GetColumn(scrollBar));
     });
 
     [Theory]
@@ -74,80 +74,75 @@ public sealed class SettingsVerticalScrollViewportTests
     [InlineData(Orientation.Horizontal)]
     public void ScrollbarKeepsAStableHitTestSurfaceAcrossRepeatedPointerEntries(Orientation orientation) =>
         AvaloniaTestHost.Run(() =>
-    {
-        ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
-        using Cursor cursor = new(StandardCursorType.Arrow);
-        using SettingsScrollBar scrollBar = new(
-            orientation,
-            CreateStyle(trackThickness: 16, hoverThumbThickness: 9),
-            cursor,
-            contextMenuOptions);
-        switch (orientation)
         {
-            case Orientation.Vertical:
-                scrollBar.HorizontalAlignment = HorizontalAlignment.Right;
-                scrollBar.VerticalAlignment = VerticalAlignment.Stretch;
-                break;
-            case Orientation.Horizontal:
-                scrollBar.HorizontalAlignment = HorizontalAlignment.Stretch;
-                scrollBar.VerticalAlignment = VerticalAlignment.Bottom;
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(orientation));
-        }
+            ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+            using Cursor cursor = new(StandardCursorType.Arrow);
+            using SettingsScrollBar scrollBar = new(
+                orientation,
+                CreateStyle(trackThickness: 16, hoverThumbThickness: 9),
+                cursor,
+                contextMenuOptions);
+            switch (orientation)
+            {
+                case Orientation.Vertical:
+                    scrollBar.HorizontalAlignment = HorizontalAlignment.Right;
+                    scrollBar.VerticalAlignment = VerticalAlignment.Stretch;
+                    break;
+                case Orientation.Horizontal:
+                    scrollBar.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    scrollBar.VerticalAlignment = VerticalAlignment.Bottom;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(orientation));
+            }
 
-        Window window = new()
-        {
-            Width = 200,
-            Height = 160,
-            Content = scrollBar
-        };
+            Window window = new() { Width = 200, Height = 160, Content = scrollBar };
 
-        try
-        {
-            window.Show();
-            window.UpdateLayout();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
-            Dispatcher.UIThread.RunJobs();
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+                Dispatcher.UIThread.RunJobs();
 
-            Point insideCollapsedTrack = PointAtTrackDepth(window.Bounds, orientation, 2);
-            Point insideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, 14);
-            Point outsideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, 40);
-            int pointerEntryCount = 0;
-            scrollBar.PointerEntered += (_, _) => pointerEntryCount++;
-            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+                Point insideCollapsedTrack = PointAtTrackDepth(window.Bounds, orientation, depth: 2);
+                Point insideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, depth: 14);
+                Point outsideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, depth: 40);
+                int pointerEntryCount = 0;
+                scrollBar.PointerEntered += (_, _) => pointerEntryCount++;
+                Assert.Equal(expected: 12, CrossAxisThickness(scrollBar, orientation));
 
-            window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
-            Assert.True(scrollBar.IsPointerOver);
-            Assert.Equal(1, pointerEntryCount);
-            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
-            window.UpdateLayout();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
-            Dispatcher.UIThread.RunJobs();
+                window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
+                Assert.True(scrollBar.IsPointerOver);
+                Assert.Equal(expected: 1, pointerEntryCount);
+                Assert.Equal(expected: 12, CrossAxisThickness(scrollBar, orientation));
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+                Dispatcher.UIThread.RunJobs();
 
-            window.MouseMove(insideExpandedTrack, RawInputModifiers.None);
-            Assert.True(scrollBar.IsPointerOver);
-            Assert.Equal(1, pointerEntryCount);
-            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+                window.MouseMove(insideExpandedTrack, RawInputModifiers.None);
+                Assert.True(scrollBar.IsPointerOver);
+                Assert.Equal(expected: 1, pointerEntryCount);
+                Assert.Equal(expected: 12, CrossAxisThickness(scrollBar, orientation));
 
-            window.MouseMove(outsideExpandedTrack, RawInputModifiers.None);
-            Assert.False(scrollBar.IsPointerOver);
-            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
-            window.UpdateLayout();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
-            Dispatcher.UIThread.RunJobs();
+                window.MouseMove(outsideExpandedTrack, RawInputModifiers.None);
+                Assert.False(scrollBar.IsPointerOver);
+                Assert.Equal(expected: 12, CrossAxisThickness(scrollBar, orientation));
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+                Dispatcher.UIThread.RunJobs();
 
-            window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
+                window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
 
-            Assert.True(scrollBar.IsPointerOver);
-            Assert.Equal(2, pointerEntryCount);
-            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
-        }
-        finally
-        {
-            window.Close();
-        }
-    });
+                Assert.True(scrollBar.IsPointerOver);
+                Assert.Equal(expected: 2, pointerEntryCount);
+                Assert.Equal(expected: 12, CrossAxisThickness(scrollBar, orientation));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
 
     private static double CrossAxisThickness(SettingsScrollBar scrollBar, Orientation orientation) =>
         orientation switch
@@ -167,16 +162,16 @@ public sealed class SettingsVerticalScrollViewportTests
 
     private static SettingsScrollBarStyle CreateStyle(double trackThickness, double hoverThumbThickness) =>
         new(
-            TrackThickness: trackThickness,
+            trackThickness,
             IdleThumbThickness: 4,
-            HoverThumbThickness: hoverThumbThickness,
+            hoverThumbThickness,
             ThumbEndMargin: 3,
             MinimumThumbLength: 28,
-            TrackColor: Colors.Black,
-            IdleThumbColor: Colors.Gray,
-            HoverThumbColor: Colors.LightGray,
-            DragThumbColor: Colors.White,
-            ArrowColor: Colors.White,
+            Colors.Black,
+            Colors.Gray,
+            Colors.LightGray,
+            Colors.White,
+            Colors.White,
             ShowButtonsOnHover: true);
 
     private static SettingsPalette CreatePalette() => new(
@@ -201,7 +196,6 @@ public sealed class SettingsVerticalScrollViewportTests
         Colors.Red,
         Colors.DarkRed,
         Colors.White);
-
 }
 
 public sealed class SettingsScrollViewportTests
@@ -213,15 +207,15 @@ public sealed class SettingsScrollViewportTests
         ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
         using SettingsScrollViewport viewport = new(
             new Border(),
-            default,
+            padding: default,
             Colors.Black,
             CreateStyle(),
             contextMenuOptions);
 
-        viewport.SetOffsets(75, 80);
+        viewport.SetOffsets(horizontalOffset: 75, verticalOffset: 80);
 
-        Assert.Equal(0, viewport.HorizontalOffset);
-        Assert.Equal(0, viewport.VerticalOffset);
+        Assert.Equal(expected: 0, viewport.HorizontalOffset);
+        Assert.Equal(expected: 0, viewport.VerticalOffset);
     });
 #endif
 
@@ -232,7 +226,7 @@ public sealed class SettingsScrollViewportTests
             ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
             using SettingsScrollViewport viewport = new(
                 new Border(),
-                default,
+                padding: default,
                 Colors.Black,
                 CreateStyle(),
                 contextMenuOptions);
@@ -246,9 +240,9 @@ public sealed class SettingsScrollViewportTests
 
             viewport.SetVerticalScrollBarTopInset(34);
 
-            Assert.Equal(new Thickness(0, 34, 0, 0), verticalScrollBar.Margin);
-            Assert.Equal(default, horizontalScrollBar.Margin);
-            Assert.Equal(default, scrollViewer.Margin);
+            Assert.Equal(new Thickness(left: 0, top: 34, right: 0, bottom: 0), verticalScrollBar.Margin);
+            Assert.Equal(expected: default, horizontalScrollBar.Margin);
+            Assert.Equal(expected: default, scrollViewer.Margin);
         });
 
     [Fact]
@@ -258,14 +252,14 @@ public sealed class SettingsScrollViewportTests
             ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
             using SettingsScrollViewport viewport = new(
                 new Border(),
-                default,
+                padding: default,
                 Colors.Black,
                 CreateStyle(),
                 contextMenuOptions,
                 overlayVerticalScrollBar: true);
             ScrollViewer scrollViewer = Assert.Single(viewport.Children.OfType<ScrollViewer>());
 
-            Assert.Equal(2, Grid.GetColumnSpan(scrollViewer));
+            Assert.Equal(expected: 2, Grid.GetColumnSpan(scrollViewer));
         });
 
     private static SettingsScrollBarStyle CreateStyle() =>
@@ -275,11 +269,11 @@ public sealed class SettingsScrollViewportTests
             HoverThumbThickness: 9,
             ThumbEndMargin: 3,
             MinimumThumbLength: 28,
-            TrackColor: Colors.Black,
-            IdleThumbColor: Colors.Gray,
-            HoverThumbColor: Colors.LightGray,
-            DragThumbColor: Colors.White,
-            ArrowColor: Colors.White,
+            Colors.Black,
+            Colors.Gray,
+            Colors.LightGray,
+            Colors.White,
+            Colors.White,
             ShowButtonsOnHover: true);
 
     private static SettingsPalette CreatePalette() => new(

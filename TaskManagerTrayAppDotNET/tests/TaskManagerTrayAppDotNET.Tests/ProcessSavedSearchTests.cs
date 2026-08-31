@@ -10,11 +10,11 @@ public sealed class ProcessSavedSearchTests
     {
         List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add(
             [],
-            "chrome");
+            query: "chrome");
 
         ProcessSavedSearch savedSearch = Assert.Single(updated);
-        Assert.Equal("Saved Search 1", savedSearch.Name);
-        Assert.Equal("chrome", savedSearch.Query);
+        Assert.Equal(expected: "Saved Search 1", savedSearch.Name);
+        Assert.Equal(expected: "chrome", savedSearch.Query);
     }
 
     [Fact]
@@ -25,9 +25,9 @@ public sealed class ProcessSavedSearchTests
 
         List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add(
             [first, conflicting],
-            "gamma");
+            query: "gamma");
 
-        Assert.Equal("Saved Search 4", updated[^1].Name);
+        Assert.Equal(expected: "Saved Search 4", updated[^1].Name);
     }
 
     [Fact]
@@ -38,11 +38,11 @@ public sealed class ProcessSavedSearchTests
         List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Rename(
             [savedSearch],
             searchIndex: 0,
-            "  Browsers  ");
+            name: "  Browsers  ");
 
         ProcessSavedSearch renamedSearch = Assert.Single(updated);
-        Assert.Equal("Browsers", renamedSearch.Name);
-        Assert.Equal("chrome", renamedSearch.Query);
+        Assert.Equal(expected: "Browsers", renamedSearch.Name);
+        Assert.Equal(expected: "chrome", renamedSearch.Query);
     }
 
     [Fact]
@@ -53,27 +53,23 @@ public sealed class ProcessSavedSearchTests
         List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Rename(
             [savedSearch],
             searchIndex: 0,
-            "   ");
+            name: "   ");
 
-        Assert.Equal("Browsers", Assert.Single(updated).Name);
+        Assert.Equal(expected: "Browsers", Assert.Single(updated).Name);
     }
 
     [Theory]
     [InlineData("{Name}=~\"^chrome\"")]
     [InlineData("{Command line} !~ 'helper'")]
-    public void RegexComparisonsAreDetected(string query)
-    {
+    public void RegexComparisonsAreDetected(string query) =>
         Assert.True(ProcessSavedSearchCollection.UsesRegularExpression(query));
-    }
 
     [Theory]
     [InlineData("literal =~ text")]
     [InlineData("{Name}=\"literal =~ text\"")]
     [InlineData("{Name}=chrome")]
-    public void RegexLikeTextOutsideARegexComparisonIsIgnored(string query)
-    {
+    public void RegexLikeTextOutsideARegexComparisonIsIgnored(string query) =>
         Assert.False(ProcessSavedSearchCollection.UsesRegularExpression(query));
-    }
 
     [Fact]
     public void SavedSearchesRoundTripThroughSettingsXml()
@@ -88,11 +84,7 @@ public sealed class ProcessSavedSearchTests
                 Autosave = false,
                 ProcessSavedSearches =
                 [
-                    new ProcessSavedSearch
-                    {
-                        Name = "Browsers",
-                        Query = "{Name}=~\"^(chrome|firefox)\\.exe$\""
-                    }
+                    new ProcessSavedSearch { Name = "Browsers", Query = "{Name}=~\"^(chrome|firefox)\\.exe$\"" }
                 ]
             };
             settings.Save(path);
@@ -100,8 +92,8 @@ public sealed class ProcessSavedSearchTests
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             ProcessSavedSearch savedSearch = Assert.Single(loaded.ProcessSavedSearches);
-            Assert.Equal("Browsers", savedSearch.Name);
-            Assert.Equal("{Name}=~\"^(chrome|firefox)\\.exe$\"", savedSearch.Query);
+            Assert.Equal(expected: "Browsers", savedSearch.Name);
+            Assert.Equal(expected: "{Name}=~\"^(chrome|firefox)\\.exe$\"", savedSearch.Query);
         }
         finally
         {
@@ -121,15 +113,11 @@ public sealed class ProcessSavedSearchTests
 
         settings.UpdateProcessSavedSearches(
         [
-            new ProcessSavedSearch
-            {
-                Name = "Saved Search 1",
-                Query = "chrome"
-            }
+            new ProcessSavedSearch { Name = "Saved Search 1", Query = "chrome" }
         ]);
 
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal([nameof(AppSettings.ProcessSavedSearches)], changedProperties);
-        Assert.Equal("chrome", Assert.Single(settings.ProcessSavedSearches).Query);
+        Assert.Equal(expected: "chrome", Assert.Single(settings.ProcessSavedSearches).Query);
     }
 }

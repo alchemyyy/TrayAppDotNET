@@ -9,10 +9,8 @@ public sealed class EnterpriseContextReaderTests
     [InlineData(0U, "Personal")]
     [InlineData(1U, "Exempt")]
     [InlineData(32U, "Personal")]
-    public void FormatsTerminalContexts(uint flags, string expected)
-    {
+    public void FormatsTerminalContexts(uint flags, string expected) =>
         Assert.Equal(expected, EnterpriseContextReader.FormatContext(flags, []));
-    }
 
     [Fact]
     public void FormatsEnterpriseIDsAndApplicationCapabilities()
@@ -22,7 +20,7 @@ public sealed class EnterpriseContextReaderTests
             ["corp.contoso.com", "research.contoso.com"]);
 
         Assert.Equal(
-            "corp.contoso.com, research.contoso.com (Enlightened, Permissive)",
+            expected: "corp.contoso.com, research.contoso.com (Enlightened, Permissive)",
             value);
     }
 }

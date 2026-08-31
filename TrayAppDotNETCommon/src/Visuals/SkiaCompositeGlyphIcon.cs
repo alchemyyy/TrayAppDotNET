@@ -8,7 +8,7 @@ namespace TrayAppDotNETCommon.Visuals;
 public sealed class SkiaCompositeGlyphIcon(CompositeGlyph compositeGlyph) : SkiaFlyoutGlyphIcon
 {
     private readonly CompositeGlyph _compositeGlyph = compositeGlyph
-        ?? throw new ArgumentNullException(nameof(compositeGlyph));
+                                                      ?? throw new ArgumentNullException(nameof(compositeGlyph));
 
     public CompositeGlyph CompositeGlyph => _compositeGlyph;
 
@@ -28,8 +28,8 @@ public sealed class SkiaCompositeGlyphIcon(CompositeGlyph compositeGlyph) : Skia
                     sourcePath,
                     layer.ScaleX,
                     layer.ScaleY,
-                    0.0,
-                    0.0,
+                    centerX: 0.0,
+                    centerY: 0.0,
                     layer.TranslateX,
                     layer.TranslateY);
 
@@ -62,8 +62,8 @@ public sealed class SkiaCompositeGlyphIcon(CompositeGlyph compositeGlyph) : Skia
                 combinedPath,
                 scale,
                 scale,
-                0.0,
-                0.0,
+                centerX: 0.0,
+                centerY: 0.0,
                 translateX,
                 translateY);
             DrawPath(canvas, fittedPath, color);

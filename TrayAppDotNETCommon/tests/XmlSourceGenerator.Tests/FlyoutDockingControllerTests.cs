@@ -30,23 +30,28 @@ public sealed class FlyoutDockingControllerTests
         Assert.True(changed);
         Assert.True(harness.Controller.IsUndocked);
         Assert.True(harness.Settings.FlyoutUndocked);
-        Assert.Equal(new PixelPoint(410, 320), harness.Position);
-        Assert.Equal(1, harness.Settings.SaveCount);
+        Assert.Equal(new PixelPoint(x: 410, y: 320), harness.Position);
+        Assert.Equal(expected: 1, harness.Settings.SaveCount);
         Assert.Equal([FlyoutDockStateChange.Undocked], harness.Changes);
     }
 
     [Fact]
     public void DisabledClampingRestoresRawSavedPosition()
     {
-        DockHarness harness = new() { Settings =
+        DockHarness harness = new()
+        {
+            Settings =
             {
-                ClampUndockedFlyoutToScreen = false, FlyoutHasSavedPosition = true, FlyoutLeft = 400, FlyoutTop = 300
+                ClampUndockedFlyoutToScreen = false,
+                FlyoutHasSavedPosition = true,
+                FlyoutLeft = 400,
+                FlyoutTop = 300
             }
         };
 
         harness.Controller.UndockToSavedPosition();
 
-        Assert.Equal(new PixelPoint(400, 300), harness.Position);
+        Assert.Equal(new PixelPoint(x: 400, y: 300), harness.Position);
     }
 
     [Fact]
@@ -54,27 +59,27 @@ public sealed class FlyoutDockingControllerTests
     {
         DockHarness harness = new();
         harness.DragHelper.BeginDrag(
-            new PixelPoint(0, 0),
-            new PixelPoint(200, 200),
-            new PixelPoint(0, 0),
-            20);
+            new PixelPoint(x: 0, y: 0),
+            new PixelPoint(x: 200, y: 200),
+            new PixelPoint(x: 0, y: 0),
+            snapTolerance: 20);
 
         bool changed = harness.Controller.SetUndockedFromDrag();
 
         Assert.True(changed);
         Assert.True(harness.Controller.IsUndocked);
         Assert.False(harness.Settings.FlyoutUndocked);
-        Assert.Equal(0, harness.Settings.SaveCount);
+        Assert.Equal(expected: 0, harness.Settings.SaveCount);
 
-        harness.Position = new PixelPoint(700, 500);
+        harness.Position = new PixelPoint(x: 700, y: 500);
         FlyoutDockStateChange? committedChange = harness.Controller.CommitDragPosition();
 
         Assert.Equal(FlyoutDockStateChange.PositionSaved, committedChange);
         Assert.True(harness.Settings.FlyoutUndocked);
         Assert.True(harness.Settings.FlyoutHasSavedPosition);
-        Assert.Equal(700, harness.Settings.FlyoutLeft);
-        Assert.Equal(500, harness.Settings.FlyoutTop);
-        Assert.Equal(1, harness.Settings.SaveCount);
+        Assert.Equal(expected: 700, harness.Settings.FlyoutLeft);
+        Assert.Equal(expected: 500, harness.Settings.FlyoutTop);
+        Assert.Equal(expected: 1, harness.Settings.SaveCount);
         Assert.Equal(
             [FlyoutDockStateChange.UndockedFromDrag, FlyoutDockStateChange.PositionSaved],
             harness.Changes);
@@ -84,13 +89,13 @@ public sealed class FlyoutDockingControllerTests
     public void SnappedDragRedocksWithoutSavingFloatingCoordinates()
     {
         DockHarness harness = new();
-        PixelPoint dockedPosition = new(100, 100);
+        PixelPoint dockedPosition = new(x: 100, y: 100);
         harness.Position = dockedPosition;
         harness.DragHelper.BeginDrag(
-            new PixelPoint(110, 110),
+            new PixelPoint(x: 110, y: 110),
             dockedPosition,
             dockedPosition,
-            20);
+            snapTolerance: 20);
         harness.Controller.SetUndockedFromDrag();
 
         FlyoutDockStateChange? committedChange = harness.Controller.CommitDragPosition();
@@ -99,7 +104,7 @@ public sealed class FlyoutDockingControllerTests
         Assert.False(harness.Controller.IsUndocked);
         Assert.False(harness.Settings.FlyoutUndocked);
         Assert.False(harness.Settings.FlyoutHasSavedPosition);
-        Assert.Equal(1, harness.Settings.SaveCount);
+        Assert.Equal(expected: 1, harness.Settings.SaveCount);
         Assert.Equal(
             [FlyoutDockStateChange.UndockedFromDrag, FlyoutDockStateChange.Redocked],
             harness.Changes);
@@ -113,7 +118,7 @@ public sealed class FlyoutDockingControllerTests
         Assert.False(harness.Controller.UndockToSavedPosition());
         Assert.False(harness.Controller.SetUndockedFromDrag());
         Assert.False(harness.Controller.IsUndocked);
-        Assert.Equal(0, harness.Settings.SaveCount);
+        Assert.Equal(expected: 0, harness.Settings.SaveCount);
         Assert.Empty(harness.Changes);
     }
 
@@ -121,7 +126,7 @@ public sealed class FlyoutDockingControllerTests
     {
         public DockSettings Settings = new();
         public FlyoutWindowDragHelper DragHelper = new();
-        public PixelPoint Position = new(100, 100);
+        public PixelPoint Position = new(x: 100, y: 100);
         public List<FlyoutDockStateChange> Changes = [];
         public FlyoutDockingController Controller = null!;
 
@@ -136,7 +141,7 @@ public sealed class FlyoutDockingControllerTests
                 DragHelper = DragHelper,
                 CurrentPosition = () => Position,
                 SetPosition = position => Position = position,
-                ResolveDockedPosition = static () => new PixelPoint(100, 100),
+                ResolveDockedPosition = static () => new PixelPoint(x: 100, y: 100),
                 ResolveSavedPosition = static position => new PixelPoint(position.X + 10, position.Y + 20),
                 ResolveSnapTolerance = static () => 20,
                 StateChanged = Changes.Add

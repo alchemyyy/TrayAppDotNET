@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.Models;
-
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Identifies one process row and its position before a table projection changes.</summary>
@@ -25,9 +23,7 @@ internal readonly record struct ProcessViewportAnchor(
             || !double.IsFinite(ContentHeight)
             || !double.IsFinite(nextRowTop)
             || !double.IsFinite(nextContentHeight))
-        {
             return null;
-        }
 
         double verticalOffsetDelta = nextRowTop - RowTop;
         if (Math.Abs(verticalOffsetDelta) < PositionEqualityTolerance) return null;

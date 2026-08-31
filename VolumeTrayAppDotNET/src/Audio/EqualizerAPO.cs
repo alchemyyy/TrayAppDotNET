@@ -200,7 +200,7 @@ internal static class EqualizerAPOMonitor
             string args = "";
             if (endpointGuid != null)
             {
-                string perDevice = Path.Combine(installDir, "config", endpointGuid, "config.txt");
+                string perDevice = Path.Combine(installDir, path2: "config", endpointGuid, path4: "config.txt");
                 if (File.Exists(perDevice)) args = $"\"{perDevice}\"";
             }
 

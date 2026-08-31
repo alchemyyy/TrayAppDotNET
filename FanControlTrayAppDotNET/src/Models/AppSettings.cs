@@ -1,6 +1,5 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
-using TrayAppDotNETCommon.UI;
 
 namespace FanControlTrayAppDotNET.Models;
 
@@ -51,7 +50,8 @@ public enum MultipleSliderValuesDisplayMode
 /// Skeleton scaffold with a few illustrative fields - extend with project-specific settings in your fork.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
+public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings,
+    ITrayAppDotNETWarmWindowSettings,
     ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
     ITrayXmlSerializationCallbacks
 {
@@ -59,7 +59,10 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     private const string GPUNickname = "GPU";
     private const string HardwareTypeCPUTarget = "{HardwareType.CPU}";
     private const string HardwareTypeGPUTarget = "{HardwareType.GPU}";
-    private const string PreviousDefaultCPUTargetRegex = ".*(CPU|Processor|Ryzen|Threadripper|Intel.*Core|Core.*Processor).*";
+
+    private const string PreviousDefaultCPUTargetRegex =
+        ".*(CPU|Processor|Ryzen|Threadripper|Intel.*Core|Core.*Processor).*";
+
     private const string PreviousDefaultGPUTargetRegex = ".*(GPU|Graphics|NVIDIA|GeForce|Radeon|Arc).*";
     private const string ProbeTargetRegex_Tdie = "\\(Tdie\\)";
     private const string ProbeTargetRegex_TctlTdie = "\\(Tctl/Tdie\\)";
@@ -171,11 +174,14 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // option by Name and writes it back on save. Custom (non-builtin) options round-trip too:
     // InitializeSliderThumbCatalog appends the loaded option to the catalog if its Name doesn't
     // match a built-in, keeping the dropdown stable for the user.
-    [XmlIgnore] public string SliderThumbGlyph { get; set; } = "Capsule";
+    [XmlIgnore]
+    public string SliderThumbGlyph { get; set; } = "Capsule";
 
-    [XmlIgnore] public string CurveSliderThumbGlyph { get; set; } = "Diamond";
+    [XmlIgnore]
+    public string CurveSliderThumbGlyph { get; set; } = "Diamond";
 
-    [XmlIgnore] public List<SliderThumbGlyphOption> SliderThumbOptions { get; set; } = [];
+    [XmlIgnore]
+    public List<SliderThumbGlyphOption> SliderThumbOptions { get; set; } = [];
 
     [XmlElement("SliderThumb")]
     public SliderThumbGlyphOption? SerializedSliderThumb
@@ -354,7 +360,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "settings.xml");
+        return Path.Combine(appFolder, path2: "settings.xml");
     }
 
     // The folder that holds settings.xml and other per-app data.
@@ -486,45 +492,21 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// Builds default hardware-type nickname rules.
     /// </summary>
     private static List<DeviceNicknameRule> BuildDefaultDeviceNicknameRules() =>
-        [
-            new DeviceNicknameRule
-            {
-                TargetRegex = HardwareTypeCPUTarget,
-                ReplacementString = CPUNickname
-            },
-            new DeviceNicknameRule
-            {
-                TargetRegex = HardwareTypeGPUTarget,
-                ReplacementString = GPUNickname
-            }
-        ];
+    [
+        new() { TargetRegex = HardwareTypeCPUTarget, ReplacementString = CPUNickname },
+        new() { TargetRegex = HardwareTypeGPUTarget, ReplacementString = GPUNickname }
+    ];
 
     /// <summary>
     /// Builds default probe-name replacement rules.
     /// </summary>
     private static List<DeviceNicknameRule> BuildDefaultProbeNicknameRules() =>
-        [
-            new()
-            {
-                TargetRegex = ProbeTargetRegex_Tdie,
-                ReplacementString = string.Empty
-            },
-            new()
-            {
-                TargetRegex = ProbeTargetRegex_TctlTdie,
-                ReplacementString = string.Empty
-            },
-            new()
-            {
-                TargetRegex = ProbeTargetRegex_SMU,
-                ReplacementString = string.Empty
-            },
-            new()
-            {
-                TargetRegex = ProbeTargetRegex_CPUCore,
-                ReplacementString = "Core"
-            }
-        ];
+    [
+        new() { TargetRegex = ProbeTargetRegex_Tdie, ReplacementString = string.Empty },
+        new() { TargetRegex = ProbeTargetRegex_TctlTdie, ReplacementString = string.Empty },
+        new() { TargetRegex = ProbeTargetRegex_SMU, ReplacementString = string.Empty },
+        new() { TargetRegex = ProbeTargetRegex_CPUCore, ReplacementString = "Core" }
+    ];
 
     /// <summary>
     /// Replaces generated legacy default nickname rules with hardware-type defaults.
@@ -621,7 +603,10 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     private static int FindNicknameRuleIndexByTarget(List<DeviceNicknameRule> rules, string targetRegex)
     {
         for (int i = 0; i < rules.Count; i++)
-            if (string.Equals(rules[i].TargetRegex, targetRegex, StringComparison.Ordinal)) return i;
+        {
+            if (string.Equals(rules[i].TargetRegex, targetRegex, StringComparison.Ordinal))
+                return i;
+        }
 
         return -1;
     }
@@ -630,11 +615,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// Clones a nickname rule before inserting it into user settings.
     /// </summary>
     private static DeviceNicknameRule CloneNicknameRule(DeviceNicknameRule rule) =>
-        new()
-        {
-            TargetRegex = rule.TargetRegex,
-            ReplacementString = rule.ReplacementString
-        };
+        new() { TargetRegex = rule.TargetRegex, ReplacementString = rule.ReplacementString };
 
     /// <summary>
     /// Checks whether a prior generated exact-name rule should be migrated.
@@ -645,7 +626,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         if (!rule.TargetRegex.StartsWith('^')) return false;
         if (!rule.TargetRegex.EndsWith('$')) return false;
         return IsGeneratedNicknameReplacement(rule.ReplacementString, CPUNickname)
-            || IsGeneratedNicknameReplacement(rule.ReplacementString, GPUNickname);
+               || IsGeneratedNicknameReplacement(rule.ReplacementString, GPUNickname);
     }
 
     /// <summary>

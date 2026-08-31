@@ -135,6 +135,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
+
     protected virtual bool UseProminentConfirmationDialog => false;
 
     /// <summary>Notifies derived windows when the in-window confirmation overlay opens or closes.</summary>
@@ -277,7 +278,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 return;
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null);
+                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, message: null);
         }
     }
 
@@ -299,7 +300,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     public Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
     {
         CancelPendingConfirm();
-        _confirmPreviousFocus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        _confirmPreviousFocus = GetTopLevel(this)?.FocusManager.GetFocusedElement() as Control;
         _confirmTitle!.Text = title;
         _confirmMessage!.Text = message;
         _confirmOk!.Text = confirmText;
@@ -312,18 +313,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
-        if (FocusManager?.GetFocusedElement() is not TextBox focusedTextBox) return;
+        if (FocusManager.GetFocusedElement() is not TextBox focusedTextBox) return;
 
         SettingsNumberBox? numberBox = focusedTextBox.GetVisualAncestors()
-                                                        .OfType<SettingsNumberBox>()
-                                                        .FirstOrDefault();
+            .OfType<SettingsNumberBox>()
+            .FirstOrDefault();
         Visual editorBoundary = numberBox is not null ? numberBox : focusedTextBox;
         if (eventArgs.Source is Visual source
             && (ReferenceEquals(source, editorBoundary)
                 || source.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, editorBoundary))))
-        {
             return;
-        }
 
         TrayAppDotNETSettingsUI.BlurTextEditor(focusedTextBox);
     }
@@ -540,7 +539,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 return;
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null);
+                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, message: null);
         }
     }
 
@@ -574,7 +573,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 throw new ArgumentOutOfRangeException(
                     nameof(_hotReloadSizeProfile),
                     _hotReloadSizeProfile,
-                    null);
+                    message: null);
         }
 
         if (!_axamlWindowWidth.Equals(width)) Width = width;
@@ -634,7 +633,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         where T : IDisposable
     {
         UIResourceScope? resources = _buildingPageResources;
-        return resources == null ? throw new InvalidOperationException("Page resources can only be registered while building a page.") : resources.Own(resource);
+        return resources == null
+            ? throw new InvalidOperationException("Page resources can only be registered while building a page.")
+            : resources.Own(resource);
     }
 
     protected static string L(string key) => LocalizationManager.Instance[key];
@@ -779,7 +780,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             searchKeywords);
 
     protected Task ShowMessage(string title, string message) =>
-        ConfirmAsync(title, message, "OK", "OK");
+        ConfirmAsync(title, message, confirmText: "OK", cancelText: "OK");
 
     private Border BuildRoot()
     {
@@ -800,15 +801,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         Grid.SetRow(body, PageContentExtendsIntoTitleBar ? 0 : 1);
         if (PageContentExtendsIntoTitleBar)
-            Grid.SetRowSpan(body, 2);
+            Grid.SetRowSpan(body, value: 2);
         root.Children.Add(body);
 
         _sidebar = BuildSidebar();
         _sidebar.Background = Brushes.Transparent;
         _sidebar.Margin = PageContentExtendsIntoTitleBar
-            ? new Thickness(0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, 0, 0)
+            ? new Thickness(left: 0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, right: 0, bottom: 0)
             : default;
-        Grid.SetColumn(_sidebar, 0);
+        Grid.SetColumn(_sidebar, value: 0);
         body.Children.Add(_sidebar);
 
         TextBlock headerTitle = TrayAppDotNETSettingsUI.Text(
@@ -826,6 +827,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _pages[page.Key] = page.BuildPage;
             AddNavItem(IsFooterNavigationPage(page.Key) ? footer : nav, page, palette);
         }
+
         if (ShowSettingsSearchBox)
         {
             _settingsSearchBox = new SettingsSearchBox(
@@ -834,11 +836,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
             footer.Children.Add(_settingsSearchBox);
         }
+
         _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
             _content,
             palette,
             ContentPadding);
-        Grid.SetColumn(_scrollHost, 1);
+        Grid.SetColumn(_scrollHost, value: 1);
         body.Children.Add(_scrollHost);
 
         ISettingsSidebarWidthSettings? sidebarWidthSettings = SidebarWidthSettings;
@@ -856,12 +859,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             if (PageContentExtendsIntoTitleBar)
             {
                 _sidebarResizeHandle.Margin = new Thickness(
-                    0,
+                    left: 0,
                     _settingsResources.AxamlSettingsWindow.TitleBarHeight,
-                    0,
-                    0);
+                    right: 0,
+                    bottom: 0);
             }
-            Grid.SetColumn(_sidebarResizeHandle, 0);
+
+            Grid.SetColumn(_sidebarResizeHandle, value: 0);
             body.Children.Add(_sidebarResizeHandle);
         }
 
@@ -870,18 +874,18 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_sidebarOverlay != null)
         {
             _sidebarOverlay.Margin = _sidebar.Margin;
-            Grid.SetColumn(_sidebarOverlay, 0);
+            Grid.SetColumn(_sidebarOverlay, value: 0);
             body.Children.Add(_sidebarOverlay);
         }
 
         _pageOverlayHost = new Grid();
-        Grid.SetRow(_pageOverlayHost, 0);
-        Grid.SetRowSpan(_pageOverlayHost, 2);
+        Grid.SetRow(_pageOverlayHost, value: 0);
+        Grid.SetRowSpan(_pageOverlayHost, value: 2);
         root.Children.Add(_pageOverlayHost);
 
         Control titleBar = BuildTitleBar(palette);
-        Grid.SetRow(titleBar, 0);
-        Grid.SetRowSpan(titleBar, 2);
+        Grid.SetRow(titleBar, value: 0);
+        Grid.SetRowSpan(titleBar, value: 2);
         root.Children.Add(titleBar);
 
         _confirmOverlay = BuildConfirmOverlay();
@@ -942,9 +946,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             titleBar.Children.Add(_titleBarDragZone);
         }
         else
-        {
             AttachTitleBarDrag(titleBar);
-        }
 
         StackPanel buttons = new()
         {
@@ -971,7 +973,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         buttons.Children.Add(minimize);
         buttons.Children.Add(maximize);
         buttons.Children.Add(close);
-        Grid.SetColumn(buttons, 1);
+        Grid.SetColumn(buttons, value: 1);
         titleBar.Children.Add(buttons);
         return titleBar;
     }
@@ -1019,10 +1021,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Padding = _settingsResources.AxamlSettingsWindow.ZeroThickness,
             IsSettingsWindowCloseButton = closeButton,
             IsSettingsWindowMinimizeButton = minimizeButton,
-            Label =
-            {
-                FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize
-            }
+            Label = { FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize }
         };
         if (closeButton)
         {
@@ -1077,8 +1076,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         int pixelMinSize = (int)Math.Round(_settingsResources.AxamlSettingsWindow.PixelMinSize);
         int width = Math.Max(pixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
         int height = Math.Max(pixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, Height) * RenderScaling));
-        int left = workArea.X + Math.Max(0, workArea.Width - width) / 2;
-        int top = workArea.Y + Math.Max(0, workArea.Height - height) / 2;
+        int left = workArea.X + Math.Max(val1: 0, workArea.Width - width) / 2;
+        int top = workArea.Y + Math.Max(val1: 0, workArea.Height - height) / 2;
 
         Position = new PixelPoint(left, top);
     }
@@ -1188,7 +1187,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         }
 
         previous?.Dispose();
-        RestorePageScroll(key, resetBeforeLayout: !force, replacement.ID);
+        RestorePageScroll(key, !force, replacement.ID);
     }
 
     private void BuildAndCommitShell(TPageKey selectedPageKey)
@@ -1360,7 +1359,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         SettingsScrollHost? scrollHost = _scrollHost;
         if (scrollHost == null) return;
 
-        double requestedOffset = _pageScrollOffsets.GetValueOrDefault(key, 0);
+        double requestedOffset = _pageScrollOffsets.GetValueOrDefault(key, defaultValue: 0);
 
         if (resetBeforeLayout || requestedOffset <= 0)
             scrollHost.SetVerticalOffset(requestedOffset);
@@ -1437,6 +1436,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                         if (item is Control itemControl)
                             pending.Add(itemControl);
                     }
+
                     break;
             }
         }
@@ -1496,9 +1496,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Border BuildCompactConfirmOverlay(SettingsPalette palette)
     {
         TextBlock confirmTitle = _confirmTitle
-            ?? throw new InvalidOperationException("The confirmation title was not initialized.");
+                                 ?? throw new InvalidOperationException("The confirmation title was not initialized.");
         TextBlock confirmMessage = _confirmMessage
-            ?? throw new InvalidOperationException("The confirmation message was not initialized.");
+                                   ?? throw new InvalidOperationException(
+                                       "The confirmation message was not initialized.");
         _confirmCancel!.Margin = _settingsResources.AxamlSettingsWindow.ConfirmCancelMargin;
         _confirmOk!.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
         _confirmCancel.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
@@ -1542,14 +1543,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid buttons = new()
         {
             ColumnSpacing = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Star)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }
         };
         buttons.Children.Add(_confirmOk);
-        Grid.SetColumn(_confirmCancel, 1);
+        Grid.SetColumn(_confirmCancel, value: 1);
         buttons.Children.Add(_confirmCancel);
 
         Border body = new()
@@ -1566,15 +1563,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Padding = _settingsResources.AxamlSettingsWindow.ConfirmProminentFooterPadding,
             Child = buttons
         };
-        Grid.SetRow(footer, 1);
+        Grid.SetRow(footer, value: 1);
 
         Grid content = new()
         {
-            RowDefinitions =
-            {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Auto)
-            },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) },
             Children = { body, footer }
         };
         // FlyoutFrame preserves the outer border while an opaque inner surface clips rounded content
@@ -1590,11 +1583,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center
         };
-        return new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop),
-            Child = dialog
-        };
+        return new Border { Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop), Child = dialog };
     }
 
     private void CompleteConfirm(bool result)
@@ -1663,8 +1652,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 case Key.Tab:
                 case Key.Left:
                 case Key.Right:
-                    Control? focusedElement = TopLevel.GetTopLevel(this)?
-                        .FocusManager?
+                    Control? focusedElement = GetTopLevel(this)?
+                        .FocusManager
                         .GetFocusedElement() as Control;
                     SettingsButton? nextButton = ReferenceEquals(focusedElement, _confirmOk)
                         ? _confirmCancel
@@ -1723,23 +1712,24 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 TADNLog.Log($"{GetType().Name} color picker close failed: {exception.Message}");
             }
         }
+
         _openColorPickers.Clear();
 
         RunWindowCloseCleanup(nameof(DetachWndProcHook), DetachWndProcHook);
         RunWindowCloseCleanup(nameof(DisposeSettingsSearch), DisposeSettingsSearch);
-        RunWindowCloseCleanup("ClearWindowContent", () => Content = null);
+        RunWindowCloseCleanup(operation: "ClearWindowContent", () => Content = null);
 
-        UIContentGeneration? pageGeneration = Interlocked.Exchange(ref _pageGeneration, null);
-        UIContentGeneration? shellGeneration = Interlocked.Exchange(ref _shellGeneration, null);
+        UIContentGeneration? pageGeneration = Interlocked.Exchange(ref _pageGeneration, value: null);
+        UIContentGeneration? shellGeneration = Interlocked.Exchange(ref _shellGeneration, value: null);
         if (pageGeneration != null)
-            RunWindowCloseCleanup("DisposePageGeneration", pageGeneration.Dispose);
+            RunWindowCloseCleanup(operation: "DisposePageGeneration", pageGeneration.Dispose);
         if (shellGeneration != null)
-            RunWindowCloseCleanup("DisposeShellGeneration", shellGeneration.Dispose);
+            RunWindowCloseCleanup(operation: "DisposeShellGeneration", shellGeneration.Dispose);
 
-        UIResourceScope? buildingPageResources = Interlocked.Exchange(ref _buildingPageResources, null);
+        UIResourceScope? buildingPageResources = Interlocked.Exchange(ref _buildingPageResources, value: null);
         if (buildingPageResources != null)
-            RunWindowCloseCleanup("DisposeBuildingPageResources", buildingPageResources.Dispose);
-        RunWindowCloseCleanup("ClearPageContent", () => _content.Content = null);
+            RunWindowCloseCleanup(operation: "DisposeBuildingPageResources", buildingPageResources.Dispose);
+        RunWindowCloseCleanup(operation: "ClearPageContent", () => _content.Content = null);
         _pages.Clear();
         _navItems.Clear();
         _pageDescriptors = [];
@@ -1764,10 +1754,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _windowResources.Dispose();
     }
 
-    private void UpdateSidebarLayout()
-    {
-        UpdateSidebarLayout(ResolveWindowWidth());
-    }
+    private void UpdateSidebarLayout() => UpdateSidebarLayout(ResolveWindowWidth());
 
     private void UpdateSidebarLayout(double windowWidth)
     {
@@ -1784,24 +1771,20 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             UpdateSidebarHeader(_sidebarHeader, usesCompactRail);
         foreach (SettingsNavItem navigationItem in _navItems.Values)
             navigationItem.SetCompact(usesCompactRail);
-        if (_settingsSearchBox != null)
-            _settingsSearchBox.IsVisible = !usesCompactRail;
-        if (_sidebarResizeHandle != null)
-            _sidebarResizeHandle.IsVisible = !isCollapsed;
+        _settingsSearchBox?.IsVisible = !usesCompactRail;
+        _sidebarResizeHandle?.IsVisible = !isCollapsed;
         sidebarColumn.Width = new GridLength(pageContentLeftInset);
-        if (_titleBarDragZone != null)
-        {
-            _titleBarDragZone.Width = isCollapsed
-                ? Math.Max(
-                    _settingsResources.AxamlSettingsWindow.TitleBarHeight,
-                    pageContentLeftInset)
-                : pageContentLeftInset;
-        }
+        _titleBarDragZone?.Width = isCollapsed
+            ? Math.Max(
+                _settingsResources.AxamlSettingsWindow.TitleBarHeight,
+                pageContentLeftInset)
+            : pageContentLeftInset;
         if (_sidebarOverlay != null && _sidebarOverlayCollapsedState != isCollapsed)
         {
             UpdateSidebarOverlay(_sidebarOverlay, isCollapsed);
             _sidebarOverlayCollapsedState = isCollapsed;
         }
+
         UpdatePageOverlayLayout();
     }
 
@@ -1809,7 +1792,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected double ResolvePageContentLeftInset(double windowWidth)
     {
         if (ResolveSidebarCollapsed(windowWidth))
-            return Math.Min(Math.Max(0, CollapsedSidebarWidth), Math.Max(0, windowWidth));
+            return Math.Min(Math.Max(val1: 0, CollapsedSidebarWidth), Math.Max(val1: 0, windowWidth));
 
         double maximumWidth = GetAvailableSidebarMaximumWidth(windowWidth);
         return SettingsSidebarWidthLayout.ResolvePersistedWidth(
@@ -1835,7 +1818,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         double leftInset = _pageOverlayAlignsToContentArea
             ? _sidebarColumn?.Width.Value ?? 0
             : 0;
-        overlayHost.Margin = new Thickness(leftInset, 0, 0, 0);
+        overlayHost.Margin = new Thickness(leftInset, top: 0, right: 0, bottom: 0);
     }
 
     private double ResolveWindowWidth()
@@ -1892,9 +1875,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         ISettingsSidebarWidthSettings? settings = SidebarWidthSettings;
         if (settings == null
             || SettingsSidebarWidthLayout.AreEqual(settings.SettingsSidebarWidth, _currentSidebarWidth))
-        {
             return;
-        }
 
         settings.SettingsSidebarWidth = _currentSidebarWidth;
         Save();
@@ -1903,7 +1884,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private void ResetSidebarWidth()
     {
         _currentSidebarWidth = SettingsSidebarWidthLayout.ResolvePersistedWidth(
-            0,
+            persistedWidth: 0,
             SidebarWidth,
             _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
             _settingsResources.AxamlSettingsWindow.SidebarMaximumWidth);
@@ -1976,7 +1957,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         PixelRect windowBounds = GetWindowPixelBounds();
         PixelRect? workArea = Screens.ScreenFromWindow(this)?.WorkingArea
                               ?? Screens.ScreenFromBounds(windowBounds)?.WorkingArea;
-        return workArea is PixelRect activeWorkArea
+        return workArea is { } activeWorkArea
                && SpansFullWorkAreaAxis(windowBounds, activeWorkArea);
     }
 
@@ -1990,15 +1971,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 return new PixelRect(
                     nativeBounds.Left,
                     nativeBounds.Top,
-                    Math.Max(0, nativeBounds.Right - nativeBounds.Left),
-                    Math.Max(0, nativeBounds.Bottom - nativeBounds.Top));
+                    Math.Max(val1: 0, nativeBounds.Right - nativeBounds.Left),
+                    Math.Max(val1: 0, nativeBounds.Bottom - nativeBounds.Top));
             }
         }
 
         double width = ClientSize.Width > 0 ? ClientSize.Width : Bounds.Width;
         double height = ClientSize.Height > 0 ? ClientSize.Height : Bounds.Height;
-        int pixelWidth = Math.Max(0, (int)Math.Ceiling(width * RenderScaling));
-        int pixelHeight = Math.Max(0, (int)Math.Ceiling(height * RenderScaling));
+        int pixelWidth = Math.Max(val1: 0, (int)Math.Ceiling(width * RenderScaling));
+        int pixelHeight = Math.Max(val1: 0, (int)Math.Ceiling(height * RenderScaling));
         return new PixelRect(Position.X, Position.Y, pixelWidth, pixelHeight);
     }
 

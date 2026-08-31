@@ -72,9 +72,9 @@ internal static class UpdateInstaller
         string stagedPath = Path.GetFullPath(stagedExecutable);
         string targetPath = Path.GetFullPath(targetExecutable);
         if (!File.Exists(stagedPath))
-            throw new FileNotFoundException("Staged update executable not found.", stagedPath);
+            throw new FileNotFoundException(message: "Staged update executable not found.", stagedPath);
         if (!File.Exists(targetPath))
-            throw new FileNotFoundException("Installed executable not found.", targetPath);
+            throw new FileNotFoundException(message: "Installed executable not found.", targetPath);
         if (IsWindowsAppsPath(targetPath))
         {
             log("Update: Windows Store installations must be updated through the Store.");
@@ -82,7 +82,7 @@ internal static class UpdateInstaller
         }
 
         string pipeName = $"TrayAppDotNET.Update.{Environment.ProcessId}.{Guid.NewGuid():N}";
-        using NamedPipeServerStream pipe = new(
+        await using NamedPipeServerStream pipe = new(
             pipeName,
             PipeDirection.InOut,
             maxNumberOfServerInstances: 1,
@@ -193,17 +193,17 @@ internal static class UpdateInstaller
 
     private static async Task<int> RunApplyAsync(string[] args, TrayAppDotNETProgramOptions options)
     {
-        string logPath = RequiredArgument(args, "--log");
+        string logPath = RequiredArgument(args, name: "--log");
         Action<string> log = message => AppendLog(logPath, $"worker: {message}");
         bool commitReceived = false;
         string? lockPath = null;
 
         try
         {
-            int parentPID = RequiredIntArgument(args, "--parent-pid");
-            long parentStartTimeTicks = RequiredLongArgument(args, "--parent-start");
-            string pipeName = RequiredArgument(args, "--pipe");
-            string targetExecutable = Path.GetFullPath(RequiredArgument(args, "--target"));
+            int parentPID = RequiredIntArgument(args, name: "--parent-pid");
+            long parentStartTimeTicks = RequiredLongArgument(args, name: "--parent-start");
+            string pipeName = RequiredArgument(args, name: "--pipe");
+            string targetExecutable = Path.GetFullPath(RequiredArgument(args, name: "--target"));
             string sourceExecutable = Environment.ProcessPath
                                       ?? throw new InvalidOperationException("Cannot resolve staged executable path.");
             string sourceDirectory = Path.GetDirectoryName(sourceExecutable)
@@ -212,34 +212,32 @@ internal static class UpdateInstaller
                                      ?? throw new InvalidOperationException("Cannot resolve install directory.");
 
             if (!File.Exists(targetExecutable))
-                throw new FileNotFoundException("Installed executable not found.", targetExecutable);
+                throw new FileNotFoundException(message: "Installed executable not found.", targetExecutable);
             if (!File.Exists(Path.Combine(sourceDirectory, Path.GetFileName(targetExecutable))))
             {
                 throw new FileNotFoundException(
-                    "The staged update does not contain the installed executable.",
+                    message: "The staged update does not contain the installed executable.",
                     Path.Combine(sourceDirectory, Path.GetFileName(targetExecutable)));
             }
 
-            using Process parent = RequireProcess(parentPID, parentStartTimeTicks, "update parent");
+            using Process parent = RequireProcess(parentPID, parentStartTimeTicks, description: "update parent");
             string? parentExecutable = TryGetProcessExecutable(parent);
             if (parentExecutable != null
                 && !string.Equals(
                     Path.GetFullPath(parentExecutable),
                     targetExecutable,
                     StringComparison.OrdinalIgnoreCase))
-            {
                 throw new InvalidOperationException("The update parent does not match the target executable.");
-            }
 
             UpdateFilePlan plan = UpdateFileTransaction.BuildPlan(
                 sourceDirectory,
                 targetDirectory,
                 targetExecutable,
                 log);
-            lockPath = Path.Combine(targetDirectory, ".tadn-update.lock");
-            using FileStream targetLock = AcquireTargetLock(lockPath, log);
-            using NamedPipeClientStream pipe = new(
-                ".",
+            lockPath = Path.Combine(targetDirectory, path2: ".tadn-update.lock");
+            await using FileStream targetLock = AcquireTargetLock(lockPath, log);
+            await using NamedPipeClientStream pipe = new(
+                serverName: ".",
                 pipeName,
                 PipeDirection.InOut,
                 PipeOptions.Asynchronous);
@@ -270,7 +268,11 @@ internal static class UpdateInstaller
                 plan.StopSiblingApps,
                 log);
             string restartListPath = RestartListPath(sourceDirectory);
-            File.WriteAllLines(restartListPath, restartExecutables, new UTF8Encoding(false));
+            await File.WriteAllLinesAsync(
+                    restartListPath,
+                    restartExecutables,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                .ConfigureAwait(false);
 
             log("Commit received; waiting for the parent to exit.");
             await parentExitTask.ConfigureAwait(false);
@@ -307,20 +309,20 @@ internal static class UpdateInstaller
 
     private static int RunRestart(string[] args, TrayAppDotNETProgramOptions options)
     {
-        string logPath = RequiredArgument(args, "--log");
+        string logPath = RequiredArgument(args, name: "--log");
         Action<string> log = message => AppendLog(logPath, $"restarter: {message}");
         string sourceExecutable = Environment.ProcessPath
                                   ?? throw new InvalidOperationException("Cannot resolve restarter path.");
         string sourceDirectory = Path.GetDirectoryName(sourceExecutable)
                                  ?? throw new InvalidOperationException("Cannot resolve restarter directory.");
-        string archivePath = Path.GetFullPath(RequiredArgument(args, "--archive"));
-        string targetExecutable = Path.GetFullPath(RequiredArgument(args, "--target"));
+        string archivePath = Path.GetFullPath(RequiredArgument(args, name: "--archive"));
+        string targetExecutable = Path.GetFullPath(RequiredArgument(args, name: "--target"));
 
         try
         {
-            int workerPID = RequiredIntArgument(args, "--worker-pid");
-            long workerStartTimeTicks = RequiredLongArgument(args, "--worker-start");
-            using Process worker = RequireProcess(workerPID, workerStartTimeTicks, "update worker");
+            int workerPID = RequiredIntArgument(args, name: "--worker-pid");
+            long workerStartTimeTicks = RequiredLongArgument(args, name: "--worker-start");
+            using Process worker = RequireProcess(workerPID, workerStartTimeTicks, description: "update worker");
             // Retain the handle so ExitCode remains available after an externally opened process exits
             _ = worker.SafeHandle;
             log($"Waiting for worker PID {workerPID}.");
@@ -392,14 +394,14 @@ internal static class UpdateInstaller
     {
         ProcessStartInfo startInfo = BuildHelperStartInfo(stagedExecutable, elevate);
         AddArgument(startInfo, ApplyArgument);
-        AddArgument(startInfo, "--parent-pid", parentPID.ToString(CultureInfo.InvariantCulture));
+        AddArgument(startInfo, argument: "--parent-pid", parentPID.ToString(CultureInfo.InvariantCulture));
         AddArgument(
             startInfo,
-            "--parent-start",
+            argument: "--parent-start",
             parentStartTimeTicks.ToString(CultureInfo.InvariantCulture));
-        AddArgument(startInfo, "--pipe", pipeName);
-        AddArgument(startInfo, "--target", targetExecutable);
-        AddArgument(startInfo, "--log", logPath);
+        AddArgument(startInfo, argument: "--pipe", pipeName);
+        AddArgument(startInfo, argument: "--target", targetExecutable);
+        AddArgument(startInfo, argument: "--log", logPath);
         return startInfo;
     }
 
@@ -413,14 +415,14 @@ internal static class UpdateInstaller
     {
         ProcessStartInfo startInfo = BuildHelperStartInfo(stagedExecutable, elevate: false);
         AddArgument(startInfo, RestartArgument);
-        AddArgument(startInfo, "--worker-pid", workerPID.ToString(CultureInfo.InvariantCulture));
+        AddArgument(startInfo, argument: "--worker-pid", workerPID.ToString(CultureInfo.InvariantCulture));
         AddArgument(
             startInfo,
-            "--worker-start",
+            argument: "--worker-start",
             workerStartTimeTicks.ToString(CultureInfo.InvariantCulture));
-        AddArgument(startInfo, "--target", targetExecutable);
-        AddArgument(startInfo, "--archive", archivePath);
-        AddArgument(startInfo, "--log", logPath);
+        AddArgument(startInfo, argument: "--target", targetExecutable);
+        AddArgument(startInfo, argument: "--archive", archivePath);
+        AddArgument(startInfo, argument: "--log", logPath);
         return startInfo;
     }
 
@@ -451,14 +453,14 @@ internal static class UpdateInstaller
     private static async Task<byte> ReadMessageAsync(Stream stream, CancellationToken token)
     {
         byte[] buffer = new byte[1];
-        int bytesRead = await stream.ReadAsync(buffer.AsMemory(0, 1), token).ConfigureAwait(false);
+        int bytesRead = await stream.ReadAsync(buffer.AsMemory(start: 0, length: 1), token).ConfigureAwait(false);
         return bytesRead == 1 ? buffer[0] : (byte)0;
     }
 
     private static async Task WriteMessageAsync(Stream stream, byte message, CancellationToken token)
     {
         byte[] buffer = [message];
-        await stream.WriteAsync(buffer.AsMemory(0, 1), token).ConfigureAwait(false);
+        await stream.WriteAsync(buffer.AsMemory(start: 0, length: 1), token).ConfigureAwait(false);
         await stream.FlushAsync(token).ConfigureAwait(false);
     }
 
@@ -533,7 +535,7 @@ internal static class UpdateInstaller
                 {
                     if (process.HasExited) continue;
                     log($"Stopping PID {process.Id}: {TryGetProcessExecutable(process)}");
-                    process.Kill(entireProcessTree: true);
+                    process.Kill(true);
                     process.WaitForExit(TimeConstants.UpdateProcessRetryDelayMs);
                 }
                 catch (Exception exception)
@@ -555,7 +557,7 @@ internal static class UpdateInstaller
         {
             if (remaining.Count > 0)
             {
-                string processIDs = string.Join(", ", remaining.Select(SafeProcessID));
+                string processIDs = string.Join(separator: ", ", remaining.Select(SafeProcessID));
                 throw new IOException($"Could not stop installed process IDs: {processIDs}");
             }
         }
@@ -601,9 +603,9 @@ internal static class UpdateInstaller
         if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
             return paths;
 
-        foreach (string executable in Directory.EnumerateFiles(targetDirectory, "*.exe"))
+        foreach (string executable in Directory.EnumerateFiles(targetDirectory, searchPattern: "*.exe"))
         {
-            if (Path.GetFileName(executable).EndsWith("TrayAppDotNET.exe", StringComparison.OrdinalIgnoreCase))
+            if (Path.GetFileName(executable).EndsWith(value: "TrayAppDotNET.exe", StringComparison.OrdinalIgnoreCase))
                 paths.Add(Path.GetFullPath(executable));
         }
 
@@ -671,25 +673,25 @@ internal static class UpdateInstaller
     private static void ScheduleCleanup(string sourceDirectory, string archivePath, Action<string> log)
     {
         string scriptPath = sourceDirectory.TrimEnd(Path.DirectorySeparatorChar) + ".cleanup.bat";
-        string delaySeconds = Math.Max(1, TimeConstants.UpdateCleanupRetryDelayMs / 1000)
+        string delaySeconds = Math.Max(val1: 1, TimeConstants.UpdateCleanupRetryDelayMs / 1000)
             .ToString(CultureInfo.InvariantCulture);
         string escapedSource = EscapeBatchPath(sourceDirectory);
         string escapedArchive = EscapeBatchPath(archivePath);
-        string script = $$"""
-            @echo off
-            setlocal
-            :retry
-            rmdir /s /q "{{escapedSource}}" >nul 2>&1
-            del /f /q "{{escapedArchive}}" >nul 2>&1
-            if exist "{{escapedSource}}" goto wait
-            if exist "{{escapedArchive}}" goto wait
-            goto done
-            :wait
-            timeout /t {{delaySeconds}} /nobreak >nul 2>&1
-            goto retry
-            :done
-            del /f /q "%~f0" >nul 2>&1
-            """;
+        string script = $"""
+                          @echo off
+                          setlocal
+                          :retry
+                          rmdir /s /q "{escapedSource}" >nul 2>&1
+                          del /f /q "{escapedArchive}" >nul 2>&1
+                          if exist "{escapedSource}" goto wait
+                          if exist "{escapedArchive}" goto wait
+                          goto done
+                          :wait
+                          timeout /t {delaySeconds} /nobreak >nul 2>&1
+                          goto retry
+                          :done
+                          del /f /q "%~f0" >nul 2>&1
+                          """;
 
         File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
         ProcessStartInfo startInfo = new()
@@ -708,7 +710,8 @@ internal static class UpdateInstaller
             : $"Scheduled staging cleanup as PID {cleanup.Id}");
     }
 
-    private static string EscapeBatchPath(string path) => path.Replace("%", "%%", StringComparison.Ordinal);
+    private static string EscapeBatchPath(string path) =>
+        path.Replace(oldValue: "%", newValue: "%%", StringComparison.Ordinal);
 
     private static bool NeedsElevation(string targetExecutable, Action<string> log)
     {
@@ -764,7 +767,7 @@ internal static class UpdateInstaller
     {
         string windowsApps = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            "WindowsApps");
+            path2: "WindowsApps");
         return IsPathWithin(path, windowsApps);
     }
 
@@ -810,7 +813,7 @@ internal static class UpdateInstaller
     }
 
     private static string RestartListPath(string sourceDirectory) =>
-        Path.Combine(sourceDirectory, ".update-restart-list");
+        Path.Combine(sourceDirectory, path2: ".update-restart-list");
 
     private static void AppendLog(string logPath, string message)
     {

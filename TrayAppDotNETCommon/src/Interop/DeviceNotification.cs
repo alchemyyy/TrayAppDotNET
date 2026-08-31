@@ -59,7 +59,7 @@ public static class DeviceNotification
         IntPtr buffer = Marshal.AllocHGlobal(filter.dbcc_size);
         try
         {
-            Marshal.StructureToPtr(filter, buffer, false);
+            Marshal.StructureToPtr(filter, buffer, fDeleteOld: false);
             IntPtr handle = RegisterDeviceNotification(hwnd, buffer, DEVICE_NOTIFY_WINDOW_HANDLE);
 
             if (handle == IntPtr.Zero)

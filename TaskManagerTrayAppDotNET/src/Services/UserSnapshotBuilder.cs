@@ -78,7 +78,7 @@ internal static class UserSnapshotBuilder
     {
         double cpuPercent = ReadNonnegativeDouble(snapshot, rowIndex, ProcessTableColumnKind.CPU, out _);
         long workingSetBytes = Math.Max(
-            0,
+            val1: 0,
             snapshot.GetDynamicNumeric(rowIndex, ProcessTableColumnKind.WorkingSet));
         double diskBytesPerSecond = ReadNonnegativeDouble(
             snapshot,
@@ -189,6 +189,7 @@ internal static class UserSnapshotBuilder
                 _hasDiskUsage = true;
                 _diskBytesPerSecond += process.DiskBytesPerSecond;
             }
+
             if (process.HasNetworkUsage)
             {
                 _hasNetworkUsage = true;

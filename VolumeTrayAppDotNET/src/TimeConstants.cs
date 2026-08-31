@@ -81,7 +81,9 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // Volume-change feedback
     public const int VolumeFeedbackDingDwellPollSliceMs = 10;
+
     public const int VolumeFeedbackDingMeterBypassGraceMs = 250;
+
     // A held suppression peak halves every 250ms with no discrete expiration. The decay is
     // time-based so changing the configurable peak sample rate does not change the envelope.
     public const int DingSuppressionPeakHalfLifeMs = 250;

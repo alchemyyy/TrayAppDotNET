@@ -12,11 +12,11 @@ public sealed class FlyoutDeviceOrderingTests
     {
         TestDevice[] devices =
         [
-            new TestDevice("Default microphone", EDataFlow.eCapture, 0),
-            new TestDevice("Digital output playback", EDataFlow.eRender, 3),
-            new TestDevice("Bluetooth headset microphone", EDataFlow.eCapture, 2),
-            new TestDevice("Disconnected microphone", EDataFlow.eCapture, 4),
-            new TestDevice("Bluetooth headset playback", EDataFlow.eRender, 0)
+            new(Name: "Default microphone", EDataFlow.eCapture, StateBucket: 0),
+            new(Name: "Digital output playback", EDataFlow.eRender, StateBucket: 3),
+            new(Name: "Bluetooth headset microphone", EDataFlow.eCapture, StateBucket: 2),
+            new(Name: "Disconnected microphone", EDataFlow.eCapture, StateBucket: 4),
+            new(Name: "Bluetooth headset playback", EDataFlow.eRender, StateBucket: 0)
         ];
 
         List<TestDevice> ordered = FlyoutDeviceOrdering.OrderStateGrouped(
@@ -41,11 +41,11 @@ public sealed class FlyoutDeviceOrderingTests
     {
         TestDevice[] devices =
         [
-            new TestDevice("Default microphone", EDataFlow.eCapture, 0),
-            new TestDevice("Digital output playback", EDataFlow.eRender, 3),
-            new TestDevice("Bluetooth headset microphone", EDataFlow.eCapture, 2),
-            new TestDevice("Disconnected microphone", EDataFlow.eCapture, 4),
-            new TestDevice("Bluetooth headset playback", EDataFlow.eRender, 0)
+            new(Name: "Default microphone", EDataFlow.eCapture, StateBucket: 0),
+            new(Name: "Digital output playback", EDataFlow.eRender, StateBucket: 3),
+            new(Name: "Bluetooth headset microphone", EDataFlow.eCapture, StateBucket: 2),
+            new(Name: "Disconnected microphone", EDataFlow.eCapture, StateBucket: 4),
+            new(Name: "Bluetooth headset playback", EDataFlow.eRender, StateBucket: 0)
         ];
 
         List<TestDevice> ordered = FlyoutDeviceOrdering.OrderStateGrouped(
@@ -122,10 +122,8 @@ public sealed class FlyoutDeviceOrderingTests
     }
 
     [Fact]
-    public void BluetoothRadioVisibilityGateDefaultsToEnabled()
-    {
+    public void BluetoothRadioVisibilityGateDefaultsToEnabled() =>
         Assert.True(new AppSettings().ShowBluetoothDevicesOnlyWhenBluetoothIsOn);
-    }
 
     [Theory]
     [InlineData(false, true, false, true)]

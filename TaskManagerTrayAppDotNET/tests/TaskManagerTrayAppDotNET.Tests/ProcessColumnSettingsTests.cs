@@ -23,7 +23,7 @@ public sealed class ProcessColumnSettingsTests
         foreach (ProcessTableColumnKind kind in Enum.GetValues<ProcessTableColumnKind>())
             fullMask |= ProcessTableColumnCatalog.GetMask(kind);
 
-        Assert.Equal(0UL, ProcessTableColumnCatalog.StaticMask & ProcessTableColumnCatalog.DynamicMask);
+        Assert.Equal(expected: 0UL, ProcessTableColumnCatalog.StaticMask & ProcessTableColumnCatalog.DynamicMask);
         Assert.Equal(fullMask, ProcessTableColumnCatalog.StaticMask | ProcessTableColumnCatalog.DynamicMask);
         Assert.True(ProcessTableColumnCatalog.Contains(
             ProcessTableColumnCatalog.StaticMask,
@@ -52,11 +52,11 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> settings =
         [
-            Setting(ProcessTableColumnKind.Name, true, 120),
-            Setting(ProcessTableColumnKind.CPU, true, 80),
-            Setting(ProcessTableColumnKind.UserName, true, 140),
-            Setting(ProcessTableColumnKind.PrivateMemory, true, 130),
-            Setting(ProcessTableColumnKind.CommandLine, false, 300)
+            Setting(ProcessTableColumnKind.Name, visible: true, width: 120),
+            Setting(ProcessTableColumnKind.CPU, visible: true, width: 80),
+            Setting(ProcessTableColumnKind.UserName, visible: true, width: 140),
+            Setting(ProcessTableColumnKind.PrivateMemory, visible: true, width: 130),
+            Setting(ProcessTableColumnKind.CommandLine, visible: false, width: 300)
         ];
 
         ulong mask = ProcessTableColumnCatalog.CreateVisibleMask(settings);
@@ -73,9 +73,9 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source =
         [
-            Setting(ProcessTableColumnKind.CPU, true, double.NaN),
-            Setting(ProcessTableColumnKind.Name, false, 333),
-            Setting(ProcessTableColumnKind.CPU, false, 999)
+            Setting(ProcessTableColumnKind.CPU, visible: true, double.NaN),
+            Setting(ProcessTableColumnKind.Name, visible: false, width: 333),
+            Setting(ProcessTableColumnKind.CPU, visible: false, width: 999)
         ];
 
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(source);
@@ -85,7 +85,7 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPU).DefaultWidth, normalized[0].Width);
         Assert.True(normalized[0].Visible);
         Assert.Equal(ProcessTableColumnKind.Name, normalized[1].Column);
-        Assert.Equal(333, normalized[1].Width);
+        Assert.Equal(expected: 333, normalized[1].Width);
         Assert.Single(normalized, static setting => setting.Column == ProcessTableColumnKind.CPU);
     }
 
@@ -94,7 +94,7 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source = [];
         foreach (ProcessTableColumnDefinition definition in ProcessTableColumnCatalog.Definitions)
-            source.Add(Setting(definition.Kind, false, definition.DefaultWidth));
+            source.Add(Setting(definition.Kind, visible: false, definition.DefaultWidth));
 
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(source);
 
@@ -107,7 +107,7 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source =
         [
-            new ProcessColumnSetting
+            new()
             {
                 Column = ProcessTableColumnKind.Name,
                 Visible = true,
@@ -115,19 +115,21 @@ public sealed class ProcessColumnSettingsTests
                 Nickname = "Executable",
                 ShowUserNamePrefix = true
             },
-            Setting(ProcessTableColumnKind.CPU, true, 68)
+            Setting(ProcessTableColumnKind.CPU, visible: true, width: 68)
         ];
 
         List<ProcessColumnSetting> resized = ProcessColumnSettings.WithWidth(
             source,
             ProcessTableColumnKind.Name,
-            360);
+            width: 360);
 
-        Assert.Equal(360, resized.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
-        Assert.Equal(68, resized.Single(static setting => setting.Column == ProcessTableColumnKind.CPU).Width);
-        Assert.Equal("Executable", resized[0].Nickname);
+        Assert.Equal(expected: 360,
+            resized.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
+        Assert.Equal(expected: 68,
+            resized.Single(static setting => setting.Column == ProcessTableColumnKind.CPU).Width);
+        Assert.Equal(expected: "Executable", resized[0].Nickname);
         Assert.True(resized[0].ShowUserNamePrefix);
-        Assert.Equal(280, source[0].Width);
+        Assert.Equal(expected: 280, source[0].Width);
     }
 
     [Fact]
@@ -135,16 +137,16 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source =
         [
-            Setting(ProcessTableColumnKind.Name, true, 280),
-            Setting(ProcessTableColumnKind.CommandLine, false, 520),
-            Setting(ProcessTableColumnKind.ProcessID, true, 82),
-            Setting(ProcessTableColumnKind.CPU, true, 68)
+            Setting(ProcessTableColumnKind.Name, visible: true, width: 280),
+            Setting(ProcessTableColumnKind.CommandLine, visible: false, width: 520),
+            Setting(ProcessTableColumnKind.ProcessID, visible: true, width: 82),
+            Setting(ProcessTableColumnKind.CPU, visible: true, width: 68)
         ];
 
         List<ProcessColumnSetting> reordered = ProcessColumnSettings.MoveVisible(
             source,
             ProcessTableColumnKind.CPU,
-            0);
+            insertionIndex: 0);
 
         Assert.Equal(ProcessTableColumnKind.CPU, reordered[0].Column);
         Assert.Equal(ProcessTableColumnKind.CommandLine, reordered[1].Column);
@@ -162,7 +164,7 @@ public sealed class ProcessColumnSettingsTests
         Assert.True(setting.ShowPercentSuffix);
         Assert.True(setting.ShowDecimalUsage);
         Assert.Equal(ProcessMemoryUnit.Kilobytes, setting.MemoryUnit);
-        Assert.Equal("K", setting.MemorySuffix);
+        Assert.Equal(expected: "K", setting.MemorySuffix);
         Assert.False(setting.ShowUserNamePrefix);
     }
 
@@ -185,11 +187,11 @@ public sealed class ProcessColumnSettingsTests
         ProcessColumnSetting normalized = ProcessColumnSettings.Normalize([source])[0];
 
         Assert.NotSame(source, normalized);
-        Assert.Equal("Private bytes", normalized.Nickname);
+        Assert.Equal(expected: "Private bytes", normalized.Nickname);
         Assert.False(normalized.ShowPercentSuffix);
         Assert.False(normalized.ShowDecimalUsage);
         Assert.Equal(ProcessMemoryUnit.Gigabytes, normalized.MemoryUnit);
-        Assert.Equal(" GiB", normalized.MemorySuffix);
+        Assert.Equal(expected: " GiB", normalized.MemorySuffix);
         Assert.True(normalized.ShowUserNamePrefix);
     }
 
@@ -198,9 +200,9 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source =
         [
-            Setting(ProcessTableColumnKind.Name, true, 280),
-            Setting(ProcessTableColumnKind.ProcessID, true, 82),
-            new ProcessColumnSetting
+            Setting(ProcessTableColumnKind.Name, visible: true, width: 280),
+            Setting(ProcessTableColumnKind.ProcessID, visible: true, width: 82),
+            new()
             {
                 Column = ProcessTableColumnKind.CPU,
                 Visible = true,
@@ -214,10 +216,10 @@ public sealed class ProcessColumnSettingsTests
         List<ProcessColumnSetting> reordered = ProcessColumnSettings.MoveVisible(
             source,
             ProcessTableColumnKind.CPU,
-            0);
+            insertionIndex: 0);
 
         Assert.Equal(ProcessTableColumnKind.CPU, reordered[0].Column);
-        Assert.Equal("Processor", reordered[0].Nickname);
+        Assert.Equal(expected: "Processor", reordered[0].Nickname);
         Assert.False(reordered[0].ShowPercentSuffix);
         Assert.False(reordered[0].ShowDecimalUsage);
     }
@@ -227,8 +229,8 @@ public sealed class ProcessColumnSettingsTests
     {
         List<ProcessColumnSetting> source =
         [
-            Setting(ProcessTableColumnKind.Name, true, 280),
-            Setting(ProcessTableColumnKind.PrivateMemory, true, 136)
+            Setting(ProcessTableColumnKind.Name, visible: true, width: 280),
+            Setting(ProcessTableColumnKind.PrivateMemory, visible: true, width: 136)
         ];
         ProcessColumnSetting replacement = new()
         {
@@ -241,14 +243,14 @@ public sealed class ProcessColumnSettingsTests
         };
 
         List<ProcessColumnSetting> changed = ProcessColumnSettings.WithProperties(source, replacement);
-        ProcessColumnSetting memory = changed.Single(
-            static setting => setting.Column == ProcessTableColumnKind.PrivateMemory);
+        ProcessColumnSetting memory =
+            changed.Single(static setting => setting.Column == ProcessTableColumnKind.PrivateMemory);
 
         Assert.True(memory.Visible);
-        Assert.Equal(136, memory.Width);
-        Assert.Equal("Private", memory.Nickname);
+        Assert.Equal(expected: 136, memory.Width);
+        Assert.Equal(expected: "Private", memory.Nickname);
         Assert.Equal(ProcessMemoryUnit.Megabytes, memory.MemoryUnit);
-        Assert.Equal(" MB", memory.MemorySuffix);
+        Assert.Equal(expected: " MB", memory.MemorySuffix);
     }
 
     [Theory]
@@ -256,10 +258,8 @@ public sealed class ProcessColumnSettingsTests
     [InlineData(ProcessMemoryUnit.Megabytes, "M")]
     [InlineData(ProcessMemoryUnit.Gigabytes, "G")]
     [InlineData(ProcessMemoryUnit.PercentageOfSystem, "%")]
-    public void MemoryUnitsHaveStableDefaultSuffixes(ProcessMemoryUnit unit, string expectedSuffix)
-    {
+    public void MemoryUnitsHaveStableDefaultSuffixes(ProcessMemoryUnit unit, string expectedSuffix) =>
         Assert.Equal(expectedSuffix, ProcessColumnSettings.GetDefaultMemorySuffix(unit));
-    }
 
     [Fact]
     public void MemoryClassificationIncludesProcessPoolAndAcceleratorMemory()
@@ -276,15 +276,15 @@ public sealed class ProcessColumnSettingsTests
     [Fact]
     public void ResolveTitleUsesNicknameOrOriginalCatalogTitle()
     {
-        ProcessColumnSetting setting = Setting(ProcessTableColumnKind.ProcessID, true, 82);
+        ProcessColumnSetting setting = Setting(ProcessTableColumnKind.ProcessID, visible: true, width: 82);
 
-        Assert.Equal("PID", ProcessColumnSettings.ResolveTitle(setting));
+        Assert.Equal(expected: "PID", ProcessColumnSettings.ResolveTitle(setting));
 
         setting.Nickname = "Identifier";
-        Assert.Equal("Identifier", ProcessColumnSettings.ResolveTitle(setting));
+        Assert.Equal(expected: "Identifier", ProcessColumnSettings.ResolveTitle(setting));
 
         setting.Nickname = "  ";
-        Assert.Equal("PID", ProcessColumnSettings.ResolveTitle(setting));
+        Assert.Equal(expected: "PID", ProcessColumnSettings.ResolveTitle(setting));
     }
 
     [Fact]
@@ -296,13 +296,13 @@ public sealed class ProcessColumnSettingsTests
         List<ProcessColumnSetting> resized = ProcessColumnSettings.WithWidth(
             settings.DetailsColumns,
             ProcessTableColumnKind.Name,
-            360);
+            width: 360);
 
         settings.UpdateDetailsColumnLayout(resized);
 
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal(
-            360,
+            expected: 360,
             settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
     }
 
@@ -320,11 +320,7 @@ public sealed class ProcessColumnSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            AppSettings settings = new()
-            {
-                Autosave = false,
-                EnableLiveDetailsColumnResizing = false
-            };
+            AppSettings settings = new() { Autosave = false, EnableLiveDetailsColumnResizing = false };
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
@@ -344,31 +340,31 @@ public sealed class ProcessColumnSettingsTests
         try
         {
             AppSettings settings = new() { Autosave = false };
-            ProcessColumnSetting memory = settings.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.PrivateMemory);
+            ProcessColumnSetting memory = settings.DetailsColumns.Single(static setting =>
+                setting.Column == ProcessTableColumnKind.PrivateMemory);
             memory.Nickname = "Private";
             memory.MemoryUnit = ProcessMemoryUnit.Gigabytes;
             memory.MemorySuffix = " GiB";
-            ProcessColumnSetting cpu = settings.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.CPU);
+            ProcessColumnSetting cpu =
+                settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.CPU);
             cpu.ShowPercentSuffix = false;
             cpu.ShowDecimalUsage = false;
-            ProcessColumnSetting userName = settings.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.UserName);
+            ProcessColumnSetting userName =
+                settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.UserName);
             userName.ShowUserNamePrefix = true;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
-            ProcessColumnSetting loadedMemory = loaded.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.PrivateMemory);
-            ProcessColumnSetting loadedCPU = loaded.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.CPU);
-            ProcessColumnSetting loadedUserName = loaded.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.UserName);
+            ProcessColumnSetting loadedMemory = loaded.DetailsColumns.Single(static setting =>
+                setting.Column == ProcessTableColumnKind.PrivateMemory);
+            ProcessColumnSetting loadedCPU =
+                loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.CPU);
+            ProcessColumnSetting loadedUserName =
+                loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.UserName);
 
-            Assert.Equal("Private", loadedMemory.Nickname);
+            Assert.Equal(expected: "Private", loadedMemory.Nickname);
             Assert.Equal(ProcessMemoryUnit.Gigabytes, loadedMemory.MemoryUnit);
-            Assert.Equal(" GiB", loadedMemory.MemorySuffix);
+            Assert.Equal(expected: " GiB", loadedMemory.MemorySuffix);
             Assert.False(loadedCPU.ShowPercentSuffix);
             Assert.False(loadedCPU.ShowDecimalUsage);
             Assert.True(loadedUserName.ShowUserNamePrefix);
@@ -387,25 +383,25 @@ public sealed class ProcessColumnSettingsTests
         {
             File.WriteAllText(
                 path,
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <AppSettings>
-                  <DetailsColumns>
-                    <Column Column="CPU" Visible="true" Width="91" />
-                  </DetailsColumns>
-                </AppSettings>
-                """);
+                contents: """
+                          <?xml version="1.0" encoding="utf-8"?>
+                          <AppSettings>
+                            <DetailsColumns>
+                              <Column Column="CPU" Visible="true" Width="91" />
+                            </DetailsColumns>
+                          </AppSettings>
+                          """);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
-            ProcessColumnSetting cpu = loaded.DetailsColumns.Single(
-                static setting => setting.Column == ProcessTableColumnKind.CPU);
+            ProcessColumnSetting cpu =
+                loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.CPU);
 
-            Assert.Equal(91, cpu.Width);
+            Assert.Equal(expected: 91, cpu.Width);
             Assert.Empty(cpu.Nickname);
             Assert.True(cpu.ShowPercentSuffix);
             Assert.True(cpu.ShowDecimalUsage);
             Assert.Equal(ProcessMemoryUnit.Kilobytes, cpu.MemoryUnit);
-            Assert.Equal("K", cpu.MemorySuffix);
+            Assert.Equal(expected: "K", cpu.MemorySuffix);
             Assert.False(cpu.ShowUserNamePrefix);
         }
         finally
@@ -418,10 +414,5 @@ public sealed class ProcessColumnSettingsTests
         ProcessTableColumnKind column,
         bool visible,
         double width) =>
-        new()
-        {
-            Column = column,
-            Visible = visible,
-            Width = width
-        };
+        new() { Column = column, Visible = visible, Width = width };
 }

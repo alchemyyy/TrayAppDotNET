@@ -14,7 +14,7 @@ public sealed class SettingsSearchBoxTests
             Colors.DarkCyan,
             Colors.DarkMagenta,
             Colors.DarkGreen);
-        using SettingsSearchBox searchBox = new(palette, "Search");
+        using SettingsSearchBox searchBox = new(palette, placeholderText: "Search");
         TextBox textBox = Assert.Single(searchBox.Children.OfType<TextBox>());
         SettingsButton clearButton = Assert.Single(searchBox.Children.OfType<SettingsButton>());
 
@@ -30,7 +30,7 @@ public sealed class SettingsSearchBoxTests
     public void DeepPaletteRefreshUpdatesExistingSearchBrushes() => AvaloniaTestHost.Run(() =>
     {
         SettingsPalette palette = Palette(Colors.DarkCyan, Colors.DarkMagenta, Colors.DarkGreen);
-        using SettingsSearchBox searchBox = new(palette, "Search");
+        using SettingsSearchBox searchBox = new(palette, placeholderText: "Search");
         TextBox textBox = Assert.Single(searchBox.Children.OfType<TextBox>());
         SolidColorBrush background = Assert.IsType<SolidColorBrush>(textBox.Background);
 

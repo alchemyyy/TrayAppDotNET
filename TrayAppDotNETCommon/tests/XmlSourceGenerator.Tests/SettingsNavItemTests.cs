@@ -16,10 +16,9 @@ public sealed class SettingsNavItemTests
     {
         SettingsPalette palette = CreatePalette(Colors.Black, Colors.White);
         SettingsNavItem item = new(
-            "General",
+            text: "General",
             palette,
-            navigationGlyph: Glyph.SegoeFluent(GeneralGlyph));
-        item.IsSelected = true;
+            navigationGlyph: Glyph.SegoeFluent(GeneralGlyph)) { IsSelected = true };
 
         Border surface = Assert.IsType<Border>(item.Child);
         Grid row = Assert.IsType<Grid>(surface.Child);
@@ -29,8 +28,8 @@ public sealed class SettingsNavItemTests
 
         Assert.Equal(SettingsUILayout.NavItemPadding, surface.Padding);
         Assert.Equal(SettingsUILayout.NavIndicatorMargin, indicator.Margin);
-        Assert.Equal(1, Grid.GetColumn(label));
-        Assert.Equal("General", label.Text);
+        Assert.Equal(expected: 1, Grid.GetColumn(label));
+        Assert.Equal(expected: "General", label.Text);
         Assert.Equal(Colors.White, indicatorBrush.Color);
     });
 
@@ -39,11 +38,10 @@ public sealed class SettingsNavItemTests
     {
         SettingsPalette palette = CreatePalette(Colors.Black, Colors.White);
         SettingsNavItem item = new(
-            "General",
+            text: "General",
             palette,
             useWindows11Style: true,
-            navigationGlyph: Glyph.SegoeFluent(GeneralGlyph));
-        item.IsSelected = true;
+            navigationGlyph: Glyph.SegoeFluent(GeneralGlyph)) { IsSelected = true };
 
         Border surface = Assert.IsType<Border>(item.Child);
         Grid row = Assert.IsType<Grid>(surface.Child);
@@ -65,8 +63,8 @@ public sealed class SettingsNavItemTests
         Assert.Equal(SettingsUILayout.Windows11NavIconSize, icon.Height);
         Assert.Equal(SettingsUILayout.Windows11NavIconFontSize, icon.FontSize);
         Assert.Equal(SettingsUILayout.Windows11NavIconMargin, icon.Margin);
-        Assert.Equal(0, Grid.GetColumn(icon));
-        Assert.Equal(1, Grid.GetColumn(label));
+        Assert.Equal(expected: 0, Grid.GetColumn(icon));
+        Assert.Equal(expected: 1, Grid.GetColumn(label));
         Assert.Equal(SettingsUILayout.Windows11NavLabelMargin, label.Margin);
     });
 
@@ -76,7 +74,7 @@ public sealed class SettingsNavItemTests
         SettingsPalette palette = CreatePalette(Colors.Black, Colors.White);
         TestSettingsNavigationIcon icon = new() { IconColor = palette.Foreground };
         SettingsNavItem item = new(
-            "Environmental",
+            text: "Environmental",
             palette,
             useWindows11Style: true,
             customNavigationIcon: icon);

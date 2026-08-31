@@ -96,12 +96,12 @@ internal static class DateUtils
     private static DateTimeComponents ToComponents(DateTimeOffset value, double offsetHours)
     {
         return new DateTimeComponents(
-            Year: value.Year,
-            Month: value.Month,
-            Day: value.Day,
-            Hour: value.Hour,
-            Minute: value.Minute,
-            Second: value.Second + value.Millisecond / 1000.0 + value.Microsecond / 1_000_000.0,
-            TimezoneOffsetHours: offsetHours);
+            value.Year,
+            value.Month,
+            value.Day,
+            value.Hour,
+            value.Minute,
+            value.Second + value.Millisecond / 1000.0 + value.Microsecond / 1_000_000.0,
+            offsetHours);
     }
 }

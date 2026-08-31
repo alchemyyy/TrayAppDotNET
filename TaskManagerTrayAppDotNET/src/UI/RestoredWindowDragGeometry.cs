@@ -22,7 +22,7 @@ internal static class RestoredWindowDragGeometry
             alignToPageArea,
             pageContentLeft);
         return new RestoredWindowDragSearchRange(
-            Math.Max(0, left - leadingActionWidth),
+            Math.Max(val1: 0, left - leadingActionWidth),
             checked(left + searchWidth));
     }
 
@@ -39,7 +39,7 @@ internal static class RestoredWindowDragGeometry
             throw new ArgumentOutOfRangeException(nameof(searchWidth));
 
         return alignToPageArea
-            ? Math.Max(0, pageContentLeft)
+            ? Math.Max(val1: 0, pageContentLeft)
             : (proposedWindowWidth - searchWidth) / 2;
     }
 
@@ -57,9 +57,7 @@ internal static class RestoredWindowDragGeometry
         int cursorWithinWindow = cursorScreenX - proposedWindowLeft;
         if (cursorWithinWindow < searchLeftWithinWindow
             || cursorWithinWindow >= searchRightWithinWindow)
-        {
             return 0;
-        }
 
         int distanceToLeft = cursorWithinWindow - searchLeftWithinWindow;
         int distanceToRight = searchRightWithinWindow - cursorWithinWindow;

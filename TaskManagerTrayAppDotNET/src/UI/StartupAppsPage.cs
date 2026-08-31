@@ -1,4 +1,3 @@
-using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -26,20 +25,20 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         Func<string, bool> startProcess,
         Action<string, string> reportMessage)
         : base(
-            "Startup apps",
+            title: "Startup apps",
             CreateSchema(resources),
             processIconService,
             settings,
             palette,
             resources,
             startProcess,
-            "Search startup apps and publishers")
+            searchPlaceholder: "Search startup apps and publishers")
     {
         _startupAppsService = startupAppsService;
         _reportMessage = reportMessage;
-        _enableButton = AddHeaderAction("Enable", OnEnableClick, isEnabled: false);
-        _disableButton = AddHeaderAction("Disable", OnDisableClick, isEnabled: false);
-        _propertiesButton = AddHeaderAction("Properties", OnPropertiesClick, isEnabled: false);
+        _enableButton = AddHeaderAction(label: "Enable", OnEnableClick, isEnabled: false);
+        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false);
+        _propertiesButton = AddHeaderAction(label: "Properties", OnPropertiesClick, isEnabled: false);
         _moreButton = AddMoreAction(OnMoreClick);
     }
 
@@ -47,20 +46,20 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         new(
         [
             new TaskManagerTableColumn(
-                "name",
-                "Name",
+                Key: "name",
+                Title: "Name",
                 resources.AxamlTaskManagerTable.StartupNameColumnWidth),
             new TaskManagerTableColumn(
-                "publisher",
-                "Publisher",
+                Key: "publisher",
+                Title: "Publisher",
                 resources.AxamlTaskManagerTable.StartupPublisherColumnWidth),
             new TaskManagerTableColumn(
-                "status",
-                "Status",
+                Key: "status",
+                Title: "Status",
                 resources.AxamlTaskManagerTable.StartupStatusColumnWidth),
             new TaskManagerTableColumn(
-                "impact",
-                "Startup impact",
+                Key: "impact",
+                Title: "Startup impact",
                 resources.AxamlTaskManagerTable.StartupImpactColumnWidth)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
@@ -69,7 +68,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
 
     protected override void HandleRowActivated(TaskManagerTableRow row)
     {
-        if (row.Tag is StartupAppEntry entry && entry.ActionEligibility.CanShowProperties)
+        if (row.Tag is StartupAppEntry { ActionEligibility.CanShowProperties: true } entry)
             ShowProperties(entry);
     }
 
@@ -78,7 +77,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         if (_disposed || _isPageActive == isActive) return;
 
         _isPageActive = isActive;
-        if (isActive) _ = RefreshAsync(reportFailure: true);
+        if (isActive) _ = RefreshAsync(true);
     }
 
     private async Task RefreshAsync(bool reportFailure)
@@ -102,7 +101,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         {
             TADNLog.Log($"Startup Apps refresh failed: {exception}");
             if (reportFailure && !_disposed)
-                _reportMessage("Startup apps unavailable", exception.Message);
+                _reportMessage(arg1: "Startup apps unavailable", exception.Message);
         }
         finally
         {
@@ -186,13 +185,13 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             {
                 StartupAppStatus.Enabled => _startupAppsService.Enable(entry),
                 StartupAppStatus.Disabled => _startupAppsService.Disable(entry),
-                _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown startup status.")
+                _ => throw new ArgumentOutOfRangeException(nameof(status), status, message: "Unknown startup status.")
             });
             if (_disposed) return;
             if (!result.Succeeded)
             {
                 _reportMessage(
-                    "Startup app change failed",
+                    arg1: "Startup app change failed",
                     string.IsNullOrWhiteSpace(result.ErrorMessage)
                         ? $"Windows could not mark '{entry.Name}' {status.ToString().ToLowerInvariant()}."
                         : result.ErrorMessage);
@@ -201,7 +200,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         catch (Exception exception)
         {
             TADNLog.Log($"Startup app status change failed for '{entry.Name}': {exception}");
-            if (!_disposed) _reportMessage("Startup app change failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: "Startup app change failed", exception.Message);
         }
         finally
         {
@@ -209,7 +208,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             if (!_disposed)
             {
                 UpdateActionButtons(SelectedRow?.Tag as StartupAppEntry);
-                await RefreshAsync(reportFailure: false);
+                await RefreshAsync(false);
             }
         }
     }
@@ -222,25 +221,25 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
     private void ShowProperties(StartupAppEntry entry)
     {
         if (ShellFileActions.TryShowProperties(entry.TargetPath, out string errorMessage)) return;
-        _reportMessage("Properties unavailable", errorMessage);
+        _reportMessage(arg1: "Properties unavailable", errorMessage);
     }
 
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        StartupAppEntry? entry = SelectedRow?.Tag as StartupAppEntry;
-        if (entry != null)
+        if (SelectedRow?.Tag is StartupAppEntry entry)
         {
             StartupAppActionEligibility eligibility = entry.ActionEligibility;
             if (!_operationPending && eligibility.CanEnable)
-                entries.Add("Enable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Enabled));
+                entries.Add(text: "Enable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Enabled));
             if (!_operationPending && eligibility.CanDisable)
-                entries.Add("Disable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Disabled));
+                entries.Add(text: "Disable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Disabled));
             if (!_operationPending && eligibility.CanShowProperties)
-                entries.Add("Properties", () => ShowProperties(entry));
+                entries.Add(text: "Properties", () => ShowProperties(entry));
             if (entries.Count > 0) entries.AddSeparator();
         }
-        entries.Add("Refresh", () => _ = RefreshAsync(reportFailure: true));
+
+        entries.Add(text: "Refresh", () => _ = RefreshAsync(true));
         ShowActionMenu(_moreButton, entries.ToList());
     }
 

@@ -10,9 +10,11 @@ public class Trigger : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    [XmlAttribute] public string Name { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string Name { get; set; } = string.Empty;
 
-    [XmlAttribute] public bool Enabled { get; set; } = true;
+    [XmlAttribute]
+    public bool Enabled { get; set; } = true;
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

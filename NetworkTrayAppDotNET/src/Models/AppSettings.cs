@@ -70,7 +70,7 @@ public class AppSettings : AppSettingsCommon
     public AppSettings()
         : base(
             updateCheckIntervalDefaultMs: 0,
-            renderingBackendDefault: TrayAppDotNETRenderingBackend.Software) =>
+            TrayAppDotNETRenderingBackend.Software) =>
         WireColorCallbacks();
 
     public override void OnTrayXmlDeserialized()
@@ -125,7 +125,7 @@ public class AppSettings : AppSettingsCommon
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "settings.xml");
+        return Path.Combine(appFolder, path2: "settings.xml");
     }
 
     // The folder that holds settings.xml and other per-app data.

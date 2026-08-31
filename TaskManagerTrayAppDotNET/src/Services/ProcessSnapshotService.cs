@@ -19,34 +19,40 @@ internal sealed class ProcessSnapshotService : IDisposable
     private const uint ProcessVMRead = 0x0010;
 
     private static readonly ulong ProcessorColumnsMask = ColumnMask(ProcessTableColumnKind.CPU)
-                                                        | ColumnMask(ProcessTableColumnKind.CPUTime);
+                                                         | ColumnMask(ProcessTableColumnKind.CPUTime);
+
     private static readonly ulong ThreadColumnsMask = ColumnMask(ProcessTableColumnKind.Status)
-                                                     | ColumnMask(ProcessTableColumnKind.Threads);
+                                                      | ColumnMask(ProcessTableColumnKind.Threads);
+
     private static readonly ulong MemoryColumnsMask = ColumnMask(ProcessTableColumnKind.WorkingSet)
-                                                     | ColumnMask(ProcessTableColumnKind.PeakWorkingSet)
-                                                     | ColumnMask(ProcessTableColumnKind.WorkingSetDelta)
-                                                     | ColumnMask(ProcessTableColumnKind.ActivePrivateWorkingSet)
-                                                     | ColumnMask(ProcessTableColumnKind.PrivateMemory)
-                                                     | ColumnMask(ProcessTableColumnKind.SharedWorkingSet)
-                                                     | ColumnMask(ProcessTableColumnKind.CommitSize)
-                                                     | ColumnMask(ProcessTableColumnKind.PagedPool)
-                                                     | ColumnMask(ProcessTableColumnKind.NonPagedPool)
-                                                     | ColumnMask(ProcessTableColumnKind.PageFaults)
-                                                     | ColumnMask(ProcessTableColumnKind.PageFaultDelta);
+                                                      | ColumnMask(ProcessTableColumnKind.PeakWorkingSet)
+                                                      | ColumnMask(ProcessTableColumnKind.WorkingSetDelta)
+                                                      | ColumnMask(ProcessTableColumnKind.ActivePrivateWorkingSet)
+                                                      | ColumnMask(ProcessTableColumnKind.PrivateMemory)
+                                                      | ColumnMask(ProcessTableColumnKind.SharedWorkingSet)
+                                                      | ColumnMask(ProcessTableColumnKind.CommitSize)
+                                                      | ColumnMask(ProcessTableColumnKind.PagedPool)
+                                                      | ColumnMask(ProcessTableColumnKind.NonPagedPool)
+                                                      | ColumnMask(ProcessTableColumnKind.PageFaults)
+                                                      | ColumnMask(ProcessTableColumnKind.PageFaultDelta);
+
     private static readonly ulong IOColumnsMask = ColumnMask(ProcessTableColumnKind.IOReads)
-                                                 | ColumnMask(ProcessTableColumnKind.IOWrites)
-                                                 | ColumnMask(ProcessTableColumnKind.IOOther)
-                                                 | ColumnMask(ProcessTableColumnKind.IOReadBytes)
-                                                 | ColumnMask(ProcessTableColumnKind.IOWriteBytes)
-                                                 | ColumnMask(ProcessTableColumnKind.IOOtherBytes);
+                                                  | ColumnMask(ProcessTableColumnKind.IOWrites)
+                                                  | ColumnMask(ProcessTableColumnKind.IOOther)
+                                                  | ColumnMask(ProcessTableColumnKind.IOReadBytes)
+                                                  | ColumnMask(ProcessTableColumnKind.IOWriteBytes)
+                                                  | ColumnMask(ProcessTableColumnKind.IOOtherBytes);
+
     private static readonly ulong GPUColumnsMask = ColumnMask(ProcessTableColumnKind.GPU)
-                                                  | ColumnMask(ProcessTableColumnKind.GPUEngine)
-                                                  | ColumnMask(ProcessTableColumnKind.DedicatedGPUMemory)
-                                                  | ColumnMask(ProcessTableColumnKind.SharedGPUMemory);
+                                                   | ColumnMask(ProcessTableColumnKind.GPUEngine)
+                                                   | ColumnMask(ProcessTableColumnKind.DedicatedGPUMemory)
+                                                   | ColumnMask(ProcessTableColumnKind.SharedGPUMemory);
+
     private static readonly ulong NPUColumnsMask = ColumnMask(ProcessTableColumnKind.NPU)
-                                                  | ColumnMask(ProcessTableColumnKind.NPUEngine)
-                                                  | ColumnMask(ProcessTableColumnKind.DedicatedNPUMemory)
-                                                  | ColumnMask(ProcessTableColumnKind.SharedNPUMemory);
+                                                   | ColumnMask(ProcessTableColumnKind.NPUEngine)
+                                                   | ColumnMask(ProcessTableColumnKind.DedicatedNPUMemory)
+                                                   | ColumnMask(ProcessTableColumnKind.SharedNPUMemory);
+
     private static readonly ulong ProcessHandleStaticColumnsMask =
         ColumnMask(ProcessTableColumnKind.Name)
         | ColumnMask(ProcessTableColumnKind.UserName)
@@ -61,6 +67,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         | ColumnMask(ProcessTableColumnKind.HardwareStackProtection)
         | ColumnMask(ProcessTableColumnKind.ExtendedControlFlowGuard)
         | ColumnMask(ProcessTableColumnKind.Isolation);
+
     private static readonly ulong ProcessHandleDynamicColumnsMask =
         ColumnMask(ProcessTableColumnKind.UserObjects)
         | ColumnMask(ProcessTableColumnKind.GDIObjects)
@@ -77,10 +84,13 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
     private readonly Action _notifySnapshotAvailable;
     private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
+
     private readonly Dictionary<string, ProcessImageIdentity> _imageIdentities =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, SharedUserName> _sharedUserNames =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<int, SystemProcessData> _systemProcessData = new(1_024);
     private readonly List<int> _staleProcessIDs = new(256);
     private readonly StringBuilder _processPathBuffer = new(InitialProcessPathCapacity);
@@ -171,7 +181,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     public void Start()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (Interlocked.Exchange(ref _started, 1) != 0) return;
+        if (Interlocked.Exchange(ref _started, value: 1) != 0) return;
         _samplingThread.Start();
     }
 
@@ -285,7 +295,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         if (schema.VisibleMask == 0)
         {
             // The tray graph needs the system sample, but hidden/non-process pages do not need a process walk
-            _stagingBuffer.BeginWrite(schema, 0);
+            _stagingBuffer.BeginWrite(schema, requiredCapacity: 0);
             _stagingBuffer.CompleteWrite(0);
             Publish(systemPerformanceSample);
             return;
@@ -343,9 +353,9 @@ internal sealed class ProcessSnapshotService : IDisposable
             }
 
             if (SampleAndStoreProcess(
-                    null,
+                    process: null,
                     pair.Key,
-                    true,
+                    hasSystemProcessData: true,
                     pair.Value,
                     schema,
                     warmProcessCount,
@@ -354,9 +364,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     sampleTimeTicks,
                     generation,
                     count))
-            {
                 count++;
-            }
         }
 
         return count;
@@ -392,8 +400,8 @@ internal sealed class ProcessSnapshotService : IDisposable
                 if (SampleAndStoreProcess(
                         process,
                         processID,
-                        false,
-                        default,
+                        hasSystemProcessData: false,
+                        systemProcessData: default,
                         schema,
                         warmProcessCount,
                         sampleEveryProcess,
@@ -401,9 +409,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                         sampleTimeTicks,
                         generation,
                         count))
-                {
                     count++;
-                }
             }
         }
         finally
@@ -433,7 +439,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool isWarm = sampleEveryProcess
                       || Array.BinarySearch(
                           _sampleWarmProcessIDs,
-                          0,
+                          index: 0,
                           warmProcessCount,
                           processID) >= 0;
         bool historyMatches = _history.TryGetValue(processID, out ProcessHistoryEntry? existingHistory)
@@ -504,7 +510,7 @@ internal sealed class ProcessSnapshotService : IDisposable
             Array.Copy(_warmProcessIDs, _sampleWarmProcessIDs, warmProcessCount);
         }
 
-        Array.Sort(_sampleWarmProcessIDs, 0, warmProcessCount);
+        Array.Sort(_sampleWarmProcessIDs, index: 0, warmProcessCount);
     }
 
     private void ConfigureOptionalCollectors(ProcessDataSchema schema)
@@ -551,9 +557,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 _nominalProcessorCycleCapacity = NativeProcessInfo.ReadNominalProcessorCycleCapacity();
         }
         else
-        {
             _nominalProcessorCycleCapacity = 0;
-        }
 
         bool needsNetworkUsage = schema.IsVisible(ProcessTableColumnKind.Network);
         if (needsNetworkUsage && _networkUsageSampler == null)
@@ -630,8 +634,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         ProcessDataSchema schema)
     {
         bool needsIcon = schema.IsVisible(ProcessTableColumnKind.Name);
-        bool needsProcessName = needsIcon;
-        string processName = !needsProcessName
+        string processName = !needsIcon
             ? string.Empty
             : hasSystemProcessData
                 ? NormalizeProcessName(_systemProcessSnapshot.ReadImageName(systemProcessData), processID)
@@ -667,9 +670,12 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             int sessionID = hasSystemProcessData
                 ? systemProcessData.SessionID
-                : process == null ? -1 : ReadSessionID(process);
+                : process == null
+                    ? -1
+                    : ReadSessionID(process);
             SetStaticNumeric(schema, numericValues, ProcessTableColumnKind.SessionID, sessionID);
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.CommandLine))
         {
             string commandLine = processHandle == IntPtr.Zero
@@ -677,6 +683,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 : NativeProcessInfo.ReadCommandLine(processHandle);
             SetStaticText(schema, textValues, ProcessTableColumnKind.CommandLine, commandLine);
         }
+
         SetStaticCode(
             schema,
             numericValues,
@@ -733,6 +740,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? ProcessDisplayCode.Unavailable
                     : NativeProcessInfo.ReadHardwareStackProtection(processHandle));
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.ExtendedControlFlowGuard))
         {
             SetStaticCode(
@@ -743,6 +751,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? ProcessDisplayCode.Unavailable
                     : NativeProcessInfo.ReadExtendedControlFlowGuard(processHandle));
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.Isolation))
         {
             SetStaticCode(
@@ -804,7 +813,9 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             ulong cycles = hasSystemProcessData
                 ? systemProcessData.CycleCount
-                : processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadCycleCount(processHandle);
+                : processHandle == IntPtr.Zero
+                    ? 0
+                    : NativeProcessInfo.ReadCycleCount(processHandle);
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.Cycle, unchecked((long)cycles));
             if (schema.IsVisible(ProcessTableColumnKind.CPUUtility))
             {
@@ -843,7 +854,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     systemProcessData.WorkingSetBytes,
                     systemProcessData.PeakWorkingSetBytes,
                     systemProcessData.PrivateWorkingSetBytes,
-                    Math.Max(0, systemProcessData.WorkingSetBytes - systemProcessData.PrivateWorkingSetBytes),
+                    Math.Max(val1: 0, systemProcessData.WorkingSetBytes - systemProcessData.PrivateWorkingSetBytes),
                     systemProcessData.CommitSizeBytes,
                     systemProcessData.PagedPoolBytes,
                     systemProcessData.NonPagedPoolBytes,
@@ -898,9 +909,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 history.HasDiskSample = true;
             }
             else
-            {
                 history.HasDiskSample = false;
-            }
 
             SetDynamicDouble(schema, history, ProcessTableColumnKind.Disk, bytesPerSecond);
         }
@@ -913,13 +922,13 @@ internal sealed class ProcessSnapshotService : IDisposable
             {
                 if (!history.HasNetworkSample)
                 {
-                    SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, 0);
+                    SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, value: 0);
                     UpdateNetworkBaseline(history, networkSample);
                 }
                 else if (networkSample.Generation != history.LastNetworkSampleGeneration)
                 {
                     double bytesPerSecond = CalculateTransferRate(
-                        true,
+                        hasPreviousSample: true,
                         history.NetworkBytes,
                         history.LastNetworkSampleTimestamp,
                         networkSample.CumulativeBytes,
@@ -935,7 +944,7 @@ internal sealed class ProcessSnapshotService : IDisposable
             else
             {
                 history.HasNetworkSample = false;
-                SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, -1);
+                SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, value: -1);
             }
         }
 
@@ -949,9 +958,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 threadCount = systemProcessData.ThreadCount;
             }
             else
-            {
                 ReadThreadState(process, out state, out threadCount);
-            }
 
             SetDynamicCode(
                 schema,
@@ -968,16 +975,19 @@ internal sealed class ProcessSnapshotService : IDisposable
             int value = hasSystemProcessData ? systemProcessData.BasePriority : ReadBasePriority(process);
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.BasePriority, value);
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.Handles))
         {
             int value = hasSystemProcessData ? systemProcessData.HandleCount : ReadHandleCount(process);
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.Handles, value);
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.UserObjects))
         {
             int value = processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadUserObjectCount(processHandle);
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.UserObjects, value);
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.GDIObjects))
         {
             int value = processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadGDIObjectCount(processHandle);
@@ -1015,6 +1025,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? ProcessDisplayCode.Unavailable
                     : NativeProcessInfo.ReadUACVirtualization(processHandle));
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.IOPriority))
         {
             SetDynamicCode(
@@ -1025,6 +1036,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? ProcessDisplayCode.Unavailable
                     : NativeProcessInfo.ReadIOPriority(processHandle));
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.PowerThrottling))
         {
             SetDynamicCode(
@@ -1035,6 +1047,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? ProcessDisplayCode.Unavailable
                     : NativeProcessInfo.ReadPowerThrottling(processHandle));
         }
+
         if (schema.IsVisible(ProcessTableColumnKind.DPIAwareness))
         {
             SetDynamicCode(
@@ -1080,6 +1093,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     ? acceleratorSample.SharedGPUMemory
                     : -1);
         }
+
         if (HasAnyColumn(activeMask, NPUColumnsMask))
         {
             ProcessAcceleratorSample acceleratorSample = default;
@@ -1125,7 +1139,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool needsIcon,
         bool needsDescription)
     {
-        string key = imagePath.Length > 0 ? imagePath : string.Concat("\0", processName);
+        string key = imagePath.Length > 0 ? imagePath : string.Concat(str0: "\0", processName);
         if (_imageIdentities.TryGetValue(key, out ProcessImageIdentity? existing))
         {
             existing.ReferenceCount++;
@@ -1179,9 +1193,9 @@ internal sealed class ProcessSnapshotService : IDisposable
             return version.FileDescription ?? string.Empty;
         }
         catch (Exception exception) when (exception is FileNotFoundException
-                                          or UnauthorizedAccessException
-                                          or Win32Exception
-                                          or NotSupportedException)
+                                              or UnauthorizedAccessException
+                                              or Win32Exception
+                                              or NotSupportedException)
         {
             return string.Empty;
         }
@@ -1215,11 +1229,11 @@ internal sealed class ProcessSnapshotService : IDisposable
 
         IntPtr handle = Kernel32.OpenProcess(
             Kernel32.PROCESS_QUERY_LIMITED_INFORMATION | ProcessQueryInformation | ProcessVMRead,
-            false,
+            bInheritHandle: false,
             (uint)processID);
         return handle != IntPtr.Zero
             ? handle
-            : Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)processID);
+            : Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, (uint)processID);
     }
 
     private static int ReadProcessID(Process process)
@@ -1240,7 +1254,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             return NormalizeProcessName(process.ProcessName, processID);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return NormalizeProcessName(string.Empty, processID);
         }
@@ -1258,12 +1273,12 @@ internal sealed class ProcessSnapshotService : IDisposable
             };
         }
 
-        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return name;
+        if (name.EndsWith(value: ".exe", StringComparison.OrdinalIgnoreCase)) return name;
         if (name[0] is '[' or '<') return name;
         return name switch
         {
             "Registry" or "Memory Compression" or "Secure System" or "System" => name,
-            _ => string.Concat(name, ".exe")
+            _ => string.Concat(name, str1: ".exe")
         };
     }
 
@@ -1279,15 +1294,13 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             _processPathBuffer.Clear();
             uint characterCount = (uint)_processPathBuffer.Capacity;
-            if (Kernel32.QueryFullProcessImageNameW(processHandle, 0, _processPathBuffer, ref characterCount))
-                return _processPathBuffer.ToString(0, (int)characterCount);
+            if (Kernel32.QueryFullProcessImageNameW(processHandle, dwFlags: 0, _processPathBuffer, ref characterCount))
+                return _processPathBuffer.ToString(startIndex: 0, (int)characterCount);
 
             int error = Marshal.GetLastPInvokeError();
             if (error != NativeErrors.ERROR_INSUFFICIENT_BUFFER
                 || _processPathBuffer.Capacity >= MaximumProcessPathCapacity)
-            {
                 return string.Empty;
-            }
 
             int nextCapacity = Math.Min(_processPathBuffer.Capacity * 2, MaximumProcessPathCapacity);
             _processPathBuffer.EnsureCapacity(nextCapacity);
@@ -1313,7 +1326,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             return process.SessionId;
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return -1;
         }
@@ -1327,7 +1341,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             return process.TotalProcessorTime.Ticks;
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1338,10 +1353,9 @@ internal sealed class ProcessSnapshotService : IDisposable
         IntPtr processHandle)
     {
         if (processHandle != IntPtr.Zero
-            && NativeProcessInfo.TryReadMemoryCounters(processHandle, out NativeProcessInfo.ProcessMemoryCounters counters))
-        {
+            && NativeProcessInfo.TryReadMemoryCounters(processHandle,
+                out NativeProcessInfo.ProcessMemoryCounters counters))
             return counters;
-        }
 
         if (process == null) return default;
 
@@ -1351,20 +1365,21 @@ internal sealed class ProcessSnapshotService : IDisposable
             workingSet,
             ReadPeakWorkingSetBytes(process),
             Math.Min(workingSet, privateBytes),
-            Math.Max(0, workingSet - privateBytes),
+            Math.Max(val1: 0, workingSet - privateBytes),
             privateBytes,
-            0,
-            0,
-            0);
+            PagedPoolBytes: 0,
+            NonPagedPoolBytes: 0,
+            PageFaultCount: 0);
     }
 
     private static long ReadPrivateMemoryBytes(Process process)
     {
         try
         {
-            return Math.Max(0, process.PrivateMemorySize64);
+            return Math.Max(val1: 0, process.PrivateMemorySize64);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1374,9 +1389,10 @@ internal sealed class ProcessSnapshotService : IDisposable
     {
         try
         {
-            return Math.Max(0, process.WorkingSet64);
+            return Math.Max(val1: 0, process.WorkingSet64);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1386,9 +1402,10 @@ internal sealed class ProcessSnapshotService : IDisposable
     {
         try
         {
-            return Math.Max(0, process.PeakWorkingSet64);
+            return Math.Max(val1: 0, process.PeakWorkingSet64);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1400,9 +1417,10 @@ internal sealed class ProcessSnapshotService : IDisposable
 
         try
         {
-            return Math.Max(0, process.HandleCount);
+            return Math.Max(val1: 0, process.HandleCount);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1416,7 +1434,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             return process.BasePriority;
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
+                                              or NotSupportedException)
         {
             return 0;
         }
@@ -1441,11 +1460,12 @@ internal sealed class ProcessSnapshotService : IDisposable
             for (int threadIndex = 0; threadIndex < threadCount; threadIndex++)
             {
                 using ProcessThread thread = threads[threadIndex];
-                if (thread.ThreadState == System.Diagnostics.ThreadState.Wait
-                    && thread.WaitReason == ThreadWaitReason.Suspended)
-                {
+                if (thread is
+                    {
+                        ThreadState: System.Diagnostics.ThreadState.Wait,
+                        WaitReason: ThreadWaitReason.Suspended
+                    })
                     continue;
-                }
 
                 allSuspended = false;
             }
@@ -1453,9 +1473,9 @@ internal sealed class ProcessSnapshotService : IDisposable
             state = allSuspended ? ProcessExecutionState.Suspended : ProcessExecutionState.Running;
         }
         catch (Exception exception) when (exception is InvalidOperationException
-                                          or Win32Exception
-                                          or NotSupportedException
-                                          or PlatformNotSupportedException)
+                                              or Win32Exception
+                                              or NotSupportedException
+                                              or PlatformNotSupportedException)
         {
             state = ProcessExecutionState.Running;
         }
@@ -1469,16 +1489,14 @@ internal sealed class ProcessSnapshotService : IDisposable
         if (!history.HasProcessorSample
             || sampleTimestamp <= history.LastProcessorSampleTimestamp
             || totalProcessorTicks < history.TotalProcessorTicks)
-        {
             return 0;
-        }
 
         double elapsedSeconds = (sampleTimestamp - history.LastProcessorSampleTimestamp)
                                 / (double)Stopwatch.Frequency;
         long processorTickDelta = totalProcessorTicks - history.TotalProcessorTicks;
         double processorSeconds = processorTickDelta / (double)TimeSpan.TicksPerSecond;
         double normalized = processorSeconds / elapsedSeconds / Environment.ProcessorCount * 100;
-        return Math.Clamp(normalized, 0, 100);
+        return Math.Clamp(normalized, min: 0, max: 100);
     }
 
     private static double CalculateCPUUtility(
@@ -1491,15 +1509,13 @@ internal sealed class ProcessSnapshotService : IDisposable
         if (!history.HasCycleSample
             || sampleTimestamp <= history.LastCycleSampleTimestamp
             || cycleCount < history.CycleCount)
-        {
             return 0;
-        }
 
         double elapsedSeconds = (sampleTimestamp - history.LastCycleSampleTimestamp)
                                 / (double)Stopwatch.Frequency;
         double cycleDelta = cycleCount - history.CycleCount;
         double utility = cycleDelta / elapsedSeconds / nominalProcessorCycleCapacity * 100;
-        return Math.Clamp(utility, 0, 1_000);
+        return Math.Clamp(utility, min: 0, max: 1_000);
     }
 
     /// <summary>Calculates a byte rate while treating first samples and counter resets as baselines.</summary>
@@ -1513,9 +1529,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         if (!hasPreviousSample
             || currentTimestamp <= previousTimestamp
             || currentBytes < previousBytes)
-        {
             return 0;
-        }
 
         double elapsedSeconds = (currentTimestamp - previousTimestamp)
                                 / (double)Stopwatch.Frequency;
@@ -1555,20 +1569,18 @@ internal sealed class ProcessSnapshotService : IDisposable
     {
         lock (_publishGate)
         {
-            ProcessSnapshotBuffer previousPublished = _publishedBuffer;
-            _publishedBuffer = _stagingBuffer;
-            _stagingBuffer = previousPublished;
+            (_publishedBuffer, _stagingBuffer) = (_stagingBuffer, _publishedBuffer);
             _latestSystemPerformanceSample = systemPerformanceSample;
             _publishedVersion++;
         }
 
-        if (Interlocked.Exchange(ref _notificationPending, 1) != 0) return;
+        if (Interlocked.Exchange(ref _notificationPending, value: 1) != 0) return;
         Dispatcher.UIThread.Post(_notifySnapshotAvailable, DispatcherPriority.Background);
     }
 
     private void NotifySnapshotAvailable()
     {
-        Interlocked.Exchange(ref _notificationPending, 0);
+        Interlocked.Exchange(ref _notificationPending, value: 0);
         try
         {
             SnapshotAvailable?.Invoke();
@@ -1591,7 +1603,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     {
         if (values.Length >= count) return;
 
-        int capacity = Math.Max(256, values.Length);
+        int capacity = Math.Max(val1: 256, values.Length);
         while (capacity < count)
             capacity = checked(capacity * 2);
         Array.Resize(ref values, capacity);
@@ -1673,7 +1685,7 @@ internal sealed class ProcessSnapshotService : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         SnapshotAvailable = null;
         _refreshWake.Set();

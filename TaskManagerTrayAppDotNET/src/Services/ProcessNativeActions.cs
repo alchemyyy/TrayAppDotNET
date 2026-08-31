@@ -56,9 +56,7 @@ internal static class ProcessNativeActions
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 out IntPtr rootHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         List<ProcessTreeEntry> processEntries = [];
         try
@@ -121,6 +119,7 @@ internal static class ProcessNativeActions
                 _ = Kernel32.CloseHandle(processHandle);
                 continue;
             }
+
             if (isCritical)
             {
                 failures.Add($"PID {processID}: Windows reports that the process is critical.");
@@ -151,7 +150,7 @@ internal static class ProcessNativeActions
 
         errorMessage = failures.Count == 0
             ? string.Empty
-            : "Some child processes could not be terminated:\n" + string.Join("\n", failures);
+            : "Some child processes could not be terminated:\n" + string.Join(separator: "\n", failures);
         return failures.Count == 0;
     }
 
@@ -166,9 +165,7 @@ internal static class ProcessNativeActions
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         try
         {
@@ -207,9 +204,7 @@ internal static class ProcessNativeActions
                 ProcessSetInformation,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         try
         {
@@ -239,9 +234,7 @@ internal static class ProcessNativeActions
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         try
         {
@@ -255,8 +248,8 @@ internal static class ProcessNativeActions
             }
 
             affinity = new ProcessAffinityInfo(
-                unchecked((ulong)processAffinityMask),
-                unchecked((ulong)systemAffinityMask));
+                unchecked(processAffinityMask),
+                unchecked(systemAffinityMask));
             errorMessage = string.Empty;
             return true;
         }
@@ -282,9 +275,7 @@ internal static class ProcessNativeActions
                 ProcessSetInformation,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         try
         {
@@ -318,7 +309,7 @@ internal static class ProcessNativeActions
             string processName = TryResolveImagePath(processHandle, out string imagePath, out _)
                 ? Path.GetFileNameWithoutExtension(imagePath)
                 : $"Process-{target.ProcessID}";
-            string dumpDirectory = Path.Combine(Path.GetTempPath(), "TaskManagerTrayAppDotNET");
+            string dumpDirectory = Path.Combine(Path.GetTempPath(), path2: "TaskManagerTrayAppDotNET");
             Directory.CreateDirectory(dumpDirectory);
             dumpPath = CreateUniqueDumpPath(dumpDirectory, processName, target.ProcessID);
 
@@ -329,7 +320,7 @@ internal static class ProcessNativeActions
                 FileShare.Read,
                 bufferSize: 1,
                 FileOptions.SequentialScan);
-            uint dumpFlags = MiniDumpWithFullMemory | MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo;
+            const uint dumpFlags = MiniDumpWithFullMemory | MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo;
             bool dumpCreated;
             lock (MiniDumpLock)
             {
@@ -343,6 +334,7 @@ internal static class ProcessNativeActions
                     IntPtr.Zero,
                     IntPtr.Zero);
             }
+
             if (dumpCreated)
             {
                 errorMessage = string.Empty;
@@ -377,11 +369,7 @@ internal static class ProcessNativeActions
 
         try
         {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = "explorer.exe",
-                UseShellExecute = true
-            };
+            ProcessStartInfo startInfo = new() { FileName = "explorer.exe", UseShellExecute = true };
             startInfo.ArgumentList.Add("/select," + imagePath);
             using Process? process = Process.Start(startInfo);
             if (process != null)
@@ -497,9 +485,7 @@ internal static class ProcessNativeActions
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         try
         {
@@ -518,9 +504,9 @@ internal static class ProcessNativeActions
     {
         StringBuilder pathBuffer = new(MaximumPathCharacters);
         uint characterCount = (uint)pathBuffer.Capacity;
-        if (Kernel32.QueryFullProcessImageNameW(processHandle, 0, pathBuffer, ref characterCount))
+        if (Kernel32.QueryFullProcessImageNameW(processHandle, dwFlags: 0, pathBuffer, ref characterCount))
         {
-            imagePath = pathBuffer.ToString(0, checked((int)characterCount));
+            imagePath = pathBuffer.ToString(startIndex: 0, checked((int)characterCount));
             errorMessage = string.Empty;
             return true;
         }
@@ -539,9 +525,7 @@ internal static class ProcessNativeActions
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 out IntPtr processHandle,
                 out errorMessage))
-        {
             return false;
-        }
 
         _ = Kernel32.CloseHandle(processHandle);
         return true;
@@ -583,6 +567,7 @@ internal static class ProcessNativeActions
             processHandle = IntPtr.Zero;
             return false;
         }
+
         if (actualCreationTime == target.CreationTimeFileTime)
         {
             errorMessage = string.Empty;
@@ -623,7 +608,7 @@ internal static class ProcessNativeActions
         List<ProcessTreeEntry> processEntries,
         out string errorMessage)
     {
-        IntPtr snapshotHandle = NativeMethods.CreateToolhelp32Snapshot(ToolhelpSnapshotProcesses, 0);
+        IntPtr snapshotHandle = NativeMethods.CreateToolhelp32Snapshot(ToolhelpSnapshotProcesses, processID: 0);
         if (snapshotHandle == new IntPtr(-1))
         {
             errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
@@ -738,12 +723,11 @@ internal static class ProcessNativeActions
         long extendedStyle = NativeMethods.GetWindowLongPtr(windowHandle, WindowExtendedStyle).ToInt64();
         if ((extendedStyle & WindowStyleToolWindow) != 0) return false;
 
-        int isCloaked = 0;
         int result = NativeMethods.DwmGetWindowAttribute(
             windowHandle,
             DwmWindowAttributeCloaked,
-            out isCloaked,
-            (uint)sizeof(int));
+            out int isCloaked,
+            sizeof(int));
         return result != 0 || isCloaked == 0;
     }
 
@@ -801,6 +785,7 @@ internal static class ProcessNativeActions
     }
 
     private readonly record struct ProcessTreeEntry(int ProcessID, int ParentProcessID);
+
     private readonly record struct OpenedProcess(int ProcessID, IntPtr Handle);
 
     private sealed class WindowEnumerationState(int processID)

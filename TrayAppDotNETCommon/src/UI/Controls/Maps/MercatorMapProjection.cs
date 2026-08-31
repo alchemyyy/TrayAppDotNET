@@ -37,8 +37,8 @@ public readonly record struct MercatorMapProjection(
 
     public GeoCoordinate Unproject(Point point)
     {
-        double x = Math.Clamp(point.X, 0.0, Width);
-        double y = Math.Clamp(point.Y, 0.0, Height);
+        double x = Math.Clamp(point.X, min: 0.0, Width);
+        double y = Math.Clamp(point.Y, min: 0.0, Height);
 
         double longitude = MinimumLongitude + x / Width * (MaximumLongitude - MinimumLongitude);
         double mercatorTop = LatitudeToMercatorY(MaximumLatitude);

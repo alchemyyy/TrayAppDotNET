@@ -16,10 +16,13 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // Settings UI
     public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
+
     public new const int TrayMenuSubmenuShowDelayDefaultMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
+
     public new const int TrayMenuSubmenuShowDelayMinMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayMinMs;
+
     public new const int TrayMenuSubmenuShowDelayMaxMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayMaxMs;
 
@@ -41,6 +44,7 @@ public abstract class TimeConstants : CommonTimeConstants
     // Explicit per-attempt sleep before retries 2/3/4 (attempt 1 fires immediately after the
     // settle window above). All well above the DDC/CI spec's Tg floor of 40 ms.
     public static readonly int[] MonitorReadRetryBackoffSequenceMs = [80, 160, 480];
+
     // Some monitor MCUs clear a corrupted DDC reply queue only after accepting a SET. Leave a quiet window
     // before the confirming GET so the recovery transaction cannot consume the stale reply immediately.
     public const int MonitorChecksumRecoveryPostWriteDelayMs = 250;

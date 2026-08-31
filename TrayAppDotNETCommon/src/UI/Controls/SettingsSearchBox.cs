@@ -31,14 +31,16 @@ public sealed class SettingsSearchBox : Grid, IDisposable
             palette,
             palette.ControlBackgroundDeep,
             palette.HoverDeep,
-            palette.PressedDeep);
-        _clearButton.Width = SearchableListBoxLayout.ClearButtonWidth;
-        _clearButton.Height = SearchableListBoxLayout.ClearButtonHeight;
-        _clearButton.MinHeight = SearchableListBoxLayout.ClearButtonHeight;
-        _clearButton.Padding = SearchableListBoxLayout.ClearButtonPadding;
-        _clearButton.Label.FontSize = SearchableListBoxLayout.ClearButtonFontSize;
+            palette.PressedDeep)
+        {
+            Width = SearchableListBoxLayout.ClearButtonWidth,
+            Height = SearchableListBoxLayout.ClearButtonHeight,
+            MinHeight = SearchableListBoxLayout.ClearButtonHeight,
+            Padding = SearchableListBoxLayout.ClearButtonPadding,
+            Label = { FontSize = SearchableListBoxLayout.ClearButtonFontSize }
+        };
         _clearButton.Click += OnClearButtonClick;
-        Grid.SetColumn(_clearButton, 1);
+        SetColumn(_clearButton, value: 1);
         Children.Add(_clearButton);
 
         UpdateClearButton();
@@ -56,7 +58,7 @@ public sealed class SettingsSearchBox : Grid, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         _clearButton.Click -= OnClearButtonClick;
         _textBox.KeyDown -= OnKeyDown;

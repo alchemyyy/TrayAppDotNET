@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
@@ -11,12 +14,8 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
-using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -108,7 +107,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private IPointer? _capturedWindowDragPointer;
 
     public FanFlyoutWindow()
-        : this(null, new AppSettings(), static _ => { })
+        : this(lhmService: null, new AppSettings(), static _ => { })
     {
     }
 
@@ -283,7 +282,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
-        ExecuteFanRebuild(reposition: false);
+        ExecuteFanRebuild(false);
 
         // Stage near the tray so native creation cannot flash at the work-area origin
         PixelPoint stagingPosition = _dockingController.ResolvePosition();
@@ -301,9 +300,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 || visibilityGeneration != _visibilityGeneration
                 || !IsVisible
                 || !ReferenceEquals(_activeVisualGeneration, generation))
-            {
                 return;
-            }
 
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
@@ -394,21 +391,22 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             DockPanel body = ControlNames.Assign(
                 new DockPanel { LastChildFill = true },
-                "FlyoutContent");
+                parentName: "FlyoutContent");
             Control header = BuildHeader(flyoutPalette, generation);
             DockPanel.SetDock(header, Dock.Top);
             body.Children.Add(header);
             body.Children.Add(BuildCellList(flyoutPalette, theme, isLight, generation));
 
-            Grid rootGrid = ControlNames.Assign(new Grid(), "FlyoutContent");
+            Grid rootGrid = ControlNames.Assign(new Grid(), parentName: "FlyoutContent");
             rootGrid.Children.Add(body);
             generation.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, isLight, generation);
             generation.ConfirmOverlay.IsVisible = false;
             rootGrid.Children.Add(generation.ConfirmOverlay);
-            generation.DragOverlay = ControlNames.Assign(
+            Canvas dragOverlay = ControlNames.Assign(
                 new Canvas { IsHitTestVisible = false },
-                "DragOverlay");
-            rootGrid.Children.Add(generation.DragOverlay);
+                parentName: "DragOverlay");
+            generation.DragOverlay = dragOverlay;
+            rootGrid.Children.Add(dragOverlay);
 
             FlyoutFrame rootCard = ControlNames.Assign(
                 new FlyoutFrame(
@@ -416,11 +414,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     theme.ResolveFlyoutBackground(_settings, isLight),
                     theme.Border.For(isLight),
                     _settings.EnableRoundedCorners,
-                    framePadding: Layout.RootInnerPadding)
-                {
-                    Focusable = true
-                },
-                "FlyoutFrame");
+                    Layout.RootInnerPadding) { Focusable = true },
+                parentName: "FlyoutFrame");
             generation.RootCard = rootCard;
             rootCard.PointerPressed += OnRootPointerPressed;
             rootCard.PointerMoved += OnRootPointerMoved;
@@ -452,7 +447,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         FanFlyoutVisualGeneration? previous = _activeVisualGeneration;
         bool updateCardVisibilityChanged = previous == null
-            || previous.HasUpdateCard != replacement.HasUpdateCard;
+                                           || previous.HasUpdateCard != replacement.HasUpdateCard;
         object? previousWindowContent = Content;
         bool groupStagePublished = false;
         _isPublishingVisualGeneration = true;
@@ -509,6 +504,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     replacement.ContentGeneration.Dispose();
                 replacement.GroupStage.ReleaseUnpublished();
             }
+
             throw;
         }
         finally
@@ -544,11 +540,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FanFlyoutVisualGeneration generation)
     {
         Grid grid = ControlNames.Assign(
-            new Grid
-            {
-                Margin = Layout.HeaderMargin
-            },
-            "FlyoutHeader");
+            new Grid { Margin = Layout.HeaderMargin },
+            parentName: "FlyoutHeader");
 
         const int primaryButtonColumnCount = 4;
         const int profileButtonCount = 3;
@@ -570,7 +563,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         AddHeaderButton(
             grid,
-            0,
+            column: 0,
             GlyphCatalog.SETTINGS,
             flyoutControlPalette,
             () => _openSettings(null),
@@ -579,23 +572,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             configureButton: SuppressNextAutoHideWhenPressed);
         AddHeaderButton(
             grid,
-            1,
+            column: 1,
             GlyphCatalog.CURVE_WINDOW,
             flyoutControlPalette,
             OpenHeaderCurveEditor,
-            "Fan curve editor",
+            tooltip: "Fan curve editor",
             controlName: "CurveEditorButton",
-            fontSize: Layout.HeaderManagerIconButtonFontSize,
-            configureButton: SuppressNextAutoHideWhenPressed);
+            Layout.HeaderManagerIconButtonFontSize,
+            SuppressNextAutoHideWhenPressed);
         generation.NonFunctioningFansButtonGlyph = AddHeaderButton(
             grid,
-            2,
+            column: 2,
             NonFunctioningFansGlyph,
             flyoutControlPalette,
             ToggleNonFunctioningFans,
-            "Show/hide non-functioning fans",
+            tooltip: "Show/hide non-functioning fans",
             controlName: "NonFunctioningFansButton");
-        AddItemButton(grid, 3, flyoutControlPalette);
+        AddItemButton(grid, column: 3, flyoutControlPalette);
 #if DEBUG
         generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
             grid,
@@ -603,18 +596,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             FanDragDebugVisualsGlyph,
             flyoutControlPalette,
             ToggleFanDragDebugVisuals,
-            "Toggle fan drag debug visuals",
+            tooltip: "Toggle fan drag debug visuals",
             controlName: "DragDebugButton");
 #endif
 
-        AddProfileButton(grid, firstProfileColumn, 1, flyoutControlPalette);
-        AddProfileButton(grid, firstProfileColumn + 1, 2, flyoutControlPalette);
-        AddProfileButton(grid, firstProfileColumn + 2, 3, flyoutControlPalette);
+        AddProfileButton(grid, firstProfileColumn, profileNumber: 1, flyoutControlPalette);
+        AddProfileButton(grid, firstProfileColumn + 1, profileNumber: 2, flyoutControlPalette);
+        AddProfileButton(grid, firstProfileColumn + 2, profileNumber: 3, flyoutControlPalette);
 
         FlyoutUndockButtonController undockButtonController =
             BuildUndockButton(flyoutControlPalette, generation);
         Border undockButton = undockButtonController.Button;
-        ControlNames.Assign(undockButton, "UndockButton");
+        ControlNames.Assign(undockButton, parentName: "UndockButton");
         Grid.SetColumn(undockButton, undockColumn);
         grid.Children.Add(undockButton);
         return ControlNames.Assign(
@@ -628,7 +621,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                             AppTheme.ResolveEffectiveIsLightTheme(_settings))),
                 Child = grid
             },
-            "FlyoutHeader");
+            parentName: "FlyoutHeader");
     }
 
     private void OpenHeaderCurveEditor()
@@ -669,38 +662,40 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 ClipToBounds = true,
                 Margin = CellListMargin(Math.Clamp(
                     _settings.FlyoutTitleBarCardSpacing,
-                    0,
+                    min: 0,
                     Layout.MaxSettingSpacing))
             },
-            "CellList");
+            parentName: "CellList");
 
-        generation.CellStack = ControlNames.Assign(
+        StackPanel cellStack = ControlNames.Assign(
             new StackPanel { Spacing = 0 },
-            "CellList");
+            parentName: "CellList");
+        generation.CellStack = cellStack;
         generation.HasUpdateCard = IsUpdateCardVisible;
         if (generation.HasUpdateCard)
-            generation.CellStack.Children.Add(BuildUpdateCard(p, theme, isLight));
+            cellStack.Children.Add(BuildUpdateCard(p, theme, isLight));
 
         foreach (FlyoutVisualSlot slot in BuildVisualSlots(p, theme, isLight, generation))
-            generation.CellStack.Children.Add(slot.Control);
+            cellStack.Children.Add(slot.Control);
 
-        generation.ScrollViewer = ControlNames.Assign(
+        ScrollViewer scrollViewer = ControlNames.Assign(
             new ScrollViewer
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Focusable = false,
-                Content = generation.CellStack
+                Content = cellStack
             },
-            "CellList");
-        holder.Children.Add(generation.ScrollViewer);
+            parentName: "CellList");
+        generation.ScrollViewer = scrollViewer;
+        holder.Children.Add(scrollViewer);
 
-        TextBlock empty = TrayAppDotNETFlyoutUI.Text("No fans detected", p, Layout.EmptyStateFontSize,
+        TextBlock empty = TrayAppDotNETFlyoutUI.Text(text: "No fans detected", p, Layout.EmptyStateFontSize,
             color: p.SecondaryForeground);
         empty.Opacity = Layout.EmptyStateOpacity;
         empty.HorizontalAlignment = HorizontalAlignment.Center;
         empty.VerticalAlignment = VerticalAlignment.Center;
-        ControlNames.Assign(empty, "EmptyState");
+        ControlNames.Assign(empty, parentName: "EmptyState");
         empty.IsVisible = generation.Cells.Count == 0 && _probeCards.Count == 0 && !generation.HasUpdateCard;
         holder.Children.Add(empty);
         return holder;
@@ -786,13 +781,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(icon, value: 0);
         row.Children.Add(icon);
 
         StackPanel text = new()
         {
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.FanNameStackUngroupedMargin
+            VerticalAlignment = VerticalAlignment.Center, Margin = Layout.FanNameStackUngroupedMargin
         };
         TextBlock title = TrayAppDotNETFlyoutUI.Text(
             L(nameof(CommonStrings.UpdateNotification_Title)),
@@ -811,7 +805,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
         text.Children.Add(title);
         text.Children.Add(subtitle);
-        Grid.SetColumn(text, 1);
+        Grid.SetColumn(text, value: 1);
         row.Children.Add(text);
 
         Border install = TrayAppDotNETFlyoutUI.TextButton(
@@ -820,10 +814,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ShowUpdateConfirmation,
             Layout.UpdateButtonFontSize,
             Layout.UpdateButtonPadding);
-        ControlNames.Assign(install, "UpdateButton");
+        ControlNames.Assign(install, parentName: "UpdateButton");
         install.VerticalAlignment = VerticalAlignment.Center;
         install.Margin = Layout.TelemetryMargin;
-        Grid.SetColumn(install, 2);
+        Grid.SetColumn(install, value: 2);
         row.Children.Add(install);
 
         Thickness borderThickness = _settings.EnableCardBorders ? Layout.CardBorderThickness : Layout.ZeroThickness;
@@ -835,11 +829,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Rounded(Layout.CardCornerRadius),
                 Layout.CardPadding,
                 CardMargin(
-                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                    Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardSpacing, min: 0, Layout.MaxSettingSpacing)),
                 borderThickness),
-            "UpdateCard");
+            parentName: "UpdateCard");
     }
 
     private Border BuildCell(
@@ -858,6 +852,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (cell.AreGroupFansVisible)
             {
                 foreach (Fan fan in cell.Fans)
+                {
                     content.Children.Add(BuildFanRow(
                         fan,
                         p,
@@ -865,6 +860,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                         generation,
                         grouped: true,
                         interactive));
+                }
             }
         }
         else if (cell.Fans.Count == 1)
@@ -911,9 +907,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Rounded(Layout.CardCornerRadius),
             Layout.CardPadding,
             CardMargin(
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+                Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                Math.Clamp(_settings.FlyoutCardSpacing, min: 0, Layout.MaxSettingSpacing)),
             borderThickness);
     }
 
@@ -932,14 +928,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         DeviceNicknameResolver nicknameResolver = DeviceNicknameResolver.Create(_settings);
         ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
         StackPanel content = new() { Spacing = 0 };
-        content.Children.Add(BuildProbeHeader(probeCard, p));//, ProbeCardDominantDeviceName(probeCard, nicknameResolver)));
+        content.Children.Add(BuildProbeHeader(probeCard,
+            p)); //, ProbeCardDominantDeviceName(probeCard, nicknameResolver)));
 
         if (!probeCard.IsCollapsed)
         {
-            StackPanel rows = new()
-            {
-                Margin = Layout.ProbeRowsMargin
-            };
+            StackPanel rows = new() { Margin = Layout.ProbeRowsMargin };
 
             List<ProbeCardProbe> selectedProbes =
             [
@@ -948,7 +942,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ];
             if (selectedProbes.Count == 0)
             {
-                TextBlock empty = TrayAppDotNETFlyoutUI.Text("No probes selected", p, Layout.ProbeEmptyFontSize,
+                TextBlock empty = TrayAppDotNETFlyoutUI.Text(text: "No probes selected", p, Layout.ProbeEmptyFontSize,
                     color: p.SecondaryForeground);
                 empty.Opacity = Layout.ProbeEmptyOpacity;
                 rows.Children.Add(empty);
@@ -956,6 +950,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             else
             {
                 foreach (ProbeCardProbe probe in selectedProbes)
+                {
                     rows.Children.Add(BuildProbeRow(
                         probeCard,
                         probe,
@@ -964,6 +959,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                         probeNicknameResolver,
                         generation,
                         interactive));
+                }
             }
 
             content.Children.Add(rows);
@@ -978,11 +974,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Rounded(Layout.CardCornerRadius),
                 Layout.CardPadding,
                 CardMargin(
-                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                    Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, min: 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardSpacing, min: 0, Layout.MaxSettingSpacing)),
                 borderThickness),
-            "ProbeCard");
+            parentName: "ProbeCard");
         card.Tag = probeCard;
         if (interactive)
             WireProbeDrag(card, probeCard);
@@ -992,7 +988,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>
     /// Builds the probe-card header with a selector button and editable title.
     /// </summary>
-    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p)//, string deviceName)
+    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p) //, string deviceName)
     {
         Grid row = ControlNames.Assign(
             new Grid
@@ -1007,7 +1003,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     new ColumnDefinition(GridLength.Auto)
                 }
             },
-            "ProbeHeader");
+            parentName: "ProbeHeader");
 
         Border probeButton = IconButton(
             GlyphCatalog.PROBE,
@@ -1028,7 +1024,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = probeCard;
         name.PointerPressed += ProbeNameTextPointerPressed;
         TextBox edit = InlineTextBox(probeCard.DisplayName, p);
-        ControlNames.Assign(edit, "ProbeNameEdit");
+        ControlNames.Assign(edit, parentName: "ProbeNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += ProbeNameEditKeyDown;
         edit.LostFocus += ProbeNameEditLostFocus;
@@ -1041,12 +1037,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         StackPanel nameStack = new()
         {
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.ProbeNameStackMargin
+            VerticalAlignment = VerticalAlignment.Center, Margin = Layout.ProbeNameStackMargin
         };
         nameStack.Children.Add(nameGrid);
         // nameStack.Children.Add(device);
-        Grid.SetColumn(nameStack, 1);
+        Grid.SetColumn(nameStack, value: 1);
         row.Children.Add(nameStack);
 
         Border expand = IconButton(ProbeExpansionGlyph(probeCard), p, _ =>
@@ -1056,13 +1051,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 RebuildVisual();
             }, Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupExpandFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: ProbeExpansionTooltip(probeCard));
-        Grid.SetColumn(expand, 2);
+        Grid.SetColumn(expand, value: 2);
         row.Children.Add(expand);
 
         Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteProbeCardAsync(probeCard),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete probe card");
-        Grid.SetColumn(delete, 3);
+        Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
         return row;
     }
@@ -1095,7 +1090,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             int count = counts.GetValueOrDefault(deviceName) + 1;
             counts[deviceName] = count;
             int firstIndex = firstIndexes[deviceName];
-            if (count < bestCount || count == bestCount && firstIndex >= bestIndex)
+            if (count < bestCount || (count == bestCount && firstIndex >= bestIndex))
             {
                 index++;
                 continue;
@@ -1133,12 +1128,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     new ColumnDefinition(new GridLength(Layout.ProbeRowValueMinWidth))
                 }
             },
-            "ProbeRow");
+            parentName: "ProbeRow");
 
         StackPanel labelRow = new()
         {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
         TextBlock glyph = IconText(
             ProbeValueFormatter.GlyphFor(source?.DataSourceType ?? DataSourceTypeEnum.Unknown),
@@ -1163,7 +1157,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.ProbeRowTextFontSize);
         value.HorizontalAlignment = HorizontalAlignment.Right;
         value.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         row.Children.Add(value);
         if (generation != null && registerVisual)
             RegisterProbeRowRef(generation, probeCard, new ProbeCardRowVisualRefs(probe, value));
@@ -1187,16 +1181,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     grouped
                         ? FanRowGroupedMargin(Math.Clamp(
                             _settings.FlyoutCardSpacing,
-                            0,
+                            min: 0,
                             Layout.MaxSettingSpacing))
                         : Layout.ZeroThickness,
-                RowDefinitions =
-                {
-                    new RowDefinition(GridLength.Auto),
-                    new RowDefinition(GridLength.Auto)
-                }
+                RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
             },
-            "FanRow");
+            parentName: "FanRow");
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -1211,8 +1201,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             margin: grouped ? Layout.FanButtonGroupedMargin : Layout.FanButtonUngroupedMargin,
             tooltip: "Fan properties");
         fanButton.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetRow(fanButton, 0);
-        Grid.SetColumn(fanButton, 0);
+        Grid.SetRow(fanButton, value: 0);
+        Grid.SetColumn(fanButton, value: 0);
         row.Children.Add(fanButton);
 
         Grid nameGrid = new();
@@ -1221,7 +1211,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = fan;
         name.PointerPressed += FanNameTextPointerPressed;
         TextBox edit = InlineTextBox(fan.DisplayName, p);
-        ControlNames.Assign(edit, "FanNameEdit");
+        ControlNames.Assign(edit, parentName: "FanNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += FanNameEditKeyDown;
         edit.LostFocus += FanNameEditLostFocus;
@@ -1229,7 +1219,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         nameGrid.Children.Add(edit);
 
         string subtitleText = grouped
-            ? $"{fan.CurrentDutyCycle.ToString("0", CultureInfo.InvariantCulture)}%"
+            ? $"{fan.CurrentDutyCycle.ToString(format: "0", CultureInfo.InvariantCulture)}%"
             : fan.AssignedCurveDisplayLabel;
         TextBlock subtitle = TrayAppDotNETFlyoutUI.Text(subtitleText, p, Layout.FanSubtitleFontSize);
         subtitle.Opacity = Layout.SubtitleOpacity;
@@ -1242,8 +1232,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         };
         nameStack.Children.Add(nameGrid);
         nameStack.Children.Add(subtitle);
-        Grid.SetRow(nameStack, 0);
-        Grid.SetColumn(nameStack, 1);
+        Grid.SetRow(nameStack, value: 0);
+        Grid.SetColumn(nameStack, value: 1);
         row.Children.Add(nameStack);
 
         StackPanel telemetry = new()
@@ -1262,8 +1252,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         controller.Margin = Layout.ControllerMargin;
         telemetry.Children.Add(rpm);
         telemetry.Children.Add(controller);
-        Grid.SetRow(telemetry, 0);
-        Grid.SetColumn(telemetry, 2);
+        Grid.SetRow(telemetry, value: 0);
+        Grid.SetColumn(telemetry, value: 2);
         row.Children.Add(telemetry);
 
         TextBlock? valueText = null;
@@ -1282,8 +1272,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 margin: Layout.ModeButtonUngroupedMargin,
                 tooltip: ControlModeTooltip(fan.CurrentControlMode));
             mode.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetRow(mode, 1);
-            Grid.SetColumn(mode, 0);
+            Grid.SetRow(mode, value: 1);
+            Grid.SetColumn(mode, value: 0);
             row.Children.Add(mode);
             modeGlyph = mode.Child as TextBlock;
             ApplyControlModeGlyphVisual(modeGlyph, fan.CurrentControlMode);
@@ -1341,7 +1331,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 SpeedSliderRange currentManualSliderRange = ResolveFanSliderRange(fan);
                 int next = ClampSliderValue(value, currentManualSliderRange);
                 fan.FanDisplayedValue = next;
-                valueText?.Text = FanSliderValueText(fan, null, currentManualSliderRange);
+                valueText?.Text = FanSliderValueText(fan, curveSliderValue: null, currentManualSliderRange);
                 slider.Thumb = ResolveFanSliderThumb(fan);
                 ConfigureFanSliderMultipleValues(fan, slider, currentManualSliderRange);
                 if (valueText != null) ApplyFanRelinquishedControlVisual(fan, name, valueText, slider);
@@ -1374,17 +1364,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             };
             valueDisplay.PointerPressed += FanValueTextPointerPressed;
             TextBox valueEdit = InlineTextBox(FanSliderValueText(fan, curveSliderValue, sliderRange), p);
-            ControlNames.Assign(valueEdit, "FanDisplayedValueEdit");
+            ControlNames.Assign(valueEdit, parentName: "FanDisplayedValueEdit");
             valueEdit.IsVisible = false;
             valueEdit.KeyDown += FanValueEditKeyDown;
             valueEdit.LostFocus += FanValueEditLostFocus;
             valueGrid.Children.Add(valueDisplay);
             valueGrid.Children.Add(valueEdit);
-            Grid.SetColumn(valueGrid, 1);
+            Grid.SetColumn(valueGrid, value: 1);
             sliderRow.Children.Add(valueGrid);
-            Grid.SetRow(sliderRow, 1);
-            Grid.SetColumn(sliderRow, 1);
-            Grid.SetColumnSpan(sliderRow, 2);
+            Grid.SetRow(sliderRow, value: 1);
+            Grid.SetColumn(sliderRow, value: 1);
+            Grid.SetColumnSpan(sliderRow, value: 2);
             row.Children.Add(sliderRow);
         }
 
@@ -1418,19 +1408,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     new ColumnDefinition(GridLength.Auto),
                     new ColumnDefinition(GridLength.Auto)
                 },
-                RowDefinitions =
-                {
-                    new RowDefinition(GridLength.Auto),
-                    new RowDefinition(GridLength.Auto)
-                }
+                RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
             },
-            "GroupHeader");
+            parentName: "GroupHeader");
 
         Border groupIcon = IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
             Layout.GroupIconHeight, Layout.GroupIconFontSize, margin: Layout.FanButtonUngroupedMargin,
             tooltip: "Group");
         groupIcon.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(groupIcon, 0);
+        Grid.SetColumn(groupIcon, value: 0);
         row.Children.Add(groupIcon);
 
         Border expand = IconButton(cell.GroupExpansionGlyph, p, _ =>
@@ -1441,7 +1427,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 RebuildVisual();
             }, Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupExpandFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: cell.GroupExpansionTooltip);
-        Grid.SetColumn(expand, 2);
+        Grid.SetColumn(expand, value: 2);
         row.Children.Add(expand);
 
         Grid nameGrid = new();
@@ -1451,7 +1437,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = cell;
         name.PointerPressed += GroupNameTextPointerPressed;
         TextBox edit = InlineTextBox(cell.GroupName ?? string.Empty, p);
-        ControlNames.Assign(edit, "GroupNameEdit");
+        ControlNames.Assign(edit, parentName: "GroupNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += GroupNameEditKeyDown;
         edit.LostFocus += GroupNameEditLostFocus;
@@ -1463,13 +1449,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel title = new() { VerticalAlignment = VerticalAlignment.Center, Margin = Layout.GroupTitleMargin };
         title.Children.Add(nameGrid);
         title.Children.Add(activeCurve);
-        Grid.SetColumn(title, 1);
+        Grid.SetColumn(title, value: 1);
         row.Children.Add(title);
 
         Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteGroupAsync(cell),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete group");
-        Grid.SetColumn(delete, 3);
+        Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
 
         Border mode = IconButton(
@@ -1482,8 +1468,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             margin: Layout.GroupModeMargin,
             tooltip: ControlModeTooltip(cell.GroupCurrentControlMode));
         mode.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetRow(mode, 1);
-        Grid.SetColumn(mode, 0);
+        Grid.SetRow(mode, value: 1);
+        Grid.SetColumn(mode, value: 0);
         row.Children.Add(mode);
         TextBlock? modeGlyph = mode.Child as TextBlock;
         ApplyControlModeGlyphVisual(modeGlyph, cell.GroupCurrentControlMode);
@@ -1545,10 +1531,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             cell.GroupFanDisplayedValue =
                 ClampSliderValue(value, currentManualSliderRange);
             ApplyGroupManualValueToFans(cell);
-            valueText?.Text = GroupSliderValueText(cell, null, currentManualSliderRange);
+            valueText?.Text = GroupSliderValueText(cell, curveSliderValue: null, currentManualSliderRange);
             slider.Thumb = ResolveGroupSliderThumb(cell);
             ConfigureGroupSliderMultipleValues(cell, slider, currentManualSliderRange);
-            if (sliderDragging) AppServices.LHMService?.PersistLiveState(save: false);
+            if (sliderDragging) AppServices.LHMService?.PersistLiveState(false);
             else SaveGroupChanges();
         };
         sliderRow.Children.Add(slider);
@@ -1572,11 +1558,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             VerticalAlignment = VerticalAlignment.Center,
             Child = valueText
         });
-        Grid.SetColumn(valueGrid, 1);
+        Grid.SetColumn(valueGrid, value: 1);
         sliderRow.Children.Add(valueGrid);
-        Grid.SetRow(sliderRow, 1);
-        Grid.SetColumn(sliderRow, 1);
-        Grid.SetColumnSpan(sliderRow, 3);
+        Grid.SetRow(sliderRow, value: 1);
+        Grid.SetColumn(sliderRow, value: 1);
+        Grid.SetColumnSpan(sliderRow, value: 3);
         row.Children.Add(sliderRow);
 
         if (generation != null && registerVisual)
@@ -1617,7 +1603,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Stretch
             },
-            "FanSpeed");
+            parentName: "FanSpeed");
         resources.Own(slider);
         if (generation != null)
         {
@@ -1643,9 +1629,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 && !ReferenceEquals(_capturedCardDragPointer, e.Pointer)
                 && !ReferenceEquals(UndockButtonController?.CapturedPointer, e.Pointer)
                 && !ReferenceEquals(_capturedWindowDragPointer, e.Pointer))
-            {
-                ReleasePointerCapture(e.Pointer, "rejected slider press");
-            }
+                ReleasePointerCapture(e.Pointer, gestureName: "rejected slider press");
 
             e.Handled = true;
             return;
@@ -1769,7 +1753,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 refs.RPM.Text = $"{fan.CurrentRPM} RPM";
 
             if (refs.Grouped && propertyName is null or nameof(Fan.CurrentDutyCycle))
-                refs.Subtitle.Text = $"{fan.CurrentDutyCycle.ToString("0", CultureInfo.InvariantCulture)}%";
+                refs.Subtitle.Text = $"{fan.CurrentDutyCycle.ToString(format: "0", CultureInfo.InvariantCulture)}%";
 
             if (propertyName is null or nameof(Fan.FanDisplayedValue) or nameof(Fan.FanDisplayedValueText)
                 or nameof(Fan.FanSliderMaximum) or nameof(Fan.CurrentControlMode) or nameof(Fan.CurrentRPM)
@@ -1971,7 +1955,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (fan.CurrentControlMode != FanControlMode.Manual && curve != null && !IsFanControlRelinquished(fan))
             return ConvertCurveRangeToFanSliderRange(fan, curve);
 
-        return CreateSpeedSliderRange(0.0, fan.RPMMode ? fan.FanSliderMaximum : 100.0);
+        return CreateSpeedSliderRange(minimum: 0.0, fan.RPMMode ? fan.FanSliderMaximum : 100.0);
     }
 
     /// <summary>
@@ -1983,7 +1967,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (cell.GroupCurrentControlMode != FanControlMode.Manual && curve != null && !IsGroupControlRelinquished(cell))
             return ConvertCurveRangeToGroupSliderRange(cell, curve);
 
-        return CreateSpeedSliderRange(0.0, cell.GroupSliderMaximum);
+        return CreateSpeedSliderRange(minimum: 0.0, cell.GroupSliderMaximum);
     }
 
     /// <summary>
@@ -2032,7 +2016,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// Drops invalid slider bounds before they reach rendering or input math.
     /// </summary>
     private static double SanitizeSliderBound(double value) =>
-        double.IsNaN(value) || double.IsInfinity(value) ? 0.0 : Math.Max(0.0, value);
+        double.IsNaN(value) || double.IsInfinity(value) ? 0.0 : Math.Max(val1: 0.0, value);
 
     /// <summary>
     /// Clamps a continuous slider position into the active display range.
@@ -2055,7 +2039,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             double duty = CurrentDutyCycleValue(fan);
             double value = fan.RPMMode
-                ? duty / 100.0 * Math.Max(1, fan.FanSliderMaximum)
+                ? duty / 100.0 * Math.Max(val1: 1, fan.FanSliderMaximum)
                 : duty;
             return ClampSliderValue(value, sliderRange);
         }
@@ -2095,10 +2079,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         $"{GroupSliderValue(cell, curveSliderValue, sliderRange)}{cell.GroupFanDisplayedValueSuffix}";
 
     private static double CurrentDutyCycleValue(Fan fan) =>
-        Math.Clamp(fan.CurrentDutyCycle, 0.0, 100.0);
+        Math.Clamp(fan.CurrentDutyCycle, min: 0.0, max: 100.0);
 
     private static double GroupCurrentDutyCycleValue(FanFlyoutCell cell) =>
-        cell.Fans.Count == 0 ? 0.0 : Math.Clamp(cell.Fans.Average(CurrentDutyCycleValue), 0.0, 100.0);
+        cell.Fans.Count == 0 ? 0.0 : Math.Clamp(cell.Fans.Average(CurrentDutyCycleValue), min: 0.0, max: 100.0);
 
     /// <summary>
     /// Resolves the live group speed in the group's active unit.
@@ -2107,7 +2091,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (!cell.GroupRPMMode) return GroupCurrentDutyCycleValue(cell);
         if (cell.Fans.Count == 0) return 0.0;
-        return Math.Clamp(cell.Fans.Average(static fan => fan.CurrentRPM), 0.0, cell.GroupSliderMaximum);
+        return Math.Clamp(cell.Fans.Average(static fan => fan.CurrentRPM), min: 0.0, cell.GroupSliderMaximum);
     }
 
     /// <summary>
@@ -2182,11 +2166,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     }
 
     private static double FanRPMReference(Fan fan, Curve curve) =>
-        Math.Max(1.0,
+        Math.Max(val1: 1.0,
             fan.MaxRPM > 0
                 ? fan.MaxRPM
                 : fan.CurrentRPM > 0
-                    ? Math.Max(100, fan.CurrentRPM)
+                    ? Math.Max(val1: 100, fan.CurrentRPM)
                     : curve.MaxRPM > 0
                         ? curve.MaxRPM
                         : fan.FanSliderMaximum);
@@ -2232,8 +2216,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             margin,
             tooltip,
             fontFamily: null,
-            rightClick: rightClick,
-            fontWeight: fontWeight);
+            rightClick,
+            fontWeight);
         if (button.Child is TextBlock textBlock)
             GlyphApplicator.ApplyTo(textBlock, glyph);
 
@@ -2271,7 +2255,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.HeaderIconButtonHeight,
             Layout.HeaderIconButtonFontSize,
             tooltip: "Add item");
-        ControlNames.Assign(button, "AddItemButton");
+        ControlNames.Assign(button, parentName: "AddItemButton");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
@@ -2289,8 +2273,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         List<ContextMenuEntry> entries =
         [
-            new("Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
-            new("Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
+            new(Text: "Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
+            new(Text: "Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
         ];
         ContextMenuWindow menu = new(
             entries,
@@ -2344,7 +2328,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void CloseAddItemMenu()
     {
-        ContextMenuWindow? menu = Interlocked.Exchange(ref _addItemMenu, null);
+        ContextMenuWindow? menu = Interlocked.Exchange(ref _addItemMenu, value: null);
         if (menu == null) return;
 
         menu.Closed -= OnAddItemMenuClosed;
@@ -2385,7 +2369,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 _ => SelectFanProfile(profileNumber - 1),
                 Layout.ProfileButtonWidth,
                 Layout.ProfileButtonHeight,
-                0,
+                fontSize: 0,
                 tooltip: $"Profile {profileNumber}"),
             $"ProfileButton{profileNumber}");
         button.Child = content;
@@ -2442,7 +2426,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 p,
                 Layout.ConfirmTitleFontSize,
                 FontWeight.SemiBold),
-            "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay");
         generation.ConfirmTitle.TextWrapping = TextWrapping.Wrap;
         generation.ConfirmTitle.Margin = Layout.ConfirmTitleMargin;
         generation.ConfirmMessage = ControlNames.Assign(
@@ -2450,15 +2434,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
                 p,
                 Layout.ConfirmMessageMargin),
-            "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay");
         generation.ConfirmOK = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p),
-            "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay");
         generation.ConfirmCancel = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(
                 L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)),
                 p),
-            "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay");
         generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
         generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
         generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
@@ -2481,10 +2465,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             MaxWidth = Layout.ConfirmMaxWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel
-            {
-                Children = { generation.ConfirmTitle, generation.ConfirmMessage, buttons }
-            }
+            Child = new StackPanel { Children = { generation.ConfirmTitle, generation.ConfirmMessage, buttons } }
         };
         return ControlNames.Assign(
             new Border
@@ -2495,7 +2476,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
                 Child = dialog
             },
-            "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay");
     }
 
     private async Task DeleteGroupAsync(FanFlyoutCell cell)
@@ -2523,7 +2504,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        ExecuteFanRebuild(reposition: true);
+        ExecuteFanRebuild(true);
     }
 
     /// <summary>
@@ -2614,7 +2595,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _settings.Save();
         _settings.RaiseChanged();
         OnPropertyChanged(nameof(NonFunctioningFansGlyph));
-        ExecuteFanRebuild(reposition: true);
+        ExecuteFanRebuild(true);
     }
 
     private void UpdateNonFunctioningFansButtonVisual()
@@ -2659,17 +2640,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         _lhmService.PersistLiveState();
-        ExecuteFanRebuild(reposition: false);
+        ExecuteFanRebuild(false);
     }
 
     private void AddGroup()
     {
         string groupName = CreateUniqueGroupName();
         OffsetTopLevelDisplayOrders(1);
-        _groupNames.Insert(0, groupName);
+        _groupNames.Insert(index: 0, groupName);
         GetOrCreateGroupSettings(groupName).DisplayOrder = 0;
         SaveGroupChanges();
-        ExecuteFanRebuild(reposition: true);
+        ExecuteFanRebuild(true);
     }
 
     /// <summary>
@@ -2679,12 +2660,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         string name = CreateUniqueProbeCardName();
         OffsetTopLevelDisplayOrders(1);
-        ProbeCard probeCard = new()
-        {
-            Name = name,
-            DisplayOrder = 0
-        };
-        _probeCards.Insert(0, probeCard);
+        ProbeCard probeCard = new() { Name = name, DisplayOrder = 0 };
+        _probeCards.Insert(index: 0, probeCard);
         SaveProbeCardChanges();
         RebuildVisual();
         QueuePositionNearTray();
@@ -2719,7 +2696,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             fan.RPMMode = cell.GroupRPMMode;
             int max = fan.RPMMode ? fan.FanSliderMaximum : 100;
-            int value = Math.Clamp(cell.GroupFanDisplayedValue, 0, max);
+            int value = Math.Clamp(cell.GroupFanDisplayedValue, min: 0, max);
             fan.FanDisplayedValue = value;
         }
     }
@@ -2730,16 +2707,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _lastRequestedProfile = targetIndex + 1;
         _settings.EnsureFanProfileCount(3);
         if (targetIndex < 0 || targetIndex >= _settings.FanProfiles.Count) return;
-        int currentIndex = Math.Clamp(_settings.SelectedFanProfileIndex, 0, _settings.FanProfiles.Count - 1);
+        int currentIndex = Math.Clamp(_settings.SelectedFanProfileIndex, min: 0, _settings.FanProfiles.Count - 1);
         if (_settings.Autosave) SaveFanProfileSlot(currentIndex);
         FanProfile target = _settings.FanProfiles[targetIndex];
         if (target.Fans.Count > 0) target.ApplyTo(_lhmService.Fans);
         else SaveFanProfileSlot(targetIndex);
         _settings.SelectedFanProfileIndex = targetIndex;
-        _lhmService.PersistLiveState(save: false);
+        _lhmService.PersistLiveState(false);
         _settings.Save();
         _settings.RaiseChanged();
-        ExecuteFanRebuild(reposition: false);
+        ExecuteFanRebuild(false);
         _ = _lastRequestedProfile;
     }
 
@@ -2819,7 +2796,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         foreach ((Fan fan, int fanSequence) in ungrouped)
         {
-            FanFlyoutCell cell = resources.Own(new FanFlyoutCell(null, [fan]));
+            FanFlyoutCell cell = resources.Own(new FanFlyoutCell(groupSettings: null, [fan]));
             slots.Add((cell, NormalizeDisplayOrder(fan.FlyoutDisplayOrder), fanSequence, fan.DisplayName));
         }
 
@@ -2844,6 +2821,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Handled = true;
                 return;
             }
+
             StackPanel? cellStack = CellStack;
             if (cellStack == null) return;
             _draggedFan = fan;
@@ -2856,7 +2834,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Pointer,
                 row,
                 ref _capturedCardDragPointer,
-                "card drag",
+                gestureName: "card drag",
                 ForceClearDragReferences);
             e.Handled = true;
         };
@@ -2876,9 +2854,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (!_isCompletingDrag
                 && !_isResettingPointerGestures
                 && !_isPublishingVisualGeneration)
-            {
                 CancelDrag();
-            }
         };
     }
 
@@ -2893,6 +2869,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Handled = true;
                 return;
             }
+
             StackPanel? cellStack = CellStack;
             if (cellStack == null) return;
             _draggedGroupCell = cell;
@@ -2905,7 +2882,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Pointer,
                 root,
                 ref _capturedCardDragPointer,
-                "card drag",
+                gestureName: "card drag",
                 ForceClearDragReferences);
             e.Handled = true;
         };
@@ -2925,9 +2902,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (!_isCompletingDrag
                 && !_isResettingPointerGestures
                 && !_isPublishingVisualGeneration)
-            {
                 CancelDrag();
-            }
         };
     }
 
@@ -2945,6 +2920,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Handled = true;
                 return;
             }
+
             StackPanel? cellStack = CellStack;
             if (cellStack == null) return;
             _draggedProbeCard = probeCard;
@@ -2957,7 +2933,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 e.Pointer,
                 root,
                 ref _capturedCardDragPointer,
-                "card drag",
+                gestureName: "card drag",
                 ForceClearDragReferences);
             e.Handled = true;
         };
@@ -2977,15 +2953,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (!_isCompletingDrag
                 && !_isResettingPointerGestures
                 && !_isPublishingVisualGeneration)
-            {
                 CancelDrag();
-            }
         };
     }
 
     private static bool IsInteractiveCardDragSource(Visual? source, Visual dragRoot)
     {
-        for (Visual? current = source; current != null && !ReferenceEquals(current, dragRoot);
+        for (Visual? current = source;
+             current != null && !ReferenceEquals(current, dragRoot);
              current = current.GetVisualParent())
         {
             if (current is FlyoutSlider or TextBox or Button or Slider or Thumb or RepeatButton or ComboBox)
@@ -3044,21 +3019,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ResolveDragSourceLayout(source);
 
         Control ghostSource = _dragSourceTopLevelControl ?? source;
-        Point? sourceTop = ghostSource.TranslatePoint(new Point(0, 0), dragOverlay);
-        Point? sourceTopInStack = ghostSource.TranslatePoint(new Point(0, 0), cellStack);
+        Point? sourceTop = ghostSource.TranslatePoint(new Point(x: 0, y: 0), dragOverlay);
+        Point? sourceTopInStack = ghostSource.TranslatePoint(new Point(x: 0, y: 0), cellStack);
         if (sourceTopInStack != null)
             _dragPointerOffsetY = current.Y - sourceTopInStack.Value.Y;
 
-        _dragPointerOffsetRatio = Math.Clamp(_dragPointerOffsetY / Math.Max(1, ghostSource.Bounds.Height), 0.0, 1.0);
-        _dragPlacementSourceHeight = Math.Max(1, ghostSource.Bounds.Height);
-        _dragPlacementPointerOffsetY = Math.Clamp(_dragPointerOffsetY, 0.0, _dragPlacementSourceHeight);
+        _dragPointerOffsetRatio = Math.Clamp(_dragPointerOffsetY / Math.Max(val1: 1, ghostSource.Bounds.Height),
+            min: 0.0, max: 1.0);
+        _dragPlacementSourceHeight = Math.Max(val1: 1, ghostSource.Bounds.Height);
+        _dragPlacementPointerOffsetY = Math.Clamp(_dragPointerOffsetY, min: 0.0, _dragPlacementSourceHeight);
         _lastDragPointerY = current.Y;
         _dragMovingDown = current.Y >= _dragStart.Y;
         FanDragGhostStyle initialStyle = ResolveDragGhostStyle(FanDragPlacement.None);
         Control ghostContent = ReplaceDragGhostContent(initialStyle, ghostSource);
         double ghostWidth = ResolveDragGhostWidth(initialStyle, FanDragPlacement.None, ghostSource);
-        _dragGhostHeight = MeasureDragGhostHeight(ghostContent, ghostWidth, Math.Max(1, ghostSource.Bounds.Height));
-        _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, 0.0, _dragGhostHeight);
+        _dragGhostHeight =
+            MeasureDragGhostHeight(ghostContent, ghostWidth, Math.Max(val1: 1, ghostSource.Bounds.Height));
+        _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, min: 0.0, _dragGhostHeight);
         _dragGhostStyle = initialStyle;
         _dragGhost = ControlNames.Assign(
             new Border
@@ -3076,8 +3053,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Child = ghostContent,
                 IsHitTestVisible = false
             },
-            "DragGhost");
-        ControlNames.AssignLogicalSubtree(_dragGhost, "DragOverlay");
+            parentName: "DragGhost");
+        ControlNames.AssignLogicalSubtree(_dragGhost, parentName: "DragOverlay");
         dragOverlay.Children.Add(_dragGhost);
         ApplyDragGhostSurface(initialStyle);
         SetDragSourceOpacity(Layout.DragSourceOpacity);
@@ -3094,7 +3071,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         try
         {
             replacementContent = CreateDragGhostContent(style, source, replacementResources);
-            ControlNames.AssignLogicalSubtree(replacementContent, "DragGhost");
+            ControlNames.AssignLogicalSubtree(replacementContent, parentName: "DragGhost");
         }
         catch
         {
@@ -3120,17 +3097,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (_draggedFan != null && style == FanDragGhostStyle.TopLevelFan)
         {
             if (_dragSourceCell is { HasGroupHeader: false } sourceCell)
-                return BuildCell(sourceCell, palette, theme, isLight, null, resources, interactive: false);
+                return BuildCell(sourceCell, palette, theme, isLight, generation: null, resources, interactive: false);
 
             StackPanel content = new() { Spacing = 0 };
             content.Children.Add(BuildFanRow(
                 _draggedFan,
                 palette,
                 resources,
-                null,
+                generation: null,
                 grouped: false,
                 interactive: false));
-            return BuildFanCardSurface(content, hasGroupHeader: false, theme: theme, isLight: isLight);
+            return BuildFanCardSurface(content, hasGroupHeader: false, theme, isLight);
         }
 
         if (_draggedFan != null && style == FanDragGhostStyle.GroupedFan)
@@ -3139,23 +3116,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 _draggedFan,
                 palette,
                 resources,
-                null,
+                generation: null,
                 grouped: true,
                 interactive: false);
         }
 
         if (_draggedProbeCard != null && style == FanDragGhostStyle.Probe)
+        {
             return BuildProbeCard(
                 _draggedProbeCard,
                 palette,
                 theme,
                 isLight,
-                null,
+                generation: null,
                 resources,
                 interactive: false);
+        }
 
         return _draggedGroupCell != null
-            ? BuildCell(_draggedGroupCell, palette, theme, isLight, null, resources, interactive: false)
+            ? BuildCell(_draggedGroupCell, palette, theme, isLight, generation: null, resources, interactive: false)
             : new Border { Width = source.Bounds.Width, Height = source.Bounds.Height };
     }
 
@@ -3168,12 +3147,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Height = Layout.FanButtonHeight,
                 Margin = FanRowGroupedMargin(Math.Clamp(
                     _settings.FlyoutCardSpacing,
-                    0,
+                    min: 0,
                     Layout.MaxSettingSpacing)),
                 Background = Brushes.Transparent,
                 IsHitTestVisible = false
             },
-            "GroupDropPreview");
+            parentName: "GroupDropPreview");
     }
 
     private FanDragGhostStyle ResolveDragGhostStyle(FanDragPlacement placement)
@@ -3211,9 +3190,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         _dragGhost.Width = width;
         Canvas.SetLeft(_dragGhost, ResolveDragGhostLeft(style, placement, source));
-        _dragGhostHeight = MeasureDragGhostHeight(_dragGhost.Child, width, Math.Max(1, source.Bounds.Height));
+        _dragGhostHeight = MeasureDragGhostHeight(_dragGhost.Child, width, Math.Max(val1: 1, source.Bounds.Height));
         _dragGhost.Height = _dragGhostHeight;
-        _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, 0.0, _dragGhostHeight);
+        _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, min: 0.0, _dragGhostHeight);
         MoveDragGhost(current);
     }
 
@@ -3241,12 +3220,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             return ResolveGroupedFanGhostWidth(placement.GroupCell, source);
 
         if (_dragSourceTopLevelControl != null)
-            return Math.Max(1, _dragSourceTopLevelControl.Bounds.Width);
+            return Math.Max(val1: 1, _dragSourceTopLevelControl.Bounds.Width);
 
         if (_dragSlots.Count > 0)
-            return Math.Max(1, _dragSlots[0].Visual.Bounds.Width);
+            return Math.Max(val1: 1, _dragSlots[0].Visual.Bounds.Width);
 
-        return Math.Max(1, source.Bounds.Width);
+        return Math.Max(val1: 1, source.Bounds.Width);
     }
 
     private double ResolveGroupedFanGhostWidth(FanFlyoutCell? groupCell, Control source)
@@ -3255,18 +3234,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             FanDragFanSlot? fanSlot = GroupFanSlots(groupCell, excludeDraggedFan: true).FirstOrDefault();
             if (fanSlot != null)
-                return Math.Max(1, fanSlot.Visual.Bounds.Width);
+                return Math.Max(val1: 1, fanSlot.Visual.Bounds.Width);
 
             int groupIndex = IndexOfDragSlot(groupCell);
             if (groupIndex >= 0 && _dragSlots[groupIndex].Visual is Border border)
             {
                 double leftInset = border.Padding.Left + Layout.FanRowGroupedMarginBase.Left;
                 double rightInset = border.Padding.Right + Layout.FanRowGroupedMarginBase.Right;
-                return Math.Max(1, border.Bounds.Width - leftInset - rightInset);
+                return Math.Max(val1: 1, border.Bounds.Width - leftInset - rightInset);
             }
         }
 
-        return Math.Max(1, source.Bounds.Width);
+        return Math.Max(val1: 1, source.Bounds.Width);
     }
 
     private double ResolveDragGhostLeft(FanDragGhostStyle style, FanDragPlacement placement, Control source)
@@ -3278,12 +3257,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             && placement is { Kind: FanDragPlacementKind.IntoGroup, GroupCell: not null })
         {
             FanDragFanSlot? fanSlot = GroupFanSlots(placement.GroupCell, excludeDraggedFan: true).FirstOrDefault();
-            if (fanSlot?.Visual.TranslatePoint(new Point(0, 0), dragOverlay) is { } rowTop)
+            if (fanSlot?.Visual.TranslatePoint(new Point(x: 0, y: 0), dragOverlay) is { } rowTop)
                 return rowTop.X;
 
             int groupIndex = IndexOfDragSlot(placement.GroupCell);
             if (groupIndex >= 0 && _dragSlots[groupIndex].Visual is Border border
-                && border.TranslatePoint(new Point(0, 0), dragOverlay) is { } cardTop)
+                                && border.TranslatePoint(new Point(x: 0, y: 0), dragOverlay) is { } cardTop)
             {
                 double leftInset = border.Padding.Left + Layout.FanRowGroupedMarginBase.Left;
                 return cardTop.X + leftInset;
@@ -3291,15 +3270,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         Control leftSource = _dragSourceTopLevelControl ?? source;
-        return leftSource.TranslatePoint(new Point(0, 0), dragOverlay)?.X ?? 0;
+        return leftSource.TranslatePoint(new Point(x: 0, y: 0), dragOverlay)?.X ?? 0;
     }
 
     private static double MeasureDragGhostHeight(Control? content, double width, double fallbackHeight)
     {
-        if (content == null) return Math.Max(1, fallbackHeight);
+        if (content == null) return Math.Max(val1: 1, fallbackHeight);
 
-        content.Measure(new Size(Math.Max(1, width), double.PositiveInfinity));
-        return Math.Max(1, content.DesiredSize.Height > 0 ? content.DesiredSize.Height : fallbackHeight);
+        content.Measure(new Size(Math.Max(val1: 1, width), double.PositiveInfinity));
+        return Math.Max(val1: 1, content.DesiredSize.Height > 0 ? content.DesiredSize.Height : fallbackHeight);
     }
 
     private void SnapshotDragSlots()
@@ -3316,11 +3295,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             FanFlyoutCell? cell = visual.Tag as FanFlyoutCell;
             ProbeCard? probeCard = visual.Tag as ProbeCard;
             if (cell == null && probeCard == null) continue;
-            Point? top = visual.TranslatePoint(new Point(0, 0), cellStack);
+            Point? top = visual.TranslatePoint(new Point(x: 0, y: 0), cellStack);
             if (top == null) continue;
             double renderOffsetY = RenderTransformOffsetY(visual);
             double naturalTop = top.Value.Y - renderOffsetY;
-            double height = Math.Max(1, visual.Bounds.Height);
+            double height = Math.Max(val1: 1, visual.Bounds.Height);
             snapshot.Add((cell, probeCard, visual, naturalTop, height,
                 ResolveGroupInsertionTop(cell, naturalTop, height, renderOffsetY),
                 ResolveGroupDropBottom(cell, visual, naturalTop, height)));
@@ -3332,7 +3311,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             double slotHeight = i < snapshot.Count - 1
                 ? Math.Max(snapshot[i].Height, snapshot[i + 1].Top - snapshot[i].Top)
-                : snapshot[i].Height + Math.Max(0, snapshot[i].Visual.Margin.Bottom);
+                : snapshot[i].Height + Math.Max(val1: 0, snapshot[i].Visual.Margin.Bottom);
             _dragSlots.Add(new FanDragSlot(snapshot[i].Cell, snapshot[i].Visual, snapshot[i].Top,
                 snapshot[i].Height, slotHeight, snapshot[i].GroupInsertionTop, snapshot[i].GroupDropBottom,
                 snapshot[i].ProbeCard));
@@ -3356,11 +3335,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             return fallback;
 
         Point? curveBottom = refs.ActiveCurve.TranslatePoint(
-            new Point(0, Math.Max(1, refs.ActiveCurve.Bounds.Height)), cellStack);
+            new Point(x: 0, Math.Max(val1: 1, refs.ActiveCurve.Bounds.Height)), cellStack);
         if (curveBottom == null) return fallback;
 
-        double slack = Math.Max(2, Layout.DropMarkerHeight * 2.0);
-        double minimum = cardTop + Math.Max(1, Layout.DropMarkerHeight * 3.0);
+        double slack = Math.Max(val1: 2, Layout.DropMarkerHeight * 2.0);
+        double minimum = cardTop + Math.Max(val1: 1, Layout.DropMarkerHeight * 3.0);
         double maximum = cardTop + Math.Max(minimum - cardTop, cardHeight * 0.55);
         return Math.Clamp(curveBottom.Value.Y - cardRenderOffsetY + slack, minimum, maximum);
     }
@@ -3406,11 +3385,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (child.Tag is not Fan fan) continue;
             int fanIndex = IndexOfFan(cell, fan);
             if (fanIndex < 0) continue;
-            Point? top = child.TranslatePoint(new Point(0, 0), cellStack);
+            Point? top = child.TranslatePoint(new Point(x: 0, y: 0), cellStack);
             if (top == null) continue;
             double naturalTop = top.Value.Y - cardRenderOffsetY - RenderTransformOffsetY(child);
             naturalTop -= ResolvePreviewLayoutOffset(childIndex, previewIndex, previewExtent);
-            snapshot.Add((fan, child, naturalTop, Math.Max(1, child.Bounds.Height), fanIndex));
+            snapshot.Add((fan, child, naturalTop, Math.Max(val1: 1, child.Bounds.Height), fanIndex));
         }
 
         for (int i = 0; i < snapshot.Count; i++)
@@ -3425,18 +3404,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private double ResolveGroupDropPreviewExtent()
     {
-        if (_groupDropPreview == null) return Math.Max(1, _dragSourceFanSlotHeight);
+        if (_groupDropPreview == null) return Math.Max(val1: 1, _dragSourceFanSlotHeight);
 
         double previewHeight = _groupDropPreview.Bounds.Height;
         if (previewHeight <= 0 && double.IsFinite(_groupDropPreview.Height))
-            previewHeight = Math.Max(0, _groupDropPreview.Height);
+            previewHeight = Math.Max(val1: 0, _groupDropPreview.Height);
         if (previewHeight <= 0)
-            previewHeight = Math.Max(0, _groupDropPreview.DesiredSize.Height);
+            previewHeight = Math.Max(val1: 0, _groupDropPreview.DesiredSize.Height);
 
         double previewExtent = previewHeight
-                               + Math.Max(0, _groupDropPreview.Margin.Top)
-                               + Math.Max(0, _groupDropPreview.Margin.Bottom);
-        return previewExtent > 0 ? previewExtent : Math.Max(1, _dragSourceFanSlotHeight);
+                               + Math.Max(val1: 0, _groupDropPreview.Margin.Top)
+                               + Math.Max(val1: 0, _groupDropPreview.Margin.Bottom);
+        return previewExtent > 0 ? previewExtent : Math.Max(val1: 1, _dragSourceFanSlotHeight);
     }
 
     private static double ResolvePreviewLayoutOffset(
@@ -3444,7 +3423,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         int previewChildIndex,
         double previewExtent) =>
         previewChildIndex >= 0 && childIndex > previewChildIndex
-            ? Math.Max(0, previewExtent)
+            ? Math.Max(val1: 0, previewExtent)
             : 0;
 
     private void ResolveDragSourceLayout(Control source)
@@ -3475,31 +3454,32 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         _dragSourceSlotHeight = _dragSourceTopLevelIndex >= 0 && _dragSourceTopLevelControl != null
             ? _dragSlots[_dragSourceTopLevelIndex].SlotHeight
-            : Math.Max(1, source.Bounds.Height + Math.Max(0, source.Margin.Bottom));
+            : Math.Max(val1: 1, source.Bounds.Height + Math.Max(val1: 0, source.Margin.Bottom));
         _dragSourceFanSlotHeight = ResolveGroupedFanPreviewSlotHeight(source);
     }
 
     private double ResolveGroupedFanPreviewSlotHeight(Control source)
     {
-        if (_draggedFan == null) return Math.Max(1, source.Bounds.Height + Math.Max(0, source.Margin.Bottom));
+        if (_draggedFan == null)
+            return Math.Max(val1: 1, source.Bounds.Height + Math.Max(val1: 0, source.Margin.Bottom));
 
         if (_dragSourceCell?.HasGroupHeader == true)
         {
             FanDragFanSlot? sourceSlot = _dragFanSlots.FirstOrDefault(slot => ReferenceEquals(slot.Fan, _draggedFan));
             if (sourceSlot != null)
-                return Math.Max(1, sourceSlot.Height + Math.Max(0, sourceSlot.Visual.Margin.Bottom));
+                return Math.Max(val1: 1, sourceSlot.Height + Math.Max(val1: 0, sourceSlot.Visual.Margin.Bottom));
         }
 
         Control? preview = _groupDropPreview ?? CreateGroupedFanDropPlaceholder();
-        if (preview == null) return Math.Max(1, source.Bounds.Height + Math.Max(0, source.Margin.Bottom));
+        if (preview == null) return Math.Max(val1: 1, source.Bounds.Height + Math.Max(val1: 0, source.Margin.Bottom));
 
-        preview.Measure(new Size(Math.Max(1, source.Bounds.Width), double.PositiveInfinity));
+        preview.Measure(new Size(Math.Max(val1: 1, source.Bounds.Width), double.PositiveInfinity));
         double previewHeight = double.IsFinite(preview.Height)
-            ? Math.Max(0, preview.Height)
-            : Math.Max(0, preview.DesiredSize.Height);
+            ? Math.Max(val1: 0, preview.Height)
+            : Math.Max(val1: 0, preview.DesiredSize.Height);
         return Math.Max(
-            1,
-            previewHeight + Math.Max(0, preview.Margin.Top) + Math.Max(0, preview.Margin.Bottom));
+            val1: 1,
+            previewHeight + Math.Max(val1: 0, preview.Margin.Top) + Math.Max(val1: 0, preview.Margin.Bottom));
     }
 
     private FanFlyoutCell? FindCellContainingFan(Fan fan)
@@ -3552,7 +3532,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private FanDragBounds StableDragBounds(Point current)
     {
-        double sourceHeight = _dragPlacementSourceHeight > 0 ? _dragPlacementSourceHeight : Math.Max(1, _dragGhostHeight);
+        double sourceHeight =
+            _dragPlacementSourceHeight > 0 ? _dragPlacementSourceHeight : Math.Max(val1: 1, _dragGhostHeight);
         double top = current.Y - _dragPlacementPointerOffsetY;
         return new FanDragBounds(top, top + sourceHeight, sourceHeight, top + sourceHeight / 2.0,
             current.Y, _dragMovingDown);
@@ -3627,7 +3608,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel? cellStack = CellStack;
         if (cellStack == null) return fallback;
 
-        PixelPoint stackOrigin = cellStack.PointToScreen(new Point(0, 0));
+        PixelPoint stackOrigin = cellStack.PointToScreen(new Point(x: 0, y: 0));
         double scaling = Math.Max(double.Epsilon, RenderScaling);
         Point current = new(
             (pointerScreen.X - stackOrigin.X) / scaling,
@@ -3645,7 +3626,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (_groupDropPreviewExpandsUpward)
         {
             int upwardPixels = Math.Max(
-                0,
+                val1: 0,
                 (int)Math.Ceiling(ResolveGroupDropPreviewExtent() * RenderScaling));
             PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
             int minimumTop = workArea.Y + EdgePadding;
@@ -3683,7 +3664,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _dragPointerOffsetRatio)
         {
             TopLevelPreviewSlotHeight = _draggedFan != null && _dragGhostStyle == FanDragGhostStyle.TopLevelFan
-                ? Math.Max(1, _dragGhostHeight)
+                ? Math.Max(val1: 1, _dragGhostHeight)
                 : 0
         };
 
@@ -3728,11 +3709,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (slotCell == null) continue;
             if (ReferenceEquals(slotCell, cell)
                 || IsSameGroup(slotCell, cell)
-                || !slotCell.HasGroupHeader
-                && !cell.HasGroupHeader
-                && slotCell.Fans.Count == 1
-                && cell.Fans.Count == 1
-                && ReferenceEquals(slotCell.Fans[0], cell.Fans[0]))
+                || (!slotCell.HasGroupHeader
+                    && !cell.HasGroupHeader
+                    && slotCell.Fans.Count == 1
+                    && cell.Fans.Count == 1
+                    && ReferenceEquals(slotCell.Fans[0], cell.Fans[0])))
                 return RenderTransformOffsetY(slot.Visual);
         }
 
@@ -3787,7 +3768,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         double collapsedExtent = retainsTopLevelPreviewSlot
             ? 0
-            : Math.Max(0, _dragSourceSlotHeight);
+            : Math.Max(val1: 0, _dragSourceSlotHeight);
         if (collapsedExtent <= 0) return;
 
         cellStack.Margin = new Thickness(
@@ -3802,7 +3783,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (index < 0 || index >= _dragSlots.Count) return;
         _dragSlots[index].Visual.RenderTransform = offset == 0
             ? null
-            : new TranslateTransform(0, offset);
+            : new TranslateTransform(x: 0, offset);
     }
 
     private void SetDragFanSlotOffset(Fan fan, double offset)
@@ -3813,7 +3794,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             slot.Visual.RenderTransform = offset == 0
                 ? null
-                : new TranslateTransform(0, offset);
+                : new TranslateTransform(x: 0, offset);
             return;
         }
     }
@@ -3829,6 +3810,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             foreach (Control visual in cellStack.Children)
                 visual.RenderTransform = null;
         }
+
         foreach (FanDragFanSlot slot in _dragFanSlots)
             slot.Visual.RenderTransform = null;
         return layoutChanged;
@@ -3904,12 +3886,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         FanDragSnapshot snapshot = CreateDragSnapshot();
         FanDragBounds bounds = StableDragBounds(current);
-        double overlayWidth = Math.Max(1, dragOverlay.Bounds.Width > 0 ? dragOverlay.Bounds.Width : Bounds.Width);
+        double overlayWidth = Math.Max(val1: 1, dragOverlay.Bounds.Width > 0 ? dragOverlay.Bounds.Width : Bounds.Width);
         foreach (FanDragDebugMarker marker in FanDragEngine.CalculateDebugMarkers(snapshot, bounds))
         {
-            Point? top = cellStack.TranslatePoint(new Point(0, marker.Y), dragOverlay);
+            Point? top = cellStack.TranslatePoint(new Point(x: 0, marker.Y), dragOverlay);
             if (top == null) continue;
-            AddDragDebugLine(0, top.Value.Y, overlayWidth, Brushes.Red, Layout.DragDebugMarkerHeight,
+            AddDragDebugLine(left: 0, top.Value.Y, overlayWidth, Brushes.Red, Layout.DragDebugMarkerHeight,
                 Layout.DragDebugMarkerOpacity);
         }
 
@@ -3918,7 +3900,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         double ghostLeft = Canvas.GetLeft(_dragGhost);
         if (double.IsNaN(ghostLeft)) ghostLeft = 0;
-        AddDragDebugLine(ghostLeft, pointer.Value.Y, Math.Max(1, _dragGhost.Width), Brushes.Yellow,
+        AddDragDebugLine(ghostLeft, pointer.Value.Y, Math.Max(val1: 1, _dragGhost.Width), Brushes.Yellow,
             Layout.DragDebugPointerHeight, Layout.DragDebugPointerOpacity);
     }
 
@@ -3935,7 +3917,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Opacity = opacity,
                 IsHitTestVisible = false
             },
-            "DragDebugLine");
+            parentName: "DragDebugLine");
         Canvas.SetLeft(line, left);
         Canvas.SetTop(line, top - height / 2.0);
         dragOverlay.Children.Add(line);
@@ -3961,7 +3943,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         Point current = _lastDragInstrumentationPoint ?? _dragStart;
         if (!_dragInstrumentation.RecordAnnotation(e.Key, current,
-                point => CaptureDragInstrumentation(point, "key", interpolated: false)))
+                point => CaptureDragInstrumentation(point, stage: "key", interpolated: false)))
             return;
 
         e.Handled = true;
@@ -3998,7 +3980,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (!EnableFanDragInstrumentation) return;
         _lastDragInstrumentationPoint = current;
         _dragInstrumentation.RecordMovement(current,
-            (point, interpolated) => CaptureDragInstrumentation(point, "move", interpolated));
+            (point, interpolated) => CaptureDragInstrumentation(point, stage: "move", interpolated));
     }
 
     private FanDragInstrumentationCapture CaptureDragInstrumentation(
@@ -4121,7 +4103,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
         }
 
-        Point? top = _groupDropPreview.TranslatePoint(new Point(0, 0), cellStack);
+        Point? top = _groupDropPreview.TranslatePoint(new Point(x: 0, y: 0), cellStack);
         return new FanDragInstrumentationGroupPreview(
             groupCell?.GroupName,
             _groupDropPreviewHost.Children.IndexOf(_groupDropPreview),
@@ -4165,7 +4147,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ClearDragState();
         }
 
-        ExecuteFanRebuild(reposition: true);
+        ExecuteFanRebuild(true);
     }
 
     private void CancelDrag()
@@ -4248,7 +4230,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         finally
         {
             dragGhostResources?.Dispose();
-            ReleasePointerCapture(capturedPointer, "card drag");
+            ReleasePointerCapture(capturedPointer, gestureName: "card drag");
             _isResettingPointerGestures = wasResettingPointerGestures;
         }
     }
@@ -4279,9 +4261,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
         finally
         {
-            ReleasePointerCapture(windowPointer, "window drag");
+            ReleasePointerCapture(windowPointer, gestureName: "window drag");
             if (!ReferenceEquals(sliderPointer, windowPointer))
-                ReleasePointerCapture(sliderPointer, "slider drag");
+                ReleasePointerCapture(sliderPointer, gestureName: "slider drag");
             _isResettingPointerGestures = false;
         }
     }
@@ -4327,7 +4309,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _lastDragInstrumentationPoint = null;
         _dragMovingDown = true;
         dragGhostResources?.Dispose();
-        ReleasePointerCapture(cardPointer, "card drag failure fallback");
+        ReleasePointerCapture(cardPointer, gestureName: "card drag failure fallback");
     }
 
     private void CapturePointerOrRollback(
@@ -4411,7 +4393,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (fan.CurrentControlMode == FanControlMode.Manual)
             {
                 fan.FanDisplayedValue =
-                    Math.Clamp(groupCell.GroupSettings.FanDisplayedValue, 0, fan.FanSliderMaximum);
+                    Math.Clamp(groupCell.GroupSettings.FanDisplayedValue, min: 0, fan.FanSliderMaximum);
             }
         }
 
@@ -4444,8 +4426,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         List<FlyoutTopLevelItem> ordered = RemoveFanFromTopLevelItems(currentOrder, fan);
         ordered.Insert(
-            Math.Clamp(targetIndex, 0, ordered.Count),
-            FlyoutTopLevelItem.ArrangedFanCell(new FanDragCellArrangement(null, [fan])));
+            Math.Clamp(targetIndex, min: 0, ordered.Count),
+            FlyoutTopLevelItem.ArrangedFanCell(new FanDragCellArrangement(GroupSettings: null, [fan])));
         return ordered;
     }
 
@@ -4463,7 +4445,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (arrangement == null || !RepresentsGroup(arrangement, targetGroup)) continue;
 
             List<Fan> fans = [.. arrangement.Fans];
-            fans.Insert(Math.Clamp(targetFanIndex, 0, fans.Count), fan);
+            fans.Insert(Math.Clamp(targetFanIndex, min: 0, fans.Count), fan);
             ordered[i] = FlyoutTopLevelItem.ArrangedFanCell(
                 new FanDragCellArrangement(arrangement.GroupSettings, fans));
             break;
@@ -4528,7 +4510,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             .. currentOrder.Where(item =>
                 !ReferenceEquals(item.CellArrangement?.GroupSettings, groupCell.GroupSettings))
         ];
-        ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), FlyoutTopLevelItem.FanCell(groupCell));
+        ordered.Insert(Math.Clamp(targetIndex, min: 0, ordered.Count), FlyoutTopLevelItem.FanCell(groupCell));
         return ordered;
     }
 
@@ -4537,9 +4519,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private void ApplyProbeDrop(ProbeCard probeCard, int targetIndex)
     {
-        List<FlyoutTopLevelItem> ordered = [.. BuildTopLevelOrder()
-            .Where(item => !ReferenceEquals(item.ProbeCard, probeCard))];
-        ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), FlyoutTopLevelItem.Probe(probeCard));
+        List<FlyoutTopLevelItem> ordered =
+        [
+            .. BuildTopLevelOrder()
+                .Where(item => !ReferenceEquals(item.ProbeCard, probeCard))
+        ];
+        ordered.Insert(Math.Clamp(targetIndex, min: 0, ordered.Count), FlyoutTopLevelItem.Probe(probeCard));
         ApplyTopLevelDisplayOrder(ordered);
         SaveGroupChanges();
         SaveProbeCardChanges();
@@ -4574,9 +4559,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     group.DisplayOrder = index++;
                     if (!_groupNames.Any(g =>
                             string.Equals(g, arrangement.GroupName, StringComparison.OrdinalIgnoreCase)))
-                    {
                         _groupNames.Add(arrangement.GroupName);
-                    }
                     continue;
                 }
 
@@ -4800,7 +4783,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         CancelInlineEdit(box);
-        ExecuteFanRebuild(reposition: false);
+        ExecuteFanRebuild(false);
     }
 
     private void CommitGroupNameEdit(TextBox box)
@@ -4862,15 +4845,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         string raw = (text ?? string.Empty).Trim();
         bool hasPercent = raw.Contains('%');
-        bool hasRPM = raw.Contains("RPM", StringComparison.OrdinalIgnoreCase);
-        string normalized = raw.Replace("%", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("RPM", string.Empty, StringComparison.OrdinalIgnoreCase);
+        bool hasRPM = raw.Contains(value: "RPM", StringComparison.OrdinalIgnoreCase);
+        string normalized = raw.Replace(oldValue: "%", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(oldValue: "RPM", string.Empty, StringComparison.OrdinalIgnoreCase);
         if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            if (fan.RPMMode && !hasRPM && (hasPercent || sourceIsDutyCycle && parsed <= 100))
+            if (fan.RPMMode && !hasRPM && (hasPercent || (sourceIsDutyCycle && parsed <= 100)))
             {
-                double duty = Math.Clamp(parsed, 0, 100);
-                value = ClampSliderValue(duty / 100.0 * Math.Max(1, fan.FanSliderMaximum), sliderRange);
+                double duty = Math.Clamp(parsed, min: 0, max: 100);
+                value = ClampSliderValue(duty / 100.0 * Math.Max(val1: 1, fan.FanSliderMaximum), sliderRange);
                 return true;
             }
 
@@ -4912,7 +4895,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         int index = _groupNames.FindIndex(g => string.Equals(g, oldName, StringComparison.OrdinalIgnoreCase));
         if (index >= 0) _groupNames[index] = newName;
-        else _groupNames.Insert(0, newName);
+        else _groupNames.Insert(index: 0, newName);
         if (_groupSettingsByName.Remove(oldName, out FanGroup? group))
         {
             group.Name = newName;
@@ -4931,7 +4914,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        ExecuteFanRebuild(reposition: false);
+        ExecuteFanRebuild(false);
     }
 
     private void ToggleFanPropertiesWindow(Fan fan)
@@ -4967,6 +4950,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             window.ForceClose();
             throw;
         }
+
         PositionFanPropertiesWindows();
         window.Activate();
     }
@@ -4986,8 +4970,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         ProbeDataSelectorWindow window = new(probeCard, _settings, OnProbeCardSelectorChanged)
         {
-            Topmost = Topmost,
-            ShowInTaskbar = false
+            Topmost = Topmost, ShowInTaskbar = false
         };
         _probeSelectorWindows[probeCard] = window;
         RegisterChildWindowClosed(window, ProbeSelectorWindowClosed);
@@ -5004,8 +4987,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 TADNLog.Log($"FanFlyoutWindow failed selector cleanup: {exception.Message}");
             }
+
             throw;
         }
+
         window.Activate();
     }
 
@@ -5065,11 +5050,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         fan.CurrentControlMode = FanControlMode.Curve;
         PersistAndNotifyCurveEditorLaunch();
 
-        FanCurveEditorWindow window = new(fan, curve, _settings)
-        {
-            Topmost = Topmost,
-            ShowInTaskbar = false
-        };
+        FanCurveEditorWindow window = new(fan, curve, _settings) { Topmost = Topmost, ShowInTaskbar = false };
         _fanCurveEditorWindows.Add(window);
         RegisterChildWindowClosed(window, FanCurveEditorWindowClosed);
         try
@@ -5085,8 +5066,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 TADNLog.Log($"FanFlyoutWindow failed curve editor cleanup: {exception.Message}");
             }
+
             throw;
         }
+
         window.Activate();
     }
 
@@ -5114,7 +5097,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static Curve CreateCurveForFan(Fan fan)
     {
         string name = UniqueCurveName($"{fan.DisplayName} Curve");
-        int maxRPM = fan.MaxRPM > 0 ? fan.MaxRPM : fan.CurrentRPM > 0 ? Math.Max(100, fan.CurrentRPM) : 3000;
+        int maxRPM = fan.MaxRPM > 0 ? fan.MaxRPM : fan.CurrentRPM > 0 ? Math.Max(val1: 100, fan.CurrentRPM) : 3000;
         Curve curve = new()
         {
             CurveName = name,
@@ -5170,7 +5153,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void PersistAndNotifyCurveEditorLaunch()
     {
-        AppServices.LHMService?.PersistLiveState(save: false);
+        AppServices.LHMService?.PersistLiveState(false);
         _settings.SyncFanControlRegistriesForSave();
         _settings.Save();
         _settings.RaiseChanged();
@@ -5205,7 +5188,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         double flyoutHeight = Bounds.Height > 0 ? Bounds.Height : 300;
         int rows = Math.Min(Layout.FanPropertiesRowsPerColumn, visible.Count);
         double windowHeight = visible[0].Height;
-        double stackHeight = rows * windowHeight + Math.Max(0, rows - 1) * Layout.FanPropertiesGap;
+        double stackHeight = rows * windowHeight + Math.Max(val1: 0, rows - 1) * Layout.FanPropertiesGap;
         double stackTop = Math.Min(Position.Y, Position.Y + flyoutHeight - stackHeight);
         for (int i = 0; i < visible.Count; i++)
         {
@@ -5276,6 +5259,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ReleaseChildWindowSubscription(window);
             window.ForceClose();
         }
+
         _fanPropertiesWindows.Clear();
         _fanPropertiesOrder.Clear();
     }
@@ -5312,6 +5296,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 TADNLog.Log($"FanFlyoutWindow probe selector close failed: {exception.Message}");
             }
         }
+
         _probeSelectorWindows.Clear();
     }
 
@@ -5367,9 +5352,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     || !IsVisible
                     || !ReferenceEquals(_activeVisualGeneration, generation)
                     || !_fanSubscriptionResources.ContainsKey(fan))
-                {
                     return;
-                }
 
                 try { RefreshFanRowVisuals(fan, propertyName); }
                 catch (Exception ex)
@@ -5397,7 +5380,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (fanRowRefs == null) return;
 
         foreach (Fan fan in fanRowRefs.Keys.ToArray())
-            RefreshFanRowVisuals(fan, null);
+            RefreshFanRowVisuals(fan, propertyName: null);
         RefreshGroupHeaderVisuals();
         RefreshProbeCardVisuals();
     }
@@ -5446,7 +5429,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             return;
         }
 
-        if (!IsVisible && !IsWarmPriming || IsPointerGestureActive || _isRebuildingVisual)
+        if ((!IsVisible && !IsWarmPriming) || IsPointerGestureActive || _isRebuildingVisual)
         {
             _pendingFanRebuild = true;
             return;
@@ -5459,13 +5442,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             _fanRebuildQueued = false;
             if (WindowResources.IsDisposed) return;
-            if (!IsVisible && !IsWarmPriming || IsPointerGestureActive || _isRebuildingVisual)
+            if ((!IsVisible && !IsWarmPriming) || IsPointerGestureActive || _isRebuildingVisual)
             {
                 _pendingFanRebuild = true;
                 return;
             }
 
-            ExecuteFanRebuild(reposition: true);
+            ExecuteFanRebuild(true);
         }, DispatcherPriority.Background);
     }
 
@@ -5500,7 +5483,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (!_pendingFanRebuild) return;
         if (!IsVisible && !IsWarmPriming) return;
 
-        ExecuteFanRebuild(reposition: true);
+        ExecuteFanRebuild(true);
     }
 
     private void LoadGroupCatalog()
@@ -5529,7 +5512,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _probeCards.Clear();
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         foreach (ProbeCard probeCard in _settings.ProbeCards
-                     .Where(static c => c != null)
                      .OrderBy(static c => NormalizeDisplayOrder(c.DisplayOrder))
                      .ThenBy(static c => c.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
@@ -5566,8 +5548,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         string groupName,
         FanGroupVisualBuildStage groupStage)
     {
-        int configuredOrder = _groupNames.FindIndex(
-            candidate => string.Equals(candidate, groupName, StringComparison.OrdinalIgnoreCase));
+        int configuredOrder = _groupNames.FindIndex(candidate =>
+            string.Equals(candidate, groupName, StringComparison.OrdinalIgnoreCase));
         int defaultDisplayOrder = configuredOrder >= 0
             ? configuredOrder
             : _groupSettingsByName.Count + groupStage.Count;
@@ -5638,7 +5620,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 return group;
             }).OrderBy(g => g.DisplayOrder).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
         ];
-        AppServices.LHMService?.PersistLiveState(save: false);
+        AppServices.LHMService?.PersistLiveState(false);
         _settings.Save();
         _settings.RaiseChanged();
     }
@@ -5671,7 +5653,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
 
             foreach (ProbeCard probeCard in _probeCards)
-                if (probeCard.DisplayOrder >= 0) probeCard.DisplayOrder += offset;
+            {
+                if (probeCard.DisplayOrder >= 0)
+                    probeCard.DisplayOrder += offset;
+            }
 
             if (_lhmService == null) return;
             foreach (Fan fan in _lhmService.Fans)
@@ -5706,7 +5691,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             case FlyoutDockStateChange.PositionSaved:
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(change), change, null);
+                throw new ArgumentOutOfRangeException(nameof(change), change, message: null);
         }
     }
 
@@ -5718,6 +5703,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             e.Handled = true;
             return;
         }
+
         if (UndockButtonController?.IsPointerCaptured == true
             || _draggedFan != null || _draggedGroupCell != null
             || _draggedProbeCard != null) return;
@@ -5732,7 +5718,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             e.Pointer,
             control,
             ref _capturedWindowDragPointer,
-            "window drag",
+            gestureName: "window drag",
             () => _isDraggingWindow = false);
         e.Handled = true;
     }
@@ -5740,7 +5726,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void OnRootPointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_isDraggingWindow || UndockButtonController?.IsPointerCaptured == true
-                              || sender is not Control control)
+                               || sender is not Control control)
             return;
         if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
@@ -5772,6 +5758,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _isDraggingWindow = false;
             return;
         }
+
         if (_isDraggingWindow) _dockingController.CommitDragPosition();
         _isDraggingWindow = false;
         FlushPendingFanRebuild();
@@ -5782,7 +5769,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         IPointer? capturedPointer = _capturedWindowDragPointer ?? pointer;
         _capturedWindowDragPointer = null;
         _isDraggingWindow = false;
-        ReleasePointerCapture(capturedPointer, "window drag");
+        ReleasePointerCapture(capturedPointer, gestureName: "window drag");
         _dockingController.CommitDragPosition();
         FlushPendingFanRebuild();
     }
@@ -5809,9 +5796,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 || !IsVisible
                 || _isDraggingWindow
                 || !ReferenceEquals(_activeVisualGeneration, generation))
-            {
                 return;
-            }
 
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
@@ -5995,16 +5980,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         /// <summary>
         /// Creates a fan/group top-level item.
         /// </summary>
-        public static FlyoutTopLevelItem FanCell(FanFlyoutCell cell) => new(cell, null, null);
+        public static FlyoutTopLevelItem FanCell(FanFlyoutCell cell) => new(cell, ProbeCard: null, Arrangement: null);
 
         /// <summary>Creates a transformed fan/group top-level item.</summary>
         public static FlyoutTopLevelItem ArrangedFanCell(FanDragCellArrangement arrangement) =>
-            new(null, null, arrangement);
+            new(Cell: null, ProbeCard: null, arrangement);
 
         /// <summary>
         /// Creates a probe-card top-level item.
         /// </summary>
-        public static FlyoutTopLevelItem Probe(ProbeCard probeCard) => new(null, probeCard, null);
+        public static FlyoutTopLevelItem Probe(ProbeCard probeCard) => new(Cell: null, probeCard, Arrangement: null);
     }
 
     private sealed record ProbeCardRowVisualRefs(
@@ -6023,10 +6008,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         public Dictionary<Fan, List<FanRowVisualRefs>> FanRowRefs { get; } = [];
         public Dictionary<FanFlyoutCell, GroupHeaderVisualRefs> GroupHeaderRefs { get; } = [];
         public Dictionary<ProbeCard, List<ProbeCardRowVisualRefs>> ProbeRowRefs { get; } = [];
-        public StackPanel CellStack { get; set; } = null!;
-        public Canvas DragOverlay { get; set; } = null!;
-        public ScrollViewer ScrollViewer { get; set; } = null!;
-        public Border RootCard { get; set; } = null!;
+        public StackPanel? CellStack { get; set; }
+        public Canvas? DragOverlay { get; set; }
+        public ScrollViewer? ScrollViewer { get; set; }
+        public Border? RootCard { get; set; }
         public bool HasUpdateCard { get; set; }
         public FlyoutUndockButtonController UndockButtonController { get; set; } = null!;
         public TextBlock? NonFunctioningFansButtonGlyph { get; set; }
@@ -6073,12 +6058,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         WindowResources.Dispose();
         _fanSubscriptionResources.Clear();
 
-        RunCloseCleanup(ResetPointerGestureState, "pointer gesture reset");
-        RunCloseCleanup(CancelConfirmOverlay, "confirmation reset");
-        RunCloseCleanup(CloseAddItemMenu, "add-item menu close");
-        RunCloseCleanup(ForceCloseAllFanPropertiesWindows, "fan properties close");
-        RunCloseCleanup(ForceCloseAllFanCurveEditorWindows, "curve editor close");
-        RunCloseCleanup(ForceCloseAllProbeSelectorWindows, "probe selector close");
+        RunCloseCleanup(ResetPointerGestureState, operation: "pointer gesture reset");
+        RunCloseCleanup(CancelConfirmOverlay, operation: "confirmation reset");
+        RunCloseCleanup(CloseAddItemMenu, operation: "add-item menu close");
+        RunCloseCleanup(ForceCloseAllFanPropertiesWindows, operation: "fan properties close");
+        RunCloseCleanup(ForceCloseAllFanCurveEditorWindows, operation: "curve editor close");
+        RunCloseCleanup(ForceCloseAllProbeSelectorWindows, operation: "probe selector close");
         _childWindowSubscriptionResources.Clear();
         DisposeActiveContentResilient();
         _activeVisualGeneration = null;

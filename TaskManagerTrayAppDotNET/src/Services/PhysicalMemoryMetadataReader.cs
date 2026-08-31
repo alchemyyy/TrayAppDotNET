@@ -2,8 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
-using TrayAppDotNETCommon.Interop;
-using TrayAppDotNETCommon.Utils;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -11,14 +9,18 @@ namespace TaskManagerTrayAppDotNET.Services;
 internal sealed class PhysicalMemoryMetadataReader
 {
     private const string WmiNamespace = @"ROOT\CIMV2";
+
     private const string PublicModuleQuery =
         "SELECT BankLabel, Capacity, ConfiguredClockSpeed, Speed, FormFactor, PartNumber "
         + "FROM Win32_PhysicalMemory";
+
     private const string PrivateModuleQuery =
         "SELECT BankLabel, Capacity, ConfiguredClockSpeed, Speed, FormFactor, PartNumber, SerialNumber "
         + "FROM Win32_PhysicalMemory";
+
     private const string SlotQuery =
         "SELECT MemoryDevices FROM Win32_PhysicalMemoryArray WHERE Use = 3";
+
     private const int WbemInfinite = -1;
     private const int WbemFlagReturnImmediately = 0x10;
     private const int WbemFlagForwardOnly = 0x20;
@@ -126,18 +128,18 @@ internal sealed class PhysicalMemoryMetadataReader
         IPhysicalMemoryWbemClassObject memoryObject,
         bool includeSerialNumbers)
     {
-        _ = TryGetString(memoryObject, "BankLabel", out string bankLabel);
-        _ = TryGetUInt64(memoryObject, "Capacity", out ulong capacityBytes);
+        _ = TryGetString(memoryObject, propertyName: "BankLabel", out string bankLabel);
+        _ = TryGetUInt64(memoryObject, propertyName: "Capacity", out ulong capacityBytes);
         _ = TryGetUInt64(
             memoryObject,
-            "ConfiguredClockSpeed",
+            propertyName: "ConfiguredClockSpeed",
             out ulong configuredSpeedMegatransfersPerSecond);
-        _ = TryGetUInt64(memoryObject, "Speed", out ulong fallbackSpeedMegatransfersPerSecond);
-        _ = TryGetUInt64(memoryObject, "FormFactor", out ulong formFactor);
-        _ = TryGetString(memoryObject, "PartNumber", out string partNumber);
+        _ = TryGetUInt64(memoryObject, propertyName: "Speed", out ulong fallbackSpeedMegatransfersPerSecond);
+        _ = TryGetUInt64(memoryObject, propertyName: "FormFactor", out ulong formFactor);
+        _ = TryGetString(memoryObject, propertyName: "PartNumber", out string partNumber);
         string serialNumber = string.Empty;
         if (includeSerialNumbers)
-            _ = TryGetString(memoryObject, "SerialNumber", out serialNumber);
+            _ = TryGetString(memoryObject, propertyName: "SerialNumber", out serialNumber);
 
         ulong speedMegatransfersPerSecond = configuredSpeedMegatransfersPerSecond > 0
             ? configuredSpeedMegatransfersPerSecond
@@ -159,7 +161,7 @@ internal sealed class PhysicalMemoryMetadataReader
             SlotQuery,
             memoryArray =>
             {
-                if (!TryGetUInt64(memoryArray, "MemoryDevices", out ulong memoryDevices)) return;
+                if (!TryGetUInt64(memoryArray, propertyName: "MemoryDevices", out ulong memoryDevices)) return;
                 totalSlots = SaturatingAdd(totalSlots, memoryDevices);
             });
         return totalSlots > int.MaxValue ? int.MaxValue : (int)totalSlots;
@@ -189,7 +191,7 @@ internal sealed class PhysicalMemoryMetadataReader
             }
 
             string formFactor = FormatFormFactor(module.FormFactor);
-            if (string.Equals(formFactor, "Unknown", StringComparison.Ordinal)) continue;
+            if (string.Equals(formFactor, b: "Unknown", StringComparison.Ordinal)) continue;
             if (commonFormFactor == null)
             {
                 commonFormFactor = formFactor;
@@ -279,11 +281,11 @@ internal sealed class PhysicalMemoryMetadataReader
                 typeof(IPhysicalMemoryWbemLocator).GUID);
             int result = locator.ConnectServer(
                 WmiNamespace,
-                null,
-                null,
-                null,
-                0,
-                null,
+                user: null,
+                password: null,
+                locale: null,
+                securityFlags: 0,
+                authority: null,
                 IntPtr.Zero,
                 out IntPtr servicesPointer);
             if (result < 0 || servicesPointer == IntPtr.Zero)
@@ -325,7 +327,7 @@ internal sealed class PhysicalMemoryMetadataReader
         Action<IPhysicalMemoryWbemClassObject> handleObject)
     {
         int result = services.ExecQuery(
-            "WQL",
+            queryLanguage: "WQL",
             query,
             WbemQueryFlags,
             IntPtr.Zero,
@@ -346,7 +348,7 @@ internal sealed class PhysicalMemoryMetadataReader
             {
                 result = enumerator.Next(
                     WbemInfinite,
-                    1,
+                    count: 1,
                     out IntPtr objectPointer,
                     out uint returnedCount);
                 if (result < 0)
@@ -386,7 +388,7 @@ internal sealed class PhysicalMemoryMetadataReader
         PhysicalMemoryWmiVariant variant = default;
         int result = memoryObject.Get(
             propertyName,
-            0,
+            flags: 0,
             (IntPtr)(&variant),
             IntPtr.Zero,
             IntPtr.Zero);
@@ -396,11 +398,9 @@ internal sealed class PhysicalMemoryMetadataReader
                 || (variant.VariantType & PhysicalMemoryWmiVariant.VariantTypeMask)
                 != PhysicalMemoryWmiVariant.VariantBStr
                 || variant.PointerValue == IntPtr.Zero)
-            {
                 return false;
-            }
 
-            value = Marshal.PtrToStringBSTR(variant.PointerValue) ?? string.Empty;
+            value = Marshal.PtrToStringBSTR(variant.PointerValue);
             return true;
         }
         finally
@@ -418,7 +418,7 @@ internal sealed class PhysicalMemoryMetadataReader
         PhysicalMemoryWmiVariant variant = default;
         int result = memoryObject.Get(
             propertyName,
-            0,
+            flags: 0,
             (IntPtr)(&variant),
             IntPtr.Zero,
             IntPtr.Zero);
@@ -493,10 +493,10 @@ internal readonly record struct PhysicalMemoryHardwareMetadata(
     ReadOnlyMemory<PhysicalMemoryModuleSnapshot> Modules)
 {
     public static PhysicalMemoryHardwareMetadata Empty { get; } = new(
-        0,
-        0,
-        0,
-        "Unknown",
+        SpeedMegatransfersPerSecond: 0,
+        UsedSlotCount: 0,
+        TotalSlotCount: 0,
+        FormFactor: "Unknown",
         ReadOnlyMemory<PhysicalMemoryModuleSnapshot>.Empty);
 }
 
@@ -516,16 +516,35 @@ internal struct PhysicalMemoryWmiVariant
     public const ushort VariantInt = 22;
     public const ushort VariantUInt = 23;
 
-    [FieldOffset(0)] public ushort VariantType;
-    [FieldOffset(8)] public sbyte SByteValue;
-    [FieldOffset(8)] public byte ByteValue;
-    [FieldOffset(8)] public short Int16Value;
-    [FieldOffset(8)] public ushort UInt16Value;
-    [FieldOffset(8)] public int Int32Value;
-    [FieldOffset(8)] public uint UInt32Value;
-    [FieldOffset(8)] public long Int64Value;
-    [FieldOffset(8)] public ulong UInt64Value;
-    [FieldOffset(8)] public IntPtr PointerValue;
+    [FieldOffset(0)]
+    public ushort VariantType;
+
+    [FieldOffset(8)]
+    public sbyte SByteValue;
+
+    [FieldOffset(8)]
+    public byte ByteValue;
+
+    [FieldOffset(8)]
+    public short Int16Value;
+
+    [FieldOffset(8)]
+    public ushort UInt16Value;
+
+    [FieldOffset(8)]
+    public int Int32Value;
+
+    [FieldOffset(8)]
+    public uint UInt32Value;
+
+    [FieldOffset(8)]
+    public long Int64Value;
+
+    [FieldOffset(8)]
+    public ulong UInt64Value;
+
+    [FieldOffset(8)]
+    public IntPtr PointerValue;
 }
 
 [GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
@@ -620,11 +639,11 @@ internal sealed class WmiComApartmentScope : IDisposable
         if (result < 0 && result != PhysicalMemoryWmiNative.RpcEChangedMode)
             Marshal.ThrowExceptionForHR(result);
 
-        if (Interlocked.Exchange(ref _securityInitialized, 1) == 0)
+        if (Interlocked.Exchange(ref _securityInitialized, value: 1) == 0)
         {
             int securityResult = PhysicalMemoryWmiNative.CoInitializeSecurity(
                 IntPtr.Zero,
-                -1,
+                authenticationServiceCount: -1,
                 IntPtr.Zero,
                 IntPtr.Zero,
                 PhysicalMemoryWmiNative.RpcCAuthenticationLevelDefault,

@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
-using Avalonia.Threading;
-using BatteryTrayAppDotNET.Models;
 using Windows.Devices.Power;
+using Avalonia.Threading;
 
 namespace BatteryTrayAppDotNET.Services;
 
@@ -14,7 +13,7 @@ public sealed class BatteryMonitorService : IDisposable
     private const byte BatteryLifePercentUnknown = 0xFF;
     private const uint BatteryLifeTimeUnknown = 0xFFFFFFFF;
 
-    private readonly SemaphoreSlim _pollGate = new(1, 1);
+    private readonly SemaphoreSlim _pollGate = new(initialCount: 1, maxCount: 1);
     private readonly Lock _lifetimeGate = new();
     private CancellationTokenSource? _pollingCancellationToken;
     private Task? _pollTask;
@@ -65,7 +64,7 @@ public sealed class BatteryMonitorService : IDisposable
     private async Task PollOnceAsync(CancellationToken token)
     {
         if (_disposed) return;
-        if (!await _pollGate.WaitAsync(0, token)) return;
+        if (!await _pollGate.WaitAsync(millisecondsTimeout: 0, token)) return;
 
         try
         {
@@ -102,13 +101,13 @@ public sealed class BatteryMonitorService : IDisposable
 
         bool batteryPresent = report.BatteryPresent || powerStatus.BatteryPresent;
         bool isOnExternalPower = powerStatus.IsOnExternalPower
-            ?? report.IsOnExternalPower
-            ?? !batteryPresent;
+                                 ?? report.IsOnExternalPower
+                                 ?? !batteryPresent;
         bool isCharging = report.IsCharging || powerStatus.IsCharging;
         bool isFullyCharged = batteryPresent
-            && isOnExternalPower
-            && !isCharging
-            && (powerStatus.ChargePercentage ?? report.ChargePercentage ?? 0) >= 100;
+                              && isOnExternalPower
+                              && !isCharging
+                              && (powerStatus.ChargePercentage ?? report.ChargePercentage ?? 0) >= 100;
 
         if (!batteryPresent)
         {
@@ -124,8 +123,8 @@ public sealed class BatteryMonitorService : IDisposable
 
         int chargePercentage = Math.Clamp(
             powerStatus.ChargePercentage ?? report.ChargePercentage ?? (batteryPresent ? 0 : 100),
-            0,
-            100);
+            min: 0,
+            max: 100);
 
         float? chargeRate = null;
         float? dischargeRate = null;
@@ -143,18 +142,18 @@ public sealed class BatteryMonitorService : IDisposable
         }
 
         return new BatterySnapshot(
-            BatteryPresent: batteryPresent,
-            ChargePercentage: chargePercentage,
-            IsOnExternalPower: isOnExternalPower,
-            IsCharging: isCharging,
-            IsFullyCharged: isFullyCharged,
-            ChargeRateWatts: chargeRate,
-            DischargeRateWatts: isOnExternalPower ? null : dischargeRate,
-            DesignedCapacityMilliwattHours: report.DesignedCapacityMilliwattHours,
-            FullChargeCapacityMilliwattHours: report.FullChargeCapacityMilliwattHours,
-            RemainingCapacityMilliwattHours: report.RemainingCapacityMilliwattHours,
-            WindowsEstimatedTimeRemaining: powerStatus.EstimatedTimeRemaining,
-            EnergySaverEnabled: powerStatus.EnergySaverEnabled);
+            batteryPresent,
+            chargePercentage,
+            isOnExternalPower,
+            isCharging,
+            isFullyCharged,
+            chargeRate,
+            isOnExternalPower ? null : dischargeRate,
+            report.DesignedCapacityMilliwattHours,
+            report.FullChargeCapacityMilliwattHours,
+            report.RemainingCapacityMilliwattHours,
+            powerStatus.EstimatedTimeRemaining,
+            powerStatus.EnergySaverEnabled);
     }
 
     private static BatteryReportSnapshot GetBatteryReportSnapshot()
@@ -170,15 +169,15 @@ public sealed class BatteryMonitorService : IDisposable
 
             string status = report.Status.ToString();
             return new BatteryReportSnapshot(
-                BatteryPresent: !string.Equals(status, "NotPresent", StringComparison.Ordinal),
-                IsOnExternalPower: string.Equals(status, "Charging", StringComparison.Ordinal)
-                    || string.Equals(status, "Idle", StringComparison.Ordinal),
-                IsCharging: string.Equals(status, "Charging", StringComparison.Ordinal),
-                ChargePercentage: percent,
-                ChargeRateWatts: MilliwattsToWatts(report.ChargeRateInMilliwatts),
-                DesignedCapacityMilliwattHours: report.DesignCapacityInMilliwattHours,
-                FullChargeCapacityMilliwattHours: report.FullChargeCapacityInMilliwattHours,
-                RemainingCapacityMilliwattHours: report.RemainingCapacityInMilliwattHours);
+                !string.Equals(status, b: "NotPresent", StringComparison.Ordinal),
+                string.Equals(status, b: "Charging", StringComparison.Ordinal)
+                || string.Equals(status, b: "Idle", StringComparison.Ordinal),
+                string.Equals(status, b: "Charging", StringComparison.Ordinal),
+                percent,
+                MilliwattsToWatts(report.ChargeRateInMilliwatts),
+                report.DesignCapacityInMilliwattHours,
+                report.FullChargeCapacityInMilliwattHours,
+                report.RemainingCapacityInMilliwattHours);
         }
         catch (Exception ex)
         {
@@ -212,12 +211,12 @@ public sealed class BatteryMonitorService : IDisposable
                 : TimeSpan.FromSeconds(status.BatteryLifeTime);
 
             return new PowerStatus(
-                BatteryPresent: batteryPresent,
-                IsOnExternalPower: isOnExternalPower,
-                IsCharging: (status.BatteryFlag & BatteryFlagCharging) != 0,
-                ChargePercentage: chargePercentage,
-                EstimatedTimeRemaining: estimate,
-                EnergySaverEnabled: status.SystemStatusFlag != 0);
+                batteryPresent,
+                isOnExternalPower,
+                (status.BatteryFlag & BatteryFlagCharging) != 0,
+                chargePercentage,
+                estimate,
+                status.SystemStatusFlag != 0);
         }
         catch (Exception ex)
         {

@@ -56,7 +56,7 @@ public static class EnvironmentalCurveSampler
             valuePoints[i] = ordered[i].Value;
         }
 
-        double s = Math.Clamp(smoothness, 0.0, 1.0);
+        double s = Math.Clamp(smoothness, min: 0.0, max: 1.0);
         double linear = InterpolateLinear(timePoints, valuePoints, t);
         if (s <= 0.0) return linear;
 

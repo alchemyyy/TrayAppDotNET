@@ -1,23 +1,21 @@
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
+#if DEBUG
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using BatteryTrayAppDotNET.Localization;
-using BatteryTrayAppDotNET.Models;
 using BatteryTrayAppDotNET.Services;
 using BatteryTrayAppDotNET.UI.Flyout;
 using BatteryTrayAppDotNET.UI.Settings;
 using BatteryTrayAppDotNET.UI.Tray;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using Microsoft.Win32;
 using TrayAppDotNETCommon.UI.WarmWindows;
-#if DEBUG
-using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using BatteryHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using BatteryHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using BatteryHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
@@ -82,13 +80,14 @@ internal sealed class BatteryAvaloniaApp : Application
         if (Program.IsInstallerMode)
         {
             LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = AppTheme.LoadAppIcon(),
-                Palette = TrayMenuPalette(),
-                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-            });
+            TrayAppDotNETInstallerRunner.Show(this,
+                new TrayAppDotNETInstallerWindowOptions
+                {
+                    Layout = AppServices.InstallLayout,
+                    Icon = AppTheme.LoadAppIcon(),
+                    Palette = TrayMenuPalette(),
+                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -168,10 +167,7 @@ internal sealed class BatteryAvaloniaApp : Application
 
         try
         {
-            _trayIconRenderer = new BatteryTrayIcon(_theme)
-            {
-                IsLightTheme = ResolveEffectiveIsLightTheme()
-            };
+            _trayIconRenderer = new BatteryTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
             ApplyTrayIconColorOverride();
         }
         catch (Exception ex)
@@ -209,10 +205,10 @@ internal sealed class BatteryAvaloniaApp : Application
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
                     repositoryName: "TrayAppDotNET",
-                    applicationName: Program.ApplicationName,
-                    currentBuild: BuildInfo.BuildNumber,
-                    saveSettings: _settings.Save,
-                    sharedSettingsDirectory: Program.LocalAppDataRoot);
+                    Program.ApplicationName,
+                    BuildInfo.BuildNumber,
+                    _settings.Save,
+                    Program.LocalAppDataRoot);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;
@@ -228,8 +224,7 @@ internal sealed class BatteryAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = false,
-            IsVisible = true
+            IsScrollEnabled = false, IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
@@ -432,7 +427,7 @@ internal sealed class BatteryAvaloniaApp : Application
         if (snapshot.HealthPercent.HasValue)
             lines.Add($"Health: {snapshot.HealthPercent.Value:F0}%");
 
-        return string.Join('\n', lines);
+        return string.Join(separator: '\n', lines);
     }
 
     private void OnTrayLeftClick()
@@ -597,9 +592,9 @@ internal sealed class BatteryAvaloniaApp : Application
     {
         try
         {
-            string reportsDir = Path.Combine(Program.AppLocalAppDataDirectory, "reports");
+            string reportsDir = Path.Combine(Program.AppLocalAppDataDirectory, path2: "reports");
             Directory.CreateDirectory(reportsDir);
-            string reportPath = Path.Combine(reportsDir, "battery-report.html");
+            string reportPath = Path.Combine(reportsDir, path2: "battery-report.html");
             using Process? process = Process.Start(new ProcessStartInfo
             {
                 FileName = "powercfg.exe",
@@ -614,8 +609,7 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 using Process? _ = Process.Start(new ProcessStartInfo
                 {
-                    FileName = reportPath,
-                    UseShellExecute = true
+                    FileName = reportPath, UseShellExecute = true
                 });
             }
         }
@@ -766,7 +760,9 @@ internal sealed class BatteryAvaloniaApp : Application
     private static string FormatTimeSpan(TimeSpan value)
     {
         if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours}h";
-        return value.TotalHours >= 1 ? $"{(int)value.TotalHours}h {value.Minutes}m" : $"{Math.Max(1, value.Minutes)}m";
+        return value.TotalHours >= 1
+            ? $"{(int)value.TotalHours}h {value.Minutes}m"
+            : $"{Math.Max(val1: 1, value.Minutes)}m";
     }
 
     private static string L(string key) => LocalizationManager.Instance[key];

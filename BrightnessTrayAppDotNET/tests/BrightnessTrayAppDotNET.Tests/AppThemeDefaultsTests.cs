@@ -34,6 +34,6 @@ public sealed class AppThemeDefaultsTests
     {
         using AppTheme theme = new() { EnvironmentalMapHudBackdropAlpha = 128 };
 
-        Assert.Equal(128, theme.EnvironmentalMapHudBackdropAlpha);
+        Assert.Equal(expected: 128, theme.EnvironmentalMapHudBackdropAlpha);
     }
 }

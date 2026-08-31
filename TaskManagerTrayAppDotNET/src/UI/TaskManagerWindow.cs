@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -30,19 +29,23 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 {
     private const uint WindowMessageMoving = 0x0216;
     private const uint WindowMessageExitSizeMove = 0x0232;
+
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
+
     private const string RestartExplorerConfirmationMessage =
         "This will close every running explorer.exe process, including the desktop, taskbar, and open File " +
         "Explorer windows, and then start a fresh explorer.exe process.";
+
     private const string ElevatedTerminationExplanation =
         "Task Manager can start TaskManagerTrayAppDotNET.KillHelper.exe with administrator privileges so it can " +
         "end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, Task " +
         "Manager will continue running with standard process permissions.";
 
     private static readonly ProcessDataSchema IdleProcessSchema = ProcessDataSchema.Create(
-        Array.Empty<ProcessColumnSetting>());
+        []);
+
     private static readonly int[] NoWarmProcessIDs = [];
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
@@ -124,12 +127,16 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UsePageContentTitleBarDragZone => false;
     protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
+
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) =>
         pageKey != TaskManagerPage.Settings;
+
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
         pageRoot is TaskManagerPageLayout page ? page.PageOverlay : null;
+
     protected override bool PageOverlayAlignsToContentArea(Control pageRoot) =>
         _settings.LeftAlignProcessSearchBar && pageRoot is ITaskManagerSearchOverlayPage;
+
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
@@ -139,15 +146,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     // AXAML hot-reload exception: Common and glyph dictionaries replace the shared shell, whose
     // page cleanup closes open column, affinity, and reorder editors; their live controls cannot be
     // safely reparented with active pointer, focus, and owner-window state
-    protected override void OnBeforeHotReloadShellRebuild()
-    {
-        CaptureHotReloadShellState();
-    }
+    protected override void OnBeforeHotReloadShellRebuild() => CaptureHotReloadShellState();
 
-    protected override void OnAfterHotReloadShellRebuild()
-    {
-        RestoreHotReloadShellState();
-    }
+    protected override void OnAfterHotReloadShellRebuild() => RestoreHotReloadShellState();
 
     private void CaptureHotReloadShellState()
     {
@@ -183,18 +184,21 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 #endif
     protected override double CollapsedSidebarWidth =>
         _taskManagerResources.AxamlTaskManagerWindow.CollapsedSidebarWidth;
+
     protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
     {
         if (pageKey != TaskManagerPage.Settings) return false;
         ShowClassicSettingsWindow();
         return true;
     }
+
     protected override Thickness ContentPadding => default;
     protected override double SidebarWidth => _taskManagerResources.AxamlTaskManagerWindow.SidebarWidth;
     protected override TaskManagerPage DefaultPageKey => TaskManagerPage.Processes;
     protected override string HeaderText => Constants.DisplayName;
     protected override string OpenSettingsFolderText => "Open Task Manager settings folder";
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
+
     protected override Color ConfirmOverlayBackdrop =>
         _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
@@ -314,13 +318,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override IReadOnlyList<SettingsPageDescriptor<TaskManagerPage>> CreatePageDescriptors() =>
     [
-        new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, TaskManagerGlyphCatalog.PROCESSES),
-        new(TaskManagerPage.Performance, "Performance", BuildPerformancePage, TaskManagerGlyphCatalog.PERFORMANCE),
-        new(TaskManagerPage.AppHistory, "App history", BuildAppHistoryPage, TaskManagerGlyphCatalog.APP_HISTORY),
-        new(TaskManagerPage.StartupApps, "Startup apps", BuildStartupAppsPage, TaskManagerGlyphCatalog.STARTUP_APPS),
-        new(TaskManagerPage.Users, "Users", BuildUsersPage, TaskManagerGlyphCatalog.USERS),
-        new(TaskManagerPage.Services, "Services", BuildServicesPage, TaskManagerGlyphCatalog.SERVICES),
-        new(TaskManagerPage.Settings, "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
+        new(TaskManagerPage.Processes, Label: "Processes", BuildProcessesPage, TaskManagerGlyphCatalog.PROCESSES),
+        new(TaskManagerPage.Performance, Label: "Performance", BuildPerformancePage,
+            TaskManagerGlyphCatalog.PERFORMANCE),
+        new(TaskManagerPage.AppHistory, Label: "App history", BuildAppHistoryPage, TaskManagerGlyphCatalog.APP_HISTORY),
+        new(TaskManagerPage.StartupApps, Label: "Startup apps", BuildStartupAppsPage,
+            TaskManagerGlyphCatalog.STARTUP_APPS),
+        new(TaskManagerPage.Users, Label: "Users", BuildUsersPage, TaskManagerGlyphCatalog.USERS),
+        new(TaskManagerPage.Services, Label: "Services", BuildServicesPage, TaskManagerGlyphCatalog.SERVICES),
+        new(TaskManagerPage.Settings, Label: "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
     ];
 
     protected override void Save() => _settings.Save();
@@ -426,9 +432,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _manualElevationPromptPending ||
             _allowClose ||
             !IsVisible)
-        {
             return;
-        }
 
         _initialElevationAttemptConsumed = true;
         IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
@@ -445,6 +449,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settingsWindow.Close();
             _settingsWindow = null;
         }
+
         Close();
     }
 
@@ -549,6 +554,16 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private Control RegisterPage<TPage>(TPage page)
         where TPage : TaskManagerPageLayout, IDisposable
     {
+        page.AttachedToVisualTree += OnPageAttached;
+        page.DetachedFromVisualTree += OnPageDetached;
+        AddPageCleanup(() =>
+        {
+            page.AttachedToVisualTree -= OnPageAttached;
+            page.DetachedFromVisualTree -= OnPageDetached;
+            DeactivatePage();
+        });
+        return OwnPageResource(page);
+
         void OnPageAttached(object? sender, VisualTreeAttachmentEventArgs eventArgs)
         {
             _activePageLayout?.SetPageActive(false);
@@ -575,16 +590,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
         void OnPageDetached(object? sender, VisualTreeAttachmentEventArgs eventArgs) =>
             DeactivatePage();
-
-        page.AttachedToVisualTree += OnPageAttached;
-        page.DetachedFromVisualTree += OnPageDetached;
-        AddPageCleanup(() =>
-        {
-            page.AttachedToVisualTree -= OnPageAttached;
-            page.DetachedFromVisualTree -= OnPageDetached;
-            DeactivatePage();
-        });
-        return OwnPageResource(page);
     }
 
     private bool ShouldEnableActivePageWork() =>
@@ -613,7 +618,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _snapshotService.SetWarmProcesses(
             IdleProcessSchema.VisibleMask,
             NoWarmProcessIDs,
-            0,
+            count: 0,
             sampleEveryProcess: false);
     }
 
@@ -628,9 +633,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             || !page.TryGetMainContentTop(this, out double contentTop)
             || pointerPoint.Position.Y >= contentTop
             || IsInteractiveHeaderControl(eventArgs.Source))
-        {
             return;
-        }
 
         if (eventArgs.ClickCount == 2)
         {
@@ -644,6 +647,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             PrepareRestoredWindowDrag();
             BeginMoveDrag(eventArgs);
         }
+
         eventArgs.Handled = true;
     }
 
@@ -691,9 +695,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (!_avoidSearchBoxDuringRestoreDrag
             || searchOverlayPage == null
             || rectanglePointer == IntPtr.Zero)
-        {
             return;
-        }
 
         RECT* proposedBounds = (RECT*)rectanglePointer;
         if (!_restoreDragSearchRangeResolved)
@@ -701,9 +703,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             if (!searchOverlayPage.TryGetSearchDragRegionPixelWidths(
                     out int searchWidth,
                     out int leadingActionWidth))
-            {
                 return;
-            }
 
             int proposedWidth = proposedBounds->Right - proposedBounds->Left;
             if (proposedWidth <= searchWidth) return;
@@ -752,9 +752,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         if (windowHandle == IntPtr.Zero
             || !User32.GetWindowRect(windowHandle, out RECT windowBounds))
-        {
             return 0;
-        }
 
         User32.POINT screenOriginInClientCoordinates = default;
         if (!User32.ScreenToClient(windowHandle, ref screenOriginInClientCoordinates)) return 0;
@@ -805,10 +803,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private StackPanel BuildSettingsPage()
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack("Settings", palette);
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes", palette));
+        StackPanel stack = PageStack(title: "Settings", palette);
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
         stack.Children.Add(BoolCard(
-            "Live column resizing",
+            title: "Live column resizing",
+            description:
             "Update Processes column widths and positions while dragging a divider. Turn this off to show a resize guide and apply the width on release.",
             _settings.EnableLiveDetailsColumnResizing,
             enabled => _settings.EnableLiveDetailsColumnResizing = enabled,
@@ -846,18 +845,16 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (currentStatus.State is ElevatedHelperState.Starting or
             ElevatedHelperState.Ready or
             ElevatedHelperState.Disposed)
-        {
             return;
-        }
 
         _manualElevationPromptPending = true;
         try
         {
             bool enable = await ConfirmAsync(
-                "Enable elevated process termination?",
+                title: "Enable elevated process termination?",
                 ElevatedTerminationExplanation,
-                "Enable",
-                "Not now");
+                confirmText: "Enable",
+                cancelText: "Not now");
             if (!enable || _allowClose || !IsVisible) return;
 
             if (WindowState == WindowState.Minimized)
@@ -873,13 +870,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             {
                 case ElevatedHelperState.Declined:
                     await ShowMessage(
-                        "Elevated termination not enabled",
+                        title: "Elevated termination not enabled",
                         "Windows administrator approval was canceled. Task Manager will continue with standard " +
                         "process permissions.");
                     break;
                 case ElevatedHelperState.Failed:
                     await ShowMessage(
-                        "Elevated termination failed",
+                        title: "Elevated termination failed",
                         string.IsNullOrWhiteSpace(completedStatus.ErrorMessage)
                             ? "The elevated termination helper could not be started."
                             : completedStatus.ErrorMessage);
@@ -904,18 +901,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return ConfirmAsync(
             $"Do you want to end {processName}?",
             EndTaskConfirmationMessage,
-            "End process",
-            "Cancel");
+            confirmText: "End process",
+            cancelText: "Cancel");
     }
 
     private Task<bool> ConfirmDeleteSavedSearchAsync(ProcessSavedSearch savedSearch)
     {
         ArgumentNullException.ThrowIfNull(savedSearch);
         return ConfirmAsync(
-            "Delete saved search?",
+            title: "Delete saved search?",
             $"\"{savedSearch.Name}\" uses a regular expression. Delete this saved search?",
-            "Delete",
-            "Cancel");
+            confirmText: "Delete",
+            cancelText: "Cancel");
     }
 
     private Task<bool> ConfirmRestartExplorerAsync()
@@ -923,10 +920,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (_settings.SkipRestartExplorerConfirmation) return Task.FromResult(true);
 
         return ConfirmAsync(
-            "Restart Windows Explorer?",
+            title: "Restart Windows Explorer?",
             RestartExplorerConfirmationMessage,
-            "Restart explorer",
-            "Cancel");
+            confirmText: "Restart explorer",
+            cancelText: "Cancel");
     }
 
     private Task<bool> ConfirmDisableServiceAsync(WindowsServiceSnapshot service)
@@ -936,11 +933,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             ? service.ServiceName
             : service.DisplayName;
         return ConfirmAsync(
-            "Disable service?",
+            title: "Disable service?",
             $"Windows will not start {serviceLabel} again until its startup type is changed. "
             + "Disabling a running service does not stop its current instance.",
-            "Disable",
-            "Cancel");
+            confirmText: "Disable",
+            cancelText: "Cancel");
     }
 
     private Task<ExplorerRestartResult> RestartExplorerAsync() =>
@@ -952,7 +949,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         if (CriticalProcessActions.TryStart(command, out string errorMessage)) return true;
 
-        _ = ShowMessage("Run new task failed", errorMessage);
+        _ = ShowMessage(title: "Run new task failed", errorMessage);
         return false;
     }
 
@@ -972,9 +969,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             || !_settings.MinimizeToTray
             || change.Property != WindowStateProperty
             || WindowState != WindowState.Minimized)
-        {
             return;
-        }
 
         Hide();
         WindowState = WindowState.Normal;
@@ -1018,14 +1013,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         }
     }
 
-    private sealed class TaskManagerSidebar : SettingsSidebar
-    {
-        public TaskManagerSidebar(TaskManagerWindowResources resources)
-            : base(
-                resources.AxamlTaskManagerWindow.SidebarHeaderMargin,
-                resources.AxamlTaskManagerWindow.SidebarNavigationMargin,
-                resources.AxamlTaskManagerWindow.SidebarFooterMargin)
-        {
-        }
-    }
+    private sealed class TaskManagerSidebar(TaskManagerWindowResources resources) : SettingsSidebar(
+        resources.AxamlTaskManagerWindow.SidebarHeaderMargin,
+        resources.AxamlTaskManagerWindow.SidebarNavigationMargin,
+        resources.AxamlTaskManagerWindow.SidebarFooterMargin);
 }

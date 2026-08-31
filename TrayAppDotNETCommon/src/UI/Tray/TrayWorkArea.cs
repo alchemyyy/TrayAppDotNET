@@ -29,10 +29,7 @@ public static class TrayWorkArea
         IntPtr monitor = User32.MonitorFromPoint(point, User32.MONITOR_DEFAULTTONULL);
         if (monitor == IntPtr.Zero) return false;
 
-        User32.MONITORINFO monitorInfo = new()
-        {
-            Size = Marshal.SizeOf<User32.MONITORINFO>()
-        };
+        User32.MONITORINFO monitorInfo = new() { Size = Marshal.SizeOf<User32.MONITORINFO>() };
         if (!User32.GetMonitorInfo(monitor, ref monitorInfo)) return false;
 
         int width = monitorInfo.WorkArea.Right - monitorInfo.WorkArea.Left;

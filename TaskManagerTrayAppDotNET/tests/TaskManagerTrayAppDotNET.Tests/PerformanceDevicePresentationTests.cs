@@ -12,8 +12,8 @@ public sealed class PerformanceDevicePresentationTests
         List<PerformanceDevicePresentation> devices =
             PerformanceDevicePresentationFactory.Create(PerformanceSnapshot.Empty);
 
-        Assert.Equal(["cpu", "memory"], devices.Select(
-            static (PerformanceDevicePresentation device) => device.DeviceID));
+        Assert.Equal(["cpu", "memory"],
+            devices.Select(static device => device.DeviceID));
         Assert.All(devices, static device => Assert.False(device.HasUtilizationSample));
     }
 
@@ -41,13 +41,13 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.Equal("42%  5.40 GHz", device.Summary);
-        Assert.Equal("5.40 GHz", valuesByLabel["Speed"]);
-        Assert.Equal("5.70 GHz", valuesByLabel["Highest recorded speed"]);
-        Assert.Equal("4.20 GHz", valuesByLabel["Base speed"]);
-        Assert.Equal("73%", valuesByLabel["Highest logical processor"]);
-        Assert.Equal("16", valuesByLabel["Physical cores"]);
-        Assert.Equal("32", valuesByLabel["Logical processors"]);
+        Assert.Equal(expected: "42%  5.40 GHz", device.Summary);
+        Assert.Equal(expected: "5.40 GHz", valuesByLabel["Speed"]);
+        Assert.Equal(expected: "5.70 GHz", valuesByLabel["Highest recorded speed"]);
+        Assert.Equal(expected: "4.20 GHz", valuesByLabel["Base speed"]);
+        Assert.Equal(expected: "73%", valuesByLabel["Highest logical processor"]);
+        Assert.Equal(expected: "16", valuesByLabel["Physical cores"]);
+        Assert.Equal(expected: "32", valuesByLabel["Logical processors"]);
         Assert.Equal(
             [
                 "Utilization",
@@ -68,14 +68,14 @@ public sealed class PerformanceDevicePresentationTests
     public void NetworkGraphUsesTheBusiestDirectionRelativeToLinkSpeed()
     {
         NetworkPerformanceSnapshot network = new(
-            "network:test",
+            DeviceID: "network:test",
             PerformanceDeviceKind.Network,
-            0,
-            "Ethernet 3",
-            "Test adapter",
-            "Ethernet",
-            true,
-            true,
+            SortKey: 0,
+            Name: "Ethernet 3",
+            Description: "Test adapter",
+            InterfaceType: "Ethernet",
+            IsOperational: true,
+            HasThroughputSample: true,
             ReceiveBytesPerSecond: 50_000_000,
             SendBytesPerSecond: 10_000_000,
             LinkSpeedBitsPerSecond: 1_000_000_000,
@@ -83,31 +83,31 @@ public sealed class PerformanceDevicePresentationTests
             TotalBytesSent: 500_000_000);
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
-            Networks = new NetworkPerformanceSnapshot[] { network }
+            Networks = new[] { network }
         };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "network:test");
 
         Assert.True(device.HasUtilizationSample);
-        Assert.Equal(40, device.UtilizationPercent, precision: 8);
-        Assert.Equal("Ethernet", device.Title);
-        Assert.Equal("Ethernet 3 - Test adapter", device.Subtitle);
-        Assert.Equal("Test adapter", device.HardwareName);
+        Assert.Equal(expected: 40, device.UtilizationPercent, precision: 8);
+        Assert.Equal(expected: "Ethernet", device.Title);
+        Assert.Equal(expected: "Ethernet 3 - Test adapter", device.Subtitle);
+        Assert.Equal(expected: "Test adapter", device.HardwareName);
     }
 
     [Fact]
     public void NetworkMenuEntryUsesTheReplacedHardwareAdapterName()
     {
         NetworkPerformanceSnapshot network = new(
-            "network:test",
+            DeviceID: "network:test",
             PerformanceDeviceKind.Network,
-            0,
-            "Ethernet 3",
-            "Intel(R) Ethernet Converged Network Adapter X540-T2",
-            "Ethernet",
-            true,
-            true,
+            SortKey: 0,
+            Name: "Ethernet 3",
+            Description: "Intel(R) Ethernet Converged Network Adapter X540-T2",
+            InterfaceType: "Ethernet",
+            IsOperational: true,
+            HasThroughputSample: true,
             ReceiveBytesPerSecond: 50_000_000,
             SendBytesPerSecond: 10_000_000,
             LinkSpeedBitsPerSecond: 1_000_000_000,
@@ -115,7 +115,7 @@ public sealed class PerformanceDevicePresentationTests
             TotalBytesSent: 500_000_000);
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
-            Networks = new NetworkPerformanceSnapshot[] { network }
+            Networks = new[] { network }
         };
         PerformanceHardwareNameResolver resolver = PerformanceHardwareNameResolver.Create(
         [
@@ -133,22 +133,22 @@ public sealed class PerformanceDevicePresentationTests
                 resolver)
             .Single(static candidate => candidate.DeviceID == "network:test");
 
-        Assert.Equal("Ethernet 3 - Intel Ethernet X540-T2", device.Subtitle);
-        Assert.Equal("Intel Ethernet X540-T2", device.HardwareName);
+        Assert.Equal(expected: "Ethernet 3 - Intel Ethernet X540-T2", device.Subtitle);
+        Assert.Equal(expected: "Intel Ethernet X540-T2", device.HardwareName);
     }
 
     [Fact]
     public void NetworkGraphDoesNotInventUtilizationWithoutALinkSpeed()
     {
         NetworkPerformanceSnapshot network = new(
-            "network:test",
+            DeviceID: "network:test",
             PerformanceDeviceKind.Network,
-            0,
-            "Ethernet",
-            "Test adapter",
-            "Ethernet",
-            true,
-            true,
+            SortKey: 0,
+            Name: "Ethernet",
+            Description: "Test adapter",
+            InterfaceType: "Ethernet",
+            IsOperational: true,
+            HasThroughputSample: true,
             ReceiveBytesPerSecond: 50_000_000,
             SendBytesPerSecond: 10_000_000,
             LinkSpeedBitsPerSecond: 0,
@@ -156,27 +156,27 @@ public sealed class PerformanceDevicePresentationTests
             TotalBytesSent: 500_000_000);
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
-            Networks = new NetworkPerformanceSnapshot[] { network }
+            Networks = new[] { network }
         };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "network:test");
 
         Assert.False(device.HasUtilizationSample);
-        Assert.Equal(0, device.UtilizationPercent);
+        Assert.Equal(expected: 0, device.UtilizationPercent);
     }
 
     [Fact]
     public void DiskUsesPhysicalNumberVolumesAndHardwareName()
     {
         DiskPerformanceSnapshot disk = new(
-            "disk:test",
+            DeviceID: "disk:test",
             PerformanceDeviceKind.Disk,
-            12,
-            "Samsung SSD 990 PRO 4TB",
-            "C:, D:",
-            "SSD (NVMe)",
-            true,
+            SortKey: 12,
+            Name: "Samsung SSD 990 PRO 4TB",
+            VolumeNames: "C:, D:",
+            DeviceType: "SSD (NVMe)",
+            HasPerformanceSample: true,
             ActiveTimePercent: 25,
             ReadBytesPerSecond: 1_000,
             WriteBytesPerSecond: 2_000,
@@ -187,43 +187,43 @@ public sealed class PerformanceDevicePresentationTests
             AvailableBytes: 1_000_000_000_000)
         {
             Details = new DiskPerformanceDetailsSnapshot(
-                "disk:test",
-                12,
-                "Samsung SSD 990 PRO 4TB",
-                "C:, D:",
-                "SSD (NVMe)",
-                true,
-                25,
-                3_000,
-                1_000,
-                2_000,
-                0.5,
-                4_000_000_000_000,
-                3_900_000_000_000,
-                true,
-                true,
-                true,
-                false)
+                DeviceID: "disk:test",
+                PhysicalDiskNumber: 12,
+                Model: "Samsung SSD 990 PRO 4TB",
+                VolumeNames: "C:, D:",
+                DeviceType: "SSD (NVMe)",
+                HasPerformanceSample: true,
+                ActiveTimePercent: 25,
+                TransferBytesPerSecond: 3_000,
+                ReadBytesPerSecond: 1_000,
+                WriteBytesPerSecond: 2_000,
+                AverageResponseTimeMilliseconds: 0.5,
+                CapacityBytes: 4_000_000_000_000,
+                FormattedCapacityBytes: 3_900_000_000_000,
+                HasSystemDiskData: true,
+                IsSystemDisk: true,
+                HasPageFileData: true,
+                HasPageFile: false)
         };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
-            Disks = new DiskPerformanceSnapshot[] { disk }
+            Disks = new[] { disk }
         };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
-        Assert.Equal("Disk 12 (C:, D:)", device.Title);
-        Assert.Equal("Samsung SSD 990 PRO 4TB", device.Subtitle);
-        Assert.Equal("Samsung SSD 990 PRO 4TB", device.HardwareName);
-        Assert.Equal("25%", device.Summary);
-        Assert.DoesNotContain("NVMe", device.Subtitle, StringComparison.Ordinal);
+        Assert.Equal(expected: "Disk 12 (C:, D:)", device.Title);
+        Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.Subtitle);
+        Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.HardwareName);
+        Assert.Equal(expected: "25%", device.Summary);
+        Assert.DoesNotContain(expectedSubstring: "NVMe", device.Subtitle, StringComparison.Ordinal);
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,
             static statistic => statistic.Value);
-        Assert.Equal("Yes", valuesByLabel["System disk"]);
-        Assert.Equal("No", valuesByLabel["Page file"]);
-        Assert.Equal("SSD (NVMe)", valuesByLabel["Type"]);
+        Assert.Equal(expected: "Yes", valuesByLabel["System disk"]);
+        Assert.Equal(expected: "No", valuesByLabel["Page file"]);
+        Assert.Equal(expected: "SSD (NVMe)", valuesByLabel["Type"]);
         Assert.Equal(
             ["Active time", "Average response time", "Read speed", "Write speed"],
             device.Statistics.Span[..4].ToArray().Select(static statistic => statistic.Label));
@@ -234,39 +234,36 @@ public sealed class PerformanceDevicePresentationTests
     {
         const ulong Gibibyte = 1_073_741_824;
         GPUPerformanceSnapshot GPU = new(
-            "gpu:test",
+            DeviceID: "gpu:test",
             PerformanceDeviceKind.GPU,
-            0,
-            "NVIDIA GeForce RTX Test",
-            123,
-            0,
-            true,
-            31,
+            SortKey: 0,
+            Name: "NVIDIA GeForce RTX Test",
+            AdapterLUID: 123,
+            PhysicalAdapterIndex: 0,
+            HasUtilizationSample: true,
+            UtilizationPercent: 31,
             ReadOnlyMemory<GPUPerformanceEngineSnapshot>.Empty,
-            true,
+            HasDedicatedMemoryData: true,
             3 * Gibibyte,
             15 * Gibibyte,
-            true,
+            HasSharedMemoryData: true,
             Gibibyte / 2,
             64 * Gibibyte)
         {
             Details = new GPUPerformanceDetailsSnapshot(
-                true,
+                HasDetailData: true,
                 ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
-                true,
-                32,
-                "32.0.15.9660",
-                new DateOnly(2026, 5, 22),
-                "12",
-                "12.2",
-                "PCI bus 33, device 0, function 0",
-                true,
+                HasTemperatureData: true,
+                TemperatureCelsius: 32,
+                DriverVersion: "32.0.15.9660",
+                new DateOnly(year: 2026, month: 5, day: 22),
+                DirectXVersion: "12",
+                FeatureLevel: "12.2",
+                PhysicalLocation: "PCI bus 33, device 0, function 0",
+                HasHardwareReservedMemoryData: true,
                 Gibibyte)
         };
-        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
-        {
-            GPUs = new GPUPerformanceSnapshot[] { GPU }
-        };
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { GPUs = new[] { GPU } };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "gpu:test");
@@ -274,14 +271,14 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.Equal("3.0/16.0 GB", valuesByLabel["Dedicated GPU memory"]);
-        Assert.Equal("3.5/80.0 GB", valuesByLabel["GPU Memory"]);
-        Assert.Equal("0.5/64.0 GB", valuesByLabel["Shared GPU memory"]);
-        Assert.Equal("32 \u00B0C", valuesByLabel["Temperature"]);
-        Assert.Equal("32.0.15.9660", valuesByLabel["Driver version"]);
-        Assert.Equal("12 (FL 12.2)", valuesByLabel["DirectX version"]);
-        Assert.Equal("PCI bus 33, device 0, function 0", valuesByLabel["Physical location"]);
-        Assert.Equal("1.0 GB", valuesByLabel["Hardware reserved memory"]);
+        Assert.Equal(expected: "3.0/16.0 GB", valuesByLabel["Dedicated GPU memory"]);
+        Assert.Equal(expected: "3.5/80.0 GB", valuesByLabel["GPU Memory"]);
+        Assert.Equal(expected: "0.5/64.0 GB", valuesByLabel["Shared GPU memory"]);
+        Assert.Equal(expected: "32 \u00B0C", valuesByLabel["Temperature"]);
+        Assert.Equal(expected: "32.0.15.9660", valuesByLabel["Driver version"]);
+        Assert.Equal(expected: "12 (FL 12.2)", valuesByLabel["DirectX version"]);
+        Assert.Equal(expected: "PCI bus 33, device 0, function 0", valuesByLabel["Physical location"]);
+        Assert.Equal(expected: "1.0 GB", valuesByLabel["Hardware reserved memory"]);
     }
 
     [Fact]
@@ -289,25 +286,22 @@ public sealed class PerformanceDevicePresentationTests
     {
         const ulong Gibibyte = 1_073_741_824;
         GPUPerformanceSnapshot GPU = new(
-            "gpu:test",
+            DeviceID: "gpu:test",
             PerformanceDeviceKind.GPU,
-            0,
-            "GPU",
-            1,
-            0,
-            true,
-            0,
+            SortKey: 0,
+            Name: "GPU",
+            AdapterLUID: 1,
+            PhysicalAdapterIndex: 0,
+            HasUtilizationSample: true,
+            UtilizationPercent: 0,
             ReadOnlyMemory<GPUPerformanceEngineSnapshot>.Empty,
-            true,
+            HasDedicatedMemoryData: true,
             Gibibyte,
             8 * Gibibyte,
-            false,
-            0,
+            HasSharedMemoryData: false,
+            SharedMemoryBytes: 0,
             16 * Gibibyte);
-        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
-        {
-            GPUs = new GPUPerformanceSnapshot[] { GPU }
-        };
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { GPUs = new[] { GPU } };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "gpu:test");
@@ -315,22 +309,22 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.NotEqual("Unavailable", valuesByLabel["Dedicated GPU memory"]);
-        Assert.Equal("Unavailable", valuesByLabel["Shared GPU memory"]);
-        Assert.Equal("Unavailable", valuesByLabel["GPU Memory"]);
+        Assert.NotEqual(expected: "Unavailable", valuesByLabel["Dedicated GPU memory"]);
+        Assert.Equal(expected: "Unavailable", valuesByLabel["Shared GPU memory"]);
+        Assert.Equal(expected: "Unavailable", valuesByLabel["GPU Memory"]);
     }
 
     [Fact]
     public void DiskTitleOmitsVolumeParenthesesWhenNoVolumesAreMounted()
     {
         DiskPerformanceSnapshot disk = new(
-            "disk:test",
+            DeviceID: "disk:test",
             PerformanceDeviceKind.Disk,
-            4,
-            "Microsoft Storage Space Device",
+            SortKey: 4,
+            Name: "Microsoft Storage Space Device",
             string.Empty,
-            "Storage Spaces",
-            false,
+            DeviceType: "Storage Spaces",
+            HasPerformanceSample: false,
             ActiveTimePercent: 0,
             ReadBytesPerSecond: 0,
             WriteBytesPerSecond: 0,
@@ -341,40 +335,40 @@ public sealed class PerformanceDevicePresentationTests
             AvailableBytes: 0)
         {
             Details = new DiskPerformanceDetailsSnapshot(
-                "disk:test",
-                4,
-                "Microsoft Storage Space Device",
+                DeviceID: "disk:test",
+                PhysicalDiskNumber: 4,
+                Model: "Microsoft Storage Space Device",
                 string.Empty,
-                "Storage Spaces",
-                false,
-                0,
-                0,
-                0,
-                0,
-                0,
-                1_000_000_000,
-                0,
-                false,
-                false,
-                false,
-                false)
+                DeviceType: "Storage Spaces",
+                HasPerformanceSample: false,
+                ActiveTimePercent: 0,
+                TransferBytesPerSecond: 0,
+                ReadBytesPerSecond: 0,
+                WriteBytesPerSecond: 0,
+                AverageResponseTimeMilliseconds: 0,
+                CapacityBytes: 1_000_000_000,
+                FormattedCapacityBytes: 0,
+                HasSystemDiskData: false,
+                IsSystemDisk: false,
+                HasPageFileData: false,
+                HasPageFile: false)
         };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
-            Disks = new DiskPerformanceSnapshot[] { disk }
+            Disks = new[] { disk }
         };
 
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
-        Assert.Equal("Disk 4", device.Title);
-        Assert.Equal("Microsoft Storage Space Device", device.Subtitle);
-        Assert.Equal("Microsoft Storage Space Device", device.HardwareName);
+        Assert.Equal(expected: "Disk 4", device.Title);
+        Assert.Equal(expected: "Microsoft Storage Space Device", device.Subtitle);
+        Assert.Equal(expected: "Microsoft Storage Space Device", device.HardwareName);
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,
             static statistic => statistic.Value);
-        Assert.Equal("Unavailable", valuesByLabel["System disk"]);
-        Assert.Equal("Unavailable", valuesByLabel["Page file"]);
+        Assert.Equal(expected: "Unavailable", valuesByLabel["System disk"]);
+        Assert.Equal(expected: "Unavailable", valuesByLabel["Page file"]);
     }
 
     [Theory]
@@ -390,6 +384,6 @@ public sealed class PerformanceDevicePresentationTests
             .Single(static candidate => candidate.Kind == PerformanceDeviceKind.CPU);
 
         Assert.Equal(expectedLabel, CPU.GraphLabel);
-        Assert.DoesNotContain("60 seconds", CPU.GraphLabel, StringComparison.Ordinal);
+        Assert.DoesNotContain(expectedSubstring: "60 seconds", CPU.GraphLabel, StringComparison.Ordinal);
     }
 }

@@ -33,7 +33,7 @@ internal static class DebugGlyphProvenanceRegistry
             resource.ResourceKey,
             sourceFilePath,
             sourceLine,
-            0,
+            sourceColumn: 0,
             sourceMember,
             resource.ResourceKey);
     }

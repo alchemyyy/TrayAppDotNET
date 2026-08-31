@@ -8,7 +8,7 @@ public sealed class SearchMatcherTests
     [Fact]
     public void ScoreMatchesWordsOutOfMiddle()
     {
-        SearchMatch match = SearchMatcher.Score("AMD Ryzen 9950X CCD0", "ccd");
+        SearchMatch match = SearchMatcher.Score(candidate: "AMD Ryzen 9950X CCD0", query: "ccd");
 
         Assert.True(match.IsMatch);
     }
@@ -16,7 +16,7 @@ public sealed class SearchMatcherTests
     [Fact]
     public void ScoreMatchesSubsequence()
     {
-        SearchMatch match = SearchMatcher.Score("CPU Package Temperature", "cpt");
+        SearchMatch match = SearchMatcher.Score(candidate: "CPU Package Temperature", query: "cpt");
 
         Assert.True(match.IsMatch);
     }
@@ -31,11 +31,11 @@ public sealed class SearchMatcherTests
             "Temp"
         ];
 
-        List<string> ranked = SearchMatcher.FilterAndRank(items, "temp", static item => item);
+        List<string> ranked = SearchMatcher.FilterAndRank(items, query: "temp", static item => item);
 
-        Assert.Equal("Temp", ranked[0]);
-        Assert.Equal("Temperature Package", ranked[1]);
-        Assert.Equal("Package Temperature", ranked[2]);
+        Assert.Equal(expected: "Temp", ranked[0]);
+        Assert.Equal(expected: "Temperature Package", ranked[1]);
+        Assert.Equal(expected: "Package Temperature", ranked[2]);
     }
 
     [Fact]
@@ -48,9 +48,9 @@ public sealed class SearchMatcherTests
             "CPU Package Power"
         ];
 
-        List<string> ranked = SearchMatcher.FilterAndRank(items, "cpu temp", static item => item);
+        List<string> ranked = SearchMatcher.FilterAndRank(items, query: "cpu temp", static item => item);
 
         Assert.Single(ranked);
-        Assert.Equal("CPU Package Temperature", ranked[0]);
+        Assert.Equal(expected: "CPU Package Temperature", ranked[0]);
     }
 }

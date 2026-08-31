@@ -5,7 +5,7 @@ public abstract class GlyphCatalog
 #if DEBUG
     private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
         GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            "Common",
+            catalogName: "Common",
             static () => new GlyphCatalogResources());
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());

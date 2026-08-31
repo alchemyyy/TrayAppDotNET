@@ -16,14 +16,14 @@ public sealed partial class NetworkSettingsWindow
         TextBlock contextHeader = TrayAppDotNETSettingsUI.TitleText(
             L(nameof(AppStrings.Settings_Theme_ContextMenu_Header)), p);
         contextHeader.FontWeight = FontWeight.SemiBold;
-        contextHeader.Margin = new Thickness(0, 0, 0, 8);
+        contextHeader.Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 8);
         stack.Children.Add(contextHeader);
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_Theme_FontSize_Title)),
             Loc(nameof(AppStrings.Settings_Theme_FontSize_Description)),
             _settings.ContextMenuFontSize,
-            8,
-            48,
+            min: 8,
+            max: 48,
             v => _settings.ContextMenuFontSize = v,
             p,
             searchKeywords:
@@ -48,7 +48,7 @@ public sealed partial class NetworkSettingsWindow
                     _settings.ThemeMode = value;
             },
             p,
-            afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
+            () => RebuildShell(NetworkSettingsPage.Theme),
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
@@ -59,13 +59,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.UseWindows11SettingsNavigation,
             value => _settings.UseWindows11SettingsNavigation = value,
             p,
-            afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(NetworkSettingsPage.Theme),
             [
                 L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
-            "Text",
+            name: "Text",
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
@@ -74,12 +73,11 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
-            "Background",
+            name: "Background",
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
@@ -88,7 +86,6 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).Background.Light,
             (AppServices.Theme ?? AppTheme.Default).Background.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
             ]));
@@ -101,8 +98,7 @@ public sealed partial class NetworkSettingsWindow
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
-            afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(NetworkSettingsPage.Theme),
             [
                 L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
@@ -121,7 +117,7 @@ public sealed partial class NetworkSettingsWindow
                     _settings.AnimationMode = value;
             },
             p,
-            afterSave: () =>
+            () =>
             {
                 if (Application.Current != null)
                     TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
@@ -144,8 +140,7 @@ public sealed partial class NetworkSettingsWindow
                 TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
             },
             p,
-            " ms",
-            searchKeywords:
+            suffix: " ms",
             [
                 L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
             ]));
@@ -153,7 +148,7 @@ public sealed partial class NetworkSettingsWindow
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
         stack.Children.Add(ColorCard(
-            "TrayIcon",
+            name: "TrayIcon",
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
@@ -162,7 +157,6 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ]));
@@ -171,9 +165,9 @@ public sealed partial class NetworkSettingsWindow
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             Loc(nameof(AppStrings.Settings_Network_StateColors_Description)),
             p,
-            new Thickness(0, 0, 0, 8)));
+            new Thickness(left: 0, top: 0, right: 0, bottom: 8)));
         stack.Children.Add(ColorCard(
-            "Connected",
+            name: "Connected",
             Loc(nameof(AppStrings.Settings_Network_ConnectedColor_Title)),
             Loc(nameof(AppStrings.Settings_Network_ConnectedColor_Description)),
             Loc(nameof(AppStrings.Settings_Network_ConnectedColor_LightTooltip)),
@@ -182,12 +176,11 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).NetworkConnectedTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkConnectedTrayIconColor.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Network_ConnectedColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
-            "NoInternet",
+            name: "NoInternet",
             Loc(nameof(AppStrings.Settings_Network_NoInternetColor_Title)),
             Loc(nameof(AppStrings.Settings_Network_NoInternetColor_Description)),
             Loc(nameof(AppStrings.Settings_Network_NoInternetColor_LightTooltip)),
@@ -196,12 +189,11 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).NetworkNoInternetTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkNoInternetTrayIconColor.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Network_NoInternetColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
-            "Disconnected",
+            name: "Disconnected",
             Loc(nameof(AppStrings.Settings_Network_DisconnectedColor_Title)),
             Loc(nameof(AppStrings.Settings_Network_DisconnectedColor_Description)),
             Loc(nameof(AppStrings.Settings_Network_DisconnectedColor_LightTooltip)),
@@ -210,7 +202,6 @@ public sealed partial class NetworkSettingsWindow
             (AppServices.Theme ?? AppTheme.Default).NetworkDisconnectedTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkDisconnectedTrayIconColor.Dark,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Network_DisconnectedColor_SearchKeywords))
             ]));

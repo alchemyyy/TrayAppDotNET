@@ -33,7 +33,7 @@ public sealed class TrayIconRenderer : IDisposable
     public TrayIconRenderer(TrayIconRenderOptions options)
     {
         if (options.IconFontFamilies.Count == 0)
-            throw new ArgumentException("At least one icon font family is required.", nameof(options));
+            throw new ArgumentException(message: "At least one icon font family is required.", nameof(options));
 
         _options = options;
     }
@@ -129,17 +129,18 @@ public sealed class TrayIconRenderer : IDisposable
             DrawGlyph(canvas, foregroundGlyph, MeasureGlyph(foregroundGlyph, size), foreground);
 
         using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 
     private GlyphPlacement MeasureGlyph(string glyph, int canvasSize)
     {
-        using SKFont font = new(IconTypeface, canvasSize * _options.MeasureFontScale)
-        {
-            Edging = _options.FontEdging, Subpixel = _options.Subpixel
-        };
-        using SKPaint paint = new() { IsAntialias = true, Color = SKColors.Transparent };
+        using SKFont font = new(IconTypeface, canvasSize * _options.MeasureFontScale);
+        font.Edging = _options.FontEdging;
+        font.Subpixel = _options.Subpixel;
+        using SKPaint paint = new();
+        paint.IsAntialias = true;
+        paint.Color = SKColors.Transparent;
 
         float advanceWidth = font.MeasureText(glyph, out SKRect bounds, paint);
         font.GetFontMetrics(out SKFontMetrics metrics);

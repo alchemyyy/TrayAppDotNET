@@ -14,7 +14,7 @@ internal static class NightLightKelvin
     /// <summary>Maps strength 0-100 to kelvin. <paramref name="percent"/> is clamped.</summary>
     public static int PercentToKelvin(int percent)
     {
-        int clamped = Math.Clamp(percent, 0, 100);
+        int clamped = Math.Clamp(percent, min: 0, max: 100);
         return MaxKelvin - clamped * (MaxKelvin - MinKelvin) / 100;
     }
 
@@ -25,6 +25,6 @@ internal static class NightLightKelvin
     public static int KelvinToPercent(int kelvin)
     {
         int percent = 100 - (kelvin - MinKelvin) * 100 / (MaxKelvin - MinKelvin);
-        return Math.Clamp(percent, 0, 100);
+        return Math.Clamp(percent, min: 0, max: 100);
     }
 }

@@ -43,6 +43,7 @@ internal sealed class DiskPerformanceSampler
 
     private readonly Dictionary<string, DiskCounterState> _previousCounters =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly HashSet<string> _activeDeviceIDs = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Discards kernel-counter baselines after sampling has been paused.</summary>
@@ -60,10 +61,9 @@ internal sealed class DiskPerformanceSampler
         HashSet<string> usedDeviceIDs = new(StringComparer.OrdinalIgnoreCase);
         _activeDeviceIDs.Clear();
 
-        foreach (KeyValuePair<uint, DiskCandidateBuilder> pair in disksByNumber.OrderBy(static pair => pair.Key))
+        foreach ((uint physicalDiskNumber, DiskCandidateBuilder candidate) in
+                 disksByNumber.OrderBy(static pair => pair.Key))
         {
-            uint physicalDiskNumber = pair.Key;
-            DiskCandidateBuilder candidate = pair.Value;
             string physicalDiskPath = string.Create(
                 CultureInfo.InvariantCulture,
                 $@"\\.\PhysicalDrive{physicalDiskNumber}");
@@ -135,12 +135,10 @@ internal sealed class DiskPerformanceSampler
             || current.IdleTime < previous.IdleTime
             || current.ReadCount < previous.ReadCount
             || current.WriteCount < previous.WriteCount)
-        {
             return false;
-        }
 
         long queryTimeDelta = current.QueryTime - previous.QueryTime;
-        long idleTimeDelta = Math.Clamp(current.IdleTime - previous.IdleTime, 0, queryTimeDelta);
+        long idleTimeDelta = Math.Clamp(current.IdleTime - previous.IdleTime, min: 0, queryTimeDelta);
         double elapsedSeconds = queryTimeDelta / HundredNanosecondsPerSecond;
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds <= 0) return false;
 
@@ -148,10 +146,10 @@ internal sealed class DiskPerformanceSampler
         double readBytesPerSecond = (current.BytesRead - previous.BytesRead) / elapsedSeconds;
         double writeBytesPerSecond = (current.BytesWritten - previous.BytesWritten) / elapsedSeconds;
         ulong operationCount = (ulong)(current.ReadCount - previous.ReadCount)
-                               + current.WriteCount - previous.WriteCount;
+            + current.WriteCount - previous.WriteCount;
         double averageResponseTimeMilliseconds = operationCount == 0
             ? 0
-            : ((current.ReadTime - previous.ReadTime)
+            : (current.ReadTime - previous.ReadTime
                + (current.WriteTime - previous.WriteTime))
               / HundredNanosecondsPerMillisecond
               / operationCount;
@@ -159,15 +157,13 @@ internal sealed class DiskPerformanceSampler
             || !double.IsFinite(readBytesPerSecond)
             || !double.IsFinite(writeBytesPerSecond)
             || !double.IsFinite(averageResponseTimeMilliseconds))
-        {
             return false;
-        }
 
         delta = new DiskPerformanceDelta(
-            Math.Clamp(activeTimePercent, 0, 100),
-            Math.Max(0, readBytesPerSecond),
-            Math.Max(0, writeBytesPerSecond),
-            Math.Max(0, averageResponseTimeMilliseconds));
+            Math.Clamp(activeTimePercent, min: 0, max: 100),
+            Math.Max(val1: 0, readBytesPerSecond),
+            Math.Max(val1: 0, writeBytesPerSecond),
+            Math.Max(val1: 0, averageResponseTimeMilliseconds));
         return true;
     }
 
@@ -186,28 +182,24 @@ internal sealed class DiskPerformanceSampler
     internal static uint[] EnumeratePhysicalDiskNumbers()
     {
         int bufferLength = InitialDeviceNameBufferLength;
-        while (bufferLength <= MaximumDeviceNameBufferLength)
+        while (true)
         {
             char[] deviceNames = new char[bufferLength];
-            uint characterCount = QueryDosDeviceW(null, deviceNames, (uint)deviceNames.Length);
+            uint characterCount = QueryDosDeviceW(deviceName: null, deviceNames, (uint)deviceNames.Length);
             if (characterCount > 0)
             {
                 int validLength = Math.Min(deviceNames.Length, checked((int)characterCount));
-                return ParsePhysicalDiskNumbers(deviceNames.AsSpan(0, validLength));
+                return ParsePhysicalDiskNumbers(deviceNames.AsSpan(start: 0, validLength));
             }
 
             if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
                 || bufferLength == MaximumDeviceNameBufferLength)
-            {
                 return [];
-            }
 
             bufferLength = Math.Min(
                 checked(bufferLength * 2),
                 MaximumDeviceNameBufferLength);
         }
-
-        return [];
     }
 
     /// <summary>Parses, de-duplicates, and sorts PhysicalDrive names from a DOS-device multi-string.</summary>
@@ -229,9 +221,7 @@ internal sealed class DiskPerformanceSampler
                     NumberStyles.None,
                     CultureInfo.InvariantCulture,
                     out uint physicalDiskNumber))
-            {
                 physicalDiskNumbers.Add(physicalDiskNumber);
-            }
 
             position += nameLength + 1;
         }
@@ -258,9 +248,7 @@ internal sealed class DiskPerformanceSampler
                 using SafeFileHandle volumeHandle = OpenDevice(volumePath);
                 if (volumeHandle.IsInvalid
                     || !TryReadStorageDeviceNumber(volumeHandle, out STORAGE_DEVICE_NUMBER deviceNumber))
-                {
                     continue;
-                }
 
                 if (!disksByNumber.TryGetValue(deviceNumber.DeviceNumber, out DiskCandidateBuilder? candidate))
                 {
@@ -274,21 +262,20 @@ internal sealed class DiskPerformanceSampler
                     ToUnsigned(drive.AvailableFreeSpace));
             }
             catch (Exception exception) when (exception is IOException
-                                              or UnauthorizedAccessException
-                                              or ArgumentException)
+                                                  or UnauthorizedAccessException
+                                                  or ArgumentException)
             {
                 // A volume can be removed or become unavailable during enumeration
                 TADNLog.LogDebug(
                     $"DiskPerformanceSampler skipped volume '{drive.Name}': {exception.Message}");
             }
         }
-
     }
 
     private static bool TryCreateVolumeDevicePath(string driveName, out string devicePath)
     {
         string root = driveName.Trim();
-        if (root.Length >= 2 && root[1] == ':')
+        if (root is [_, ':', ..])
         {
             devicePath = @"\\.\" + root[..2];
             return true;
@@ -301,11 +288,11 @@ internal sealed class DiskPerformanceSampler
     private static SafeFileHandle OpenDevice(string path) =>
         CreateFileW(
             path,
-            0,
+            desiredAccess: 0,
             FileShareRead | FileShareWrite | FileShareDelete,
             IntPtr.Zero,
             OpenExisting,
-            0,
+            flagsAndAttributes: 0,
             IntPtr.Zero);
 
     private static bool TryReadStorageDeviceNumber(
@@ -315,7 +302,7 @@ internal sealed class DiskPerformanceSampler
             handle,
             IOCTLStorageGetDeviceNumber,
             IntPtr.Zero,
-            0,
+            inputBufferSize: 0,
             out deviceNumber,
             (uint)Marshal.SizeOf<STORAGE_DEVICE_NUMBER>(),
             out uint bytesReturned,
@@ -325,19 +312,19 @@ internal sealed class DiskPerformanceSampler
     private static DiskIdentity ReadDiskIdentity(SafeFileHandle handle, uint physicalDiskNumber)
     {
         byte[] query = new byte[12];
-        BitConverter.GetBytes(StorageDeviceProperty).CopyTo(query, 0);
+        BitConverter.GetBytes(StorageDeviceProperty).CopyTo(query, index: 0);
         BitConverter.GetBytes(PropertyStandardQuery).CopyTo(query, sizeof(int));
         byte[] descriptor = new byte[StorageDescriptorBufferSize];
         bool hasDeviceDescriptor = DeviceIoControlByteBuffers(
-                handle,
-                IOCTLStorageQueryProperty,
-                query,
-                (uint)query.Length,
-                descriptor,
-                (uint)descriptor.Length,
-                out uint bytesReturned,
-                IntPtr.Zero)
-            && bytesReturned >= 36;
+                                       handle,
+                                       IOCTLStorageQueryProperty,
+                                       query,
+                                       (uint)query.Length,
+                                       descriptor,
+                                       (uint)descriptor.Length,
+                                       out uint bytesReturned,
+                                       IntPtr.Zero)
+                                   && bytesReturned >= 36;
 
         string vendor = string.Empty;
         string product = string.Empty;
@@ -345,14 +332,14 @@ internal sealed class DiskPerformanceSampler
         string busName = "Disk";
         if (hasDeviceDescriptor)
         {
-            vendor = ReadDescriptorString(descriptor, bytesReturned, 12);
-            product = ReadDescriptorString(descriptor, bytesReturned, 16);
-            serial = ReadDescriptorString(descriptor, bytesReturned, 24);
-            busName = ResolveBusType(BitConverter.ToInt32(descriptor, 28));
+            vendor = ReadDescriptorString(descriptor, bytesReturned, offsetFieldOffset: 12);
+            product = ReadDescriptorString(descriptor, bytesReturned, offsetFieldOffset: 16);
+            serial = ReadDescriptorString(descriptor, bytesReturned, offsetFieldOffset: 24);
+            busName = ResolveBusType(BitConverter.ToInt32(descriptor, startIndex: 28));
         }
 
         string name = string.Join(
-            " ",
+            separator: " ",
             new[] { vendor, product }.Where(static value => value.Length > 0));
         if (name.Length == 0)
             name = string.Create(CultureInfo.InvariantCulture, $"Disk {physicalDiskNumber}");
@@ -360,13 +347,9 @@ internal sealed class DiskPerformanceSampler
         string page83DeviceID = ReadPage83DeviceID(handle);
         string deviceID;
         if (page83DeviceID.Length > 0)
-        {
             deviceID = page83DeviceID;
-        }
         else if (serial.Length > 0)
-        {
             deviceID = "disk:" + NormalizeIdentity(busName) + ":" + NormalizeIdentity(serial);
-        }
         else
         {
             deviceID = string.Create(
@@ -380,7 +363,7 @@ internal sealed class DiskPerformanceSampler
     private static string ReadPage83DeviceID(SafeFileHandle handle)
     {
         byte[] query = new byte[12];
-        BitConverter.GetBytes(StorageDeviceIDProperty).CopyTo(query, 0);
+        BitConverter.GetBytes(StorageDeviceIDProperty).CopyTo(query, index: 0);
         BitConverter.GetBytes(PropertyStandardQuery).CopyTo(query, sizeof(int));
         byte[] header = new byte[StorageDescriptorHeaderSize];
         if (!DeviceIoControlByteBuffers(
@@ -393,16 +376,12 @@ internal sealed class DiskPerformanceSampler
                 out uint headerBytesReturned,
                 IntPtr.Zero)
             || headerBytesReturned < StorageDescriptorHeaderSize)
-        {
             return string.Empty;
-        }
 
         uint descriptorSize = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(sizeof(uint)));
-        if (descriptorSize < StorageDeviceIDDescriptorHeaderSize
-            || descriptorSize > MaximumStorageDeviceIDDescriptorSize)
-        {
+        if (descriptorSize is < StorageDeviceIDDescriptorHeaderSize
+            or > MaximumStorageDeviceIDDescriptorSize)
             return string.Empty;
-        }
 
         byte[] descriptor = new byte[descriptorSize];
         if (!DeviceIoControlByteBuffers(
@@ -414,12 +393,10 @@ internal sealed class DiskPerformanceSampler
                 (uint)descriptor.Length,
                 out uint bytesReturned,
                 IntPtr.Zero))
-        {
             return string.Empty;
-        }
 
         int validLength = Math.Min(descriptor.Length, checked((int)bytesReturned));
-        return TryCreatePage83DeviceID(descriptor.AsSpan(0, validLength), out string deviceID)
+        return TryCreatePage83DeviceID(descriptor.AsSpan(start: 0, validLength), out string deviceID)
             ? deviceID
             : string.Empty;
     }
@@ -435,9 +412,7 @@ internal sealed class DiskPerformanceSampler
         uint declaredSize = BinaryPrimitives.ReadUInt32LittleEndian(descriptor[sizeof(uint)..]);
         if (declaredSize < StorageDeviceIDDescriptorHeaderSize
             || declaredSize > descriptor.Length)
-        {
             return false;
-        }
 
         uint identifierCount = BinaryPrimitives.ReadUInt32LittleEndian(descriptor[(sizeof(uint) * 2)..]);
         int validLength = checked((int)declaredSize);
@@ -489,9 +464,7 @@ internal sealed class DiskPerformanceSampler
 
             if (nextOffset < StorageIdentifierHeaderSize + identifierSize
                 || nextOffset > validLength - identifierOffset)
-            {
                 return false;
-            }
             identifierOffset += nextOffset;
         }
 
@@ -517,8 +490,10 @@ internal sealed class DiskPerformanceSampler
     {
         for (int byteIndex = 0; byteIndex < value.Length; byteIndex++)
         {
-            if (value[byteIndex] != 0) return true;
+            if (value[byteIndex] != 0)
+                return true;
         }
+
         return false;
     }
 
@@ -579,15 +554,13 @@ internal sealed class DiskPerformanceSampler
                 handle,
                 IOCTLDiskGetDriveGeometryEx,
                 IntPtr.Zero,
-                0,
+                inputBufferSize: 0,
                 geometry,
                 (uint)geometry.Length,
                 out uint bytesReturned,
                 IntPtr.Zero)
             || bytesReturned < DiskSizeOffset + sizeof(long))
-        {
             return fallback;
-        }
 
         return ToUnsigned(BitConverter.ToInt64(geometry, DiskSizeOffset));
     }
@@ -599,7 +572,7 @@ internal sealed class DiskPerformanceSampler
             handle,
             IOCTLDiskPerformance,
             IntPtr.Zero,
-            0,
+            inputBufferSize: 0,
             out counters,
             (uint)Marshal.SizeOf<DISK_PERFORMANCE>(),
             out uint bytesReturned,
@@ -734,7 +707,7 @@ internal sealed class DiskPerformanceSampler
             AvailableBytes = SaturatingAdd(AvailableBytes, availableBytes);
         }
 
-        public string GetVolumeNames() => string.Join(", ", _volumeNames);
+        public string GetVolumeNames() => string.Join(separator: ", ", _volumeNames);
 
         private static ulong SaturatingAdd(ulong left, ulong right) =>
             left > ulong.MaxValue - right ? ulong.MaxValue : left + right;
@@ -764,7 +737,7 @@ internal sealed class DiskPerformanceSampler
         public static DiskIdentity Fallback(uint physicalDiskNumber) => new(
             string.Create(CultureInfo.InvariantCulture, $"disk:physical:{physicalDiskNumber}"),
             string.Create(CultureInfo.InvariantCulture, $"Disk {physicalDiskNumber}"),
-            "Disk");
+            DeviceType: "Disk");
     }
 
     private readonly record struct DiskCounterState(DiskPerformanceCounters Counters);

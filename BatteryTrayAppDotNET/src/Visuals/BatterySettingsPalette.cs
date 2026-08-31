@@ -27,8 +27,8 @@ internal static class BatterySettingsPalette
             resolvedTheme.CloseButtonHover.For(isLight),
             resolvedTheme.CloseButtonPressed.For(isLight),
             resolvedTheme.CloseButtonGlyphActive.For(isLight),
-            hoverDeep: resolvedTheme.HoverDeep.For(isLight),
-            pressedDeep: resolvedTheme.PressedDeep.For(isLight),
-            controlBackgroundDeep: resolvedTheme.ControlBackgroundDeep.For(isLight));
+            resolvedTheme.HoverDeep.For(isLight),
+            resolvedTheme.PressedDeep.For(isLight),
+            resolvedTheme.ControlBackgroundDeep.For(isLight));
     }
 }

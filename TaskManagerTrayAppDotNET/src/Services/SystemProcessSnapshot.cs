@@ -48,15 +48,13 @@ internal sealed class SystemProcessSnapshot : IDisposable
             && TryCaptureCore(
                 destination,
                 SystemFullProcessInformation,
-                true))
-        {
+                hasFullProcessInformation: true))
             return true;
-        }
 
         return TryCaptureCore(
             destination,
             SystemProcessInformation,
-            false);
+            hasFullProcessInformation: false);
     }
 
     private bool TryCaptureCore(
@@ -85,6 +83,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     requiredLength > 0 ? requiredLength : _bufferSize,
                     hasFullProcessInformation);
             }
+
             if (!IsBufferSizeStatus(status) || _bufferSize >= MaximumBufferSize)
                 return false;
 
@@ -118,7 +117,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
                 int threadEntrySize = hasFullProcessInformation
                     ? ExtendedThreadEntrySize
                     : ThreadEntrySize;
-                int availableThreadCount = Math.Max(0, (entryLength - ProcessHeaderSize) / threadEntrySize);
+                int availableThreadCount = Math.Max(val1: 0, (entryLength - ProcessHeaderSize) / threadEntrySize);
                 int threadCount = (int)Math.Min(process.NumberOfThreads, (uint)availableThreadCount);
                 bool hasDiskCounters = TryReadDiskBytes(
                     entryAddress,
@@ -136,7 +135,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     process.CycleTime,
                     ToNonNegativeLong(process.WorkingSetSize),
                     ToNonNegativeLong(process.PeakWorkingSetSize),
-                    Math.Max(0, process.WorkingSetPrivateSize),
+                    Math.Max(val1: 0, process.WorkingSetPrivateSize),
                     ToNonNegativeLong(process.PrivatePageCount),
                     ToNonNegativeLong(process.QuotaPagedPoolUsage),
                     ToNonNegativeLong(process.QuotaNonPagedPoolUsage),
@@ -247,9 +246,8 @@ internal sealed class SystemProcessSnapshot : IDisposable
             return string.Empty;
 
         return Marshal.PtrToStringUni(
-                   nativeProcess.ImageName.Buffer,
-                   nativeProcess.ImageName.Length / sizeof(char))
-               ?? string.Empty;
+            nativeProcess.ImageName.Buffer,
+            nativeProcess.ImageName.Length / sizeof(char));
     }
 
     private void EnsureBuffer(int requiredSize)
@@ -271,7 +269,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
     }
 
     private static long ToNonNegativeLong(nuint value) =>
-        value > long.MaxValue ? long.MaxValue : (long)value;
+        (ulong)value > long.MaxValue ? long.MaxValue : (long)value;
 
     private static ulong ToNonNegativeUInt64(long value) => value <= 0 ? 0 : (ulong)value;
 
@@ -288,7 +286,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
     private static long SaturatingAdd(long left, long right)
     {
-        if (left <= 0) return Math.Max(0, right);
+        if (left <= 0) return Math.Max(val1: 0, right);
         if (right <= 0) return left;
         return left > long.MaxValue - right ? long.MaxValue : left + right;
     }

@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -74,7 +73,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             });
             toggle.HorizontalAlignment = HorizontalAlignment.Center;
             toggle.IsVisible = showLeft;
-            Grid.SetColumn(toggle, 0);
+            Grid.SetColumn(toggle, value: 0);
             row.Children.Add(toggle);
         }
 
@@ -88,7 +87,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             });
             toggle.HorizontalAlignment = HorizontalAlignment.Center;
             toggle.IsVisible = showRight;
-            Grid.SetColumn(toggle, 1);
+            Grid.SetColumn(toggle, value: 1);
             row.Children.Add(toggle);
         }
 
@@ -120,9 +119,9 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         playback.HorizontalAlignment = HorizontalAlignment.Center;
         recording.HorizontalAlignment = HorizontalAlignment.Center;
         pair.Children.Add(playback);
-        Grid.SetColumn(recording, 1);
+        Grid.SetColumn(recording, value: 1);
         pair.Children.Add(recording);
-        Grid.SetColumn(pair, 1);
+        Grid.SetColumn(pair, value: 1);
         grid.Children.Add(pair);
         return grid;
     }
@@ -240,8 +239,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             color.LightHex = null;
             color.DarkHex = null;
             Save();
-            light.SetColor(null, lightFallback);
-            dark.SetColor(null, darkFallback);
+            light.SetColor(color: null, lightFallback);
+            dark.SetColor(color: null, darkFallback);
             RefreshPalette();
         };
 

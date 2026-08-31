@@ -45,7 +45,7 @@ public static class TrayAppDotNETWindowPrimer
                 TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
                 TrayAppDotNETWarmWindowDefaults.OffscreenPosition);
 
-            ((Window)window).Show();
+            window.Show();
             window.UpdateLayout();
 
             await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Loaded);

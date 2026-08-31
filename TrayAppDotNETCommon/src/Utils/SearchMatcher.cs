@@ -25,7 +25,7 @@ public static class SearchMatcher
         string normalizedCandidate = Normalize(candidate);
         string normalizedQuery = Normalize(query);
         if (string.IsNullOrWhiteSpace(normalizedQuery))
-            return new SearchMatch(true, 0);
+            return new SearchMatch(IsMatch: true, Score: 0);
 
         if (string.IsNullOrWhiteSpace(normalizedCandidate))
             return SearchMatch.NoMatch;
@@ -40,7 +40,7 @@ public static class SearchMatcher
             totalScore += tokenScore;
         }
 
-        return new SearchMatch(true, totalScore);
+        return new SearchMatch(IsMatch: true, totalScore);
     }
 
     /// <summary>
@@ -187,7 +187,7 @@ public static class SearchMatcher
                 firstMatch = i;
 
             if (previousMatch >= 0)
-                gapTotal += Math.Max(0, i - previousMatch - 1);
+                gapTotal += Math.Max(val1: 0, i - previousMatch - 1);
 
             previousMatch = i;
             tokenIndex++;
@@ -207,5 +207,5 @@ public static class SearchMatcher
 /// </summary>
 public readonly record struct SearchMatch(bool IsMatch, int Score)
 {
-    public static SearchMatch NoMatch { get; } = new(false, int.MinValue);
+    public static SearchMatch NoMatch { get; } = new(IsMatch: false, int.MinValue);
 }

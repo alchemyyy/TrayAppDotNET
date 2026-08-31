@@ -63,8 +63,8 @@ public abstract class AppSettingsCommon(
     int updateCheckIntervalDefaultMs,
     TrayAppDotNETRenderingBackend renderingBackendDefault = TrayAppDotNETRenderingBackend.GPUPreferred)
     : INotifyPropertyChanged,
-    ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, ITrayXmlSerializationCallbacks
+        ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
+        ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, ITrayXmlSerializationCallbacks
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -60,7 +60,8 @@ public static class DebugUIProvenance
         AvaloniaProperty property,
         object? value,
         DebugPropertyAssignmentOperation operation = DebugPropertyAssignmentOperation.CLRSetter,
-        [CallerArgumentExpression(nameof(value))] string valueExpression = "",
+        [CallerArgumentExpression(nameof(value))]
+        string valueExpression = "",
         [CallerFilePath] string sourceFilePath = "",
         [CallerLineNumber] int sourceLine = 0,
         [CallerMemberName] string sourceMember = "",
@@ -78,7 +79,7 @@ public static class DebugUIProvenance
             valueExpression,
             sourceFilePath,
             sourceLine,
-            0,
+            sourceColumn: 0,
             sourceMember,
             resourceKey);
 #endif

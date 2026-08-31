@@ -1,5 +1,5 @@
-using NetworkTrayAppDotNET.Models;
 using Windows.Networking.Connectivity;
+using NetworkTrayAppDotNET.Models;
 
 namespace NetworkTrayAppDotNET.Services;
 
@@ -26,7 +26,7 @@ public sealed class NetworkMonitor : IDisposable
     public void Initialize()
     {
         if (Volatile.Read(ref _disposed) != 0) return;
-        if (Interlocked.Exchange(ref _initialized, 1) != 0) return;
+        if (Interlocked.Exchange(ref _initialized, value: 1) != 0) return;
 
         try
         {
@@ -41,7 +41,7 @@ public sealed class NetworkMonitor : IDisposable
                 TADNLog.Log($"NetworkMonitor.Initialize unsubscribe: {unsubscribeException.Message}");
             }
 
-            Interlocked.Exchange(ref _initialized, 0);
+            Interlocked.Exchange(ref _initialized, value: 0);
             TADNLog.Log($"NetworkMonitor.Initialize: {ex.Message}");
             throw;
         }
@@ -61,7 +61,7 @@ public sealed class NetworkMonitor : IDisposable
         catch (Exception ex)
         {
             TADNLog.Log($"NetworkMonitor.RefreshState: {ex.Message}");
-            UpdateState(NetworkIconState.NoNetwork, 0, string.Empty, [], previousState);
+            UpdateState(NetworkIconState.NoNetwork, bars: 0, string.Empty, [], previousState);
         }
         finally
         {
@@ -74,7 +74,7 @@ public sealed class NetworkMonitor : IDisposable
         List<(string Name, bool IsWifi, bool HasInternet)> connections = [];
         ConnectionProfile? profile = NetworkInformation.GetInternetConnectionProfile();
         if (profile == null)
-            return new NetworkSnapshot(NetworkIconState.NoNetwork, 0, string.Empty, connections);
+            return new NetworkSnapshot(NetworkIconState.NoNetwork, Bars: 0, string.Empty, connections);
 
         NetworkConnectivityLevel connectivity = profile.GetNetworkConnectivityLevel();
         string networkName = profile.ProfileName?.Trim() ?? string.Empty;
@@ -96,7 +96,7 @@ public sealed class NetworkMonitor : IDisposable
 
         if (signalBars != null)
         {
-            int bars = Math.Clamp((int)signalBars.Value, 1, 4);
+            int bars = Math.Clamp((int)signalBars.Value, min: 1, max: 4);
             bool hasInternet = connectivity == NetworkConnectivityLevel.InternetAccess;
             NetworkIconState state = (hasInternet, bars) switch
             {
@@ -122,7 +122,7 @@ public sealed class NetworkMonitor : IDisposable
                 or NetworkConnectivityLevel.ConstrainedInternetAccess => NetworkIconState.EthernetNoInternet,
             _ => NetworkIconState.EthernetDisconnected
         };
-        return new NetworkSnapshot(ethernetState, 0, networkName, connections);
+        return new NetworkSnapshot(ethernetState, Bars: 0, networkName, connections);
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed class NetworkMonitor : IDisposable
         {
             IEnumerable<string> entries = AllConnections.Select(c =>
                 $"{c.Name}\r\n{(c.HasInternet ? "Internet access" : "No internet")}");
-            return string.Join("\r\n\r\n", entries);
+            return string.Join(separator: "\r\n\r\n", entries);
         }
 
         return CurrentState switch
@@ -169,9 +169,9 @@ public sealed class NetworkMonitor : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
-        if (Interlocked.Exchange(ref _initialized, 0) != 0)
+        if (Interlocked.Exchange(ref _initialized, value: 0) != 0)
         {
             try { NetworkInformation.NetworkStatusChanged -= _networkHandler; }
             catch (Exception ex)

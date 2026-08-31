@@ -10,10 +10,13 @@ public abstract class TimeConstants : CommonTimeConstants
 {
     // Settings UI
     public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
+
     public new const int TrayMenuSubmenuShowDelayDefaultMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
+
     public new const int TrayMenuSubmenuShowDelayMinMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayMinMs;
+
     public new const int TrayMenuSubmenuShowDelayMaxMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayMaxMs;
 

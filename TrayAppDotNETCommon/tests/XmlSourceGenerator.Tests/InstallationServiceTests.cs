@@ -25,7 +25,7 @@ public sealed class InstallationServiceTests
             CreateStartMenuShortcut: false);
 
         string arguments = TrayAppDotNETInstallationService.BuildElevatedInstallArguments(
-            @"C:\staging folder\TestTrayAppDotNET.exe",
+            sourceExecutable: @"C:\staging folder\TestTrayAppDotNET.exe",
             buildNumber: 42,
             installOptions);
 
@@ -39,7 +39,7 @@ public sealed class InstallationServiceTests
     public void ExistingInstallCallPreservesDesktopShortcutBehavior()
     {
         using InstallationFixture fixture = new();
-        File.WriteAllText(fixture.LocalDesktopShortcutPath, "existing shortcut");
+        File.WriteAllText(fixture.LocalDesktopShortcutPath, contents: "existing shortcut");
 
         TrayAppDotNETInstallResult result = fixture.Service.ApplyInstallOptions(
             InstallScope.LocalAppData,
@@ -57,7 +57,7 @@ public sealed class InstallationServiceTests
     public void ExplicitOptionsRemoveUnselectedShellEntries()
     {
         using InstallationFixture fixture = new();
-        File.WriteAllText(fixture.LocalDesktopShortcutPath, "existing shortcut");
+        File.WriteAllText(fixture.LocalDesktopShortcutPath, contents: "existing shortcut");
         TrayAppDotNETInstallOptions installOptions = new(
             CreateDesktopShortcut: false,
             CreateStartMenuShortcut: false);
@@ -84,7 +84,7 @@ public sealed class InstallationServiceTests
             enabled: true);
 
         Assert.False(result.Success);
-        Assert.Contains("installed executable is missing", result.ErrorMessage ?? string.Empty);
+        Assert.Contains(expectedSubstring: "installed executable is missing", result.ErrorMessage ?? string.Empty);
         Assert.False(File.Exists(fixture.LocalDesktopShortcutPath));
     }
 
@@ -92,7 +92,7 @@ public sealed class InstallationServiceTests
     public void DesktopShortcutCreatesAndRemovesLocalShortcut()
     {
         using InstallationFixture fixture = new();
-        File.WriteAllText(fixture.Layout.LocalAppDataInstallExecutable, "test executable");
+        File.WriteAllText(fixture.Layout.LocalAppDataInstallExecutable, contents: "test executable");
 
         RunOnStaThread(() =>
         {
@@ -146,45 +146,44 @@ public sealed class InstallationServiceTests
         {
             _rootDirectory = Path.Combine(
                 Path.GetTempPath(),
-                "TrayAppDotNET-install-service-tests",
+                path2: "TrayAppDotNET-install-service-tests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_rootDirectory);
 
-            string localDirectory = Path.Combine(_rootDirectory, "local");
-            string systemDirectory = Path.Combine(_rootDirectory, "system");
+            string localDirectory = Path.Combine(_rootDirectory, path2: "local");
+            string systemDirectory = Path.Combine(_rootDirectory, path2: "system");
             Directory.CreateDirectory(localDirectory);
             Directory.CreateDirectory(systemDirectory);
 
             Layout = new TrayAppDotNETInstallLayout(
-                "TestTrayAppDotNET",
-                "TrayAppDotNET",
+                ApplicationName: "TestTrayAppDotNET",
+                SharedRootFolderName: "TrayAppDotNET",
                 localDirectory,
                 systemDirectory,
-                "TestTrayAppDotNET.exe");
-            LocalDesktopShortcutPath = Path.Combine(_rootDirectory, "local-desktop.lnk");
-            string systemDesktopShortcutPath = Path.Combine(_rootDirectory, "system-desktop.lnk");
+                InstalledExecutableFileName: "TestTrayAppDotNET.exe");
+            LocalDesktopShortcutPath = Path.Combine(_rootDirectory, path2: "local-desktop.lnk");
+            string systemDesktopShortcutPath = Path.Combine(_rootDirectory, path2: "system-desktop.lnk");
 
             TrayAppDotNETInstallIdentity identity = new(
                 Layout.ApplicationName,
-                "Test Publisher",
-                null,
-                Path.Combine(_rootDirectory, "settings"),
-                Path.Combine(_rootDirectory, "startup.lnk"),
-                @"Software\TrayAppDotNETTests",
-                null);
+                Publisher: "Test Publisher",
+                HelpLink: null,
+                Path.Combine(_rootDirectory, path2: "settings"),
+                Path.Combine(_rootDirectory, path2: "startup.lnk"),
+                LegacyRunKeyRegistryPath: @"Software\TrayAppDotNETTests",
+                Log: null);
             TrayAppDotNETDesktopShortcutOptions desktopOptions = new(
                 Layout.ApplicationName,
                 Layout)
             {
-                LocalShortcutPath = LocalDesktopShortcutPath,
-                SystemShortcutPath = systemDesktopShortcutPath
+                LocalShortcutPath = LocalDesktopShortcutPath, SystemShortcutPath = systemDesktopShortcutPath
             };
             TrayAppDotNETInstallationOptions serviceOptions = new(
                 identity,
                 Layout,
                 new TrayAppDotNETInstallPayload([], [], [], []),
                 CurrentBuildNumber: 1,
-                SyncStartMenu: (scope, allUsers) => LastStartMenuSync = (scope, allUsers),
+                (scope, allUsers) => LastStartMenuSync = (scope, allUsers),
                 DesktopShortcutOptions: desktopOptions);
             Service = new TrayAppDotNETInstallationService(serviceOptions);
         }

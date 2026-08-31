@@ -107,13 +107,13 @@ internal static class TaskManagerTrayGraphSampler
                     valuePoints,
                     tangents,
                     samplePosition),
-                0,
-                100);
+                min: 0,
+                max: 100);
         }
 
         return samples;
     }
 
     private static double NormalizePercent(double value) =>
-        double.IsFinite(value) ? Math.Clamp(value, 0, 100) : 0;
+        double.IsFinite(value) ? Math.Clamp(value, min: 0, max: 100) : 0;
 }

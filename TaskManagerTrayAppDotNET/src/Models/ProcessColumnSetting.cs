@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Xml.Serialization;
 using TaskManagerTrayAppDotNET.UI;
 
@@ -23,7 +24,12 @@ public sealed class ProcessColumnSetting
     public double Width { get; set; }
 
     [XmlAttribute]
-    public string Nickname { get; set; } = string.Empty;
+    [AllowNull]
+    public string Nickname
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = string.Empty;
 
     [XmlAttribute]
     public bool ShowPercentSuffix { get; set; } = true;
@@ -35,7 +41,12 @@ public sealed class ProcessColumnSetting
     public ProcessMemoryUnit MemoryUnit { get; set; } = ProcessMemoryUnit.Kilobytes;
 
     [XmlAttribute]
-    public string MemorySuffix { get; set; } = "K";
+    [AllowNull]
+    public string MemorySuffix
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = "K";
 
     [XmlAttribute]
     public bool ShowUserNamePrefix { get; set; }
@@ -52,9 +63,7 @@ internal static class ProcessColumnSettings
         {
             settings.Add(new ProcessColumnSetting
             {
-                Column = definition.Kind,
-                Visible = definition.DefaultVisible,
-                Width = definition.DefaultWidth
+                Column = definition.Kind, Visible = definition.DefaultVisible, Width = definition.DefaultWidth
             });
         }
 
@@ -84,9 +93,7 @@ internal static class ProcessColumnSettings
 
             normalized.Add(new ProcessColumnSetting
             {
-                Column = definition.Kind,
-                Visible = definition.DefaultVisible,
-                Width = definition.DefaultWidth
+                Column = definition.Kind, Visible = definition.DefaultVisible, Width = definition.DefaultWidth
             });
         }
 
@@ -106,11 +113,13 @@ internal static class ProcessColumnSettings
             Column = setting.Column,
             Visible = setting.Visible,
             Width = setting.Width,
-            Nickname = setting.Nickname ?? string.Empty,
+            Nickname = setting.Nickname,
             ShowPercentSuffix = setting.ShowPercentSuffix,
             ShowDecimalUsage = setting.ShowDecimalUsage,
             MemoryUnit = memoryUnit,
-            MemorySuffix = setting.MemorySuffix ?? GetDefaultMemorySuffix(memoryUnit),
+            MemorySuffix = string.IsNullOrEmpty(setting.MemorySuffix)
+                ? GetDefaultMemorySuffix(memoryUnit)
+                : setting.MemorySuffix,
             ShowUserNamePrefix = setting.ShowUserNamePrefix
         };
     }
@@ -160,7 +169,7 @@ internal static class ProcessColumnSettings
 
         if (sourceVisibleIndex < 0 || visible.Count < 2) return normalized;
 
-        int targetVisibleIndex = Math.Clamp(insertionIndex, 0, visible.Count - 1);
+        int targetVisibleIndex = Math.Clamp(insertionIndex, min: 0, visible.Count - 1);
         if (targetVisibleIndex == sourceVisibleIndex) return normalized;
 
         ProcessColumnSetting moved = visible[sourceVisibleIndex];

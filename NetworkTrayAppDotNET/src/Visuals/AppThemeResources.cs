@@ -4,14 +4,14 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace NetworkTrayAppDotNET.Visuals;
 
-public sealed partial class AppThemeResources : ResourceDictionary
+public sealed class AppThemeResources : ResourceDictionary
 {
     /// <summary>Initializes the compiled network theme-color dictionary.</summary>
     public AppThemeResources() => AvaloniaXamlLoader.Load(this);
 
     /// <summary>Reads a network theme color from this dictionary.</summary>
     public ThemeColor Color(string name) =>
-        AppThemeResourceReader.Color(this, "NetworkAppTheme", name);
+        AppThemeResourceReader.Color(this, prefix: "NetworkAppTheme", name);
 }
 
 internal static class AppThemeColorCatalog
@@ -19,7 +19,7 @@ internal static class AppThemeColorCatalog
 #if DEBUG
     private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
         AppThemeHotReloadStore<AppThemeResources>.Create(
-            "Network",
+            catalogName: "Network",
             static () => new AppThemeResources());
 #else
     private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());

@@ -1,5 +1,4 @@
 using BrightnessTrayAppDotNET.Utils;
-
 using TrayAppDotNETCommon.Serialization;
 
 namespace BrightnessTrayAppDotNET.Services;
@@ -92,9 +91,7 @@ public sealed class ProfileManager : IDisposable
             _ownsKnownDisplays = true;
         }
         else
-        {
             _knownDisplays = knownDisplays;
-        }
 
         // Ensure the store is populated even when the caller didn't pre-load it; idempotent if it was.
         _knownDisplays.Load();
@@ -183,7 +180,7 @@ public sealed class ProfileManager : IDisposable
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
             // Dispose every inner scope, even if one throws on flush - losing later flushes
             // because of an earlier handler exception would leave subsequent monitors in a
             // permanently-suspended state. Re-throw the first exception once the loop completes.
@@ -636,7 +633,7 @@ public sealed class ProfileManager : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         try { SaveCore(); }
         catch (Exception ex)
@@ -664,6 +661,6 @@ public sealed class ProfileManager : IDisposable
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "profiles.xml");
+        return Path.Combine(appFolder, path2: "profiles.xml");
     }
 }

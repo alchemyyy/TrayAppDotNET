@@ -37,8 +37,8 @@ internal static class AppServices
         InstallLayout,
         CreateInstallPayload(),
         BuildInfo.BuildNumber,
-        SyncStartMenu: StartMenu.Sync,
-        PostToUIThread: action => Dispatcher.UIThread.Post(action)));
+        StartMenu.Sync,
+        action => Dispatcher.UIThread.Post(action)));
 
     public static AppTheme? Theme { get; set; }
     public static AppSettings? Settings { get; set; }
@@ -52,7 +52,7 @@ internal static class AppServices
         TrayAppDotNETInstallFile[] requiredFiles =
         [
             .. payload.RequiredFiles,
-            new TrayAppDotNETInstallFile(Constants.KillHelperFileName)
+            new(Constants.KillHelperFileName)
         ];
         return payload with { RequiredFiles = requiredFiles };
     }

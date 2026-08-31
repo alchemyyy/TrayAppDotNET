@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Interop;
-
 using IAudioEndpointVolume = VolumeTrayAppDotNET.Interop.IAudioEndpointVolume;
 using IAudioEndpointVolumeCallback = VolumeTrayAppDotNET.Interop.IAudioEndpointVolumeCallback;
 using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
@@ -665,7 +664,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     public static string? TryExtractEndpointGuid(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
-        int separator = id.IndexOf("}.{", StringComparison.Ordinal);
+        int separator = id.IndexOf(value: "}.{", StringComparison.Ordinal);
         if (separator < 0) return null;
         return id[(separator + 2)..];
     }
@@ -701,7 +700,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// Promotes this endpoint to default (Console + Multimedia; Communications too when
     /// <see cref="AppSettings.SetDefaultCommsToDefault"/> is on). Off-loaded through
-    /// <see cref="RunPolicyConfigCall"/> because the audio service blocks hundreds of ms while it
+    /// <see cref="RunPolicyConfigCall(Action{IPolicyConfig}, string)"/> because the audio service blocks hundreds of ms while it
     /// fans out the role-change storm.
     /// </summary>
     internal void SetAsDefault()
@@ -739,7 +738,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// Mirrors mmsys.cpl Enable / Disable via IPolicyConfig. Off-loaded through
-    /// <see cref="RunPolicyConfigCall"/>; OnDeviceStateChanged drives the eventual State flip.
+    /// <see cref="RunPolicyConfigCall(Action{IPolicyConfig}, string)"/>; OnDeviceStateChanged drives the eventual State flip.
     /// </summary>
     internal void SetEnabled(bool enabled)
     {
@@ -789,9 +788,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // heuristic, no signal to synchronize against here.
             if (!wasDefault && !wasDefaultComms)
             {
-                client.SetEndpointVisibility(id, 0);
+                client.SetEndpointVisibility(id, isVisible: 0);
                 Thread.Sleep(TimeConstants.DeviceVisibilityToggleSettleDelayMs);
-                client.SetEndpointVisibility(id, 1);
+                client.SetEndpointVisibility(id, isVisible: 1);
                 return Task.CompletedTask;
             }
 
@@ -806,12 +805,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // ours" - the audio service may publish empty/null for new id when no
             // replacement exists, treat that as a valid demotion signal too.
             int seenPromotions = 0;
-            using ManualResetEventSlim promotionDone = new(false);
+            TaskCompletionSource promotionDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
             AudioDeviceManager.DefaultDeviceChangedRaw += OnPromotion;
             try
             {
-                client.SetEndpointVisibility(id, 0);
-                if (!promotionDone.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
+                client.SetEndpointVisibility(id, isVisible: 0);
+                if (!promotionDone.Task.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
                     TADNLog.Log($"AudioDevice.{callDescription}: timed out waiting for default-promotion fanout");
             }
             finally { AudioDeviceManager.DefaultDeviceChangedRaw -= OnPromotion; }
@@ -819,13 +818,13 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // Phase 2: re-enable. The audio service serializes IPolicyConfig calls so this queues
             // after the disable it just finished publishing - no inter-call sleep needed once
             // the fanout above completes.
-            client.SetEndpointVisibility(id, 1);
+            client.SetEndpointVisibility(id, isVisible: 1);
 
             // Phase 3: restore. Subscribe, issue SetDefaultEndpoint for each role we held, wait
             // for the matching "now default for R" callbacks. Predicate flipped: we want
             // callbacks where the new id IS ours.
             int seenRestores = 0;
-            using ManualResetEventSlim restoreDone = new(false);
+            TaskCompletionSource restoreDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
             AudioDeviceManager.DefaultDeviceChangedRaw += OnRestore;
             try
             {
@@ -837,7 +836,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
                 if (wasDefaultComms) client.SetDefaultEndpoint(id, ERole.eCommunications);
 
-                if (!restoreDone.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
+                if (!restoreDone.Task.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
                     TADNLog.Log($"AudioDevice.{callDescription}: timed out waiting for default-restore confirmation");
             }
             finally { AudioDeviceManager.DefaultDeviceChangedRaw -= OnRestore; }
@@ -851,7 +850,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 bool relevant = (wasDefault && r is ERole.eConsole or ERole.eMultimedia)
                                 || (wasDefaultComms && r == ERole.eCommunications);
                 if (!relevant) return;
-                if (Interlocked.Increment(ref seenPromotions) >= expected) promotionDone.Set();
+                if (Interlocked.Increment(ref seenPromotions) >= expected) promotionDone.TrySetResult();
             }
 
             void OnRestore(EDataFlow f, ERole r, string? newId)
@@ -861,7 +860,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 bool relevant = (wasDefault && r is ERole.eConsole or ERole.eMultimedia)
                                 || (wasDefaultComms && r == ERole.eCommunications);
                 if (!relevant) return;
-                if (Interlocked.Increment(ref seenRestores) >= expected) restoreDone.Set();
+                if (Interlocked.Increment(ref seenRestores) >= expected) restoreDone.TrySetResult();
             }
         }, callDescription);
     }
@@ -884,7 +883,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     // same single-flight gate and try/finally shell as the plain Action callers above.
     private void RunPolicyConfigCall(Func<IPolicyConfig, Task> body, string callDescription)
     {
-        if (Interlocked.CompareExchange(ref _policyConfigCallInFlight, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _policyConfigCallInFlight, value: 1, comparand: 0) != 0)
         {
             TADNLog.Log($"AudioDevice.{callDescription}: dropped (prior IPolicyConfig call still in flight)");
             return;
@@ -894,7 +893,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         {
             try { await body(PolicyConfigClient.Value).ConfigureAwait(false); }
             catch (Exception ex) { TADNLog.Log($"AudioDevice.{callDescription}: {ex.Message}"); }
-            finally { Interlocked.Exchange(ref _policyConfigCallInFlight, 0); }
+            finally { Interlocked.Exchange(ref _policyConfigCallInFlight, value: 0); }
         });
     }
 
@@ -903,7 +902,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         get => _volume;
         set
         {
-            float clamped = Math.Clamp(value, 0f, 1f);
+            float clamped = Math.Clamp(value, min: 0f, max: 1f);
             if (Math.Abs(clamped - _volume) < VolumeEqualityEpsilon) return;
             // No endpoint volume proxy on disabled / unplugged devices - bail before churning the UI.
             IAudioEndpointVolume? proxy = _endpointVolume;
@@ -1362,7 +1361,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
             // Notify bindings that volume/mute now have real values - the wrapper may have lived as
             // an inactive shell up to this point and the bound UI is showing the 0/false defaults.
-            RefreshEndpointVolumeState(forceNotify: true);
+            RefreshEndpointVolumeState(true);
 
             _volumeBridge = new EndpointVolumeBridge(this);
             endpointVolume.RegisterControlChangeNotify(_volumeBridge);
@@ -1423,7 +1422,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             endpointVolume.GetMute(out bool currentMuted);
             if (float.IsNaN(currentVolume) || float.IsInfinity(currentVolume)) return false;
 
-            volume = Math.Clamp(currentVolume, 0f, 1f);
+            volume = Math.Clamp(currentVolume, min: 0f, max: 1f);
             muted = currentMuted;
             return true;
         }
@@ -1498,13 +1497,20 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         if (endpointVolume != null && volumeBridge != null)
         {
             try { endpointVolume.UnregisterControlChangeNotify(volumeBridge); }
-            catch { }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"AudioDevice.ReleaseEndpointProxies: volume callback cleanup failed: {exception.Message}");
+            }
         }
 
         if (sessionManager != null && sessionBridge != null)
         {
             try { sessionManager.UnregisterSessionNotification(sessionBridge); }
-            catch { }
+            catch (Exception exception)
+            {
+                TADNLog.Log(
+                    $"AudioDevice.ReleaseEndpointProxies: session callback cleanup failed: {exception.Message}");
+            }
         }
 
         Safe.Release(endpointVolume);
@@ -1748,7 +1754,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         try
         {
             IAudioSessionControl2 control2 = (IAudioSessionControl2)control;
-            control2.GetSessionInstanceIdentifier(out string sessionInstanceID);
+            control2.GetSessionInstanceIdentifier(out string? sessionInstanceID);
             return sessionInstanceID ?? string.Empty;
         }
         catch
@@ -1822,7 +1828,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         _meterLerp.PinRawPeaksToSilence();
-        _meterLerp.OnNewSample(interpolationSteps: 1);
+        _meterLerp.OnNewSample(1);
     }
 
     private bool HasAnyActiveSession()
@@ -1988,7 +1994,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             ushort currentChannels = 2;
             byte[]? currentBlob = ReadCurrentFormatBlob();
             if (currentBlob is { Length: >= 18 })
-                currentChannels = BitConverter.ToUInt16(currentBlob, 2);
+                currentChannels = BitConverter.ToUInt16(currentBlob, startIndex: 2);
 
             // Channel-set candidates: the canonical mmsys.cpl layouts (mono / stereo / quad /
             // 5.1 / 7.1) unioned with whatever the endpoint currently reports, so a 3ch / 5ch
@@ -2058,15 +2064,19 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
             // Build the 64-byte KSDATAFORMAT header (audio PCM via WAVEFORMATEX specifier).
             ksDataPtr = Marshal.AllocHGlobal(64);
-            for (int i = 0; i < 64; i++) Marshal.WriteByte(ksDataPtr, i, 0);
-            Marshal.WriteInt32(ksDataPtr, 0, 64); // FormatSize
-            Marshal.Copy(KSConstants.KSDATAFORMAT_TYPE_AUDIO.ToByteArray(), 0, IntPtr.Add(ksDataPtr, 16), 16);
-            Marshal.Copy(PropertyKeys.KSDATAFORMAT_SUBTYPE_PCM.ToByteArray(), 0, IntPtr.Add(ksDataPtr, 32), 16);
-            Marshal.Copy(KSConstants.KSDATAFORMAT_SPECIFIER_WAVEFORMATEX.ToByteArray(), 0, IntPtr.Add(ksDataPtr, 48),
-                16);
+            for (int i = 0; i < 64; i++) Marshal.WriteByte(ksDataPtr, i, val: 0);
+            Marshal.WriteInt32(ksDataPtr, ofs: 0, val: 64); // FormatSize
+            Marshal.Copy(KSConstants.KSDATAFORMAT_TYPE_AUDIO.ToByteArray(), startIndex: 0,
+                IntPtr.Add(ksDataPtr, offset: 16), length: 16);
+            Marshal.Copy(PropertyKeys.KSDATAFORMAT_SUBTYPE_PCM.ToByteArray(), startIndex: 0,
+                IntPtr.Add(ksDataPtr, offset: 32), length: 16);
+            Marshal.Copy(KSConstants.KSDATAFORMAT_SPECIFIER_WAVEFORMATEX.ToByteArray(), startIndex: 0,
+                IntPtr.Add(ksDataPtr, offset: 48),
+                length: 16);
 
             // Call filter->vtable[3] (the "filter parts by KSDATAFORMAT" method).
-            int fhr = KSTopologyNative.CallFilterByDataFormat(filterPtr, ksDataPtr, 64, out enumeratorPtr);
+            int fhr = KSTopologyNative.CallFilterByDataFormat(filterPtr, ksDataPtr, ksDataByteCount: 64,
+                out enumeratorPtr);
             TADNLog.Log(
                 $"AudioDevice.QueryKsAudioDataRanges({FriendlyName}): filter->vtable[3] hr=0x{fhr:X8} enum=0x{enumeratorPtr.ToInt64():X}");
             if (fhr < 0 || enumeratorPtr == IntPtr.Zero) return null;
@@ -2113,7 +2123,8 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     foreach (int rate in rates16)
                     {
                         probed++;
-                        if (ProbeFormat(formatSupportPtr, (ushort)channels, 16, 16, (uint)rate))
+                        if (ProbeFormat(formatSupportPtr, (ushort)channels, validBits: 16, containerBits: 16,
+                                (uint)rate))
                         {
                             supported++;
                             accepted.Add((channels, 16, rate));
@@ -2127,8 +2138,10 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                         // and as packed 24-in-24 on most USB audio drivers (e.g. AT2020USB-X mic).
                         // Accept either - the union matches mmsys.cpl's behavior, verified against
                         // both device types via the FormatProbe test harness.
-                        bool ok = ProbeFormat(formatSupportPtr, (ushort)channels, 24, 32, (uint)rate)
-                                  || ProbeFormat(formatSupportPtr, (ushort)channels, 24, 24, (uint)rate);
+                        bool ok = ProbeFormat(formatSupportPtr, (ushort)channels, validBits: 24, containerBits: 32,
+                                      (uint)rate)
+                                  || ProbeFormat(formatSupportPtr, (ushort)channels, validBits: 24, containerBits: 24,
+                                      (uint)rate);
                         if (ok)
                         {
                             supported++;
@@ -2185,18 +2198,18 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         try
         {
             // Zero the header so SampleSize/Reserved/Flags are clean.
-            for (int i = 0; i < TotalSize; i++) Marshal.WriteByte(p, i, 0);
+            for (int i = 0; i < TotalSize; i++) Marshal.WriteByte(p, i, val: 0);
 
-            Marshal.WriteInt32(p, 0, TotalSize); // FormatSize
+            Marshal.WriteInt32(p, ofs: 0, TotalSize); // FormatSize
             // Flags / SampleSize / Reserved already zero from the wipe above.
 
             byte[] majorFormat = KSConstants.KSDATAFORMAT_TYPE_AUDIO.ToByteArray();
             byte[] subFormat = PropertyKeys.KSDATAFORMAT_SUBTYPE_PCM.ToByteArray();
             byte[] specifier = KSConstants.KSDATAFORMAT_SPECIFIER_WAVEFORMATEX.ToByteArray();
-            Marshal.Copy(majorFormat, 0, IntPtr.Add(p, 16), 16);
-            Marshal.Copy(subFormat, 0, IntPtr.Add(p, 32), 16);
-            Marshal.Copy(specifier, 0, IntPtr.Add(p, 48), 16);
-            Marshal.Copy(wfxBlob, 0, IntPtr.Add(p, KsDataFormatHeaderSize), WfxBlobSize);
+            Marshal.Copy(majorFormat, startIndex: 0, IntPtr.Add(p, offset: 16), length: 16);
+            Marshal.Copy(subFormat, startIndex: 0, IntPtr.Add(p, offset: 32), length: 16);
+            Marshal.Copy(specifier, startIndex: 0, IntPtr.Add(p, offset: 48), length: 16);
+            Marshal.Copy(wfxBlob, startIndex: 0, IntPtr.Add(p, KsDataFormatHeaderSize), WfxBlobSize);
 
             int hr = KSTopologyNative.CallIsFormatSupported(formatSupportPtr, p, TotalSize, out bool supported);
             return hr >= 0 && supported;
@@ -2232,7 +2245,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 IntPtr pBlob = Marshal.AllocHGlobal(blob.Length);
                 try
                 {
-                    Marshal.Copy(blob, 0, pBlob, blob.Length);
+                    Marshal.Copy(blob, startIndex: 0, pBlob, blob.Length);
                     int hr = client.SetDeviceFormat(id, pBlob, pBlob);
                     if (hr < 0)
                     {
@@ -2287,7 +2300,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         TADNLog.LogDebug(
             $"AudioDevice.DetectIsBluetooth: friendly='{friendlyName}' enumerator='{(enumerator.Length == 0 ? "<empty>" : enumerator)}'");
 
-        if (enumerator.StartsWith("BTH", StringComparison.OrdinalIgnoreCase)) return true;
+        if (enumerator.StartsWith(value: "BTH", StringComparison.OrdinalIgnoreCase)) return true;
 
         foreach (string token in BluetoothNameTokens)
         {
@@ -2400,16 +2413,16 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         };
 
         byte[] ext = new byte[40];
-        BitConverter.GetBytes(WAVE_FORMAT_EXTENSIBLE).CopyTo(ext, 0);
-        BitConverter.GetBytes(channels).CopyTo(ext, 2);
-        BitConverter.GetBytes(sampleRate).CopyTo(ext, 4);
-        BitConverter.GetBytes(avgBytesPerSec).CopyTo(ext, 8);
-        BitConverter.GetBytes(blockAlign).CopyTo(ext, 12);
-        BitConverter.GetBytes(containerBits).CopyTo(ext, 14);
-        BitConverter.GetBytes(EXTENSIBLE_CB_SIZE).CopyTo(ext, 16);
-        BitConverter.GetBytes(validBits).CopyTo(ext, 18);
-        BitConverter.GetBytes(mask).CopyTo(ext, 20);
-        PropertyKeys.KSDATAFORMAT_SUBTYPE_PCM.ToByteArray().CopyTo(ext, 24);
+        BitConverter.GetBytes(WAVE_FORMAT_EXTENSIBLE).CopyTo(ext, index: 0);
+        BitConverter.GetBytes(channels).CopyTo(ext, index: 2);
+        BitConverter.GetBytes(sampleRate).CopyTo(ext, index: 4);
+        BitConverter.GetBytes(avgBytesPerSec).CopyTo(ext, index: 8);
+        BitConverter.GetBytes(blockAlign).CopyTo(ext, index: 12);
+        BitConverter.GetBytes(containerBits).CopyTo(ext, index: 14);
+        BitConverter.GetBytes(EXTENSIBLE_CB_SIZE).CopyTo(ext, index: 16);
+        BitConverter.GetBytes(validBits).CopyTo(ext, index: 18);
+        BitConverter.GetBytes(mask).CopyTo(ext, index: 20);
+        PropertyKeys.KSDATAFORMAT_SUBTYPE_PCM.ToByteArray().CopyTo(ext, index: 24);
         return ext;
     }
 
@@ -2454,14 +2467,14 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         // WAVEFORMATEX is 18 bytes (16 fixed + 2 cbSize). Anything shorter can't be parsed.
         if (blob == null || blob.Length < 18) return null;
 
-        ushort formatTag = BitConverter.ToUInt16(blob, 0);
-        ushort channels = BitConverter.ToUInt16(blob, 2);
-        uint sampleRate = BitConverter.ToUInt32(blob, 4);
-        ushort bits = BitConverter.ToUInt16(blob, 14);
+        ushort formatTag = BitConverter.ToUInt16(blob, startIndex: 0);
+        ushort channels = BitConverter.ToUInt16(blob, startIndex: 2);
+        uint sampleRate = BitConverter.ToUInt32(blob, startIndex: 4);
+        ushort bits = BitConverter.ToUInt16(blob, startIndex: 14);
 
         if (formatTag == WAVE_FORMAT_EXTENSIBLE && blob.Length >= 22)
         {
-            ushort valid = BitConverter.ToUInt16(blob, 18);
+            ushort valid = BitConverter.ToUInt16(blob, startIndex: 18);
             if (valid > 0) bits = valid;
         }
 
@@ -2491,8 +2504,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
         // Drop the EAPO availability subscription before any other teardown - the handler
         // dispatches RefreshEqualizerAPOState which would otherwise race the field clears below.
-        try { EqualizerAPOMonitor.AvailabilityChanged -= OnEqualizerAPOAvailabilityChanged; }
-        catch { }
+        EqualizerAPOMonitor.AvailabilityChanged -= OnEqualizerAPOAvailabilityChanged;
 
         ReleaseEndpointProxies();
 

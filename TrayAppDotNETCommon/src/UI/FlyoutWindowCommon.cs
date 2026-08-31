@@ -127,7 +127,7 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     /// <summary>Detaches and retires the active content generation.</summary>
     protected void DisposeContentGeneration()
     {
-        UIContentGeneration? generation = Interlocked.Exchange(ref _activeContentGeneration, null);
+        UIContentGeneration? generation = Interlocked.Exchange(ref _activeContentGeneration, value: null);
         if (generation == null) return;
 
         try

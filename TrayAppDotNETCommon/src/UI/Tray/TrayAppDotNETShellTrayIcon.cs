@@ -17,20 +17,24 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private const uint GestureIdZoom = 3;
     private const uint GestureIdPan = 4;
     private const uint GestureIdTwoFingerTap = 6;
+
     private const uint GestureWantPan =
         0x00000001 | // GC_PAN
         0x00000002 | // GC_PAN_WITH_SINGLE_FINGER_VERTICALLY
         0x00000004 | // GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY
         0x00000008 | // GC_PAN_WITH_GUTTER
-        0x00000010;  // GC_PAN_WITH_INERTIA
+        0x00000010; // GC_PAN_WITH_INERTIA
+
     private const int DefaultPrecisionTouchpadUnitsPerScrollStep = 90;
 
     private readonly Guid _iconGUID;
     private readonly Win32Window _window = new();
-    private readonly AsyncThrottler<TrayUpdateKind> _trayUpdateThrottler = new(cooldownMs: 0);
+    private readonly AsyncThrottler<TrayUpdateKind> _trayUpdateThrottler = new(0);
     private readonly HashSet<uint> _registeredPointerTargets = [];
+
     private readonly PrecisionTouchpadScrollRecognizer _precisionTouchpadScroll = new(
         DefaultPrecisionTouchpadUnitsPerScrollStep);
+
     private NativeIcon? _currentIcon;
     private NativeIcon? _shellIcon;
     private bool _isCreated;
@@ -228,8 +232,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             rect = new PixelRect(
                 nativeRect.Left,
                 nativeRect.Top,
-                Math.Max(0, nativeRect.Right - nativeRect.Left),
-                Math.Max(0, nativeRect.Bottom - nativeRect.Top));
+                Math.Max(val1: 0, nativeRect.Right - nativeRect.Left),
+                Math.Max(val1: 0, nativeRect.Bottom - nativeRect.Top));
             return true;
         }
 
@@ -268,12 +272,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         };
 
     private NOTIFYICONIDENTIFIER MakeIdentifier() =>
-        new()
-        {
-            cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
-            hWnd = _window.Handle,
-            guidItem = _iconGUID
-        };
+        new() { cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID };
 
     private void Update()
     {
@@ -294,7 +293,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (string.IsNullOrWhiteSpace(_tooltipText) && !_tooltipDirty) return;
         if (!force && !_tooltipDirty && !_tooltipShowRequested) return;
 
-        NOTIFYICONDATAW data = MakeData(GetTooltipShellFlags(includeEmptyTip: true));
+        NOTIFYICONDATAW data = MakeData(GetTooltipShellFlags(true));
         if (TryNotify(Shell32.NotifyIconMessage.NIM_MODIFY, ref data, out int error))
         {
             _isCreated = true;
@@ -375,7 +374,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                          | NotifyIconFlags.NIF_SHOWTIP;
         }
         else if (_tooltipDirty)
-            iconFlags |= GetTooltipShellFlags(includeEmptyTip: true);
+            iconFlags |= GetTooltipShellFlags(true);
 
         NOTIFYICONDATAW iconData = MakeData(iconFlags);
 
@@ -467,7 +466,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (setVersion) SetTrayIconVersion(ref data);
         CompleteIconUpdate();
         if (!syncsTooltip || shouldRefreshVisibleTooltip)
-            RequestTooltipUpdateAfterIconChange(forceShow: forceShowAfterIconChange);
+            RequestTooltipUpdateAfterIconChange(forceShowAfterIconChange);
         return true;
     }
 
@@ -708,7 +707,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 _tooltipKeepOpenRequested = true;
                 _isPointerOverIcon = true;
                 _tooltipShowRequested = true;
-                SyncTooltip(force: true);
+                SyncTooltip(true);
                 PostEvent(TooltipPopup, nameof(TooltipPopup));
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPCLOSE:
@@ -727,7 +726,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         bool isNewHover = !_isPointerOverIcon;
         _isPointerOverIcon = true;
-        SyncTooltip(force: isNewHover || _tooltipHoverSyncPending);
+        SyncTooltip(isNewHover || _tooltipHoverSyncPending);
         RefreshMouseInputRegistration();
     }
 
@@ -809,7 +808,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
             _isGestureConfigured = User32.SetGestureConfig(
                 _window.Handle,
-                0,
+                reserved: 0,
                 (uint)configs.Length,
                 configs,
                 (uint)Marshal.SizeOf<User32.GESTURECONFIG>());
@@ -860,9 +859,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         try
         {
             if (!User32.UnregisterPointerInputTargetEx(_window.Handle, pointerType))
+            {
                 TADNLog.Log(
                     $"TrayInputDiag.Pointer.Unregister failed: {PointerTypeName(pointerType)} "
                     + $"error={Marshal.GetLastWin32Error()}");
+            }
         }
         catch (Exception ex)
         {
@@ -1011,10 +1012,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void LogGestureDiagnostics(IntPtr lParam)
     {
-        User32.GESTUREINFO gestureInfo = new()
-        {
-            cbSize = (uint)Marshal.SizeOf<User32.GESTUREINFO>()
-        };
+        User32.GESTUREINFO gestureInfo = new() { cbSize = (uint)Marshal.SizeOf<User32.GESTUREINFO>() };
 
         bool gotInfo = false;
         int error = 0;
@@ -1039,9 +1037,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 + $"target=0x{gestureInfo.hwndTarget.ToInt64():X}");
         }
         else
-        {
             TADNLog.Log($"TrayInputDiag.Gesture.GetInfo failed: error={error} lParam=0x{lParam.ToInt64():X}");
-        }
 
         try
         {
@@ -1311,9 +1307,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         Dispatcher.UIThread.Post(async void () =>
         {
-            if (_disposed) return;
-
-            try { await action(); }
+            try
+            {
+                if (_disposed) return;
+                await action();
+            }
             catch (Exception ex) { TADNLog.Log($"TrayAppDotNETShellTrayIcon.{name}: {ex}"); }
         });
     }
@@ -1433,7 +1431,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             get => _unitsPerScrollStep;
             set
             {
-                int next = Math.Max(1, value);
+                int next = Math.Max(val1: 1, value);
                 if (_unitsPerScrollStep == next) return;
                 _unitsPerScrollStep = next;
                 Reset();
@@ -1498,9 +1496,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                     notches = DrainNotches();
                 }
                 else
-                {
                     _accumulator = 0;
-                }
 
                 _hasLastFrame = true;
                 _lastAverageY = averageY;

@@ -68,10 +68,10 @@ public sealed class FanCurveEditor : Control, IDisposable
         _layout ?? throw new InvalidOperationException("Fan curve editor graph layout resources have not been loaded.");
 
     private int VerticalGridDivisions =>
-        Math.Max(1, (int)Math.Round(Layout.GraphVerticalGridDivisions));
+        Math.Max(val1: 1, (int)Math.Round(Layout.GraphVerticalGridDivisions));
 
     private int HorizontalGridDivisions =>
-        Math.Max(1, (int)Math.Round(Layout.GraphHorizontalGridDivisions));
+        Math.Max(val1: 1, (int)Math.Round(Layout.GraphHorizontalGridDivisions));
 
     public FanCurveEditorPalette Palette
     {
@@ -111,7 +111,9 @@ public sealed class FanCurveEditor : Control, IDisposable
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = double.IsInfinity(availableSize.Width) ? Layout.GraphDefaultMeasureWidth : availableSize.Width;
-        double height = double.IsInfinity(availableSize.Height) ? Layout.GraphDefaultMeasureHeight : availableSize.Height;
+        double height = double.IsInfinity(availableSize.Height)
+            ? Layout.GraphDefaultMeasureHeight
+            : availableSize.Height;
         return new Size(
             Math.Max(Layout.GraphMinimumMeasureWidth, width),
             Math.Max(Layout.GraphMinimumMeasureHeight, height));
@@ -239,9 +241,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         if (_isResettingPointerCapture
             || _disposed
             || !ReferenceEquals(_capturedPointer, e.Pointer))
-        {
             return;
-        }
 
         _capturedPointer = null;
         if (_dragNode == null) return;
@@ -267,8 +267,8 @@ public sealed class FanCurveEditor : Control, IDisposable
 
         double xRange = XMaximum - XMinimum;
         double yRange = YMaximum - YMinimum;
-        double xStep = xRange / Math.Max(1.0, PlotRect().Width) * Layout.GraphKeyboardStepFinePixels;
-        double yStep = yRange / Math.Max(1.0, PlotRect().Height) * Layout.GraphKeyboardStepFinePixels;
+        double xStep = xRange / Math.Max(val1: 1.0, PlotRect().Width) * Layout.GraphKeyboardStepFinePixels;
+        double yStep = yRange / Math.Max(val1: 1.0, PlotRect().Height) * Layout.GraphKeyboardStepFinePixels;
         if ((e.KeyModifiers & KeyModifiers.Control) != 0)
         {
             xStep *= Layout.GraphKeyboardStepCoarsePixels;
@@ -282,19 +282,19 @@ public sealed class FanCurveEditor : Control, IDisposable
                 e.Handled = true;
                 break;
             case Key.Left:
-                MoveSelected(-xStep, 0.0);
+                MoveSelected(-xStep, dy: 0.0);
                 e.Handled = true;
                 break;
             case Key.Right:
-                MoveSelected(xStep, 0.0);
+                MoveSelected(xStep, dy: 0.0);
                 e.Handled = true;
                 break;
             case Key.Up:
-                MoveSelected(0.0, yStep);
+                MoveSelected(dx: 0.0, yStep);
                 e.Handled = true;
                 break;
             case Key.Down:
-                MoveSelected(0.0, -yStep);
+                MoveSelected(dx: 0.0, -yStep);
                 e.Handled = true;
                 break;
             case Key.Delete:
@@ -314,16 +314,16 @@ public sealed class FanCurveEditor : Control, IDisposable
     {
         int verticalGridDivisions = VerticalGridDivisions;
         int horizontalGridDivisions = HorizontalGridDivisions;
-        double yAxisGutterWidth = Math.Max(0.0, plot.Left - Layout.GraphPlotInsetX);
+        double yAxisGutterWidth = Math.Max(val1: 0.0, plot.Left - Layout.GraphPlotInsetX);
         for (int i = 0; i <= verticalGridDivisions; i++)
         {
             double yValue = YGridValue(i);
             double y = ScreenY(yValue, plot);
             DrawLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
-                WithOpacity(_palette.GridLine, 0.4), 1.0);
+                WithOpacity(_palette.GridLine, opacity: 0.4), thickness: 1.0);
 
             using TextLayout left = Text(FormatYAxisValue(yValue), Layout.GraphLabelFontSize,
-                WithOpacity(_palette.SecondaryForeground, 0.75));
+                WithOpacity(_palette.SecondaryForeground, opacity: 0.75));
             left.Draw(
                 context,
                 new Point(yAxisGutterWidth - left.Width - Layout.GraphYAxisLabelGap, y - left.Height / 2.0));
@@ -334,13 +334,13 @@ public sealed class FanCurveEditor : Control, IDisposable
             double xValue = XMinimum + (XMaximum - XMinimum) * i / horizontalGridDivisions;
             double x = ScreenX(xValue, plot);
             DrawLine(context, new Point(x, plot.Top), new Point(x, plot.Bottom),
-                WithOpacity(_palette.GridLine, 0.4), 1.0);
+                WithOpacity(_palette.GridLine, opacity: 0.4), thickness: 1.0);
 
             string label = FormatAxisValue(xValue);
             string unit = _dataSource?.DisplayUnit ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(unit)) label += unit;
             using TextLayout formatted = Text(label, Layout.GraphLabelFontSize,
-                WithOpacity(_palette.SecondaryForeground, 0.75));
+                WithOpacity(_palette.SecondaryForeground, opacity: 0.75));
             formatted.Draw(
                 context,
                 new Point(x - formatted.Width / 2.0, bounds.Height - Layout.GraphXAxisHeight + 3.0));
@@ -356,13 +356,13 @@ public sealed class FanCurveEditor : Control, IDisposable
         double y = ScreenY(min, plot);
         context.FillRectangle(Brush(_palette.DisabledBand), new Rect(plot.Left, y, plot.Width, plot.Bottom - y));
         DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
-            WithOpacity(_palette.SecondaryForeground, 0.65), 1.0, 4.0, 3.0);
+            WithOpacity(_palette.SecondaryForeground, opacity: 0.65), thickness: 1.0, dash: 4.0, gap: 3.0);
 
         string label = $"Min {FormatYAxisValue(min)}";
         using TextLayout text = Text(
             label,
             Layout.GraphLabelFontSize,
-            WithOpacity(_palette.SecondaryForeground, 0.75));
+            WithOpacity(_palette.SecondaryForeground, opacity: 0.75));
         text.Draw(context, new Point(plot.Left + 6.0, Math.Clamp(y + 3.0, plot.Top, plot.Bottom - text.Height)));
     }
 
@@ -374,7 +374,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         if (display.Count >= 2)
         {
             StreamGeometry geometry = BuildCurveGeometry(display, plot);
-            context.DrawGeometry(null, new Pen(Brush(_palette.Curve), 2.0), geometry);
+            context.DrawGeometry(brush: null, new Pen(Brush(_palette.Curve), thickness: 2.0), geometry);
         }
 
         foreach (DisplayNode node in display)
@@ -396,14 +396,14 @@ public sealed class FanCurveEditor : Control, IDisposable
             ys[i] = nodes[i].Y;
         }
 
-        double smoothness = Math.Clamp((_curve?.SmoothingFactor ?? 0) / 100.0, 0.0, 1.0);
+        double smoothness = Math.Clamp((_curve?.SmoothingFactor ?? 0) / 100.0, min: 0.0, max: 1.0);
         double[] tangents = ComputeMonotonicTangents(xs, ys);
-        int samples = Math.Max(2, (int)Math.Ceiling(plot.Width));
+        int samples = Math.Max(val1: 2, (int)Math.Ceiling(plot.Width));
         StreamGeometry geometry = new();
         using StreamGeometryContext geometryContext = geometry.Open();
         for (int i = 0; i < samples; i++)
         {
-            double x = XMinimum + (XMaximum - XMinimum) * i / Math.Max(1, samples - 1);
+            double x = XMinimum + (XMaximum - XMinimum) * i / Math.Max(val1: 1, samples - 1);
             double linear = InterpolateLinear(xs, ys, x);
             double cubic = InterpolateMonotonicCubic(xs, ys, tangents, x);
             double yValue = linear + (cubic - linear) * smoothness;
@@ -429,20 +429,20 @@ public sealed class FanCurveEditor : Control, IDisposable
                 context,
                 new Point(x, plot.Top),
                 new Point(x, plot.Bottom),
-                WithOpacity(_palette.CurrentValue, 0.85),
-                1.25,
-                3.0,
-                2.0);
+                WithOpacity(_palette.CurrentValue, opacity: 0.85),
+                thickness: 1.25,
+                dash: 3.0,
+                gap: 2.0);
         }
 
         string unit = _dataSource.DisplayUnit;
         string label = string.IsNullOrWhiteSpace(unit)
             ? $"{_dataSource.DisplayName}  {FormatDataValue(value)}"
             : $"{_dataSource.DisplayName}  {FormatDataValue(value)} {unit}";
-        using TextLayout sourceText = Text(label, 12.0, _palette.Foreground);
+        using TextLayout sourceText = Text(label, size: 12.0, _palette.Foreground);
         using TextLayout? curveText = _curve == null
             ? null
-            : Text($"Curve {FormatYAxisValue(_curve.Evaluate(value))}", 12.0, _palette.Curve);
+            : Text($"Curve {FormatYAxisValue(_curve.Evaluate(value))}", size: 12.0, _palette.Curve);
         double bottom = plot.Bottom - Layout.GraphLegendInset;
 
         Rect sourcePill = GraphLegendPill(plot, sourceText, bottom);
@@ -473,7 +473,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         string textValue = string.IsNullOrWhiteSpace(xUnit)
             ? $"{FormatDataValue(displayNode.X)}  {FormatYAxisValue(displayNode.Y)}"
             : $"{FormatDataValue(displayNode.X)} {xUnit}  {FormatYAxisValue(displayNode.Y)}";
-        using TextLayout text = Text(textValue, 12.0, _palette.Curve, monospace: true);
+        using TextLayout text = Text(textValue, size: 12.0, _palette.Curve, monospace: true);
         double width = text.Width + 12.0;
         double height = text.Height + 5.0;
         double x = SelectedReadoutX(plot, width);
@@ -510,7 +510,7 @@ public sealed class FanCurveEditor : Control, IDisposable
 
         double x = Math.Clamp(FromScreenX(pos.X, plot), XMinimum, XMaximum);
         double y = Math.Clamp(FromScreenY(pos.Y, plot), YMinimum, YMaximum);
-        double snap = Math.Max(0.001, (XMaximum - XMinimum) * 0.01);
+        double snap = Math.Max(val1: 0.001, (XMaximum - XMinimum) * 0.01);
         CurveNode? near = _curve.CurveNodes.FirstOrDefault(n => Math.Abs(n.X - x) <= snap);
         if (near != null)
         {
@@ -561,7 +561,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         int index = ordered.IndexOf(node);
         if (index < 0) return Math.Clamp(desiredX, XMinimum, XMaximum);
 
-        double gap = Math.Max(0.001, (XMaximum - XMinimum) * 0.001);
+        double gap = Math.Max(val1: 0.001, (XMaximum - XMinimum) * 0.001);
         double x = Math.Clamp(desiredX, XMinimum, XMaximum);
         if (index > 0) x = Math.Max(x, ordered[index - 1].X + gap);
         if (index < ordered.Count - 1) x = Math.Min(x, ordered[index + 1].X - gap);
@@ -703,7 +703,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         double right = Math.Max(left, Bounds.Width - Layout.GraphPlotInsetX);
         double top = Layout.GraphPlotInsetY;
         double bottom = Math.Max(top, Bounds.Height - Layout.GraphXAxisHeight - Layout.GraphPlotInsetY);
-        return new Rect(left, top, Math.Max(0.0, right - left), Math.Max(0.0, bottom - top));
+        return new Rect(left, top, Math.Max(val1: 0.0, right - left), Math.Max(val1: 0.0, bottom - top));
     }
 
     /// <summary>
@@ -741,26 +741,26 @@ public sealed class FanCurveEditor : Control, IDisposable
 
     private double ScreenX(double x, Rect plot)
     {
-        double span = Math.Max(0.001, XMaximum - XMinimum);
+        double span = Math.Max(val1: 0.001, XMaximum - XMinimum);
         return plot.Left + (x - XMinimum) / span * plot.Width;
     }
 
     private double FromScreenX(double x, Rect plot)
     {
-        double span = Math.Max(0.001, XMaximum - XMinimum);
-        return XMinimum + (x - plot.Left) / Math.Max(1.0, plot.Width) * span;
+        double span = Math.Max(val1: 0.001, XMaximum - XMinimum);
+        return XMinimum + (x - plot.Left) / Math.Max(val1: 1.0, plot.Width) * span;
     }
 
     private double ScreenY(double y, Rect plot)
     {
-        double span = Math.Max(0.001, YMaximum - YMinimum);
+        double span = Math.Max(val1: 0.001, YMaximum - YMinimum);
         return plot.Top + (1.0 - (y - YMinimum) / span) * plot.Height;
     }
 
     private double FromScreenY(double y, Rect plot)
     {
-        double span = Math.Max(0.001, YMaximum - YMinimum);
-        return YMinimum + (1.0 - (y - plot.Top) / Math.Max(1.0, plot.Height)) * span;
+        double span = Math.Max(val1: 0.001, YMaximum - YMinimum);
+        return YMinimum + (1.0 - (y - plot.Top) / Math.Max(val1: 1.0, plot.Height)) * span;
     }
 
     private Point PointFor(DisplayNode node, Rect plot) => new(ScreenX(node.X, plot), ScreenY(node.Y, plot));
@@ -770,15 +770,15 @@ public sealed class FanCurveEditor : Control, IDisposable
         double stroke = selected ? 1.5 : active ? 1.25 : 0.0;
         Pen? ring = stroke > 0.0 ? new Pen(Brush(_palette.Foreground), stroke) : null;
         double radius = stroke > 0.0
-            ? Math.Max(0.0, Layout.GraphThumbSize / 2.0 - stroke / 2.0)
+            ? Math.Max(val1: 0.0, Layout.GraphThumbSize / 2.0 - stroke / 2.0)
             : Layout.GraphThumbSize / 2.0;
         context.DrawEllipse(Brush(fill), ring, center, radius, radius);
     }
 
     private static void DrawPill(DrawingContext context, Rect rect, TextLayout text, Color background, Color border)
     {
-        context.FillRectangle(Brush(WithOpacity(background, 0.90)), rect, 3);
-        context.DrawRectangle(new Pen(Brush(WithOpacity(border, 0.24))), rect, 3);
+        context.FillRectangle(Brush(WithOpacity(background, opacity: 0.90)), rect, cornerRadius: 3);
+        context.DrawRectangle(new Pen(Brush(WithOpacity(border, opacity: 0.24))), rect, cornerRadius: 3);
         text.Draw(context, new Point(rect.X + 6.0, rect.Y + 2.0));
     }
 
@@ -787,7 +787,8 @@ public sealed class FanCurveEditor : Control, IDisposable
 
     private static Color WithOpacity(Color color, double opacity)
     {
-        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * Math.Clamp(opacity, 0.0, 1.0)), 0, 255);
+        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * Math.Clamp(opacity, min: 0.0, max: 1.0)), min: 0,
+            max: 255);
         return Color.FromArgb(alpha, color.R, color.G, color.B);
     }
 
@@ -870,7 +871,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         double abs = Math.Abs(value);
         if (abs >= 100 || Math.Abs(value - Math.Round(value)) < 0.001)
             return Math.Round(value).ToString(CultureInfo.InvariantCulture);
-        return value.ToString("0.0", CultureInfo.InvariantCulture);
+        return value.ToString(format: "0.0", CultureInfo.InvariantCulture);
     }
 
     private void SubscribeModels()
@@ -923,9 +924,7 @@ public sealed class FanCurveEditor : Control, IDisposable
     {
         if (ReferenceEquals(sender, _subscribedDataSource)
             && e.PropertyName is nameof(DataSource.Value) or nameof(DataSource.UserDefinedName))
-        {
             RequestModelRedraw(sender);
-        }
     }
 
     private void OnCurvePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -967,7 +966,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         }
         catch
         {
-            Interlocked.CompareExchange(ref _capturedPointer, null, pointer);
+            Interlocked.CompareExchange(ref _capturedPointer, value: null, pointer);
             bool wasResetting = _isResettingPointerCapture;
             _isResettingPointerCapture = true;
             _dragNode = null;
@@ -990,7 +989,7 @@ public sealed class FanCurveEditor : Control, IDisposable
 
     private void ReleasePointerCapture()
     {
-        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, value: null);
         if (capturedPointer == null) return;
 
         try

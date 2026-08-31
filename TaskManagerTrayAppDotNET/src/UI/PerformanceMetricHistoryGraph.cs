@@ -54,8 +54,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         byte gridAlpha = (byte)Math.Round(
             byte.MaxValue * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphGridLineOpacity,
-                0,
-                1));
+                min: 0,
+                max: 1));
         Color gridColor = Color.FromArgb(
             gridAlpha,
             palette.Border.R,
@@ -84,8 +84,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         byte hoverLineAlpha = (byte)Math.Round(
             configuredHoverLineColor.A * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
-                0,
-                1));
+                min: 0,
+                max: 1));
         Color hoverLineColor = Color.FromArgb(
             hoverLineAlpha,
             configuredHoverLineColor.R,
@@ -177,7 +177,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         double height = Bounds.Height;
         if (width <= 0 || height <= 0) return;
 
-        Rect graphBounds = new(0, 0, width, height);
+        Rect graphBounds = new(x: 0, y: 0, width, height);
         context.DrawRectangle(_backgroundBrush, _borderPen, graphBounds);
         long currentTimestamp = Math.Max(
             _primaryHistory.CurrentTimestamp,
@@ -198,6 +198,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                     windowStartTimestamp,
                     durationTicks);
             }
+
             DrawHistoryUnderfill(
                 context,
                 _primaryHistory,
@@ -206,6 +207,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 windowStartTimestamp,
                 durationTicks);
         }
+
         DrawGrid(context, width, height);
         DrawHistory(
             context,
@@ -226,6 +228,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 windowStartTimestamp,
                 durationTicks);
         }
+
         DrawHover(context, width, height, currentTimestamp, durationTicks);
     }
 
@@ -241,12 +244,13 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         for (int columnIndex = 1; columnIndex < _gridColumns; columnIndex++)
         {
             double positionX = width * columnIndex / _gridColumns;
-            context.DrawLine(_gridPen, new Point(positionX, 0), new Point(positionX, height));
+            context.DrawLine(_gridPen, new Point(positionX, y: 0), new Point(positionX, height));
         }
+
         for (int rowIndex = 1; rowIndex < _gridRows; rowIndex++)
         {
             double positionY = height * rowIndex / _gridRows;
-            context.DrawLine(_gridPen, new Point(0, positionY), new Point(width, positionY));
+            context.DrawLine(_gridPen, new Point(x: 0, positionY), new Point(width, positionY));
         }
     }
 
@@ -263,7 +267,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
 
         Point previousPoint = PointForSample(
             history,
-            0,
+            sampleIndex: 0,
             width,
             height,
             windowStartTimestamp,
@@ -296,7 +300,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
 
         Point firstPoint = PointForSample(
             history,
-            0,
+            sampleIndex: 0,
             width,
             height,
             windowStartTimestamp,
@@ -318,10 +322,12 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                     durationTicks);
                 geometryContext.LineTo(lastPoint);
             }
+
             geometryContext.LineTo(new Point(lastPoint.X, height));
-            geometryContext.EndFigure(isClosed: true);
+            geometryContext.EndFigure(true);
         }
-        context.DrawGeometry(_underfillBrush, null, geometry);
+
+        context.DrawGeometry(_underfillBrush, pen: null, geometry);
     }
 
     private Point PointForSample(
@@ -335,8 +341,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         double value = history.GetChronological(sampleIndex);
         long timestamp = history.GetTimestampChronological(sampleIndex);
         double elapsedWindowFraction = (timestamp - windowStartTimestamp) / durationTicks;
-        double positionX = Math.Clamp(elapsedWindowFraction, 0, 1) * width;
-        double positionY = height - Math.Clamp(value / _maximumValue, 0, 1) * height;
+        double positionX = Math.Clamp(elapsedWindowFraction, min: 0, max: 1) * width;
+        double positionY = height - Math.Clamp(value / _maximumValue, min: 0, max: 1) * height;
         return new Point(positionX, positionY);
     }
 
@@ -349,7 +355,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     {
         if (!_isPointerOver || durationTicks <= 0) return;
 
-        double horizontalFraction = Math.Clamp(_hoverPointerPosition.X / width, 0, 1);
+        double horizontalFraction = Math.Clamp(_hoverPointerPosition.X / width, min: 0, max: 1);
         long windowStartTimestamp = currentTimestamp - durationTicks;
         long targetTimestamp = windowStartTimestamp
                                + (long)Math.Round(durationTicks * horizontalFraction);
@@ -372,17 +378,17 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             _hoverTextBrush,
             textWrapping: TextWrapping.NoWrap,
             textTrimming: TextTrimming.CharacterEllipsis,
-            maxWidth: Math.Max(0, width - _hoverTextInset * 2));
+            maxWidth: Math.Max(val1: 0, width - _hoverTextInset * 2));
         double positionX = horizontalFraction * width;
         double textLeft = Math.Clamp(
             positionX - metricText.Width / 2,
-            0,
-            Math.Max(0, width - metricText.Width));
+            min: 0,
+            Math.Max(val1: 0, width - metricText.Width));
         double textTop = Math.Clamp(
             _hoverPointerPosition.Y - _hoverTextCursorGap - metricText.Height,
-            0,
-            Math.Max(0, height - metricText.Height));
-        context.DrawLine(_hoverLinePen, new Point(positionX, 0), new Point(positionX, height));
+            min: 0,
+            Math.Max(val1: 0, height - metricText.Height));
+        context.DrawLine(_hoverLinePen, new Point(positionX, y: 0), new Point(positionX, height));
         metricText.Draw(context, new Point(textLeft, textTop));
     }
 
@@ -395,7 +401,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         if (!hasSecondary)
             return hasPrimary ? _metricFormatter(primaryValue) : string.Empty;
         if (!hasPrimary)
-            return string.Concat(_secondaryLabel, ": ", _metricFormatter(secondaryValue));
+            return string.Concat(_secondaryLabel, str1: ": ", _metricFormatter(secondaryValue));
 
         return string.Concat(
             _primaryLabel,

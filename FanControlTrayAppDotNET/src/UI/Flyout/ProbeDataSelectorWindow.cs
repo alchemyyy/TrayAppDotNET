@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -7,12 +10,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
-using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Settings;
-using TrayAppDotNETCommon.UI;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -41,7 +39,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private readonly AppSettings _settings;
     private readonly Action<ProbeCard> _changed;
     private readonly SettingsPalette _palette;
-    private readonly ControlNameScope _controlNames;
+    private ControlNameScope ControlNames { get; }
     private readonly LHMService? _subscribedLHMService;
     private readonly UIResourceScope _windowResources = new(nameof(ProbeDataSelectorWindow));
     private readonly HashSet<string> _expandedTransformKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -76,7 +74,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     public ProbeDataSelectorWindow()
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNames = ControlNameScope.For(this);
         _probeCard = null!;
         _settings = null!;
         _changed = static _ => { };
@@ -101,7 +99,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     public ProbeDataSelectorWindow(ProbeCard probeCard, AppSettings settings, Action<ProbeCard> changed)
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNames = ControlNameScope.For(this);
         _probeCard = probeCard;
         _settings = settings;
         _changed = changed;
@@ -165,8 +163,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnSelectorKeyDown));
     }
 
-    private ControlNameScope ControlNames => _controlNames;
-
 #if DEBUG
     /// <summary>
     /// Rebuilds code-created selector glyphs after a catalog source reload.
@@ -209,13 +205,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         new(TruncateToggleThumbSize / 2.0);
 
     private Thickness TruncateToggleThumbUncheckedMargin =>
-        new(TruncateToggleThumbInset, 0, 0, 0);
+        new(TruncateToggleThumbInset, top: 0, right: 0, bottom: 0);
 
     private Thickness TruncateToggleThumbCheckedMargin =>
-        new(0, 0, TruncateToggleThumbInset, 0);
+        new(left: 0, top: 0, TruncateToggleThumbInset, bottom: 0);
 
     private double TruncateToggleThumbInset =>
-        Math.Max(0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
+        Math.Max(val1: 0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
 
     private bool HasCapturedGesturePointer =>
         _capturedSelectedProbePointer != null || _capturedNicknameRulePointer != null;
@@ -240,8 +236,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Grid shell = ControlNames.Assign(
                 new Grid
                 {
-                    Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-                    Margin = Layout.ContentMargin
+                    Background = TrayAppDotNETSettingsUI.Brush(_palette.Background), Margin = Layout.ContentMargin
                 },
                 nameof(ProbeDataSelectorWindow));
             shell.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TabRowHeight)));
@@ -249,7 +244,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             shell.Children.Add(BuildTabRow(replacement));
 
             Control body = BuildBodyHost(replacement);
-            Grid.SetRow(body, 1);
+            Grid.SetRow(body, value: 1);
             shell.Children.Add(body);
 
             Border root = ControlNames.Assign(
@@ -324,6 +319,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                     if (!replacement.ContentGeneration.IsDisposed)
                         replacement.ContentGeneration.Dispose();
                 }
+
                 throw;
             }
 
@@ -355,19 +351,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         Control content = BuildTabBody(generation);
         if (generation.SelectedTab == ProbeSelectorTab.Home)
-        {
-            return new Border
-            {
-                Margin = Layout.BodyMargin,
-                Child = content
-            };
-        }
+            return new Border { Margin = Layout.BodyMargin, Child = content };
 
         SettingsScrollHost scrollHost = generation.Resources.Own(
-            new SettingsScrollHost(content, _palette, Layout.ZeroThickness)
-        {
-            Margin = Layout.BodyMargin
-        });
+            new SettingsScrollHost(content, _palette, Layout.ZeroThickness) { Margin = Layout.BodyMargin });
         return scrollHost;
     }
 
@@ -376,14 +363,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private Grid BuildTabRow(ProbeSelectorVisualGeneration generation)
     {
-        Grid row = ControlNames.Assign(new Grid(), "Tabs");
+        Grid row = ControlNames.Assign(new Grid(), parentName: "Tabs");
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         for (int i = 1; i < Tabs.Length; i++)
             row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
         Border homeTab = BuildTab(Tabs[0], generation);
-        Grid.SetColumn(homeTab, 0);
+        Grid.SetColumn(homeTab, value: 0);
         row.Children.Add(homeTab);
 
         for (int i = 1; i < Tabs.Length; i++)
@@ -451,9 +438,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (_keyboardEditingTarget is { } editingTarget)
         {
             if (!IsActiveGenerationVisual(editingTarget.Control))
-            {
                 _keyboardEditingTarget = null;
-            }
             else
             {
                 switch (e.Key)
@@ -629,7 +614,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         target.CommitEdit?.Invoke();
         _keyboardSelectionIdentity = identity;
         RestoreKeyboardSelection(_activeVisualGeneration);
-        _activeVisualGeneration?.FocusSink.Focus();
+        _activeVisualGeneration?.FocusSink?.Focus();
     }
 
     /// <summary>
@@ -640,9 +625,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (!_isKeyboardNavigationActive || generation == null) return;
 
         ProbeKeyboardNavigationTarget? target = FindKeyboardTarget(
-            generation,
-            _keyboardSelectionIdentity)
-            ?? generation.NavigationTargets.FirstOrDefault(IsKeyboardTargetAvailable);
+                                                    generation,
+                                                    _keyboardSelectionIdentity)
+                                                ?? generation.NavigationTargets.FirstOrDefault(
+                                                    IsKeyboardTargetAvailable);
         if (target == null)
         {
             _keyboardSelectionIdentity = null;
@@ -669,7 +655,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _keyboardSelectionIdentity = target.Identity;
         target.SetSelected(_isKeyboardNavigationActive);
         target.Control.BringIntoView();
-        generation.FocusSink.Focus();
+        generation.FocusSink?.Focus();
     }
 
     /// <summary>
@@ -680,15 +666,15 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeKeyboardNavigationIdentity? identity)
     {
         if (identity is null) return null;
-        return generation.NavigationTargets.FirstOrDefault(
-            target => target.Identity.Equals(identity.Value) && IsKeyboardTargetAvailable(target));
+        return generation.NavigationTargets.FirstOrDefault(target =>
+            target.Identity.Equals(identity.Value) && IsKeyboardTargetAvailable(target));
     }
 
     /// <summary>
     /// Determines whether a navigation target can currently receive commands.
     /// </summary>
     private static bool IsKeyboardTargetAvailable(ProbeKeyboardNavigationTarget target) =>
-        target.Control.IsVisible && target.Control.IsEnabled;
+        target.Control is { IsVisible: true, IsEnabled: true };
 
     /// <summary>
     /// Resolves a target center in root coordinates for spatial arrow navigation.
@@ -717,8 +703,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             control,
             primaryAction,
             stateAction,
-            null,
-            null,
+            editor: null,
+            commitEdit: null,
             isSelected =>
             {
                 control.BorderBrush = isSelected ? Brushes.White : baseBorderBrush;
@@ -742,8 +728,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         generation.NavigationTargets.Add(new ProbeKeyboardNavigationTarget(
             identity,
             control,
-            null,
-            null,
+            primaryAction: null,
+            stateAction: null,
             control,
             commitEdit,
             isSelected =>
@@ -793,56 +779,47 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid BuildHomeBody(ProbeSelectorVisualGeneration generation)
     {
         Grid home = ControlNames.Assign(
-            new Grid
-            {
-                UseLayoutRounding = true
-            },
-            "Home");
+            new Grid { UseLayoutRounding = true },
+            parentName: "Home");
         home.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
         home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(NicknameColumnWidth())));
 
         Border selectedProbeHost = new()
         {
-            Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildSelectedProbesSection(generation)
+            Padding = Layout.HomeNicknameColumnPadding, Child = BuildSelectedProbesSection(generation)
         };
-        Grid.SetColumn(selectedProbeHost, 0);
+        Grid.SetColumn(selectedProbeHost, value: 0);
         home.Children.Add(selectedProbeHost);
 
         Border columnSeparator = BuildHomeColumnSeparator();
-        Grid.SetColumn(columnSeparator, 1);
+        Grid.SetColumn(columnSeparator, value: 1);
         home.Children.Add(columnSeparator);
 
-        Grid nicknames = new()
-        {
-            UseLayoutRounding = true
-        };
+        Grid nicknames = new() { UseLayoutRounding = true };
         nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeDeviceNicknamesRowHeight)));
         nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
         nicknames.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Border deviceNicknameHost = new()
         {
-            Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildDeviceNicknamesSection(generation)
+            Padding = Layout.HomeNicknameColumnPadding, Child = BuildDeviceNicknamesSection(generation)
         };
-        Grid.SetRow(deviceNicknameHost, 0);
+        Grid.SetRow(deviceNicknameHost, value: 0);
         nicknames.Children.Add(deviceNicknameHost);
 
         Border rowSeparator = BuildHomeNicknameRowSeparator();
-        Grid.SetRow(rowSeparator, 1);
+        Grid.SetRow(rowSeparator, value: 1);
         nicknames.Children.Add(rowSeparator);
 
         Border probeNicknameHost = new()
         {
-            Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildProbeNicknamesSection(generation)
+            Padding = Layout.HomeNicknameColumnPadding, Child = BuildProbeNicknamesSection(generation)
         };
-        Grid.SetRow(probeNicknameHost, 2);
+        Grid.SetRow(probeNicknameHost, value: 2);
         nicknames.Children.Add(probeNicknameHost);
 
-        Grid.SetColumn(nicknames, 2);
+        Grid.SetColumn(nicknames, value: 2);
         home.Children.Add(nicknames);
         return home;
     }
@@ -883,21 +860,15 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid BuildSelectedProbesSection(ProbeSelectorVisualGeneration generation)
     {
         Grid section = ControlNames.Assign(
-            new Grid
-            {
-                Margin = Layout.NicknameSectionMargin
-            },
-            "SelectedProbes");
+            new Grid { Margin = Layout.NicknameSectionMargin },
+            parentName: "SelectedProbes");
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         section.Children.Add(BuildSelectedProbesHeader(generation));
 
         StackPanel selectedProbeList = ControlNames.Assign(
-            new StackPanel
-            {
-                Margin = Layout.SelectedProbeGridMargin
-            },
-            "SelectedProbes");
+            new StackPanel { Margin = Layout.SelectedProbeGridMargin },
+            parentName: "SelectedProbes");
         List<ProbeCardProbe> selectedProbes =
         [
             .. _probeCard.Probes
@@ -923,7 +894,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             content,
             Layout.HomeSectionScrollHostMargin,
             generation);
-        Grid.SetRow(scrollHost, 1);
+        Grid.SetRow(scrollHost, value: 1);
         section.Children.Add(scrollHost);
         return section;
     }
@@ -937,13 +908,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        TextBlock title = TrayAppDotNETSettingsUI.Text("Selected Probes", _palette,
+        TextBlock title = TrayAppDotNETSettingsUI.Text(text: "Selected Probes", _palette,
             Layout.SectionTitleFontSize, FontWeight.SemiBold);
         title.Margin = Layout.SectionHeaderMargin;
         title.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(title);
 
-        SettingsButton clearDeadSensors = TrayAppDotNETSettingsUI.Button("Clear Dead Sensors", _palette);
+        SettingsButton clearDeadSensors = TrayAppDotNETSettingsUI.Button(text: "Clear Dead Sensors", _palette);
         clearDeadSensors.Width = Layout.HomeClearDeadSensorsButtonWidth;
         clearDeadSensors.Height = Layout.HomeActionButtonHeight;
         clearDeadSensors.MinHeight = Layout.HomeActionButtonHeight;
@@ -958,7 +929,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 ProbeKeyboardNavigationRole.Action),
             ClearDeadSensors,
             ClearDeadSensors);
-        Grid.SetColumn(clearDeadSensors, 1);
+        Grid.SetColumn(clearDeadSensors, value: 1);
         header.Children.Add(clearDeadSensors);
         return header;
     }
@@ -1005,7 +976,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             _draggedSelectedProbeRow = row;
             _selectedProbeDragStart = e.GetPosition(selectedProbeList);
             _draggedSelectedProbePointerOffsetY = e.GetPosition(row).Y;
-            _draggedSelectedProbeHeight = Math.Max(1, row.Bounds.Height);
+            _draggedSelectedProbeHeight = Math.Max(val1: 1, row.Bounds.Height);
             _draggedSelectedProbeTargetIndex = SelectedProbeIndex(probe);
             pointerPressed = true;
             UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
@@ -1013,7 +984,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 e.Pointer,
                 row,
                 ref _capturedSelectedProbePointer,
-                "selected probe drag",
+                gestureName: "selected probe drag",
                 () =>
                 {
                     pointerPressed = false;
@@ -1026,9 +997,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             if (HasCapturedGesturePointer
                 && !ReferenceEquals(_capturedSelectedProbePointer, e.Pointer))
-            {
                 return;
-            }
 
             bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
             if (pointerOver != nextPointerOver && !pointerPressed)
@@ -1045,10 +1014,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < Layout.ReorderDragThreshold) return;
 
             double draggedMidpoint = current.Y - _draggedSelectedProbePointerOffsetY
-                + _draggedSelectedProbeHeight / 2.0;
+                                     + _draggedSelectedProbeHeight / 2.0;
             _draggedSelectedProbeTargetIndex = SelectedProbeInsertionIndexFromMidpoint(draggedMidpoint);
             ApplySelectedProbeDragPreview();
-            row.RenderTransform = new TranslateTransform(0, current.Y - _selectedProbeDragStart.Y);
+            row.RenderTransform = new TranslateTransform(x: 0, current.Y - _selectedProbeDragStart.Y);
             e.Handled = true;
         };
         row.PointerReleased += (_, e) =>
@@ -1137,14 +1106,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Control child = _selectedProbeDragPanel.Children[i];
             if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
 
-            Point? topLeft = child.TranslatePoint(new Point(0, 0), _selectedProbeDragPanel);
+            Point? topLeft = child.TranslatePoint(new Point(x: 0, y: 0), _selectedProbeDragPanel);
             if (topLeft is null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
         int max = ActiveProbeSettingsInOrder().Count - (_draggedSelectedProbe is not null ? 1 : 0);
-        return Math.Clamp(insertion, 0, Math.Max(0, max));
+        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
     }
 
     /// <summary>
@@ -1161,10 +1130,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
         int sourceIndex = activeProbes.IndexOf(_draggedSelectedProbe);
         if (sourceIndex < 0) return;
 
-        int targetIndex = Math.Clamp(_draggedSelectedProbeTargetIndex, 0,
-            Math.Max(0, activeProbes.Count - 1));
-        double offset = Math.Max(1, _draggedSelectedProbeHeight
-            + Math.Max(0, _draggedSelectedProbeRow.Margin.Bottom));
+        int targetIndex = Math.Clamp(_draggedSelectedProbeTargetIndex, min: 0,
+            Math.Max(val1: 0, activeProbes.Count - 1));
+        double offset = Math.Max(val1: 1, _draggedSelectedProbeHeight
+                                          + Math.Max(val1: 0, _draggedSelectedProbeRow.Margin.Bottom));
         if (targetIndex < sourceIndex)
         {
             for (int i = targetIndex; i < sourceIndex; i++)
@@ -1186,7 +1155,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (index < 0 || index >= _selectedProbeDragPanel.Children.Count) return;
         if (ReferenceEquals(_selectedProbeDragPanel.Children[index], _draggedSelectedProbeRow)) return;
 
-        _selectedProbeDragPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+        _selectedProbeDragPanel.Children[index].RenderTransform = new TranslateTransform(x: 0, offset);
     }
 
     /// <summary>
@@ -1210,8 +1179,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeCardProbe? dragged = _draggedSelectedProbe;
         int targetIndex = _draggedSelectedProbeTargetIndex;
         bool orderChanged = dragged is not null
-            && targetIndex >= 0
-            && SelectedProbeIndex(dragged) != targetIndex;
+                            && targetIndex >= 0
+                            && SelectedProbeIndex(dragged) != targetIndex;
         ResetSelectedProbeGesture(pointer);
 
         if (dragged is not null && orderChanged)
@@ -1243,7 +1212,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         int currentIndex = activeProbes.IndexOf(dragged);
         if (currentIndex < 0) return;
 
-        int clampedTargetIndex = Math.Clamp(targetIndex, 0, activeProbes.Count - 1);
+        int clampedTargetIndex = Math.Clamp(targetIndex, min: 0, activeProbes.Count - 1);
         if (currentIndex == clampedTargetIndex) return;
 
         activeProbes.RemoveAt(currentIndex);
@@ -1263,10 +1232,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// Returns selected active probe settings in persisted order.
     /// </summary>
     private List<ProbeCardProbe> ActiveProbeSettingsInOrder() =>
-        [
-            .. _probeCard.Probes
-                .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
-        ];
+    [
+        .. _probeCard.Probes
+            .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
+    ];
 
     /// <summary>
     /// Builds the global device nickname editor section.
@@ -1274,7 +1243,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid BuildDeviceNicknamesSection(ProbeSelectorVisualGeneration generation)
     {
         return BuildNicknameSection(
-            "Device Nicknames",
+            titleText: "Device Nicknames",
             _settings.DeviceNicknameRules,
             LoadDefaultDeviceNicknames,
             AddDeviceNicknameRule,
@@ -1290,7 +1259,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid BuildProbeNicknamesSection(ProbeSelectorVisualGeneration generation)
     {
         return BuildNicknameSection(
-            "Probe Nicknames",
+            titleText: "Probe Nicknames",
             _settings.ProbeNicknameRules,
             LoadDefaultProbeNicknames,
             AddProbeNicknameRule,
@@ -1314,10 +1283,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeSelectorVisualGeneration generation)
     {
         Grid section = ControlNames.Assign(
-            new Grid
-            {
-                Margin = Layout.NicknameSectionMargin
-            },
+            new Grid { Margin = Layout.NicknameSectionMargin },
             titleText);
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -1334,7 +1300,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         header.Children.Add(title);
 
         SettingsButton loadDefaultButton = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button("Load Default Nicknames", _palette),
+            TrayAppDotNETSettingsUI.Button(text: "Load Default Nicknames", _palette),
             titleText);
         loadDefaultButton.Width = Layout.HomeLoadDefaultNicknamesButtonWidth;
         loadDefaultButton.Height = Layout.HomeActionButtonHeight;
@@ -1348,11 +1314,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(loadDefaultsEntity, ProbeKeyboardNavigationRole.Action),
             loadDefaultRules,
             loadDefaultRules);
-        Grid.SetColumn(loadDefaultButton, 1);
+        Grid.SetColumn(loadDefaultButton, value: 1);
         header.Children.Add(loadDefaultButton);
 
         SettingsButton addButton = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button("Add", _palette),
+            TrayAppDotNETSettingsUI.Button(text: "Add", _palette),
             titleText);
         addButton.Width = Layout.NicknameAddButtonWidth;
         addButton.Height = Layout.NicknameAddButtonHeight;
@@ -1366,30 +1332,30 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(addEntity, ProbeKeyboardNavigationRole.Action),
             addRule,
             addRule);
-        Grid.SetColumn(addButton, 2);
+        Grid.SetColumn(addButton, value: 2);
         header.Children.Add(addButton);
         section.Children.Add(header);
 
         StackPanel rules = ControlNames.Assign(new StackPanel(), titleText);
         foreach (DeviceNicknameRule rule in rulesList)
+        {
             rules.Children.Add(BuildNicknameRuleCard(
                 rule,
                 rulesList,
                 rules,
                 deleteRule,
                 generation));
+        }
 
         Border rulesHost = new()
         {
-            Margin = Layout.NicknameListMargin,
-            Padding = Layout.NicknameListPadding,
-            Child = rules
+            Margin = Layout.NicknameListMargin, Padding = Layout.NicknameListPadding, Child = rules
         };
         SettingsScrollHost scrollHost = BuildVerticalScrollHost(
             rulesHost,
             Layout.HomeNicknameScrollHostMargin,
             generation);
-        Grid.SetRow(scrollHost, 1);
+        Grid.SetRow(scrollHost, value: 1);
         section.Children.Add(scrollHost);
         return section;
     }
@@ -1403,11 +1369,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeSelectorVisualGeneration generation)
     {
         SettingsScrollHost scrollHost = generation.Resources.Own(
-            new SettingsScrollHost(content, _palette, Layout.ZeroThickness)
-        {
-            Margin = margin
-        });
-        return ControlNames.Assign(scrollHost, "VerticalScroll");
+            new SettingsScrollHost(content, _palette, Layout.ZeroThickness) { Margin = margin });
+        return ControlNames.Assign(scrollHost, parentName: "VerticalScroll");
     }
 
     /// <summary>
@@ -1437,9 +1400,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
                     new ColumnDefinition(GridLength.Auto)
                 }
             },
-            "NicknameRule");
+            parentName: "NicknameRule");
 
-        TextBox target = NicknameTextBox(rule.TargetRegex, "Regex or {HardwareType.GPU}",
+        TextBox target = NicknameTextBox(rule.TargetRegex, placeholder: "Regex or {HardwareType.GPU}",
             Layout.NicknameTargetTextBoxWidth);
         ControlNames.Assign(target, NicknameTargetControlAnchor);
         target.Tag = new NicknameRuleEditorTag(rule, NicknameRuleField.Target);
@@ -1460,10 +1423,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
         arrow.Margin = Layout.NicknameArrowMargin;
         arrow.VerticalAlignment = VerticalAlignment.Center;
         arrow.Cursor = TrayAppDotNETCursors.Hand;
-        Grid.SetColumn(arrow, 1);
+        Grid.SetColumn(arrow, value: 1);
         row.Children.Add(arrow);
 
-        TextBox replacement = NicknameTextBox(rule.ReplacementString, "Replacement",
+        TextBox replacement = NicknameTextBox(rule.ReplacementString, placeholder: "Replacement",
             Layout.NicknameReplacementTextBoxWidth);
         ControlNames.Assign(replacement, NicknameReplacementControlAnchor);
         replacement.Tag = new NicknameRuleEditorTag(rule, NicknameRuleField.Replacement);
@@ -1474,7 +1437,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             replacement,
             new ProbeKeyboardNavigationIdentity(rule, ProbeKeyboardNavigationRole.NicknameReplacementEditor),
             () => CommitNicknameRuleTextBox(replacement));
-        Grid.SetColumn(replacement, 2);
+        Grid.SetColumn(replacement, value: 2);
         row.Children.Add(replacement);
 
         SettingsButton delete = BuildNicknameDeleteButton();
@@ -1486,10 +1449,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(rule, ProbeKeyboardNavigationRole.Delete),
             deleteAction,
             deleteAction);
-        Grid.SetColumn(delete, 3);
+        Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
 
-        Border card = ControlNames.Assign(WrapNicknameCard(row), "NicknameRule");
+        Border card = ControlNames.Assign(WrapNicknameCard(row), parentName: "NicknameRule");
         WireNicknameRuleDrag(card, arrow, rule, rulesList, rulesPanel);
         AssignKeyboardScopeMove(
             generation,
@@ -1541,7 +1504,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             _draggedNicknameRuleRow = row;
             _nicknameRuleDragStart = e.GetPosition(rulesPanel);
             _draggedNicknameRulePointerOffsetY = e.GetPosition(row).Y;
-            _draggedNicknameRuleHeight = Math.Max(1, row.Bounds.Height);
+            _draggedNicknameRuleHeight = Math.Max(val1: 1, row.Bounds.Height);
             _draggedNicknameRuleTargetIndex = rulesList.IndexOf(rule);
             pointerPressed = true;
             row.Focus();
@@ -1550,7 +1513,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 e.Pointer,
                 row,
                 ref _capturedNicknameRulePointer,
-                "nickname rule drag",
+                gestureName: "nickname rule drag",
                 () =>
                 {
                     pointerPressed = false;
@@ -1563,9 +1526,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             if (HasCapturedGesturePointer
                 && !ReferenceEquals(_capturedNicknameRulePointer, e.Pointer))
-            {
                 return;
-            }
 
             bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
             if (pointerOver != nextPointerOver && !pointerPressed)
@@ -1582,10 +1543,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < Layout.ReorderDragThreshold) return;
 
             double draggedMidpoint = current.Y - _draggedNicknameRulePointerOffsetY
-                + _draggedNicknameRuleHeight / 2.0;
+                                     + _draggedNicknameRuleHeight / 2.0;
             _draggedNicknameRuleTargetIndex = NicknameRuleInsertionIndexFromMidpoint(draggedMidpoint);
             ApplyNicknameRuleDragPreview();
-            row.RenderTransform = new TranslateTransform(0, current.Y - _nicknameRuleDragStart.Y);
+            row.RenderTransform = new TranslateTransform(x: 0, current.Y - _nicknameRuleDragStart.Y);
             e.Handled = true;
         };
         row.PointerReleased += (_, e) =>
@@ -1697,14 +1658,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Control child = _nicknameRuleListPanel.Children[i];
             if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
 
-            Point? topLeft = child.TranslatePoint(new Point(0, 0), _nicknameRuleListPanel);
+            Point? topLeft = child.TranslatePoint(new Point(x: 0, y: 0), _nicknameRuleListPanel);
             if (topLeft is null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
         int max = _draggedNicknameRuleList.Count - (_draggedNicknameRule is not null ? 1 : 0);
-        return Math.Clamp(insertion, 0, Math.Max(0, max));
+        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
     }
 
     /// <summary>
@@ -1723,10 +1684,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
         int sourceIndex = _draggedNicknameRuleList.IndexOf(_draggedNicknameRule);
         if (sourceIndex < 0) return;
 
-        int targetIndex = Math.Clamp(_draggedNicknameRuleTargetIndex, 0,
-            Math.Max(0, _draggedNicknameRuleList.Count - 1));
-        double offset = Math.Max(1, _draggedNicknameRuleHeight
-            + Math.Max(0, _draggedNicknameRuleRow.Margin.Bottom));
+        int targetIndex = Math.Clamp(_draggedNicknameRuleTargetIndex, min: 0,
+            Math.Max(val1: 0, _draggedNicknameRuleList.Count - 1));
+        double offset = Math.Max(val1: 1, _draggedNicknameRuleHeight
+                                          + Math.Max(val1: 0, _draggedNicknameRuleRow.Margin.Bottom));
         if (targetIndex < sourceIndex)
         {
             for (int i = targetIndex; i < sourceIndex; i++)
@@ -1748,7 +1709,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (index < 0 || index >= _nicknameRuleListPanel.Children.Count) return;
         if (ReferenceEquals(_nicknameRuleListPanel.Children[index], _draggedNicknameRuleRow)) return;
 
-        _nicknameRuleListPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+        _nicknameRuleListPanel.Children[index].RenderTransform = new TranslateTransform(x: 0, offset);
     }
 
     /// <summary>
@@ -1833,7 +1794,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         }
         finally
         {
-            ReleasePointerCapture(capturedPointer, "selected probe drag");
+            ReleasePointerCapture(capturedPointer, gestureName: "selected probe drag");
         }
     }
 
@@ -1866,7 +1827,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         }
         finally
         {
-            ReleasePointerCapture(capturedPointer, "nickname rule drag");
+            ReleasePointerCapture(capturedPointer, gestureName: "nickname rule drag");
         }
     }
 
@@ -1953,7 +1914,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         int currentIndex = rulesList.IndexOf(dragged);
         if (currentIndex < 0) return;
 
-        int clampedTargetIndex = Math.Clamp(targetIndex, 0, rulesList.Count - 1);
+        int clampedTargetIndex = Math.Clamp(targetIndex, min: 0, rulesList.Count - 1);
         if (currentIndex == clampedTargetIndex) return;
 
         rulesList.RemoveAt(currentIndex);
@@ -2000,14 +1961,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
         bool isSelected = probeSettings?.IsSelected == true;
         bool isExpanded = probeSettings is not null && _expandedTransformKeys.Contains(source.DataSourceKey);
 
-        Grid card = ControlNames.Assign(new Grid(), "ProbeChoice");
+        Grid card = ControlNames.Assign(new Grid(), parentName: "ProbeChoice");
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        Border choiceCard = ControlNames.Assign(WrapCard(card, isSelected), "ProbeChoice");
+        Border choiceCard = ControlNames.Assign(WrapCard(card, isSelected), parentName: "ProbeChoice");
         Action toggleProbeAction = () => ToggleProbe(source, !isSelected);
         RegisterBorderKeyboardTarget(
             generation,
@@ -2015,7 +1976,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 source.DataSourceKey,
                 ProbeKeyboardNavigationRole.Card),
-            null,
+            primaryAction: null,
             toggleProbeAction);
         WireProbeCardDoubleClick(choiceCard, toggleProbeAction);
 
@@ -2034,7 +1995,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         probeValue.VerticalAlignment = VerticalAlignment.Center;
         RegisterValueText(generation, source.DataSourceKey, probeValue);
         Grid valueRow = BuildProbeValueRow(source.DataSourceType, probeValue);
-        Grid.SetRow(valueRow, 1);
+        Grid.SetRow(valueRow, value: 1);
         card.Children.Add(valueRow);
 
         SettingsMiniToggle enableToggle = BuildProbeEnableToggle(source, isSelected);
@@ -2042,7 +2003,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         SettingsButton gear = ControlNames.Assign(
             BuildGearButton(isExpanded || ProbeTransformIsActive(probeSettings)),
-            "ProbeTransform");
+            parentName: "ProbeTransform");
         gear.Margin = Layout.ActionButtonMargin;
         gear.Click += (_, _) => ToggleTransform(source);
         Action toggleTransformAction = () => ToggleTransform(source);
@@ -2061,7 +2022,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 source.DataSourceKey,
                 ProbeKeyboardNavigationRole.Enable),
-            null,
+            primaryAction: null,
             () => enableToggle.IsChecked = !enableToggle.IsChecked);
         RegisterBorderKeyboardTarget(
             generation,
@@ -2069,7 +2030,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 source.DataSourceKey,
                 ProbeKeyboardNavigationRole.Truncate),
-            null,
+            primaryAction: null,
             () => truncateToggle.IsChecked = !truncateToggle.IsChecked);
 
         AddProbeControls(card, enableToggle, truncateToggle, gear, probeSettings, isExpanded, generation);
@@ -2083,14 +2044,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeCardProbe probe,
         ProbeSelectorVisualGeneration generation)
     {
-        Grid card = ControlNames.Assign(new Grid(), "MissingProbe");
+        Grid card = ControlNames.Assign(new Grid(), parentName: "MissingProbe");
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        Border missingCard = ControlNames.Assign(WrapCard(card, true), "MissingProbe");
+        Border missingCard = ControlNames.Assign(WrapCard(card, isSelected: true), parentName: "MissingProbe");
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(probe.DataSourceKey, _palette, Layout.CardTitleFontSize,
             FontWeight.SemiBold);
@@ -2099,11 +2060,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
         title.VerticalAlignment = VerticalAlignment.Center;
         card.Children.Add(title);
 
-        TextBlock value = TrayAppDotNETSettingsUI.Text("--", _palette, Layout.CardValueFontSize);
+        TextBlock value = TrayAppDotNETSettingsUI.Text(text: "--", _palette, Layout.CardValueFontSize);
         value.Margin = Layout.ValueRowMargin;
         value.VerticalAlignment = VerticalAlignment.Center;
         Grid valueRow = BuildProbeValueRow(DataSourceTypeEnum.Unknown, value);
-        Grid.SetRow(valueRow, 1);
+        Grid.SetRow(valueRow, value: 1);
         card.Children.Add(valueRow);
 
         SettingsMiniToggle enableToggle = BuildMissingProbeEnableToggle(probe);
@@ -2115,7 +2076,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 probe.DataSourceKey,
                 ProbeKeyboardNavigationRole.Enable),
-            null,
+            primaryAction: null,
             () => enableToggle.IsChecked = !enableToggle.IsChecked);
         RegisterBorderKeyboardTarget(
             generation,
@@ -2123,10 +2084,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 probe.DataSourceKey,
                 ProbeKeyboardNavigationRole.Truncate),
-            null,
+            primaryAction: null,
             () => truncateToggle.IsChecked = !truncateToggle.IsChecked);
 
-        AddProbeControls(card, enableToggle, truncateToggle, null, null, false, generation);
+        AddProbeControls(card, enableToggle, truncateToggle, gear: null, selectedProbe: null, isExpanded: false,
+            generation);
         Action disableProbeAction = () => enableToggle.IsChecked = false;
         RegisterBorderKeyboardTarget(
             generation,
@@ -2134,7 +2096,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             new ProbeKeyboardNavigationIdentity(
                 probe.DataSourceKey,
                 ProbeKeyboardNavigationRole.Card),
-            null,
+            primaryAction: null,
             disableProbeAction);
         WireProbeCardDoubleClick(missingCard, disableProbeAction);
         return missingCard;
@@ -2160,7 +2122,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         glyph.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(glyph);
 
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         row.Children.Add(value);
         return row;
     }
@@ -2184,14 +2146,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
             generation);
         if (transformColumn is not null)
         {
-            Grid.SetColumn(transformColumn, 1);
-            Grid.SetRowSpan(transformColumn, 2);
+            Grid.SetColumn(transformColumn, value: 1);
+            Grid.SetRowSpan(transformColumn, value: 2);
             card.Children.Add(transformColumn);
         }
 
         Grid toggleColumn = BuildProbeToggleColumn(enableToggle, truncateToggle);
-        Grid.SetColumn(toggleColumn, 2);
-        Grid.SetRowSpan(toggleColumn, 2);
+        Grid.SetColumn(toggleColumn, value: 2);
+        Grid.SetRowSpan(toggleColumn, value: 2);
         card.Children.Add(toggleColumn);
     }
 
@@ -2224,7 +2186,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid transformControls = BuildTransformControls(selectedProbe, generation);
         row.Children.Add(transformControls);
 
-        Grid.SetColumn(gear, 1);
+        Grid.SetColumn(gear, value: 1);
         row.Children.Add(gear);
         return row;
     }
@@ -2249,7 +2211,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         controls.Children.Add(enableRow);
 
         Grid truncateRow = BuildProbeToggleRow(truncateToggle);
-        Grid.SetRow(truncateRow, 1);
+        Grid.SetRow(truncateRow, value: 1);
         controls.Children.Add(truncateRow);
         return controls;
     }
@@ -2261,8 +2223,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         Grid row = new()
         {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
         };
         row.Children.Add(toggle);
         return row;
@@ -2274,9 +2235,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private SettingsMiniToggle BuildProbeEnableToggle(DataSource source, bool isSelected)
     {
         return BuildLabeledMiniToggle(
-            "Enable",
+            labelText: "Enable",
             isSelected,
-            true,
+            isEnabled: true,
             enabled => ToggleProbe(source, enabled));
     }
 
@@ -2286,9 +2247,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private SettingsMiniToggle BuildMissingProbeEnableToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
-            "Enable",
-            true,
-            true,
+            labelText: "Enable",
+            isChecked: true,
+            isEnabled: true,
             enabled =>
             {
                 if (enabled) return;
@@ -2305,9 +2266,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private SettingsMiniToggle BuildProbeTruncateToggle(DataSource source, ProbeCardProbe? probe)
     {
         return BuildLabeledMiniToggle(
-            "Truncate",
+            labelText: "Truncate",
             probe?.TruncateValue == true,
-            true,
+            isEnabled: true,
             truncateValue => SetProbeTruncateValue(source, truncateValue));
     }
 
@@ -2317,9 +2278,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private SettingsMiniToggle BuildMissingProbeTruncateToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
-            "Truncate",
+            labelText: "Truncate",
             probe.TruncateValue,
-            true,
+            isEnabled: true,
             truncateValue =>
             {
                 if (probe.TruncateValue == truncateValue) return;
@@ -2331,13 +2292,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds a labeled mini toggle.
     /// </summary>
-    private SettingsMiniToggle BuildLabeledMiniToggle(string labelText, bool isChecked, bool isEnabled, Action<bool> changed)
+    private SettingsMiniToggle BuildLabeledMiniToggle(string labelText, bool isChecked, bool isEnabled,
+        Action<bool> changed)
     {
         SettingsMiniToggle toggle = ControlNames.Assign(
             new SettingsMiniToggle(_palette, BuildTruncateToggleLayout(), labelText)
             {
-                IsChecked = isChecked,
-                IsEnabled = isEnabled
+                IsChecked = isChecked, IsEnabled = isEnabled
             },
             $"Probe{labelText}");
         toggle.CheckedChanged += (_, enabled) => changed(enabled);
@@ -2376,13 +2337,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        TextBlock label = TrayAppDotNETSettingsUI.Text("X=", _palette, Layout.TransformLabelFontSize);
+        TextBlock label = TrayAppDotNETSettingsUI.Text(text: "X=", _palette, Layout.TransformLabelFontSize);
         label.Margin = Layout.TransformLabelMargin;
         label.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(label);
 
         TextBox textBox = TransformTextBox(probe.TransformString, Layout.TransformInlineBoxWidth);
-        ControlNames.Assign(textBox, "ProbeTransform");
+        ControlNames.Assign(textBox, parentName: "ProbeTransform");
         textBox.Tag = probe;
         textBox.GotFocus += TransformTextBoxGotFocus;
         textBox.KeyDown += TransformTextBoxKeyDown;
@@ -2394,7 +2355,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 probe.DataSourceKey,
                 ProbeKeyboardNavigationRole.TransformEditor),
             () => CommitTransformTextBox(textBox));
-        Grid.SetColumn(textBox, 1);
+        Grid.SetColumn(textBox, value: 1);
         row.Children.Add(textBox);
         return row;
     }
@@ -2510,7 +2471,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
             MinHeight = Layout.NicknameDeleteButtonHeight,
             Padding = Layout.ZeroThickness,
             Margin = Layout.NicknameDeleteButtonMargin,
-            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.NicknameDeleteButtonFontSize }
+            Label =
+            {
+                FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.NicknameDeleteButtonFontSize
+            }
         };
         GlyphApplicator.ApplyTo(button.Label, GlyphCatalog.CLOSE);
         return button;
@@ -2612,9 +2576,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
             _probeCard.Probes.Add(new ProbeCardProbe
             {
-                DataSourceKey = source.DataSourceKey,
-                IsSelected = false,
-                TruncateValue = true
+                DataSourceKey = source.DataSourceKey, IsSelected = false, TruncateValue = true
             });
             _changed(_probeCard);
             RebuildContent();
@@ -2728,10 +2690,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             RemoveDeadProbeSelections(probeCard, deadKeys);
         RemoveDeadProbeSelections(_probeCard, deadKeys);
 
-        foreach (string deadKey in deadKeys)
-        {
-            _expandedTransformKeys.Remove(deadKey);
-        }
+        foreach (string deadKey in deadKeys) _expandedTransformKeys.Remove(deadKey);
 
         _changed(_probeCard);
         RebuildContent();
@@ -2816,11 +2775,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
         if (probe is null)
         {
-            probe = new ProbeCardProbe
-            {
-                DataSourceKey = source.DataSourceKey,
-                IsSelected = false
-            };
+            probe = new ProbeCardProbe { DataSourceKey = source.DataSourceKey, IsSelected = false };
             _probeCard.Probes.Add(probe);
             _changed(_probeCard);
         }
@@ -2914,7 +2869,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         CommitTransformTextBox(textBox);
         textBox.ClearSelection();
-        _activeVisualGeneration?.FocusSink.Focus();
+        _activeVisualGeneration?.FocusSink?.Focus();
     }
 
     /// <summary>
@@ -3018,7 +2973,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        _activeVisualGeneration?.FocusSink.Focus();
+        _activeVisualGeneration?.FocusSink?.Focus();
     }
 
     /// <summary>Detaches external publishers before retiring candidate-owned controls.</summary>
@@ -3157,10 +3112,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
         public DeviceNicknameResolver DeviceNicknameResolver { get; } = deviceNicknameResolver;
         public ProbeNicknameResolver ProbeNicknameResolver { get; } = probeNicknameResolver;
         public UIResourceScope Resources { get; } = resources;
+
         public Dictionary<string, List<TextBlock>> ValueTextByKey { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+
         public List<ProbeKeyboardNavigationTarget> NavigationTargets { get; } = [];
-        public Control FocusSink { get; set; } = null!;
+        public Control? FocusSink { get; set; }
         public StackPanel? SelectedProbeListPanel { get; set; }
 
         public UIContentGeneration ContentGeneration =>
@@ -3186,5 +3143,4 @@ public sealed partial class ProbeDataSelectorWindow : Window
             FocusSink?.DataContext = null;
         }
     }
-
 }

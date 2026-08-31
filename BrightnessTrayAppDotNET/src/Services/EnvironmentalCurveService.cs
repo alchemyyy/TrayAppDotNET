@@ -43,8 +43,8 @@ public sealed class EnvironmentalCurveService : IDisposable
     private readonly Func<int, int> _flipIfNightLightInverted;
     private readonly Action<bool>? _onDisabledPeriodChanged;
     private readonly Action? _onBrightnessAutoEngageRequested;
-    private readonly AsyncThrottler<string> _curveEventEvaluationThrottler = new(0, StringComparer.Ordinal);
-    private readonly AsyncThrottler<string> _curveHardwareThrottler = new(0, StringComparer.Ordinal);
+    private readonly AsyncThrottler<string> _curveEventEvaluationThrottler = new(cooldownMs: 0, StringComparer.Ordinal);
+    private readonly AsyncThrottler<string> _curveHardwareThrottler = new(cooldownMs: 0, StringComparer.Ordinal);
 
     private DispatcherTimer? _curveTimer;
     private EventHandler? _curveTimerTickHandler;
@@ -139,7 +139,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     /// rather than the user's last manual pick.
     /// </summary>
     public int? GetActiveNightLightCurveStrength()
-        => GetNightLightCurveStrength(requireActiveState: true);
+        => GetNightLightCurveStrength(true);
 
     /// <summary>
     /// Returns the current night-light curve strength for a transition that is about to enable
@@ -147,7 +147,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     /// curve target before Windows applies tint, but respects explicit released/sleeping ownership.
     /// </summary>
     public int? GetNightLightCurveStrengthForEnable()
-        => GetNightLightCurveStrength(requireActiveState: false);
+        => GetNightLightCurveStrength(false);
 
     private int? GetNightLightCurveStrength(bool requireActiveState)
     {
@@ -168,7 +168,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         {
             double sample = EnvironmentalCurveSampler.Sample(curve.NightLight, t, smoothness);
             if (!double.IsFinite(sample)) sample = 100.0;
-            return Math.Clamp((int)Math.Round(sample), 0, 100);
+            return Math.Clamp((int)Math.Round(sample), min: 0, max: 100);
         }
 
         // Offset mode mirrors ApplyNightLightCurve's offset branch: deviation around 50 -> +/-100 percent,
@@ -177,7 +177,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         if (!double.IsFinite(offsetSample)) offsetSample = 100.0;
         double offsetPercent = (offsetSample - 50.0) * 2.0;
         int currentStrength = _flipIfNightLightInverted(_nightLightMonitor.RoundedBrightness);
-        return Math.Clamp((int)Math.Round(currentStrength + offsetPercent), 0, 100);
+        return Math.Clamp((int)Math.Round(currentStrength + offsetPercent), min: 0, max: 100);
     }
 
     /// <summary>
@@ -226,6 +226,7 @@ public sealed class EnvironmentalCurveService : IDisposable
                     StopCurveTimer();
                     throw;
                 }
+
                 return;
             }
 
@@ -235,9 +236,7 @@ public sealed class EnvironmentalCurveService : IDisposable
             if (!_curveTimer.IsEnabled) _curveTimer.Start();
         }
         else
-        {
             StopCurveTimer();
-        }
     }
 
     /// <summary>
@@ -678,20 +677,26 @@ public sealed class EnvironmentalCurveService : IDisposable
             double smoothness = (_appSettings?.EnvironmentalCurveSmoothness ?? 100) / 100.0;
             bool absolute = IsCurveAbsoluteMode;
 
-            if (IsBrightnessCurveEnabled) ApplyBrightnessCurve(
-                curve,
-                t,
-                smoothness,
-                absolute,
-                immediateHardware: immediateHardware);
+            if (IsBrightnessCurveEnabled)
+            {
+                ApplyBrightnessCurve(
+                    curve,
+                    t,
+                    smoothness,
+                    absolute,
+                    immediateHardware: immediateHardware);
+            }
             else DisengageBrightnessCurveStates();
 
-            if (IsNightLightCurveEnabled) ApplyNightLightCurve(
-                curve,
-                t,
-                smoothness,
-                absolute,
-                immediateHardware: immediateHardware);
+            if (IsNightLightCurveEnabled)
+            {
+                ApplyNightLightCurve(
+                    curve,
+                    t,
+                    smoothness,
+                    absolute,
+                    immediateHardware: immediateHardware);
+            }
             else DisengageNightLightCurveStates();
         }
         catch (Exception ex)
@@ -757,8 +762,8 @@ public sealed class EnvironmentalCurveService : IDisposable
         // monitors to slider values when the simulated time crosses into the disabled window.
         if (sleepEntering)
         {
-            if (IsBrightnessCurveEnabled) ResyncBrightnessHardwareToSliderForSleeping(allowWhileSuspended: true);
-            if (IsNightLightCurveEnabled) ResyncNightLightHardwareToSliderForSleeping(allowWhileSuspended: true);
+            if (IsBrightnessCurveEnabled) ResyncBrightnessHardwareToSliderForSleeping(true);
+            if (IsNightLightCurveEnabled) ResyncNightLightHardwareToSliderForSleeping(true);
         }
 
         double smoothness = (_appSettings?.EnvironmentalCurveSmoothness ?? 100) / 100.0;
@@ -788,7 +793,7 @@ public sealed class EnvironmentalCurveService : IDisposable
                 m,
                 m.RoundedBrightness,
                 allowWhileSuspended,
-                requiredState: SliderState.CurveSleeping);
+                SliderState.CurveSleeping);
         }
     }
 
@@ -807,7 +812,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         QueueNightLightHardwareWrite(
             sliderStrength,
             allowWhileSuspended,
-            requiredState: SliderState.CurveSleeping);
+            SliderState.CurveSleeping);
     }
 
     private void QueueBrightnessHardwareWrite(
@@ -945,7 +950,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     {
         int ms = _appSettings?.EnvironmentalCurveTickIntervalMs ??
                  TimeConstants.EnvironmentalCurveTickIntervalDefaultMs;
-        ms = Math.Clamp(ms, 250, 60_000);
+        ms = Math.Clamp(ms, min: 250, max: 60_000);
         return TimeSpan.FromMilliseconds(ms);
     }
 
@@ -1131,9 +1136,9 @@ public sealed class EnvironmentalCurveService : IDisposable
             t,
             smoothness,
             absolute,
-            isAvailable: static () => true,
-            clearTargets: DisengageBrightnessCurveStates,
-            applyAbsoluteSample: sample =>
+            static () => true,
+            DisengageBrightnessCurveStates,
+            sample =>
             {
                 // Curve drives the master value;
                 // each individual then follows via the standard master->individual offset formula
@@ -1142,7 +1147,7 @@ public sealed class EnvironmentalCurveService : IDisposable
                 // - the relative spread between monitors is preserved.
                 // Offsets are captured at toggle-on (and on individual re-engage)
                 // and stay valid through the curve's run, since slider thumbs don't move while the curve drives.
-                double absoluteMasterTarget = Math.Clamp(sample, 0.0, 100.0);
+                double absoluteMasterTarget = Math.Clamp(sample, min: 0.0, max: 100.0);
                 if (!allowWhileSuspended) TryAutoEngageBrightnessManualOverride(absoluteMasterTarget);
 
                 // Indicator + value-label sources update for any row currently driven by the curve
@@ -1156,7 +1161,10 @@ public sealed class EnvironmentalCurveService : IDisposable
                 foreach (MonitorInfo monitor in _monitors)
                 {
                     if (monitor.IsCurveDriven)
-                        monitor.CurveTargetBrightness = Math.Clamp(absoluteMasterTarget + monitor.Offset, 0.0, 100.0);
+                    {
+                        monitor.CurveTargetBrightness =
+                            Math.Clamp(absoluteMasterTarget + monitor.Offset, min: 0.0, max: 100.0);
+                    }
                 }
 
                 // Hardware writes only on rows actively driven by the curve. CurveSleeping rows hold
@@ -1168,17 +1176,18 @@ public sealed class EnvironmentalCurveService : IDisposable
                 {
                     if (monitor.SliderState != SliderState.CurveActive) continue;
                     if (monitor.IsDragging && !immediateHardware) continue;
-                    int rowTargetPct = (int)Math.Round(Math.Clamp(absoluteMasterTarget + monitor.Offset, 0.0, 100.0));
+                    int rowTargetPct =
+                        (int)Math.Round(Math.Clamp(absoluteMasterTarget + monitor.Offset, min: 0.0, max: 100.0));
                     QueueBrightnessHardwareWrite(
                         monitor,
                         rowTargetPct,
                         allowWhileSuspended,
-                        requiredState: SliderState.CurveActive,
-                        skipIfDragging: !immediateHardware,
-                        immediateHardware: immediateHardware);
+                        SliderState.CurveActive,
+                        !immediateHardware,
+                        immediateHardware);
                 }
             },
-            applyOffsetPercent: offsetPercent =>
+            offsetPercent =>
             {
                 // Per-row indicators follow only on curve-driven rows. Released / disabled / failed rows
                 // show their slider's own value via RoundedBrightness (EffectiveRoundedBrightness
@@ -1189,14 +1198,15 @@ public sealed class EnvironmentalCurveService : IDisposable
                 // recovery / hot-plug hardware-sync (which goes through SyncBrightnessFromHardware
                 // and intentionally does NOT touch LastUserBrightness) can't reroute the offset onto
                 // the wrong baseline and skew the master / per-row targets.
-                double masterTarget = Math.Clamp(_masterMonitor.LastUserBrightness + offsetPercent, 0.0, 100.0);
+                double masterTarget =
+                    Math.Clamp(_masterMonitor.LastUserBrightness + offsetPercent, min: 0.0, max: 100.0);
                 if (_masterMonitor.IsCurveDriven) _masterMonitor.CurveTargetBrightness = masterTarget;
                 foreach (MonitorInfo monitor in _monitors)
                 {
                     if (monitor.IsCurveDriven)
                     {
                         monitor.CurveTargetBrightness =
-                            Math.Clamp(monitor.LastUserBrightness + offsetPercent, 0.0, 100.0);
+                            Math.Clamp(monitor.LastUserBrightness + offsetPercent, min: 0.0, max: 100.0);
                     }
                 }
 
@@ -1207,14 +1217,14 @@ public sealed class EnvironmentalCurveService : IDisposable
                     // shove the bound slider thumb out from under the user's mouse.
                     if (monitor.IsDragging && !immediateHardware) continue;
                     int hwTarget = (int)Math.Round(
-                        Math.Clamp(monitor.LastUserBrightness + offsetPercent, 0.0, 100.0));
+                        Math.Clamp(monitor.LastUserBrightness + offsetPercent, min: 0.0, max: 100.0));
                     QueueBrightnessHardwareWrite(
                         monitor,
                         hwTarget,
                         allowWhileSuspended,
-                        requiredState: SliderState.CurveActive,
-                        skipIfDragging: !immediateHardware,
-                        immediateHardware: immediateHardware);
+                        SliderState.CurveActive,
+                        !immediateHardware,
+                        immediateHardware);
                 }
             });
     }
@@ -1243,11 +1253,11 @@ public sealed class EnvironmentalCurveService : IDisposable
             t,
             smoothness,
             absolute,
-            isAvailable: NightLightProvider.IsSupported,
-            clearTargets: DisengageNightLightCurveStates,
-            applyAbsoluteSample: sample =>
+            NightLightProvider.IsSupported,
+            DisengageNightLightCurveStates,
+            sample =>
             {
-                int strength = Math.Clamp((int)Math.Round(sample), 0, 100);
+                int strength = Math.Clamp((int)Math.Round(sample), min: 0, max: 100);
                 int sliderPos = _flipIfNightLightInverted(strength);
                 // Indicator value is updated whenever the row is curve-driven (Active or Sleeping)
                 // - the dot stays visible-but-dimmed in CurveSleeping so the user can see where the
@@ -1260,10 +1270,10 @@ public sealed class EnvironmentalCurveService : IDisposable
                 QueueNightLightHardwareWrite(
                     strength,
                     allowWhileSuspended,
-                    requiredState: SliderState.CurveActive,
-                    immediateHardware: immediateHardware);
+                    SliderState.CurveActive,
+                    immediateHardware);
             },
-            applyOffsetPercent: strengthOffsetPercent =>
+            strengthOffsetPercent =>
             {
                 // Offset mode: backend strength = current strength + offset,
                 // computed from the slider's last manual position (mapped through invert)
@@ -1271,8 +1281,8 @@ public sealed class EnvironmentalCurveService : IDisposable
                 int currentStrength = _flipIfNightLightInverted(_nightLightMonitor.RoundedBrightness);
                 int targetStrength = Math.Clamp(
                     (int)Math.Round(currentStrength + strengthOffsetPercent),
-                    0,
-                    100);
+                    min: 0,
+                    max: 100);
 
                 if (_nightLightMonitor.IsCurveDriven)
                     _nightLightMonitor.CurveTargetBrightness = _flipIfNightLightInverted(targetStrength);
@@ -1281,8 +1291,8 @@ public sealed class EnvironmentalCurveService : IDisposable
                 QueueNightLightHardwareWrite(
                     targetStrength,
                     allowWhileSuspended,
-                    requiredState: SliderState.CurveActive,
-                    immediateHardware: immediateHardware);
+                    SliderState.CurveActive,
+                    immediateHardware);
             });
     }
 

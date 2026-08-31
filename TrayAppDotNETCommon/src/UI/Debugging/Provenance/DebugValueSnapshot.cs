@@ -13,7 +13,7 @@ internal readonly record struct DebugValueSnapshot(string TypeName, string Displ
 
     public static DebugValueSnapshot Create(object? value)
     {
-        if (value == null) return new DebugValueSnapshot("<null>", "<null>");
+        if (value == null) return new DebugValueSnapshot(TypeName: "<null>", Display: "<null>");
 
         Type valueType = value.GetType();
         string typeName = valueType.FullName ?? valueType.Name;
@@ -33,9 +33,9 @@ internal readonly record struct DebugValueSnapshot(string TypeName, string Displ
             float number => number.ToString(CultureInfo.InvariantCulture),
             double number => number.ToString(CultureInfo.InvariantCulture),
             decimal number => number.ToString(CultureInfo.InvariantCulture),
-            DateTime timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            DateTimeOffset timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            TimeSpan duration => duration.ToString("c", CultureInfo.InvariantCulture),
+            DateTime timestamp => timestamp.ToString(format: "O", CultureInfo.InvariantCulture),
+            DateTimeOffset timestamp => timestamp.ToString(format: "O", CultureInfo.InvariantCulture),
+            TimeSpan duration => duration.ToString(format: "c", CultureInfo.InvariantCulture),
             Guid identifier => identifier.ToString("D"),
             Color color => color.ToString(),
             Thickness thickness => thickness.ToString(),
@@ -50,7 +50,8 @@ internal readonly record struct DebugValueSnapshot(string TypeName, string Displ
             FontStretch fontStretch => fontStretch.ToString(),
             ISolidColorBrush brush =>
                 $"{brush.GetType().Name} Color={brush.Color}, Opacity={FormatNumber(brush.Opacity)}",
-            GradientBrush brush => $"{brush.GetType().Name} Stops={brush.GradientStops.Count}, Opacity={FormatNumber(brush.Opacity)}",
+            GradientBrush brush =>
+                $"{brush.GetType().Name} Stops={brush.GradientStops.Count}, Opacity={FormatNumber(brush.Opacity)}",
             FontFamily fontFamily => fontFamily.Name,
             Enum enumValue => enumValue.ToString(),
             Control control => string.IsNullOrWhiteSpace(control.Name)
@@ -59,7 +60,7 @@ internal readonly record struct DebugValueSnapshot(string TypeName, string Displ
             _ => typeName
         };
 
-        display = display.Replace('\r', ' ').Replace('\n', ' ');
+        display = display.Replace(oldChar: '\r', newChar: ' ').Replace(oldChar: '\n', newChar: ' ');
         if (display.Length > MaximumDisplayLength)
             display = display[..(MaximumDisplayLength - 3)] + "...";
 
@@ -67,6 +68,6 @@ internal readonly record struct DebugValueSnapshot(string TypeName, string Displ
     }
 
     private static string FormatNumber(double value) =>
-        value.ToString("0.###", CultureInfo.InvariantCulture);
+        value.ToString(format: "0.###", CultureInfo.InvariantCulture);
 }
 #endif

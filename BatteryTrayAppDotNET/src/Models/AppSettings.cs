@@ -1,6 +1,5 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
-using TrayAppDotNETCommon.UI;
 
 namespace BatteryTrayAppDotNET.Models;
 
@@ -172,7 +171,7 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "settings.xml");
+        return Path.Combine(appFolder, path2: "settings.xml");
     }
 
     public static string GetDefaultDirectory() =>

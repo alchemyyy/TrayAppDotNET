@@ -57,7 +57,7 @@ internal static class DebugPropertyProvenanceRegistry
     {
         return AssignmentsByObject.TryGetValue(target, out ObjectAssignments? assignments)
             ? assignments.GetHistory(property)
-            : new DebugPropertyAssignmentHistory([], 0);
+            : new DebugPropertyAssignmentHistory([], DiscardedAssignmentCount: 0);
     }
 
     public static DebugPropertyAssignmentHistory GetRecentHistory(
@@ -68,12 +68,12 @@ internal static class DebugPropertyProvenanceRegistry
         ArgumentOutOfRangeException.ThrowIfNegative(maximumAssignments);
         return AssignmentsByObject.TryGetValue(target, out ObjectAssignments? assignments)
             ? assignments.GetHistory(property, maximumAssignments)
-            : new DebugPropertyAssignmentHistory([], 0);
+            : new DebugPropertyAssignmentHistory([], DiscardedAssignmentCount: 0);
     }
 
     private sealed class ObjectAssignments
     {
-        private readonly object _sync = new();
+        private readonly Lock _sync = new();
         private readonly Dictionary<AvaloniaProperty, PropertyAssignments> _assignmentsByProperty = [];
 
         public void Record(AvaloniaProperty property, DebugPropertyAssignment assignment)
@@ -96,7 +96,7 @@ internal static class DebugPropertyProvenanceRegistry
             {
                 return _assignmentsByProperty.TryGetValue(property, out PropertyAssignments? assignments)
                     ? assignments.Snapshot()
-                    : new DebugPropertyAssignmentHistory([], 0);
+                    : new DebugPropertyAssignmentHistory([], DiscardedAssignmentCount: 0);
             }
         }
 
@@ -108,7 +108,7 @@ internal static class DebugPropertyProvenanceRegistry
             {
                 return _assignmentsByProperty.TryGetValue(property, out PropertyAssignments? assignments)
                     ? assignments.Snapshot(maximumAssignments)
-                    : new DebugPropertyAssignmentHistory([], 0);
+                    : new DebugPropertyAssignmentHistory([], DiscardedAssignmentCount: 0);
             }
         }
     }

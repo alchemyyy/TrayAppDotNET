@@ -22,7 +22,7 @@ public sealed class DeviceSettingsTests
 
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
 
-            Assert.Equal("My Bluetooth Headphones",
+            Assert.Equal(expected: "My Bluetooth Headphones",
                 loaded.Find("bluetooth-endpoint-id")?.CustomFriendlyName);
         }
         finally
@@ -49,12 +49,10 @@ public sealed class DeviceSettingsTests
                        FileMode.Create,
                        FileAccess.ReadWrite,
                        FileShare.None))
-            {
                 TrayXmlSerializer.WriteFile(path, settings);
-            }
 
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
-            Assert.Equal("Headphones", loaded.Find("locked-temporary-file")?.CustomFriendlyName);
+            Assert.Equal(expected: "Headphones", loaded.Find("locked-temporary-file")?.CustomFriendlyName);
         }
         finally
         {
@@ -70,7 +68,7 @@ public sealed class DeviceSettingsTests
         string path = Path.Combine(
             Path.GetTempPath(),
             $"VolumeTrayAppDotNET.DeviceSettingsTests.{Guid.NewGuid():N}.xml");
-        using ManualResetEventSlim start = new(initialState: false);
+        using ManualResetEventSlim start = new(false);
         Task[] writers = new Task[writerCount];
 
         try
@@ -130,7 +128,7 @@ public sealed class DeviceSettingsTests
             await write;
 
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
-            Assert.Equal("Replacement", loaded.Find("replacement-device")?.CustomFriendlyName);
+            Assert.Equal(expected: "Replacement", loaded.Find("replacement-device")?.CustomFriendlyName);
         }
         finally
         {

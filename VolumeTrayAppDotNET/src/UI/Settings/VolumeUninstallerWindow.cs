@@ -1,4 +1,3 @@
-using TrayAppDotNETCommon.UI.Controls;
 using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 

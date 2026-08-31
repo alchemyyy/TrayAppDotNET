@@ -6,7 +6,8 @@ internal readonly record struct SystemPerformanceSample(
     double CPUHighestCorePercent,
     double MemoryPercent)
 {
-    public static SystemPerformanceSample Empty { get; } = new(0, 0, 0);
+    public static SystemPerformanceSample Empty { get; } =
+        new(CPUAveragePercent: 0, CPUHighestCorePercent: 0, MemoryPercent: 0);
 
     /// <summary>Returns the percentage selected for the tray graph.</summary>
     public double Select(TrayGraphDataSource dataSource) =>

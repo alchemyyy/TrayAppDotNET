@@ -17,15 +17,17 @@ internal static unsafe class GPUAdapterNativeDetailsReader
 
     private static readonly Guid DXGIFactoryInterfaceID =
         new("770aae78-f26f-4dba-a829-253c83d1b387");
+
     private static readonly Guid D3D12DeviceInterfaceID =
         new("189819f1-1db6-4b57-be54-1821339b85f7");
+
     private static readonly DirectXFeatureLevel[] D3D12FeatureLevels =
     [
-        new(0xC200, "12.2"),
-        new(0xC100, "12.1"),
-        new(0xC000, "12.0"),
-        new(0xB100, "11.1"),
-        new(0xB000, "11.0")
+        new(Value: 0xC200, Name: "12.2"),
+        new(Value: 0xC100, Name: "12.1"),
+        new(Value: 0xC000, Name: "12.0"),
+        new(Value: 0xB100, Name: "11.1"),
+        new(Value: 0xB000, Name: "11.0")
     ];
 
     /// <summary>Reads static adapter metadata suitable for caching by LUID tuple.</summary>
@@ -56,9 +58,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                         adapterHandle,
                         GetSegmentSizeInformation,
                         out D3DKMT_SEGMENTSIZEINFO segmentSizeInformation))
-                {
                     visibleDedicatedMemoryBytes = segmentSizeInformation.DedicatedVideoMemorySize;
-                }
 
                 if (TryReadAdapterInformation(
                         adapterHandle,
@@ -102,7 +102,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                            || hasKernelMetadata
                            || directXVersion.Length > 0
                            || engineCatalog.Length > 0;
-        error = errors.Count == 0 ? null : string.Join(" ", errors);
+        error = errors.Count == 0 ? null : string.Join(separator: " ", errors);
         return new GPUAdapterHardwareMetadata(
             hasMetadata,
             deviceMetadata.DriverVersion,
@@ -134,9 +134,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                     ref performanceData)
                 || performanceData.Temperature == 0
                 || performanceData.Temperature > MaximumTemperatureDeciCelsius)
-            {
                 return false;
-            }
 
             temperatureCelsius = performanceData.Temperature / 10.0;
             return true;
@@ -164,9 +162,12 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         $"PCI bus {busNumber}, device {deviceNumber}, function {functionNumber}");
 
     private static bool IsValidPCIAddress(D3DKMT_ADAPTERADDRESS address) =>
-        address.BusNumber != uint.MaxValue
-        && address.DeviceNumber <= 31
-        && address.FunctionNumber <= 7;
+        address is
+        {
+            BusNumber: not uint.MaxValue,
+            DeviceNumber: <= 31,
+            FunctionNumber: <= 7
+        };
 
     private static GPUAdapterEngineIdentity[] ReadEngineCatalog(
         uint adapterHandle,
@@ -186,9 +187,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                     adapterHandle,
                     NodeMetadataInformation,
                     ref metadata))
-            {
                 break;
-            }
 
             string engineName = ReadFriendlyName(metadata.NodeData);
             if (engineName.Length == 0)
@@ -207,7 +206,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         int length = 0;
         while (length < 32 && name[length] != '\0')
             length++;
-        return length == 0 ? string.Empty : new string(name, 0, length).Trim();
+        return length == 0 ? string.Empty : new string(name, startIndex: 0, length).Trim();
     }
 
     private static string GetEngineTypeName(int engineType) => engineType switch
@@ -236,7 +235,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             {
                 DirectXFeatureLevel featureLevel = D3D12FeatureLevels[featureIndex];
                 Guid interfaceID = D3D12DeviceInterfaceID;
-                IntPtr device = IntPtr.Zero;
+                IntPtr device;
                 int result;
                 try
                 {
@@ -247,8 +246,8 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                         out device);
                 }
                 catch (Exception exception) when (exception is DllNotFoundException
-                                                  or EntryPointNotFoundException
-                                                  or BadImageFormatException)
+                                                      or EntryPointNotFoundException
+                                                      or BadImageFormatException)
                 {
                     return (string.Empty, string.Empty);
                 }
@@ -281,11 +280,12 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             result = CreateDXGIFactory1(ref interfaceID, out factory);
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             return IntPtr.Zero;
         }
+
         if (result < 0 || factory == IntPtr.Zero) return IntPtr.Zero;
 
         try
@@ -307,9 +307,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                 if (getDescription(adapter, &description) >= 0
                     && (description.Flags & DXGIAdapterFlagSoftware) == 0
                     && ToUInt64(description.AdapterLUID) == adapterLUID)
-                {
                     return adapter;
-                }
 
                 ReleaseCOMObject(adapter);
             }
@@ -324,18 +322,15 @@ internal static unsafe class GPUAdapterNativeDetailsReader
 
     private static bool TryOpenAdapter(ulong adapterLUID, out uint adapterHandle)
     {
-        D3DKMT_OPENADAPTERFROMLUID openAdapter = new()
-        {
-            AdapterLUID = ToNativeLUID(adapterLUID)
-        };
+        D3DKMT_OPENADAPTERFROMLUID openAdapter = new() { AdapterLUID = ToNativeLUID(adapterLUID) };
         int result;
         try
         {
             result = D3DKMTOpenAdapterFromLuid(ref openAdapter);
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             adapterHandle = 0;
             return false;
@@ -383,8 +378,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
 
     private static NATIVE_LUID ToNativeLUID(ulong value) => new()
     {
-        LowPart = (uint)value,
-        HighPart = unchecked((int)(value >> 32))
+        LowPart = (uint)value, HighPart = unchecked((int)(value >> 32))
     };
 
     private static ulong ToUInt64(NATIVE_LUID value) =>

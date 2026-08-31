@@ -8,8 +8,10 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
 {
     private const string ProcessorRegistryPath = @"HARDWARE\DESCRIPTION\System\CentralProcessor\0";
     private const string ProcessorNameValue = "ProcessorNameString";
+
     private const string ProcessorPerformancePath =
         @"\Processor Information(*)\% Processor Performance";
+
     private const uint AllProcessorGroups = 0xFFFF;
     private const int ProcessorPowerInformation = 11;
     private const uint RelationAll = 0xFFFF;
@@ -43,7 +45,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
 
     public SystemPerformanceMetadataReader()
     {
-        if (PdhOpenQueryW(null, IntPtr.Zero, out _processorPerformanceQuery) != PdhSuccess) return;
+        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _processorPerformanceQuery) != PdhSuccess) return;
 
         uint status = PdhAddEnglishCounterW(
             _processorPerformanceQuery,
@@ -70,6 +72,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             highestCurrentSpeedHertz = highestTurboSpeedHertz;
             hasFrequencyData = true;
         }
+
         bool hasPerformanceInformation = TryReadPerformanceInformation(
             out SystemPerformanceInformation performanceInformation);
         return new SystemPerformanceMetadataSample(
@@ -99,8 +102,8 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             return string.IsNullOrWhiteSpace(processorName) ? "CPU" : processorName.Trim();
         }
         catch (Exception exception) when (exception is System.Security.SecurityException
-                                          or UnauthorizedAccessException
-                                          or IOException)
+                                              or UnauthorizedAccessException
+                                              or IOException)
         {
             TADNLog.Log($"SystemPerformanceMetadataReader processor name: {exception.Message}");
             return "CPU";
@@ -113,9 +116,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         if (GetLogicalProcessorInformationEx(RelationAll, IntPtr.Zero, ref requiredLength)
             || Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
             || requiredLength < LogicalProcessorInformationHeaderSize)
-        {
             return ProcessorTopology.WithLogicalProcessorCount(ReadActiveProcessorCount());
-        }
 
         IntPtr buffer = Marshal.AllocHGlobal(checked((int)requiredLength));
         try
@@ -137,9 +138,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
                 int entrySize = Marshal.ReadInt32(entry, sizeof(int));
                 if (entrySize < LogicalProcessorInformationHeaderSize
                     || entrySize > returnedLength - offset)
-                {
                     break;
-                }
 
                 switch (relationship)
                 {
@@ -165,6 +164,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
                                 l3CacheBytes = SaturatingAdd(l3CacheBytes, cacheSize);
                                 break;
                         }
+
                         break;
                     }
                 }
@@ -205,7 +205,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             uint status = CallNtPowerInformation(
                 ProcessorPowerInformation,
                 IntPtr.Zero,
-                0,
+                inputBufferSize: 0,
                 buffer,
                 checked((uint)(processorCount * entrySize)));
             if (status != 0)
@@ -251,9 +251,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         if (baseSpeedHertz == 0
             || !double.IsFinite(processorPerformancePercent)
             || processorPerformancePercent <= 0)
-        {
             return 0;
-        }
 
         double speedHertz = baseSpeedHertz * processorPerformancePercent / 100.0;
         return speedHertz >= ulong.MaxValue
@@ -271,9 +269,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             || _processorPerformanceQuery == IntPtr.Zero
             || _processorPerformanceCounter == IntPtr.Zero
             || PdhCollectQueryData(_processorPerformanceQuery) != PdhSuccess)
-        {
             return false;
-        }
 
         bool canReadFormattedValues = _processorPerformanceQueryPrimed;
         _processorPerformanceQueryPrimed = true;
@@ -283,9 +279,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
                 PdhFormatDouble | PdhFormatNoCap100,
                 out PDH_FORMATTED_COUNTER_VALUE_ITEM* items,
                 out uint itemCount))
-        {
             return false;
-        }
 
         for (uint itemIndex = 0; itemIndex < itemCount; itemIndex++)
         {
@@ -293,9 +287,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             if (item.Name == IntPtr.Zero
                 || item.Value.Status is not (PdhValidData or PdhNewData)
                 || !IsLogicalProcessorInstanceName(ReadNullTerminatedSpan((char*)item.Name)))
-            {
                 continue;
-            }
 
             ulong currentSpeedHertz = CalculateCurrentSpeedHertz(
                 baseSpeedHertz,
@@ -346,7 +338,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
     {
         if (requiredSize <= _counterBufferSize) return;
 
-        uint capacity = Math.Max(4_096U, _counterBufferSize);
+        uint capacity = Math.Max(val1: 4_096U, _counterBufferSize);
         while (capacity < requiredSize)
             capacity = checked(capacity * 2);
         _counterBuffer = _counterBuffer == IntPtr.Zero
@@ -386,10 +378,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
 
     private static bool TryReadPerformanceInformation(out SystemPerformanceInformation information)
     {
-        PERFORMANCE_INFORMATION native = new()
-        {
-            Size = (uint)Marshal.SizeOf<PERFORMANCE_INFORMATION>()
-        };
+        PERFORMANCE_INFORMATION native = new() { Size = (uint)Marshal.SizeOf<PERFORMANCE_INFORMATION>() };
         if (!K32GetPerformanceInfo(ref native, native.Size) || native.PageSize == 0)
         {
             information = default;
@@ -421,7 +410,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         uint processorCount = GetActiveProcessorCount(AllProcessorGroups);
         return processorCount is > 0 and <= int.MaxValue
             ? (int)processorCount
-            : Math.Max(1, Environment.ProcessorCount);
+            : Math.Max(val1: 1, Environment.ProcessorCount);
     }
 
     private static ulong PageCountToBytes(nuint pageCount, nuint pageSize)
@@ -570,7 +559,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         ulong L3CacheBytes)
     {
         public static ProcessorTopology WithLogicalProcessorCount(int logicalProcessorCount) =>
-            new(0, 0, logicalProcessorCount, 0, 0, 0);
+            new(SocketCount: 0, CoreCount: 0, logicalProcessorCount, L1CacheBytes: 0, L2CacheBytes: 0, L3CacheBytes: 0);
     }
 }
 

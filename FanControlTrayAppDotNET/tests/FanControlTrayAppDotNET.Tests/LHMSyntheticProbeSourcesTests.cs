@@ -75,7 +75,7 @@ public sealed class LHMSyntheticProbeSourcesTests
     {
         string key = LHMSyntheticProbeSources.BuildMaxClockKey("AMD Ryzen 9");
 
-        Assert.Equal("AMD_Ryzen_9.Clock.Cores_(Max)", key);
+        Assert.Equal(expected: "AMD_Ryzen_9.Clock.Cores_(Max)", key);
     }
 
     /// <summary>
@@ -86,6 +86,6 @@ public sealed class LHMSyntheticProbeSourcesTests
     {
         string key = LHMSyntheticProbeSources.BuildMaxEffectiveClockKey("AMD Ryzen 9");
 
-        Assert.Equal("AMD_Ryzen_9.Clock.Cores_(Max_Effective)", key);
+        Assert.Equal(expected: "AMD_Ryzen_9.Clock.Cores_(Max_Effective)", key);
     }
 }

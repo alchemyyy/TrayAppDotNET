@@ -15,7 +15,7 @@ public sealed partial class BrightnessSettingsWindow
         bool changed = false;
         if (TryParseCoordinate(_latitudeBox.Text, out double latitude))
         {
-            double clamped = Math.Clamp(latitude, -90.0, 90.0);
+            double clamped = Math.Clamp(latitude, min: -90.0, max: 90.0);
             if (Math.Abs(_settings.EnvironmentalLatitude - clamped) > 1e-9)
             {
                 _settings.EnvironmentalLatitude = clamped;
@@ -29,7 +29,7 @@ public sealed partial class BrightnessSettingsWindow
 
         if (TryParseCoordinate(_longitudeBox.Text, out double longitude))
         {
-            double clamped = Math.Clamp(longitude, -180.0, 180.0);
+            double clamped = Math.Clamp(longitude, min: -180.0, max: 180.0);
             if (Math.Abs(_settings.EnvironmentalLongitude - clamped) > 1e-9)
             {
                 _settings.EnvironmentalLongitude = clamped;
@@ -53,7 +53,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         long pageGeneration = _environmentalPageGeneration;
         CancellationToken cancellationToken = _environmentalPageResources?.CancellationToken ??
-                                              new CancellationToken(canceled: true);
+                                              new CancellationToken(true);
         if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
 
         button.IsEnabled = false;
@@ -62,7 +62,7 @@ public sealed partial class BrightnessSettingsWindow
         try
         {
             using HttpResponseMessage response = await EnvironmentalHttpClient
-                .GetAsync("https://am.i.mullvad.net/json", cancellationToken)
+                .GetAsync(requestUri: "https://am.i.mullvad.net/json", cancellationToken)
                 .ConfigureAwait(true);
             if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
             response.EnsureSuccessStatusCode();
@@ -71,8 +71,8 @@ public sealed partial class BrightnessSettingsWindow
 
             using JsonDocument doc = JsonDocument.Parse(json);
             JsonElement root = doc.RootElement;
-            if (!root.TryGetProperty("latitude", out JsonElement latitudeElement)) return;
-            if (!root.TryGetProperty("longitude", out JsonElement longitudeElement)) return;
+            if (!root.TryGetProperty(propertyName: "latitude", out JsonElement latitudeElement)) return;
+            if (!root.TryGetProperty(propertyName: "longitude", out JsonElement longitudeElement)) return;
             if (!latitudeElement.TryGetDouble(out double latitude)) return;
             if (!longitudeElement.TryGetDouble(out double longitude)) return;
 
@@ -149,8 +149,8 @@ public sealed partial class BrightnessSettingsWindow
 
     private void ApplyEnvironmentalCoordinates(double latitude, double longitude)
     {
-        _settings.EnvironmentalLatitude = Math.Clamp(latitude, -90.0, 90.0);
-        _settings.EnvironmentalLongitude = Math.Clamp(longitude, -180.0, 180.0);
+        _settings.EnvironmentalLatitude = Math.Clamp(latitude, min: -90.0, max: 90.0);
+        _settings.EnvironmentalLongitude = Math.Clamp(longitude, min: -180.0, max: 180.0);
         _latitudeBox?.Text = FormatCoordinate(_settings.EnvironmentalLatitude);
         _longitudeBox?.Text = FormatCoordinate(_settings.EnvironmentalLongitude);
         Save();

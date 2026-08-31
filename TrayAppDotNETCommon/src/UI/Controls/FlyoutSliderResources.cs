@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -9,9 +8,9 @@ public sealed partial class FlyoutSliderResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<FlyoutSliderResources> Resources =
         CommonAXAMLResourceStore<FlyoutSliderResources>.Create(
-            "Common flyout-slider resources",
+            resourceName: "Common flyout-slider resources",
             static () => new FlyoutSliderResources(),
-            "FlyoutSlider.axaml");
+            sourceFileName: "FlyoutSlider.axaml");
 #else
     private static readonly Lazy<FlyoutSliderResources> Resources =
         new(static () => new FlyoutSliderResources());

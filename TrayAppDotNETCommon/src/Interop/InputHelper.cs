@@ -11,10 +11,10 @@ public static class InputHelper
 {
     private static readonly RawInputRegistration[] RawInputRegistrations =
     [
-        new("generic-mouse", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_MOUSE),
-        new("generic-pointer", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_POINTER),
-        new("generic-wheel", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_WHEEL),
-        new("digitizer-touchpad", User32.HID_USAGE_PAGE_DIGITIZER, User32.HID_USAGE_DIGITIZER_TOUCH_PAD)
+        new(Name: "generic-mouse", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_MOUSE),
+        new(Name: "generic-pointer", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_POINTER),
+        new(Name: "generic-wheel", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_WHEEL),
+        new(Name: "digitizer-touchpad", User32.HID_USAGE_PAGE_DIGITIZER, User32.HID_USAGE_DIGITIZER_TOUCH_PAD)
     ];
 
     public static bool RegisterForMouseInput(IntPtr handle)
@@ -82,8 +82,8 @@ public static class InputHelper
         IntPtr nativeBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(device));
         try
         {
-            Marshal.StructureToPtr(device, nativeBuffer, false);
-            return User32.RegisterRawInputDevices(nativeBuffer, 1, (uint)Marshal.SizeOf(device));
+            Marshal.StructureToPtr(device, nativeBuffer, fDeleteOld: false);
+            return User32.RegisterRawInputDevices(nativeBuffer, numDevices: 1, (uint)Marshal.SizeOf(device));
         }
         finally
         {
@@ -194,9 +194,9 @@ public static class InputHelper
             if (payloadOffset < 0 || payloadOffset >= inputDataSize) return string.Empty;
 
             int available = checked((int)Math.Min(byteCount, inputDataSize - (uint)payloadOffset));
-            int count = Math.Min(available, 64);
+            int count = Math.Min(available, val2: 64);
             byte[] bytes = new byte[count];
-            Marshal.Copy(IntPtr.Add(rawInputBuffer, payloadOffset), bytes, 0, count);
+            Marshal.Copy(IntPtr.Add(rawInputBuffer, payloadOffset), bytes, startIndex: 0, count);
             return Convert.ToHexString(bytes);
         }
     }

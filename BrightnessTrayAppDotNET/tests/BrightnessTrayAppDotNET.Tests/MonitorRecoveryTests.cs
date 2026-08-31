@@ -13,29 +13,29 @@ public sealed class MonitorRecoveryTests
     public async Task TargetedRecoveryMatchesPortFormWhenDisplayNumberDriftsAndSerialIsMissing()
     {
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-A", displayNumber: 3, serial: string.Empty));
-        display.SetRead("DISPLAY\\PORT-A", ok: true, current: 40, max: 100);
+        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-A", displayNumber: 3, string.Empty));
+        display.SetRead(key: "DISPLAY\\PORT-A", ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         string originalID = monitor.ID;
-        Assert.Equal("num:3", originalID);
-        Assert.Equal("port:DISPLAY\\PORT-A", monitor.EDIDKey);
+        Assert.Equal(expected: "num:3", originalID);
+        Assert.Equal(expected: "port:DISPLAY\\PORT-A", monitor.EDIDKey);
         // Regression: a successful initial probe used to publish the functional row through Monitors.Add before
         // WasEverDDCCapable was set. A second Refresh could demote that half-published row first, making recovery
         // candidate selection nondeterministically return an empty list.
         Assert.True(monitor.WasEverDDCCapable);
 
-        display.SetRead("DISPLAY\\PORT-A", ok: false, error: "simulated read failure");
+        display.SetRead(key: "DISPLAY\\PORT-A", ok: false, error: "simulated read failure");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
 
         Assert.Contains(originalID, service.GetStuckRecoveryCandidateIDs());
 
-        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-A", displayNumber: 7, serial: string.Empty));
-        display.SetRead("DISPLAY\\PORT-A", ok: true, current: 55, max: 100);
+        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-A", displayNumber: 7, string.Empty));
+        display.SetRead(key: "DISPLAY\\PORT-A", ok: true, current: 55, max: 100);
 
         int fullEnumerationsBeforeRecovery = display.FullEnumerationCalls;
         int DDCRecoveryEnumerationsBeforeRecovery = display.DDCRecoveryEnumerationCalls;
@@ -48,39 +48,39 @@ public sealed class MonitorRecoveryTests
         Assert.False(monitor.IsReadDegraded);
         Assert.Null(monitor.LastDDCError);
         Assert.Equal(originalID, monitor.ID);
-        Assert.Equal(7, monitor.DisplayNumber);
-        Assert.Equal(55, monitor.RoundedBrightness);
+        Assert.Equal(expected: 7, monitor.DisplayNumber);
+        Assert.Equal(expected: 55, monitor.RoundedBrightness);
     }
 
     [Fact]
     public async Task TargetedRecoveryRekeysPortFallbackRowWhenEDIDAppears()
     {
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-B", displayNumber: 1, serial: string.Empty));
-        display.SetRead("DISPLAY\\PORT-B", ok: true, current: 35, max: 100);
+        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-B", displayNumber: 1, string.Empty));
+        display.SetRead(key: "DISPLAY\\PORT-B", ok: true, current: 35, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         string portFallbackID = monitor.ID;
-        Assert.Equal("port:DISPLAY\\PORT-B", portFallbackID);
-        Assert.Equal("port:DISPLAY\\PORT-B", monitor.EDIDKey);
+        Assert.Equal(expected: "port:DISPLAY\\PORT-B", portFallbackID);
+        Assert.Equal(expected: "port:DISPLAY\\PORT-B", monitor.EDIDKey);
 
-        display.SetRead("DISPLAY\\PORT-B", ok: false, error: "simulated read failure");
+        display.SetRead(key: "DISPLAY\\PORT-B", ok: false, error: "simulated read failure");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
 
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-B", displayNumber: 1, serial: "SERIAL-B"));
-        display.SetRead("DISPLAY\\PORT-B", ok: true, current: 70, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-B", ok: true, current: 70, max: 100);
 
         bool recovered = service.TryRecoverMonitor(portFallbackID);
 
         Assert.True(recovered);
         Assert.True(monitor.IsHardwareFunctional);
-        Assert.Equal("edid:SERIAL-B", monitor.ID);
-        Assert.Equal("edid:SERIAL-B", monitor.EDIDKey);
-        Assert.Equal("SERIAL-B", monitor.EDIDSerial);
+        Assert.Equal(expected: "edid:SERIAL-B", monitor.ID);
+        Assert.Equal(expected: "edid:SERIAL-B", monitor.EDIDKey);
+        Assert.Equal(expected: "SERIAL-B", monitor.EDIDSerial);
         Assert.Null(monitor.LastDDCError);
     }
 
@@ -89,8 +89,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-C", displayNumber: 2, serial: "SERIAL-C"));
-        display.SetRead("DISPLAY\\PORT-C", ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-C", ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
@@ -99,8 +99,8 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 42;
         await WaitUntil(() => display.HasReadValue(42));
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
-        display.SetRead("DISPLAY\\PORT-C", ok: false, error: "reads wedged");
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(key: "DISPLAY\\PORT-C", ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
 
@@ -112,10 +112,10 @@ public sealed class MonitorRecoveryTests
         Assert.True(display.GetVcpCalls >= readsBeforeRecovery + 2);
         Assert.True(monitor.IsHardwareFunctional);
         Assert.True(monitor.IsReadDegraded);
-        Assert.Equal("reads wedged", monitor.LastDDCError);
+        Assert.Equal(expected: "reads wedged", monitor.LastDDCError);
         Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
 
-        display.SetRead("DISPLAY\\PORT-C", ok: true, current: 44, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-C", ok: true, current: 44, max: 100);
         bool recovered = false;
         await WaitUntil(() => recovered = service.TryRecoverMonitor(monitor.ID));
 
@@ -124,7 +124,7 @@ public sealed class MonitorRecoveryTests
         Assert.False(monitor.IsReadDegraded);
         Assert.Null(monitor.LastDDCError);
         Assert.DoesNotContain(monitor.ID, service.GetStuckRecoveryCandidateIDs());
-        Assert.Equal(42, monitor.RoundedBrightness);
+        Assert.Equal(expected: 42, monitor.RoundedBrightness);
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-N", displayNumber: 14, serial: "SERIAL-N"));
-        display.SetRead("DISPLAY\\PORT-N", ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-N", ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
@@ -142,12 +142,12 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 42;
         await WaitUntil(() => display.HasReadValue(42));
 
-        display.SetRead("DISPLAY\\PORT-N", ok: false, error: "reads wedged");
+        display.SetRead(key: "DISPLAY\\PORT-N", ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
 
         display.SetReadFailuresBeforeSuccess(
-            "DISPLAY\\PORT-N",
+            key: "DISPLAY\\PORT-N",
             failuresBeforeSuccess: 1,
             current: 42,
             max: 100,
@@ -167,13 +167,13 @@ public sealed class MonitorRecoveryTests
         const int CurveTarget = 42;
         string storePath = Path.Combine(
             Path.GetTempPath(),
-            "BrightnessTrayAppDotNET.Tests",
+            path2: "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json");
         KnownDisplaysStore store = new(storePath);
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 35, serial: "HDMI-CHECKSUM"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 35, serial: "HDMI-CHECKSUM"));
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -188,7 +188,7 @@ public sealed class MonitorRecoveryTests
         service.EnqueueDirectBrightness(monitor, CurveTarget);
         await WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == CurveTarget);
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.ConfigureWriteReadBack(false);
         display.SetRead(
             DeviceID,
             ok: false,
@@ -198,7 +198,7 @@ public sealed class MonitorRecoveryTests
         int writesBeforeRecovery = display.SetVcpCalls;
 
         // LG firmware can clear the corrupted reply queue after accepting a same-value brightness SET.
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
         bool recovered = service.TryRecoverMonitor(monitor.ID);
 
         Assert.True(recovered);
@@ -216,16 +216,16 @@ public sealed class MonitorRecoveryTests
         const string DeviceID = "DISPLAY\\HDMI-GENERIC-FAILURE";
         string storePath = Path.Combine(
             Path.GetTempPath(),
-            "BrightnessTrayAppDotNET.Tests",
+            path2: "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json");
         KnownDisplaysStore store = new(storePath);
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 36,
             serial: "HDMI-GENERIC-FAILURE"));
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -238,7 +238,7 @@ public sealed class MonitorRecoveryTests
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.CurveTargetBrightness = 42;
-        service.EnqueueDirectBrightness(monitor, 42);
+        service.EnqueueDirectBrightness(monitor, percent: 42);
         await WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == 42);
 
         display.SetRead(DeviceID, ok: false, error: "generic read failure");
@@ -257,7 +257,7 @@ public sealed class MonitorRecoveryTests
         const int CurveTarget = 37;
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 37,
             serial: "HDMI-BLIND-RECOVERY"));
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
@@ -272,7 +272,7 @@ public sealed class MonitorRecoveryTests
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.CurveTargetBrightness = CurveTarget;
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.ConfigureWriteReadBack(false);
         display.SetRead(DeviceID, ok: false, error: "generic read failure");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
@@ -293,11 +293,11 @@ public sealed class MonitorRecoveryTests
         const string DeviceID = "DISPLAY\\HDMI-BLIND-DISABLED";
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 38,
             serial: "HDMI-BLIND-DISABLED"));
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -310,7 +310,7 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 42;
         await WaitUntil(() => display.HasReadValue(42));
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.ConfigureWriteReadBack(false);
         display.SetRead(DeviceID, ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
@@ -329,7 +329,7 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-S", displayNumber: 19, serial: "SERIAL-S"));
-        display.SetRead("DISPLAY\\PORT-S", ok: true, current: 60, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-S", ok: true, current: 60, max: 100);
 
         using MonitorService service = CreateService(
             display,
@@ -341,7 +341,7 @@ public sealed class MonitorRecoveryTests
         using (service.SuspendHardwareWrites())
             monitor.Brightness = 42;
 
-        display.SetRead("DISPLAY\\PORT-S", ok: false, error: "reads wedged");
+        display.SetRead(key: "DISPLAY\\PORT-S", ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
         int writesBeforeRecovery = display.SetVcpCalls;
@@ -361,20 +361,23 @@ public sealed class MonitorRecoveryTests
             serial: "PANEL-1");
         windowsMonitor.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
         windowsMonitor.WindowsBrightnessInstanceName = @"DISPLAY\TST0001\INTERNAL_0";
-        windowsMonitor.WindowsBrightnessMethodPath = @"\\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName=""DISPLAY\\TST0001\\INTERNAL_0""";
+        windowsMonitor.WindowsBrightnessMethodPath =
+            """
+            \\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName="DISPLAY\\TST0001\\INTERNAL_0"
+            """;
 
         display.SetMonitors(windowsMonitor);
-        display.SetRead("DISPLAY\\INTERNAL", ok: true, current: 45, max: 100);
+        display.SetRead(key: "DISPLAY\\INTERNAL", ok: true, current: 45, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         Assert.False(monitor.SupportsPowerControl);
-        Assert.Equal(45, monitor.RoundedBrightness);
+        Assert.Equal(expected: 45, monitor.RoundedBrightness);
 
-        await service.SetPowerStateAsync(monitor, false);
-        Assert.Equal(0, display.SetVcpCalls);
+        await service.SetPowerStateAsync(monitor, on: false);
+        Assert.Equal(expected: 0, display.SetVcpCalls);
 
         monitor.Brightness = 55;
         await WaitUntil(() => display.SetVcpCalls == 1);
@@ -387,13 +390,16 @@ public sealed class MonitorRecoveryTests
 
         FakeDisplayService display = new();
         DDCMonitor beforeSleep = CreateMonitor(
-            deviceID: canonicalDeviceID,
+            canonicalDeviceID,
             displayNumber: 1,
-            serial: string.Empty);
+            string.Empty);
         beforeSleep.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
         beforeSleep.DisplayInstancePath = canonicalDeviceID;
         beforeSleep.WindowsBrightnessInstanceName = canonicalDeviceID + "_0";
-        beforeSleep.WindowsBrightnessMethodPath = @"\\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName=""DISPLAY\\AUOD298\\INTERNAL_0""";
+        beforeSleep.WindowsBrightnessMethodPath =
+            """
+            \\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName="DISPLAY\\AUOD298\\INTERNAL_0"
+            """;
 
         display.SetMonitors(beforeSleep);
         display.SetRead(canonicalDeviceID, ok: true, current: 40, max: 100);
@@ -406,9 +412,9 @@ public sealed class MonitorRecoveryTests
         Assert.Equal($"port:{canonicalDeviceID}", monitor.EDIDKey);
 
         DDCMonitor afterWake = CreateMonitor(
-            deviceID: canonicalDeviceID,
+            canonicalDeviceID,
             displayNumber: 7,
-            serial: string.Empty,
+            string.Empty,
             name: @"\\.\DISPLAY7");
         afterWake.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
         afterWake.DisplayInstancePath = canonicalDeviceID;
@@ -427,7 +433,7 @@ public sealed class MonitorRecoveryTests
 
         Assert.Same(monitor, service.Monitors[0]);
         Assert.Equal($"port:{canonicalDeviceID}", monitor.EDIDKey);
-        Assert.Equal(7, monitor.DisplayNumber);
+        Assert.Equal(expected: 7, monitor.DisplayNumber);
         Assert.Equal(canonicalDeviceID, display.LastReadKey);
         Assert.True(monitor.IsHardwareFunctional);
         Assert.False(monitor.SupportsPowerControl);
@@ -438,7 +444,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-POWER-RETRY";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 35, serial: "HDMI-POWER-RETRY"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 35, serial: "HDMI-POWER-RETRY"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
         display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
         display.ConfigureFeatureWriteReadBack(
@@ -454,11 +460,11 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
 
         Assert.False(monitor.IsPoweredOn);
         Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
-        Assert.Equal(2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal(expected: 2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
         Assert.Equal((uint)5, display.GetLastSetValueForCode(VCPConstants.PowerMode));
     }
 
@@ -467,7 +473,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-POWER-MISMATCH";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 36, serial: "HDMI-POWER-MISMATCH"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 36, serial: "HDMI-POWER-MISMATCH"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
         display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
 
@@ -479,11 +485,11 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
 
         Assert.True(monitor.IsPoweredOn);
         Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
-        Assert.Equal(3, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal(expected: 3, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
     }
 
     [Fact]
@@ -491,7 +497,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\DP-HARD-OFF";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 37, serial: "DP-HARD-OFF"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 37, serial: "DP-HARD-OFF"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(
@@ -502,11 +508,11 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
 
         Assert.False(monitor.IsPoweredOn);
         Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
-        Assert.Equal(1, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal(expected: 1, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
     }
 
     [Fact]
@@ -514,7 +520,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\POWER-SUPERSEDE";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 38, serial: "POWER-SUPERSEDE"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 38, serial: "POWER-SUPERSEDE"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
         display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
         display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
@@ -528,14 +534,14 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        Task powerOff = service.SetPowerStateAsync(monitor, false);
+        Task powerOff = service.SetPowerStateAsync(monitor, on: false);
         await WaitUntil(() => display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode) == 1);
-        Task powerOn = service.SetPowerStateAsync(monitor, true);
+        Task powerOn = service.SetPowerStateAsync(monitor, on: true);
         await Task.WhenAll(powerOff, powerOn);
 
         Assert.True(monitor.IsPoweredOn);
         Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
-        Assert.Equal(2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal(expected: 2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
         Assert.Equal((uint)1, display.GetLastSetValueForCode(VCPConstants.PowerMode));
     }
 
@@ -544,8 +550,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-Q", displayNumber: 17, serial: "SERIAL-Q"));
-        display.SetRead("DISPLAY\\PORT-Q", ok: true, current: 40, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-Q", ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -557,12 +563,12 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 65;
         await WaitUntil(() => display.HasReadValue(65));
 
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
         Assert.False(monitor.IsPoweredOn);
         Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
-        display.SetRead("DISPLAY\\PORT-Q", ok: true, current: 20, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-Q", ok: true, current: 20, max: 100);
 
-        await service.SetPowerStateAsync(monitor, true);
+        await service.SetPowerStateAsync(monitor, on: true);
         Assert.True(monitor.IsPoweredOn);
         Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
         await WaitUntil(
@@ -575,8 +581,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-T", displayNumber: 20, serial: "SERIAL-T"));
-        display.SetRead("DISPLAY\\PORT-T", ok: true, current: 40, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-T", ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -590,7 +596,7 @@ public sealed class MonitorRecoveryTests
         int writesBeforePowerOff = display.SetVcpCalls;
 
         display.ConfigureWriteFailures(1);
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
 
         Assert.True(monitor.IsPoweredOn);
         await WaitUntil(
@@ -604,7 +610,7 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-D", displayNumber: 4, serial: "SERIAL-D"));
-        display.SetRead("DISPLAY\\PORT-D", ok: true, current: 50, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-D", ok: true, current: 50, max: 100);
         display.ConfigureWriteReadBack(applySuccessfulWrites: true, successfulWritesToDrop: 1);
 
         using MonitorService service = CreateService(
@@ -613,7 +619,7 @@ public sealed class MonitorRecoveryTests
             validationAttempts: 3);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
-        service.EnqueueDirectBrightnessImmediate(service.Monitors[0], 70);
+        service.EnqueueDirectBrightnessImmediate(service.Monitors[0], percent: 70);
 
         await WaitUntil(
             () => display.SetVcpCalls >= 2 && display.HasReadValue(70),
@@ -626,8 +632,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-E", displayNumber: 5, serial: "SERIAL-E"));
-        display.SetRead("DISPLAY\\PORT-E", ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-E", ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -636,14 +642,14 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         using ManualResetEventSlim predicateCalled = new();
-        service.EnqueueDirectBrightnessImmediate(service.Monitors[0], 64, () =>
+        service.EnqueueDirectBrightnessImmediate(service.Monitors[0], percent: 64, () =>
         {
             predicateCalled.Set();
             return false;
         });
         Assert.True(predicateCalled.Wait(1000));
 
-        service.EnqueueDirectBrightness(service.Monitors[0], 64);
+        service.EnqueueDirectBrightness(service.Monitors[0], percent: 64);
 
         await WaitUntil(() => display.HasReadValue(64));
         Assert.Equal((uint)64, display.GetCurrentValue("DISPLAY\\PORT-E"));
@@ -654,7 +660,7 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-F", displayNumber: 6, serial: "SERIAL-F"));
-        display.SetRead("DISPLAY\\PORT-F", ok: true, current: 45, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-F", ok: true, current: 45, max: 100);
         display.ConfigureWriteReadBack(applySuccessfulWrites: true, successfulWritesToDrop: 1);
 
         using MonitorService service = CreateService(
@@ -676,11 +682,11 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-K", displayNumber: 11, serial: "SERIAL-K"));
-        display.SetRead("DISPLAY\\PORT-K", ok: true, current: 45, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-K", ok: true, current: 45, max: 100);
 
         string storePath = Path.Combine(
             Path.GetTempPath(),
-            "BrightnessTrayAppDotNET.Tests",
+            path2: "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json");
         KnownDisplaysStore store = new(storePath);
         using MonitorService service = CreateService(
@@ -711,7 +717,7 @@ public sealed class MonitorRecoveryTests
             serial: "SERIAL-L");
         monitor.BrightnessCode = AlternateBrightnessCode;
         display.SetMonitors(monitor);
-        display.SetRead("DISPLAY\\PORT-L", ok: false, error: "force handle refresh");
+        display.SetRead(key: "DISPLAY\\PORT-L", ok: false, error: "force handle refresh");
 
         using MonitorService service = CreateService(
             display,
@@ -728,28 +734,27 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-O", displayNumber: 15, serial: "SERIAL-O"));
-        display.SetRead("DISPLAY\\PORT-O", ok: true, current: 50, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-O", ok: true, current: 50, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
             MonitorIdentityStrategy.EDIDSerial,
             configureSettings: settings => settings.MonitorOverrides.Add(new MonitorOverrideEntry
             {
-                ID = "edid:SERIAL-O",
-                MinBrightness = 60
+                ID = "edid:SERIAL-O", MinBrightness = 60
             }));
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        display.SetRead("DISPLAY\\PORT-O", ok: false, error: "force targeted recovery");
+        display.SetRead(key: "DISPLAY\\PORT-O", ok: false, error: "force targeted recovery");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
 
-        display.SetRead("DISPLAY\\PORT-O", ok: true, current: 30, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-O", ok: true, current: 30, max: 100);
         Assert.True(service.TryRecoverMonitor(monitor.ID));
 
-        service.EnqueueDirectBrightness(monitor, 20);
+        service.EnqueueDirectBrightness(monitor, percent: 20);
         await WaitUntil(() => display.HasReadValue(60));
         Assert.Equal((uint)60, display.GetCurrentValue("DISPLAY\\PORT-O"));
     }
@@ -759,16 +764,15 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-R", displayNumber: 18, serial: "SERIAL-R"));
-        display.SetRead("DISPLAY\\PORT-R", ok: true, current: 50, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-R", ok: true, current: 50, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
             MonitorIdentityStrategy.EDIDSerial,
             configureSettings: settings => settings.MonitorOverrides.Add(new MonitorOverrideEntry
             {
-                ID = "edid:SERIAL-R",
-                MinBrightness = 60
+                ID = "edid:SERIAL-R", MinBrightness = 60
             }));
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
@@ -776,8 +780,8 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 20;
         await WaitUntil(() => display.HasReadValue(60));
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
-        display.SetRead("DISPLAY\\PORT-R", ok: false, error: "reads wedged");
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(key: "DISPLAY\\PORT-R", ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
         int writesBeforeRecovery = display.SetVcpCalls;
@@ -792,8 +796,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-G", displayNumber: 7, serial: "SERIAL-G"));
-        display.SetRead("DISPLAY\\PORT-G", ok: true, current: 40, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-G", ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -807,7 +811,7 @@ public sealed class MonitorRecoveryTests
         int writesBeforeReset = display.SetVcpCalls;
 
         // Simulate a GPU/topology reset that changes hardware without changing the slider target.
-        display.SetRead("DISPLAY\\PORT-G", ok: true, current: 20, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-G", ok: true, current: 20, max: 100);
         service.NotifyTopologyEvent();
         service.Refresh();
 
@@ -822,7 +826,7 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-P", displayNumber: 16, serial: "SERIAL-P"));
-        display.SetRead("DISPLAY\\PORT-P", ok: true, current: 50, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-P", ok: true, current: 50, max: 100);
 
         using ManualResetEventSlim enumerationEntered = new();
         using ManualResetEventSlim releaseEnumeration = new();
@@ -857,8 +861,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-M", displayNumber: 13, serial: "SERIAL-M"));
-        display.SetRead("DISPLAY\\PORT-M", ok: true, current: 128, max: 255);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-M", ok: true, current: 128, max: 255);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -871,7 +875,7 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => display.GetCurrentValue("DISPLAY\\PORT-M") == 204);
         int writesBeforeReset = display.SetVcpCalls;
 
-        display.SetRead("DISPLAY\\PORT-M", ok: true, current: 20, max: 200);
+        display.SetRead(key: "DISPLAY\\PORT-M", ok: true, current: 20, max: 200);
         service.NotifyTopologyEvent();
         service.Refresh();
 
@@ -886,8 +890,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-I", displayNumber: 9, serial: "SERIAL-I"));
-        display.SetRead("DISPLAY\\PORT-I", ok: true, current: 40, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-I", ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -905,7 +909,7 @@ public sealed class MonitorRecoveryTests
         // EnvironmentalCurveService reevaluates on MonitorsRefreshed. Model that subscription directly so this
         // regression test remains focused on MonitorService's acknowledgement invalidation boundary.
         service.MonitorsRefreshed += ReapplyCurveTarget;
-        display.SetRead("DISPLAY\\PORT-I", ok: true, current: 20, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-I", ok: true, current: 20, max: 100);
         service.NotifyTopologyEvent();
         service.Refresh();
 
@@ -924,8 +928,8 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-H", displayNumber: 8, serial: "SERIAL-H"));
-        display.SetRead("DISPLAY\\PORT-H", ok: true, current: 60, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.SetRead(key: "DISPLAY\\PORT-H", ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -937,8 +941,8 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 42;
         await WaitUntil(() => display.HasReadValue(42));
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
-        display.SetRead("DISPLAY\\PORT-H", ok: false, error: "reads wedged");
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(key: "DISPLAY\\PORT-H", ok: false, error: "reads wedged");
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
         Assert.False(service.TryRecoverMonitor(monitor.ID));
@@ -955,7 +959,7 @@ public sealed class MonitorRecoveryTests
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-J", displayNumber: 10, serial: "SERIAL-J"));
-        display.SetRead("DISPLAY\\PORT-J", ok: true, current: 50, max: 100);
+        display.SetRead(key: "DISPLAY\\PORT-J", ok: true, current: 50, max: 100);
         display.ConfigureWriteReadBack(applySuccessfulWrites: true, successfulWritesToDrop: 10);
 
         using MonitorService service = CreateService(
@@ -969,7 +973,7 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 30;
         await WaitUntil(() => display.SetVcpCalls >= 4);
 
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
         Stopwatch stopwatch = Stopwatch.StartNew();
         monitor.Brightness = 80;
 
@@ -984,7 +988,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-RECOVERY";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 21, serial: "HDMI-RECOVERY"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 21, serial: "HDMI-RECOVERY"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(
@@ -1012,9 +1016,9 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-REPLAY";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 22, serial: "HDMI-REPLAY"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 22, serial: "HDMI-REPLAY"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1044,9 +1048,9 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-STALE-POWER";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 31, serial: "HDMI-STALE-POWER"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 31, serial: "HDMI-STALE-POWER"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1081,11 +1085,11 @@ public sealed class MonitorRecoveryTests
         const string DeviceID = "DISPLAY\\HDMI-REFRESH-REPLAY";
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 30,
             serial: "HDMI-REFRESH-REPLAY"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1115,11 +1119,11 @@ public sealed class MonitorRecoveryTests
         const string DeviceID = "DISPLAY\\HDMI-SLEEPING-REPLAY";
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 32,
             serial: "HDMI-SLEEPING-REPLAY"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1171,11 +1175,11 @@ public sealed class MonitorRecoveryTests
         const int CurveTarget = 73;
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(
-            deviceID: DeviceID,
+            DeviceID,
             displayNumber: 33,
             serial: "HDMI-LYING-READ"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1195,7 +1199,7 @@ public sealed class MonitorRecoveryTests
 
         // Some firmware can return the requested VCP value while the visible panel state is stale. Recovery therefore
         // must perform a fresh SET plus read-back instead of accepting this matching GET as application evidence.
-        display.SetRead(DeviceID, ok: true, current: CurveTarget, max: 100);
+        display.SetRead(DeviceID, ok: true, CurveTarget, max: 100);
         int writesBeforeRecovery = display.SetVcpCalls;
         int readsBeforeRecovery = display.GetVcpCalls;
         Assert.True(service.TryRecoverMonitor(monitor.ID));
@@ -1213,9 +1217,9 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-USER-WAKE";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 34, serial: "HDMI-USER-WAKE"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 34, serial: "HDMI-USER-WAKE"));
         display.SetRead(DeviceID, ok: true, current: 40, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1224,12 +1228,12 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
-        await service.SetPowerStateAsync(monitor, false);
+        await service.SetPowerStateAsync(monitor, on: false);
         Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
         int writesAfterPowerOff = display.SetVcpCalls;
 
         // Background curve traffic cannot contradict an explicit power-off command.
-        service.EnqueueDirectBrightness(monitor, 71);
+        service.EnqueueDirectBrightness(monitor, percent: 71);
         Assert.Equal(writesAfterPowerOff, display.SetVcpCalls);
 
         // A slider/profile brightness assignment is explicit newer intent and must be allowed to recover the panel.
@@ -1245,9 +1249,9 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-SNAPSHOT";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 29, serial: "HDMI-SNAPSHOT"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 29, serial: "HDMI-SNAPSHOT"));
         display.SetRead(DeviceID, ok: true, current: 35, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
         InlineMonitorServiceDispatcher dispatcher = new();
 
         using MonitorService service = CreateService(
@@ -1275,7 +1279,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-QUIET";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 23, serial: "HDMI-QUIET"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 23, serial: "HDMI-QUIET"));
         display.SetRead(DeviceID, ok: true, current: 45, max: 100);
 
         using MonitorService service = CreateService(
@@ -1290,8 +1294,8 @@ public sealed class MonitorRecoveryTests
 
         await WaitUntil(() => service.Monitors[0].IsFailed);
 
-        Assert.Equal(1, display.SetVcpCalls);
-        Assert.Equal(3, display.GetTransportResetCount(DeviceID));
+        Assert.Equal(expected: 1, display.SetVcpCalls);
+        Assert.Equal(expected: 3, display.GetTransportResetCount(DeviceID));
     }
 
     [Fact]
@@ -1301,8 +1305,8 @@ public sealed class MonitorRecoveryTests
         const string DisplayPortID = "DISPLAY\\DP-HEALTHY";
         FakeDisplayService display = new();
         display.SetMonitors(
-            CreateMonitor(deviceID: HDMIID, displayNumber: 27, serial: "HDMI-FAULT"),
-            CreateMonitor(deviceID: DisplayPortID, displayNumber: 28, serial: "DP-HEALTHY"));
+            CreateMonitor(HDMIID, displayNumber: 27, serial: "HDMI-FAULT"),
+            CreateMonitor(DisplayPortID, displayNumber: 28, serial: "DP-HEALTHY"));
         display.SetRead(HDMIID, ok: true, current: 50, max: 100);
         display.SetRead(DisplayPortID, ok: true, current: 50, max: 100);
 
@@ -1317,8 +1321,8 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() => service.Monitors.Single(m => m.EDIDSerial == "HDMI-FAULT").IsFailed);
 
         Assert.True(service.Monitors.Single(m => m.EDIDSerial == "DP-HEALTHY").IsHardwareFunctional);
-        Assert.Equal(1, display.GetTransportResetCount(HDMIID));
-        Assert.Equal(0, display.GetTransportResetCount(DisplayPortID));
+        Assert.Equal(expected: 1, display.GetTransportResetCount(HDMIID));
+        Assert.Equal(expected: 0, display.GetTransportResetCount(DisplayPortID));
     }
 
     [Fact]
@@ -1329,10 +1333,10 @@ public sealed class MonitorRecoveryTests
         DDCMonitor initial = CreateMonitor(
             deviceID: "DISPLAY\\HDMI-OLD",
             displayNumber: 1,
-            serial: string.Empty);
+            string.Empty);
         initial.DisplayInstancePath = DisplayInstancePath;
         display.SetMonitors(initial);
-        display.SetRead("DISPLAY\\HDMI-OLD", ok: true, current: 40, max: 100);
+        display.SetRead(key: "DISPLAY\\HDMI-OLD", ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(
             display,
@@ -1340,25 +1344,25 @@ public sealed class MonitorRecoveryTests
             validationAttempts: 1);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
-        display.SetRead("DISPLAY\\HDMI-OLD", ok: false, error: "link retraining");
+        display.SetRead(key: "DISPLAY\\HDMI-OLD", ok: false, error: "link retraining");
         service.Refresh();
         await WaitUntil(() => service.Monitors[0].IsFailed);
 
         DDCMonitor retrained = CreateMonitor(
             deviceID: "DISPLAY\\HDMI-NEW",
             displayNumber: 7,
-            serial: string.Empty,
+            string.Empty,
             name: @"\\.\DISPLAY7");
         retrained.DisplayInstancePath = DisplayInstancePath;
         display.SetMonitors(retrained);
-        display.SetRead("DISPLAY\\HDMI-NEW", ok: true, current: 65, max: 100);
+        display.SetRead(key: "DISPLAY\\HDMI-NEW", ok: true, current: 65, max: 100);
 
         bool recovered = service.TryRecoverMonitor("num:1");
 
         Assert.True(recovered);
         Assert.True(service.Monitors[0].IsHardwareFunctional);
-        Assert.Equal(7, service.Monitors[0].DisplayNumber);
-        Assert.Equal("num:1", service.Monitors[0].ID);
+        Assert.Equal(expected: 7, service.Monitors[0].DisplayNumber);
+        Assert.Equal(expected: "num:1", service.Monitors[0].ID);
     }
 
     [Fact]
@@ -1368,11 +1372,11 @@ public sealed class MonitorRecoveryTests
         const string DisplayPortID = "DISPLAY\\DP-FAST";
         FakeDisplayService display = new();
         display.SetMonitors(
-            CreateMonitor(deviceID: HDMIID, displayNumber: 24, serial: "HDMI-SLOW"),
-            CreateMonitor(deviceID: DisplayPortID, displayNumber: 25, serial: "DP-FAST"));
+            CreateMonitor(HDMIID, displayNumber: 24, serial: "HDMI-SLOW"),
+            CreateMonitor(DisplayPortID, displayNumber: 25, serial: "DP-FAST"));
         display.SetRead(HDMIID, ok: true, current: 50, max: 100);
         display.SetRead(DisplayPortID, ok: true, current: 50, max: 100);
-        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
 
         using MonitorService service = CreateService(
             display,
@@ -1382,14 +1386,9 @@ public sealed class MonitorRecoveryTests
             {
                 settings.MonitorOverrides.Add(new MonitorOverrideEntry
                 {
-                    ID = "edid:HDMI-SLOW",
-                    BrightnessDwellMs = 1_000
+                    ID = "edid:HDMI-SLOW", BrightnessDwellMs = 1_000
                 });
-                settings.MonitorOverrides.Add(new MonitorOverrideEntry
-                {
-                    ID = "edid:DP-FAST",
-                    BrightnessDwellMs = 0
-                });
+                settings.MonitorOverrides.Add(new MonitorOverrideEntry { ID = "edid:DP-FAST", BrightnessDwellMs = 0 });
             });
         await WaitUntil(() => service.Monitors.Count == 2 && service.Monitors.All(m => m.IsHardwareFunctional));
 
@@ -1413,7 +1412,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-DISABLED";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 26, serial: "HDMI-DISABLED"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 26, serial: "HDMI-DISABLED"));
         display.SetRead(DeviceID, ok: true, current: 50, max: 100);
 
         using MonitorService service = CreateService(
@@ -1440,7 +1439,7 @@ public sealed class MonitorRecoveryTests
     {
         const string DeviceID = "DISPLAY\\HDMI-RELEASED";
         FakeDisplayService display = new();
-        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 31, serial: "HDMI-RELEASED"));
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 31, serial: "HDMI-RELEASED"));
         display.SetRead(DeviceID, ok: true, current: 50, max: 100);
 
         using MonitorService service = CreateService(
@@ -1486,7 +1485,7 @@ public sealed class MonitorRecoveryTests
 
         KnownDisplaysStore store = knownDisplays ?? new KnownDisplaysStore(Path.Combine(
             Path.GetTempPath(),
-            "BrightnessTrayAppDotNET.Tests",
+            path2: "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json"));
         return new MonitorService(display, settings, store, dispatcher ?? new InlineMonitorServiceDispatcher());
     }
@@ -1529,14 +1528,15 @@ public sealed class MonitorRecoveryTests
     {
         private int _failNextGenericInvoke;
 
-        public void FailNextGenericInvoke() => Interlocked.Exchange(ref _failNextGenericInvoke, 1);
+        public void FailNextGenericInvoke() => Interlocked.Exchange(ref _failNextGenericInvoke, value: 1);
 
         public bool CheckAccess() => true;
         public void Post(Action action) => action();
         public void Invoke(Action action) => action();
+
         public T Invoke<T>(Func<T> action)
         {
-            if (Interlocked.Exchange(ref _failNextGenericInvoke, 0) == 1)
+            if (Interlocked.Exchange(ref _failNextGenericInvoke, value: 0) == 1)
                 throw new InvalidOperationException("simulated dispatcher snapshot failure");
 
             return action();
@@ -1588,7 +1588,7 @@ public sealed class MonitorRecoveryTests
             lock (_gate)
             {
                 _applySuccessfulWritesToReadBack = applySuccessfulWrites;
-                _successfulWritesToDrop = Math.Max(0, successfulWritesToDrop);
+                _successfulWritesToDrop = Math.Max(val1: 0, successfulWritesToDrop);
             }
         }
 
@@ -1604,14 +1604,14 @@ public sealed class MonitorRecoveryTests
                 else
                     _featureWriteReadBackCodes.Remove(code);
 
-                _successfulFeatureWritesToDrop[code] = Math.Max(0, successfulWritesToDrop);
+                _successfulFeatureWritesToDrop[code] = Math.Max(val1: 0, successfulWritesToDrop);
             }
         }
 
         public void ConfigureWriteFailures(int writesToFail)
         {
             lock (_gate)
-                _writesToFail = Math.Max(0, writesToFail);
+                _writesToFail = Math.Max(val1: 0, writesToFail);
         }
 
         public void ConfigureRecoveryAfterTransportResets(
@@ -1622,16 +1622,16 @@ public sealed class MonitorRecoveryTests
         {
             lock (_gate)
             {
-                _reads[key] = new VcpRead(false, 0, 0, "simulated poisoned transport");
-                _transportResetsUntilRecovery[key] = Math.Max(1, resetCount);
-                _readsAfterTransportRecovery[key] = new VcpRead(true, current, max, null);
+                _reads[key] = new VcpRead(Ok: false, Current: 0, Max: 0, Error: "simulated poisoned transport");
+                _transportResetsUntilRecovery[key] = Math.Max(val1: 1, resetCount);
+                _readsAfterTransportRecovery[key] = new VcpRead(Ok: true, current, max, Error: null);
             }
         }
 
         public int GetTransportResetCount(string key)
         {
             lock (_gate)
-                return _transportResetCounts.GetValueOrDefault(key, 0);
+                return _transportResetCounts.GetValueOrDefault(key, defaultValue: 0);
         }
 
         public bool HasReadValue(uint value)
@@ -1701,21 +1701,17 @@ public sealed class MonitorRecoveryTests
         {
             lock (_gate)
             {
-                _reads[key] = new VcpRead(true, current, max, null);
-                _readFailuresRemaining[key] = Math.Max(0, failuresBeforeSuccess);
+                _reads[key] = new VcpRead(Ok: true, current, max, Error: null);
+                _readFailuresRemaining[key] = Math.Max(val1: 0, failuresBeforeSuccess);
                 _readFailureErrors[key] = error;
             }
         }
 
-        public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
-        {
-            return TryGetMonitorsCore(isDDCRecovery: false, out monitors, out error);
-        }
+        public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
+            TryGetMonitorsCore(isDDCRecovery: false, out monitors, out error);
 
-        public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
-        {
-            return TryGetMonitorsCore(isDDCRecovery: true, out monitors, out error);
-        }
+        public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
+            TryGetMonitorsCore(isDDCRecovery: true, out monitors, out error);
 
         private bool TryGetMonitorsCore(
             bool isDDCRecovery,
@@ -1784,7 +1780,7 @@ public sealed class MonitorRecoveryTests
                     ? featureRead
                     : _reads.TryGetValue(key, out VcpRead configured)
                         ? configured
-                        : new VcpRead(true, 50, 100, null);
+                        : new VcpRead(Ok: true, Current: 50, Max: 100, Error: null);
 
                 if (!hasFeatureRead
                     && _readFailuresRemaining.TryGetValue(key, out int failuresRemaining)
@@ -1793,7 +1789,7 @@ public sealed class MonitorRecoveryTests
                     _readFailuresRemaining[key] = failuresRemaining - 1;
                     currentValue = read.Current;
                     maxValue = read.Max;
-                    error = _readFailureErrors.GetValueOrDefault(key, "simulated sequenced read failure");
+                    error = _readFailureErrors.GetValueOrDefault(key, defaultValue: "simulated sequenced read failure");
                     return false;
                 }
 
@@ -1832,26 +1828,22 @@ public sealed class MonitorRecoveryTests
                 if (_applySuccessfulWritesToReadBack && code == monitor.BrightnessCode)
                 {
                     if (_successfulWritesToDrop > 0)
-                    {
                         _successfulWritesToDrop--;
-                    }
                     else
                     {
                         string key = KeyFor(monitor);
                         uint maximum = _reads.TryGetValue(key, out VcpRead currentRead) && currentRead.Max > 0
                             ? currentRead.Max
                             : 100;
-                        _reads[key] = new VcpRead(true, value, maximum, null);
+                        _reads[key] = new VcpRead(Ok: true, value, maximum, Error: null);
                     }
                 }
 
                 if (_featureWriteReadBackCodes.Contains(code))
                 {
-                    int writesToDrop = _successfulFeatureWritesToDrop.GetValueOrDefault(code, 0);
+                    int writesToDrop = _successfulFeatureWritesToDrop.GetValueOrDefault(code, defaultValue: 0);
                     if (writesToDrop > 0)
-                    {
                         _successfulFeatureWritesToDrop[code] = writesToDrop - 1;
-                    }
                     else
                     {
                         string key = KeyFor(monitor);
@@ -1859,7 +1851,7 @@ public sealed class MonitorRecoveryTests
                                        && currentRead.Max > 0
                             ? currentRead.Max
                             : byte.MaxValue;
-                        _featureReads[(key, code)] = new VcpRead(true, value, maximum, null);
+                        _featureReads[(key, code)] = new VcpRead(Ok: true, value, maximum, Error: null);
                     }
                 }
 
@@ -1918,7 +1910,7 @@ public sealed class MonitorRecoveryTests
         }
 
         private int GetTransportResetCountUnderLock(string key) =>
-            _transportResetCounts.GetValueOrDefault(key, 0);
+            _transportResetCounts.GetValueOrDefault(key, defaultValue: 0);
 
         private static DDCMonitor Clone(DDCMonitor source)
         {

@@ -28,7 +28,7 @@ public sealed class DebugUIProvenanceTests
             Colors.Gray,
             Colors.Blue,
             Colors.White);
-        TextBlock textBlock = TrayAppDotNETFlyoutUI.IconText("x", palette, 12);
+        TextBlock textBlock = TrayAppDotNETFlyoutUI.IconText(glyph: "x", palette, fontSize: 12);
 
         DebugPropertyAssignmentHistory textHistory =
             DebugUIProvenance.GetPropertyHistory(textBlock, TextBlock.TextProperty);
@@ -37,12 +37,12 @@ public sealed class DebugUIProvenanceTests
 
         DebugPropertyAssignment text = Assert.Single(textHistory.Assignments);
         DebugPropertyAssignment fontSize = Assert.Single(fontSizeHistory.Assignments);
-        Assert.EndsWith("TrayAppDotNETCommon/src/UI/Controls/FlyoutCards.cs", text.SourcePath);
-        Assert.Equal("IconText", text.SourceMember);
+        Assert.EndsWith(expectedEndString: "TrayAppDotNETCommon/src/UI/Controls/FlyoutCards.cs", text.SourcePath);
+        Assert.Equal(expected: "IconText", text.SourceMember);
         Assert.True(text.SourceLine > 0);
         Assert.True(text.SourceColumn > 0);
-        Assert.Equal("glyph", text.ValueExpression);
-        Assert.Equal("fontSize", fontSize.ValueExpression);
+        Assert.Equal(expected: "glyph", text.ValueExpression);
+        Assert.Equal(expected: "fontSize", fontSize.ValueExpression);
     });
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class DebugUIProvenanceTests
         DebugUIProvenance.RecordProperty(
             border,
             Border.OpacityProperty,
-            0.75,
+            value: 0.75,
             valueExpression: "palette.CardOpacity",
             sourceFilePath: @"C:\repo\TrayAppDotNET\FanControlTrayAppDotNET\src\UI\CardBuilder.cs",
             sourceLine: 42,
@@ -63,12 +63,12 @@ public sealed class DebugUIProvenanceTests
             DebugUIProvenance.GetPropertyHistory(border, Border.OpacityProperty);
 
         DebugPropertyAssignment assignment = Assert.Single(history.Assignments);
-        Assert.Equal("palette.CardOpacity", assignment.ValueExpression);
-        Assert.Equal("FanControlTrayAppDotNET/src/UI/CardBuilder.cs", assignment.SourcePath);
-        Assert.Equal(42, assignment.SourceLine);
-        Assert.Equal("Build", assignment.SourceMember);
-        Assert.Equal("0.75", assignment.ValueDisplay);
-        Assert.Equal(1, history.TotalAssignmentCount);
+        Assert.Equal(expected: "palette.CardOpacity", assignment.ValueExpression);
+        Assert.Equal(expected: "FanControlTrayAppDotNET/src/UI/CardBuilder.cs", assignment.SourcePath);
+        Assert.Equal(expected: 42, assignment.SourceLine);
+        Assert.Equal(expected: "Build", assignment.SourceMember);
+        Assert.Equal(expected: "0.75", assignment.ValueDisplay);
+        Assert.Equal(expected: 1, history.TotalAssignmentCount);
     });
 
     [Fact]
@@ -88,17 +88,17 @@ public sealed class DebugUIProvenanceTests
         DebugPropertyAssignmentHistory history =
             DebugUIProvenance.GetPropertyHistory(border, Border.OpacityProperty);
         DebugPropertyAssignmentHistory recentHistory =
-            DebugUIProvenance.GetRecentPropertyHistory(border, Border.OpacityProperty, 4);
+            DebugUIProvenance.GetRecentPropertyHistory(border, Border.OpacityProperty, maximumAssignments: 4);
 
-        Assert.Equal(300, history.TotalAssignmentCount);
-        Assert.Equal(256, history.Assignments.Count);
-        Assert.Equal(44, history.DiscardedAssignmentCount);
-        Assert.Equal("44", history.Assignments[0].ValueDisplay);
-        Assert.Equal("299", history.Assignments[^1].ValueDisplay);
-        Assert.Equal(300, recentHistory.TotalAssignmentCount);
-        Assert.Equal(4, recentHistory.Assignments.Count);
-        Assert.Equal(296, recentHistory.DiscardedAssignmentCount);
-        Assert.Equal("296", recentHistory.Assignments[0].ValueDisplay);
+        Assert.Equal(expected: 300, history.TotalAssignmentCount);
+        Assert.Equal(expected: 256, history.Assignments.Count);
+        Assert.Equal(expected: 44, history.DiscardedAssignmentCount);
+        Assert.Equal(expected: "44", history.Assignments[0].ValueDisplay);
+        Assert.Equal(expected: "299", history.Assignments[^1].ValueDisplay);
+        Assert.Equal(expected: 300, recentHistory.TotalAssignmentCount);
+        Assert.Equal(expected: 4, recentHistory.Assignments.Count);
+        Assert.Equal(expected: 296, recentHistory.DiscardedAssignmentCount);
+        Assert.Equal(expected: "296", recentHistory.Assignments[0].ValueDisplay);
     });
 
     [Fact]
@@ -124,96 +124,96 @@ public sealed class DebugUIProvenanceTests
         [
             new(
                 AXAMLProvenanceKind.ResourceDefinition,
-                "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
-                27,
-                5,
-                "TrayAppDotNETCommon.Visuals.AppThemeResources",
-                "ThemeColor",
-                "/ResourceDictionary/ThemeColor[1]",
-                null,
-                null,
-                "AppTheme.CardBackground",
-                "#FBFBFB/#2B2B2B",
-                null),
+                SourcePath: "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
+                Line: 27,
+                Column: 5,
+                OwnerTypeName: "TrayAppDotNETCommon.Visuals.AppThemeResources",
+                ElementTypeName: "ThemeColor",
+                ElementPath: "/ResourceDictionary/ThemeColor[1]",
+                ControlName: null,
+                PropertyName: null,
+                ResourceKey: "AppTheme.CardBackground",
+                ValueExpression: "#FBFBFB/#2B2B2B",
+                Selector: null),
             new(
                 AXAMLProvenanceKind.ResourceReference,
-                "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
-                94,
-                9,
-                "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow",
-                "Border",
-                "/Window/Border[1]",
-                "DeviceCard",
-                "Background",
-                "AppTheme.CardBackground",
-                "{StaticResource AppTheme.CardBackground}",
-                null),
+                SourcePath: "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
+                Line: 94,
+                Column: 9,
+                OwnerTypeName: "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow",
+                ElementTypeName: "Border",
+                ElementPath: "/Window/Border[1]",
+                ControlName: "DeviceCard",
+                PropertyName: "Background",
+                ResourceKey: "AppTheme.CardBackground",
+                ValueExpression: "{StaticResource AppTheme.CardBackground}",
+                Selector: null),
             new(
                 AXAMLProvenanceKind.PropertyAssignment,
-                "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
-                95,
-                9,
-                "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow",
-                "Border",
-                "/Window/Border[1]",
-                "DeviceCard",
-                "Grid.Row",
-                null,
-                "1",
-                null),
+                SourcePath: "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
+                Line: 95,
+                Column: 9,
+                OwnerTypeName: "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow",
+                ElementTypeName: "Border",
+                ElementPath: "/Window/Border[1]",
+                ControlName: "DeviceCard",
+                PropertyName: "Grid.Row",
+                ResourceKey: null,
+                ValueExpression: "1",
+                Selector: null),
             new(
                 AXAMLProvenanceKind.StyleSetter,
-                "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
-                130,
-                13,
-                "TrayAppDotNETCommon.Visuals.AppThemeResources",
-                "Setter",
-                "/ResourceDictionary/Style[1]/Setter[1]",
-                null,
-                "Opacity",
-                null,
-                "0.8",
-                "Border"),
+                SourcePath: "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
+                Line: 130,
+                Column: 13,
+                OwnerTypeName: "TrayAppDotNETCommon.Visuals.AppThemeResources",
+                ElementTypeName: "Setter",
+                ElementPath: "/ResourceDictionary/Style[1]/Setter[1]",
+                ControlName: null,
+                PropertyName: "Opacity",
+                ResourceKey: null,
+                ValueExpression: "0.8",
+                Selector: "Border"),
             new(
                 AXAMLProvenanceKind.Template,
-                "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
-                145,
-                17,
-                "TrayAppDotNETCommon.Visuals.AppThemeResources",
-                "ControlTemplate",
-                "/ResourceDictionary/ControlTheme[1]/Setter[1]/ControlTemplate[1]",
-                null,
-                "Template",
-                "ButtonTheme",
-                "<ControlTemplate>",
-                "ControlTheme:ButtonTheme")
+                SourcePath: "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
+                Line: 145,
+                Column: 17,
+                OwnerTypeName: "TrayAppDotNETCommon.Visuals.AppThemeResources",
+                ElementTypeName: "ControlTemplate",
+                ElementPath: "/ResourceDictionary/ControlTheme[1]/Setter[1]/ControlTemplate[1]",
+                ControlName: null,
+                PropertyName: "Template",
+                ResourceKey: "ButtonTheme",
+                ValueExpression: "<ControlTemplate>",
+                Selector: "ControlTheme:ButtonTheme")
         ];
 
         DebugUIProvenance.RegisterAXAML(typeof(DebugUIProvenanceTests).Assembly, entries);
 
         IReadOnlyList<AXAMLProvenanceEntry> properties = DebugUIProvenance.FindAXAMLPropertyEntries(
             ["FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"],
-            "Border",
-            "DeviceCard",
-            "Background");
+            elementTypeName: "Border",
+            controlName: "DeviceCard",
+            propertyName: "Background");
         IReadOnlyList<AXAMLProvenanceEntry> attachedProperties =
             DebugUIProvenance.FindAXAMLPropertyEntries(
                 ["FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"],
-                "Border",
-                "DeviceCard",
-                "Row");
+                elementTypeName: "Border",
+                controlName: "DeviceCard",
+                propertyName: "Row");
         IReadOnlyList<AXAMLProvenanceEntry> reusableStyles =
             DebugUIProvenance.FindAXAMLPropertyEntries(
                 ["FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"],
-                "Border",
-                "DeviceCard",
-                "Opacity");
+                elementTypeName: "Border",
+                controlName: "DeviceCard",
+                propertyName: "Opacity");
         IReadOnlyList<AXAMLProvenanceEntry> reusableTemplates =
             DebugUIProvenance.FindAXAMLPropertyEntries(
                 ["FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"],
-                "Button",
-                null,
-                "Template");
+                elementTypeName: "Button",
+                controlName: null,
+                propertyName: "Template");
         IReadOnlyList<AXAMLProvenanceEntry> resources =
             DebugUIProvenance.FindAXAMLResourceDefinitions("AppTheme.CardBackground");
 
@@ -221,7 +221,8 @@ public sealed class DebugUIProvenanceTests
         Assert.Single(attachedProperties);
         Assert.Single(reusableStyles);
         Assert.Single(reusableTemplates);
-        Assert.Contains(resources, entry => entry.SourcePath.EndsWith("AppTheme.axaml", StringComparison.Ordinal));
+        Assert.Contains(resources,
+            entry => entry.SourcePath.EndsWith(value: "AppTheme.axaml", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -232,75 +233,73 @@ public sealed class DebugUIProvenanceTests
         [
             new(
                 AXAMLProvenanceKind.ResourceDefinition,
-                "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
-                27,
-                5,
-                "TrayAppDotNETCommon.Visuals.AppThemeResources",
-                "ThemeColor",
-                "/ResourceDictionary/ThemeColor[1]",
-                null,
-                null,
+                SourcePath: "TrayAppDotNETCommon/src/Visuals/AppTheme.axaml",
+                Line: 27,
+                Column: 5,
+                OwnerTypeName: "TrayAppDotNETCommon.Visuals.AppThemeResources",
+                ElementTypeName: "ThemeColor",
+                ElementPath: "/ResourceDictionary/ThemeColor[1]",
+                ControlName: null,
+                PropertyName: null,
                 ResourceKey,
-                "LightHex=\"#FBFBFB\" DarkHex=\"#2B2B2B\"",
-                null),
+                ValueExpression: "LightHex=\"#FBFBFB\" DarkHex=\"#2B2B2B\"",
+                Selector: null),
             new(
                 AXAMLProvenanceKind.ResourceReference,
-                "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
-                94,
-                9,
-                "Avalonia.Controls.Window",
-                "Border",
-                "/Window/Border[1]",
-                "DeviceCard",
-                "Background",
+                SourcePath: "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
+                Line: 94,
+                Column: 9,
+                OwnerTypeName: "Avalonia.Controls.Window",
+                ElementTypeName: "Border",
+                ElementPath: "/Window/Border[1]",
+                ControlName: "DeviceCard",
+                PropertyName: "Background",
                 ResourceKey,
-                "{StaticResource AppTheme.CardBackground}",
-                null)
+                ValueExpression: "{StaticResource AppTheme.CardBackground}",
+                Selector: null)
         ];
 
         DebugUIProvenance.RegisterAXAML(typeof(DebugUIProvenanceTests).Assembly, entries);
 
         SolidColorBrush background = new(Color.Parse("#2B2B2B"));
-        Border border = new()
-        {
-            Name = "DeviceCard",
-            Background = background
-        };
+        Border border = new() { Name = "DeviceCard", Background = background };
         Window window = new() { Content = border };
         DebugUIProvenance.RecordProperty(
             border,
             Border.BackgroundProperty,
             background,
             DebugPropertyAssignmentOperation.Builder,
-            "palette.CardBackground",
-            @"C:\repo\TrayAppDotNET\TrayAppDotNETCommon\src\UI\Cards.cs",
-            73,
-            "CreateCard",
+            valueExpression: "palette.CardBackground",
+            sourceFilePath: @"C:\repo\TrayAppDotNET\TrayAppDotNETCommon\src\UI\Cards.cs",
+            sourceLine: 73,
+            sourceMember: "CreateCard",
             ResourceKey);
         DebugUIProvenance.RecordProperty(
             background,
             SolidColorBrush.ColorProperty,
             background.Color,
             DebugPropertyAssignmentOperation.SetCurrentValue,
-            "sourcePalette.CardBackground",
-            @"C:\repo\TrayAppDotNET\TrayAppDotNETCommon\src\UI\Controls\SettingsUI.cs",
-            271,
-            "UpdateFrom");
+            valueExpression: "sourcePalette.CardBackground",
+            sourceFilePath: @"C:\repo\TrayAppDotNET\TrayAppDotNETCommon\src\UI\Controls\SettingsUI.cs",
+            sourceLine: 271,
+            sourceMember: "UpdateFrom");
 
         window.Show();
         ControlHoverInspectorSnapshot snapshot = ControlHoverInspectorSnapshotBuilder.Build(window, border);
         List<string> rows = Flatten(snapshot.Roots);
 
-        Assert.Contains(rows, row => row.Contains("Instrumented C# assignments (1)", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("palette.CardBackground", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("TrayAppDotNETCommon/src/UI/Cards.cs:73", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Assigned SolidColorBrush provenance", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("sourcePalette.CardBackground", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("SettingsUI.cs:271", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("AXAML source candidates (1)", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("FanFlyoutWindow.axaml:94:9", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Resource definition candidates (", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("AppTheme.axaml:27:5", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Instrumented C# assignments (1)", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "palette.CardBackground", StringComparison.Ordinal));
+        Assert.Contains(rows,
+            row => row.Contains(value: "TrayAppDotNETCommon/src/UI/Cards.cs:73", StringComparison.Ordinal));
+        Assert.Contains(rows,
+            row => row.Contains(value: "Assigned SolidColorBrush provenance", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "sourcePalette.CardBackground", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "SettingsUI.cs:271", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "AXAML source candidates (1)", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "FanFlyoutWindow.axaml:94:9", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Resource definition candidates (", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "AppTheme.axaml:27:5", StringComparison.Ordinal));
 
         window.Close();
     });
@@ -315,18 +314,18 @@ public sealed class DebugUIProvenanceTests
             Border.OpacityProperty,
             border.Opacity,
             DebugPropertyAssignmentOperation.Builder,
-            "SettingsUILayout.DescriptionOpacity",
+            valueExpression: "SettingsUILayout.DescriptionOpacity",
             resourceKey: "SettingsUI.DescriptionOpacity");
 
         window.Show();
         ControlHoverInspectorSnapshot snapshot = ControlHoverInspectorSnapshotBuilder.Build(window, border);
         List<string> rows = Flatten(snapshot.Roots);
 
-        Assert.Contains(rows, row => row.Contains("SettingsUI.DescriptionOpacity", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "SettingsUI.DescriptionOpacity", StringComparison.Ordinal));
         Assert.Contains(
             rows,
             row => row.Contains(
-                "TrayAppDotNETCommon/src/UI/Controls/SettingsUI.axaml",
+                value: "TrayAppDotNETCommon/src/UI/Controls/SettingsUI.axaml",
                 StringComparison.Ordinal));
 
         window.Close();
@@ -337,24 +336,23 @@ public sealed class DebugUIProvenanceTests
     {
         AXAMLProvenanceEntry[] entries =
         [
-            ResourceDefinition("InspectorGlyph.Unlock", "InspectorGlyphs.axaml", 7, "Text=G"),
-            ResourceDefinition("InspectorLayout.ModeButtonWidth", "InspectorFlyout.axaml", 11, "33"),
-            ResourceDefinition("InspectorLayout.ModeButtonHeight", "InspectorFlyout.axaml", 12, "29"),
-            ResourceDefinition("InspectorLayout.ModeButtonFontSize", "InspectorFlyout.axaml", 13, "17")
+            ResourceDefinition(resourceKey: "InspectorGlyph.Unlock", sourcePath: "InspectorGlyphs.axaml", line: 7,
+                valueExpression: "Text=G"),
+            ResourceDefinition(resourceKey: "InspectorLayout.ModeButtonWidth", sourcePath: "InspectorFlyout.axaml",
+                line: 11, valueExpression: "33"),
+            ResourceDefinition(resourceKey: "InspectorLayout.ModeButtonHeight", sourcePath: "InspectorFlyout.axaml",
+                line: 12, valueExpression: "29"),
+            ResourceDefinition(resourceKey: "InspectorLayout.ModeButtonFontSize", sourcePath: "InspectorFlyout.axaml",
+                line: 13, valueExpression: "17")
         ];
         DebugUIProvenance.RegisterAXAML(typeof(DebugUIProvenanceTests).Assembly, entries);
 
-        Glyph glyph = new("G", TADNFont.SegoeFluentIcons);
-        DebugUIProvenance.RegisterGlyphResource(glyph, "InspectorGlyph.Unlock");
+        Glyph glyph = new(text: "G", TADNFont.SegoeFluentIcons);
+        DebugUIProvenance.RegisterGlyphResource(glyph, resourceKey: "InspectorGlyph.Unlock");
         TextBlock glyphText = new() { FontSize = 17 };
         GlyphApplicator.ApplyTo(glyphText, glyph);
-        Border button = new()
-        {
-            Width = 33,
-            Height = 29,
-            Child = glyphText
-        };
-        TrayAppDotNETToolTip.SetTip(button, "Useful tip");
+        Border button = new() { Width = 33, Height = 29, Child = glyphText };
+        TrayAppDotNETToolTip.SetTip(button, tip: "Useful tip");
 
         AvaloniaProperty tooltipObjectProperty = AvaloniaPropertyRegistry.Instance
             .GetRegisteredAttached(typeof(Border))
@@ -366,11 +364,15 @@ public sealed class DebugUIProvenanceTests
         ControlHoverInspectorSnapshot snapshot = ControlHoverInspectorSnapshotBuilder.Build(window, button);
         List<string> rows = Flatten(snapshot.Roots);
 
-        Assert.Contains(rows, row => row.Contains("[content 1] TextBlock", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("AXAML InspectorGlyph.Unlock @ InspectorGlyphs.axaml:7", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("AXAML InspectorLayout.ModeButtonFontSize @ InspectorFlyout.axaml:13", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Tip = \"Useful tip\"", StringComparison.Ordinal));
-        Assert.DoesNotContain(rows, row => row.StartsWith("ToolTip = ", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "[content 1] TextBlock", StringComparison.Ordinal));
+        Assert.Contains(rows,
+            row => row.Contains(value: "AXAML InspectorGlyph.Unlock @ InspectorGlyphs.axaml:7",
+                StringComparison.Ordinal));
+        Assert.Contains(rows,
+            row => row.Contains(value: "AXAML InspectorLayout.ModeButtonFontSize @ InspectorFlyout.axaml:13",
+                StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Tip = \"Useful tip\"", StringComparison.Ordinal));
+        Assert.DoesNotContain(rows, row => row.StartsWith(value: "ToolTip = ", StringComparison.Ordinal));
 
         window.PreserveLayoutForReflection();
         window.Close();
@@ -385,15 +387,15 @@ public sealed class DebugUIProvenanceTests
             AXAMLProvenanceKind.ResourceDefinition,
             sourcePath,
             line,
-            5,
+            Column: 5,
             typeof(InspectorResourceWindow).FullName ?? nameof(InspectorResourceWindow),
-            "sys:Double",
-            "/Window/Resources/sys:Double[1]",
-            null,
-            null,
+            ElementTypeName: "sys:Double",
+            ElementPath: "/Window/Resources/sys:Double[1]",
+            ControlName: null,
+            PropertyName: null,
             resourceKey,
             valueExpression,
-            null);
+            Selector: null);
 
     private static List<string> Flatten(IReadOnlyList<ControlHoverInspectorNode> roots)
     {
@@ -417,7 +419,7 @@ public sealed class DebugUIProvenanceTests
     private static WeakReference<Border> RecordTransientTarget()
     {
         Border border = new();
-        DebugUIProvenance.RecordProperty(border, Border.OpacityProperty, 0.5);
+        DebugUIProvenance.RecordProperty(border, Border.OpacityProperty, value: 0.5);
         return new WeakReference<Border>(border);
     }
 
@@ -438,11 +440,9 @@ public sealed class DebugUIProvenanceTests
         public void PreserveLayoutForReflection() => GC.KeepAlive(_layout);
     }
 
-    private readonly struct InspectorLayoutAxamlProperties
+    private readonly struct InspectorLayoutAxamlProperties()
     {
-        private readonly double _scale;
-
-        public InspectorLayoutAxamlProperties() => _scale = 1;
+        private readonly double _scale = 1;
 
         public double ModeButtonWidth => 33 * _scale;
 

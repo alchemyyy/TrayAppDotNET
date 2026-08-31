@@ -5,7 +5,6 @@ using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
 using Xunit;
 
-
 namespace VolumeTrayAppDotNET.Tests;
 
 public sealed class AudioSessionReconciliationTests
@@ -15,11 +14,7 @@ public sealed class AudioSessionReconciliationTests
     [Fact]
     public void ReconcileRefreshesStateAndVolumeFromCurrentControl()
     {
-        FakeAudioSessionControl control = new()
-        {
-            CurrentState = AudioSessionState.Active,
-            CurrentVolume = 1f
-        };
+        FakeAudioSessionControl control = new() { CurrentState = AudioSessionState.Active, CurrentVolume = 1f };
         using AsyncThrottler<string> throttler = new(0);
         using AudioSession session = new(control, Dispatcher.UIThread, throttler);
 
@@ -31,18 +26,14 @@ public sealed class AudioSessionReconciliationTests
 
         Assert.Equal(AudioSessionReconciliationResult.Current, result);
         Assert.Equal(AudioSessionState.Inactive, session.State);
-        Assert.Equal(0.77f, session.Volume);
+        Assert.Equal(expected: 0.77f, session.Volume);
         Assert.True(session.IsMuted);
     }
 
     [Fact]
     public void ReconcileRetiresControlInvalidatedByDefaultDeviceSwitch()
     {
-        FakeAudioSessionControl control = new()
-        {
-            CurrentState = AudioSessionState.Active,
-            CurrentVolume = 1f
-        };
+        FakeAudioSessionControl control = new() { CurrentState = AudioSessionState.Active, CurrentVolume = 1f };
         using AsyncThrottler<string> throttler = new(0);
         using AudioSession session = new(control, Dispatcher.UIThread, throttler);
         control.IsDeviceInvalidated = true;
@@ -75,12 +66,12 @@ public sealed class AudioSessionReconciliationTests
     public async Task VolumeThrottleReportsDeferredWriteFailure()
     {
         using AsyncThrottler<string> throttler = new(0);
-        VolumeThrottle volumeThrottle = new(throttler, "test-session");
+        VolumeThrottle volumeThrottle = new(throttler, key: "test-session");
         InvalidOperationException expectedException = new("Write failed");
         TaskCompletionSource<Exception> failureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         volumeThrottle.Write(
-            0.5f,
+            value: 0.5f,
             (_, _) => throw expectedException,
             exception => failureSource.TrySetResult(exception));
 
@@ -133,7 +124,7 @@ public sealed class AudioSessionReconciliationTests
 
         public void GetSessionIdentifier(out string sessionIdentifier) => sessionIdentifier = "test-session";
 
-        public void GetSessionInstanceIdentifier(out string sessionInstanceIdentifier) =>
+        public void GetSessionInstanceIdentifier(out string? sessionInstanceIdentifier) =>
             sessionInstanceIdentifier = "test-session-instance";
 
         public void GetProcessId(out uint processID)
@@ -175,7 +166,7 @@ public sealed class AudioSessionReconciliationTests
         private void ThrowIfDeviceInvalidated()
         {
             if (IsDeviceInvalidated)
-                throw new COMException("The audio endpoint was invalidated.", AudioClientDeviceInvalidated);
+                throw new COMException(message: "The audio endpoint was invalidated.", AudioClientDeviceInvalidated);
         }
     }
 }

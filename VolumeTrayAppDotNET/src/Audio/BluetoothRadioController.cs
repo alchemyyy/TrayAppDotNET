@@ -39,7 +39,7 @@ internal static class BluetoothRadioPower
                 case DeviceRadioState.Invalid:
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(state), state, null);
+                    throw new ArgumentOutOfRangeException(nameof(state), state, message: null);
             }
         }
 
@@ -55,7 +55,7 @@ internal static class BluetoothRadioPower
         DeviceRadioState.HardwareRadioOnUncontrollable => false,
         DeviceRadioState.Invalid => false,
         DeviceRadioState.HardwareRadioOffUncontrollable => false,
-        _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, message: null)
     };
 
     private static BluetoothRadioPowerState Execute(bool? requestedEnabled)
@@ -70,14 +70,14 @@ internal static class BluetoothRadioPower
             int collectionResult = manager.GetRadioInstances(out collection);
             if (collectionResult < 0 || collection == null)
             {
-                LogFailure(requestedEnabled, "enumeration", collectionResult);
+                LogFailure(requestedEnabled, operation: "enumeration", collectionResult);
                 return BluetoothRadioPowerState.Unavailable;
             }
 
             int countResult = collection.GetCount(out uint radioCount);
             if (countResult < 0)
             {
-                LogFailure(requestedEnabled, "count query", countResult);
+                LogFailure(requestedEnabled, operation: "count query", countResult);
                 return BluetoothRadioPowerState.Unavailable;
             }
 
@@ -109,9 +109,7 @@ internal static class BluetoothRadioPower
                             targetState,
                             TimeConstants.BluetoothRadioStateChangeTimeoutSeconds);
                         if (setResult < 0)
-                        {
                             LogFailure(requestedEnabled, $"radio {radioIndex} state change", setResult);
-                        }
                         else
                         {
                             int refreshedStateResult = radio.GetRadioState(out DeviceRadioState refreshedState);
@@ -153,7 +151,7 @@ internal static class BluetoothRadioPower
 /// <summary>Keeps the flyout's Bluetooth radio button synchronized without blocking the UI.</summary>
 internal sealed class BluetoothRadioController(Dispatcher dispatcher) : IDisposable
 {
-    private readonly SemaphoreSlim _operationGate = new(1, 1);
+    private readonly SemaphoreSlim _operationGate = new(initialCount: 1, maxCount: 1);
     private DispatcherTimer? _pollTimer;
     private long _pollGeneration;
     private bool _disposed;
@@ -209,14 +207,16 @@ internal sealed class BluetoothRadioController(Dispatcher dispatcher) : IDisposa
                 return;
 
             bool enableRadio = currentState != BluetoothRadioPowerState.On;
-            BluetoothRadioPowerState resultingState = await Task.Run(
-                () => BluetoothRadioPower.SetEnabled(enableRadio));
+            BluetoothRadioPowerState resultingState = await Task.Run(() => BluetoothRadioPower.SetEnabled(enableRadio));
             await ApplyStateAsync(resultingState);
         }
         catch (Exception exception)
         {
             if (!_disposed)
-                TADNLog.Log($"BluetoothRadioController.ToggleAsync failed: {exception.GetType().Name}: {exception.Message}");
+            {
+                TADNLog.Log(
+                    $"BluetoothRadioController.ToggleAsync failed: {exception.GetType().Name}: {exception.Message}");
+            }
         }
         finally
         {
@@ -252,7 +252,10 @@ internal sealed class BluetoothRadioController(Dispatcher dispatcher) : IDisposa
         catch (Exception exception)
         {
             if (!_disposed && generation == Volatile.Read(ref _pollGeneration))
-                TADNLog.Log($"BluetoothRadioController.RefreshAsync failed: {exception.GetType().Name}: {exception.Message}");
+            {
+                TADNLog.Log(
+                    $"BluetoothRadioController.RefreshAsync failed: {exception.GetType().Name}: {exception.Message}");
+            }
         }
         finally
         {

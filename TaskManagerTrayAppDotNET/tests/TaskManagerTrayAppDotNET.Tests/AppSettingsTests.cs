@@ -69,8 +69,8 @@ public sealed class AppSettingsTests
 
         settings.UpdateProcessHeaderButtonOrder(ProcessHeaderButtonSettings.CreateDefault());
 
-        Assert.Equal(0, propertyChangedCount);
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 0, propertyChangedCount);
+        Assert.Equal(expected: 0, changedCount);
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class AppSettingsTests
             ProcessHeaderButtonKind.RestartExplorer
         ]);
 
-        Assert.Equal(1, propertyChangedCount);
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 1, propertyChangedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal(ProcessHeaderButtonKind.EndTask, settings.ProcessHeaderButtonOrder[0]);
     }
 
@@ -101,14 +101,17 @@ public sealed class AppSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            AppSettings settings = new() { Autosave = false };
-            settings.ProcessHeaderButtonOrder =
-            [
-                ProcessHeaderButtonKind.EndTask,
-                ProcessHeaderButtonKind.Columns,
-                ProcessHeaderButtonKind.RunNewTask,
-                ProcessHeaderButtonKind.RestartExplorer
-            ];
+            AppSettings settings = new()
+            {
+                Autosave = false,
+                ProcessHeaderButtonOrder =
+                [
+                    ProcessHeaderButtonKind.EndTask,
+                    ProcessHeaderButtonKind.Columns,
+                    ProcessHeaderButtonKind.RunNewTask,
+                    ProcessHeaderButtonKind.RestartExplorer
+                ]
+            };
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
@@ -129,12 +132,12 @@ public sealed class AppSettingsTests
         {
             File.WriteAllText(
                 path,
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <AppSettings>
-                  <AlwaysOnTop>true</AlwaysOnTop>
-                </AppSettings>
-                """);
+                contents: """
+                          <?xml version="1.0" encoding="utf-8"?>
+                          <AppSettings>
+                            <AlwaysOnTop>true</AlwaysOnTop>
+                          </AppSettings>
+                          """);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -212,7 +215,7 @@ public sealed class AppSettingsTests
                 nameof(AppSettings.PerformanceSampleIntervalMilliseconds)
             ],
             changedProperties);
-        Assert.Equal(2, changedCount);
+        Assert.Equal(expected: 2, changedCount);
     }
 
     [Fact]
@@ -231,8 +234,8 @@ public sealed class AppSettingsTests
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.Equal(15, loaded.PerformanceHistoryLengthMinutes);
-            Assert.Equal(2_500, loaded.PerformanceSampleIntervalMilliseconds);
+            Assert.Equal(expected: 15, loaded.PerformanceHistoryLengthMinutes);
+            Assert.Equal(expected: 2_500, loaded.PerformanceSampleIntervalMilliseconds);
         }
         finally
         {
@@ -327,8 +330,8 @@ public sealed class AppSettingsTests
 
         settings.UpdateCPUPerformanceGraphView(CPUPerformanceGraphView.DetailedView);
 
-        Assert.Equal(1, propertyChangedCount);
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 1, propertyChangedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal(
             CPUPerformanceGraphView.DetailedView,
             settings.CPUPerformanceGraphView);
@@ -342,13 +345,13 @@ public sealed class AppSettingsTests
         {
             File.WriteAllText(
                 path,
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <AppSettings>
-                  <PerformanceHistoryLengthMinutes>-100</PerformanceHistoryLengthMinutes>
-                  <PerformanceSampleIntervalMilliseconds>2147483647</PerformanceSampleIntervalMilliseconds>
-                </AppSettings>
-                """);
+                contents: """
+                          <?xml version="1.0" encoding="utf-8"?>
+                          <AppSettings>
+                            <PerformanceHistoryLengthMinutes>-100</PerformanceHistoryLengthMinutes>
+                            <PerformanceSampleIntervalMilliseconds>2147483647</PerformanceSampleIntervalMilliseconds>
+                          </AppSettings>
+                          """);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -371,7 +374,7 @@ public sealed class AppSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            File.WriteAllText(path, "<AppSettings />");
+            File.WriteAllText(path, contents: "<AppSettings />");
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -391,16 +394,19 @@ public sealed class AppSettingsTests
     [Fact]
     public void PerformanceDeviceOrderingRoundTripsThroughSettingsXml()
     {
-        AppSettings settings = new() { Autosave = false };
-        settings.PerformanceDevicePriority =
-        [
-            PerformanceDeviceKind.Disk,
-            PerformanceDeviceKind.Network,
-            PerformanceDeviceKind.GPU,
-            PerformanceDeviceKind.Memory,
-            PerformanceDeviceKind.CPU
-        ];
-        settings.PerformanceDeviceOrder = ["disk:1", "cpu", "gpu:0"];
+        AppSettings settings = new()
+        {
+            Autosave = false,
+            PerformanceDevicePriority =
+            [
+                PerformanceDeviceKind.Disk,
+                PerformanceDeviceKind.Network,
+                PerformanceDeviceKind.GPU,
+                PerformanceDeviceKind.Memory,
+                PerformanceDeviceKind.CPU
+            ],
+            PerformanceDeviceOrder = ["disk:1", "cpu", "gpu:0"]
+        };
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
@@ -426,23 +432,23 @@ public sealed class AppSettingsTests
         {
             File.WriteAllText(
                 path,
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <AppSettings>
-                  <PerformanceDevicePriority>
-                    <Kind>Disk</Kind>
-                    <Kind>2147483647</Kind>
-                    <Kind>Disk</Kind>
-                    <Kind>CPU</Kind>
-                  </PerformanceDevicePriority>
-                  <PerformanceDeviceOrder>
-                    <DeviceID> gpu:0 </DeviceID>
-                    <DeviceID></DeviceID>
-                    <DeviceID>gpu:0</DeviceID>
-                    <DeviceID>disk:0</DeviceID>
-                  </PerformanceDeviceOrder>
-                </AppSettings>
-                """);
+                contents: """
+                          <?xml version="1.0" encoding="utf-8"?>
+                          <AppSettings>
+                            <PerformanceDevicePriority>
+                              <Kind>Disk</Kind>
+                              <Kind>2147483647</Kind>
+                              <Kind>Disk</Kind>
+                              <Kind>CPU</Kind>
+                            </PerformanceDevicePriority>
+                            <PerformanceDeviceOrder>
+                              <DeviceID> gpu:0 </DeviceID>
+                              <DeviceID></DeviceID>
+                              <DeviceID>gpu:0</DeviceID>
+                              <DeviceID>disk:0</DeviceID>
+                            </PerformanceDeviceOrder>
+                          </AppSettings>
+                          """);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -474,10 +480,10 @@ public sealed class AppSettingsTests
             $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            File.WriteAllText(legacyPath, "<AppSettings />");
+            File.WriteAllText(legacyPath, contents: "<AppSettings />");
             File.WriteAllText(
                 emptyPath,
-                "<AppSettings><PerformanceDevicePriority /></AppSettings>");
+                contents: "<AppSettings><PerformanceDevicePriority /></AppSettings>");
 
             AppSettings legacy = AppSettings.LoadOrDefault(legacyPath);
             AppSettings explicitlyEmpty = AppSettings.LoadOrDefault(emptyPath);
@@ -501,7 +507,7 @@ public sealed class AppSettingsTests
 
         settings.UpdatePerformanceDeviceOrder(["disk:0", "cpu", "memory"]);
 
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal(["disk:0", "cpu", "memory"], settings.PerformanceDeviceOrder);
     }
 
@@ -541,14 +547,14 @@ public sealed class AppSettingsTests
                 rule =>
                 {
                     Assert.Equal(PerformanceDeviceKind.Network, rule.DeviceKind);
-                    Assert.Equal("^Intel\\(R\\) (.+)$", rule.MatchPattern);
-                    Assert.Equal("$1", rule.Replacement);
+                    Assert.Equal(expected: "^Intel\\(R\\) (.+)$", rule.MatchPattern);
+                    Assert.Equal(expected: "$1", rule.Replacement);
                 },
                 rule =>
                 {
                     Assert.Equal(PerformanceDeviceKind.GPU, rule.DeviceKind);
-                    Assert.Equal("^NVIDIA GeForce (.+)$", rule.MatchPattern);
-                    Assert.Equal("GeForce $1", rule.Replacement);
+                    Assert.Equal(expected: "^NVIDIA GeForce (.+)$", rule.MatchPattern);
+                    Assert.Equal(expected: "GeForce $1", rule.Replacement);
                 });
         }
         finally
@@ -571,29 +577,30 @@ public sealed class AppSettingsTests
         [
             new PerformanceHardwareNameReplacementRule
             {
-                DeviceKind = PerformanceDeviceKind.Network,
-                MatchPattern = "Adapter",
-                Replacement = "NIC"
+                DeviceKind = PerformanceDeviceKind.Network, MatchPattern = "Adapter", Replacement = "NIC"
             }
         ]);
 
-        Assert.Equal(0, changedCount);
+        Assert.Equal(expected: 0, changedCount);
         Assert.Equal(
             [nameof(AppSettings.PerformanceHardwareNameReplacementRules)],
             changedProperties);
         PerformanceHardwareNameReplacementRule rule =
             Assert.Single(settings.PerformanceHardwareNameReplacementRules);
         Assert.Equal(PerformanceDeviceKind.Network, rule.DeviceKind);
-        Assert.Equal("Adapter", rule.MatchPattern);
-        Assert.Equal("NIC", rule.Replacement);
+        Assert.Equal(expected: "Adapter", rule.MatchPattern);
+        Assert.Equal(expected: "NIC", rule.Replacement);
     }
 
     [Fact]
     public void TrayGraphSettingsNormalizeAndRoundTripThroughSettingsXml()
     {
-        AppSettings settings = new() { Autosave = false };
-        settings.TrayGraphStyle = (TrayGraphStyle)int.MaxValue;
-        settings.TrayGraphDataSource = (TrayGraphDataSource)int.MaxValue;
+        AppSettings settings = new()
+        {
+            Autosave = false,
+            TrayGraphStyle = (TrayGraphStyle)int.MaxValue,
+            TrayGraphDataSource = (TrayGraphDataSource)int.MaxValue
+        };
         Assert.Equal(TrayGraphStyle.Marquee, settings.TrayGraphStyle);
         Assert.Equal(TrayGraphDataSource.CPUAverage, settings.TrayGraphDataSource);
 
@@ -621,14 +628,13 @@ public sealed class AppSettingsTests
         AppSettings settings = new();
 
         Assert.False(settings.UseSystemSubmenuShowDelay);
-        Assert.Equal(150, settings.SubmenuShowDelayMs);
+        Assert.Equal(expected: 150, settings.SubmenuShowDelayMs);
     }
 
     [Fact]
     public void SubmenuDelayClampsAndRoundTripsThroughSettingsXml()
     {
-        AppSettings settings = new() { Autosave = false };
-        settings.SubmenuShowDelayMs = int.MaxValue;
+        AppSettings settings = new() { Autosave = false, SubmenuShowDelayMs = int.MaxValue };
         Assert.Equal(TimeConstants.TrayMenuSubmenuShowDelayMaxMs, settings.SubmenuShowDelayMs);
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
@@ -641,7 +647,7 @@ public sealed class AppSettingsTests
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             Assert.True(loaded.UseSystemSubmenuShowDelay);
-            Assert.Equal(275, loaded.SubmenuShowDelayMs);
+            Assert.Equal(expected: 275, loaded.SubmenuShowDelayMs);
         }
         finally
         {
@@ -685,7 +691,7 @@ public sealed class AppSettingsTests
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.Equal(7.25, loaded.GridRowSpacing);
+            Assert.Equal(expected: 7.25, loaded.GridRowSpacing);
         }
         finally
         {
@@ -701,13 +707,13 @@ public sealed class AppSettingsTests
         {
             File.WriteAllText(
                 path,
-                """
-                <?xml version="1.0" encoding="utf-8"?>
-                <AppSettings>
-                  <GridFontSize>32</GridFontSize>
-                  <GridRowHeight>14</GridRowHeight>
-                </AppSettings>
-                """);
+                contents: """
+                          <?xml version="1.0" encoding="utf-8"?>
+                          <AppSettings>
+                            <GridFontSize>32</GridFontSize>
+                            <GridRowHeight>14</GridRowHeight>
+                          </AppSettings>
+                          """);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -817,7 +823,7 @@ public sealed class AppSettingsTests
     public void SettingsSidebarWidthDefaultsToSentinelAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };
-        Assert.Equal(0, settings.SettingsSidebarWidth);
+        Assert.Equal(expected: 0, settings.SettingsSidebarWidth);
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
@@ -827,7 +833,7 @@ public sealed class AppSettingsTests
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.Equal(337.5, loaded.SettingsSidebarWidth);
+            Assert.Equal(expected: 337.5, loaded.SettingsSidebarWidth);
         }
         finally
         {

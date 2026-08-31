@@ -42,7 +42,7 @@ public sealed class DetailsGridLayoutTests
     [Fact]
     public void VisibleRangeIncludesOneOverscanRowOnEachSide()
     {
-        Rect viewport = new(0, 292, 800, 52);
+        Rect viewport = new(x: 0, y: 292, width: 800, height: 52);
 
         DetailsGridLayout.GetVisibleRowRange(
             viewport,
@@ -52,8 +52,8 @@ public sealed class DetailsGridLayoutTests
             out int firstRow,
             out int lastRowExclusive);
 
-        Assert.Equal(9, firstRow);
-        Assert.Equal(13, lastRowExclusive);
+        Assert.Equal(expected: 9, firstRow);
+        Assert.Equal(expected: 13, lastRowExclusive);
     }
 
     [Theory]
@@ -65,7 +65,7 @@ public sealed class DetailsGridLayoutTests
         int expectedFirstRow,
         int expectedLastRowExclusive)
     {
-        Rect viewport = new(0, viewportY, 800, 52);
+        Rect viewport = new(x: 0, viewportY, width: 800, height: 52);
 
         DetailsGridLayout.GetRetainedRowRange(
             viewport,
@@ -82,7 +82,7 @@ public sealed class DetailsGridLayoutTests
     [Fact]
     public void InteractiveZoomRangeExcludesSettledPrefetchRows()
     {
-        Rect viewport = new(0, 13032, 800, 52);
+        Rect viewport = new(x: 0, y: 13032, width: 800, height: 52);
 
         DetailsGridLayout.GetVisibleRowRange(
             viewport,
@@ -99,9 +99,9 @@ public sealed class DetailsGridLayoutTests
             out int settledFirstRow,
             out int settledLastRowExclusive);
 
-        Assert.Equal(499, interactiveFirstRow);
-        Assert.Equal(503, interactiveLastRowExclusive);
-        Assert.Equal(467, settledFirstRow);
-        Assert.Equal(535, settledLastRowExclusive);
+        Assert.Equal(expected: 499, interactiveFirstRow);
+        Assert.Equal(expected: 503, interactiveLastRowExclusive);
+        Assert.Equal(expected: 467, settledFirstRow);
+        Assert.Equal(expected: 535, settledLastRowExclusive);
     }
 }

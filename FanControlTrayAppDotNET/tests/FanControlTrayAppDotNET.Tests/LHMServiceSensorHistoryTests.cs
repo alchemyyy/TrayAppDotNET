@@ -15,14 +15,14 @@ public sealed class LHMServiceSensorHistoryTests
 
         Assert.Equal(TimeSpan.Zero, sensor.ValuesTimeWindow);
         Assert.Empty(sensor.Values);
-        Assert.Equal(1, sensor.ClearValuesCallCount);
+        Assert.Equal(expected: 1, sensor.ClearValuesCallCount);
     }
 
     private sealed class TestSensor : ISensor
     {
         private readonly List<SensorValue> _values =
         [
-            new SensorValue(42.0f, DateTime.UtcNow)
+            new(value: 42.0f, DateTime.UtcNow)
         ];
 
         public int ClearValuesCallCount { get; private set; }
@@ -54,10 +54,7 @@ public sealed class LHMServiceSensorHistoryTests
             _values.Clear();
         }
 
-        public void Accept(IVisitor visitor)
-        {
-            visitor.VisitSensor(this);
-        }
+        public void Accept(IVisitor visitor) => visitor.VisitSensor(this);
 
         public void Traverse(IVisitor visitor)
         {

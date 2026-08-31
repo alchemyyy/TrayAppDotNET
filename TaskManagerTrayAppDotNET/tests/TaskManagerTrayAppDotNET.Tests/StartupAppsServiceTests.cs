@@ -99,58 +99,56 @@ public sealed class StartupAppsServiceTests
     [Fact]
     public void EnabledStartupApprovedBlobClearsTimestamp()
     {
-        DateTimeOffset timestamp = new(2026, 8, 30, 12, 34, 56, TimeSpan.Zero);
+        DateTimeOffset timestamp = new(year: 2026, month: 8, day: 30, hour: 12, minute: 34, second: 56, TimeSpan.Zero);
 
         byte[] blob = StartupApprovedStatusCodec.Encode(
             StartupAppStatus.Enabled,
             timestamp);
 
-        Assert.Equal(12, blob.Length);
-        Assert.Equal(0x02, blob[0]);
-        Assert.All(blob.Skip(1), static value => Assert.Equal(0, value));
+        Assert.Equal(expected: 12, blob.Length);
+        Assert.Equal(expected: 0x02, blob[0]);
+        Assert.All(blob.Skip(1), static value => Assert.Equal(expected: 0, value));
     }
 
     [Fact]
     public void DisabledStartupApprovedBlobStoresChangeTime()
     {
-        DateTimeOffset timestamp = new(2026, 8, 30, 12, 34, 56, TimeSpan.Zero);
+        DateTimeOffset timestamp = new(year: 2026, month: 8, day: 30, hour: 12, minute: 34, second: 56, TimeSpan.Zero);
 
         byte[] blob = StartupApprovedStatusCodec.Encode(
             StartupAppStatus.Disabled,
             timestamp);
 
-        Assert.Equal(12, blob.Length);
-        Assert.Equal(0x03, blob[0]);
-        Assert.Equal(0, blob[1]);
-        Assert.Equal(0, blob[2]);
-        Assert.Equal(0, blob[3]);
-        Assert.Equal(timestamp.UtcDateTime.ToFileTimeUtc(), BitConverter.ToInt64(blob, 4));
+        Assert.Equal(expected: 12, blob.Length);
+        Assert.Equal(expected: 0x03, blob[0]);
+        Assert.Equal(expected: 0, blob[1]);
+        Assert.Equal(expected: 0, blob[2]);
+        Assert.Equal(expected: 0, blob[3]);
+        Assert.Equal(timestamp.UtcDateTime.ToFileTimeUtc(), BitConverter.ToInt64(blob, startIndex: 4));
     }
 
     [Fact]
     public void NormalizationDeduplicatesReflectedRegistryEntryAndMergesMetadata()
     {
         StartupAppEntry registry32Entry = CreateRegistryEntry(
-            "Example",
-            "Example Publisher",
+            name: "Example",
+            publisher: "Example Publisher",
             StartupAppScope.CurrentUser,
             StartupAppRegistryView.Registry32,
-            @"C:\Example\Example.exe");
+            command: @"C:\Example\Example.exe");
         StartupAppEntry registry64Entry = CreateRegistryEntry(
-            "Example",
+            name: "Example",
             string.Empty,
             StartupAppScope.CurrentUser,
             StartupAppRegistryView.Registry64,
-            @"C:\Example\Example.exe");
-        List<StartupAppEntry> candidates = new();
-        candidates.Add(registry32Entry);
-        candidates.Add(registry64Entry);
+            command: @"C:\Example\Example.exe");
+        List<StartupAppEntry> candidates = [registry32Entry, registry64Entry];
 
         List<StartupAppEntry> normalized = StartupAppsService.NormalizeEntries(candidates);
 
         StartupAppEntry entry = Assert.Single(normalized);
         Assert.Equal(StartupAppRegistryView.Registry64, entry.Identity.RegistryView);
-        Assert.Equal("Example Publisher", entry.Publisher);
+        Assert.Equal(expected: "Example Publisher", entry.Publisher);
     }
 
     [Fact]
@@ -159,12 +157,12 @@ public sealed class StartupAppsServiceTests
         StartupAppApprovalTarget target = StartupAppsService.CreateRegistryApprovalTarget(
             StartupAppScope.AllUsers,
             StartupAppRegistryView.Registry32,
-            "Example",
+            valueName: "Example",
             is64BitOperatingSystem: true);
 
         Assert.Equal(StartupAppRegistryView.Registry64, target.RegistryView);
-        Assert.EndsWith(@"\StartupApproved\Run32", target.RegistrySubKey);
-        Assert.Equal("Example", target.ValueName);
+        Assert.EndsWith(expectedEndString: @"\StartupApproved\Run32", target.RegistrySubKey);
+        Assert.Equal(expected: "Example", target.ValueName);
     }
 
     [Fact]
@@ -173,63 +171,67 @@ public sealed class StartupAppsServiceTests
         StartupAppApprovalTarget target = StartupAppsService.CreateRegistryApprovalTarget(
             StartupAppScope.AllUsers,
             StartupAppRegistryView.Registry64,
-            "Example",
+            valueName: "Example",
             is64BitOperatingSystem: true);
 
         Assert.Equal(StartupAppRegistryView.Registry64, target.RegistryView);
-        Assert.EndsWith(@"\StartupApproved\Run", target.RegistrySubKey);
+        Assert.EndsWith(expectedEndString: @"\StartupApproved\Run", target.RegistrySubKey);
     }
 
     [Fact]
     public void NormalizationRetainsSameNameFromDifferentScopes()
     {
-        List<StartupAppEntry> candidates = new();
-        candidates.Add(CreateRegistryEntry(
-            "Example",
-            "Publisher",
-            StartupAppScope.CurrentUser,
-            StartupAppRegistryView.Registry64,
-            @"C:\Example\Example.exe"));
-        candidates.Add(CreateRegistryEntry(
-            "Example",
-            "Publisher",
-            StartupAppScope.AllUsers,
-            StartupAppRegistryView.Registry64,
-            @"C:\Example\Example.exe"));
+        List<StartupAppEntry> candidates =
+        [
+            CreateRegistryEntry(
+                name: "Example",
+                publisher: "Publisher",
+                StartupAppScope.CurrentUser,
+                StartupAppRegistryView.Registry64,
+                command: @"C:\Example\Example.exe"),
+            CreateRegistryEntry(
+                name: "Example",
+                publisher: "Publisher",
+                StartupAppScope.AllUsers,
+                StartupAppRegistryView.Registry64,
+                command: @"C:\Example\Example.exe")
+        ];
 
         List<StartupAppEntry> normalized = StartupAppsService.NormalizeEntries(candidates);
 
-        Assert.Equal(2, normalized.Count);
+        Assert.Equal(expected: 2, normalized.Count);
     }
 
     [Fact]
     public void NormalizationSortsByNameThenPublisher()
     {
-        List<StartupAppEntry> candidates = new();
-        candidates.Add(CreateRegistryEntry(
-            "Zulu",
-            "Publisher",
-            StartupAppScope.CurrentUser,
-            StartupAppRegistryView.Registry64,
-            @"C:\Zulu.exe"));
-        candidates.Add(CreateRegistryEntry(
-            "alpha",
-            "Zulu Publisher",
-            StartupAppScope.CurrentUser,
-            StartupAppRegistryView.Registry64,
-            @"C:\Alpha2.exe"));
-        candidates.Add(CreateRegistryEntry(
-            "Alpha",
-            "Alpha Publisher",
-            StartupAppScope.CurrentUser,
-            StartupAppRegistryView.Registry64,
-            @"C:\Alpha1.exe"));
+        List<StartupAppEntry> candidates =
+        [
+            CreateRegistryEntry(
+                name: "Zulu",
+                publisher: "Publisher",
+                StartupAppScope.CurrentUser,
+                StartupAppRegistryView.Registry64,
+                command: @"C:\Zulu.exe"),
+            CreateRegistryEntry(
+                name: "alpha",
+                publisher: "Zulu Publisher",
+                StartupAppScope.CurrentUser,
+                StartupAppRegistryView.Registry64,
+                command: @"C:\Alpha2.exe"),
+            CreateRegistryEntry(
+                name: "Alpha",
+                publisher: "Alpha Publisher",
+                StartupAppScope.CurrentUser,
+                StartupAppRegistryView.Registry64,
+                command: @"C:\Alpha1.exe")
+        ];
 
         List<StartupAppEntry> normalized = StartupAppsService.NormalizeEntries(candidates);
 
-        Assert.Equal("Alpha Publisher", normalized[0].Publisher);
-        Assert.Equal("Zulu Publisher", normalized[1].Publisher);
-        Assert.Equal("Zulu", normalized[2].Name);
+        Assert.Equal(expected: "Alpha Publisher", normalized[0].Publisher);
+        Assert.Equal(expected: "Zulu Publisher", normalized[1].Publisher);
+        Assert.Equal(expected: "Zulu", normalized[2].Name);
     }
 
     [Theory]
@@ -270,7 +272,7 @@ public sealed class StartupAppsServiceTests
         StartupAppsService service = new();
         service.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => service.ReadEntries());
+        Assert.Throws<ObjectDisposedException>(service.ReadEntries);
     }
 
     private static StartupAppEntry CreateRegistryEntry(

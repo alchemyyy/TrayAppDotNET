@@ -16,8 +16,10 @@ internal static class UpdateConfirmationLayout
 
     public static double WindowWidth => AXAMLResources.AxamlUpdateConfirmation.WindowWidth;
     public static double WindowMinWidth => AXAMLResources.AxamlUpdateConfirmation.WindowMinWidth;
+
     public static double FlyoutVerticalAnchorRatio =>
         AXAMLResources.AxamlUpdateConfirmation.FlyoutVerticalAnchorRatio;
+
     public static Thickness RootBorderThickness => AXAMLResources.AxamlUpdateConfirmation.RootBorderThickness;
     public static CornerRadius RootCornerRadius => AXAMLResources.AxamlUpdateConfirmation.RootCornerRadius;
     public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlUpdateConfirmation.ZeroCornerRadius;
@@ -26,20 +28,28 @@ internal static class UpdateConfirmationLayout
     public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
     public static Thickness ModalBodyMargin => AXAMLResources.AxamlUpdateConfirmation.ModalBodyMargin;
     public static double ModalTitleFontSize => AXAMLResources.AxamlUpdateConfirmation.ModalTitleFontSize;
+
     public static Thickness ModalDescriptionMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
+
     public static double VersionLineHeightPadding =>
         AXAMLResources.AxamlUpdateConfirmation.VersionLineHeightPadding;
+
     public static double ModalLinkSpacing =>
         AXAMLResources.AxamlUpdateConfirmation.ModalLinkSpacing;
+
     public static Thickness ModalLinksMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalLinksMargin;
+
     public static Thickness ModalRestartNoticeMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalRestartNoticeMargin;
+
     public static Thickness ModalActionButtonsMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalActionButtonsMargin;
+
     public static double ModalActionButtonSpacing =>
         AXAMLResources.AxamlUpdateConfirmation.ModalActionButtonSpacing;
+
     public static Thickness ActionButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ActionButtonPadding;
     public static Thickness SecondaryButtonMargin => AXAMLResources.AxamlUpdateConfirmation.SecondaryButtonMargin;
     public static Thickness ActionButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ActionButtonsMargin;
@@ -59,8 +69,8 @@ internal static class UpdateConfirmationPositioning
         if (!double.IsFinite(verticalAnchorRatio) || verticalAnchorRatio is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(verticalAnchorRatio));
 
-        int promptWidth = Math.Max(1, promptSize.Width);
-        int promptHeight = Math.Max(1, promptSize.Height);
+        int promptWidth = Math.Max(val1: 1, promptSize.Width);
+        int promptHeight = Math.Max(val1: 1, promptSize.Height);
         int targetLeft = ownerBounds.X + (ownerBounds.Width - promptWidth) / 2;
         int targetTop = (int)Math.Round(
             ownerBounds.Y
@@ -124,9 +134,9 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             L(nameof(CommonStrings.UpdateDialog_Install)),
             palette,
             rounded,
-            alternateText: L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
-            cancelText: L(nameof(CommonStrings.UpdateDialog_Close)),
-            modalDetails: new TrayAppDotNETUpdateModalDetails(
+            L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
+            L(nameof(CommonStrings.UpdateDialog_Close)),
+            new TrayAppDotNETUpdateModalDetails(
                 string.Format(
                     CultureInfo.CurrentCulture,
                     L(nameof(CommonStrings.UpdateDialog_NewVersionFormat)),
@@ -138,7 +148,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                 L(nameof(CommonStrings.UpdateDialog_ViewReleases)),
                 service.ReleasesPageUrl,
                 L(nameof(CommonStrings.UpdateDialog_VisitWebsite))),
-            modalFooterText: L(nameof(CommonStrings.UpdateDialog_RestartNotice)),
+            L(nameof(CommonStrings.UpdateDialog_RestartNotice)),
             useModalContentLayout: true)
     {
     }
@@ -257,8 +267,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             window.Bounds.Height,
             window.Height,
             window.MinHeight);
-        int pixelWidth = Math.Max(1, (int)Math.Ceiling(logicalWidth * renderScaling));
-        int pixelHeight = Math.Max(1, (int)Math.Ceiling(logicalHeight * renderScaling));
+        int pixelWidth = Math.Max(val1: 1, (int)Math.Ceiling(logicalWidth * renderScaling));
+        int pixelHeight = Math.Max(val1: 1, (int)Math.Ceiling(logicalHeight * renderScaling));
         return new PixelRect(window.Position.X, window.Position.Y, pixelWidth, pixelHeight);
     }
 
@@ -371,7 +381,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            Grid.SetRow(body, 1);
+            Grid.SetRow(body, value: 1);
             descriptionRow = 0;
             actionButtonsRow = 1;
         }
@@ -395,6 +405,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                     descriptionText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
                 descriptionText.TextWrapping = TextWrapping.Wrap;
             }
+
             Grid.SetRow(descriptionText, descriptionRow);
             body.Children.Add(descriptionText);
         }
@@ -406,7 +417,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             modalFooterText.LineHeight =
                 modalFooterText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
             modalFooterText.TextWrapping = TextWrapping.Wrap;
-            Grid.SetRow(modalFooterText, 2);
+            Grid.SetRow(modalFooterText, value: 2);
             body.Children.Add(modalFooterText);
         }
 
@@ -468,6 +479,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                 Grid.SetColumn(actionButton, buttonIndex);
                 modalButtons.Children.Add(actionButton);
             }
+
             buttons = modalButtons;
         }
         else
@@ -483,6 +495,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                 actionButton.HorizontalAlignment = HorizontalAlignment.Left;
                 standardButtons.Children.Add(actionButton);
             }
+
             buttons = standardButtons;
         }
 
@@ -518,14 +531,14 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             details.NewVersionText,
             palette,
             TextWrapping.NoWrap);
-        Grid.SetRow(newVersion, 1);
+        Grid.SetRow(newVersion, value: 1);
         description.Children.Add(newVersion);
 
         TextBlock currentVersion = BuildModalDescriptionText(
             details.CurrentVersionText,
             palette,
             TextWrapping.NoWrap);
-        Grid.SetRow(currentVersion, 2);
+        Grid.SetRow(currentVersion, value: 2);
         description.Children.Add(currentVersion);
 
         return description;
@@ -586,6 +599,12 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         link.HorizontalAlignment = HorizontalAlignment.Right;
         link.VerticalAlignment = VerticalAlignment.Center;
 
+        link.PointerPressed += OnPointerPressed;
+        resources.Add(() => link.PointerPressed -= OnPointerPressed);
+        link.KeyDown += OnKeyDown;
+        resources.Add(() => link.KeyDown -= OnKeyDown);
+        return link;
+
         void OnPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
         {
             if (_closed || !eventArgs.GetCurrentPoint(link).Properties.IsLeftButtonPressed) return;
@@ -601,12 +620,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             OpenPage(pageURI);
             eventArgs.Handled = true;
         }
-
-        link.PointerPressed += OnPointerPressed;
-        resources.Add(() => link.PointerPressed -= OnPointerPressed);
-        link.KeyDown += OnKeyDown;
-        resources.Add(() => link.KeyDown -= OnKeyDown);
-        return link;
     }
 
     private static TextBlock BuildModalTitle(string title, SettingsPalette palette)
@@ -628,7 +641,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
-        TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, palette, 13);
+        TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, palette, fontSize: 13);
         titleText.VerticalAlignment = VerticalAlignment.Center;
         titleText.Margin = UpdateConfirmationLayout.TitleMargin;
         bar.Children.Add(titleText);
@@ -638,7 +651,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
         resources.Add(() => close.Click -= OnCancelClick);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(close, value: 1);
         bar.Children.Add(close);
 
         bar.PointerPressed += OnTitleBarPointerPressed;
@@ -713,12 +726,12 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
     private void DisposeCore()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _closed = true;
         _windowResources.Dispose();
         _upperThirdPlacementOwner = null;
-        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, value: null);
         if (contentGeneration == null) return;
 
         try

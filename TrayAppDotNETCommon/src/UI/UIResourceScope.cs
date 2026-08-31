@@ -5,7 +5,7 @@ namespace TrayAppDotNETCommon.UI;
 /// </summary>
 public sealed class UIResourceScope : IDisposable
 {
-    private static readonly CancellationToken CanceledToken = new(canceled: true);
+    private static readonly CancellationToken CanceledToken = new(true);
 
     private readonly Lock _gate = new();
     private readonly Action<Exception>? _logError;
@@ -67,9 +67,8 @@ public sealed class UIResourceScope : IDisposable
     /// <summary>Cancels work and runs all cleanup actions once in reverse registration order.</summary>
     public void Dispose()
     {
-        CleanupRegistration? parentRegistration = Interlocked.Exchange(ref _parentRegistration, null);
-        parentRegistration?.Detach();
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        DetachRegistration(Interlocked.Exchange(ref _parentRegistration, value: null));
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         List<CleanupRegistration> cleanupActions = [];
         CancellationTokenSource? cancellationSource;
@@ -134,8 +133,7 @@ public sealed class UIResourceScope : IDisposable
         _parentRegistration = registration;
         if (!IsDisposed) return;
 
-        CleanupRegistration? parentRegistration = Interlocked.Exchange(ref _parentRegistration, null);
-        parentRegistration?.Detach();
+        DetachRegistration(Interlocked.Exchange(ref _parentRegistration, value: null));
     }
 
     private void RemoveRegistration(CleanupRegistration registration)
@@ -143,6 +141,9 @@ public sealed class UIResourceScope : IDisposable
         lock (_gate)
             _cleanupActions?.Remove(registration);
     }
+
+    // Interlocked exchange can return null when parent and child disposal race
+    private static void DetachRegistration(CleanupRegistration? registration) => registration?.Detach();
 
     private void RunRegistration(CleanupRegistration registration)
     {
@@ -191,14 +192,14 @@ public sealed class UIResourceScope : IDisposable
 
         public Action? ClaimCleanup()
         {
-            Interlocked.Exchange(ref _owner, null);
-            return Interlocked.Exchange(ref _cleanup, null);
+            Interlocked.Exchange(ref _owner, value: null);
+            return Interlocked.Exchange(ref _cleanup, value: null);
         }
 
         public void Detach()
         {
-            Interlocked.Exchange(ref _cleanup, null);
-            UIResourceScope? registrationOwner = Interlocked.Exchange(ref _owner, null);
+            Interlocked.Exchange(ref _cleanup, value: null);
+            UIResourceScope? registrationOwner = Interlocked.Exchange(ref _owner, value: null);
             registrationOwner?.RemoveRegistration(this);
         }
     }

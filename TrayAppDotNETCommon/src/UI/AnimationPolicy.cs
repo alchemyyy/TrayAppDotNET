@@ -46,7 +46,8 @@ public static class TrayAppDotNETAnimationPolicy
     {
         try
         {
-            return !User32.SystemParametersInfo(User32.SPI_GETCLIENTAREAANIMATION, 0, out int enabled, 0) ||
+            return !User32.SystemParametersInfo(User32.SPI_GETCLIENTAREAANIMATION, uiParam: 0, out int enabled,
+                       fWinIni: 0) ||
                    enabled != 0;
         }
         catch

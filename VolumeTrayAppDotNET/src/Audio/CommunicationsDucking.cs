@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -118,7 +117,7 @@ internal static class CommunicationsDucking
             int openStatus = Advapi32.RegOpenKeyExW(
                 Advapi32.HKEY_CURRENT_USER,
                 KeyPath,
-                0,
+                ulOptions: 0,
                 Advapi32.KEY_NOTIFY | Advapi32.KEY_QUERY_VALUE,
                 out IntPtr hKey);
             if (openStatus != Advapi32.ERROR_SUCCESS)
@@ -128,7 +127,8 @@ internal static class CommunicationsDucking
             }
 
             // Manual-reset for the registry event so the signal sticks across our re-arm.
-            IntPtr hRegEvent = Kernel32Wait.CreateEventW(IntPtr.Zero, true, false, null);
+            IntPtr hRegEvent =
+                Kernel32Wait.CreateEventW(IntPtr.Zero, bManualReset: true, bInitialState: false, lpName: null);
             if (hRegEvent == IntPtr.Zero)
             {
                 Advapi32.RegCloseKey(hKey);
@@ -137,7 +137,8 @@ internal static class CommunicationsDucking
             }
 
             // Auto-reset wake event so a single SetEvent in Stop wakes the thread exactly once.
-            IntPtr hWakeEvent = Kernel32Wait.CreateEventW(IntPtr.Zero, false, false, null);
+            IntPtr hWakeEvent =
+                Kernel32Wait.CreateEventW(IntPtr.Zero, bManualReset: false, bInitialState: false, lpName: null);
             if (hWakeEvent == IntPtr.Zero)
             {
                 Kernel32.CloseHandle(hRegEvent);
@@ -187,7 +188,8 @@ internal static class CommunicationsDucking
 
         if (!joined)
         {
-            TADNLog.Log("CommunicationsDucking.Stop: watcher did not stop before timeout; leaving handles with watcher");
+            TADNLog.Log(
+                "CommunicationsDucking.Stop: watcher did not stop before timeout; leaving handles with watcher");
             return;
         }
 
@@ -220,10 +222,10 @@ internal static class CommunicationsDucking
             {
                 int status = Advapi32.RegNotifyChangeKeyValue(
                     hKey,
-                    false,
+                    bWatchSubtree: false,
                     Advapi32.REG_NOTIFY_CHANGE_LAST_SET,
                     hRegEvent,
-                    true);
+                    fAsynchronous: true);
                 if (status != Advapi32.ERROR_SUCCESS)
                 {
                     TADNLog.Log($"CommunicationsDucking: RegNotifyChangeKeyValue failed with {status}");
@@ -233,7 +235,8 @@ internal static class CommunicationsDucking
                 // bWaitAll = false + lowest-index-wins: a tie between wake and reg returns wake (slot 0)
                 // so Stop is observed even if a registry write lands on the same kernel pass.
                 uint result =
-                    Kernel32Wait.WaitForMultipleObjects((uint)handles.Length, handles, false, Kernel32Wait.INFINITE);
+                    Kernel32Wait.WaitForMultipleObjects((uint)handles.Length, handles, bWaitAll: false,
+                        Kernel32Wait.INFINITE);
                 if (result == Kernel32Wait.WAIT_FAILED)
                 {
                     TADNLog.Log("CommunicationsDucking: WaitForMultipleObjects failed");

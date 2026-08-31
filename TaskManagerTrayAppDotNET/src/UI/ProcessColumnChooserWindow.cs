@@ -25,8 +25,9 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         TaskManagerWindowResources resources,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : this(
-            ProcessColumnSettings.CloneList(settings?.DetailsColumns),
-            settings ?? throw new ArgumentNullException(nameof(settings)),
+            ProcessColumnSettings.CloneList(
+                (settings ?? throw new ArgumentNullException(nameof(settings))).DetailsColumns),
+            settings,
             palette ?? throw new ArgumentNullException(nameof(palette)),
             resources ?? throw new ArgumentNullException(nameof(resources)),
             ResolveBackground(palette),
@@ -44,8 +45,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         CheckBox hideUnusedColumns,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : base(
-            "Select Processes columns",
-            "Choose visible columns and arrange their left-to-right order.",
+            title: "Select Processes columns",
+            description: "Choose visible columns and arrange their left-to-right order.",
             items,
             GetSearchText,
             (setting, itemChanged) => BuildVisibilityCheckBox(
@@ -75,7 +76,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
                 settings.EnableRoundedCorners,
                 settings),
             setting => ToggleVisibility(items, setting),
-            headerTrailingControl: hideUnusedColumns)
+            hideUnusedColumns)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
@@ -190,14 +191,10 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         Grid content = new()
         {
             Background = Brushes.Transparent,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
         };
         content.Children.Add(visibility);
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         content.Children.Add(label);
         return content;
     }
@@ -216,15 +213,15 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     {
         List<ProcessColumnSetting> defaults = ProcessColumnSettings.CreateDefault();
         ProcessTableAXAMLColumnWidths currentWidths = new(
-            Name: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Name).DefaultWidth,
-            ProcessID: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.ProcessID).DefaultWidth,
-            Status: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Status).DefaultWidth,
-            UserName: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.UserName).DefaultWidth,
-            CPU: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPU).DefaultWidth,
-            Lifetime: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Lifetime).DefaultWidth,
-            PrivateMemory: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.PrivateMemory).DefaultWidth,
-            WorkingSet: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.SharedWorkingSet).DefaultWidth,
-            CommandLine: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CommandLine).DefaultWidth);
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Name).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.ProcessID).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Status).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.UserName).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPU).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Lifetime).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.PrivateMemory).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.SharedWorkingSet).DefaultWidth,
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CommandLine).DefaultWidth);
         ProcessTableAXAMLColumnWidths nextWidths = new(
             resources.AxamlProcessTable.NameColumnWidth,
             resources.AxamlProcessTable.PIDColumnWidth,
@@ -261,15 +258,12 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     protected override async Task<bool> ConfirmResetAsync()
     {
         using TrayAppDotNETUpdateConfirmationWindow confirmation = new(
-            "Reset process columns?",
-            "This will restore the default column visibility, order, widths, and display options.",
-            "Reset",
+            title: "Reset process columns?",
+            description: "This will restore the default column visibility, order, widths, and display options.",
+            confirmText: "Reset",
             Palette,
             RoundedCornersEnabled,
-            cancelText: "Cancel")
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+            cancelText: "Cancel") { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         TrayAppDotNETUpdatePromptResult result =
             await confirmation.ShowDialog<TrayAppDotNETUpdatePromptResult>(this);
         return result == TrayAppDotNETUpdatePromptResult.Confirmed;

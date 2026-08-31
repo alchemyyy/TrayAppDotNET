@@ -1,5 +1,4 @@
 using NetworkTrayAppDotNET.Models;
-using TrayAppDotNETCommon.UI.Controls;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace NetworkTrayAppDotNET.UI.Settings;

@@ -68,7 +68,7 @@ public sealed class DDCRecoveryService(
     {
         if (_disposed) return;
 
-        Interlocked.Exchange(ref _DDCRecoveryNeeded, 1);
+        Interlocked.Exchange(ref _DDCRecoveryNeeded, value: 1);
 
         lock (_gate)
         {
@@ -81,7 +81,7 @@ public sealed class DDCRecoveryService(
         }
     }
 
-    private bool ClearDDCRecoveryNeeded() => Interlocked.Exchange(ref _DDCRecoveryNeeded, 0) == 1;
+    private bool ClearDDCRecoveryNeeded() => Interlocked.Exchange(ref _DDCRecoveryNeeded, value: 0) == 1;
 
     private async Task RunDDCRecoveryWorkerAsync(CancellationToken token)
     {
@@ -94,7 +94,7 @@ public sealed class DDCRecoveryService(
             {
                 if (!firstPass)
                 {
-                    await Task.Delay(Math.Max(1, retryIntervalMs), token).ConfigureAwait(false);
+                    await Task.Delay(Math.Max(val1: 1, retryIntervalMs), token).ConfigureAwait(false);
                     if (token.IsCancellationRequested) break;
                 }
 
@@ -110,7 +110,7 @@ public sealed class DDCRecoveryService(
 
                 TADNLog.Log(
                     $"DDCRecoveryService: acquisition retry for {candidates.Count} candidate(s): "
-                    + string.Join(", ", candidates));
+                    + string.Join(separator: ", ", candidates));
 
                 await RunTargetedRecoveryPassAsync(candidates, token).ConfigureAwait(false);
 

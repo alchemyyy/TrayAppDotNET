@@ -83,6 +83,7 @@ public sealed class UpdateCheckOptions
 
     /// <summary>Path shared by sibling apps for the latest aggregate release manifest.</summary>
     public required string VersionsManifestCachePath { get; init; }
+
     public required string RepositoryOwner { get; init; }
     public required string RepositoryName { get; init; }
     public required string ApplicationName { get; init; }
@@ -101,17 +102,24 @@ public sealed class UpdateCheckOptions
 
     public TimeSpan StartupDelay { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckStartupDelayMs);
+
     public TimeSpan MinPollInterval { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMinMs);
+
     public TimeSpan MaxPollInterval { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMaxMs);
+
     public TimeSpan NetworkTimeout { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateNetworkTimeoutMs);
+
     public TimeSpan ManualCheckTimeout { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateManualCheckTimeoutMs);
+
     public TimeSpan FailureRetryInterval { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckFailureRetryMs);
+
     public int AssetDownloadMaxAttempts { get; init; } = TimeConstants.UpdateAssetDownloadMaxAttempts;
+
     public TimeSpan AssetDownloadInitialBackoff { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
 
@@ -137,7 +145,7 @@ public sealed class UpdateCheckService : IDisposable
     private const string GitHubApiVersion = "2026-03-10";
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
-    private readonly SemaphoreSlim _previousReleaseSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _previousReleaseSemaphore = new(initialCount: 1, maxCount: 1);
 
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -209,8 +217,8 @@ public sealed class UpdateCheckService : IDisposable
 
     public void Stop()
     {
-        CancellationTokenSource? cts = Interlocked.Exchange(ref _loopCts, null);
-        Task? loopTask = Interlocked.Exchange(ref _loopTask, null);
+        CancellationTokenSource? cts = Interlocked.Exchange(ref _loopCts, value: null);
+        Task? loopTask = Interlocked.Exchange(ref _loopTask, value: null);
         if (cts == null) return;
 
         try { cts.Cancel(); }
@@ -245,7 +253,7 @@ public sealed class UpdateCheckService : IDisposable
             if (!await WaitForRunningPollAsync(running.Task).ConfigureAwait(false))
             {
                 await MarkCheckFailedAsync(
-                    "UpdateCheckService.CheckNowAsync: timed out waiting for in-flight update check.")
+                        "UpdateCheckService.CheckNowAsync: timed out waiting for in-flight update check.")
                     .ConfigureAwait(false);
                 return _available;
             }
@@ -265,13 +273,13 @@ public sealed class UpdateCheckService : IDisposable
             if (timeoutCts.IsCancellationRequested)
             {
                 await MarkCheckFailedAsync(
-                    "UpdateCheckService.CheckNowAsync: manual update check timed out.")
+                        "UpdateCheckService.CheckNowAsync: manual update check timed out.")
                     .ConfigureAwait(false);
             }
         }
         finally
         {
-            Volatile.Write(ref _pollDone, null);
+            Volatile.Write(ref _pollDone, value: null);
             pollDone.TrySetResult();
             Interlocked.Exchange(ref _pollState, PollStateIdle);
         }
@@ -285,7 +293,7 @@ public sealed class UpdateCheckService : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(info);
         if (info.Version <= _options.CurrentBuild)
-            throw new ArgumentOutOfRangeException(nameof(info), "Only newer releases can be skipped.");
+            throw new ArgumentOutOfRangeException(nameof(info), message: "Only newer releases can be skipped.");
 
         await InvokeIfRunningAsync(() =>
         {
@@ -421,7 +429,7 @@ public sealed class UpdateCheckService : IDisposable
         if (span.Length == 0) return 0;
 
         if (span[0] == 'v' || span[0] == 'V') span = span[1..];
-        if (span.StartsWith("TrayAppDotNET_", StringComparison.OrdinalIgnoreCase))
+        if (span.StartsWith(value: "TrayAppDotNET_", StringComparison.OrdinalIgnoreCase))
             span = span["TrayAppDotNET_".Length..];
 
         int dashIndex = span.IndexOf('-');
@@ -459,7 +467,7 @@ public sealed class UpdateCheckService : IDisposable
                     }
                     finally
                     {
-                        Volatile.Write(ref _pollDone, null);
+                        Volatile.Write(ref _pollDone, value: null);
                         pollDone.TrySetResult();
                         Interlocked.Exchange(ref _pollState, PollStateIdle);
                     }
@@ -478,7 +486,7 @@ public sealed class UpdateCheckService : IDisposable
             catch (OperationCanceledException) { return; }
             finally
             {
-                Volatile.Write(ref _manualKick, null);
+                Volatile.Write(ref _manualKick, value: null);
             }
         }
     }
@@ -486,7 +494,7 @@ public sealed class UpdateCheckService : IDisposable
     internal TimeSpan NextPollInterval()
     {
         TimeSpan normal = NormalizedInterval(_options.PollInterval());
-        long cacheWriteTimeUTCTicks = Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, 0);
+        long cacheWriteTimeUTCTicks = Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, value: 0);
         if (_lastResult != UpdateCheckResult.Failed)
         {
             if (cacheWriteTimeUTCTicks <= 0) return normal;
@@ -511,7 +519,7 @@ public sealed class UpdateCheckService : IDisposable
 
     internal async Task PollOnceAsync(CancellationToken token, bool bypassLatestManifestCache)
     {
-        Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, 0);
+        Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, value: 0);
         await SetCheckingAsync(true).ConfigureAwait(false);
         UpdateCheckResult result = UpdateCheckResult.Failed;
         try
@@ -606,6 +614,7 @@ public sealed class UpdateCheckService : IDisposable
                 $"UpdateCheckService.FetchLatestAsync: version endpoint did not contain "
                 + $"a release artifact for {_options.ApplicationName}.");
         }
+
         return manifestRelease;
     }
 
@@ -742,7 +751,7 @@ public sealed class UpdateCheckService : IDisposable
             throw new HttpRequestException(
                 $"Manifest request to {manifestUrl} failed with HTTP "
                 + $"{(int)response.StatusCode} ({response.ReasonPhrase}).",
-                null,
+                inner: null,
                 response.StatusCode);
         }
 
@@ -783,9 +792,7 @@ public sealed class UpdateCheckService : IDisposable
         string assetTagName = manifestTagName;
         if (string.IsNullOrWhiteSpace(pinnedTagName)
             && !string.IsNullOrWhiteSpace(appArtifact.ReleaseTag))
-        {
             assetTagName = appArtifact.ReleaseTag;
-        }
 
         string expectedAssetName = GitHubReleaseUrls.ReleaseAssetName(_options.ApplicationName, version);
         string manifestAssetName = string.IsNullOrWhiteSpace(appArtifact.FileName)
@@ -809,7 +816,7 @@ public sealed class UpdateCheckService : IDisposable
             version,
             assetTagName,
             releaseName,
-            "",
+            Changelog: "",
             assetUrl.ToString(),
             expectedAssetName,
             ParsePositiveLong(appArtifact.Size));
@@ -826,7 +833,8 @@ public sealed class UpdateCheckService : IDisposable
                 throw new InvalidOperationException($"Cache path has no parent directory: {cachePath}");
 
             Directory.CreateDirectory(cacheDirectory);
-            temporaryPath = cachePath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
+            temporaryPath = cachePath + "." + Guid.NewGuid().ToString(format: "N", CultureInfo.InvariantCulture) +
+                            ".tmp";
             await File.WriteAllBytesAsync(temporaryPath, manifestBytes, token).ConfigureAwait(false);
 
             // Publish only a complete XML file because sibling apps can read it concurrently
@@ -857,8 +865,8 @@ public sealed class UpdateCheckService : IDisposable
         {
             (UpdateInfo? previousRelease, int releaseCount) = await FetchAppReleasePageAsync(
                     page,
-                    maximumVersionExclusive: _options.CurrentBuild,
-                    preferredVersion: expectedPreviousVersion,
+                    _options.CurrentBuild,
+                    expectedPreviousVersion,
                     token)
                 .ConfigureAwait(false);
             if (previousRelease != null) return previousRelease;
@@ -881,7 +889,7 @@ public sealed class UpdateCheckService : IDisposable
             GitHubFallbackReleasesPerPage);
         using HttpRequestMessage request = new(HttpMethod.Get, requestUrl);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", GitHubApiVersion);
+        request.Headers.TryAddWithoutValidation(name: "X-GitHub-Api-Version", GitHubApiVersion);
         using HttpResponseMessage response = await _http
             .SendAsync(request, HttpCompletionOption.ResponseContentRead, token)
             .ConfigureAwait(false);
@@ -890,7 +898,7 @@ public sealed class UpdateCheckService : IDisposable
             throw new HttpRequestException(
                 $"GitHub releases request to {requestUrl} failed with HTTP "
                 + $"{(int)response.StatusCode} ({response.ReasonPhrase}).",
-                null,
+                inner: null,
                 response.StatusCode);
         }
 
@@ -904,20 +912,21 @@ public sealed class UpdateCheckService : IDisposable
         UpdateInfo? bestRelease = null;
         foreach (JsonElement release in releases.EnumerateArray())
         {
-            if (GetJSONBoolean(release, "draft") || GetJSONBoolean(release, "prerelease")) continue;
+            if (GetJSONBoolean(release, propertyName: "draft") ||
+                GetJSONBoolean(release, propertyName: "prerelease")) continue;
 
-            string tagName = GetJSONString(release, "tag_name");
+            string tagName = GetJSONString(release, propertyName: "tag_name");
             if (string.IsNullOrWhiteSpace(tagName)) continue;
-            if (!release.TryGetProperty("assets", out JsonElement assets)
+            if (!release.TryGetProperty(propertyName: "assets", out JsonElement assets)
                 || assets.ValueKind != JsonValueKind.Array)
                 continue;
 
             foreach (JsonElement asset in assets.EnumerateArray())
             {
-                string assetName = GetJSONString(asset, "name");
+                string assetName = GetJSONString(asset, propertyName: "name");
                 int version = ParseAppReleaseAssetVersion(assetName);
                 if (version <= 0) continue;
-                if (maximumVersionExclusive.HasValue && version >= maximumVersionExclusive.Value) continue;
+                if (maximumVersionExclusive is { } maximumVersion && version >= maximumVersion) continue;
                 if (bestRelease != null && version <= bestRelease.Version) continue;
 
                 Uri assetUrl = GitHubReleaseUrls.ReleaseAssetUrl(
@@ -929,11 +938,11 @@ public sealed class UpdateCheckService : IDisposable
                     version,
                     tagName,
                     $"{_options.ApplicationName} {version}",
-                    GetJSONString(release, "body"),
+                    GetJSONString(release, propertyName: "body"),
                     assetUrl.ToString(),
                     assetName,
-                    GetJSONPositiveInt64(asset, "size"));
-                if (preferredVersion.HasValue && version == preferredVersion.Value)
+                    GetJSONPositiveInt64(asset, propertyName: "size"));
+                if (preferredVersion is { } preferred && version == preferred)
                     return (bestRelease, releases.GetArrayLength());
             }
         }
@@ -1004,7 +1013,7 @@ public sealed class UpdateCheckService : IDisposable
     private bool IsReleaseAppArtifact(VersionsArtifact artifact) =>
         string.Equals(artifact.AppId, _options.ApplicationName, StringComparison.OrdinalIgnoreCase)
         && string.Equals(artifact.Profile, GitHubReleaseUrls.ReleaseProfile, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(artifact.Kind, "app", StringComparison.OrdinalIgnoreCase);
+        && string.Equals(artifact.Kind, b: "app", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> DownloadAndExtractAssetWithRetryAsync(
         string assetUrl,
@@ -1033,9 +1042,7 @@ public sealed class UpdateCheckService : IDisposable
 
                 resp.EnsureSuccessStatusCode();
                 await using (FileStream fs = new(destination, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
                     await resp.Content.CopyToAsync(fs, token).ConfigureAwait(false);
-                }
 
                 if (expectedSize > 0)
                 {
@@ -1114,7 +1121,10 @@ public sealed class UpdateCheckService : IDisposable
         {
             string destinationPath = Path.GetFullPath(Path.Combine(root, entry.FullName));
             if (!destinationPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"Update package entry escapes staging directory: {entry.FullName}");
+            {
+                throw new InvalidOperationException(
+                    $"Update package entry escapes staging directory: {entry.FullName}");
+            }
 
             if (string.IsNullOrEmpty(entry.Name))
             {

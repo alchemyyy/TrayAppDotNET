@@ -28,7 +28,7 @@ internal sealed class ProcessTerminationService : IDisposable
 
     private readonly Action<string>? _log;
     private readonly StartElevatedKillHelperAction _startElevatedHelper;
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private ElevatedKillHelperSession? _helperSession;
     private TaskCompletionSource<ElevatedHelperStatus>? _pendingStartCompletion;
     private Task<ElevatedHelperStatus>? _pendingStartTask;
@@ -64,7 +64,7 @@ internal sealed class ProcessTerminationService : IDisposable
     /// <summary>Starts one owner-parented elevation attempt on a dedicated STA thread.</summary>
     public Task<ElevatedHelperStatus> EnableElevatedHelperAsync(IntPtr ownerWindowHandle)
     {
-        TaskCompletionSource<ElevatedHelperStatus>? failedCompletion = null;
+        TaskCompletionSource<ElevatedHelperStatus> failedCompletion;
         ElevatedHelperStatus immediateStatus;
 
         lock (_sync)
@@ -75,9 +75,9 @@ internal sealed class ProcessTerminationService : IDisposable
             if (_elevatedHelperState == ElevatedHelperState.Starting)
             {
                 return _pendingStartTask
-                    ?? Task.FromResult(new ElevatedHelperStatus(
-                        ElevatedHelperState.Failed,
-                        "The elevated helper launch task is unavailable."));
+                       ?? Task.FromResult(new ElevatedHelperStatus(
+                           ElevatedHelperState.Failed,
+                           ErrorMessage: "The elevated helper launch task is unavailable."));
             }
 
             if (ownerWindowHandle == IntPtr.Zero)
@@ -100,8 +100,7 @@ internal sealed class ProcessTerminationService : IDisposable
             {
                 Thread launcherThread = new(() => RunElevatedHelperLaunch(ownerWindowHandle, completion))
                 {
-                    IsBackground = true,
-                    Name = ElevationLauncherThreadName
+                    IsBackground = true, Name = ElevationLauncherThreadName
                 };
                 launcherThread.SetApartmentState(ApartmentState.STA);
                 launcherThread.Start();
@@ -142,6 +141,7 @@ internal sealed class ProcessTerminationService : IDisposable
             errorMessage = "The selected process cannot be terminated.";
             return false;
         }
+
         if (target.ProcessID == Environment.ProcessId)
         {
             errorMessage = "Task Manager cannot terminate itself from this window.";
@@ -164,10 +164,10 @@ internal sealed class ProcessTerminationService : IDisposable
 
             helperSession = _helperSession;
             helperRequested = helperSession != null &&
-                helperSession.TryRequestTermination(
-                    target,
-                    _targetGeneration,
-                    out helperRequestSequence);
+                              helperSession.TryRequestTermination(
+                                  target,
+                                  _targetGeneration,
+                                  out helperRequestSequence);
             if (helperSession != null && !helperRequested && !helperSession.IsReady)
             {
                 unavailableHelperSession = helperSession;
@@ -179,9 +179,9 @@ internal sealed class ProcessTerminationService : IDisposable
 
             localTerminateError = _localOpenError;
             localTerminated = _localTargetHandle != IntPtr.Zero &&
-                CriticalProcessActions.TryTerminateHandle(
-                    _localTargetHandle,
-                    out localTerminateError);
+                              CriticalProcessActions.TryTerminateHandle(
+                                  _localTargetHandle,
+                                  out localTerminateError);
             helperStatus = CreateStatusWithoutLock();
         }
 
@@ -205,6 +205,7 @@ internal sealed class ProcessTerminationService : IDisposable
                 errorMessage = string.Empty;
                 return true;
             }
+
             if (helperResult == KillHelperProtocol.ResultSuccess)
             {
                 errorMessage = string.Empty;
@@ -237,7 +238,7 @@ internal sealed class ProcessTerminationService : IDisposable
             _log?.Invoke(errorMessage);
             startResult = new ElevatedKillHelperStartResult(
                 ElevatedKillHelperStartOutcome.Failed,
-                null,
+                Session: null,
                 errorMessage);
         }
 
@@ -337,21 +338,21 @@ internal sealed class ProcessTerminationService : IDisposable
     private static string CreateUnavailableHelperErrorMessage(
         string localErrorMessage,
         ElevatedHelperStatus helperStatus) => helperStatus.State switch
-        {
-            ElevatedHelperState.NotRequested =>
-                $"{localErrorMessage} Elevated termination is not enabled.",
-            ElevatedHelperState.Starting =>
-                $"{localErrorMessage} Elevated termination is waiting for Windows approval.",
-            ElevatedHelperState.Declined =>
-                $"{localErrorMessage} Windows administrator approval was canceled.",
-            ElevatedHelperState.Failed when !string.IsNullOrWhiteSpace(helperStatus.ErrorMessage) =>
-                $"{localErrorMessage} {helperStatus.ErrorMessage}",
-            ElevatedHelperState.Failed =>
-                $"{localErrorMessage} The elevated termination helper is unavailable.",
-            ElevatedHelperState.Ready =>
-                $"{localErrorMessage} The elevated termination helper did not accept the request.",
-            _ => localErrorMessage
-        };
+    {
+        ElevatedHelperState.NotRequested =>
+            $"{localErrorMessage} Elevated termination is not enabled.",
+        ElevatedHelperState.Starting =>
+            $"{localErrorMessage} Elevated termination is waiting for Windows approval.",
+        ElevatedHelperState.Declined =>
+            $"{localErrorMessage} Windows administrator approval was canceled.",
+        ElevatedHelperState.Failed when !string.IsNullOrWhiteSpace(helperStatus.ErrorMessage) =>
+            $"{localErrorMessage} {helperStatus.ErrorMessage}",
+        ElevatedHelperState.Failed =>
+            $"{localErrorMessage} The elevated termination helper is unavailable.",
+        ElevatedHelperState.Ready =>
+            $"{localErrorMessage} The elevated termination helper did not accept the request.",
+        _ => localErrorMessage
+    };
 
     private void CloseLocalTargetHandleWithoutLock()
     {

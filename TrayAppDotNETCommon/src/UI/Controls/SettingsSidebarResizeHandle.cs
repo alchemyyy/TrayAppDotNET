@@ -139,9 +139,7 @@ internal sealed class SettingsSidebarResizeHandle : Border, IDisposable
     {
         if (!ReferenceEquals(_capturedPointer, eventArgs.Pointer)
             || eventArgs.InitialPressMouseButton != MouseButton.Left)
-        {
             return;
-        }
 
         _isControlModifierDown = (eventArgs.KeyModifiers & KeyModifiers.Control) != 0;
         eventArgs.Handled = true;
@@ -238,7 +236,7 @@ internal static class SettingsSidebarWidthLayout
         if (!double.IsFinite(windowWidth) || windowWidth <= 0) return normalizedMaximumWidth;
 
         double normalizedMinimumContentWidth = double.IsFinite(minimumContentWidth)
-            ? Math.Max(0, minimumContentWidth)
+            ? Math.Max(val1: 0, minimumContentWidth)
             : 0;
         return Math.Clamp(
             windowWidth - normalizedMinimumContentWidth,

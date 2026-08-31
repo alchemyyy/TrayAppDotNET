@@ -22,25 +22,51 @@ internal static class BluetoothApis
     [StructLayout(LayoutKind.Explicit, Size = 40)]
     public struct BLUETOOTH_DEVICE_SEARCH_PARAMS
     {
-        [FieldOffset(0)] public uint dwSize;
-        [FieldOffset(4)] public int fReturnAuthenticated;
-        [FieldOffset(8)] public int fReturnRemembered;
-        [FieldOffset(12)] public int fReturnUnknown;
-        [FieldOffset(16)] public int fReturnConnected;
-        [FieldOffset(20)] public int fIssueInquiry;
-        [FieldOffset(24)] public byte cTimeoutMultiplier;
-        [FieldOffset(32)] public IntPtr hRadio;
+        [FieldOffset(0)]
+        public uint dwSize;
+
+        [FieldOffset(4)]
+        public int fReturnAuthenticated;
+
+        [FieldOffset(8)]
+        public int fReturnRemembered;
+
+        [FieldOffset(12)]
+        public int fReturnUnknown;
+
+        [FieldOffset(16)]
+        public int fReturnConnected;
+
+        [FieldOffset(20)]
+        public int fIssueInquiry;
+
+        [FieldOffset(24)]
+        public byte cTimeoutMultiplier;
+
+        [FieldOffset(32)]
+        public IntPtr hRadio;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 560)]
     public struct BLUETOOTH_DEVICE_INFO
     {
-        [FieldOffset(0)] public uint dwSize;
-        [FieldOffset(8)] public ulong Address;
-        [FieldOffset(16)] public uint ulClassofDevice;
-        [FieldOffset(20)] public int fConnected;
-        [FieldOffset(24)] public int fRemembered;
-        [FieldOffset(28)] public int fAuthenticated;
+        [FieldOffset(0)]
+        public uint dwSize;
+
+        [FieldOffset(8)]
+        public ulong Address;
+
+        [FieldOffset(16)]
+        public uint ulClassofDevice;
+
+        [FieldOffset(20)]
+        public int fConnected;
+
+        [FieldOffset(24)]
+        public int fRemembered;
+
+        [FieldOffset(28)]
+        public int fAuthenticated;
     }
 
     [DllImport("bthprops.cpl", ExactSpelling = true, SetLastError = true)]

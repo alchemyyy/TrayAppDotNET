@@ -40,11 +40,11 @@ public sealed class NativeIcon : IDisposable
     public static NativeIcon FromIco(byte[] icoBytes, int desiredSize)
     {
         if (icoBytes.Length < 22
-            || BitConverter.ToUInt16(icoBytes, 0) != 0
-            || BitConverter.ToUInt16(icoBytes, 2) != 1)
+            || BitConverter.ToUInt16(icoBytes, startIndex: 0) != 0
+            || BitConverter.ToUInt16(icoBytes, startIndex: 2) != 1)
             throw new InvalidOperationException("Invalid ICO data.");
 
-        int count = BitConverter.ToUInt16(icoBytes, 4);
+        int count = BitConverter.ToUInt16(icoBytes, startIndex: 4);
         int bestOffset = 0;
         int bestLength = 0;
         int bestScore = int.MaxValue;

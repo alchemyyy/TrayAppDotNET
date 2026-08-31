@@ -23,7 +23,7 @@ public static class RecursiveSelectExtensions
 
         public IEnumerable<TResult> RecursiveSelect<TResult>(Func<TSource, IEnumerable<TSource>?> childSelector,
             Func<TSource, int, int, TResult> selector)
-            => RecursiveSelect(source, childSelector, selector, 0);
+            => RecursiveSelect(source, childSelector, selector, depth: 0);
     }
 
     private static IEnumerable<TResult> RecursiveSelect<TSource, TResult>(
@@ -33,7 +33,7 @@ public static class RecursiveSelectExtensions
         int depth)
     {
         return source.SelectMany((element, index) =>
-            Enumerable.Repeat(selector(element, index, depth), 1)
+            Enumerable.Repeat(selector(element, index, depth), count: 1)
                 .Concat(RecursiveSelect(
                     childSelector(element) ?? [],
                     childSelector, selector, depth + 1)));

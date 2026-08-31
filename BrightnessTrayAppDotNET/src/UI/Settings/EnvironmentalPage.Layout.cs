@@ -17,7 +17,8 @@ public sealed partial class BrightnessSettingsWindow
     {
         _legendPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), Spacing = 6
+            Orientation = Orientation.Horizontal, Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 8),
+            Spacing = 6
         };
 
         EnvironmentalCurveEditorPalette editorPalette = BuildEnvironmentalEditorPalette(p);
@@ -42,16 +43,16 @@ public sealed partial class BrightnessSettingsWindow
             Background = TrayAppDotNETSettingsUI.Brush(color),
             CornerRadius = new CornerRadius(vertical ? 1 : 1.5),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 2, 0)
+            Margin = new Thickness(left: 0, top: 0, right: 2, bottom: 0)
         };
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, p, 11);
+        TextBlock label = TrayAppDotNETSettingsUI.Text(text, p, fontSize: 11);
         label.VerticalAlignment = VerticalAlignment.Center;
         return new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, label } };
     }
 
     private StackPanel BuildEnvironmentalProfileRow(SettingsPalette p)
     {
-        SettingsComboBox profileCombo = TrayAppDotNETSettingsUI.ComboBox(p, 140, autoSizeToText: true);
+        SettingsComboBox profileCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 140, autoSizeToText: true);
         _environmentalPageResources?.Own(profileCombo);
         _environmentalProfileCombo = profileCombo;
         _environmentalProfileCombo.SelectionChanged += (_, _) =>
@@ -62,10 +63,11 @@ public sealed partial class BrightnessSettingsWindow
             LoadEnvironmentalCurveForSelectedProfile();
         };
 
-        TextBlock label = TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Environmental_Profile_Label)), p);
+        TextBlock label =
+            TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Environmental_Profile_Label)), p);
         label.FontWeight = FontWeight.SemiBold;
         label.VerticalAlignment = VerticalAlignment.Center;
-        label.Margin = new Thickness(0, 0, 8, 0);
+        label.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
 
         return new StackPanel
         {
@@ -85,7 +87,7 @@ public sealed partial class BrightnessSettingsWindow
                 _environmentalCurveEditor?.SetOffsetMode(enabled);
             });
         _followTheSunToggle = AddToggleRow(panel, p, L(nameof(AppStrings.Settings_Environmental_FollowTheSun_Title)),
-            true, (_, enabled) =>
+            value: true, (_, enabled) =>
             {
                 if (_suppressEnvironmentalEvents) return;
                 EnvironmentalCurve? curve = SelectedEnvironmentalCurve();
@@ -97,7 +99,7 @@ public sealed partial class BrightnessSettingsWindow
                 NotifyRuntimeCurveChanged();
             });
         _useDaylightSavingsToggle = AddToggleRow(panel, p,
-            L(nameof(AppStrings.Settings_Environmental_UseDaylightSavings_Title)), true, (_, enabled) =>
+            L(nameof(AppStrings.Settings_Environmental_UseDaylightSavings_Title)), value: true, (_, enabled) =>
             {
                 if (_suppressEnvironmentalEvents) return;
                 EnvironmentalCurve? curve = SelectedEnvironmentalCurve();
@@ -116,7 +118,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         StackPanel panel = new();
         _disabledPeriodToggle = AddToggleRow(panel, p,
-            L(nameof(AppStrings.Settings_Environmental_DisabledPeriod_Title)), false, (_, enabled) =>
+            L(nameof(AppStrings.Settings_Environmental_DisabledPeriod_Title)), value: false, (_, enabled) =>
             {
                 if (_suppressEnvironmentalEvents) return;
                 EnvironmentalCurve? curve = SelectedEnvironmentalCurve();
@@ -129,7 +131,7 @@ public sealed partial class BrightnessSettingsWindow
             });
 
         _disabledPeriodFollowTheSunRow = AddToggleRow(panel, p,
-            L(nameof(AppStrings.Settings_Environmental_DisabledPeriodFollowTheSun_Title)), false,
+            L(nameof(AppStrings.Settings_Environmental_DisabledPeriodFollowTheSun_Title)), value: false,
             (_, enabled) =>
             {
                 if (_suppressEnvironmentalEvents) return;
@@ -143,36 +145,41 @@ public sealed partial class BrightnessSettingsWindow
             }, out SettingsToggle disabledPeriodFollowTheSunToggle, indent: 8);
         _disabledPeriodFollowTheSunToggle = disabledPeriodFollowTheSunToggle;
 
-        StackPanel fields = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 6) };
+        StackPanel fields = new()
+            { Orientation = Orientation.Horizontal, Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 6) };
         _disabledPeriodStartBox = TimeBox(p);
         _disabledPeriodEndBox = TimeBox(p);
         _disabledPeriodStartBox.Width = 64;
         _disabledPeriodEndBox.Width = 64;
         fields.Children.Add(InlineLabel(L(nameof(AppStrings.Settings_Environmental_DisabledPeriod_Start_Label)), p,
-            new Thickness(0, 0, 4, 0)));
+            new Thickness(left: 0, top: 0, right: 4, bottom: 0)));
         fields.Children.Add(_disabledPeriodStartBox);
         fields.Children.Add(InlineLabel(L(nameof(AppStrings.Settings_Environmental_DisabledPeriod_End_Label)), p,
-            new Thickness(10, 0, 4, 0)));
+            new Thickness(left: 10, top: 0, right: 4, bottom: 0)));
         fields.Children.Add(_disabledPeriodEndBox);
         _disabledPeriodFieldsRow = fields;
         panel.Children.Add(fields);
 
-        _disabledPeriodStartBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(isStart: true);
-        _disabledPeriodEndBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(isStart: false);
+        _disabledPeriodStartBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(true);
+        _disabledPeriodEndBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(false);
 
         return panel;
     }
 
     private Grid BuildEnvironmentalVisibilityRows(SettingsPalette p)
     {
-        StackPanel panel = new() { Margin = new Thickness(24, 12, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        StackPanel panel = new()
+        {
+            Margin = new Thickness(left: 24, top: 12, right: 0, bottom: 0), VerticalAlignment = VerticalAlignment.Top
+        };
         _showBrightnessCurveToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowBrightnessCurve_Title)),
             _settings.EnvironmentalShowBrightnessCurve, OnEnvironmentalCurveVisibilityChanged);
         _showNightLightCurveToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowNightLightCurve_Title)),
             _settings.EnvironmentalShowNightLightCurve, OnEnvironmentalCurveVisibilityChanged);
-        _showSunOverlayToggle = AddToggleRow(panel, p, L(nameof(AppStrings.Settings_Environmental_ShowSunOverlay_Title)),
+        _showSunOverlayToggle = AddToggleRow(panel, p,
+            L(nameof(AppStrings.Settings_Environmental_ShowSunOverlay_Title)),
             _settings.EnvironmentalShowSunOverlay, (_, enabled) =>
             {
                 if (_suppressEnvironmentalEvents) return;
@@ -194,16 +201,16 @@ public sealed partial class BrightnessSettingsWindow
 
     private Grid BuildEnvironmentalPreviewControls(SettingsPalette p)
     {
-        Grid row = new() { Margin = new Thickness(0, 0, 0, 2) };
+        Grid row = new() { Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 2) };
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         Control visibility = BuildEnvironmentalVisibilityRows(p);
-        Grid.SetColumn(visibility, 0);
+        Grid.SetColumn(visibility, value: 0);
         row.Children.Add(visibility);
 
         StackPanel right = new() { VerticalAlignment = VerticalAlignment.Top };
-        Grid.SetColumn(right, 1);
+        Grid.SetColumn(right, value: 1);
         row.Children.Add(right);
 
         right.Children.Add(BuildEnvironmentalDateRow(p));
@@ -212,7 +219,7 @@ public sealed partial class BrightnessSettingsWindow
             p);
         _previewSweepButton.Width = 217;
         _previewSweepButton.HorizontalAlignment = HorizontalAlignment.Right;
-        _previewSweepButton.Margin = new Thickness(0, -2, 0, 4);
+        _previewSweepButton.Margin = new Thickness(left: 0, top: -2, right: 0, bottom: 4);
         ApplyEnvironmentalButtonFont(_previewSweepButton);
         _previewSweepButton.Click += (_, _) => ToggleEnvironmentalPreviewSweep();
         TrayAppDotNETToolTip.SetTip(
@@ -226,7 +233,7 @@ public sealed partial class BrightnessSettingsWindow
 
     private Grid BuildEnvironmentalDateRow(SettingsPalette p)
     {
-        Grid grid = new() { Margin = new Thickness(0, 0, 0, 6) };
+        Grid grid = new() { Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 6) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -234,7 +241,7 @@ public sealed partial class BrightnessSettingsWindow
             TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Environmental_PreviewDate_Label)), p);
         title.VerticalAlignment = VerticalAlignment.Center;
         title.HorizontalAlignment = HorizontalAlignment.Right;
-        title.Margin = new Thickness(0, 0, 8, 0);
+        title.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         grid.Children.Add(title);
 
@@ -242,8 +249,8 @@ public sealed partial class BrightnessSettingsWindow
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(94)));
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(28)));
 
-        _sunOverlayDateBox = TrayAppDotNETSettingsUI.TextBox(p, 94, FormatSunOverlayDate(DateTime.Today));
-        _sunOverlayDateBox.Padding = new Thickness(8, 0, 0, 0);
+        _sunOverlayDateBox = TrayAppDotNETSettingsUI.TextBox(p, width: 94, FormatSunOverlayDate(DateTime.Today));
+        _sunOverlayDateBox.Padding = new Thickness(left: 8, top: 0, right: 0, bottom: 0);
         _sunOverlayDateBox.TextAlignment = TextAlignment.Left;
         _sunOverlayDateBox.LostFocus += (_, _) => CommitEnvironmentalSunOverlayDate();
         _sunOverlayDateBox.KeyDown += (_, e) =>
@@ -265,7 +272,7 @@ public sealed partial class BrightnessSettingsWindow
             }
         };
         _sunOverlayDateBox.AddHandler(
-            InputElement.PointerWheelChangedEvent,
+            PointerWheelChangedEvent,
             OnEnvironmentalSunOverlayDateBoxPointerWheelChanged,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
@@ -282,14 +289,14 @@ public sealed partial class BrightnessSettingsWindow
         TrayAppDotNETToolTip.SetTip(
             calendarButton,
             L(nameof(AppStrings.Settings_Environmental_PickDate_ToolTip)));
-        Grid.SetColumn(calendarButton, 1);
+        Grid.SetColumn(calendarButton, value: 1);
         dateControl.Children.Add(calendarButton);
 
         _sunOverlayCalendar = BuildEnvironmentalSunOverlayCalendar();
         _sunOverlayDatePopup = BuildEnvironmentalSunOverlayDatePopup(p, calendarButton, _sunOverlayCalendar);
         dateControl.Children.Add(_sunOverlayDatePopup);
 
-        Grid.SetColumn(dateControl, 1);
+        Grid.SetColumn(dateControl, value: 1);
         grid.Children.Add(dateControl);
         return grid;
     }
@@ -367,27 +374,28 @@ public sealed partial class BrightnessSettingsWindow
         TextBlock title =
             TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Environmental_Smoothness_Title)), p);
         title.FontWeight = FontWeight.SemiBold;
-        title.Margin = new Thickness(0, -2, 0, 0);
+        title.Margin = new Thickness(left: 0, top: -2, right: 0, bottom: 0);
         grid.Children.Add(title);
 
-        smoothness.Margin = new Thickness(0, 0, 4, 0);
-        Grid.SetColumn(smoothness, 1);
+        smoothness.Margin = new Thickness(left: 0, top: 0, right: 4, bottom: 0);
+        Grid.SetColumn(smoothness, value: 1);
         grid.Children.Add(smoothness);
 
         StackPanel description = new();
         description.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             L(nameof(AppStrings.Settings_Environmental_Smoothness_DescriptionLine1)),
             p,
-            new Thickness(0, 2, 0, 0)));
+            new Thickness(left: 0, top: 2, right: 0, bottom: 0)));
         description.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             L(nameof(AppStrings.Settings_Environmental_Smoothness_DescriptionLine2)),
             p,
-            new Thickness(0, 0, 0, 0)));
-        Grid.SetRow(description, 1);
-        Grid.SetColumnSpan(description, 2);
+            new Thickness(left: 0, top: 0, right: 0, bottom: 0)));
+        Grid.SetRow(description, value: 1);
+        Grid.SetColumnSpan(description, value: 2);
         grid.Children.Add(description);
 
-        return CompactEnvironmentalCard(grid, p, new Thickness(14, 8), new Thickness(16, 0, 0, 0));
+        return CompactEnvironmentalCard(grid, p, new Thickness(horizontal: 14, vertical: 8),
+            new Thickness(left: 16, top: 0, right: 0, bottom: 0));
     }
 
     private Border BuildEnvironmentalLocationCard(SettingsPalette p)
@@ -404,16 +412,16 @@ public sealed partial class BrightnessSettingsWindow
         TextBlock title =
             TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Environmental_GeoLocation_Title)), p);
         title.FontWeight = FontWeight.SemiBold;
-        title.Margin = new Thickness(0, 0, 0, 8);
+        title.Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 8);
         panel.Children.Add(title);
 
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
             L(nameof(AppStrings.Settings_Environmental_GeoLocation_Description)),
             p,
-            new Thickness(0, 0, 0, 8));
+            new Thickness(left: 0, top: 0, right: 0, bottom: 8));
         description.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(description, 2);
-        Grid.SetColumnSpan(description, 3);
+        Grid.SetColumn(description, value: 2);
+        Grid.SetColumnSpan(description, value: 3);
         panel.Children.Add(description);
 
         _latitudeBox =
@@ -428,34 +436,35 @@ public sealed partial class BrightnessSettingsWindow
         ApplyEnvironmentalButtonFont(map);
         approximate.HorizontalAlignment = HorizontalAlignment.Stretch;
         map.HorizontalAlignment = HorizontalAlignment.Stretch;
-        approximate.Margin = new Thickness(0, 0, 0, 4);
+        approximate.Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 4);
         approximate.Click += async (_, _) => await ApproximateEnvironmentalLocationFromIPAsync(approximate);
         map.Click += (_, _) => OpenEnvironmentalMapPicker();
         StackPanel buttons = new() { VerticalAlignment = VerticalAlignment.Bottom, Children = { approximate, map } };
-        Grid.SetRow(buttons, 1);
-        Grid.SetColumn(buttons, 0);
+        Grid.SetRow(buttons, value: 1);
+        Grid.SetColumn(buttons, value: 0);
         panel.Children.Add(buttons);
 
         Control latitude = LabeledBox(L(nameof(AppStrings.Settings_Environmental_Latitude_Label)), _latitudeBox, p);
-        Grid.SetRow(latitude, 1);
-        Grid.SetColumn(latitude, 2);
+        Grid.SetRow(latitude, value: 1);
+        Grid.SetColumn(latitude, value: 2);
         panel.Children.Add(latitude);
         Control longitude = LabeledBox(L(nameof(AppStrings.Settings_Environmental_Longitude_Label)), _longitudeBox, p);
-        Grid.SetRow(longitude, 1);
-        Grid.SetColumn(longitude, 4);
+        Grid.SetRow(longitude, value: 1);
+        Grid.SetColumn(longitude, value: 4);
         panel.Children.Add(longitude);
 
         _latitudeBox.LostFocus += (_, _) => CommitEnvironmentalCoordinates();
         _longitudeBox.LostFocus += (_, _) => CommitEnvironmentalCoordinates();
 
-        return CompactEnvironmentalCard(panel, p, new Thickness(14, 10), new Thickness(0, 2, 0, 0));
+        return CompactEnvironmentalCard(panel, p, new Thickness(horizontal: 14, vertical: 10),
+            new Thickness(left: 0, top: 2, right: 0, bottom: 0));
     }
 
     private SettingsButton BuildEnvironmentalResetButton(SettingsPalette p)
     {
         SettingsButton reset = Button(L(nameof(AppStrings.Settings_Environmental_ResetCurves_Button)), p);
         reset.HorizontalAlignment = HorizontalAlignment.Left;
-        reset.Margin = new Thickness(0, 4, 0, 0);
+        reset.Margin = new Thickness(left: 0, top: 4, right: 0, bottom: 0);
         ApplyEnvironmentalButtonFont(reset);
         reset.Click += async (_, _) => await ResetEnvironmentalCurvesAsync();
         return reset;
@@ -477,8 +486,8 @@ public sealed partial class BrightnessSettingsWindow
         TextBlock text = TrayAppDotNETSettingsUI.TitleText(label, p);
         text.VerticalAlignment = VerticalAlignment.Center;
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(toggle, text);
-        row.Margin = new Thickness(indent, 0, 0, 6);
-        toggle.Margin = new Thickness(0, 0, 8, 0);
+        row.Margin = new Thickness(indent, top: 0, right: 0, bottom: 6);
+        toggle.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         panel.Children.Add(row);
         return row;
     }
@@ -506,7 +515,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         StackPanel panel = new();
         TextBlock title = TrayAppDotNETSettingsUI.TitleText(label, p);
-        title.Margin = new Thickness(0, 6, 0, 4);
+        title.Margin = new Thickness(left: 0, top: 6, right: 0, bottom: 4);
         panel.Children.Add(title);
         panel.Children.Add(box);
         return panel;

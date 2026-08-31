@@ -24,7 +24,7 @@ public static class TADNFontResolver
             TADNFont.SegoeFluentIconsThenMDL2Assets =>
                 $"{SegoeFluentIconsFamilyName}, {SegoeMDL2AssetsFamilyName}",
             TADNFont.FanFont => FanFontFamilyName,
-            _ => throw new ArgumentOutOfRangeException(nameof(font), font, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(font), font, message: null)
         };
 
     /// <summary>

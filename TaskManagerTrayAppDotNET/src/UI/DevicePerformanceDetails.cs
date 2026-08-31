@@ -33,12 +33,12 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.DiskTransferMargin;
 
         TextBlock heading = TrayAppDotNETSettingsUI.Text(
-            "Disk transfer rate",
+            text: "Disk transfer rate",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         _maximumLabel = TrayAppDotNETSettingsUI.Text(
-            "1 MB/s",
+            text: "1 MB/s",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -51,8 +51,8 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         _graph = new PerformanceMetricHistoryGraph(
             _readHistory,
             _writeHistory,
-            "R",
-            "W",
+            primaryLabel: "R",
+            secondaryLabel: "W",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond,
             accent,
             palette,
@@ -69,7 +69,7 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock minimumLabel = TrayAppDotNETSettingsUI.Text(
-            "0",
+            text: "0",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -125,6 +125,7 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
                 _readHistory.Add(snapshot.CapturedTimestamp, disk.ReadBytesPerSecond);
                 _writeHistory.Add(snapshot.CapturedTimestamp, disk.WriteBytesPerSecond);
             }
+
             break;
         }
 
@@ -175,14 +176,10 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
     {
         Grid row = new()
         {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
             Children = { left }
         };
-        Grid.SetColumn(right, 1);
+        Grid.SetColumn(right, value: 1);
         row.Children.Add(right);
         return row;
     }
@@ -192,6 +189,7 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
 internal sealed class GPUPerformanceDetailsView : Grid
 {
     private const int EngineGraphCount = 4;
+
     private static readonly string[] PreferredEngineNames =
     [
         "3D",
@@ -256,25 +254,23 @@ internal sealed class GPUPerformanceDetailsView : Grid
             };
             _engineGraphs[engineIndex] = graph;
             _engineNames[engineIndex] = PreferredEngineNames[engineIndex];
-            TextBlock titleLabel;
-            TextBlock valueLabel;
             Grid engineCell = BuildGraphCell(
                 PreferredEngineNames[engineIndex],
                 graph,
-                "0%",
-                out titleLabel,
-                out valueLabel);
+                initialValue: "0%",
+                out TextBlock titleLabel,
+                out TextBlock valueLabel);
             _engineTitleLabels[engineIndex] = titleLabel;
             _engineValueLabels[engineIndex] = valueLabel;
-            Grid.SetColumn(engineCell, engineIndex % 2);
-            Grid.SetRow(engineCell, engineIndex / 2);
+            SetColumn(engineCell, engineIndex % 2);
+            SetRow(engineCell, engineIndex / 2);
             Children.Add(engineCell);
         }
 
         _dedicatedMemoryGraph = new PerformanceMetricHistoryGraph(
             _dedicatedMemoryHistory,
-            null,
-            "Dedicated GPU memory",
+            secondaryHistory: null,
+            primaryLabel: "Dedicated GPU memory",
             string.Empty,
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
@@ -285,19 +281,19 @@ internal sealed class GPUPerformanceDetailsView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         Grid dedicatedCell = BuildGraphCell(
-            "Dedicated GPU memory",
+            title: "Dedicated GPU memory",
             _dedicatedMemoryGraph,
-            "Unavailable",
+            initialValue: "Unavailable",
             out _,
             out _dedicatedCapacityLabel);
-        Grid.SetRow(dedicatedCell, 2);
-        Grid.SetColumnSpan(dedicatedCell, 2);
+        SetRow(dedicatedCell, value: 2);
+        SetColumnSpan(dedicatedCell, value: 2);
         Children.Add(dedicatedCell);
 
         _sharedMemoryGraph = new PerformanceMetricHistoryGraph(
             _sharedMemoryHistory,
-            null,
-            "Shared GPU memory",
+            secondaryHistory: null,
+            primaryLabel: "Shared GPU memory",
             string.Empty,
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
@@ -308,13 +304,13 @@ internal sealed class GPUPerformanceDetailsView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         Grid sharedCell = BuildGraphCell(
-            "Shared GPU memory",
+            title: "Shared GPU memory",
             _sharedMemoryGraph,
-            "Unavailable",
+            initialValue: "Unavailable",
             out _,
             out _sharedCapacityLabel);
-        Grid.SetRow(sharedCell, 3);
-        Grid.SetColumnSpan(sharedCell, 2);
+        SetRow(sharedCell, value: 3);
+        SetColumnSpan(sharedCell, value: 2);
         Children.Add(sharedCell);
     }
 
@@ -349,10 +345,11 @@ internal sealed class GPUPerformanceDetailsView : Grid
             _engineHistories[engineIndex] = CreatePercentageHistory();
             _engineGraphs[engineIndex].SetHistory(_engineHistories[engineIndex]);
         }
+
         _dedicatedMemoryHistory = CreateMetricHistory();
         _sharedMemoryHistory = CreateMetricHistory();
-        _dedicatedMemoryGraph.SetHistories(_dedicatedMemoryHistory, null);
-        _sharedMemoryGraph.SetHistories(_sharedMemoryHistory, null);
+        _dedicatedMemoryGraph.SetHistories(_dedicatedMemoryHistory, secondaryHistory: null);
+        _sharedMemoryGraph.SetHistories(_sharedMemoryHistory, secondaryHistory: null);
         _lastTimestamp = 0;
         for (int snapshotIndex = 0; snapshotIndex < snapshots.Count; snapshotIndex++)
             Append(snapshots[snapshotIndex]);
@@ -386,7 +383,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
                 else
                 {
                     bool hasFallbackSample = TrySelectFallbackEngine(
-                        _engineNames.AsSpan(0, engineIndex),
+                        _engineNames.AsSpan(start: 0, engineIndex),
                         detailEngines,
                         selectedGPU.Engines.Span,
                         out string fallbackEngineName,
@@ -396,13 +393,17 @@ internal sealed class GPUPerformanceDetailsView : Grid
                     hasEngineSample = selectedGPU.HasUtilizationSample
                                       && hasFallbackSample;
                 }
+
                 if (hasEngineSample)
+                {
                     _engineHistories[engineIndex].Add(
                         snapshot.CapturedTimestamp,
                         utilizationPercent);
+                }
+
                 _engineValueLabels[engineIndex].Text = hasEngineSample
                     ? PerformanceDevicePresentationFactory.FormatPercent(
-                        true,
+                        isAvailable: true,
                         utilizationPercent)
                     : "Unavailable";
             }
@@ -413,12 +414,14 @@ internal sealed class GPUPerformanceDetailsView : Grid
                     snapshot.CapturedTimestamp,
                     selectedGPU.DedicatedMemoryBytes);
             }
+
             if (selectedGPU.HasSharedMemoryData)
             {
                 _sharedMemoryHistory.Add(
                     snapshot.CapturedTimestamp,
                     selectedGPU.SharedMemoryBytes);
             }
+
             UpdateMemoryScale(selectedGPU);
         }
 
@@ -455,6 +458,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
             utilizationPercent = Math.Max(utilizationPercent, engine.UtilizationPercent);
             found = true;
         }
+
         return found;
     }
 
@@ -482,13 +486,11 @@ internal sealed class GPUPerformanceDetailsView : Grid
                         StringComparison.OrdinalIgnoreCase)
                     || ContainsEngineIndex(detailEngines, liveEngine.EngineIndex)
                     || !double.IsFinite(liveEngine.UtilizationPercent))
-                {
                     continue;
-                }
 
                 utilizationPercent = Math.Max(
                     utilizationPercent,
-                    Math.Clamp(liveEngine.UtilizationPercent, 0, 100));
+                    Math.Clamp(liveEngine.UtilizationPercent, min: 0, max: 100));
                 found = true;
             }
 
@@ -523,9 +525,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
                     engineNames[engineIndex],
                     candidateName,
                     StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
         }
 
         return false;
@@ -537,7 +537,8 @@ internal sealed class GPUPerformanceDetailsView : Grid
     {
         for (int engineIndex = 0; engineIndex < engines.Length; engineIndex++)
         {
-            if (engines[engineIndex].EngineIndex == candidateIndex) return true;
+            if (engines[engineIndex].EngineIndex == candidateIndex)
+                return true;
         }
 
         return false;
@@ -561,10 +562,10 @@ internal sealed class GPUPerformanceDetailsView : Grid
             : GPU.DedicatedMemoryCapacityBytes;
         double dedicatedCapacity = dedicatedCapacityBytes > 0
             ? dedicatedCapacityBytes
-            : Math.Max(1, _dedicatedMemoryHistory.GetMaximumValue());
+            : Math.Max(val1: 1, _dedicatedMemoryHistory.GetMaximumValue());
         double sharedCapacity = GPU.SharedMemoryCapacityBytes > 0
             ? GPU.SharedMemoryCapacityBytes
-            : Math.Max(1, _sharedMemoryHistory.GetMaximumValue());
+            : Math.Max(val1: 1, _sharedMemoryHistory.GetMaximumValue());
         _dedicatedMemoryGraph.SetMaximumValue(dedicatedCapacity);
         _sharedMemoryGraph.SetMaximumValue(sharedCapacity);
         _dedicatedCapacityLabel.Text = dedicatedCapacityBytes > 0
@@ -604,26 +605,18 @@ internal sealed class GPUPerformanceDetailsView : Grid
         Grid header = new()
         {
             Margin = _resources.AxamlTaskManagerPerformance.SpecialGraphHeaderMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
             Children = { titleLabel }
         };
-        Grid.SetColumn(valueLabel, 1);
+        SetColumn(valueLabel, value: 1);
         header.Children.Add(valueLabel);
 
         Grid cell = new()
         {
-            RowDefinitions =
-            {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star)
-            },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) },
             Children = { header }
         };
-        Grid.SetRow(graph, 1);
+        SetRow(graph, value: 1);
         cell.Children.Add(graph);
         return cell;
     }
@@ -645,6 +638,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
             if (string.Equals(GPUs[GPUIndex].DeviceID, deviceID, StringComparison.Ordinal))
                 return GPUs[GPUIndex];
         }
+
         return null;
     }
 

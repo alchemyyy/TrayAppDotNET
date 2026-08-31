@@ -43,7 +43,7 @@ public sealed partial class BrightnessSettingsWindow
         foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
         {
             RunEnvironmentalPageCleanup(
-                "UnsubscribeEnvironmentalCurveColor",
+                operation: "UnsubscribeEnvironmentalCurveColor",
                 () => color.Unsubscribe(DeferredEnvironmentalCurveRedraw));
         }
     }

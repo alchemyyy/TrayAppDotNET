@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -21,9 +24,6 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using BrightnessAppTheme = BrightnessTrayAppDotNET.Visuals.AppTheme;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -165,7 +165,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
 #endif
 
-            _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
+            _profileManager.EnsureProfileCount(Math.Max(val1: 1, _theme.ProfileButtons.ButtonCount));
             RestoreInitialProfileState();
             RestorePersistedCurveReleaseStates();
             if (Monitors.Count > 0)
@@ -221,7 +221,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             CheckAndUpdateUnsavedChanges();
             if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled)
-                OnCurveToggleStateChanged(preserveManualOverrides: true);
+                OnCurveToggleStateChanged(true);
             RestoreCurveStopwatchesFromSettings();
 
             KeyDown += OnWindowKeyDown;
@@ -238,7 +238,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 finally { failedGeneration?.Dispose(); }
             });
             RunCloseCleanup(nameof(UIResourceScope.Dispose), _externalResources.Dispose);
-            RunCloseCleanup("WindowResources.Dispose", WindowResources.Dispose);
+            RunCloseCleanup(operation: "WindowResources.Dispose", WindowResources.Dispose);
             RunCloseCleanup(nameof(BrightnessFlyoutSession.Dispose), _session.Dispose);
             throw;
         }
@@ -604,10 +604,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (!NightLightProvider.IsSupported()) return;
 
-        NotifyUserNightLightAdjustment(replayCurrentSliderValue: false);
+        NotifyUserNightLightAdjustment(false);
         try
         {
-            ApplyNightLightSliderValue(null, NightLightMonitor.Brightness + delta);
+            ApplyNightLightSliderValue(slider: null, NightLightMonitor.Brightness + delta);
         }
         finally
         {
@@ -771,26 +771,26 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             bool rounded = _settings?.EnableRoundedCorners ?? true;
 
             Grid rootGrid = new();
-            ControlNames.Assign(rootGrid, "FlyoutContent");
+            ControlNames.Assign(rootGrid, parentName: "FlyoutContent");
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
             ScrollViewer rows = BuildRows(palette, candidate, candidateResources);
-            ControlNames.Assign(rows, "DisplayRows");
-            Grid.SetRow(rows, 0);
+            ControlNames.Assign(rows, parentName: "DisplayRows");
+            Grid.SetRow(rows, value: 0);
             rootGrid.Children.Add(rows);
 
             Border footer = BuildFooter(palette, rounded, candidateResources);
-            ControlNames.Assign(footer, "FlyoutFooter");
-            Grid.SetRow(footer, 1);
+            ControlNames.Assign(footer, parentName: "FlyoutFooter");
+            Grid.SetRow(footer, value: 1);
             rootGrid.Children.Add(footer);
 
             AddFloatingButtons(rootGrid, palette, candidate, candidateResources);
 
             candidate.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, rounded, candidate);
-            ControlNames.Assign(candidate.ConfirmOverlay, "ConfirmationOverlay");
+            ControlNames.Assign(candidate.ConfirmOverlay, parentName: "ConfirmationOverlay");
             candidate.ConfirmOverlay.IsVisible = false;
-            Grid.SetRowSpan(candidate.ConfirmOverlay, 2);
+            Grid.SetRowSpan(candidate.ConfirmOverlay, value: 2);
             rootGrid.Children.Add(candidate.ConfirmOverlay);
 
             candidate.RootCard = new FlyoutFrame(
@@ -799,7 +799,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _theme.Border.For(isLight),
                 rounded,
                 contentPadding: Layout.RootInnerPadding);
-            ControlNames.Assign(candidate.RootCard, "FlyoutFrame");
+            ControlNames.Assign(candidate.RootCard, parentName: "FlyoutFrame");
             candidate.RootCard.PointerPressed += OnRootPointerPressed;
             candidateResources.Add(() => candidate.RootCard.PointerPressed -= OnRootPointerPressed);
             candidate.RootCard.PointerMoved += OnRootPointerMoved;
@@ -961,7 +961,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             TextBlock empty = TrayAppDotNETFlyoutUI.Text(L(nameof(AppStrings.Flyout_NoDisplays)), palette,
                 Layout.EmptyStateFontSize, color: palette.SecondaryForeground);
-            ControlNames.Assign(empty, "EmptyState");
+            ControlNames.Assign(empty, parentName: "EmptyState");
             empty.HorizontalAlignment = HorizontalAlignment.Center;
             rows.Children.Add(new Border { Padding = Layout.EmptyStatePadding, Child = empty });
         }
@@ -974,11 +974,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         candidate.ScrollViewer = new ScrollViewer
         {
-            Content = new Border
-            {
-                Padding = Layout.RowsContentPadding,
-                Child = rows
-            },
+            Content = new Border { Padding = Layout.RowsContentPadding, Child = rows },
             Margin = Layout.RowsViewportMargin,
             Focusable = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -1022,13 +1018,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         };
 
         Border icon = BuildRowIconButton(monitor, palette);
-        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(icon, value: 0);
         grid.Children.Add(icon);
 
         TextBlock title = TrayAppDotNETFlyoutUI.Text(RowTitle(monitor), palette, Layout.RowTitleFontSize);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         title.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(title, 1);
+        Grid.SetColumn(title, value: 1);
         grid.Children.Add(title);
 
         if (monitor.IsCurveStopwatchVisible)
@@ -1067,12 +1063,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Layout.RowActionButtonSize,
                 Layout.RowActionButtonSize,
                 Layout.RowCurveIconSize,
-                margin: Layout.RowCurveButtonMargin,
-                tooltip: monitor.IsNightLight
+                Layout.RowCurveButtonMargin,
+                monitor.IsNightLight
                     ? L(nameof(AppStrings.Flyout_NightLightCurve))
                     : L(nameof(AppStrings.Flyout_BrightnessCurve)));
             curve.Opacity = RowCurveEnabled(monitor) ? 1.0 : 0.4;
-            Grid.SetColumn(curve, 3);
+            Grid.SetColumn(curve, value: 3);
             grid.Children.Add(curve);
         }
 
@@ -1085,12 +1081,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Layout.RowActionButtonSize,
                 Layout.RowActionButtonSize,
                 Layout.RowPowerButtonFontSize,
-                enabled: monitor.IsHardwareFunctional
-                         && (!monitor.IsReadDegraded
-                             || _settings?.AllowBlindDDCWritesDuringDegradedState == true),
-                margin: Layout.RowPowerButtonMargin,
-                tooltip: L(nameof(AppStrings.Flyout_TurnOffDisplay)));
-            Grid.SetColumn(power, 3);
+                monitor.IsHardwareFunctional
+                && (!monitor.IsReadDegraded
+                    || _settings?.AllowBlindDDCWritesDuringDegradedState == true),
+                Layout.RowPowerButtonMargin,
+                L(nameof(AppStrings.Flyout_TurnOffDisplay)));
+            Grid.SetColumn(power, value: 3);
             grid.Children.Add(power);
         }
 
@@ -1109,7 +1105,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         };
 
         FlyoutSlider slider = CreateSlider(monitor, palette, resources);
-        Grid.SetColumn(slider, 0);
+        Grid.SetColumn(slider, value: 0);
         sliderRow.Children.Add(slider);
 
         TextBlock value = TrayAppDotNETFlyoutUI.Text(ValueText(monitor), palette, Layout.SliderValueFontSize);
@@ -1118,12 +1114,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         value.HorizontalAlignment = HorizontalAlignment.Right;
         value.VerticalAlignment = VerticalAlignment.Center;
         value.TextAlignment = TextAlignment.Right;
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         sliderRow.Children.Add(value);
 
-        Grid.SetRow(sliderRow, 1);
-        Grid.SetColumn(sliderRow, 0);
-        Grid.SetColumnSpan(sliderRow, 4);
+        Grid.SetRow(sliderRow, value: 1);
+        Grid.SetColumn(sliderRow, value: 0);
+        Grid.SetColumnSpan(sliderRow, value: 4);
         grid.Children.Add(sliderRow);
 
         Control rowContent = grid;
@@ -1143,10 +1139,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         Border row = new()
         {
-            Background = Brushes.Transparent,
-            Margin = rowMargin,
-            Child = rowContent,
-            Opacity = RowOpacity(monitor)
+            Background = Brushes.Transparent, Margin = rowMargin, Child = rowContent, Opacity = RowOpacity(monitor)
         };
         string rowParentName = monitor.IsMaster
             ? "MasterBrightnessRow"
@@ -1178,7 +1171,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             profiles.Children.Add(BuildProfileFooterButton(item, palette, resources));
         if (_settings?.Autosave == false)
             profiles.Children.Add(BuildSaveProfileButton(palette));
-        Grid.SetColumn(profiles, 0);
+        Grid.SetColumn(profiles, value: 0);
         grid.Children.Add(profiles);
 
         StackPanel actions = new()
@@ -1214,10 +1207,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             palette,
             () => SettingsRequested?.Invoke(),
             L(nameof(AppStrings.Tray_Settings)));
-        ControlNames.Assign(settingsButton, "SettingsButton");
+        ControlNames.Assign(settingsButton, parentName: "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
-        Grid.SetColumn(actions, 2);
+        Grid.SetColumn(actions, value: 2);
         grid.Children.Add(actions);
 
         return new Border
@@ -1270,7 +1263,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette,
-            _ => SelectProfileApplyingMode(item.Index), Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0,
+            _ => SelectProfileApplyingMode(item.Index), Layout.ProfileButtonWidth, Layout.ProfileButtonHeight,
+            fontSize: 0,
             tooltip: ProfileTooltip(item.Index));
         button.Child = content;
         AttachProfilePreviewHandlers(button, item.Index, resources);
@@ -1290,7 +1284,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         content.Children.Add(glyph);
 
         Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette, _ => SaveCurrentProfile(),
-            Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0, tooltip: L(nameof(AppStrings.Flyout_SaveProfile)));
+            Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, fontSize: 0,
+            tooltip: L(nameof(AppStrings.Flyout_SaveProfile)));
         button.Child = content;
         return button;
     }
@@ -1303,10 +1298,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _ => OnMonitorIconClick(monitor),
             Layout.RowIconButtonWidth,
             Layout.RowIconButtonHeight,
-            0,
-            enabled: !monitor.IsNightLight || NightLightProvider.IsSupported(),
-            margin: Layout.RowIconMargin,
-            tooltip: RowIconTooltip(monitor));
+            fontSize: 0,
+            !monitor.IsNightLight || NightLightProvider.IsSupported(),
+            Layout.RowIconMargin,
+            RowIconTooltip(monitor));
 
         button.Child = monitor.IsNightLight
             ? new NightLightBulbGlyphIcon
@@ -1330,8 +1325,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
         SettingsNumberBox number =
             resources.Own(new SettingsNumberBox(
-                CreateSettingsPalette(_theme, _settings, isLight), monitor.CurveStopwatchMinutes, 1, 1440,
-                Layout.StopwatchBoxWidth, "m")
+                CreateSettingsPalette(_theme, _settings, isLight), monitor.CurveStopwatchMinutes, min: 1, max: 1440,
+                Layout.StopwatchBoxWidth, suffix: "m")
             {
                 Height = Layout.StopwatchBoxHeight,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -1362,7 +1357,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.StopwatchButtonFontSize,
             margin: Layout.StopwatchButtonMargin,
             tooltip: monitor.CurveStopwatchToolTip,
-            fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(GlyphCatalog.STOPWATCH.Font));
+            fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver
+                .ResolveFontFamilyName(GlyphCatalog.STOPWATCH.Font));
         button.Opacity = monitor.IsCurveStopwatchEnabled ? 1.0 : 0.4;
         return button;
     }
@@ -1377,10 +1373,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.ModeButtonWidth,
             Layout.ModeButtonHeight,
             Layout.ModeButtonFontSize,
-            enabled: CanEditSlider(monitor),
-            margin: Layout.ModeButtonMargin,
-            tooltip: CurveModeTooltip(monitor),
-            fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(glyph.Font));
+            CanEditSlider(monitor),
+            Layout.ModeButtonMargin,
+            CurveModeTooltip(monitor),
+            TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(glyph.Font));
         ApplyCurveModeButtonVisual(monitor, button);
         return button;
     }
@@ -1421,7 +1417,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _ => click(),
             Layout.FooterIconButtonWidth,
             Layout.FooterIconButtonHeight,
-            0,
+            fontSize: 0,
             tooltip: tooltip);
         TextBlock glyphText = new()
         {
@@ -1454,10 +1450,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         string? tooltip = null,
         double opacity = 1.0)
     {
-        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette, _ => click(), width, height, 0,
+        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette, _ => click(), width, height,
+            fontSize: 0,
             margin: margin, tooltip: tooltip);
         button.Child = BuildCurveIconContent(palette, iconSize,
-            disabledPeriod: IsInCurveDisabledPeriod && width <= Layout.RowActionButtonSize);
+            IsInCurveDisabledPeriod && width <= Layout.RowActionButtonSize);
         button.Opacity = opacity;
         return button;
     }
@@ -1498,17 +1495,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             update.VerticalAlignment = VerticalAlignment.Top;
             update.Margin = Layout.UpdateButtonMargin;
             TrayAppDotNETToolTip.SetTip(update, L(nameof(CommonStrings.Flyout_Update_Tooltip)));
-            ControlNames.Assign(update, "UpdateButton");
-            Grid.SetRow(update, 0);
+            ControlNames.Assign(update, parentName: "UpdateButton");
+            Grid.SetRow(update, value: 0);
             rootGrid.Children.Add(update);
         }
 
         candidate.UndockButton = BuildUndockButton(palette, candidate, resources);
-        ControlNames.Assign(candidate.UndockButton, "UndockButton");
+        ControlNames.Assign(candidate.UndockButton, parentName: "UndockButton");
         candidate.UndockButton.HorizontalAlignment = HorizontalAlignment.Right;
         candidate.UndockButton.VerticalAlignment = VerticalAlignment.Top;
         candidate.UndockButton.Margin = Layout.UndockButtonMargin;
-        Grid.SetRow(candidate.UndockButton, 0);
+        Grid.SetRow(candidate.UndockButton, value: 0);
         rootGrid.Children.Add(candidate.UndockButton);
     }
 
@@ -1524,7 +1521,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Minimum = 0,
             Maximum = 100,
-            Value = Math.Clamp(monitor.Brightness, 0, 100),
+            Value = Math.Clamp(monitor.Brightness, min: 0, max: 100),
             TrackColor = palette.SliderTrack,
             ProgressColor = monitor.IsNightLight
                 ? _theme.ResolveEnvironmentalNightLightCurve(_settings, isLight)
@@ -1568,7 +1565,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ReengageCurveReleasedMonitor(monitor);
             if (monitor.IsMaster) ReengageIndividualBrightnessCurveOverridesFromMaster();
             UpdateCurveStopwatchVisibility(monitor);
-            _curveService.Evaluate(immediateHardware: true);
+            _curveService.Evaluate(true);
             RebuildVisual();
             e.Handled = true;
         };
@@ -1583,25 +1580,25 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         FlyoutUndockButtonController controller = resources.Own(
             new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
-        {
-            Width = Layout.UndockButtonWidth,
-            Height = Layout.UndockButtonHeight,
-            FontSize = Layout.UndockButtonFontSize,
-            FontWeight = FontWeight.Normal,
-            IsVisible = _settings?.AllowFlyoutUndock ?? true,
-            Owner = this,
-            Docking = _dockingController,
-            Palette = palette,
-            DraggingChanged = dragging =>
             {
-                _isDraggingWindow = dragging;
-            },
-            InteractionCompleted = _ => FlushPendingRebuildVisual(),
-            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
-            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
-            DragThreshold = Layout.DragThreshold,
-            CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
-        }));
+                Width = Layout.UndockButtonWidth,
+                Height = Layout.UndockButtonHeight,
+                FontSize = Layout.UndockButtonFontSize,
+                FontWeight = FontWeight.Normal,
+                IsVisible = _settings?.AllowFlyoutUndock ?? true,
+                Owner = this,
+                Docking = _dockingController,
+                Palette = palette,
+                DraggingChanged = dragging =>
+                {
+                    _isDraggingWindow = dragging;
+                },
+                InteractionCompleted = _ => FlushPendingRebuildVisual(),
+                UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
+                RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
+                DragThreshold = Layout.DragThreshold,
+                CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
+            }));
         TextOptions.SetTextRenderingMode(controller.Glyph, TextRenderingMode.Unspecified);
         TextOptions.SetTextHintingMode(controller.Glyph, TextHintingMode.Unspecified);
         TextOptions.SetBaselinePixelAlignment(controller.Glyph, BaselinePixelAlignment.Unspecified);
@@ -1619,16 +1616,18 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.ConfirmMessageFontSize, color: palette.SecondaryForeground);
         candidate.ConfirmMessage.TextWrapping = TextWrapping.Wrap;
 
-        candidate.ConfirmOK = TrayAppDotNETSettingsUI.Button("OK", palette);
-        candidate.ConfirmCancel = TrayAppDotNETSettingsUI.Button("Cancel", palette);
+        SettingsButton confirmOK = TrayAppDotNETSettingsUI.Button(text: "OK", palette);
+        SettingsButton confirmCancel = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        candidate.ConfirmOK = confirmOK;
+        candidate.ConfirmCancel = confirmCancel;
         StackPanel buttons = new()
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             Spacing = Layout.ConfirmButtonsSpacing
         };
-        buttons.Children.Add(candidate.ConfirmCancel);
-        buttons.Children.Add(candidate.ConfirmOK);
+        buttons.Children.Add(confirmCancel);
+        buttons.Children.Add(confirmOK);
 
         StackPanel panel = new() { Spacing = Layout.ConfirmPanelSpacing };
         panel.Children.Add(candidate.ConfirmTitle);
@@ -1785,7 +1784,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ApplyBrightnessCurveImmediatelyIfActive()
     {
         if (!IsBrightnessCurveEnabled) return;
-        _curveService.Evaluate(immediateHardware: true);
+        _curveService.Evaluate(true);
     }
 
     private void ApplyNightLightSliderValue(FlyoutSlider? slider, double value)
@@ -2156,7 +2155,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ClearPreviewDateCurve();
         ClearProfilePreview();
         CheckAndUpdateUnsavedChanges();
-        _curveService.Evaluate(immediateHardware: true);
+        _curveService.Evaluate(true);
         QueueRebuildVisual();
     }
 
@@ -2360,7 +2359,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 { SliderState: SliderState.CurveActive, HasCurveTargetBrightness: true };
 
             if (!monitor.IsDragging)
-                visuals.Slider.Value = Math.Clamp(monitor.Brightness, 0, 100);
+                visuals.Slider.Value = Math.Clamp(monitor.Brightness, min: 0, max: 100);
             visuals.Slider.ProgressColor = monitor.IsNightLight
                 ? _theme.ResolveEnvironmentalNightLightCurve(_settings, isLight)
                 : palette.SliderProgress;
@@ -2433,7 +2432,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (!_profilePreviewRows.TryGetValue(monitor, out ProfilePreviewRowVisuals? visuals)) return;
 
-        double clamped = Math.Clamp(value, 0, 100);
+        double clamped = Math.Clamp(value, min: 0, max: 100);
         if (Math.Abs(visuals.Slider.Value - clamped) < 0.001) return;
         visuals.Slider.Value = clamped;
     }
@@ -2512,7 +2511,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _isNightLightActive = NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
 
         _dockingController.RedockIfUndockingDisabled();
-        UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
+        UpdateAllCurveStopwatchVisibility(true);
         _curveService.Start();
         _curveService.Evaluate();
         QueueRebuildVisual();
@@ -2547,9 +2546,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 ShowConfirmOverlay(
                     L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
                     L(nameof(AppStrings.Flyout_HardPowerOff_WarningText)),
-                    okText: L(nameof(AppStrings.Flyout_HardPowerOff_Confirm)),
-                    cancelText: L(nameof(AppStrings.Flyout_HardPowerOff_Abort)),
-                    onOK: () =>
+                    L(nameof(AppStrings.Flyout_HardPowerOff_Confirm)),
+                    L(nameof(AppStrings.Flyout_HardPowerOff_Abort)),
+                    () =>
                     {
                         CancelConfirmOverlay();
                         if (_settings != null)
@@ -2580,7 +2579,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             : SliderStateMachine.OnUserToggleOff(previous);
 
         if (previous == SliderState.Disabled && monitor.IsCurveDriven)
-            _curveService.Evaluate(immediateHardware: true);
+            _curveService.Evaluate(true);
     }
 
     private void ToggleNightLightState()
@@ -2592,13 +2591,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         NightLightProvider.SetEnabled(
             !wasEnabled,
             enableStrength,
-            persistEnableStrengthAsLastUserValue: !enableStrength.HasValue);
+            !enableStrength.HasValue);
         _isNightLightActive = NightLightProvider.IsEnabled();
         if (_isNightLightActive)
             SyncNightLightSliderFromProvider();
         OnPropertyChanged(nameof(IsNightLightActive));
         if (_isNightLightActive && enableStrength.HasValue)
-            _curveService.Evaluate(immediateHardware: true);
+            _curveService.Evaluate(true);
         RebuildVisual();
     }
 
@@ -2613,9 +2612,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ShowConfirmOverlay(
             L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
             L(nameof(AppStrings.Flyout_HardPowerOff_InProgress)),
-            okText: L(nameof(AppStrings.Common_OK)),
+            L(nameof(AppStrings.Common_OK)),
             cancelText: null,
-            onOK: CancelConfirmOverlay);
+            CancelConfirmOverlay);
 
         _ = Task.Run(() =>
         {
@@ -2650,9 +2649,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 window.ShowConfirmOverlay(
                     L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
                     message,
-                    okText: L(nameof(AppStrings.Common_OK)),
+                    L(nameof(AppStrings.Common_OK)),
                     cancelText: null,
-                    onOK: window.CancelConfirmOverlay);
+                    window.CancelConfirmOverlay);
             });
         });
     }
@@ -2673,7 +2672,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 ReengageCurveReleasedMonitor(monitor);
                 if (monitor.IsMaster) ReengageIndividualBrightnessCurveOverridesFromMaster();
                 UpdateCurveStopwatchVisibility(monitor);
-                _curveService.Evaluate(immediateHardware: true);
+                _curveService.Evaluate(true);
                 RebuildVisual();
                 break;
             case SliderState.CurveActive:
@@ -2697,7 +2696,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             if (onlyEnabled && !monitor.IsParticipatingInMaster) continue;
             if (!monitor.SupportsPowerControl) continue;
-            _ = _monitorService.SetPowerStateAsync(monitor, false);
+            _ = _monitorService.SetPowerStateAsync(monitor, on: false);
         }
     }
 
@@ -2707,8 +2706,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             using Process? _ = Process.Start(new ProcessStartInfo
             {
-                FileName = "ms-settings:display",
-                UseShellExecute = true
+                FileName = "ms-settings:display", UseShellExecute = true
             });
         }
         catch (Exception ex)
@@ -2727,7 +2725,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void ReleaseCurveControlForManualOverride(MonitorInfo monitor, bool replayCurrentSliderValue)
     {
-        if (monitor.IsMaster && IsBrightnessCurveEnabled || monitor.IsNightLight && IsNightLightCurveEnabled)
+        if ((monitor.IsMaster && IsBrightnessCurveEnabled) || (monitor.IsNightLight && IsNightLightCurveEnabled))
         {
             SliderState previous = monitor.SliderState;
             monitor.SliderState = SliderStateMachine.OnUserRelease(monitor.SliderState);
@@ -2789,8 +2787,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (!IsNightLightCurveEnabled) _curveService.DisengageNightLightCurveStates();
         if (!preserveManualOverrides) SynchronizePersistedCurveReleaseStates();
         if (IsBrightnessCurveEnabled)
-            CaptureOffsetsFromMaster(skipManualOverrides: preserveManualOverrides);
-        UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
+            CaptureOffsetsFromMaster(preserveManualOverrides);
+        UpdateAllCurveStopwatchVisibility(true);
         if (_previewDateHardwareActive)
         {
             if (!IsBrightnessCurveEnabled && !IsNightLightCurveEnabled)
@@ -2801,7 +2799,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         _curveService.Start();
-        _curveService.Evaluate(immediateHardware: IsBrightnessCurveEnabled || IsNightLightCurveEnabled);
+        _curveService.Evaluate(IsBrightnessCurveEnabled || IsNightLightCurveEnabled);
     }
 
     private void ResyncBrightnessHardwareToSliders()
@@ -2852,7 +2850,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try
         {
             previewTimer.Start();
-            PreviewSweepHardwareTick(null, EventArgs.Empty);
+            PreviewSweepHardwareTick(sender: null, EventArgs.Empty);
         }
         catch
         {
@@ -2976,7 +2974,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void BuildProfileButtonItems()
     {
         ProfileButtons.Clear();
-        int buttonCount = Math.Max(1, _theme.ProfileButtons.ButtonCount);
+        int buttonCount = Math.Max(val1: 1, _theme.ProfileButtons.ButtonCount);
         int selectedIndex = _profileManager.SelectedIndex;
         for (int i = 0; i < buttonCount; i++)
         {
@@ -3083,9 +3081,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             RestoreCurveStopwatchForMonitor(monitor, saveExpired: true);
         RestoreCurveStopwatchForMonitor(NightLightMonitor, saveExpired: true);
 
-        UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
+        UpdateAllCurveStopwatchVisibility(true);
         ResyncCurveStopwatchManualOverridesToSliders();
-        _curveService.Evaluate(immediateHardware: true);
+        _curveService.Evaluate(true);
         ProcessCurveStopwatchDeadlines();
         StartCurveStopwatchTimerIfNeeded();
     }
@@ -3110,7 +3108,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void RestoreCurveStopwatchForMonitor(MonitorInfo monitor, bool saveExpired)
     {
         CurveStopwatchEntry? entry = FindCurveStopwatchEntry(monitor);
-        monitor.CurveStopwatchMinutes = Math.Max(1, entry?.Minutes ?? TimeConstants.CurveStopwatchDefaultMinutes);
+        monitor.CurveStopwatchMinutes = Math.Max(val1: 1, entry?.Minutes ?? TimeConstants.CurveStopwatchDefaultMinutes);
         if (entry is not { IsEnabled: true })
         {
             monitor.IsCurveStopwatchEnabled = false;
@@ -3281,7 +3279,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _curveStopwatchReengageBlockedByMaster.Add(CurveStopwatchKeyFor(monitor));
 
         UpdateCurveStopwatchVisibility(monitor, saveIfDisabled: false);
-        _curveService.Evaluate(immediateHardware: true);
+        _curveService.Evaluate(true);
     }
 
     private void ReengageIndividualBrightnessCurveOverridesFromMaster()
@@ -3339,7 +3337,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         DateTime now = DateTime.UtcNow;
-        int minutes = Math.Max(1, monitor.CurveStopwatchMinutes);
+        int minutes = Math.Max(val1: 1, monitor.CurveStopwatchMinutes);
         monitor.CurveStopwatchEngagedAtUtc = now;
         monitor.CurveStopwatchReenableAtUtc = now.AddMinutes(minutes);
         monitor.IsCurveStopwatchEnabled = true;
@@ -3353,7 +3351,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (monitor is { IsCurveStopwatchVisible: false, IsCurveStopwatchEnabled: false }) return;
 
-        monitor.CurveStopwatchMinutes = Math.Max(1, value);
+        monitor.CurveStopwatchMinutes = Math.Max(val1: 1, value);
         if (monitor.IsCurveStopwatchEnabled)
         {
             DateTime engagedAt = monitor.CurveStopwatchEngagedAtUtc == default
@@ -3398,8 +3396,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 TADNLog.Log($"BrightnessFlyoutWindow capture rollback failed: {releaseException.Message}");
             }
+
             throw;
         }
+
         e.Handled = true;
     }
 
@@ -3409,7 +3409,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
         if (!ReferenceEquals(e.Pointer, visualState.RootCapturedPointer)) return;
         if (!_isDraggingWindow || !_dockingController.IsUndocked
-                              || _undockButtonController?.IsPointerCaptured == true)
+                               || _undockButtonController?.IsPointerCaptured == true)
             return;
         if (sender is not Control control) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
@@ -3460,6 +3460,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             TADNLog.Log($"BrightnessFlyoutWindow pointer release failed: {exception.Message}");
         }
+
         if (commit) _dockingController.CommitDragPosition();
         FlushPendingRebuildVisual();
     }
@@ -3478,7 +3479,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             case FlyoutDockStateChange.PositionSaved:
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(change), change, null);
+                throw new ArgumentOutOfRangeException(nameof(change), change, message: null);
         }
     }
 
@@ -3619,9 +3620,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             if (_settings != null)
             {
-                RunCloseCleanup("SaveLastMasterBrightness", () =>
+                RunCloseCleanup(operation: "SaveLastMasterBrightness", () =>
                 {
-                    _settings.LastMasterBrightness = (int)Math.Round(Math.Clamp(MasterMonitor.Brightness, 0, 100));
+                    _settings.LastMasterBrightness =
+                        (int)Math.Round(Math.Clamp(MasterMonitor.Brightness, min: 0, max: 100));
                     _settings.Save();
                 });
             }
@@ -3754,7 +3756,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
         if (remaining.TotalHours >= 1)
             return $"{(int)remaining.TotalHours}h";
-        return $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
+        return $"{Math.Max(val1: 1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
     }
 
     private SliderThumbGlyphOption ResolveSliderThumbOption()
@@ -3795,9 +3797,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             theme.CloseButtonHover.For(isLight),
             theme.CloseButtonPressed.For(isLight),
             theme.CloseButtonGlyphActive.For(isLight),
-            hoverDeep: theme.HoverDeep.For(isLight),
-            pressedDeep: theme.PressedDeep.For(isLight),
-            controlBackgroundDeep: theme.ControlBackgroundDeep.For(isLight));
+            theme.HoverDeep.For(isLight),
+            theme.PressedDeep.For(isLight),
+            theme.ControlBackgroundDeep.For(isLight));
     }
 
     private static FlyoutControlPalette CreateFlyoutPalette(BrightnessAppTheme theme, AppSettings? settings,
@@ -3840,8 +3842,8 @@ internal sealed class FlyoutVisualState
     public Border ConfirmOverlay { get; set; } = null!;
     public TextBlock ConfirmTitle { get; set; } = null!;
     public TextBlock ConfirmMessage { get; set; } = null!;
-    public SettingsButton ConfirmOK { get; set; } = null!;
-    public SettingsButton ConfirmCancel { get; set; } = null!;
+    public SettingsButton? ConfirmOK { get; set; }
+    public SettingsButton? ConfirmCancel { get; set; }
     public IPointer? RootCapturedPointer { get; set; }
 }
 

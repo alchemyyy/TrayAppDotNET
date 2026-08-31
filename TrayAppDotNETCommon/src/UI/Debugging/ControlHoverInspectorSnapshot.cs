@@ -15,33 +15,21 @@ using Avalonia.VisualTree;
 namespace TrayAppDotNETCommon.UI.Debugging;
 
 /// <summary>Contains one captured inspector update for the debug window.</summary>
-internal sealed class ControlHoverInspectorSnapshot
+internal sealed class ControlHoverInspectorSnapshot(
+    string targetLabel,
+    IReadOnlyList<ControlHoverInspectorNode> roots)
 {
-    public ControlHoverInspectorSnapshot(
-        string targetLabel,
-        IReadOnlyList<ControlHoverInspectorNode> roots)
-    {
-        TargetLabel = targetLabel;
-        Roots = roots;
-    }
+    public string TargetLabel { get; } = targetLabel;
 
-    public string TargetLabel { get; }
-
-    public IReadOnlyList<ControlHoverInspectorNode> Roots { get; }
+    public IReadOnlyList<ControlHoverInspectorNode> Roots { get; } = roots;
 }
 
 /// <summary>Describes one expandable row in the hover inspector.</summary>
-internal sealed class ControlHoverInspectorNode
+internal sealed class ControlHoverInspectorNode(string text, bool isExpanded = false)
 {
-    public ControlHoverInspectorNode(string text, bool isExpanded = false)
-    {
-        Text = text;
-        IsExpanded = isExpanded;
-    }
+    public string Text { get; } = text;
 
-    public string Text { get; }
-
-    public bool IsExpanded { get; }
+    public bool IsExpanded { get; } = isExpanded;
 
     public List<ControlHoverInspectorNode> Children { get; } = [];
 }
@@ -114,9 +102,11 @@ internal static class ControlHoverInspectorSnapshotBuilder
             capture.RuntimeResources,
             capture.ComponentValues);
 
-        List<ControlHoverInspectorNode> roots = [];
-        roots.Add(capture.IdentityNode);
-        roots.Add(BuildRelevantComponentTree(capture.ComponentObjects, resourceMatcher, cancellationToken));
+        List<ControlHoverInspectorNode> roots =
+        [
+            capture.IdentityNode,
+            BuildRelevantComponentTree(capture.ComponentObjects, resourceMatcher, cancellationToken)
+        ];
 
         if (capture.AncestryNode != null)
             roots.Add(capture.AncestryNode);
@@ -152,7 +142,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
         for (int index = roots.Count - 1; index >= 0; index--)
             copyPending.Push((roots[index], boundedRoots));
 
-        int detailNodeLimit = MaximumSnapshotNodeCount - 1;
+        const int detailNodeLimit = MaximumSnapshotNodeCount - 1;
         int copiedNodeCount = 0;
         while (copyPending.Count > 0 && copiedNodeCount < detailNodeLimit)
         {
@@ -182,9 +172,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
                 $"Title: {(string.IsNullOrWhiteSpace(window.Title) ? "<none>" : window.Title)}"));
         }
         else
-        {
             identity.Children.Add(new ControlHoverInspectorNode($"Top level: {FullTypeName(topLevel)}"));
-        }
 
         identity.Children.Add(new ControlHoverInspectorNode(
             $"Render scaling: {FormatNumber(topLevel.RenderScaling)} physical pixels per DIP"));
@@ -221,7 +209,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
                 : $"; bounds={FormatRect(current.Bounds)}";
             root.Children.Add(new ControlHoverInspectorNode(
                 $"[{relationship}] {ElementLabel(current)}{metrics}",
-                isExpanded: index <= 1));
+                index <= 1));
             current = current.GetVisualParent();
             index++;
         }
@@ -237,7 +225,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
         RuntimeAXAMLResourceMatcher resourceMatcher,
         CancellationToken cancellationToken)
     {
-        ControlHoverInspectorNode root = new("Relevant target and content properties", isExpanded: true);
+        ControlHoverInspectorNode root = new(text: "Relevant target and content properties", isExpanded: true);
         foreach (CapturedInspectorObject componentObject in componentObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -300,14 +288,14 @@ internal static class ControlHoverInspectorSnapshotBuilder
                     property.Name,
                     property.OwnerType.FullName ?? property.OwnerType.Name,
                     property.PropertyType.FullName ?? property.PropertyType.Name,
-                    "<unavailable>",
+                    valueDisplay: "<unavailable>",
                     string.Empty,
                     string.Empty,
-                    false,
-                    null,
-                    false,
-                    new DebugPropertyAssignmentHistory([], 0),
-                    null,
+                    isSet: false,
+                    diagnosticSource: null,
+                    isOverriddenCurrentValue: false,
+                    new DebugPropertyAssignmentHistory([], DiscardedAssignmentCount: 0),
+                    brushProvenance: null,
                     $"{exception.GetType().Name}: {Sanitize(exception.Message)}"));
             }
         }
@@ -348,7 +336,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
             diagnostic.IsOverriddenCurrentValue,
             history,
             brushProvenance,
-            null);
+            unavailableMessage: null);
     }
 
     private static CapturedBrushProvenance? CaptureBrushProvenance(object? value)
@@ -402,14 +390,16 @@ internal static class ControlHoverInspectorSnapshotBuilder
             AvaloniaPropertyRegistry.Instance.GetRegistered(avaloniaObject);
         foreach (AvaloniaProperty property in registeredProperties)
         {
-            if (seenProperties.Add(property)) properties.Add(property);
+            if (seenProperties.Add(property))
+                properties.Add(property);
         }
 
         IReadOnlyList<AvaloniaProperty> registeredAttachedProperties =
             AvaloniaPropertyRegistry.Instance.GetRegisteredAttached(avaloniaObject.GetType());
         foreach (AvaloniaProperty property in registeredAttachedProperties)
         {
-            if (seenProperties.Add(property)) properties.Add(property);
+            if (seenProperties.Add(property))
+                properties.Add(property);
         }
 
         properties.Sort(CompareProperties);
@@ -457,6 +447,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
             root.Children.Add(new ControlHoverInspectorNode(
                 $"... {appliedPropertyCount - appliedProperties.Count} applied values omitted at snapshot limit"));
         }
+
         return root;
     }
 
@@ -578,12 +569,12 @@ internal static class ControlHoverInspectorSnapshotBuilder
             }
         }
 
-        RuntimeAXAMLResourceMatch? confidentMatch = ConfidentRuntimeResourceMatch(runtimeResourceMatches);
-        if (confidentMatch.HasValue && confidentMatch.Value.Definitions.Count > 0)
+        if (ConfidentRuntimeResourceMatch(runtimeResourceMatches) is
+            { Definitions.Count: > 0 } confidentMatch)
         {
             return AXAMLSourceSummary(
-                confidentMatch.Value.ResourceKey,
-                confidentMatch.Value.Definitions[0]);
+                confidentMatch.ResourceKey,
+                confidentMatch.Definitions[0]);
         }
 
         if (axamlEntries.Count == 1)
@@ -790,9 +781,7 @@ internal static class ControlHoverInspectorSnapshotBuilder
         string? displayName = styledElement.Name;
         if (string.IsNullOrWhiteSpace(displayName)
             && ControlNameScope.TryGetDetails(styledElement, out ControlNameDetails? nameDetails))
-        {
             displayName = nameDetails!.Name;
-        }
 
         if (!string.IsNullOrWhiteSpace(displayName))
             label.Append('#').Append(displayName);
@@ -890,14 +879,14 @@ internal static class ControlHoverInspectorSnapshotBuilder
         if (double.IsNaN(value)) return "Auto";
         if (double.IsPositiveInfinity(value)) return "+Infinity";
         if (double.IsNegativeInfinity(value)) return "-Infinity";
-        return value.ToString("0.###", CultureInfo.InvariantCulture);
+        return value.ToString(format: "0.###", CultureInfo.InvariantCulture);
     }
 
     private static string Sanitize(string value)
     {
-        string singleLine = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        string singleLine = value.Replace(oldChar: '\r', newChar: ' ').Replace(oldChar: '\n', newChar: ' ').Trim();
         if (singleLine.Length <= MaximumDisplayedValueLength) return singleLine;
-        return string.Concat(singleLine.AsSpan(0, MaximumDisplayedValueLength - 3), "...");
+        return string.Concat(singleLine.AsSpan(start: 0, MaximumDisplayedValueLength - 3), str1: "...");
     }
 }
 #endif

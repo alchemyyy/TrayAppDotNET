@@ -14,7 +14,7 @@ public sealed class ProcessTerminationServiceTests
     {
         int launchCount = 0;
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 Interlocked.Increment(ref launchCount);
@@ -23,7 +23,7 @@ public sealed class ProcessTerminationServiceTests
 
         ElevatedHelperStatus status = service.GetElevatedHelperStatus();
 
-        Assert.Equal(0, Volatile.Read(ref launchCount));
+        Assert.Equal(expected: 0, Volatile.Read(ref launchCount));
         Assert.Equal(ElevatedHelperState.NotRequested, status.State);
     }
 
@@ -41,7 +41,7 @@ public sealed class ProcessTerminationServiceTests
         Assert.Equal(helperPath, startInfo.FileName);
         Assert.Equal(helperArguments, startInfo.Arguments);
         Assert.True(startInfo.UseShellExecute);
-        Assert.Equal("runas", startInfo.Verb);
+        Assert.Equal(expected: "runas", startInfo.Verb);
         Assert.Equal(ProcessWindowStyle.Normal, startInfo.WindowStyle);
         Assert.True(startInfo.ErrorDialog);
         Assert.Equal(ownerWindowHandle, startInfo.ErrorDialogParentHandle);
@@ -50,7 +50,7 @@ public sealed class ProcessTerminationServiceTests
     [Fact]
     public void LowLevelLauncherRejectsAZeroOwnerHandle()
     {
-        List<string> logMessages = new List<string>();
+        List<string> logMessages = [];
 
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
             IntPtr.Zero,
@@ -58,7 +58,8 @@ public sealed class ProcessTerminationServiceTests
 
         Assert.Equal(ElevatedKillHelperStartOutcome.Failed, startResult.Outcome);
         Assert.Null(startResult.Session);
-        Assert.Contains("window is not ready", startResult.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedSubstring: "window is not ready", startResult.ErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
         Assert.Single(logMessages);
     }
 
@@ -73,7 +74,7 @@ public sealed class ProcessTerminationServiceTests
         ApartmentState launcherApartmentState = ApartmentState.Unknown;
         bool isLauncherBackground = false;
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (ownerWindowHandle, _) =>
             {
                 Interlocked.Increment(ref launchCount);
@@ -93,9 +94,9 @@ public sealed class ProcessTerminationServiceTests
 
         Assert.Same(firstAttempt, duplicateAttempt);
         Assert.False(firstAttempt.IsCompleted);
-        Assert.Equal(1, Volatile.Read(ref launchCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref launchCount));
         Assert.Equal(ownerWindowHandle, receivedOwnerWindowHandle);
-        Assert.Equal("Task Manager elevation launcher", launcherThreadName);
+        Assert.Equal(expected: "Task Manager elevation launcher", launcherThreadName);
         Assert.Equal(ApartmentState.STA, launcherApartmentState);
         Assert.True(isLauncherBackground);
 
@@ -120,7 +121,7 @@ public sealed class ProcessTerminationServiceTests
             },
             () => Interlocked.Increment(ref disposeCount));
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 launcherEntered.Set();
@@ -131,8 +132,8 @@ public sealed class ProcessTerminationServiceTests
                     readySession,
                     string.Empty);
             });
-        ProcessTerminationTarget firstTarget = new(2_000_000_001, 100);
-        ProcessTerminationTarget latestTarget = new(2_000_000_002, 200);
+        ProcessTerminationTarget firstTarget = new(ProcessID: 2_000_000_001, CreationTimeFileTime: 100);
+        ProcessTerminationTarget latestTarget = new(ProcessID: 2_000_000_002, CreationTimeFileTime: 200);
         service.Arm(firstTarget);
 
         Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync(new IntPtr(1));
@@ -144,10 +145,10 @@ public sealed class ProcessTerminationServiceTests
         Assert.Equal(ElevatedHelperState.Ready, completedStatus.State);
         (ProcessTerminationTarget? Target, long Generation) armRequest = Assert.Single(armRequests);
         Assert.Equal(latestTarget, armRequest.Target);
-        Assert.Equal(2, armRequest.Generation);
+        Assert.Equal(expected: 2, armRequest.Generation);
 
         service.Dispose();
-        Assert.Equal(1, Volatile.Read(ref disposeCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref disposeCount));
     }
 
     [Fact]
@@ -160,7 +161,7 @@ public sealed class ProcessTerminationServiceTests
             static (_, _) => true,
             () => Interlocked.Increment(ref disposeCount));
         ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 Interlocked.Increment(ref launchCount);
@@ -180,15 +181,15 @@ public sealed class ProcessTerminationServiceTests
             Assert.Equal(ElevatedHelperState.Ready, firstStatus.State);
             Assert.Equal(ElevatedHelperState.Ready, secondStatus.State);
             Assert.True(secondAttempt.IsCompletedSuccessfully);
-            Assert.Equal(1, Volatile.Read(ref launchCount));
-            Assert.Equal(0, Volatile.Read(ref disposeCount));
+            Assert.Equal(expected: 1, Volatile.Read(ref launchCount));
+            Assert.Equal(expected: 0, Volatile.Read(ref disposeCount));
         }
         finally
         {
             service.Dispose();
         }
 
-        Assert.Equal(1, Volatile.Read(ref disposeCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref disposeCount));
     }
 
     [Fact]
@@ -196,13 +197,13 @@ public sealed class ProcessTerminationServiceTests
     {
         int launchCount = 0;
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) => Interlocked.Increment(ref launchCount) switch
             {
                 1 => new ElevatedKillHelperStartResult(
                     ElevatedKillHelperStartOutcome.Declined,
-                    null,
-                    "Windows administrator approval was canceled."),
+                    Session: null,
+                    ErrorMessage: "Windows administrator approval was canceled."),
                 _ => FailedStart("Second attempt failed")
             });
 
@@ -215,8 +216,8 @@ public sealed class ProcessTerminationServiceTests
 
         Assert.Equal(ElevatedHelperState.Declined, declinedStatus.State);
         Assert.Equal(ElevatedHelperState.Failed, failedStatus.State);
-        Assert.Equal("Second attempt failed", failedStatus.ErrorMessage);
-        Assert.Equal(2, Volatile.Read(ref launchCount));
+        Assert.Equal(expected: "Second attempt failed", failedStatus.ErrorMessage);
+        Assert.Equal(expected: 2, Volatile.Read(ref launchCount));
     }
 
     [Fact]
@@ -224,7 +225,7 @@ public sealed class ProcessTerminationServiceTests
     {
         int launchCount = 0;
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 Interlocked.Increment(ref launchCount);
@@ -234,8 +235,9 @@ public sealed class ProcessTerminationServiceTests
         ElevatedHelperStatus status = await service.EnableElevatedHelperAsync(IntPtr.Zero);
 
         Assert.Equal(ElevatedHelperState.Failed, status.State);
-        Assert.Contains("window is not ready", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(0, Volatile.Read(ref launchCount));
+        Assert.Contains(expectedSubstring: "window is not ready", status.ErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(expected: 0, Volatile.Read(ref launchCount));
     }
 
     [Fact]
@@ -254,7 +256,7 @@ public sealed class ProcessTerminationServiceTests
                 sessionDisposed.Set();
             });
         ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 launcherEntered.Set();
@@ -281,9 +283,9 @@ public sealed class ProcessTerminationServiceTests
         releaseLauncher.Set();
         Assert.True(sessionDisposed.Wait(TestTimeout));
         Assert.Equal(ElevatedHelperState.Disposed, service.GetElevatedHelperStatus().State);
-        Assert.Equal(1, Volatile.Read(ref disposeCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref disposeCount));
         service.Dispose();
-        Assert.Equal(1, Volatile.Read(ref disposeCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref disposeCount));
     }
 
     [Fact]
@@ -292,7 +294,7 @@ public sealed class ProcessTerminationServiceTests
         using ManualResetEventSlim launcherEntered = new(false);
         using ManualResetEventSlim releaseLauncher = new(false);
         using ProcessTerminationService service = new(
-            null,
+            log: null,
             (_, _) =>
             {
                 launcherEntered.Set();
@@ -322,13 +324,13 @@ public sealed class ProcessTerminationServiceTests
     }
 
     private static ElevatedKillHelperStartResult FailedStart(string errorMessage) =>
-        new(ElevatedKillHelperStartOutcome.Failed, null, errorMessage);
+        new(ElevatedKillHelperStartOutcome.Failed, Session: null, errorMessage);
 
     private static Process StartSleepingProcess()
     {
         ProcessStartInfo startInfo = new()
         {
-            FileName = Path.Combine(Environment.SystemDirectory, "ping.exe"),
+            FileName = Path.Combine(Environment.SystemDirectory, path2: "ping.exe"),
             UseShellExecute = false,
             CreateNoWindow = true
         };

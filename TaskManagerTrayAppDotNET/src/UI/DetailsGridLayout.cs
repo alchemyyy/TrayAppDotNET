@@ -12,7 +12,7 @@ internal static class DetailsGridLayout
         int rowCount,
         double headerHeight,
         double rowHeight) =>
-        headerHeight + Math.Max(0, rowCount) * rowHeight;
+        headerHeight + Math.Max(val1: 0, rowCount) * rowHeight;
 
     public static int HitTestRow(
         double y,
@@ -41,11 +41,11 @@ internal static class DetailsGridLayout
             return;
         }
 
-        double firstRowPosition = Math.Max(0, viewport.Y - headerHeight);
-        double lastRowPosition = Math.Max(0, viewport.Bottom - headerHeight);
+        double firstRowPosition = Math.Max(val1: 0, viewport.Y - headerHeight);
+        double lastRowPosition = Math.Max(val1: 0, viewport.Bottom - headerHeight);
         int unclampedFirst = (int)Math.Floor(firstRowPosition / rowHeight) - ViewportOverscanRows;
         int unclampedLast = (int)Math.Ceiling(lastRowPosition / rowHeight) + ViewportOverscanRows;
-        firstRow = Math.Clamp(unclampedFirst, 0, rowCount);
+        firstRow = Math.Clamp(unclampedFirst, min: 0, rowCount);
         lastRowExclusive = Math.Clamp(unclampedLast, firstRow, rowCount);
     }
 
@@ -72,7 +72,7 @@ internal static class DetailsGridLayout
             return;
         }
 
-        firstRow = Math.Max(0, firstVisibleRow - RetainedDrawingOverscanRows);
+        firstRow = Math.Max(val1: 0, firstVisibleRow - RetainedDrawingOverscanRows);
         lastRowExclusive = Math.Min(
             rowCount,
             lastVisibleRowExclusive + RetainedDrawingOverscanRows);

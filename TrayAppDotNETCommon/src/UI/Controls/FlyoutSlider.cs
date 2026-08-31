@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -31,7 +32,7 @@ internal static class FlyoutSliderLayout
 
 public readonly record struct FlyoutSliderPeakValues(float Min, float Max)
 {
-    public static readonly FlyoutSliderPeakValues Zero = new(0f, 0f);
+    public static readonly FlyoutSliderPeakValues Zero = new(Min: 0f, Max: 0f);
 }
 
 public sealed class FlyoutSlider : Control, IDisposable
@@ -227,7 +228,7 @@ public sealed class FlyoutSlider : Control, IDisposable
     public double WheelStep
     {
         get;
-        set => field = Math.Max(0, value);
+        set => field = Math.Max(val1: 0, value);
     } = FlyoutSliderLayout.WheelStep;
 
     public double WheelStepPercent
@@ -239,19 +240,19 @@ public sealed class FlyoutSlider : Control, IDisposable
     public double? CoarseWheelStep
     {
         get;
-        set => field = value.HasValue ? Math.Max(0, value.Value) : null;
+        set => field = value.HasValue ? Math.Max(val1: 0, value.Value) : null;
     }
 
     public double KeyboardStep
     {
         get;
-        set => field = Math.Max(0, value);
+        set => field = Math.Max(val1: 0, value);
     } = FlyoutSliderLayout.KeyboardStep;
 
     public double LargeKeyboardStep
     {
         get;
-        set => field = Math.Max(0, value);
+        set => field = Math.Max(val1: 0, value);
     } = FlyoutSliderLayout.LargeKeyboardStep;
 
     public double HitTestVerticalPadding
@@ -259,7 +260,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         get;
         set
         {
-            double next = Math.Max(0, value);
+            double next = Math.Max(val1: 0, value);
             if (Math.Abs(field - next) < 0.001) return;
             field = next;
             InvalidateMeasure();
@@ -290,7 +291,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         get;
         set
         {
-            double next = Math.Max(1, value);
+            double next = Math.Max(val1: 1, value);
             if (Math.Abs(field - next) < 0.001) return;
             field = next;
             InvalidateVisual();
@@ -302,13 +303,14 @@ public sealed class FlyoutSlider : Control, IDisposable
         get;
         set
         {
-            double next = Math.Max(1, value);
+            double next = Math.Max(val1: 1, value);
             if (Math.Abs(field - next) < 0.001) return;
             field = next;
             InvalidateVisual();
         }
     } = FlyoutSliderLayout.IndicatorFontSize;
 
+    [AllowNull]
     public string IndicatorGlyph
     {
         get;
@@ -321,6 +323,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         }
     } = GlyphCatalog.SLIDER_THUMB_DIAMOND.Text;
 
+    [AllowNull]
     public string IndicatorFontFamily
     {
         get;
@@ -358,7 +361,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             : availableSize.Width;
         double hitHeight = FlyoutSliderLayout.TrackHeight + HitTestVerticalPadding * 2.0;
         double secondaryThumbHeight = SecondaryThumb?.Height ?? 0;
-        double height = Math.Max(hitHeight, Math.Max(1, Math.Max(Thumb.Height, secondaryThumbHeight)));
+        double height = Math.Max(hitHeight, Math.Max(val1: 1, Math.Max(Thumb.Height, secondaryThumbHeight)));
         return new Size(width, height);
     }
 
@@ -366,14 +369,14 @@ public sealed class FlyoutSlider : Control, IDisposable
     {
         base.Render(context);
 
-        double width = Math.Max(0, Bounds.Width);
-        double height = Math.Max(1, Bounds.Height);
+        double width = Math.Max(val1: 0, Bounds.Width);
+        double height = Math.Max(val1: 1, Bounds.Height);
         if (width <= 0) return;
 
-        context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
+        context.DrawRectangle(Brushes.Transparent, pen: null, new Rect(x: 0, y: 0, width, height));
 
-        double thumbWidth = Math.Max(1, Thumb.Width);
-        double thumbHeight = Math.Max(1, Thumb.Height);
+        double thumbWidth = Math.Max(val1: 1, Thumb.Width);
+        double thumbHeight = Math.Max(val1: 1, Thumb.Height);
         double trackY = CalculateCenteredTop(height, FlyoutSliderLayout.TrackHeight);
         double progressWidth = ProgressValueOverride.HasValue
             ? ValuePosition(width, ProgressValueOverride.Value)
@@ -382,7 +385,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             ? ProgressOverrideColor ?? ProgressColor
             : ProgressColor;
 
-        Rect track = new(0, trackY, width, FlyoutSliderLayout.TrackHeight);
+        Rect track = new(x: 0, trackY, width, FlyoutSliderLayout.TrackHeight);
         DrawRoundedRect(context, track, TrackColor);
         if (SecondaryValue.HasValue && SecondaryOpacity > 0)
         {
@@ -398,7 +401,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         }
 
         if (progressWidth > 0)
-            DrawProgress(context, trackY, width, progressWidth, progressColor, 1);
+            DrawProgress(context, trackY, width, progressWidth, progressColor, opacity: 1);
 
         double peakExtent = ValuePosition(width, Value);
         double peakRadius = FlyoutSliderLayout.TrackHeight / 2.0;
@@ -407,7 +410,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             double stereoWidth = CalculatePeakWidth(peakExtent, PeakValues.Max, peakRadius);
             DrawRoundedRect(
                 context,
-                new Rect(0, trackY, stereoWidth, FlyoutSliderLayout.TrackHeight),
+                new Rect(x: 0, trackY, stereoWidth, FlyoutSliderLayout.TrackHeight),
                 MeterPeakStereoColor);
         }
 
@@ -416,7 +419,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             double baseWidth = CalculatePeakWidth(peakExtent, PeakValues.Min, peakRadius);
             DrawRoundedRect(
                 context,
-                new Rect(0, trackY, baseWidth, FlyoutSliderLayout.TrackHeight),
+                new Rect(x: 0, trackY, baseWidth, FlyoutSliderLayout.TrackHeight),
                 MeterPeakColor);
         }
 
@@ -438,8 +441,8 @@ public sealed class FlyoutSlider : Control, IDisposable
         if (SecondaryValue.HasValue && SecondaryOpacity > 0)
         {
             SliderThumbGlyphOption secondaryThumb = SecondaryThumb ?? Thumb;
-            double secondaryThumbWidth = Math.Max(1, secondaryThumb.Width);
-            double secondaryThumbHeight = Math.Max(1, secondaryThumb.Height);
+            double secondaryThumbWidth = Math.Max(val1: 1, secondaryThumb.Width);
+            double secondaryThumbHeight = Math.Max(val1: 1, secondaryThumb.Height);
             if (IsVisibleTranslucent(SecondaryOpacity))
             {
                 DrawThumbFillCutoutAtValue(
@@ -458,13 +461,16 @@ public sealed class FlyoutSlider : Control, IDisposable
             DrawThumbFillCutout(context, track, thumb, Thumb);
 
         if (PreviewValue.HasValue && PreviewOpacity > 0)
-            DrawThumbAtValue(context, width, height, thumbWidth, thumbHeight, PreviewValue.Value, PreviewOpacity, Thumb);
+        {
+            DrawThumbAtValue(context, width, height, thumbWidth, thumbHeight, PreviewValue.Value, PreviewOpacity,
+                Thumb);
+        }
 
         if (SecondaryValue.HasValue && SecondaryOpacity > 0)
         {
             SliderThumbGlyphOption secondaryThumb = SecondaryThumb ?? Thumb;
-            double secondaryThumbWidth = Math.Max(1, secondaryThumb.Width);
-            double secondaryThumbHeight = Math.Max(1, secondaryThumb.Height);
+            double secondaryThumbWidth = Math.Max(val1: 1, secondaryThumb.Width);
+            double secondaryThumbHeight = Math.Max(val1: 1, secondaryThumb.Height);
             DrawThumbAtValue(
                 context,
                 width,
@@ -588,12 +594,12 @@ public sealed class FlyoutSlider : Control, IDisposable
 
     private void SetValueFromPoint(double x, bool notify)
     {
-        double width = Math.Max(1, Bounds.Width);
-        double thumbWidth = Math.Max(1, Thumb.Width);
+        double width = Math.Max(val1: 1, Bounds.Width);
+        double thumbWidth = Math.Max(val1: 1, Thumb.Width);
         double trackStart = thumbWidth / 2.0;
         double trackEnd = width - thumbWidth / 2.0;
-        double trackLength = Math.Max(1, trackEnd - trackStart);
-        SetValueAndNotify(Minimum + Math.Clamp((x - trackStart) / trackLength, 0, 1) * Range, notify);
+        double trackLength = Math.Max(val1: 1, trackEnd - trackStart);
+        SetValueAndNotify(Minimum + Math.Clamp((x - trackStart) / trackLength, min: 0, max: 1) * Range, notify);
     }
 
     private void ApplyValueDelta(double delta) => SetValueAndNotify(Value + delta);
@@ -649,19 +655,19 @@ public sealed class FlyoutSlider : Control, IDisposable
 
     private void EndUserAdjustment() => UserAdjustmentCompleted?.Invoke(this, EventArgs.Empty);
 
-    private double Range => Math.Max(0.001, Maximum - Minimum);
+    private double Range => Math.Max(val1: 0.001, Maximum - Minimum);
 
     private double ClampValue(double value) => Math.Clamp(value, Minimum, Maximum);
 
-    private double Normalize(double value) => Math.Clamp((ClampValue(value) - Minimum) / Range, 0, 1);
+    private double Normalize(double value) => Math.Clamp((ClampValue(value) - Minimum) / Range, min: 0, max: 1);
 
     private double ThumbLeft(double width, double thumbWidth, double value)
     {
-        double available = Math.Max(0, width - thumbWidth);
+        double available = Math.Max(val1: 0, width - thumbWidth);
         return available * Normalize(value);
     }
 
-    private double ValuePosition(double width, double value) => Math.Max(0, width) * Normalize(value);
+    private double ValuePosition(double width, double value) => Math.Max(val1: 0, width) * Normalize(value);
 
     private Rect ThumbRect(double width, double height, double thumbWidth, double thumbHeight, double value) =>
         new(
@@ -677,7 +683,7 @@ public sealed class FlyoutSlider : Control, IDisposable
     /// <summary>Compensates for the rounded cap without drawing beyond the volume extent.</summary>
     internal static double CalculatePeakWidth(double peakExtent, float peak, double radius)
     {
-        double clampedPeak = Math.Clamp(peak, 0f, 1f);
+        double clampedPeak = Math.Clamp(peak, min: 0f, max: 1f);
         return Math.Min(peakExtent, (peakExtent + radius) * clampedPeak);
     }
 
@@ -738,7 +744,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         {
             context.DrawRectangle(
                 new SolidColorBrush(color),
-                null,
+                pen: null,
                 new RoundedRect(thumbBounds, FlyoutSliderLayout.CapsuleCornerRadius));
             return;
         }
@@ -761,7 +767,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         }
 
         using (context.PushTransform(Matrix.CreateTranslation(-thumbBounds.Center.X, -thumbBounds.Center.Y)))
-        using (context.PushTransform(Matrix.CreateScale(thumb.XScale, 1.0)))
+        using (context.PushTransform(Matrix.CreateScale(thumb.XScale, yScale: 1.0)))
         using (context.PushTransform(Matrix.CreateTranslation(thumbBounds.Center.X, thumbBounds.Center.Y)))
             text.Draw(context, new Point(x, y));
     }
@@ -774,13 +780,10 @@ public sealed class FlyoutSlider : Control, IDisposable
 
     private void DrawIndicator(DrawingContext context, double width, double height, double value)
     {
-        double indicatorSize = Math.Max(1, IndicatorWidth);
+        double indicatorSize = Math.Max(val1: 1, IndicatorWidth);
         SliderThumbGlyphOption indicatorThumb = new()
         {
-            Name = "CurveIndicator",
-            Shape = SliderThumbShape.Capsule,
-            Width = indicatorSize,
-            Height = indicatorSize
+            Name = "CurveIndicator", Shape = SliderThumbShape.Capsule, Width = indicatorSize, Height = indicatorSize
         };
         Rect indicatorBounds = ThumbRect(width, height, indicatorSize, indicatorSize, value);
         DrawThumbShape(
@@ -793,7 +796,7 @@ public sealed class FlyoutSlider : Control, IDisposable
     private static void DrawRoundedRect(DrawingContext context, Rect rect, Color color, double radius = double.NaN) =>
         context.DrawRectangle(
             new SolidColorBrush(color),
-            null,
+            pen: null,
             new RoundedRect(rect, double.IsNaN(radius) ? FlyoutSliderLayout.TrackHeight / 2.0 : radius));
 
     /// <summary>
@@ -811,7 +814,7 @@ public sealed class FlyoutSlider : Control, IDisposable
 
         DrawRoundedRect(
             context,
-            new Rect(0, trackY, Math.Min(width, progressWidth), FlyoutSliderLayout.TrackHeight),
+            new Rect(x: 0, trackY, Math.Min(width, progressWidth), FlyoutSliderLayout.TrackHeight),
             WithOpacity(color, opacity),
             FlyoutSliderLayout.TrackHeight / 2.0);
     }
@@ -825,12 +828,12 @@ public sealed class FlyoutSlider : Control, IDisposable
 
     private void SetUnitInterval(ref double field, double value)
     {
-        double next = Math.Clamp(value, 0, 1);
+        double next = Math.Clamp(value, min: 0, max: 1);
         if (Math.Abs(field - next) < 0.001) return;
         field = next;
         InvalidateVisual();
     }
 
     private static Color WithOpacity(Color color, double opacity) =>
-        Color.FromArgb((byte)Math.Round(color.A * Math.Clamp(opacity, 0, 1)), color.R, color.G, color.B);
+        Color.FromArgb((byte)Math.Round(color.A * Math.Clamp(opacity, min: 0, max: 1)), color.R, color.G, color.B);
 }

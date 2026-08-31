@@ -20,10 +20,10 @@ public sealed class ProcessLifetimeSearchIntegrationTests
             Setting(ProcessTableColumnKind.CommandLine, visible: false)
         ];
         ProcessSearchQuery lifetimeQuery = ProcessSearchQuery.Parse(
-            "{Lifetime}>=0s&&{Lifetime}<7d",
+            filterText: "{Lifetime}>=0s&&{Lifetime}<7d",
             settings);
         ProcessSearchQuery commandLineQuery = ProcessSearchQuery.Parse(
-            "{Command line}=~\"\\S+\"",
+            filterText: "{Command line}=~\"\\S+\"",
             settings);
         ProcessDataSchema schema = ProcessDataSchema.Create(
             settings,
@@ -31,17 +31,24 @@ public sealed class ProcessLifetimeSearchIntegrationTests
         using ProcessSnapshotService service = new();
         int[] warmProcessIDs = [];
         service.SetActiveSchema(schema);
-        service.SetWarmProcesses(schema.VisibleMask, warmProcessIDs, 0, sampleEveryProcess: true);
+        service.SetWarmProcesses(schema.VisibleMask, warmProcessIDs, count: 0, sampleEveryProcess: true);
         service.Start();
 
         ProcessSnapshotBuffer snapshot = WaitForCurrentProcess(service, schema.VisibleMask);
         int rowIndex = FindCurrentProcessRow(snapshot);
         long lifetimeTicks = snapshot.GetDynamicNumeric(rowIndex, ProcessTableColumnKind.Lifetime);
         ProcessStaticData row = snapshot.StaticRows[rowIndex]
-            ?? throw new InvalidOperationException("The current process row has no static data.");
+                                ?? throw new InvalidOperationException("The current process row has no static data.");
         int commandLineSlot = schema.GetStaticTextSlot(ProcessTableColumnKind.CommandLine);
         string commandLine = row.TextValues[commandLineSlot] ?? string.Empty;
         string formattedLifetime = ProcessLifetime.Format(lifetimeTicks);
+
+        Assert.InRange(lifetimeTicks, low: 0, TimeSpan.FromDays(7).Ticks);
+        Assert.NotEmpty(commandLine);
+        Assert.True(lifetimeQuery.Matches(rowIndex: 0, ResolveValue));
+        Assert.True(commandLineQuery.Matches(rowIndex: 0, ResolveValue));
+        return;
+
         ProcessSearchColumnValue ResolveValue(int ignoredRowIndex, ProcessTableColumnKind column) => column switch
         {
             ProcessTableColumnKind.Lifetime => ProcessSearchColumnValue.Numeric(
@@ -50,11 +57,6 @@ public sealed class ProcessLifetimeSearchIntegrationTests
             ProcessTableColumnKind.CommandLine => ProcessSearchColumnValue.TextOnly(commandLine),
             _ => ProcessSearchColumnValue.TextOnly(string.Empty)
         };
-
-        Assert.InRange(lifetimeTicks, 0, TimeSpan.FromDays(7).Ticks);
-        Assert.NotEmpty(commandLine);
-        Assert.True(lifetimeQuery.Matches(0, ResolveValue));
-        Assert.True(commandLineQuery.Matches(0, ResolveValue));
     }
 
     private static ProcessSnapshotBuffer WaitForCurrentProcess(
@@ -78,7 +80,8 @@ public sealed class ProcessLifetimeSearchIntegrationTests
         int currentProcessID = Environment.ProcessId;
         for (int rowIndex = 0; rowIndex < snapshot.Count; rowIndex++)
         {
-            if (snapshot.StaticRows[rowIndex]?.ProcessID == currentProcessID) return rowIndex;
+            if (snapshot.StaticRows[rowIndex]?.ProcessID == currentProcessID)
+                return rowIndex;
         }
 
         return -1;
@@ -87,10 +90,5 @@ public sealed class ProcessLifetimeSearchIntegrationTests
     private static ProcessColumnSetting Setting(
         ProcessTableColumnKind column,
         bool visible = true) =>
-        new()
-        {
-            Column = column,
-            Visible = visible,
-            Width = ProcessTableColumnCatalog.Get(column).DefaultWidth
-        };
+        new() { Column = column, Visible = visible, Width = ProcessTableColumnCatalog.Get(column).DefaultWidth };
 }

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -24,11 +23,7 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
 
     public CoreAudioSessionMTAThread()
     {
-        _thread = new Thread(Run)
-        {
-            IsBackground = true,
-            Name = ThreadName
-        };
+        _thread = new Thread(Run) { IsBackground = true, Name = ThreadName };
         _thread.Start();
         _started.Wait();
 
@@ -37,7 +32,8 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
         _thread.Join();
         _started.Dispose();
         _shutdown.Dispose();
-        throw new InvalidOperationException("Failed to initialize the Core Audio notification MTA.", _startupException);
+        throw new InvalidOperationException(message: "Failed to initialize the Core Audio notification MTA.",
+            _startupException);
     }
 
     private void Run()
@@ -46,13 +42,13 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
         if (initializationResult < 0)
         {
             _startupException = Marshal.GetExceptionForHR(initializationResult)
-                                ?? new COMException("CoInitializeEx failed.", initializationResult);
+                                ?? new COMException(message: "CoInitializeEx failed.", initializationResult);
             _started.Set();
             return;
         }
 
         ApartmentState = Thread.CurrentThread.GetApartmentState();
-        Volatile.Write(ref _isRunning, 1);
+        Volatile.Write(ref _isRunning, value: 1);
         _started.Set();
 
         try
@@ -61,14 +57,14 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
         }
         finally
         {
-            Volatile.Write(ref _isRunning, 0);
+            Volatile.Write(ref _isRunning, value: 0);
             CoUninitialize();
         }
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         _shutdown.Set();
         if (!ReferenceEquals(Thread.CurrentThread, _thread)) _thread.Join();

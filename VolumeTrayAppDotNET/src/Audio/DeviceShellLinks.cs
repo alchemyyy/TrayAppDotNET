@@ -89,7 +89,7 @@ internal static class DeviceShellLinks
                 {
                     IntPtr hwnd = p.MainWindowHandle;
                     if (hwnd == IntPtr.Zero) continue;
-                    if (!ProcessHostsModule(p, "mmsys.cpl")) continue;
+                    if (!ProcessHostsModule(p, moduleName: "mmsys.cpl")) continue;
                     if (FocusWindow(hwnd)) return true;
                 }
                 catch (Exception ex)

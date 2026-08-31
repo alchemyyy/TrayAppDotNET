@@ -11,6 +11,7 @@ internal sealed class GPUPerformanceDetailsReader
 
     private const long MetadataFailureRetryMilliseconds =
         MetadataFailureRetrySeconds * MillisecondsPerSecond;
+
     private const long MetadataRefreshIntervalMilliseconds =
         MetadataRefreshMinutes * SecondsPerMinute * MillisecondsPerSecond;
 
@@ -130,7 +131,7 @@ internal sealed class GPUPerformanceDetailsReader
             string normalizedName = NormalizeEngineName(identity.Name);
             identitiesByIndex.TryAdd(
                 identity.EngineIndex,
-                new GPUAdapterEngineIdentity(identity.EngineIndex, normalizedName));
+                identity with { Name = normalizedName });
         }
 
         Dictionary<int, GPUPerformanceEngineSnapshot> liveByIndex = [];
@@ -197,7 +198,7 @@ internal sealed class GPUPerformanceDetailsReader
                 out GPUPerformanceEngineSnapshot liveEngine);
             double utilizationPercent = hasLiveEngine
                                         && double.IsFinite(liveEngine.UtilizationPercent)
-                ? Math.Clamp(liveEngine.UtilizationPercent, 0, 100)
+                ? Math.Clamp(liveEngine.UtilizationPercent, min: 0, max: 100)
                 : 0;
             result[selectedIndex] = new GPUPerformanceDetailEngineSnapshot(
                 identity.EngineIndex,
@@ -219,8 +220,8 @@ internal sealed class GPUPerformanceDetailsReader
         if (duplicateSuffixIndex >= 0)
             value = value[..duplicateSuffixIndex];
 
-        string compactName = string.Concat(value.ToString().Where(
-            static character => character is not ' ' and not '-' and not '_'));
+        string compactName =
+            string.Concat(value.ToString().Where(static character => character is not ' ' and not '-' and not '_'));
         return compactName.ToLowerInvariant() switch
         {
             "3d" => "3D",
@@ -258,9 +259,10 @@ internal sealed class GPUPerformanceDetailsReader
                 {
                     utilizationPercent = Math.Clamp(
                         liveEngine.UtilizationPercent,
-                        0,
-                        100);
+                        min: 0,
+                        max: 100);
                 }
+
                 break;
             }
 
@@ -294,7 +296,7 @@ internal sealed class GPUPerformanceDetailsReader
             GPUPerformanceDetailEngineSnapshot[] selectedEngines = SelectEngineSlots(
                 metadata.EngineCatalog.Span,
                 [],
-                false);
+                hasUtilizationSample: false);
             EngineSlots = CopyEngineIdentities(selectedEngines);
         }
 
@@ -327,6 +329,7 @@ internal sealed class GPUPerformanceDetailsReader
                     engine.EngineIndex,
                     engine.Name);
             }
+
             return identities;
         }
     }

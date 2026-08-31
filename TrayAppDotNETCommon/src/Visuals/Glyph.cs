@@ -93,7 +93,7 @@ public sealed class Glyph(string text, TADNFont font)
         double? scaleY,
         double? translateX,
         double? translateY) =>
-        new Glyph(text, font)
+        new(text, font)
         {
             FontWeight = fontWeight,
             ScaleX = scaleX,

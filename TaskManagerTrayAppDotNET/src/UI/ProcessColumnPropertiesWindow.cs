@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -33,7 +32,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(apply);
         if (!Enum.IsDefined(setting.Column))
-            throw new ArgumentOutOfRangeException(nameof(setting), "The column kind is not defined.");
+            throw new ArgumentOutOfRangeException(nameof(setting), message: "The column kind is not defined.");
 
         Setting = ProcessColumnSettings.Clone(setting);
         Palette = palette;
@@ -65,13 +64,13 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         _nicknameTextBox.PlaceholderText = definition.Title;
         _nicknameTextBox.TextChanged += OnNicknameTextChanged;
         AddCard(
-            "Column nickname",
-            "Leave blank to use the original column name.",
+            title: "Column nickname",
+            description: "Leave blank to use the original column name.",
             _nicknameTextBox);
 
         _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
         _closeButton.Click += OnCloseClick;
-        TrayAppDotNETToolTip.SetTip(_closeButton, "Close");
+        TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
 
         _titleBar = BuildTitleBar(definition.Title, palette, WindowResources, _closeButton);
@@ -208,18 +207,14 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         Grid titleBar,
         StackPanel contentStack)
     {
-        Border body = new()
-        {
-            Padding = resources.AxamlProcessColumnProperties.ContentPadding,
-            Child = contentStack
-        };
+        Border body = new() { Padding = resources.AxamlProcessColumnProperties.ContentPadding, Child = contentStack };
 
         Grid chrome = new();
         chrome.RowDefinitions.Add(new RowDefinition(
             new GridLength(resources.AxamlProcessColumnProperties.TitleBarHeight)));
         chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         chrome.Children.Add(titleBar);
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, value: 1);
         chrome.Children.Add(body);
 
         return new Border
@@ -254,7 +249,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         titleText.TextTrimming = TextTrimming.CharacterEllipsis;
         titleBar.Children.Add(titleText);
 
-        Grid.SetColumn(closeButton, 1);
+        Grid.SetColumn(closeButton, value: 1);
         titleBar.Children.Add(closeButton);
         return titleBar;
     }
@@ -285,7 +280,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         Closed -= OnClosed;
         KeyDown -= OnWindowKeyDown;
@@ -300,17 +295,12 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     }
 }
 
-internal sealed class DefaultProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
-{
-    public DefaultProcessColumnPropertiesWindow(
-        ProcessColumnSetting setting,
-        SettingsPalette palette,
-        bool enableRoundedCorners,
-        Action<ProcessColumnSetting> apply)
-        : base(setting, palette, enableRoundedCorners, apply)
-    {
-    }
-}
+internal sealed class DefaultProcessColumnPropertiesWindow(
+    ProcessColumnSetting setting,
+    SettingsPalette palette,
+    bool enableRoundedCorners,
+    Action<ProcessColumnSetting> apply)
+    : ProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply);
 
 internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
 {
@@ -332,8 +322,8 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
                 Publish();
             });
         AddCard(
-            "Show % suffix",
-            "Append a percent sign to CPU usage values.",
+            title: "Show % suffix",
+            description: "Append a percent sign to CPU usage values.",
             percentSuffixToggle);
 
         SettingsToggle decimalUsageToggle = TrayAppDotNETSettingsUI.Toggle(
@@ -345,8 +335,8 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
                 Publish();
             });
         AddCard(
-            "Show decimal usage",
-            "Show one digit after the decimal point for CPU usage.",
+            title: "Show decimal usage",
+            description: "Show one digit after the decimal point for CPU usage.",
             decimalUsageToggle);
     }
 }
@@ -369,16 +359,16 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
         _unitComboBox = TrayAppDotNETSettingsUI.ComboBox(
             palette,
             WindowResources.AxamlProcessColumnProperties.ControlWidth);
-        AddUnit(ProcessMemoryUnit.Kilobytes, "Kilobytes");
-        AddUnit(ProcessMemoryUnit.Megabytes, "Megabytes");
-        AddUnit(ProcessMemoryUnit.Gigabytes, "Gigabytes");
-        AddUnit(ProcessMemoryUnit.PercentageOfSystem, "Percentage of system memory");
+        AddUnit(ProcessMemoryUnit.Kilobytes, label: "Kilobytes");
+        AddUnit(ProcessMemoryUnit.Megabytes, label: "Megabytes");
+        AddUnit(ProcessMemoryUnit.Gigabytes, label: "Gigabytes");
+        AddUnit(ProcessMemoryUnit.PercentageOfSystem, label: "Percentage of system memory");
         SelectUnit(Setting.MemoryUnit);
         _unitComboBox.SelectionChanged += OnUnitSelectionChanged;
         Own(_unitComboBox);
         AddCard(
-            "Memory unit",
-            "Choose the divisor used to display memory values.",
+            title: "Memory unit",
+            description: "Choose the divisor used to display memory values.",
             _unitComboBox);
 
         _suffixTextBox = TrayAppDotNETSettingsUI.TextBox(
@@ -387,8 +377,8 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
             Setting.MemorySuffix);
         _suffixTextBox.TextChanged += OnSuffixTextChanged;
         AddCard(
-            "Memory suffix",
-            "Selecting a memory unit resets this value to its default suffix.",
+            title: "Memory suffix",
+            description: "Selecting a memory unit resets this value to its default suffix.",
             _suffixTextBox);
     }
 
@@ -462,8 +452,8 @@ internal sealed class UserNameProcessColumnPropertiesWindow : ProcessColumnPrope
                 Publish();
             });
         AddCard(
-            "Show account prefix",
-            "Include the domain or authority before the account name.",
+            title: "Show account prefix",
+            description: "Include the domain or authority before the account name.",
             prefixToggle);
     }
 }

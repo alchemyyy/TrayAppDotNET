@@ -26,9 +26,7 @@ internal static class AvaloniaTestHost
             CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public sealed class TestApplication : Application
-    {
-    }
+    public sealed class TestApplication : Application;
 
     public static class TestAppBuilder
     {

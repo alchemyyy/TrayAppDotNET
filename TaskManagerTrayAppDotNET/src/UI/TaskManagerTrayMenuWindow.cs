@@ -46,9 +46,9 @@ internal sealed class TaskManagerTrayMenuWindow : ContextMenuWindow
     private static List<ContextMenuEntry> BuildEntries(Action openTaskManager, Action exitApplication)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add("Open Task Manager", openTaskManager);
+        entries.Add(text: "Open Task Manager", openTaskManager);
         entries.AddSeparator();
-        entries.Add("Exit", exitApplication);
+        entries.Add(text: "Exit", exitApplication);
         return entries.ToList();
     }
 }

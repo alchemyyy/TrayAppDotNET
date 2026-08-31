@@ -53,7 +53,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         get => _brightnessPercent;
         set
         {
-            int clamped = Math.Clamp(value, 0, 100);
+            int clamped = Math.Clamp(value, min: 0, max: 100);
             if (_brightnessPercent == clamped) return;
             _brightnessPercent = clamped;
             _isDirty = true;
@@ -151,7 +151,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
             Color fallback = _theme.Foreground.For(_isLightTheme);
             Color bright = _brightColor ?? fallback;
             Color dim = _dimColor ?? fallback;
-            double t = Math.Clamp(brightnessPercent / 100.0, 0, 1);
+            double t = Math.Clamp(brightnessPercent / 100.0, min: 0, max: 1);
             return Blend(dim, bright, t);
         }
 
@@ -166,7 +166,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         canvas.Clear(SKColors.Transparent);
 
         SKColor color = ToSKColor(foregroundColor);
-        brightnessPercent = Math.Clamp(brightnessPercent, 0, 100);
+        brightnessPercent = Math.Clamp(brightnessPercent, min: 0, max: 100);
 
         double t = brightnessPercent / 100.0;
         double x = 2 * t - 1;
@@ -176,7 +176,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         double eclipseOffset = (x + d) * 50;
 
         SKPath? eclipseClip = brightnessPercent is > 0 and < 100
-            ? GetEclipsePath(size, size, eclipseOffset, 0)
+            ? GetEclipsePath(size, size, eclipseOffset, offsetYPercent: 0)
             : null;
         bool isClipped = false;
         try
@@ -184,7 +184,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
             if (eclipseClip != null)
             {
                 canvas.Save();
-                canvas.ClipPath(eclipseClip, SKClipOperation.Difference, true);
+                canvas.ClipPath(eclipseClip, SKClipOperation.Difference, antialias: true);
                 isClipped = true;
             }
 
@@ -212,7 +212,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         }
 
         using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 
@@ -220,7 +220,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
     {
         canvas.Save();
         float center = canvasSize / 2f;
-        canvas.Scale(-1, 1, center, center);
+        canvas.Scale(sx: -1, sy: 1, center, center);
         DrawGlyph(canvas, glyph, fontSize, canvasSize, color);
         canvas.Restore();
     }
@@ -247,7 +247,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         font.Edging = SKFontEdging.Antialias;
         font.Hinting = SKFontHinting.Normal;
         font.Subpixel = false;
-        using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL.Text, new SKPoint(0, 0));
+        using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL.Text, new SKPoint(x: 0, y: 0));
         if (glyphPath.IsEmpty) return null;
 
         SKRect bounds = glyphPath.Bounds;
@@ -264,7 +264,6 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         if (basePath.Op(offsetPath, SKPathOp.Intersect, result) && !result.IsEmpty) return result;
         result.Dispose();
         return null;
-
     }
 
     private SKTypeface IconTypeface => _iconTypeface ??= ResolveIconTypeface();

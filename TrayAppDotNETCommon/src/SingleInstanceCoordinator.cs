@@ -36,7 +36,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
     }
 
     public static SingleInstanceCoordinator AcquireOrTakeover(SingleInstanceIdentity identity) =>
-        AcquireOrTakeover(identity, Environment.ProcessId, 0);
+        AcquireOrTakeover(identity, Environment.ProcessId, monitoredPID: 0);
 
     public static SingleInstanceCoordinator AcquireOrTakeover(
         SingleInstanceIdentity identity,
@@ -57,7 +57,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
             if (!createdNew) TakeoverFromExistingOwner(identity, mutex, log);
 
             mmf = MemoryMappedFile.CreateOrOpen(identity.PIDMmfName, MmfSize);
-            view = mmf.CreateViewAccessor(0, MmfSize);
+            view = mmf.CreateViewAccessor(offset: 0, MmfSize);
 
             int generation = view.ReadInt32(OffsetGeneration);
             view.Write(OffsetWatcherPID, watcherPID);
@@ -170,7 +170,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
                         continue;
 
                     // A transient launcher can be the current watcher's parent, so never kill its tree.
-                    process.Kill(entireProcessTree: false);
+                    process.Kill(false);
                     if (!process.WaitForExit(TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
                     {
                         log?.Invoke(
@@ -194,7 +194,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
         try
         {
             using Process proc = Process.GetProcessById(pid);
-            proc.Kill(entireProcessTree: true);
+            proc.Kill(true);
             proc.WaitForExit(5000);
         }
         catch (ArgumentException)
@@ -224,7 +224,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
             {
                 using MemoryMappedFile existing = MemoryMappedFile.OpenExisting(identity.PIDMmfName);
                 using MemoryMappedViewAccessor view =
-                    existing.CreateViewAccessor(0, MmfSize, MemoryMappedFileAccess.Read);
+                    existing.CreateViewAccessor(offset: 0, MmfSize, MemoryMappedFileAccess.Read);
                 int generation = view.ReadInt32(OffsetGeneration);
                 Interlocked.MemoryBarrier();
 

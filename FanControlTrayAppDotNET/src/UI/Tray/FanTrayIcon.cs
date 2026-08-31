@@ -105,7 +105,7 @@ internal sealed class FanTrayIcon(AppTheme? theme) : IDisposable
         canvas.DrawText(glyph.Text, x, y, font, paint);
 
         using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 

@@ -31,10 +31,10 @@ internal static class AdapterSettingsShellMonitor
     private static readonly HashSet<int> _monitoredPids = [];
     private static readonly List<CancellationTokenSource> _activeMonitorCancellationSources = [];
 
-    public static void OpenAndMonitorControlPanel() => OpenAndMonitor("ncpa.cpl", null);
+    public static void OpenAndMonitorControlPanel() => OpenAndMonitor(fileName: "ncpa.cpl", arguments: null);
 
     public static void OpenAndMonitorExplorerShell() =>
-        OpenAndMonitor("explorer.exe", "shell:::{7007acc7-3202-11d1-aad2-00805fc1270e}");
+        OpenAndMonitor(fileName: "explorer.exe", arguments: "shell:::{7007acc7-3202-11d1-aad2-00805fc1270e}");
 
     private static void OpenAndMonitor(string fileName, string? arguments)
     {
@@ -157,14 +157,16 @@ internal static class AdapterSettingsShellMonitor
 
     private static unsafe string? GetProcessCommandLine(int pid)
     {
-        nint hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, false, (uint)pid);
+        nint hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, bInheritHandle: false,
+            (uint)pid);
         if (hProcess == 0) return null;
 
         try
         {
             // Get PEB address from process basic information
             PROCESS_BASIC_INFORMATION pbi;
-            int status = NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(PROCESS_BASIC_INFORMATION), out _);
+            int status = NtQueryInformationProcess(hProcess, ProcessInformationClass: 0, &pbi,
+                sizeof(PROCESS_BASIC_INFORMATION), out _);
             if (status != 0) return null;
 
             // Read PEB to get ProcessParameters address
@@ -402,7 +404,7 @@ internal static class AdapterSettingsShellMonitor
         private void RunMessageLoop()
         {
             _threadId = GetCurrentThreadId();
-            PeekMessage(out MSG _, IntPtr.Zero, 0, 0, PM_NOREMOVE);
+            PeekMessage(out MSG _, IntPtr.Zero, wMsgFilterMin: 0, wMsgFilterMax: 0, PM_NOREMOVE);
 
             CancellationTokenRegistration cancellationRegistration =
                 _cancellationTokenSource.Token.Register(static state =>
@@ -436,7 +438,7 @@ internal static class AdapterSettingsShellMonitor
         private void RunMessagePump()
         {
             while (!_cancellationTokenSource.IsCancellationRequested
-                   && GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
+                   && GetMessage(out MSG msg, IntPtr.Zero, wMsgFilterMin: 0, wMsgFilterMax: 0) > 0)
             {
                 TranslateMessage(ref msg);
                 DispatchMessage(ref msg);
@@ -475,7 +477,7 @@ internal static class AdapterSettingsShellMonitor
     /// Phase 1: catches EVENT_OBJECT_CREATE for a new factory explorer.exe and hands off to phase 2.
     /// </summary>
     private sealed class ProcessMonitor(HashSet<int> existingPids)
-        : WinEventMonitor("AdapterSettingsProcessMonitor", ProcessSpawnMonitorTimeoutMs)
+        : WinEventMonitor(threadName: "AdapterSettingsProcessMonitor", ProcessSpawnMonitorTimeoutMs)
     {
         private readonly TaskCompletionSource<bool> _ready =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -502,7 +504,7 @@ internal static class AdapterSettingsShellMonitor
             SetWinEventHook(
                 EVENT_OBJECT_CREATE, EVENT_OBJECT_CREATE,
                 IntPtr.Zero, WinEventProc,
-                0, 0, WINEVENT_OUTOFCONTEXT);
+                idProcess: 0, idThread: 0, WINEVENT_OUTOFCONTEXT);
 
         protected override void OnHookInstalled() => _ready.TrySetResult(true);
 
@@ -534,7 +536,7 @@ internal static class AdapterSettingsShellMonitor
     /// Phase 2: waits for a CabinetWClass window to appear in the target process, then hands off to phase 3.
     /// </summary>
     private sealed class MainWindowMonitor(int pid)
-        : WinEventMonitor("AdapterSettingsMainWindowMonitor", MainWindowMonitorTimeoutMs)
+        : WinEventMonitor(threadName: "AdapterSettingsMainWindowMonitor", MainWindowMonitorTimeoutMs)
     {
         private bool _handedOff;
 
@@ -545,7 +547,7 @@ internal static class AdapterSettingsShellMonitor
             SetWinEventHook(
                 EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW,
                 IntPtr.Zero, WinEventProc,
-                (uint)pid, 0, WINEVENT_OUTOFCONTEXT);
+                (uint)pid, idThread: 0, WINEVENT_OUTOFCONTEXT);
 
         protected override void OnHookFailed() => RemoveMonitoredPid(pid);
 
@@ -562,7 +564,7 @@ internal static class AdapterSettingsShellMonitor
             if (idObject != OBJID_WINDOW || hwnd == IntPtr.Zero) return;
 
             StringBuilder className = new(256);
-            if (GetClassName(hwnd, className, 256) <= 0 || className.ToString() != TargetWindowClass) return;
+            if (GetClassName(hwnd, className, nMaxCount: 256) <= 0 || className.ToString() != TargetWindowClass) return;
 
             _handedOff = true;
             _nextMonitorRef = new WindowDestroyMonitor(pid, hwnd);
@@ -576,7 +578,7 @@ internal static class AdapterSettingsShellMonitor
     /// Phase 3: waits for the CabinetWClass window to be destroyed, then kills the host process.
     /// </summary>
     private sealed class WindowDestroyMonitor(int pid, IntPtr targetHwnd)
-        : WinEventMonitor("AdapterSettingsWindowDestroyMonitor", WindowDestroyMonitorTimeoutMs)
+        : WinEventMonitor(threadName: "AdapterSettingsWindowDestroyMonitor", WindowDestroyMonitorTimeoutMs)
     {
         private bool _windowDestroyed;
 
@@ -584,7 +586,7 @@ internal static class AdapterSettingsShellMonitor
             SetWinEventHook(
                 EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
                 IntPtr.Zero, WinEventProc,
-                (uint)pid, 0, WINEVENT_OUTOFCONTEXT);
+                (uint)pid, idThread: 0, WINEVENT_OUTOFCONTEXT);
 
         protected override void OnStopped() => Cleanup();
 
@@ -600,7 +602,7 @@ internal static class AdapterSettingsShellMonitor
             }
 
             StringBuilder className = new(256);
-            if (GetClassName(hwnd, className, 256) > 0 && className.ToString() == TargetWindowClass)
+            if (GetClassName(hwnd, className, nMaxCount: 256) > 0 && className.ToString() == TargetWindowClass)
             {
                 _windowDestroyed = true;
                 StopMessageLoop();

@@ -16,19 +16,21 @@ public sealed partial class VolumeSettingsWindow
         SettingsPalette p = Palette;
         StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p, new Thickness(0, 0, 0, 16)));
+            Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p,
+            new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, 240);
+        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240);
         ControlNames.Assign(searchBox, nameof(VolumeSettingsPage.Hotkeys));
         StackPanel searchRow = new()
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 12)
         };
-        TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(Loc(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
+        TextBlock searchLabel =
+            TrayAppDotNETSettingsUI.TitleText(Loc(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
         searchLabel.VerticalAlignment = VerticalAlignment.Center;
-        searchLabel.Margin = new Thickness(0, 0, 8, 0);
+        searchLabel.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         searchRow.Children.Add(searchLabel);
         searchRow.Children.Add(searchBox);
         stack.Children.Add(searchRow);
@@ -76,14 +78,14 @@ public sealed partial class VolumeSettingsWindow
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, 170);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
         ControlNames.Assign(modifiers, $"{action}Modifiers");
         OwnPageResource(modifiers);
-        modifiers.Padding = new Thickness(8, 0, 2, 0);
+        modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
         ControlNames.Assign(keyBox, $"{action}Key");
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
@@ -149,28 +151,31 @@ public sealed partial class VolumeSettingsWindow
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        StackPanel text = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(left: 0, top: 0, right: 12, bottom: 0)
+        };
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, p));
         text.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(description, p));
         grid.Children.Add(text);
 
-        modifiers.Margin = new Thickness(0, 0, 8, 0);
-        keyBox.Margin = new Thickness(0, 0, 8, 0);
-        Grid.SetColumn(modifiers, 1);
-        Grid.SetColumn(keyBox, 2);
-        Grid.SetColumn(addButton, 3);
+        modifiers.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
+        keyBox.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
+        Grid.SetColumn(modifiers, value: 1);
+        Grid.SetColumn(keyBox, value: 2);
+        Grid.SetColumn(addButton, value: 3);
         grid.Children.Add(modifiers);
         grid.Children.Add(keyBox);
         grid.Children.Add(addButton);
 
-        entries.Margin = new Thickness(0, 8, 8, 0);
-        Grid.SetRow(entries, 1);
-        Grid.SetColumn(entries, 1);
-        Grid.SetColumnSpan(entries, 2);
+        entries.Margin = new Thickness(left: 0, top: 8, right: 8, bottom: 0);
+        Grid.SetRow(entries, value: 1);
+        Grid.SetColumn(entries, value: 1);
+        Grid.SetColumnSpan(entries, value: 2);
         grid.Children.Add(entries);
 
-        Border card = RawCard(grid, p, searchKeywords: searchKeywords);
-        rows.Add((card, title + "\n" + description + "\n" + string.Join("\n", searchKeywords)));
+        Border card = RawCard(grid, p, searchKeywords);
+        rows.Add((card, title + "\n" + description + "\n" + string.Join(separator: "\n", searchKeywords)));
         stack.Children.Add(card);
         Refresh();
         return;
@@ -221,24 +226,26 @@ public sealed partial class VolumeSettingsWindow
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
         ControlNames.Assign(display, $"{action}Binding");
         display.VerticalAlignment = VerticalAlignment.Center;
-        display.Margin = new Thickness(12, 6, 0, 6);
+        display.Margin = new Thickness(left: 12, top: 6, right: 0, bottom: 6);
 
         TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
         ControlNames.Assign(status, $"{action}Status");
         status.VerticalAlignment = VerticalAlignment.Center;
-        status.Margin = new Thickness(0, 0, 8, 0);
+        status.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
 
         if (AppServices.HotkeyService == null)
         {
             GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
-            TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
+            TrayAppDotNETToolTip.SetTip(status,
+                Loc(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
             GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, error);
         }
-        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
+        else if (binding.IsBound)
+            TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
         SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
         ControlNames.Assign(delete, $"{action}Delete");
@@ -261,8 +268,8 @@ public sealed partial class VolumeSettingsWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.Children.Add(display);
-        Grid.SetColumn(status, 1);
-        Grid.SetColumn(delete, 2);
+        Grid.SetColumn(status, value: 1);
+        Grid.SetColumn(delete, value: 2);
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
@@ -270,7 +277,7 @@ public sealed partial class VolumeSettingsWindow
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
-            Margin = new Thickness(0, 0, 0, 4),
+            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 4),
             Child = grid
         };
         ControlNames.AssignLogicalSubtree(entryCard, action.ToString());

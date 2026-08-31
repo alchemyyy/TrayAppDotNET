@@ -1,7 +1,7 @@
 #if DEBUG
 using System.Runtime.CompilerServices;
-using TrayAppDotNETCommon.UI;
 using Avalonia.Controls;
+using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.Visuals;
 

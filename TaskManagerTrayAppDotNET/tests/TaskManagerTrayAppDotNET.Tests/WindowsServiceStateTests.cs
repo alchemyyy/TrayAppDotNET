@@ -45,12 +45,15 @@ public sealed class WindowsServiceStateTests
     [Fact]
     public void ServiceTextAndPIDNormalizationHandlesMissingNativeValues()
     {
-        Assert.Equal("Spooler", WindowsServiceState.NormalizeServiceName("  Spooler  "));
-        Assert.Equal("Spooler", WindowsServiceState.NormalizeDisplayName("  ", "Spooler"));
-        Assert.Equal("Print Spooler", WindowsServiceState.NormalizeDisplayName(" Print Spooler ", "Spooler"));
+        Assert.Equal(expected: "Spooler", WindowsServiceState.NormalizeServiceName("  Spooler  "));
+        Assert.Equal(expected: "Spooler",
+            WindowsServiceState.NormalizeDisplayName(displayName: "  ", serviceName: "Spooler"));
+        Assert.Equal(expected: "Print Spooler",
+            WindowsServiceState.NormalizeDisplayName(displayName: " Print Spooler ", serviceName: "Spooler"));
         Assert.Equal(string.Empty, WindowsServiceState.NormalizeOptionalText(null));
-        Assert.Equal(0U, WindowsServiceState.NormalizePID(WindowsServiceStatus.Stopped, 4_242));
-        Assert.Equal(4_242U, WindowsServiceState.NormalizePID(WindowsServiceStatus.Running, 4_242));
+        Assert.Equal(expected: 0U, WindowsServiceState.NormalizePID(WindowsServiceStatus.Stopped, processID: 4_242));
+        Assert.Equal(expected: 4_242U,
+            WindowsServiceState.NormalizePID(WindowsServiceStatus.Running, processID: 4_242));
     }
 
     [Fact]
@@ -143,10 +146,10 @@ public sealed class WindowsServiceStateTests
         WindowsServiceStartType startType,
         WindowsServiceAcceptedControls acceptedControls) =>
         new(
-            "ExampleService",
-            "Example Service",
+            ServiceName: "ExampleService",
+            DisplayName: "Example Service",
             status == WindowsServiceStatus.Stopped ? 0U : 123U,
-            "Example service used by a pure unit test",
+            Description: "Example service used by a pure unit test",
             status,
             string.Empty,
             startType,

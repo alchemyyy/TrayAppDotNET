@@ -53,8 +53,7 @@ internal sealed class SettingsSearchSynonymMap
                     consolidatedGroups.RemoveAt(groupIndex);
                     didMerge = true;
                 }
-            }
-            while (didMerge);
+            } while (didMerge);
 
             consolidatedGroups.Add(consolidatedGroup);
         }
@@ -240,10 +239,9 @@ internal sealed class SettingsSearchSynonymMap
                 if (matchIndex < 0) continue;
                 if (bestMatchIndex >= 0
                     && (matchIndex > bestMatchIndex
-                        || matchIndex == bestMatchIndex && bestTerm != null && term.Text.Length <= bestTerm.Text.Length))
-                {
+                        || (matchIndex == bestMatchIndex && bestTerm != null &&
+                            term.Text.Length <= bestTerm.Text.Length)))
                     continue;
-                }
 
                 bestMatchIndex = matchIndex;
                 bestGroup = group;
@@ -261,7 +259,8 @@ internal sealed class SettingsSearchSynonymMap
     {
         for (int termIndex = 0; termIndex < termTokens.Length; termIndex++)
         {
-            if (!string.Equals(queryTokens[queryStartIndex + termIndex], termTokens[termIndex], StringComparison.Ordinal))
+            if (!string.Equals(queryTokens[queryStartIndex + termIndex], termTokens[termIndex],
+                    StringComparison.Ordinal))
                 return false;
         }
 
@@ -291,13 +290,14 @@ internal sealed class SettingsSearchSynonymMap
     }
 
     private static string[] Tokenize(string normalizedText) =>
-        normalizedText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        normalizedText.Split(separator: ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static bool ContainsNonASCII(string value)
     {
         foreach (char character in value)
         {
-            if (character > 0x7F) return true;
+            if (character > 0x7F)
+                return true;
         }
 
         return false;

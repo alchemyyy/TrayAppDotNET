@@ -36,7 +36,7 @@ public static class TimeCurveSampler
             valuePoints[i] = ordered[i].Value;
         }
 
-        double blend = Math.Clamp(smoothness, 0.0, 1.0);
+        double blend = Math.Clamp(smoothness, min: 0.0, max: 1.0);
         double linear = InterpolateLinear(timePoints, valuePoints, time);
         if (blend <= 0.0) return linear;
 

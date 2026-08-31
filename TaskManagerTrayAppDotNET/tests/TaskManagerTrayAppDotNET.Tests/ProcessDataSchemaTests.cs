@@ -11,7 +11,7 @@ public sealed class ProcessDataSchemaTests
     {
         List<ProcessColumnSetting> settings = [];
         foreach (ProcessTableColumnDefinition definition in ProcessTableColumnCatalog.Definitions)
-            settings.Add(Setting(definition.Kind, true));
+            settings.Add(Setting(definition.Kind, visible: true));
         ProcessDataSchema schema = ProcessDataSchema.Create(settings);
 
         foreach (ProcessTableColumnDefinition definition in ProcessTableColumnCatalog.Definitions)
@@ -19,9 +19,7 @@ public sealed class ProcessDataSchemaTests
             int storagePathCount = 0;
             if (ProcessDataSchema.UsesIdentityTextStorage(definition.Kind)
                 || ProcessDataSchema.UsesIdentityNumericStorage(definition.Kind))
-            {
                 storagePathCount++;
-            }
 
             if (definition.Lifetime == ProcessTableColumnLifetime.Static)
             {
@@ -39,7 +37,7 @@ public sealed class ProcessDataSchemaTests
             }
 
             Assert.True(schema.IsVisible(definition.Kind));
-            Assert.Equal(1, storagePathCount);
+            Assert.Equal(expected: 1, storagePathCount);
         }
     }
 
@@ -48,12 +46,12 @@ public sealed class ProcessDataSchemaTests
     {
         List<ProcessColumnSetting> settings =
         [
-            Setting(ProcessTableColumnKind.Name, true),
-            Setting(ProcessTableColumnKind.ProcessID, true),
-            Setting(ProcessTableColumnKind.UserName, true),
-            Setting(ProcessTableColumnKind.CommandLine, false),
-            Setting(ProcessTableColumnKind.CPU, true),
-            Setting(ProcessTableColumnKind.GPUEngine, true)
+            Setting(ProcessTableColumnKind.Name, visible: true),
+            Setting(ProcessTableColumnKind.ProcessID, visible: true),
+            Setting(ProcessTableColumnKind.UserName, visible: true),
+            Setting(ProcessTableColumnKind.CommandLine, visible: false),
+            Setting(ProcessTableColumnKind.CPU, visible: true),
+            Setting(ProcessTableColumnKind.GPUEngine, visible: true)
         ];
 
         ProcessDataSchema schema = ProcessDataSchema.Create(settings);
@@ -64,14 +62,14 @@ public sealed class ProcessDataSchemaTests
         Assert.True(schema.IsVisible(ProcessTableColumnKind.CPU));
         Assert.True(schema.IsVisible(ProcessTableColumnKind.GPUEngine));
         Assert.False(schema.IsVisible(ProcessTableColumnKind.CommandLine));
-        Assert.Equal(0, schema.StaticNumericCount);
-        Assert.Equal(0, schema.StaticTextCount);
-        Assert.Equal(1, schema.DynamicNumericCount);
-        Assert.Equal(1, schema.DynamicTextCount);
-        Assert.Equal(-1, schema.GetStaticNumericSlot(ProcessTableColumnKind.ProcessID));
-        Assert.Equal(-1, schema.GetStaticTextSlot(ProcessTableColumnKind.Name));
-        Assert.Equal(-1, schema.GetStaticTextSlot(ProcessTableColumnKind.UserName));
-        Assert.Equal(-1, schema.GetStaticTextSlot(ProcessTableColumnKind.CommandLine));
+        Assert.Equal(expected: 0, schema.StaticNumericCount);
+        Assert.Equal(expected: 0, schema.StaticTextCount);
+        Assert.Equal(expected: 1, schema.DynamicNumericCount);
+        Assert.Equal(expected: 1, schema.DynamicTextCount);
+        Assert.Equal(expected: -1, schema.GetStaticNumericSlot(ProcessTableColumnKind.ProcessID));
+        Assert.Equal(expected: -1, schema.GetStaticTextSlot(ProcessTableColumnKind.Name));
+        Assert.Equal(expected: -1, schema.GetStaticTextSlot(ProcessTableColumnKind.UserName));
+        Assert.Equal(expected: -1, schema.GetStaticTextSlot(ProcessTableColumnKind.CommandLine));
     }
 
     [Fact]
@@ -79,17 +77,17 @@ public sealed class ProcessDataSchemaTests
     {
         List<ProcessColumnSetting> first =
         [
-            Setting(ProcessTableColumnKind.CommandLine, true),
-            Setting(ProcessTableColumnKind.CPU, true),
-            Setting(ProcessTableColumnKind.ProcessID, true),
-            Setting(ProcessTableColumnKind.Status, true)
+            Setting(ProcessTableColumnKind.CommandLine, visible: true),
+            Setting(ProcessTableColumnKind.CPU, visible: true),
+            Setting(ProcessTableColumnKind.ProcessID, visible: true),
+            Setting(ProcessTableColumnKind.Status, visible: true)
         ];
         List<ProcessColumnSetting> reordered =
         [
-            Setting(ProcessTableColumnKind.Status, true),
-            Setting(ProcessTableColumnKind.ProcessID, true),
-            Setting(ProcessTableColumnKind.CPU, true),
-            Setting(ProcessTableColumnKind.CommandLine, true)
+            Setting(ProcessTableColumnKind.Status, visible: true),
+            Setting(ProcessTableColumnKind.ProcessID, visible: true),
+            Setting(ProcessTableColumnKind.CPU, visible: true),
+            Setting(ProcessTableColumnKind.CommandLine, visible: true)
         ];
 
         ProcessDataSchema firstSchema = ProcessDataSchema.Create(first);
@@ -115,9 +113,9 @@ public sealed class ProcessDataSchemaTests
     {
         List<ProcessColumnSetting> settings =
         [
-            Setting(ProcessTableColumnKind.ProcessID, true),
-            Setting(ProcessTableColumnKind.CommandLine, false),
-            Setting(ProcessTableColumnKind.Lifetime, false)
+            Setting(ProcessTableColumnKind.ProcessID, visible: true),
+            Setting(ProcessTableColumnKind.CommandLine, visible: false),
+            Setting(ProcessTableColumnKind.Lifetime, visible: false)
         ];
         ulong searchColumnsMask = ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.CommandLine)
                                   | ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.Lifetime);
@@ -139,7 +137,8 @@ public sealed class ProcessDataSchemaTests
     public void MutableNativeContextsUseDynamicStorage()
     {
         ProcessTableColumnDefinition jobObject = ProcessTableColumnCatalog.Get(ProcessTableColumnKind.JobObjectID);
-        ProcessTableColumnDefinition enterprise = ProcessTableColumnCatalog.Get(ProcessTableColumnKind.EnterpriseContext);
+        ProcessTableColumnDefinition enterprise =
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.EnterpriseContext);
 
         Assert.Equal(ProcessTableColumnLifetime.Dynamic, jobObject.Lifetime);
         Assert.Equal(ProcessTableColumnLifetime.Dynamic, enterprise.Lifetime);
@@ -152,14 +151,15 @@ public sealed class ProcessDataSchemaTests
     {
         ProcessDataSchema schema = ProcessDataSchema.Create(
         [
-            Setting(ProcessTableColumnKind.ProcessID, true),
-            Setting(ProcessTableColumnKind.SessionID, true),
-            Setting(ProcessTableColumnKind.CPU, true),
-            Setting(ProcessTableColumnKind.GPUEngine, true)
+            Setting(ProcessTableColumnKind.ProcessID, visible: true),
+            Setting(ProcessTableColumnKind.SessionID, visible: true),
+            Setting(ProcessTableColumnKind.CPU, visible: true),
+            Setting(ProcessTableColumnKind.GPUEngine, visible: true)
         ]);
         ProcessSnapshotBuffer source = new();
-        source.BeginWrite(schema, 3);
-        ProcessImageIdentity image = new("test", "test.exe", string.Empty, string.Empty, default);
+        source.BeginWrite(schema, requiredCapacity: 3);
+        ProcessImageIdentity image = new(key: "test", name: "test.exe", string.Empty, string.Empty,
+            iconSource: default);
 
         for (int rowIndex = 0; rowIndex < 3; rowIndex++)
         {
@@ -185,27 +185,23 @@ public sealed class ProcessDataSchemaTests
         ProcessSnapshotBuffer copy = new();
         copy.CopyFrom(source);
 
-        Assert.Equal(3, copy.Count);
-        Assert.Equal(256, copy.Capacity);
+        Assert.Equal(expected: 3, copy.Count);
+        Assert.Equal(expected: 256, copy.Capacity);
         Assert.Equal(copy.Capacity * schema.DynamicNumericCount, copy.DynamicNumericValues.Length);
         Assert.Equal(copy.Capacity * schema.DynamicTextCount, copy.DynamicTextValues.Length);
-        Assert.Equal(2.5, BitConverter.Int64BitsToDouble(copy.GetDynamicNumeric(2, ProcessTableColumnKind.CPU)));
-        Assert.Equal("engine 2", copy.GetDynamicText(2, ProcessTableColumnKind.GPUEngine));
+        Assert.Equal(expected: 2.5,
+            BitConverter.Int64BitsToDouble(copy.GetDynamicNumeric(rowIndex: 2, ProcessTableColumnKind.CPU)));
+        Assert.Equal(expected: "engine 2", copy.GetDynamicText(rowIndex: 2, ProcessTableColumnKind.GPUEngine));
         Assert.Same(source.StaticRows[1], copy.StaticRows[1]);
 
         copy.Reset();
         Assert.Null(copy.Schema);
-        Assert.Equal(0, copy.Count);
+        Assert.Equal(expected: 0, copy.Count);
         Assert.Empty(copy.StaticRows);
         Assert.Empty(copy.DynamicNumericValues);
         Assert.Empty(copy.DynamicTextValues);
     }
 
     private static ProcessColumnSetting Setting(ProcessTableColumnKind column, bool visible) =>
-        new()
-        {
-            Column = column,
-            Visible = visible,
-            Width = ProcessTableColumnCatalog.Get(column).DefaultWidth
-        };
+        new() { Column = column, Visible = visible, Width = ProcessTableColumnCatalog.Get(column).DefaultWidth };
 }

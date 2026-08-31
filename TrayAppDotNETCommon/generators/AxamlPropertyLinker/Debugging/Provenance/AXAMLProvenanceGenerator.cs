@@ -18,7 +18,7 @@ internal static class AXAMLProvenanceGenerator
         IncrementalValueProvider<AXAMLProvenanceSettings> settings =
             context.AnalyzerConfigOptionsProvider.Select(static (provider, _) => ReadSettings(provider));
         IncrementalValuesProvider<AXAMLProvenanceDocument> documents = context.AdditionalTextsProvider
-            .Where(static text => text.Path.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase))
+            .Where(static text => text.Path.EndsWith(value: ".axaml", StringComparison.OrdinalIgnoreCase))
             .Combine(settings)
             .Select(static (value, cancellationToken) =>
                 ParseAdditionalText(value.Left, value.Right, cancellationToken))
@@ -53,7 +53,7 @@ internal static class AXAMLProvenanceGenerator
         XElement? root = document.Root;
         if (root == null) return null;
 
-        XName classAttributeName = XName.Get("Class", XamlNamespace);
+        XName classAttributeName = XName.Get(localName: "Class", XamlNamespace);
         string? ownerTypeName = root.Attribute(classAttributeName)?.Value;
         if (!IsQualifiedNamespace(ownerTypeName)) return null;
 
@@ -80,23 +80,19 @@ internal static class AXAMLProvenanceGenerator
     {
         AnalyzerConfigOptions options = optionsProvider.GlobalOptions;
         string rootNamespace = ReadRootNamespace(options);
-        _ = options.TryGetValue("build_property.ProjectDir", out string? projectDirectory);
+        _ = options.TryGetValue(key: "build_property.ProjectDir", out string? projectDirectory);
         return new AXAMLProvenanceSettings(rootNamespace, projectDirectory ?? string.Empty);
     }
 
     private static string ReadRootNamespace(AnalyzerConfigOptions options)
     {
-        if (options.TryGetValue("build_property.RootNamespace", out string? rootNamespace)
+        if (options.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace)
             && IsQualifiedNamespace(rootNamespace))
-        {
-            return rootNamespace!;
-        }
+            return rootNamespace;
 
-        if (options.TryGetValue("build_property.MSBuildProjectName", out string? projectName)
+        if (options.TryGetValue(key: "build_property.MSBuildProjectName", out string? projectName)
             && IsIdentifier(projectName))
-        {
-            return projectName!;
-        }
+            return projectName;
 
         return DefaultRootNamespace;
     }
@@ -109,7 +105,10 @@ internal static class AXAMLProvenanceGenerator
         if (parts.Length < 2) return false;
 
         foreach (string part in parts)
-            if (!IsIdentifier(part)) return false;
+        {
+            if (!IsIdentifier(part))
+                return false;
+        }
 
         return true;
     }

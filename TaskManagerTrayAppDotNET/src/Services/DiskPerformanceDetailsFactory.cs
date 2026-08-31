@@ -66,9 +66,7 @@ internal static class DiskPerformanceDetailsFactory
         string normalizedBusType = busType.Trim();
         if (normalizedBusType.StartsWith(SolidStateType, StringComparison.OrdinalIgnoreCase)
             || normalizedBusType.StartsWith(RotationalType, StringComparison.OrdinalIgnoreCase))
-        {
             return normalizedBusType;
-        }
 
         string mediaType = mediaKind switch
         {
@@ -80,19 +78,17 @@ internal static class DiskPerformanceDetailsFactory
             return normalizedBusType.Length > 0 ? normalizedBusType : GenericDiskType;
         if (normalizedBusType.Length == 0
             || normalizedBusType.Equals(GenericDiskType, StringComparison.OrdinalIgnoreCase)
-            || normalizedBusType.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-        {
+            || normalizedBusType.Equals(value: "Unknown", StringComparison.OrdinalIgnoreCase))
             return mediaType;
-        }
 
-        return string.Concat(mediaType, " (", normalizedBusType, ")");
+        return string.Concat(mediaType, str1: " (", normalizedBusType, str3: ")");
     }
 
     private static double NormalizePercent(double value) =>
-        double.IsFinite(value) ? Math.Clamp(value, 0, 100) : 0;
+        double.IsFinite(value) ? Math.Clamp(value, min: 0, max: 100) : 0;
 
     private static double NormalizeNonnegative(double value) =>
-        double.IsFinite(value) ? Math.Max(0, value) : 0;
+        double.IsFinite(value) ? Math.Max(val1: 0, value) : 0;
 
     private static double SaturatingAdd(double left, double right)
     {

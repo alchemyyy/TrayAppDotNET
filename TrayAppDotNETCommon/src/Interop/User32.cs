@@ -304,14 +304,29 @@ public static class User32
     [StructLayout(LayoutKind.Explicit)]
     public struct RAWMOUSE
     {
-        [FieldOffset(0)] public ushort usFlags;
-        [FieldOffset(4)] public uint ulButtons;
-        [FieldOffset(4)] public ushort usButtonFlags;
-        [FieldOffset(6)] public short usButtonData;
-        [FieldOffset(8)] public uint ulRawButtons;
-        [FieldOffset(12)] public int lLastX;
-        [FieldOffset(16)] public int lLastY;
-        [FieldOffset(20)] public uint ulExtraInformation;
+        [FieldOffset(0)]
+        public ushort usFlags;
+
+        [FieldOffset(4)]
+        public uint ulButtons;
+
+        [FieldOffset(4)]
+        public ushort usButtonFlags;
+
+        [FieldOffset(6)]
+        public short usButtonData;
+
+        [FieldOffset(8)]
+        public uint ulRawButtons;
+
+        [FieldOffset(12)]
+        public int lLastX;
+
+        [FieldOffset(16)]
+        public int lLastY;
+
+        [FieldOffset(20)]
+        public uint ulExtraInformation;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -326,9 +341,14 @@ public static class User32
     [StructLayout(LayoutKind.Explicit)]
     public struct RAWINPUT
     {
-        [FieldOffset(0)] public RAWINPUTHEADER header;
-        [FieldOffset(24)] public RAWMOUSE mouse;
-        [FieldOffset(24)] public RAWHID hid;
+        [FieldOffset(0)]
+        public RAWINPUTHEADER header;
+
+        [FieldOffset(24)]
+        public RAWMOUSE mouse;
+
+        [FieldOffset(24)]
+        public RAWHID hid;
     }
 
     [StructLayout(LayoutKind.Sequential)]

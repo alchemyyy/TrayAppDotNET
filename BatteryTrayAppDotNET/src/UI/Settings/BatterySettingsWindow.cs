@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using BatteryTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
@@ -244,7 +243,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
                 L(nameof(AppStrings.Settings_Triggers_Description)),
                 p,
-                new Thickness(0, 0, 0, 12)));
+                new Thickness(left: 0, top: 0, right: 0, bottom: 12)));
 
             _settings.EnsureTriggerDefaults();
             StackPanel triggerPanel = new();
@@ -266,7 +265,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Border emptyCard = RawCard(
                 TrayAppDotNETSettingsUI.DescriptionText(L(nameof(AppStrings.Settings_Triggers_Empty)), Palette),
                 Palette);
-            ControlNames.AssignLogicalSubtree(emptyCard, "TriggerCard");
+            ControlNames.AssignLogicalSubtree(emptyCard, parentName: "TriggerCard");
             _triggerPanel.Children.Add(emptyCard);
             return;
         }
@@ -295,10 +294,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             value => trigger.Action = value,
             p);
 
-        TextBlock arrow = TrayAppDotNETSettingsUI.Text("->", p, 14, FontWeight.SemiBold);
+        TextBlock arrow = TrayAppDotNETSettingsUI.Text(text: "->", p, fontSize: 14, FontWeight.SemiBold);
         arrow.HorizontalAlignment = HorizontalAlignment.Center;
         arrow.VerticalAlignment = VerticalAlignment.Center;
-        arrow.Margin = new Thickness(8, 0);
+        arrow.Margin = new Thickness(horizontal: 8, vertical: 0);
 
         Grid selectorRow = new()
         {
@@ -312,9 +311,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         condition.HorizontalAlignment = HorizontalAlignment.Stretch;
         action.HorizontalAlignment = HorizontalAlignment.Stretch;
         selectorRow.Children.Add(condition);
-        Grid.SetColumn(arrow, 1);
+        Grid.SetColumn(arrow, value: 1);
         selectorRow.Children.Add(arrow);
-        Grid.SetColumn(action, 2);
+        Grid.SetColumn(action, value: 2);
         selectorRow.Children.Add(action);
 
         StackPanel content = new() { Spacing = 8 };
@@ -328,13 +327,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             CornerRadius = RadiusLarge,
-            Padding = new Thickness(16, 12),
-            Margin = new Thickness(0, 0, 0, 6),
+            Padding = new Thickness(horizontal: 16, vertical: 12),
+            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 6),
             Child = content,
             Focusable = true,
             Cursor = TrayAppDotNETCursors.Hand
         };
-        ControlNames.Assign(card, "TriggerCard");
+        ControlNames.Assign(card, parentName: "TriggerCard");
 
         bool pointerOver = false;
         bool pointerPressed = false;
@@ -364,7 +363,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             _triggerCapturedPointer = e.Pointer;
             _triggerDragStart = e.GetPosition(triggerPanel);
             _draggedTriggerPointerOffsetY = e.GetPosition(card).Y;
-            _draggedTriggerHeight = Math.Max(1, card.Bounds.Height);
+            _draggedTriggerHeight = Math.Max(val1: 1, card.Bounds.Height);
             _draggedTriggerTargetIndex = _settings.Triggers.IndexOf(trigger);
             pointerPressed = true;
             UpdateTriggerCardVisual(card, trigger, p, pointerOver, pointerPressed);
@@ -393,7 +392,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             double draggedMidpoint = current.Y - _draggedTriggerPointerOffsetY + _draggedTriggerHeight / 2.0;
             _draggedTriggerTargetIndex = TriggerInsertionIndexFromMidpoint(draggedMidpoint);
             ApplyTriggerDragPreview();
-            card.RenderTransform = new TranslateTransform(0, current.Y - _triggerDragStart.Y);
+            card.RenderTransform = new TranslateTransform(x: 0, current.Y - _triggerDragStart.Y);
             e.Handled = true;
         };
         card.PointerReleased += (_, e) =>
@@ -428,7 +427,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             card,
             L(nameof(AppStrings.Settings_Triggers_Card_ToolTip)));
         Border registeredCard = TrayAppDotNETSettingsCards.RegisterSearchCard(card);
-        ControlNames.AssignLogicalSubtree(registeredCard, "TriggerCard");
+        ControlNames.AssignLogicalSubtree(registeredCard, parentName: "TriggerCard");
         return registeredCard;
     }
 
@@ -440,7 +439,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         SettingsPalette p)
         where TEnum : struct, Enum
     {
-        SettingsComboBox combo = TrayAppDotNETSettingsUI.ComboBox(p, 153);
+        SettingsComboBox combo = TrayAppDotNETSettingsUI.ComboBox(p, width: 153);
         combo.Width = double.NaN;
         combo.MinWidth = 153;
         combo.Items.Add(PlaceholderComboItem(placeholder, p));
@@ -532,14 +531,14 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             Control child = triggerPanel.Children[i];
             if (ReferenceEquals(child, _draggedTriggerRow)) continue;
-            Point? topLeft = child.TranslatePoint(new Point(0, 0), triggerPanel);
+            Point? topLeft = child.TranslatePoint(new Point(x: 0, y: 0), triggerPanel);
             if (topLeft == null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
         int max = _settings.Triggers.Count - (_draggedTrigger != null ? 1 : 0);
-        return Math.Clamp(insertion, 0, Math.Max(0, max));
+        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
     }
 
     private void ApplyTriggerDragPreview()
@@ -551,8 +550,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         int sourceIndex = _settings.Triggers.IndexOf(_draggedTrigger);
         if (sourceIndex < 0) return;
 
-        int targetIndex = Math.Clamp(_draggedTriggerTargetIndex, 0, Math.Max(0, _settings.Triggers.Count - 1));
-        double offset = Math.Max(1, _draggedTriggerHeight + Math.Max(0, _draggedTriggerRow.Margin.Bottom));
+        int targetIndex = Math.Clamp(_draggedTriggerTargetIndex, min: 0,
+            Math.Max(val1: 0, _settings.Triggers.Count - 1));
+        double offset = Math.Max(val1: 1, _draggedTriggerHeight + Math.Max(val1: 0, _draggedTriggerRow.Margin.Bottom));
         if (targetIndex < sourceIndex)
         {
             for (int i = targetIndex; i < sourceIndex; i++)
@@ -571,7 +571,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         if (triggerPanel == null) return;
         if (index < 0 || index >= triggerPanel.Children.Count) return;
         if (ReferenceEquals(triggerPanel.Children[index], _draggedTriggerRow)) return;
-        triggerPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+        triggerPanel.Children[index].RenderTransform = new TranslateTransform(x: 0, offset);
     }
 
     private void ResetTriggerDragPreview()
@@ -608,7 +608,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             if (currentIndex >= 0 && targetIndex != currentIndex)
             {
                 _settings.Triggers.RemoveAt(currentIndex);
-                _settings.Triggers.Insert(Math.Clamp(targetIndex, 0, _settings.Triggers.Count), dragged);
+                _settings.Triggers.Insert(Math.Clamp(targetIndex, min: 0, _settings.Triggers.Count), dragged);
                 reordered = true;
             }
         }
@@ -705,8 +705,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.AllowFlyoutUndock,
                 v => _settings.AllowFlyoutUndock = v,
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Flyout),
-                searchKeywords:
+                () => RebuildShell(BatterySettingsPage.Flyout),
                 [
                     L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
                 ]));
@@ -781,19 +780,19 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
                 L(nameof(AppStrings.Settings_Hotkeys_SectionDescription)),
                 p,
-                new Thickness(0, 0, 0, 16)));
+                new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-            TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, 240);
+            TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240);
             StackPanel searchRow = new()
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 12)
+                Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 12)
             };
             TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(
                 L(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
             searchLabel.VerticalAlignment = VerticalAlignment.Center;
-            searchLabel.Margin = new Thickness(0, 0, 8, 0);
+            searchLabel.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
             searchRow.Children.Add(searchLabel);
             searchRow.Children.Add(searchBox);
             stack.Children.Add(searchRow);
@@ -839,12 +838,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, 170);
-        modifiers.Padding = new Thickness(8, 0, 2, 0);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
+        modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in TrayAppDotNETHotkeyModifierOptions.Create(L))
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
@@ -910,24 +909,27 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        StackPanel text = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(left: 0, top: 0, right: 12, bottom: 0)
+        };
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, p));
         text.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(description, p));
         grid.Children.Add(text);
 
-        modifiers.Margin = new Thickness(0, 0, 8, 0);
-        keyBox.Margin = new Thickness(0, 0, 8, 0);
-        Grid.SetColumn(modifiers, 1);
-        Grid.SetColumn(keyBox, 2);
-        Grid.SetColumn(addButton, 3);
+        modifiers.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
+        keyBox.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
+        Grid.SetColumn(modifiers, value: 1);
+        Grid.SetColumn(keyBox, value: 2);
+        Grid.SetColumn(addButton, value: 3);
         grid.Children.Add(modifiers);
         grid.Children.Add(keyBox);
         grid.Children.Add(addButton);
 
-        entries.Margin = new Thickness(0, 8, 8, 0);
-        Grid.SetRow(entries, 1);
-        Grid.SetColumn(entries, 1);
-        Grid.SetColumnSpan(entries, 2);
+        entries.Margin = new Thickness(left: 0, top: 8, right: 8, bottom: 0);
+        Grid.SetRow(entries, value: 1);
+        Grid.SetColumn(entries, value: 1);
+        Grid.SetColumnSpan(entries, value: 2);
         grid.Children.Add(entries);
 
         Border card = RawCard(grid, p);
@@ -981,12 +983,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     {
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
         display.VerticalAlignment = VerticalAlignment.Center;
-        display.Margin = new Thickness(12, 6, 0, 6);
+        display.Margin = new Thickness(left: 12, top: 6, right: 0, bottom: 6);
 
         TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
         status.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         status.VerticalAlignment = VerticalAlignment.Center;
-        status.Margin = new Thickness(0, 0, 8, 0);
+        status.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
 
         if (AppServices.HotkeyService == null)
         {
@@ -1034,8 +1036,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.Children.Add(display);
-        Grid.SetColumn(status, 1);
-        Grid.SetColumn(delete, 2);
+        Grid.SetColumn(status, value: 1);
+        Grid.SetColumn(delete, value: 2);
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
@@ -1043,10 +1045,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
-            Margin = new Thickness(0, 0, 0, 4),
+            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 4),
             Child = grid
         };
-        ControlNames.AssignLogicalSubtree(card, "HotkeyBinding");
+        ControlNames.AssignLogicalSubtree(card, parentName: "HotkeyBinding");
         return card;
     }
 
@@ -1096,7 +1098,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         _settings.ThemeMode = value;
                 },
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
+                () => RebuildShell(BatterySettingsPage.Theme),
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
@@ -1107,13 +1109,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.UseWindows11SettingsNavigation,
                 value => _settings.UseWindows11SettingsNavigation = value,
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
-                searchKeywords:
+                () => RebuildShell(BatterySettingsPage.Theme),
                 [
                     L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
-                "Text",
+                name: "Text",
                 L(nameof(AppStrings.Settings_Theme_TextColor_Title)),
                 L(nameof(AppStrings.Settings_Theme_TextColor_Description)),
                 L(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
@@ -1122,12 +1123,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
                 p,
-                searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
-                "Background",
+                name: "Background",
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
@@ -1136,7 +1136,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 theme.Background.Light,
                 theme.Background.Dark,
                 p,
-                searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
                 ]));
@@ -1144,7 +1143,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
             stack.Children.Add(VariantColorCard(
-                "FlyoutBackground",
+                name: "FlyoutBackground",
                 L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Title)),
                 L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Description)),
                 L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_LightTooltip)),
@@ -1153,12 +1152,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 theme.Background.Light,
                 theme.Background.Dark,
                 p,
-                searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
-                "FlyoutTitleBarBackground",
+                name: "FlyoutTitleBarBackground",
                 L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title)),
                 L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Description)),
                 L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip)),
@@ -1167,7 +1165,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 theme.FooterBackground.Light,
                 theme.FooterBackground.Dark,
                 p,
-                searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords))
                 ]));
@@ -1180,8 +1177,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.EnableRoundedCorners,
                 v => _settings.EnableRoundedCorners = v,
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
-                searchKeywords:
+                () => RebuildShell(BatterySettingsPage.Theme),
                 [
                     L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
                 ]));
@@ -1190,8 +1186,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L(nameof(AppStrings.Settings_Theme_Animations_Description)),
                 [
                     (nameof(TrayAppDotNETAnimationMode.System), L(nameof(AppStrings.Settings_Theme_Animations_System))),
-                    (nameof(TrayAppDotNETAnimationMode.Disabled), L(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
-                    (nameof(TrayAppDotNETAnimationMode.Enabled), L(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
+                    (nameof(TrayAppDotNETAnimationMode.Disabled),
+                        L(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
+                    (nameof(TrayAppDotNETAnimationMode.Enabled),
+                        L(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
                 ],
                 _settings.AnimationMode.ToString(),
                 tag =>
@@ -1200,7 +1198,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         _settings.AnimationMode = value;
                 },
                 p,
-                afterSave: () =>
+                () =>
                 {
                     if (Application.Current != null)
                         TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
@@ -1223,8 +1221,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
                 },
                 p,
-                " ms",
-                searchKeywords:
+                suffix: " ms",
                 [
                     L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
                 ]));
@@ -1232,7 +1229,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
             stack.Children.Add(VariantColorCard(
-                "TrayIcon",
+                name: "TrayIcon",
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
@@ -1241,7 +1238,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
                 p,
-                searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
                 ]));

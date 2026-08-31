@@ -60,16 +60,19 @@ public sealed class CriticalProcessActionsTests
     public void KillHelperMailboxLayoutMatchesTheNativeProtocol()
     {
         Assert.Equal(KillHelperProtocol.MailboxSize, Marshal.SizeOf<KillHelperMailbox>());
-        Assert.Equal(64, Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.ArmPayloadSequence)).ToInt32());
-        Assert.Equal(128, Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.FirePayloadSequence)).ToInt32());
-        Assert.Equal(192, Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.FireResponseSequence)).ToInt32());
+        Assert.Equal(expected: 64,
+            Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.ArmPayloadSequence)).ToInt32());
+        Assert.Equal(expected: 128,
+            Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.FirePayloadSequence)).ToInt32());
+        Assert.Equal(expected: 192,
+            Marshal.OffsetOf<KillHelperMailbox>(nameof(KillHelperMailbox.FireResponseSequence)).ToInt32());
     }
 
     private static Process StartSleepingProcess()
     {
         ProcessStartInfo startInfo = new()
         {
-            FileName = Path.Combine(Environment.SystemDirectory, "ping.exe"),
+            FileName = Path.Combine(Environment.SystemDirectory, path2: "ping.exe"),
             UseShellExecute = false,
             CreateNoWindow = true
         };

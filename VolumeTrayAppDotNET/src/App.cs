@@ -1,19 +1,18 @@
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
+#if DEBUG
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using TrayAppDotNETCommon.UI.WarmWindows;
-#if DEBUG
-using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using VolumeTrayAppDotNET.Audio;
-using VolumeTrayAppDotNET.Localization;
 using VolumeTrayAppDotNET.UI.Flyout;
 using VolumeTrayAppDotNET.UI.Settings;
 using VolumeTrayAppDotNET.UI.Tray;
@@ -87,13 +86,14 @@ internal sealed class VolumeAvaloniaApp : Application
         if (Program.IsInstallerMode)
         {
             LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = AppTheme.LoadAppIcon(),
-                Palette = TrayMenuPalette(),
-                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-            });
+            TrayAppDotNETInstallerRunner.Show(this,
+                new TrayAppDotNETInstallerWindowOptions
+                {
+                    Layout = AppServices.InstallLayout,
+                    Icon = AppTheme.LoadAppIcon(),
+                    Palette = TrayMenuPalette(),
+                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -230,10 +230,10 @@ internal sealed class VolumeAvaloniaApp : Application
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
                     repositoryName: "TrayAppDotNET",
-                    applicationName: Program.ApplicationName,
-                    currentBuild: BuildInfo.BuildNumber,
-                    saveSettings: _settings.Save,
-                    sharedSettingsDirectory: Program.LocalAppDataRoot);
+                    Program.ApplicationName,
+                    BuildInfo.BuildNumber,
+                    _settings.Save,
+                    Program.LocalAppDataRoot);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;
@@ -252,7 +252,7 @@ internal sealed class VolumeAvaloniaApp : Application
             IsScrollEnabled = _settings?.TrayScrollEnabled ?? true,
             IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true,
             PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
-                ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault,
+                                                  ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault,
             IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
@@ -308,9 +308,7 @@ internal sealed class VolumeAvaloniaApp : Application
             or nameof(AudioDevice.State)
             or nameof(AudioDevice.IsDefault)
             or nameof(AudioDevice.IsDefaultCommunications))
-        {
             InvalidateTrayMenuSnapshot();
-        }
     }
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -319,9 +317,7 @@ internal sealed class VolumeAvaloniaApp : Application
             or nameof(AppSettings.ShowTrayMenuSoundsLink)
             or nameof(AppSettings.ShowTrayMenuCommunicationsLink)
             or nameof(AppSettings.ShowTrayMenuDeviceLinks))
-        {
             InvalidateTrayMenuSnapshot();
-        }
     }
 
     private void ClearTrayMenuDeviceSubscriptions()
@@ -438,7 +434,7 @@ internal sealed class VolumeAvaloniaApp : Application
         _trayIcon.IsScrollEnabled = _settings?.TrayScrollEnabled ?? true;
         _trayIcon.IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true;
         _trayIcon.PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
-            ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault;
+                                                        ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault;
     }
 
     private void ApplyKeepWarmPolicies()
@@ -663,7 +659,7 @@ internal sealed class VolumeAvaloniaApp : Application
         if (device == null) return;
 
         double currentPercent = device.Volume * 100.0;
-        double next = Math.Clamp(currentPercent + (delta > 0 ? stepPercent : -stepPercent), 0, 100);
+        double next = Math.Clamp(currentPercent + (delta > 0 ? stepPercent : -stepPercent), min: 0, max: 100);
         if (Math.Abs(currentPercent - next) >= 0.001)
         {
             device.Volume = (float)(next / 100.0);
@@ -947,7 +943,6 @@ internal sealed class VolumeAvaloniaApp : Application
 
                 _settingsWindow = null;
             }
-
         }
         catch (Exception ex)
         {

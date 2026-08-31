@@ -14,25 +14,25 @@ public sealed class UIControlLifetimeTests
         int disposedCount = 0;
         SettingsSearchableListBox list = new(Palette());
         list.Items.Add(new SettingsSearchableListBoxItem(
-            "item",
-            "Item",
+            tag: "item",
+            text: "Item",
             contentFactory: () => new CountingControl(
                 () => createdCount++,
                 () => disposedCount++)));
 
-        Assert.Equal(1, createdCount);
-        Assert.Equal(0, disposedCount);
+        Assert.Equal(expected: 1, createdCount);
+        Assert.Equal(expected: 0, disposedCount);
 
         list.ItemPadding = new Avalonia.Thickness(2);
-        Assert.Equal(2, createdCount);
-        Assert.Equal(1, disposedCount);
+        Assert.Equal(expected: 2, createdCount);
+        Assert.Equal(expected: 1, disposedCount);
 
         list.Items.Clear();
-        Assert.Equal(2, createdCount);
-        Assert.Equal(2, disposedCount);
+        Assert.Equal(expected: 2, createdCount);
+        Assert.Equal(expected: 2, disposedCount);
 
         list.Dispose();
-        Assert.Equal(2, disposedCount);
+        Assert.Equal(expected: 2, disposedCount);
     });
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class UIControlLifetimeTests
         createdCount = 0;
         list.Items.Clear();
 
-        Assert.Equal(0, createdCount);
+        Assert.Equal(expected: 0, createdCount);
         list.Dispose();
     });
 
@@ -68,29 +68,29 @@ public sealed class UIControlLifetimeTests
             int disposedCount = 0;
             SettingsSearchableListBox list = new(Palette());
             list.Items.Add(new SettingsSearchableListBoxItem(
-                "stable",
-                "Stable",
+                tag: "stable",
+                text: "Stable",
                 contentFactory: () => new CountingControl(
                     () => createdCount++,
                     () => disposedCount++)));
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
                 list.Items.Add(new SettingsSearchableListBoxItem(
-                    "failing",
-                    "Failing",
+                    tag: "failing",
+                    text: "Failing",
                     contentFactory: static () => throw new InvalidOperationException("expected row failure"))));
 
-            Assert.Equal("expected row failure", exception.Message);
+            Assert.Equal(expected: "expected row failure", exception.Message);
             Assert.Single(list.Items);
-            Assert.Equal("stable", list.Items[0].Tag);
-            Assert.Equal(2, createdCount);
-            Assert.Equal(1, disposedCount);
+            Assert.Equal(expected: "stable", list.Items[0].Tag);
+            Assert.Equal(expected: 2, createdCount);
+            Assert.Equal(expected: 1, disposedCount);
 
             list.ItemMargin = new Avalonia.Thickness(1);
-            Assert.Equal(3, createdCount);
-            Assert.Equal(2, disposedCount);
+            Assert.Equal(expected: 3, createdCount);
+            Assert.Equal(expected: 2, disposedCount);
             list.Dispose();
-            Assert.Equal(3, disposedCount);
+            Assert.Equal(expected: 3, disposedCount);
         });
 
     [Fact]
@@ -100,8 +100,8 @@ public sealed class UIControlLifetimeTests
         int disposedCount = 0;
         SettingsComboBox comboBox = new(Palette(), autoSizeToText: false);
         SettingsComboBoxItem item = new(
-            "item",
-            "Item",
+            tag: "item",
+            text: "Item",
             Palette(),
             () => new CountingControl(
                 () => createdCount++,
@@ -109,22 +109,22 @@ public sealed class UIControlLifetimeTests
         comboBox.Items.Add(item);
         comboBox.SelectedItem = item;
 
-        Assert.Equal(2, createdCount);
-        Assert.Equal(0, disposedCount);
+        Assert.Equal(expected: 2, createdCount);
+        Assert.Equal(expected: 0, disposedCount);
 
         comboBox.AutoSizeToText = true;
-        Assert.Equal(3, createdCount);
-        Assert.Equal(1, disposedCount);
+        Assert.Equal(expected: 3, createdCount);
+        Assert.Equal(expected: 1, disposedCount);
 
         comboBox.SelectedItem = null;
-        Assert.Equal(4, createdCount);
-        Assert.Equal(3, disposedCount);
+        Assert.Equal(expected: 4, createdCount);
+        Assert.Equal(expected: 3, disposedCount);
 
         comboBox.Items.Clear();
-        Assert.Equal(4, disposedCount);
+        Assert.Equal(expected: 4, disposedCount);
 
         comboBox.Dispose();
-        Assert.Equal(4, disposedCount);
+        Assert.Equal(expected: 4, disposedCount);
     });
 
     [Fact]
@@ -134,8 +134,8 @@ public sealed class UIControlLifetimeTests
             int factoryCallCount = 0;
             SettingsComboBox comboBox = new(Palette(), autoSizeToText: false);
             SettingsComboBoxItem item = new(
-                "item",
-                "Item",
+                tag: "item",
+                text: "Item",
                 Palette(),
                 () =>
                 {
@@ -149,9 +149,9 @@ public sealed class UIControlLifetimeTests
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
                 comboBox.SelectedItem = item);
 
-            Assert.Equal("expected selection failure", exception.Message);
+            Assert.Equal(expected: "expected selection failure", exception.Message);
             Assert.Null(comboBox.SelectedItem);
-            Assert.Equal(-1, comboBox.SelectedIndex);
+            Assert.Equal(expected: -1, comboBox.SelectedIndex);
             comboBox.Dispose();
         });
 
@@ -191,7 +191,7 @@ public sealed class UIControlLifetimeTests
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
             _disposed();
         }
     }

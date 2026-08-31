@@ -32,7 +32,7 @@ internal static class ProcessSearchAutocompleteLogic
         out ProcessSearchColumnToken token)
     {
         string queryText = text ?? string.Empty;
-        int boundedCaretIndex = Math.Clamp(caretIndex, 0, queryText.Length);
+        int boundedCaretIndex = Math.Clamp(caretIndex, min: 0, queryText.Length);
         int openingBraceIndex = -1;
         for (int characterIndex = boundedCaretIndex - 1; characterIndex >= 0; characterIndex--)
         {
@@ -54,7 +54,7 @@ internal static class ProcessSearchAutocompleteLogic
             return false;
         }
 
-        int closingBraceIndex = queryText.IndexOf('}', openingBraceIndex + 1);
+        int closingBraceIndex = queryText.IndexOf(value: '}', openingBraceIndex + 1);
         if (closingBraceIndex >= 0 && boundedCaretIndex > closingBraceIndex)
         {
             token = default;
@@ -76,12 +76,12 @@ internal static class ProcessSearchAutocompleteLogic
         if (maximumSuggestionCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maximumSuggestionCount));
 
-        string[] nicknames = new string[ProcessTableColumnCatalog.Definitions.Length];
+        string?[] nicknames = new string?[ProcessTableColumnCatalog.Definitions.Length];
         for (int settingIndex = 0; settingIndex < columnSettings.Count; settingIndex++)
         {
             ProcessColumnSetting setting = columnSettings[settingIndex];
             if (!Enum.IsDefined(setting.Column)) continue;
-            nicknames[(int)setting.Column] = setting.Nickname?.Trim() ?? string.Empty;
+            nicknames[(int)setting.Column] = setting.Nickname.Trim();
         }
 
         List<RankedSuggestion> rankedSuggestions = [];
@@ -108,7 +108,7 @@ internal static class ProcessSearchAutocompleteLogic
 
             string displayText = nickname.Length == 0
                 ? definition.Title
-                : string.Concat(definition.Title, " (", nickname, ")");
+                : string.Concat(definition.Title, str1: " (", nickname, str3: ")");
             ProcessSearchColumnSuggestion suggestion = new(
                 definition.Kind,
                 definition.Title,
@@ -141,16 +141,16 @@ internal static class ProcessSearchAutocompleteLogic
         if (!TryGetColumnToken(queryText, caretIndex, out ProcessSearchColumnToken token))
         {
             completedText = queryText;
-            completedCaretIndex = Math.Clamp(caretIndex, 0, queryText.Length);
+            completedCaretIndex = Math.Clamp(caretIndex, min: 0, queryText.Length);
             return false;
         }
 
         int replacementEndIndex = token.ClosingBraceIndex >= 0
             ? token.ClosingBraceIndex + 1
-            : FindIncompleteTokenEnd(queryText, Math.Clamp(caretIndex, 0, queryText.Length));
+            : FindIncompleteTokenEnd(queryText, Math.Clamp(caretIndex, min: 0, queryText.Length));
         StringBuilder builder = new(
             queryText.Length + suggestion.ColumnName.Length - (replacementEndIndex - token.OpeningBraceIndex));
-        builder.Append(queryText, 0, token.OpeningBraceIndex);
+        builder.Append(queryText, startIndex: 0, token.OpeningBraceIndex);
         builder.Append('{');
         builder.Append(suggestion.ColumnName);
         builder.Append('}');
@@ -322,7 +322,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
                 eventArgs.Handled = true;
                 break;
             case Key.Up when Popup.IsOpen && _suggestions.Length > 0:
-                _selectedIndex = Math.Max(_selectedIndex - 1, 0);
+                _selectedIndex = Math.Max(_selectedIndex - 1, val2: 0);
                 UpdateItemVisuals();
                 eventArgs.Handled = true;
                 break;
@@ -460,7 +460,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         _popupBorder.Padding = resources.AxamlTaskManagerContextMenu.AutocompletePadding;
         Popup.VerticalOffset = resources.AxamlTaskManagerContextMenu.AutocompleteVerticalOffset;
         _maximumSuggestionCount = Math.Max(
-            1,
+            val1: 1,
             resources.AxamlTaskManagerContextMenu.AutocompleteMaximumSuggestionCount);
     }
 
@@ -473,10 +473,10 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
             return;
         }
 
-        int caretIndex = Math.Clamp(_textBox.CaretIndex, 0, (_textBox.Text ?? string.Empty).Length);
+        int caretIndex = Math.Clamp(_textBox.CaretIndex, min: 0, (_textBox.Text ?? string.Empty).Length);
         Rect caretRectangle = presenter.TextLayout.HitTestTextPosition(caretIndex);
         Point? caretPosition = presenter.TranslatePoint(caretRectangle.Position, _textBox);
-        Popup.HorizontalOffset = Math.Max(0, caretPosition?.X ?? 0);
+        Popup.HorizontalOffset = Math.Max(val1: 0, caretPosition?.X ?? 0);
     }
 
     private void OnSuggestionPointerEntered(object? sender, PointerEventArgs eventArgs)

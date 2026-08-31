@@ -9,7 +9,7 @@ internal static class TaskManagerUsageFormatter
     private const double BytesPerMegabit = 1_000_000.0 / 8;
     private const string UnavailableText = "Unavailable";
 
-    public static string FormatCPUTime(long ticks) => ProcessLifetime.Format(Math.Max(0, ticks));
+    public static string FormatCPUTime(long ticks) => ProcessLifetime.Format(Math.Max(val1: 0, ticks));
 
     public static string FormatAppHistoryNetwork(
         double bytes,
@@ -19,8 +19,8 @@ internal static class TaskManagerUsageFormatter
 
         CultureInfo effectiveCulture = culture ?? CultureInfo.CurrentCulture;
         return string.Concat(
-            (bytes / BytesPerMebibyte).ToString("0.#", effectiveCulture),
-            " MB");
+            (bytes / BytesPerMebibyte).ToString(format: "0.#", effectiveCulture),
+            str1: " MB");
     }
 
     public static string FormatCPUPercent(
@@ -30,7 +30,7 @@ internal static class TaskManagerUsageFormatter
         if (!double.IsFinite(percent) || percent < 0) return UnavailableText;
 
         CultureInfo effectiveCulture = culture ?? CultureInfo.CurrentCulture;
-        return string.Concat(percent.ToString("0.#", effectiveCulture), "%");
+        return string.Concat(percent.ToString(format: "0.#", effectiveCulture), str1: "%");
     }
 
     public static string FormatMemory(
@@ -41,8 +41,8 @@ internal static class TaskManagerUsageFormatter
 
         CultureInfo effectiveCulture = culture ?? CultureInfo.CurrentCulture;
         return string.Concat(
-            (bytes / BytesPerMebibyte).ToString("N1", effectiveCulture),
-            " MB");
+            (bytes / BytesPerMebibyte).ToString(format: "N1", effectiveCulture),
+            str1: " MB");
     }
 
     public static string FormatDiskRate(
@@ -55,8 +55,8 @@ internal static class TaskManagerUsageFormatter
 
         CultureInfo effectiveCulture = culture ?? CultureInfo.CurrentCulture;
         return string.Concat(
-            (bytesPerSecond / BytesPerMebibyte).ToString("0.#", effectiveCulture),
-            " MB/s");
+            (bytesPerSecond / BytesPerMebibyte).ToString(format: "0.#", effectiveCulture),
+            str1: " MB/s");
     }
 
     public static string FormatNetworkRate(
@@ -69,8 +69,8 @@ internal static class TaskManagerUsageFormatter
 
         CultureInfo effectiveCulture = culture ?? CultureInfo.CurrentCulture;
         return string.Concat(
-            (bytesPerSecond / BytesPerMegabit).ToString("0.#", effectiveCulture),
-            " Mbps");
+            (bytesPerSecond / BytesPerMegabit).ToString(format: "0.#", effectiveCulture),
+            str1: " Mbps");
     }
 
     public static string FormatSessionState(UserSessionState state) => state switch

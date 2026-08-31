@@ -34,10 +34,12 @@ internal static unsafe partial class ShellFlyout
     private static partial int WindowsDeleteString(IntPtr hstring);
 
     public static bool ShowNetworkFlyoutWin10() =>
-        ShowFlyoutCOM("Windows.Internal.ShellExperience.NetworkFlyout", IID_NetworkFlyoutExperienceManager);
+        ShowFlyoutCOM(experienceName: "Windows.Internal.ShellExperience.NetworkFlyout",
+            IID_NetworkFlyoutExperienceManager);
 
     public static bool ShowControlCenter() =>
-        ShowFlyoutCOM("Windows.Internal.ShellExperience.ControlCenter", IID_ControlCenterExperienceManager);
+        ShowFlyoutCOM(experienceName: "Windows.Internal.ShellExperience.ControlCenter",
+            IID_ControlCenterExperienceManager);
 
     private ref struct ComHandles
     {

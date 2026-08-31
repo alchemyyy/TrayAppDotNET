@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.VisualTree;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -63,17 +62,13 @@ internal class TaskManagerPageLayout : Grid
         {
             Height = resources.AxamlTaskManagerPage.HeaderContentHeight,
             Margin = resources.AxamlTaskManagerPage.HeaderMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 #if DEBUG
         _header = header;
 #endif
         header.Children.Add(titleText);
-        Grid.SetColumn(HeaderActions, 1);
+        SetColumn(HeaderActions, value: 1);
         header.Children.Add(HeaderActions);
 
         MainContent = new Grid();
@@ -81,9 +76,9 @@ internal class TaskManagerPageLayout : Grid
         {
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = new Thickness(
-                0,
-                0,
-                0,
+                left: 0,
+                top: 0,
+                right: 0,
                 resources.AxamlProcessTable.GridLineThickness),
             Child = header
         };
@@ -92,14 +87,10 @@ internal class TaskManagerPageLayout : Grid
 #endif
         Grid surfaceLayout = new()
         {
-            RowDefinitions =
-            {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star)
-            },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) },
             Children = { headerFrame, MainContent }
         };
-        Grid.SetRow(MainContent, 1);
+        SetRow(MainContent, value: 1);
 
         Border pageSurface = new()
         {
@@ -112,7 +103,7 @@ internal class TaskManagerPageLayout : Grid
 #if DEBUG
         _pageSurface = pageSurface;
 #endif
-        Grid.SetRow(pageSurface, 1);
+        SetRow(pageSurface, value: 1);
         Children.Add(pageSurface);
     }
 
@@ -139,9 +130,9 @@ internal class TaskManagerPageLayout : Grid
         _header.Height = resources.AxamlTaskManagerPage.HeaderContentHeight;
         _header.Margin = resources.AxamlTaskManagerPage.HeaderMargin;
         _headerFrame.BorderThickness = new Thickness(
-            0,
-            0,
-            0,
+            left: 0,
+            top: 0,
+            right: 0,
             resources.AxamlProcessTable.GridLineThickness);
         _pageSurface.Background = TrayAppDotNETSettingsUI.Brush(
             resources.AxamlProcessTable.GridBackgroundColor);
@@ -157,7 +148,7 @@ internal class TaskManagerPageLayout : Grid
     /// <summary>Gets the main-content top edge in another control's coordinate space.</summary>
     internal bool TryGetMainContentTop(Control relativeTo, out double contentTop)
     {
-        Point? contentOrigin = MainContent.TranslatePoint(default, relativeTo);
+        Point? contentOrigin = MainContent.TranslatePoint(point: default, relativeTo);
         if (!contentOrigin.HasValue)
         {
             contentTop = 0;

@@ -18,18 +18,18 @@ public sealed class DeviceNicknameResolverTests
 
         Assert.True(seeded);
         Assert.True(settings.DeviceNicknamesInitialized);
-        Assert.Equal(2, settings.DeviceNicknameRules.Count);
-        Assert.Equal("{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
-        Assert.Equal("CPU", settings.DeviceNicknameRules[0].ReplacementString);
-        Assert.Equal("{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
-        Assert.Equal("GPU", settings.DeviceNicknameRules[1].ReplacementString);
+        Assert.Equal(expected: 2, settings.DeviceNicknameRules.Count);
+        Assert.Equal(expected: "{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
+        Assert.Equal(expected: "CPU", settings.DeviceNicknameRules[0].ReplacementString);
+        Assert.Equal(expected: "{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
+        Assert.Equal(expected: "GPU", settings.DeviceNicknameRules[1].ReplacementString);
 
         settings.DeviceNicknameRules[0].ReplacementString = "Processor";
 
         bool reseeded = settings.EnsureDefaultDeviceNicknameRules();
 
         Assert.False(reseeded);
-        Assert.Equal("Processor", settings.DeviceNicknameRules[0].ReplacementString);
+        Assert.Equal(expected: "Processor", settings.DeviceNicknameRules[0].ReplacementString);
     }
 
     /// <summary>
@@ -43,29 +43,21 @@ public sealed class DeviceNicknameResolverTests
             DeviceNicknamesInitialized = true,
             DeviceNicknameRules =
             [
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "^Custom$",
-                    ReplacementString = "Custom"
-                },
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "{HardwareType.CPU}",
-                    ReplacementString = "Processor"
-                }
+                new DeviceNicknameRule { TargetRegex = "^Custom$", ReplacementString = "Custom" },
+                new DeviceNicknameRule { TargetRegex = "{HardwareType.CPU}", ReplacementString = "Processor" }
             ]
         };
 
         bool loaded = settings.LoadDefaultDeviceNicknameRules();
 
         Assert.True(loaded);
-        Assert.Equal(3, settings.DeviceNicknameRules.Count);
-        Assert.Equal("{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
-        Assert.Equal("CPU", settings.DeviceNicknameRules[0].ReplacementString);
-        Assert.Equal("{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
-        Assert.Equal("GPU", settings.DeviceNicknameRules[1].ReplacementString);
-        Assert.Equal("^Custom$", settings.DeviceNicknameRules[2].TargetRegex);
-        Assert.Equal("Custom", settings.DeviceNicknameRules[2].ReplacementString);
+        Assert.Equal(expected: 3, settings.DeviceNicknameRules.Count);
+        Assert.Equal(expected: "{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
+        Assert.Equal(expected: "CPU", settings.DeviceNicknameRules[0].ReplacementString);
+        Assert.Equal(expected: "{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
+        Assert.Equal(expected: "GPU", settings.DeviceNicknameRules[1].ReplacementString);
+        Assert.Equal(expected: "^Custom$", settings.DeviceNicknameRules[2].TargetRegex);
+        Assert.Equal(expected: "Custom", settings.DeviceNicknameRules[2].ReplacementString);
     }
 
     /// <summary>
@@ -78,22 +70,22 @@ public sealed class DeviceNicknameResolverTests
         try
         {
             DataSource.DataSources.Clear();
-            AddSource("cpu0.temp", "Unhelpful Model Name", "Cpu");
-            AddSource("gpu0.temp", "AMD Radeon RX 7900 XTX", "GpuAmd");
-            AddSource("gpu1.temp", "NVIDIA GeForce RTX 5090", "GpuNvidia");
-            AddSource("storage0.temp", "NVIDIA Storage Device", "Storage");
-            AddSource("legacy0.temp", "AMD Ryzen 9 9950X", string.Empty);
+            AddSource(key: "cpu0.temp", controllerName: "Unhelpful Model Name", controllerHardwareType: "Cpu");
+            AddSource(key: "gpu0.temp", controllerName: "AMD Radeon RX 7900 XTX", controllerHardwareType: "GpuAmd");
+            AddSource(key: "gpu1.temp", controllerName: "NVIDIA GeForce RTX 5090", controllerHardwareType: "GpuNvidia");
+            AddSource(key: "storage0.temp", controllerName: "NVIDIA Storage Device", controllerHardwareType: "Storage");
+            AddSource(key: "legacy0.temp", controllerName: "AMD Ryzen 9 9950X", string.Empty);
 
             AppSettings settings = new();
             settings.EnsureDefaultDeviceNicknameRules();
             DeviceNicknameResolver resolver = DeviceNicknameResolver.Create(settings);
 
-            Assert.Equal("CPU", resolver.Resolve(DataSource.Find("cpu0.temp")));
-            Assert.Equal("GPU", resolver.Resolve(DataSource.Find("gpu0.temp")));
-            Assert.Equal("GPU 2", resolver.Resolve(DataSource.Find("gpu1.temp")));
-            Assert.Equal("NVIDIA Storage Device", resolver.Resolve(DataSource.Find("storage0.temp")));
-            Assert.Equal("AMD Ryzen 9 9950X", resolver.Resolve(DataSource.Find("legacy0.temp")));
-            Assert.Equal("Unhelpful Model Name", resolver.Resolve("Unhelpful Model Name"));
+            Assert.Equal(expected: "CPU", resolver.Resolve(DataSource.Find("cpu0.temp")));
+            Assert.Equal(expected: "GPU", resolver.Resolve(DataSource.Find("gpu0.temp")));
+            Assert.Equal(expected: "GPU 2", resolver.Resolve(DataSource.Find("gpu1.temp")));
+            Assert.Equal(expected: "NVIDIA Storage Device", resolver.Resolve(DataSource.Find("storage0.temp")));
+            Assert.Equal(expected: "AMD Ryzen 9 9950X", resolver.Resolve(DataSource.Find("legacy0.temp")));
+            Assert.Equal(expected: "Unhelpful Model Name", resolver.Resolve("Unhelpful Model Name"));
         }
         finally
         {
@@ -111,8 +103,8 @@ public sealed class DeviceNicknameResolverTests
         try
         {
             DataSource.DataSources.Clear();
-            AddSource("gpu0.temp", "NVIDIA GeForce RTX 5090", "GpuNvidia");
-            AddSource("gpu1.temp", "AMD Radeon RX 7900 XTX", "GpuAmd");
+            AddSource(key: "gpu0.temp", controllerName: "NVIDIA GeForce RTX 5090", controllerHardwareType: "GpuNvidia");
+            AddSource(key: "gpu1.temp", controllerName: "AMD Radeon RX 7900 XTX", controllerHardwareType: "GpuAmd");
 
             AppSettings settings = new()
             {
@@ -120,16 +112,15 @@ public sealed class DeviceNicknameResolverTests
                 [
                     new DeviceNicknameRule
                     {
-                        TargetRegex = "{HardwareType.GpuNvidia}",
-                        ReplacementString = "NVIDIA GPU"
+                        TargetRegex = "{HardwareType.GpuNvidia}", ReplacementString = "NVIDIA GPU"
                     }
                 ]
             };
 
             DeviceNicknameResolver resolver = DeviceNicknameResolver.Create(settings);
 
-            Assert.Equal("NVIDIA GPU", resolver.Resolve(DataSource.Find("gpu0.temp")));
-            Assert.Equal("AMD Radeon RX 7900 XTX", resolver.Resolve(DataSource.Find("gpu1.temp")));
+            Assert.Equal(expected: "NVIDIA GPU", resolver.Resolve(DataSource.Find("gpu0.temp")));
+            Assert.Equal(expected: "AMD Radeon RX 7900 XTX", resolver.Resolve(DataSource.Find("gpu1.temp")));
         }
         finally
         {
@@ -147,28 +138,20 @@ public sealed class DeviceNicknameResolverTests
         try
         {
             DataSource.DataSources.Clear();
-            AddSource("pump0.power", "Corsair Commander", "Cooler");
+            AddSource(key: "pump0.power", controllerName: "Corsair Commander", controllerHardwareType: "Cooler");
 
             AppSettings settings = new()
             {
                 DeviceNicknameRules =
                 [
-                    new DeviceNicknameRule
-                    {
-                        TargetRegex = "[",
-                        ReplacementString = "Broken"
-                    },
-                    new DeviceNicknameRule
-                    {
-                        TargetRegex = "Corsair.*",
-                        ReplacementString = "Pump"
-                    }
+                    new DeviceNicknameRule { TargetRegex = "[", ReplacementString = "Broken" },
+                    new DeviceNicknameRule { TargetRegex = "Corsair.*", ReplacementString = "Pump" }
                 ]
             };
 
             DeviceNicknameResolver resolver = DeviceNicknameResolver.Create(settings);
 
-            Assert.Equal("Pump", resolver.Resolve(DataSource.Find("pump0.power")));
+            Assert.Equal(expected: "Pump", resolver.Resolve(DataSource.Find("pump0.power")));
         }
         finally
         {
@@ -194,32 +177,23 @@ public sealed class DeviceNicknameResolverTests
                 },
                 new DeviceNicknameRule
                 {
-                    TargetRegex = ".*(GPU|Graphics|NVIDIA|GeForce|Radeon|Arc).*",
-                    ReplacementString = "GPU"
+                    TargetRegex = ".*(GPU|Graphics|NVIDIA|GeForce|Radeon|Arc).*", ReplacementString = "GPU"
                 },
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "^AMD\\ Ryzen\\ 9\\ 9950X$",
-                    ReplacementString = "CPU 2"
-                },
-                new DeviceNicknameRule
-                {
-                    TargetRegex = "^Corsair Commander$",
-                    ReplacementString = "Pump"
-                }
+                new DeviceNicknameRule { TargetRegex = "^AMD\\ Ryzen\\ 9\\ 9950X$", ReplacementString = "CPU 2" },
+                new DeviceNicknameRule { TargetRegex = "^Corsair Commander$", ReplacementString = "Pump" }
             ]
         };
 
         bool migrated = settings.EnsureDefaultDeviceNicknameRules();
 
         Assert.True(migrated);
-        Assert.Equal(3, settings.DeviceNicknameRules.Count);
-        Assert.Equal("{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
-        Assert.Equal("CPU", settings.DeviceNicknameRules[0].ReplacementString);
-        Assert.Equal("{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
-        Assert.Equal("GPU", settings.DeviceNicknameRules[1].ReplacementString);
-        Assert.Equal("^Corsair Commander$", settings.DeviceNicknameRules[2].TargetRegex);
-        Assert.Equal("Pump", settings.DeviceNicknameRules[2].ReplacementString);
+        Assert.Equal(expected: 3, settings.DeviceNicknameRules.Count);
+        Assert.Equal(expected: "{HardwareType.CPU}", settings.DeviceNicknameRules[0].TargetRegex);
+        Assert.Equal(expected: "CPU", settings.DeviceNicknameRules[0].ReplacementString);
+        Assert.Equal(expected: "{HardwareType.GPU}", settings.DeviceNicknameRules[1].TargetRegex);
+        Assert.Equal(expected: "GPU", settings.DeviceNicknameRules[1].ReplacementString);
+        Assert.Equal(expected: "^Corsair Commander$", settings.DeviceNicknameRules[2].TargetRegex);
+        Assert.Equal(expected: "Pump", settings.DeviceNicknameRules[2].ReplacementString);
     }
 
     /// <summary>

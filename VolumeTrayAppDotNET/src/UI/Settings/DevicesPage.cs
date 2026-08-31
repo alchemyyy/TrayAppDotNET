@@ -48,8 +48,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Devices_ShowRecording_Description)),
             playback,
             recording,
-            null,
-            null,
+            leftValue: null,
+            setLeft: null,
             _settings.ShowRecordingDevices,
             v => _settings.ShowRecordingDevices = v,
             p,
@@ -88,8 +88,8 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowDefaultRecordingDeviceEvenIfDisabled,
             v => _settings.ShowDefaultRecordingDeviceEvenIfDisabled = v,
             p,
-            showLeft: !_settings.ShowDisabledPlaybackDevices,
-            showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
+            !_settings.ShowDisabledPlaybackDevices,
+            _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDefaultEvenIfDisabled_SearchKeywords))
@@ -104,8 +104,8 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled,
             v => _settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled = v,
             p,
-            showLeft: !_settings.ShowDisabledPlaybackDevices,
-            showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
+            !_settings.ShowDisabledPlaybackDevices,
+            _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_SearchKeywords))
@@ -164,7 +164,7 @@ public sealed partial class VolumeSettingsWindow
             ]));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Description)),
-            playback, recording, null, null, _settings.ShowListenButtonForRecording,
+            playback, recording, leftValue: null, setLeft: null, _settings.ShowListenButtonForRecording,
             v => _settings.ShowListenButtonForRecording = v, p,
             searchKeywords:
             [

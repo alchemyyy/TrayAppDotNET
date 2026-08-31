@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 #if DEBUG
-using TrayAppDotNETCommon.UI;
 #endif
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -11,10 +10,10 @@ public sealed partial class UpdateConfirmationWindowResources : ResourceDictiona
 #if DEBUG
     private static readonly AXAMLResourceHotReloadStore<UpdateConfirmationWindowResources> Resources =
         AXAMLResourceHotReloadStore<UpdateConfirmationWindowResources>.Create(
-            "Update confirmation window resources",
+            resourceName: "Update confirmation window resources",
             static () => new UpdateConfirmationWindowResources(),
             NotifyResourcesReloaded,
-            "UpdateConfirmationWindow.axaml");
+            sourceFileName: "UpdateConfirmationWindow.axaml");
 #else
     private static readonly Lazy<UpdateConfirmationWindowResources> Resources =
         new(static () => new UpdateConfirmationWindowResources());

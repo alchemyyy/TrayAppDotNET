@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -9,9 +8,9 @@ public sealed partial class SettingsUIResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<SettingsUIResources> Resources =
         CommonAXAMLResourceStore<SettingsUIResources>.Create(
-            "Common settings UI resources",
+            resourceName: "Common settings UI resources",
             static () => new SettingsUIResources(),
-            "SettingsUI.axaml");
+            sourceFileName: "SettingsUI.axaml");
 #else
     private static readonly Lazy<SettingsUIResources> Resources =
         new(static () => new SettingsUIResources());

@@ -67,7 +67,7 @@ public class DeviceSettings
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "devices.xml");
+        return Path.Combine(appFolder, path2: "devices.xml");
     }
 
     public void Save() => Save(GetDefaultPath());

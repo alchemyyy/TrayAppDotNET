@@ -92,7 +92,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (_started != 0) return;
 
-            Interlocked.Exchange(ref _resetBaselinesPending, 1);
+            Interlocked.Exchange(ref _resetBaselinesPending, value: 1);
             _started = 1;
             try
             {
@@ -114,7 +114,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
         lock (_historyGate)
         {
-            if (_historyCount == 0) return Array.Empty<PerformanceSnapshot>();
+            if (_historyCount == 0) return [];
 
             PerformanceSnapshot[] snapshots = new PerformanceSnapshot[_historyCount];
             for (int historyIndex = 0; historyIndex < _historyCount; historyIndex++)
@@ -143,7 +143,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             }
 
             int matchingCount = _historyCount - firstMatchingIndex;
-            if (matchingCount == 0) return Array.Empty<PerformanceSnapshot>();
+            if (matchingCount == 0) return [];
 
             PerformanceSnapshot[] snapshots = new PerformanceSnapshot[matchingCount];
             for (int matchingIndex = 0; matchingIndex < matchingCount; matchingIndex++)
@@ -193,7 +193,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 && (previousSampleInterval != normalizedSampleInterval
                     || previousSerialNumberSetting != serialNumberSetting))
             {
-                Interlocked.Exchange(ref _refreshRequested, 1);
+                Interlocked.Exchange(ref _refreshRequested, value: 1);
                 _refreshWake.Set();
             }
         }
@@ -205,7 +205,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         lock (_lifecycleGate)
         {
             if (Volatile.Read(ref _disposed) != 0 || _started == 0) return;
-            Interlocked.Exchange(ref _refreshRequested, 1);
+            Interlocked.Exchange(ref _refreshRequested, value: 1);
             _refreshWake.Set();
         }
     }
@@ -220,6 +220,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             snapshot = CaptureSnapshot(Stopwatch.GetTimestamp());
             StoreSnapshot(snapshot);
         }
+
         return snapshot;
     }
 
@@ -230,7 +231,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         {
             while (Volatile.Read(ref _disposed) == 0)
             {
-                bool refreshRequested = Interlocked.Exchange(ref _refreshRequested, 0) != 0;
+                bool refreshRequested = Interlocked.Exchange(ref _refreshRequested, value: 0) != 0;
                 if (!refreshRequested && previousSamplingTimestamp > 0)
                 {
                     int sampleIntervalMilliseconds = Volatile.Read(
@@ -253,7 +254,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
                         {
                             long samplingTimestamp = Stopwatch.GetTimestamp();
                             previousSamplingTimestamp = samplingTimestamp;
-                            if (Interlocked.Exchange(ref _resetBaselinesPending, 0) != 0)
+                            if (Interlocked.Exchange(ref _resetBaselinesPending, value: 0) != 0)
                                 ResetSamplingBaselines();
                             PerformanceSnapshot snapshot = CaptureSnapshot(samplingTimestamp);
                             if (Volatile.Read(ref _disposed) == 0)
@@ -269,7 +270,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         finally
         {
-            Interlocked.Exchange(ref _disposed, 1);
+            Interlocked.Exchange(ref _disposed, value: 1);
             SnapshotUpdated = null;
             DisposeSamplingResources();
         }
@@ -319,7 +320,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _systemFailureLogged, "system", exception);
+            LogFailureOnce(ref _systemFailureLogged, provider: "system", exception);
             return SystemPerformanceSample.Empty;
         }
     }
@@ -334,7 +335,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _metadataFailureLogged, "metadata", exception);
+            LogFailureOnce(ref _metadataFailureLogged, provider: "metadata", exception);
             return default;
         }
     }
@@ -349,7 +350,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _memoryCompositionFailureLogged, "memory composition", exception);
+            LogFailureOnce(ref _memoryCompositionFailureLogged, provider: "memory composition", exception);
             return default;
         }
     }
@@ -371,6 +372,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             _physicalMemoryFailureLogged = true;
             TADNLog.Log($"PerformanceSnapshotService physical memory provider: {error}");
         }
+
         return metadata;
     }
 
@@ -402,19 +404,17 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 catch (Exception exception) when (IsRecoverableProviderException(exception))
                 {
                     hasDetailFailure = true;
-                    snapshots[GPUIndex] = snapshot with
-                    {
-                        Details = GPUPerformanceDetailsSnapshot.Empty
-                    };
-                    LogFailureOnce(ref _gpuDetailsFailureLogged, "GPU details", exception);
+                    snapshots[GPUIndex] = snapshot with { Details = GPUPerformanceDetailsSnapshot.Empty };
+                    LogFailureOnce(ref _gpuDetailsFailureLogged, provider: "GPU details", exception);
                 }
             }
+
             if (!hasDetailFailure) _gpuDetailsFailureLogged = false;
             return snapshots;
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _gpuFailureLogged, "GPU", exception);
+            LogFailureOnce(ref _gpuFailureLogged, provider: "GPU", exception);
             return [];
         }
     }
@@ -429,7 +429,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _networkFailureLogged, "network", exception);
+            LogFailureOnce(ref _networkFailureLogged, provider: "network", exception);
             return [];
         }
     }
@@ -444,7 +444,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _diskFailureLogged, "disk", exception);
+            LogFailureOnce(ref _diskFailureLogged, provider: "disk", exception);
             return [];
         }
 
@@ -460,6 +460,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 Details = DiskPerformanceDetailsFactory.Create(snapshot, matchingMetadata)
             };
         }
+
         return snapshots;
     }
 
@@ -479,8 +480,9 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
-            LogFailureOnce(ref _diskMetadataFailureLogged, "disk metadata", exception);
+            LogFailureOnce(ref _diskMetadataFailureLogged, provider: "disk metadata", exception);
         }
+
         return _diskMetadata;
     }
 
@@ -497,6 +499,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             if (metadata[metadataIndex].PhysicalDiskNumber == expectedDiskNumber)
                 return metadata[metadataIndex];
         }
+
         return DiskDeviceMetadataSnapshot.Unavailable(expectedDiskNumber);
     }
 
@@ -506,7 +509,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
         int logicalProcessorCount = _systemSampler.LastLogicalProcessorCount;
         if (logicalProcessorCount <= 0)
-            logicalProcessorCount = Math.Max(0, metadata.LogicalProcessorCount);
+            logicalProcessorCount = Math.Max(val1: 0, metadata.LogicalProcessorCount);
 
         double[] logicalProcessorPercents = new double[logicalProcessorCount];
         int copiedProcessorCount = _systemSampler.CopyLastLogicalProcessorPercents(
@@ -521,10 +524,11 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 _highestRecordedCPUSpeedHertz,
                 metadata.HighestCurrentSpeedHertz);
         }
+
         return new CPUPerformanceSnapshot(
             CPUPerformanceSnapshot.StableDeviceID,
             PerformanceDeviceKind.CPU,
-            0,
+            SortKey: 0,
             string.IsNullOrWhiteSpace(metadata.ProcessorName) ? "CPU" : metadata.ProcessorName,
             _systemSampler.LastProcessorSampleAvailable,
             systemSample.CPUAveragePercent,
@@ -544,10 +548,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             metadata.HasPerformanceInformation ? information.ProcessCount : 0,
             metadata.HasPerformanceInformation ? information.ThreadCount : 0,
             metadata.HasPerformanceInformation ? information.HandleCount : 0,
-            metadata.Uptime)
-        {
-            CCDTopology = _cpuCCDTopology
-        };
+            metadata.Uptime) { CCDTopology = _cpuCCDTopology };
     }
 
     private MemoryPerformanceSnapshot CreateMemorySnapshot(
@@ -566,7 +567,9 @@ internal sealed class PerformanceSnapshotService : IDisposable
         SystemPerformanceInformation information = metadata.PerformanceInformation;
         ulong cachedBytes = composition.HasCompositionData
             ? composition.CachedBytes
-            : metadata.HasPerformanceInformation ? information.CachedBytes : 0;
+            : metadata.HasPerformanceInformation
+                ? information.CachedBytes
+                : 0;
         ulong hardwareReservedBytes = metadata.InstalledPhysicalMemoryBytes
                                       >= memoryStatus.TotalPhysicalBytes
             ? metadata.InstalledPhysicalMemoryBytes - memoryStatus.TotalPhysicalBytes
@@ -574,7 +577,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         return new MemoryPerformanceSnapshot(
             MemoryPerformanceSnapshot.StableDeviceID,
             PerformanceDeviceKind.Memory,
-            0,
+            SortKey: 0,
             _systemSampler.LastMemorySampleAvailable,
             utilizationPercent,
             memoryStatus.TotalPhysicalBytes,
@@ -608,13 +611,13 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
         StoreSnapshot(snapshot);
         if (SnapshotUpdated == null) return;
-        if (Interlocked.Exchange(ref _notificationPending, 1) != 0) return;
+        if (Interlocked.Exchange(ref _notificationPending, value: 1) != 0) return;
         Dispatcher.UIThread.Post(_notifySnapshotUpdated, DispatcherPriority.Background);
     }
 
     private void NotifySnapshotUpdated()
     {
-        Interlocked.Exchange(ref _notificationPending, 0);
+        Interlocked.Exchange(ref _notificationPending, value: 0);
         if (Volatile.Read(ref _disposed) != 0) return;
 
         try
@@ -726,7 +729,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         double remainingMilliseconds = (intervalTicks - elapsedTicks)
                                        * 1_000.0
                                        / Stopwatch.Frequency;
-        return Math.Max(1, (int)Math.Ceiling(remainingMilliseconds));
+        return Math.Max(val1: 1, (int)Math.Ceiling(remainingMilliseconds));
     }
 
     public void Dispose()
@@ -735,7 +738,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         bool waitForSamplingThread;
         lock (_lifecycleGate)
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
             SnapshotUpdated = null;
             disposeResourcesSynchronously = _started == 0;
@@ -757,7 +760,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
 
     private void DisposeSamplingResources()
     {
-        if (Interlocked.Exchange(ref _resourcesDisposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _resourcesDisposed, value: 1) != 0) return;
 
         lock (_samplingGate)
         {

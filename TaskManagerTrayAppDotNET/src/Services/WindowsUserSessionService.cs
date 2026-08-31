@@ -14,24 +14,25 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
 
     public unsafe IReadOnlyList<UserSessionInfo> ReadSessions()
     {
-        if (!OperatingSystem.IsWindows()) return Array.Empty<UserSessionInfo>();
+        if (!OperatingSystem.IsWindows()) return [];
 
         IntPtr sessionBuffer = IntPtr.Zero;
         try
         {
             if (!WTSEnumerateSessionsW(
                     IntPtr.Zero,
-                    0,
+                    reserved: 0,
                     WTSCurrentServerVersion,
                     out sessionBuffer,
                     out int sessionCount))
             {
                 int errorCode = Marshal.GetLastPInvokeError();
                 _log($"WTSEnumerateSessionsW failed ({errorCode}): {GetErrorMessage(errorCode)}");
-                return Array.Empty<UserSessionInfo>();
+                return [];
             }
+
             if (sessionCount <= 0 || sessionBuffer == IntPtr.Zero)
-                return Array.Empty<UserSessionInfo>();
+                return [];
 
             List<UserSessionInfo> sessions = new(sessionCount);
             WTSSessionInfo* nativeSessions = (WTSSessionInfo*)sessionBuffer;
@@ -61,11 +62,11 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
             return sessions.ToArray();
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                           or EntryPointNotFoundException
-                                           or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             _log($"Windows user-session enumeration is unavailable: {exception.Message}");
-            return Array.Empty<UserSessionInfo>();
+            return [];
         }
         finally
         {
@@ -80,13 +81,14 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
         {
             return UserSessionActionResult.Failure(
                 UserSessionActionError.UnsupportedPlatform,
-                "Disconnecting Windows sessions is unavailable on this platform.");
+                errorMessage: "Disconnecting Windows sessions is unavailable on this platform.");
         }
+
         if (!session.CanDisconnect)
         {
             return UserSessionActionResult.Failure(
                 UserSessionActionError.NotEligible,
-                "The selected session cannot be disconnected in its current state.");
+                errorMessage: "The selected session cannot be disconnected in its current state.");
         }
 
         try
@@ -103,8 +105,8 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
                 errorCode);
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                           or EntryPointNotFoundException
-                                           or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             _log($"Windows user-session disconnect is unavailable: {exception.Message}");
             return UserSessionActionResult.Failure(
@@ -131,10 +133,11 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
                     + $"({errorCode}): {GetErrorMessage(errorCode)}");
                 return string.Empty;
             }
+
             if (valueBuffer == IntPtr.Zero || byteCount <= sizeof(char)) return string.Empty;
 
-            int characterCount = Math.Max(0, byteCount / sizeof(char) - 1);
-            return Marshal.PtrToStringUni(valueBuffer, characterCount)?.TrimEnd('\0') ?? string.Empty;
+            int characterCount = Math.Max(val1: 0, byteCount / sizeof(char) - 1);
+            return Marshal.PtrToStringUni(valueBuffer, characterCount).TrimEnd('\0');
         }
         finally
         {

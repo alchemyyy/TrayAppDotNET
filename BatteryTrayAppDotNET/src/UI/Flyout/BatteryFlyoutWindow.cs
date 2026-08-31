@@ -1,17 +1,16 @@
-using System.Globalization;
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using BatteryTrayAppDotNET.Models;
 using BatteryTrayAppDotNET.Services;
 using Microsoft.Win32;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -49,12 +48,18 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private const int EnergySaverNeverThreshold = 0;
     private const int EnergySaverAlwaysThreshold = 100;
 
-    private static readonly Thickness HeaderPadding = new(12, 4, 12, 4);
-    private static readonly Thickness UndockButtonFloatingMargin = new(0, 8, 8, 0);
-    private static readonly CornerRadius HeaderTopCornerRadius = new(7, 7, 0, 0);
-    private static readonly CornerRadius HeaderBottomCornerRadius = new(0, 0, 7, 7);
+    private static readonly Thickness HeaderPadding = new(left: 12, top: 4, right: 12, bottom: 4);
+    private static readonly Thickness UndockButtonFloatingMargin = new(left: 0, top: 8, right: 8, bottom: 0);
+
+    private static readonly CornerRadius HeaderTopCornerRadius =
+        new(topLeft: 7, topRight: 7, bottomRight: 0, bottomLeft: 0);
+
+    private static readonly CornerRadius HeaderBottomCornerRadius =
+        new(topLeft: 0, topRight: 0, bottomRight: 7, bottomLeft: 7);
+
     private static readonly CornerRadius HeaderIconButtonCornerRadius = new(4);
     private static readonly CornerRadius UndockButtonCornerRadius = new(4);
+
     private enum FlyoutPowerMode
     {
         Ultimate,
@@ -142,10 +147,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 if (_isClosed
                     || visibilityGeneration != _visibilityGeneration
                     || cancellationToken.IsCancellationRequested
-                    || !IsVisible)
-                {
-                    return;
-                }
+                    || !IsVisible) return;
 
                 ApplyWorkAreaMaxHeight();
                 UpdateLayout();
@@ -303,22 +305,22 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             {
                 Width = BatteryContentWidth,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 16, 0, 16),
+                Margin = new Thickness(left: 0, top: 16, right: 0, bottom: 16),
                 Spacing = 10
             };
-            ControlNames.Assign(body, "FlyoutBody");
+            ControlNames.Assign(body, parentName: "FlyoutBody");
 
             TextBlock title = Text(
                 $"Battery: {FormatChargePercent(snapshot)}",
                 p,
                 BatteryTitleFontSize,
                 FontWeight.SemiBold);
-            title.Margin = new Thickness(0, BatteryTitleTopOffset, 0, 0);
+            title.Margin = new Thickness(left: 0, BatteryTitleTopOffset, right: 0, bottom: 0);
             body.Children.Add(title);
 
             body.Children.Add(BatteryBar(snapshot, p, theme.ResolveBatteryFill(snapshot, isLight)));
 
-            TextBlock status = Text(BuildStatus(snapshot), p, 14);
+            TextBlock status = Text(BuildStatus(snapshot), p, size: 14);
             status.HorizontalAlignment = HorizontalAlignment.Center;
             status.Foreground = Brush(p.SecondaryForeground);
             body.Children.Add(status);
@@ -337,23 +339,23 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Grid details = new()
             {
                 RowSpacing = 6,
-                ColumnDefinitions =
-                {
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star)
-                }
+                ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
             };
-            ControlNames.Assign(details, "BatteryDetails");
+            ControlNames.Assign(details, parentName: "BatteryDetails");
 
-            AddDetailRow(details, 0, "Power source", snapshot.IsOnExternalPower ? "External" : "Battery", p);
-            AddDetailRow(details, 1, "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
-            AddDetailRow(details, 2, "Remaining", FormatCapacity(snapshot.RemainingCapacityMilliwattHours), p);
-            AddDetailRow(details, 3, "Full charge", FormatCapacity(snapshot.FullChargeCapacityMilliwattHours), p);
-            AddDetailRow(details, 4, "Designed", FormatCapacity(snapshot.DesignedCapacityMilliwattHours), p);
+            AddDetailRow(details, row: 0, label: "Power source", snapshot.IsOnExternalPower ? "External" : "Battery",
+                p);
+            AddDetailRow(details, row: 1, label: "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
+            AddDetailRow(details, row: 2, label: "Remaining", FormatCapacity(snapshot.RemainingCapacityMilliwattHours),
+                p);
+            AddDetailRow(details, row: 3, label: "Full charge",
+                FormatCapacity(snapshot.FullChargeCapacityMilliwattHours), p);
+            AddDetailRow(details, row: 4, label: "Designed", FormatCapacity(snapshot.DesignedCapacityMilliwattHours),
+                p);
             AddDetailRow(
                 details,
-                5,
-                "Health",
+                row: 5,
+                label: "Health",
                 snapshot.HealthPercent.HasValue ? $"{snapshot.HealthPercent.Value:F0}%" : "N/A",
                 p);
             body.Children.Add(BuildBottomSection(details, snapshot, fp, p));
@@ -365,7 +367,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             root.Children.Add(header);
             root.Children.Add(body);
 
-            Grid content = ControlNames.Assign(new Grid(), "FlyoutContent");
+            Grid content = ControlNames.Assign(new Grid(), parentName: "FlyoutContent");
             content.Children.Add(root);
             if (_settings is { FlyoutHeaderAtBottom: true, AllowFlyoutUndock: true })
             {
@@ -381,7 +383,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 flyoutBackground,
                 p.Border,
                 _settings.EnableRoundedCorners);
-            ControlNames.Assign(frame, "FlyoutFrame");
+            ControlNames.Assign(frame, parentName: "FlyoutFrame");
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -431,7 +433,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         }
 
         if (_isClosed) return;
-        if (!IsVisible && !IsWarmPriming || _isRebuilding || IsRebuildBlockedByPointerCapture())
+        if ((!IsVisible && !IsWarmPriming) || _isRebuilding || IsRebuildBlockedByPointerCapture())
         {
             _rebuildPending = true;
             return;
@@ -506,7 +508,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Padding = HeaderPadding,
             Child = grid
         };
-        return (ControlNames.Assign(header, "FlyoutHeader"), undockButtonController);
+        return (ControlNames.Assign(header, parentName: "FlyoutHeader"), undockButtonController);
     }
 
     private StackPanel BuildHeaderActions(FlyoutControlPalette p, bool settingsLast)
@@ -517,7 +519,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             HeaderIconButtonFontSize,
             _openSettings,
             L(nameof(AppStrings.Flyout_Settings_Tooltip)));
-        ControlNames.Assign(settingsButton, "SettingsButton");
+        ControlNames.Assign(settingsButton, parentName: "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
 
         Border powerButton = BuildHeaderIconButton(
@@ -526,12 +528,11 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             HeaderPowerIconButtonFontSize,
             OpenModernPowerSettings,
             L(nameof(AppStrings.Flyout_PowerSettings_Tooltip)));
-        ControlNames.Assign(powerButton, "PowerSettingsButton");
+        ControlNames.Assign(powerButton, parentName: "PowerSettingsButton");
 
         StackPanel actions = new()
         {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
 
         if (settingsLast)
@@ -613,7 +614,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             IsVisible = _settings.AllowFlyoutUndock,
             Margin = margin ?? new Thickness(0),
             CornerRadius = Rounded(UndockButtonCornerRadius)
-        }) { Glyph =
+        })
+        {
+            Glyph =
             {
                 FontFamily = TrayAppDotNETSettingsUI.IconFont,
                 FontWeight = FontWeight.Normal,
@@ -621,7 +624,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 LineHeight = UndockButtonGlyphLineHeight
             }
         };
-        ControlNames.Assign(controller.Button, "UndockButton");
+        ControlNames.Assign(controller.Button, parentName: "UndockButton");
         UseDefaultGlyphRendering(controller.Glyph);
         resources.Add(() =>
         {
@@ -631,10 +634,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return resources.Own(controller);
     }
 
-    private void OnUndockDraggingChanged(bool isDragging)
-    {
-        _isDraggingWindow = isDragging;
-    }
+    private void OnUndockDraggingChanged(bool isDragging) => _isDraggingWindow = isDragging;
 
     private static void UseDefaultGlyphRendering(TextBlock glyph)
     {
@@ -665,7 +665,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             iconRect = resolvedIconRect;
 
         PixelPoint anchor = iconRect?.Center ?? Position;
-        PixelRect workArea = TrayWorkArea.Resolve(Screens, anchor, new PixelRect(0, 0, 1920, 1080));
+        PixelRect workArea =
+            TrayWorkArea.Resolve(Screens, anchor, new PixelRect(x: 0, y: 0, width: 1920, height: 1080));
         int width = CurrentPixelWidth();
         int height = CurrentPixelHeight();
 
@@ -682,7 +683,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
             anchor = iconRect.Center;
 
-        return TrayWorkArea.Resolve(Screens, anchor, new PixelRect(0, 0, 1920, 1080));
+        return TrayWorkArea.Resolve(Screens, anchor, new PixelRect(x: 0, y: 0, width: 1920, height: 1080));
     }
 
     private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
@@ -725,7 +726,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             case FlyoutDockStateChange.PositionSaved:
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(change), change, null);
+                throw new ArgumentOutOfRangeException(nameof(change), change, message: null);
         }
     }
 
@@ -780,7 +781,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void OnChromePointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_isDraggingWindow || !_dockingController.IsUndocked
-                              || _undockButtonController?.IsPointerCaptured == true)
+                               || _undockButtonController?.IsPointerCaptured == true)
             return;
         if (sender is not Control control) return;
         if (!ReferenceEquals(_chromeCaptureOwner, control)) return;
@@ -867,17 +868,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         Grid section = new()
         {
             ColumnSpacing = 14,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Star)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }
         };
 
         Control powerControls = BuildPowerControls(snapshot, p, settingsPalette);
         section.Children.Add(powerControls);
 
-        Grid.SetColumn(details, 1);
+        Grid.SetColumn(details, value: 1);
         section.Children.Add(details);
 
         return section;
@@ -892,11 +889,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         bool? energySaverAlways = QueryEnergySaverAlwaysEnabled();
         bool energySaverEnabled = snapshot.EnergySaverEnabled || energySaverAlways == true;
 
-        StackPanel panel = new()
-        {
-            Spacing = 6,
-            VerticalAlignment = VerticalAlignment.Top
-        };
+        StackPanel panel = new() { Spacing = 6, VerticalAlignment = VerticalAlignment.Top };
 
         panel.Children.Add(BuildToggleRow(
             L(nameof(AppStrings.Flyout_EnergySaver)),
@@ -907,15 +900,15 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             energySaverAlways.HasValue
                 ? L(nameof(AppStrings.Flyout_EnergySaver_Tooltip))
                 : L(nameof(AppStrings.Flyout_EnergySaver_Unavailable_Tooltip)),
-            enabled: !_isEnergySaverChanging && energySaverAlways.HasValue));
+            !_isEnergySaverChanging && energySaverAlways.HasValue));
 
         TextBlock label = TrayAppDotNETFlyoutUI.Text(
             L(nameof(AppStrings.Flyout_PowerMode_Label)),
             p,
-            12,
+            fontSize: 12,
             FontWeight.SemiBold,
             p.SecondaryForeground);
-        label.Margin = new Thickness(0, 2, 0, 0);
+        label.Margin = new Thickness(left: 0, top: 2, right: 0, bottom: 0);
         panel.Children.Add(label);
 
         panel.Children.Add(BuildPowerModeRow(
@@ -959,7 +952,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 else QueueRebuild();
             },
             text,
-            enabled: !_isPowerModeChanging,
+            !_isPowerModeChanging,
             labelIndent: 2);
     }
 
@@ -973,9 +966,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         bool enabled = true,
         double labelIndent = 0)
     {
-        TextBlock label = TrayAppDotNETFlyoutUI.Text(text, p, 12, FontWeight.SemiBold);
+        TextBlock label = TrayAppDotNETFlyoutUI.Text(text, p, fontSize: 12, FontWeight.SemiBold);
         label.VerticalAlignment = VerticalAlignment.Center;
-        label.Margin = new Thickness(labelIndent, 0, 0, 0);
+        label.Margin = new Thickness(labelIndent, top: 0, right: 0, bottom: 0);
         label.TextTrimming = TextTrimming.CharacterEllipsis;
 
         SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(
@@ -991,27 +984,18 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         Grid row = new()
         {
             ColumnSpacing = 10,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
         row.Children.Add(label);
-        Grid.SetColumn(toggle, 1);
+        Grid.SetColumn(toggle, value: 1);
         row.Children.Add(toggle);
         return row;
     }
 
     private static Border BatteryBar(BatterySnapshot snapshot, SettingsPalette p, Color fill)
     {
-        Grid bar = new()
-        {
-            Width = BatteryBarWidth,
-            Height = BatteryBarHeight,
-            ClipToBounds = true
-        };
+        Grid bar = new() { Width = BatteryBarWidth, Height = BatteryBarHeight, ClipToBounds = true };
 
         bar.Children.Add(new Border
         {
@@ -1021,7 +1005,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             CornerRadius = new CornerRadius(4)
         });
 
-        double fillWidth = Math.Max(0, (BatteryBarWidth - 2) * snapshot.ChargePercentage / 100.0);
+        double fillWidth = Math.Max(val1: 0, (BatteryBarWidth - 2) * snapshot.ChargePercentage / 100.0);
         bar.Children.Add(new Border
         {
             Width = fillWidth,
@@ -1047,37 +1031,32 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private static StackPanel DetailBlock(string label, string value, SettingsPalette p)
     {
         StackPanel panel = new() { Spacing = 3 };
-        TextBlock labelText = Text(label, p, 13);
+        TextBlock labelText = Text(label, p, size: 13);
         labelText.Foreground = Brush(p.SecondaryForeground);
         panel.Children.Add(labelText);
-        panel.Children.Add(Text(value, p, 18, FontWeight.SemiBold));
+        panel.Children.Add(Text(value, p, size: 18, FontWeight.SemiBold));
         return panel;
     }
 
     private static void AddDetailRow(Grid grid, int row, string label, string value, SettingsPalette p)
     {
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        TextBlock labelText = Text(label + ":", p, 12);
+        TextBlock labelText = Text(label + ":", p, size: 12);
         labelText.Foreground = Brush(p.SecondaryForeground);
-        labelText.Margin = new Thickness(0, 0, 14, 0);
+        labelText.Margin = new Thickness(left: 0, top: 0, right: 14, bottom: 0);
         Grid.SetRow(labelText, row);
-        Grid.SetColumn(labelText, 0);
+        Grid.SetColumn(labelText, value: 0);
         grid.Children.Add(labelText);
 
-        TextBlock valueText = Text(value, p, 12);
+        TextBlock valueText = Text(value, p, size: 12);
         valueText.TextAlignment = TextAlignment.Right;
         Grid.SetRow(valueText, row);
-        Grid.SetColumn(valueText, 1);
+        Grid.SetColumn(valueText, value: 1);
         grid.Children.Add(valueText);
     }
 
     private static Border Separator(SettingsPalette p) =>
-        new()
-        {
-            Height = 1,
-            Background = Brush(p.Border),
-            Opacity = 0.75
-        };
+        new() { Height = 1, Background = Brush(p.Border), Opacity = 0.75 };
 
     private static TextBlock Text(string text, SettingsPalette p, double size, FontWeight weight = FontWeight.Normal) =>
         new()
@@ -1126,8 +1105,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             $"/qh SCHEME_CURRENT {EnergySaverSubgroupGuid} {EnergySaverBatteryThresholdGuid}");
         if (string.IsNullOrWhiteSpace(output)) return null;
 
-        int? acThreshold = ParsePowerCfgIndex(output, "Current AC Power Setting Index");
-        int? dcThreshold = ParsePowerCfgIndex(output, "Current DC Power Setting Index");
+        int? acThreshold = ParsePowerCfgIndex(output, label: "Current AC Power Setting Index");
+        int? dcThreshold = ParsePowerCfgIndex(output, label: "Current DC Power Setting Index");
 
         if (dcThreshold.HasValue)
             return dcThreshold.Value >= EnergySaverAlwaysThreshold;
@@ -1145,7 +1124,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             if (colon < 0 || colon == line.Length - 1) return null;
 
             string token = line[(colon + 1)..].Trim();
-            if (token.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            if (token.StartsWith(value: "0x", StringComparison.OrdinalIgnoreCase))
             {
                 return int.TryParse(
                     token[2..],
@@ -1331,10 +1310,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             using Process? process = Process.Start(new ProcessStartInfo
             {
-                FileName = "powercfg.exe",
-                Arguments = arguments,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                FileName = "powercfg.exe", Arguments = arguments, UseShellExecute = false, CreateNoWindow = true
             });
             if (process == null) return false;
 
@@ -1357,7 +1333,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private static void TryKill(Process process)
     {
-        try { process.Kill(entireProcessTree: true); }
+        try { process.Kill(true); }
         catch { }
     }
 
@@ -1367,8 +1343,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             using Process? _ = Process.Start(new ProcessStartInfo
             {
-                FileName = "ms-settings:powersleep",
-                UseShellExecute = true
+                FileName = "ms-settings:powersleep", UseShellExecute = true
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenModernPowerSettings: {ex.Message}"); }
@@ -1380,8 +1355,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             using Process? _ = Process.Start(new ProcessStartInfo
             {
-                FileName = "ms-settings:batterysaver",
-                UseShellExecute = true
+                FileName = "ms-settings:batterysaver", UseShellExecute = true
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenEnergySaverSettings: {ex.Message}"); }
@@ -1412,7 +1386,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours}h";
         if (value.TotalHours >= 1) return $"{(int)value.TotalHours}h {value.Minutes}m";
-        return $"{Math.Max(1, value.Minutes)}m";
+        return $"{Math.Max(val1: 1, value.Minutes)}m";
     }
 
     private static string L(string key) => LocalizationManager.Instance[key];

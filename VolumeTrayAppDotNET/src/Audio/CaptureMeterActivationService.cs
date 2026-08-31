@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using VolumeTrayAppDotNET.Interop;
-
 using IAudioCaptureClient = VolumeTrayAppDotNET.Interop.IAudioCaptureClient;
 using IAudioClient = VolumeTrayAppDotNET.Interop.IAudioClient;
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
@@ -29,11 +28,7 @@ internal sealed class CaptureMeterActivationService : IDisposable
 
     public CaptureMeterActivationService()
     {
-        _thread = new Thread(Run)
-        {
-            IsBackground = true,
-            Name = ThreadName
-        };
+        _thread = new Thread(Run) { IsBackground = true, Name = ThreadName };
         _thread.Start();
     }
 
@@ -43,7 +38,8 @@ internal sealed class CaptureMeterActivationService : IDisposable
         HashSet<string> requestedDeviceIDs = new(StringComparer.Ordinal);
         foreach (string deviceID in deviceIDs)
         {
-            if (!string.IsNullOrEmpty(deviceID)) requestedDeviceIDs.Add(deviceID);
+            if (!string.IsNullOrEmpty(deviceID))
+                requestedDeviceIDs.Add(deviceID);
         }
 
         lock (_gate)
@@ -146,7 +142,8 @@ internal sealed class CaptureMeterActivationService : IDisposable
         removedDeviceIDs.Clear();
         foreach (string activeDeviceID in activeStreams.Keys)
         {
-            if (!requestedDeviceIDs.Contains(activeDeviceID)) removedDeviceIDs.Add(activeDeviceID);
+            if (!requestedDeviceIDs.Contains(activeDeviceID))
+                removedDeviceIDs.Add(activeDeviceID);
         }
 
         foreach (string removedDeviceID in removedDeviceIDs)
@@ -163,9 +160,7 @@ internal sealed class CaptureMeterActivationService : IDisposable
             if (activeStreams.ContainsKey(requestedDeviceID)) continue;
             if (retryAfterMilliseconds.TryGetValue(requestedDeviceID, out long retryAtMilliseconds)
                 && currentMilliseconds < retryAtMilliseconds)
-            {
                 continue;
-            }
 
             if (CaptureStream.TryCreate(requestedDeviceID, out CaptureStream? stream, out string failure)
                 && stream != null)
@@ -186,7 +181,8 @@ internal sealed class CaptureMeterActivationService : IDisposable
         abandonedFailureDeviceIDs.Clear();
         foreach (string failedDeviceID in lastFailures.Keys)
         {
-            if (!requestedDeviceIDs.Contains(failedDeviceID)) abandonedFailureDeviceIDs.Add(failedDeviceID);
+            if (!requestedDeviceIDs.Contains(failedDeviceID))
+                abandonedFailureDeviceIDs.Add(failedDeviceID);
         }
 
         foreach (string abandonedFailureDeviceID in abandonedFailureDeviceIDs)
@@ -227,9 +223,7 @@ internal sealed class CaptureMeterActivationService : IDisposable
     {
         if (lastFailures.TryGetValue(deviceID, out string? previousFailure)
             && string.Equals(previousFailure, failure, StringComparison.Ordinal))
-        {
             return;
-        }
 
         lastFailures[deviceID] = failure;
         TADNLog.LogDebug(
@@ -245,6 +239,7 @@ internal sealed class CaptureMeterActivationService : IDisposable
             _requestedDeviceIDs.Clear();
             _wakeEvent.Set();
         }
+
         if (ReferenceEquals(Thread.CurrentThread, _thread)) return;
 
         bool joined = _thread.Join(TimeConstants.CaptureMeterActivationWorkerJoinTimeoutMs);
@@ -315,8 +310,8 @@ internal sealed class CaptureMeterActivationService : IDisposable
                 int initializeResult = client.Initialize(
                     AudioClientShareMode.Shared,
                     AudioClientStreamFlags.NoPersist,
-                    0,
-                    0,
+                    hnsBufferDuration: 0,
+                    hnsPeriodicity: 0,
                     mixFormat,
                     IntPtr.Zero);
                 if (initializeResult < 0)

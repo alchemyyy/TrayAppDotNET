@@ -110,7 +110,7 @@ internal struct PROPVARIANT
     {
         if (vt != VT_CLSID || p1 == IntPtr.Zero) return null;
         byte[] buf = new byte[16];
-        Marshal.Copy(p1, buf, 0, 16);
+        Marshal.Copy(p1, buf, startIndex: 0, length: 16);
         return new Guid(buf);
     }
 
@@ -122,7 +122,7 @@ internal struct PROPVARIANT
         int size = (int)p1.ToInt64();
         if (size <= 0 || p2 == IntPtr.Zero) return null;
         byte[] buf = new byte[size];
-        Marshal.Copy(p2, buf, 0, size);
+        Marshal.Copy(p2, buf, startIndex: 0, size);
         return buf;
     }
 }
@@ -133,15 +133,18 @@ internal static class PropertyKeys
 {
     // Friendly endpoint name, e.g. "Speakers (Realtek(R) Audio)"
     public static readonly PROPERTYKEY PKEY_Device_FriendlyName = new(
-        new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), 14);
+        new Guid(a: 0xA45C254E, b: 0xDF1C, c: 0x4EFD, d: 0x80, e: 0x20, f: 0x67, g: 0xD1, h: 0x46, i: 0xA8, j: 0x50,
+            k: 0xE0), pid: 14);
 
     // Adapter / interface name, e.g. "Realtek(R) Audio"
     public static readonly PROPERTYKEY PKEY_DeviceInterface_FriendlyName = new(
-        new Guid(0x026E516E, 0xB814, 0x414B, 0x83, 0xCD, 0x85, 0x6D, 0x6F, 0xEF, 0x48, 0x22), 2);
+        new Guid(a: 0x026E516E, b: 0xB814, c: 0x414B, d: 0x83, e: 0xCD, f: 0x85, g: 0x6D, h: 0x6F, i: 0xEF, j: 0x48,
+            k: 0x22), pid: 2);
 
     // Endpoint description, e.g. "Speakers" or "Headphones"
     public static readonly PROPERTYKEY PKEY_Device_DeviceDesc = new(
-        new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), 2);
+        new Guid(a: 0xA45C254E, b: 0xDF1C, c: 0x4EFD, d: 0x80, e: 0x20, f: 0x67, g: 0xD1, h: 0x46, i: 0xA8, j: 0x50,
+            k: 0xE0), pid: 2);
 
     // DEVPKEY_Device_EnumeratorName - the bus enumerator a PnP device belongs to. The audio
     // endpoint property store inherits this from the underlying device, so for any endpoint
@@ -151,7 +154,8 @@ internal static class PropertyKeys
     // on substring heuristics alone. fmtid family is the PnP-name family (shared with
     // PKEY_Device_FriendlyName / PKEY_Device_DeviceDesc); pid 24 is documented in devpkey.h.
     public static readonly PROPERTYKEY PKEY_Device_EnumeratorName = new(
-        new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), 24);
+        new Guid(a: 0xA45C254E, b: 0xDF1C, c: 0x4EFD, d: 0x80, e: 0x20, f: 0x67, g: 0xD1, h: 0x46, i: 0xA8, j: 0x50,
+            k: 0xE0), pid: 24);
 
     // DEVPKEY_Device_ContainerId - the GUID of the physical "container" a PnP device belongs to.
     // Every interface a single physical device exposes (audio render endpoint, audio capture
@@ -159,7 +163,8 @@ internal static class PropertyKeys
     // the canonical key for matching an audio endpoint to the Bluetooth devnode that backs it.
     // VT_CLSID through IPropertyStore. Documented in devpkey.h; pid 2.
     public static readonly PROPERTYKEY PKEY_Device_ContainerId = new(
-        new Guid(0x8C7ED206, 0x3F8A, 0x4827, 0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C), 2);
+        new Guid(a: 0x8C7ED206, b: 0x3F8A, c: 0x4827, d: 0xB3, e: 0xAB, f: 0xAE, g: 0x9E, h: 0x1F, i: 0xAE, j: 0xFC,
+            k: 0x6C), pid: 2);
 
     // 'Listen to this device' state on capture endpoints, mirroring the checkbox under
     // Sound > Recording > [Mic Properties] > Listen tab. Stored as VT_BOOL (VARIANT_TRUE / FALSE)
@@ -168,14 +173,16 @@ internal static class PropertyKeys
     // FF FF for TRUE, 00 00 for FALSE. VT_EMPTY when never toggled. Not in the public Windows SDK
     // headers - this fmtid is the MMDevAPI listen-feature family used by mmsys.cpl.
     public static readonly PROPERTYKEY PKEY_AudioEndpoint_ListenToThisDevice = new(
-        new Guid(0x24DBB0FC, 0x9311, 0x4B3D, 0x9C, 0xF0, 0x18, 0xFF, 0x15, 0x56, 0x39, 0xD4), 1);
+        new Guid(a: 0x24DBB0FC, b: 0x9311, c: 0x4B3D, d: 0x9C, e: 0xF0, f: 0x18, g: 0xFF, h: 0x15, i: 0x56, j: 0x39,
+            k: 0xD4), pid: 1);
 
     // Listen target playback device on a capture endpoint. Stored as VT_LPWSTR holding the target
     // render endpoint's IMMDevice id (e.g. "{0.0.0.00000000}.{<guid>}"). Absent / VT_EMPTY means
     // 'Default Playback Device' - mmsys.cpl deletes this pid to encode the follow-default mode.
     // Verified empirically against the registry; same fmtid as the listen-enable bool.
     public static readonly PROPERTYKEY PKEY_AudioEndpoint_ListenTargetDeviceID = new(
-        new Guid(0x24DBB0FC, 0x9311, 0x4B3D, 0x9C, 0xF0, 0x18, 0xFF, 0x15, 0x56, 0x39, 0xD4), 0);
+        new Guid(a: 0x24DBB0FC, b: 0x9311, c: 0x4B3D, d: 0x9C, e: 0xF0, f: 0x18, g: 0xFF, h: 0x15, i: 0x56, j: 0x39,
+            k: 0xD4), pid: 0);
 
     // "Allow applications to take exclusive control of this device" - the master checkbox in
     // mmsys.cpl Advanced > Exclusive Mode. Stored as VT_UI4 in
@@ -183,14 +190,16 @@ internal static class PropertyKeys
     // 0 = disallowed. Absent / VT_EMPTY when never toggled, in which case the OS default is
     // "allowed". Not in the public Windows SDK headers; same fmtid as PKEY_AudioEndpoint_FormFactor.
     public static readonly PROPERTYKEY PKEY_AudioEndpoint_AllowExclusiveControl = new(
-        new Guid(0xB3F8FA53, 0x0004, 0x438E, 0x90, 0x03, 0x51, 0xA4, 0x6E, 0x13, 0x9B, 0xFC), 3);
+        new Guid(a: 0xB3F8FA53, b: 0x0004, c: 0x438E, d: 0x90, e: 0x03, f: 0x51, g: 0xA4, h: 0x6E, i: 0x13, j: 0x9B,
+            k: 0xFC), pid: 3);
 
     // "Give exclusive mode applications priority" - the sub-checkbox under the master allow bit.
     // Same fmtid, pid 4. We yoke it to pid 3 so the flyout button drives both together: enabling
     // exclusive control re-enables priority; disabling it clears priority too, matching what a
     // user toggling the master in mmsys.cpl would expect.
     public static readonly PROPERTYKEY PKEY_AudioEndpoint_ExclusiveModeAppsPriority = new(
-        new Guid(0xB3F8FA53, 0x0004, 0x438E, 0x90, 0x03, 0x51, 0xA4, 0x6E, 0x13, 0x9B, 0xFC), 4);
+        new Guid(a: 0xB3F8FA53, b: 0x0004, c: 0x438E, d: 0x90, e: 0x03, f: 0x51, g: 0xA4, h: 0x6E, i: 0x13, j: 0x9B,
+            k: 0xFC), pid: 4);
 
     // "Disable all enhancements" master checkbox on the mmsys.cpl Enhancements tab. Stored as
     // VT_UI4 DWORD: 0 = enhancements enabled (engine default when absent), 1 = disabled. On
@@ -198,20 +207,22 @@ internal static class PropertyKeys
     // same sysfx pipeline, so flipping this to 1 silently breaks the listen feature even when
     // PKEY_AudioEndpoint_ListenToThisDevice is true. fmtid 1DA5D803...0E pid 5; audioendpoints.h.
     public static readonly PROPERTYKEY PKEY_AudioEndpoint_Disable_SysFx = new(
-        new Guid(0x1DA5D803, 0xD492, 0x4EDD, 0x8C, 0x23, 0xE0, 0xC0, 0xFF, 0xEE, 0x7F, 0x0E), 5);
+        new Guid(a: 0x1DA5D803, b: 0xD492, c: 0x4EDD, d: 0x8C, e: 0x23, f: 0xE0, g: 0xC0, h: 0xFF, i: 0xEE, j: 0x7F,
+            k: 0x0E), pid: 5);
 
     // Endpoint default mix format. VT_BLOB holding a WAVEFORMATEX (or WAVEFORMATEXTENSIBLE when
     // wFormatTag == 0xFFFE). Same value the Sound Control Panel's Advanced tab edits, and what the
     // audio engine resamples / mixes to before handing buffers to the driver.
     public static readonly PROPERTYKEY PKEY_AudioEngine_DeviceFormat = new(
-        new Guid(0xF19F064D, 0x082C, 0x4E27, 0xBC, 0x73, 0x68, 0x82, 0xA1, 0xBB, 0x8E, 0x4C), 0);
+        new Guid(a: 0xF19F064D, b: 0x082C, c: 0x4E27, d: 0xBC, e: 0x73, f: 0x68, g: 0x82, h: 0xA1, i: 0xBB, j: 0x8E,
+            k: 0x4C), pid: 0);
 
     // KSDATAFORMAT_SUBTYPE_PCM. The SubFormat GUID inside a WAVEFORMATEXTENSIBLE that says "this
     // is integer PCM" (vs IEEE float, AC-3, etc). Synthesized into format blobs we hand to
     // IPolicyConfig::SetDeviceFormat when the existing format wasn't already EXTENSIBLE so we
     // have nothing to copy from.
     public static readonly Guid KSDATAFORMAT_SUBTYPE_PCM = new(
-        0x00000001, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71);
+        a: 0x00000001, b: 0x0000, c: 0x0010, d: 0x80, e: 0x00, f: 0x00, g: 0xAA, h: 0x00, i: 0x38, j: 0x9B, k: 0x71);
 }
 
 // Activatable on an IMMDevice. Vtable layout matches audioclient.h: every slot we don't call

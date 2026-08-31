@@ -7,8 +7,10 @@ namespace TaskManagerTrayAppDotNET.Services;
 internal sealed class AppHistoryStore
 {
     private readonly Lock _gate = new();
+
     private readonly Dictionary<string, AppAccumulator> _apps =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<ProcessInstanceKey, ProcessBaseline> _processBaselines = [];
     private readonly HashSet<ProcessInstanceKey> _seenProcesses = [];
     private readonly List<ProcessInstanceKey> _staleProcesses = [];
@@ -22,10 +24,7 @@ internal sealed class AppHistoryStore
     {
     }
 
-    internal AppHistoryStore(DateTimeOffset startedAt)
-    {
-        _startedAt = startedAt;
-    }
+    internal AppHistoryStore(DateTimeOffset startedAt) => _startedAt = startedAt;
 
     public static ulong RequiredColumnMask =>
         ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.Name)
@@ -167,7 +166,7 @@ internal sealed class AppHistoryStore
                 totalCPUTimeTicks - baseline.TotalCPUTimeTicks);
         }
 
-        _processBaselines[processKey] = new ProcessBaseline(imageKey, Math.Max(0, totalCPUTimeTicks));
+        _processBaselines[processKey] = new ProcessBaseline(imageKey, Math.Max(val1: 0, totalCPUTimeTicks));
     }
 
     private static void AccumulateNetwork(
@@ -192,7 +191,8 @@ internal sealed class AppHistoryStore
         _staleProcesses.Clear();
         foreach (ProcessInstanceKey processKey in _processBaselines.Keys)
         {
-            if (!_seenProcesses.Contains(processKey)) _staleProcesses.Add(processKey);
+            if (!_seenProcesses.Contains(processKey))
+                _staleProcesses.Add(processKey);
         }
 
         for (int staleIndex = 0; staleIndex < _staleProcesses.Count; staleIndex++)

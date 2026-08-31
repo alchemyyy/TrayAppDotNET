@@ -104,7 +104,8 @@ public class EnvironmentalCurve
     // each of which routes through this struct on get/set.
     // Default Date = DateTime.MinValue maps to the "" string sentinel in persisted XML.
     [XmlIgnore]
-    public SunAnchor BrightnessAnchor { get; set; } = new(default, 0.0, 0.0, true);
+    public SunAnchor BrightnessAnchor { get; set; } =
+        new(Date: default, Latitude: 0.0, Longitude: 0.0, UseDaylightSavings: true);
 
     // ISO yyyy-MM-dd of the last day the sun-shift was applied.
     // Empty string means "never" (legacy curves or freshly-enabled FollowTheSun):
@@ -190,7 +191,8 @@ public class EnvironmentalCurve
     // rather than fabricating a from-state that would trigger a phantom shift.
     // because the four flat LastDisabledPeriodSunShift* properties below preserve the XML shape.
     [XmlIgnore]
-    public SunAnchor DisabledPeriodAnchor { get; set; } = new(default, 0.0, 0.0, true);
+    public SunAnchor DisabledPeriodAnchor { get; set; } =
+        new(Date: default, Latitude: 0.0, Longitude: 0.0, UseDaylightSavings: true);
 
     [XmlAttribute]
     public string LastDisabledPeriodSunShiftDate
@@ -264,8 +266,8 @@ public class EnvironmentalCurve
             return;
         }
 
-        CollapseEdge(series, 0.0);
-        CollapseEdge(series, 1.0);
+        CollapseEdge(series, edgeTime: 0.0);
+        CollapseEdge(series, edgeTime: 1.0);
     }
 
     private static void CollapseEdge(List<EnvironmentalCurvePoint> series, double edgeTime)
@@ -296,12 +298,12 @@ public class EnvironmentalCurve
 internal static class SunAnchorXml
 {
     public static string FormatDate(DateTime date) =>
-        date == default ? "" : date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        date == default ? "" : date.ToString(format: "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public static DateTime ParseDate(string? value) =>
         !string.IsNullOrEmpty(value)
         && DateTime.TryParseExact(
-            value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed)
+            value, format: "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed)
             ? parsed
             : default;
 }

@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -16,7 +14,6 @@ internal static class NativeProcessInfo
     public const string No = "No";
 
     private const int ErrorInsufficientBuffer = 122;
-    private const int AppModelErrorNoPackage = 15700;
     private const int ProcessCommandLineInformation = 60;
     private const int ProcessIOPriority = 33;
     private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
@@ -48,10 +45,7 @@ internal static class NativeProcessInfo
     /// <summary>Reads installed physical memory once for percentage-based column formatting.</summary>
     public static long ReadTotalPhysicalMemoryBytes()
     {
-        MEMORYSTATUSEX memoryStatus = new()
-        {
-            Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>()
-        };
+        MEMORYSTATUSEX memoryStatus = new() { Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         return GlobalMemoryStatusEx(ref memoryStatus) && memoryStatus.TotalPhysicalMemory <= long.MaxValue
             ? (long)memoryStatus.TotalPhysicalMemory
             : 0;
@@ -65,19 +59,14 @@ internal static class NativeProcessInfo
                 out FILETIME exitTime,
                 out FILETIME kernelTime,
                 out FILETIME userTime))
-        {
             return fallback;
-        }
 
         return unchecked((long)(((ulong)creationTime.HighDateTime << 32) | creationTime.LowDateTime));
     }
 
     public static bool TryReadMemoryCounters(IntPtr processHandle, out ProcessMemoryCounters counters)
     {
-        PROCESS_MEMORY_COUNTERS_EX2 native = new()
-        {
-            Size = (uint)Marshal.SizeOf<PROCESS_MEMORY_COUNTERS_EX2>()
-        };
+        PROCESS_MEMORY_COUNTERS_EX2 native = new() { Size = (uint)Marshal.SizeOf<PROCESS_MEMORY_COUNTERS_EX2>() };
         if (!GetProcessMemoryInfo(processHandle, ref native, native.Size))
         {
             counters = default;
@@ -90,7 +79,7 @@ internal static class NativeProcessInfo
             workingSet,
             ToLong(native.PeakWorkingSetSize),
             privateWorkingSet,
-            Math.Max(0, workingSet - privateWorkingSet),
+            Math.Max(val1: 0, workingSet - privateWorkingSet),
             ToLong(native.PrivateUsage),
             ToLong(native.QuotaPagedPoolUsage),
             ToLong(native.QuotaNonPagedPoolUsage),
@@ -127,7 +116,7 @@ internal static class NativeProcessInfo
             processHandle,
             ProcessCommandLineInformation,
             IntPtr.Zero,
-            0,
+            processInformationLength: 0,
             ref requiredLength);
         if (status != StatusInfoLengthMismatch || requiredLength <= Marshal.SizeOf<UNICODE_STRING>())
             return string.Empty;
@@ -145,7 +134,7 @@ internal static class NativeProcessInfo
 
             UNICODE_STRING commandLine = Marshal.PtrToStructure<UNICODE_STRING>(buffer);
             if (commandLine.Buffer == IntPtr.Zero || commandLine.Length == 0) return string.Empty;
-            return Marshal.PtrToStringUni(commandLine.Buffer, commandLine.Length / sizeof(char)) ?? string.Empty;
+            return Marshal.PtrToStringUni(commandLine.Buffer, commandLine.Length / sizeof(char));
         }
         finally
         {
@@ -159,8 +148,8 @@ internal static class NativeProcessInfo
 
         try
         {
-            int requiredLength = 0;
-            _ = GetTokenInformation(tokenHandle, TokenUser, IntPtr.Zero, 0, out requiredLength);
+            _ = GetTokenInformation(tokenHandle, TokenUser, IntPtr.Zero, tokenInformationLength: 0,
+                out int requiredLength);
             if (requiredLength <= 0) return Unavailable;
 
             IntPtr tokenBuffer = Marshal.AllocHGlobal(requiredLength);
@@ -215,7 +204,6 @@ internal static class NativeProcessInfo
         return result switch
         {
             0 => packageName.ToString(),
-            AppModelErrorNoPackage => string.Empty,
             _ => string.Empty
         };
     }
@@ -274,18 +262,13 @@ internal static class NativeProcessInfo
 
     public static ProcessDisplayCode ReadPowerThrottling(IntPtr processHandle)
     {
-        PROCESS_POWER_THROTTLING_STATE state = new()
-        {
-            Version = ProcessPowerThrottlingCurrentVersion
-        };
+        PROCESS_POWER_THROTTLING_STATE state = new() { Version = ProcessPowerThrottlingCurrentVersion };
         if (!GetProcessInformation(
                 processHandle,
                 ProcessPowerThrottling,
                 ref state,
                 (uint)Marshal.SizeOf<PROCESS_POWER_THROTTLING_STATE>()))
-        {
             return ProcessDisplayCode.Unavailable;
-        }
 
         if ((state.ControlMask & ProcessPowerThrottlingExecutionSpeed) == 0)
             return ProcessDisplayCode.Disabled;
@@ -316,9 +299,7 @@ internal static class NativeProcessInfo
                 ProcessUserShadowStackPolicy,
                 ref policy,
                 Marshal.SizeOf<PROCESS_MITIGATION_POLICY_INFORMATION>()))
-        {
             return ProcessDisplayCode.Unavailable;
-        }
 
         return (policy.Flags & UserShadowStackEnabled) != 0
             ? ProcessDisplayCode.Enabled
@@ -333,9 +314,7 @@ internal static class NativeProcessInfo
                 ProcessControlFlowGuardPolicy,
                 ref policy,
                 Marshal.SizeOf<PROCESS_MITIGATION_POLICY_INFORMATION>()))
-        {
             return ProcessDisplayCode.Unavailable;
-        }
 
         if ((policy.Flags & CFGEnabled) == 0) return ProcessDisplayCode.Disabled;
         return (policy.Flags & XFGEnabled) != 0
@@ -349,7 +328,7 @@ internal static class NativeProcessInfo
     public static double ReadNominalProcessorCycleCapacity()
     {
         uint processorCount = GetActiveProcessorCount(AllProcessorGroups);
-        if (processorCount == 0 || processorCount > 4_096) return 0;
+        if (processorCount is 0 or > 4_096) return 0;
 
         int entrySize = Marshal.SizeOf<PROCESSOR_POWER_INFORMATION>();
         int bufferSize = checked((int)processorCount * entrySize);
@@ -359,7 +338,7 @@ internal static class NativeProcessInfo
             uint status = CallNtPowerInformation(
                 ProcessorPowerInformation,
                 IntPtr.Zero,
-                0,
+                inputBufferSize: 0,
                 buffer,
                 (uint)bufferSize);
             if (status != 0) return 0;
@@ -385,15 +364,16 @@ internal static class NativeProcessInfo
     {
         uint nameLength = 0;
         uint domainLength = 0;
-        _ = LookupAccountSidW(null, sid, null, ref nameLength, null, ref domainLength, out int use);
+        _ = LookupAccountSidW(systemName: null, sid, name: null, ref nameLength, referencedDomainName: null,
+            ref domainLength, out int use);
         if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer || nameLength == 0) return Unavailable;
 
         StringBuilder name = new((int)nameLength);
-        StringBuilder domain = new((int)Math.Max(1, domainLength));
-        if (!LookupAccountSidW(null, sid, name, ref nameLength, domain, ref domainLength, out use))
+        StringBuilder domain = new((int)Math.Max(val1: 1, domainLength));
+        if (!LookupAccountSidW(systemName: null, sid, name, ref nameLength, domain, ref domainLength, out use))
             return Unavailable;
 
-        return domain.Length == 0 ? name.ToString() : string.Concat(domain, "\\", name);
+        return domain.Length == 0 ? name.ToString() : string.Concat(domain, arg1: "\\", name);
     }
 
     private static bool TryReadTokenInteger(IntPtr processHandle, int informationClass, out int value)
@@ -424,7 +404,7 @@ internal static class NativeProcessInfo
 
     private static int ToSignedCount(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
-    private static long ToLong(nuint value) => value > long.MaxValue ? long.MaxValue : (long)value;
+    private static long ToLong(nuint value) => (ulong)value > long.MaxValue ? long.MaxValue : (long)value;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -492,7 +472,8 @@ internal static class NativeProcessInfo
         uint outputBufferSize);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetPackageFullName(IntPtr process, ref uint packageFullNameLength, StringBuilder packageFullName);
+    private static extern int GetPackageFullName(IntPtr process, ref uint packageFullNameLength,
+        StringBuilder packageFullName);
 
     [DllImport("psapi.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -1,6 +1,5 @@
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -51,8 +50,8 @@ internal static class DeviceVisibility
         {
             // Capture-flow path mirrors render but reads the recording-side settings.
             return settings.ShowDisabledRecordingDevices ||
-                   device.IsDefault && settings.ShowDefaultRecordingDeviceEvenIfDisabled ||
-                   device.IsDefaultCommunications && settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled;
+                   (device.IsDefault && settings.ShowDefaultRecordingDeviceEvenIfDisabled) ||
+                   (device.IsDefaultCommunications && settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled);
         }
 
         if (settings.ShowDisabledPlaybackDevices) return true;

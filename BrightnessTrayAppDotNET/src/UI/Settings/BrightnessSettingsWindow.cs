@@ -117,7 +117,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
     ];
 
     private static EnvironmentalCurveGlyphIcon BuildEnvironmentalNavigationIcon(Color color) =>
-        new EnvironmentalCurveGlyphIcon { IconColor = color };
+        new() { IconColor = color };
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
     {
@@ -144,9 +144,9 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
             resolvedTheme.CloseButtonHover.For(isLight),
             resolvedTheme.CloseButtonPressed.For(isLight),
             resolvedTheme.CloseButtonGlyphActive.For(isLight),
-            hoverDeep: resolvedTheme.HoverDeep.For(isLight),
-            pressedDeep: resolvedTheme.PressedDeep.For(isLight),
-            controlBackgroundDeep: resolvedTheme.ControlBackgroundDeep.For(isLight));
+            resolvedTheme.HoverDeep.For(isLight),
+            resolvedTheme.PressedDeep.For(isLight),
+            resolvedTheme.ControlBackgroundDeep.For(isLight));
     }
 
     private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
@@ -158,8 +158,5 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         return control;
     }
 
-    protected override void OnSettingsWindowClosed()
-    {
-        base.OnSettingsWindowClosed();
-    }
+    protected override void OnSettingsWindowClosed() => base.OnSettingsWindowClosed();
 }

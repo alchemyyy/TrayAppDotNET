@@ -11,7 +11,7 @@ public sealed class TaskManagerTrayIconTests
     public void HistoryKeepsNewestSamplesAndAllDataSources()
     {
         using TaskManagerTrayIcon renderer = new();
-        int totalSampleCount = TaskManagerTrayIcon.HistoryCapacity + 2;
+        const int totalSampleCount = TaskManagerTrayIcon.HistoryCapacity + 2;
         for (int sampleIndex = 0; sampleIndex < totalSampleCount; sampleIndex++)
         {
             renderer.AddSample(new SystemPerformanceSample(
@@ -28,9 +28,9 @@ public sealed class TaskManagerTrayIconTests
             TrayGraphDataSource.CPUHighestCore);
 
         Assert.Equal(TaskManagerTrayIcon.HistoryCapacity, averageInput.Values.Length);
-        Assert.Equal(2, averageInput.Values[0]);
+        Assert.Equal(expected: 2, averageInput.Values[0]);
         Assert.Equal(totalSampleCount - 1, averageInput.Values[^1]);
-        Assert.Equal(52, highestCoreInput.Values[0]);
+        Assert.Equal(expected: 52, highestCoreInput.Values[0]);
         Assert.Equal(50 + totalSampleCount - 1, highestCoreInput.Values[^1]);
     }
 
@@ -48,9 +48,9 @@ public sealed class TaskManagerTrayIconTests
 
         Assert.Equal(iconSize, bitmap.Width);
         Assert.Equal(iconSize, bitmap.Height);
-        Assert.Equal(byte.MaxValue, bitmap.GetPixel(0, 0).Alpha);
+        Assert.Equal(byte.MaxValue, bitmap.GetPixel(x: 0, y: 0).Alpha);
         Assert.Equal(byte.MaxValue, bitmap.GetPixel(iconSize - 1, iconSize - 1).Alpha);
-        Assert.True(bitmap.GetPixel(6, 13).Green > bitmap.GetPixel(6, 2).Green);
+        Assert.True(bitmap.GetPixel(x: 6, y: 13).Green > bitmap.GetPixel(x: 6, y: 2).Green);
     }
 
     [Fact]

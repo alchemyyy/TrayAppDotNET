@@ -27,7 +27,7 @@ public readonly record struct EnvironmentalCurveEditorPalette(
     Color Accent)
 {
     public static EnvironmentalCurveEditorPalette Default { get; } =
-        FromAppTheme(AppTheme.Default, false);
+        FromAppTheme(AppTheme.Default, isLight: false);
 
     public static EnvironmentalCurveEditorPalette FromAppTheme(AppTheme theme, bool isLight) =>
         FromSettingsPalette(
@@ -53,20 +53,20 @@ public readonly record struct EnvironmentalCurveEditorPalette(
         Color previewTint)
     {
         return new EnvironmentalCurveEditorPalette(
-            Background: palette.Background,
-            Foreground: palette.Foreground,
-            SecondaryForeground: palette.SecondaryForeground,
-            CardBackground: palette.CardBackground,
-            Border: palette.Border,
-            GridLine: gridLine,
-            BrightnessCurve: brightnessCurve,
-            NightLightCurve: nightLightCurve,
-            CurrentTime: currentTime,
-            TwilightBackdrop: twilightBackdrop,
-            NightBackdrop: nightBackdrop,
-            DisabledBand: disabledBand,
-            PreviewTint: previewTint,
-            Accent: palette.Accent);
+            palette.Background,
+            palette.Foreground,
+            palette.SecondaryForeground,
+            palette.CardBackground,
+            palette.Border,
+            gridLine,
+            brightnessCurve,
+            nightLightCurve,
+            currentTime,
+            twilightBackdrop,
+            nightBackdrop,
+            disabledBand,
+            previewTint,
+            palette.Accent);
     }
 
     private static SettingsPalette CreateSettingsPalette(AppTheme theme, bool isLight) =>
@@ -259,7 +259,7 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
         _previewMode = preview;
         if (preview)
         {
-            ClearDragState(raiseChanged: false);
+            ClearDragState(false);
             _hoveredLimit = null;
             _hoveredThumb = null;
             _hoveredDisabledPin = null;
@@ -280,7 +280,7 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
     public void SetPreviewSweepCursor(double t)
     {
         if (!_previewSweepRunning) return;
-        _previewSweepCursor = Math.Clamp(t, 0.0, 1.0);
+        _previewSweepCursor = Math.Clamp(t, min: 0.0, max: 1.0);
         InvalidateVisual();
     }
 
@@ -294,8 +294,8 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
 
     public void SetDisabledPeriod(bool enabled, double start, double end)
     {
-        double clampedStart = Math.Clamp(start, 0.0, 1.0);
-        double clampedEnd = Math.Clamp(end, 0.0, 1.0);
+        double clampedStart = Math.Clamp(start, min: 0.0, max: 1.0);
+        double clampedEnd = Math.Clamp(end, min: 0.0, max: 1.0);
         if (_disabledPeriodEnabled == enabled
             && _disabledPeriodStart == clampedStart
             && _disabledPeriodEnd == clampedEnd)
@@ -353,7 +353,7 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
 
     public void SetSmoothness(double smoothness)
     {
-        _smoothness = Math.Clamp(smoothness, 0.0, 1.0);
+        _smoothness = Math.Clamp(smoothness, min: 0.0, max: 1.0);
         InvalidateVisual();
     }
 

@@ -1,6 +1,5 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
-using TrayAppDotNETCommon.UI;
 using Color = Avalonia.Media.Color;
 
 namespace VolumeTrayAppDotNET.Models;
@@ -475,12 +474,11 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         }
     } = IconLRULimitDefault;
 
-    private string _meterPeakColorHex = string.Empty;
     private bool _useDefaultMeterPeakColor = true;
 
     public string MeterPeakColorHex
     {
-        get => _useDefaultMeterPeakColor ? MeterPeakColorDefaultHex : _meterPeakColorHex;
+        get => _useDefaultMeterPeakColor ? MeterPeakColorDefaultHex : field;
         set
         {
             string normalized = string.IsNullOrWhiteSpace(value) ? MeterPeakColorDefaultHex : value;
@@ -489,15 +487,15 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
                 MeterPeakColorDefaultHex,
                 AppTheme.LegacyMeterPeakColorDefaultHex);
             string storedValue = useDefault ? string.Empty : normalized;
-            if (_useDefaultMeterPeakColor == useDefault && _meterPeakColorHex == storedValue) return;
+            if (_useDefaultMeterPeakColor == useDefault && field == storedValue) return;
 
             _useDefaultMeterPeakColor = useDefault;
-            _meterPeakColorHex = storedValue;
+            field = storedValue;
             OnPropertyChanged();
             // Fire Changed so EffectiveMeterPeakColor consumers re-resolve after programmatic writes.
             RaiseChanged();
         }
-    }
+    } = string.Empty;
 
     [XmlIgnore]
     public Color? TemporaryMeterPeakColor
@@ -515,12 +513,11 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public Color EffectiveMeterPeakColor =>
         TemporaryMeterPeakColor ?? ColorMath.TryParseHexOrNull(MeterPeakColorHex) ?? AppTheme.MeterPeakColorDefault;
 
-    private string _meterPeakStereoColorHex = string.Empty;
     private bool _useDefaultMeterPeakStereoColor = true;
 
     public string MeterPeakStereoColorHex
     {
-        get => _useDefaultMeterPeakStereoColor ? MeterPeakStereoColorDefaultHex : _meterPeakStereoColorHex;
+        get => _useDefaultMeterPeakStereoColor ? MeterPeakStereoColorDefaultHex : field;
         set
         {
             string normalized = string.IsNullOrWhiteSpace(value) ? MeterPeakStereoColorDefaultHex : value;
@@ -529,15 +526,15 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
                 MeterPeakStereoColorDefaultHex,
                 AppTheme.LegacyMeterPeakStereoColorDefaultHex);
             string storedValue = useDefault ? string.Empty : normalized;
-            if (_useDefaultMeterPeakStereoColor == useDefault && _meterPeakStereoColorHex == storedValue) return;
+            if (_useDefaultMeterPeakStereoColor == useDefault && field == storedValue) return;
 
             _useDefaultMeterPeakStereoColor = useDefault;
-            _meterPeakStereoColorHex = storedValue;
+            field = storedValue;
             OnPropertyChanged();
             // See MeterPeakColorHex setter: derived EffectiveMeterPeakStereoColor needs notification.
             RaiseChanged();
         }
-    }
+    } = string.Empty;
 
     [XmlIgnore]
     public Color? TemporaryMeterPeakStereoColor
@@ -1211,7 +1208,7 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "settings.xml");
+        return Path.Combine(appFolder, path2: "settings.xml");
     }
 
     // The folder that holds settings.xml and other per-app data. Used by the uninstaller's

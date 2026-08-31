@@ -61,8 +61,8 @@ internal static class PDBSymbolResolver
 
     private static readonly string AppDataDir = Program.AppLocalAppDataDirectory;
 
-    public static readonly string NightlightDir = Path.Combine(AppDataDir, "nightlight");
-    private static readonly string CacheFile = Path.Combine(NightlightDir, "nightlight-rva-cache.json");
+    public static readonly string NightlightDir = Path.Combine(AppDataDir, path2: "nightlight");
+    private static readonly string CacheFile = Path.Combine(NightlightDir, path2: "nightlight-rva-cache.json");
 
 
     /// <summary>
@@ -152,7 +152,7 @@ internal static class PDBSymbolResolver
         string dllPath, string version, long fileSize, string PDBSignature, uint PDBAge,
         IReadOnlyList<string> symbolNames, Dictionary<string, int> rvas)
     {
-        List<CacheEntry>? entries = TryReadCacheEntries(logFailures: true);
+        List<CacheEntry>? entries = TryReadCacheEntries(true);
         if (entries == null || entries.Count == 0) return false;
 
         // PDB signature is the authoritative key. FileVersion + FileSize are kept in the predicate as
@@ -191,7 +191,7 @@ internal static class PDBSymbolResolver
         Dictionary<string, int> rvas)
     {
         Directory.CreateDirectory(NightlightDir);
-        List<CacheEntry> entries = TryReadCacheEntries(logFailures: false) ?? [];
+        List<CacheEntry> entries = TryReadCacheEntries(false) ?? [];
 
         // Drop any existing entry for the same DLL before appending the fresh one. We match only on
         // DllPath here (not the full key) so stale entries written by older builds of this app -
@@ -237,7 +237,7 @@ internal static class PDBSymbolResolver
     {
         List<CacheEntry> entries = [];
         if (root.ValueKind != JsonValueKind.Object
-            || !root.TryGetProperty("Entries", out JsonElement entriesElement)
+            || !root.TryGetProperty(propertyName: "Entries", out JsonElement entriesElement)
             || entriesElement.ValueKind != JsonValueKind.Array) return entries;
 
         foreach (JsonElement entryElement in entriesElement.EnumerateArray())
@@ -253,11 +253,11 @@ internal static class PDBSymbolResolver
     {
         if (element.ValueKind != JsonValueKind.Object) return null;
 
-        string DLLPath = ReadStringProperty(element, "DLLPath", fallbackName: "DllPath");
+        string DLLPath = ReadStringProperty(element, propertyName: "DLLPath", fallbackName: "DllPath");
         if (string.IsNullOrWhiteSpace(DLLPath)) return null;
 
         Dictionary<string, int> symbols = [];
-        if (element.TryGetProperty("Symbols", out JsonElement symbolsElement)
+        if (element.TryGetProperty(propertyName: "Symbols", out JsonElement symbolsElement)
             && symbolsElement.ValueKind == JsonValueKind.Object)
         {
             foreach (JsonProperty symbolProperty in symbolsElement.EnumerateObject())
@@ -270,10 +270,10 @@ internal static class PDBSymbolResolver
         return new CacheEntry
         {
             DLLPath = DLLPath,
-            Version = ReadStringProperty(element, "Version"),
-            FileSize = ReadInt64Property(element, "FileSize"),
-            PDBSignature = ReadStringProperty(element, "PDBSignature", fallbackName: "PdbSignature"),
-            PDBAge = ReadUInt32Property(element, "PDBAge", fallbackName: "PdbAge"),
+            Version = ReadStringProperty(element, propertyName: "Version"),
+            FileSize = ReadInt64Property(element, propertyName: "FileSize"),
+            PDBSignature = ReadStringProperty(element, propertyName: "PDBSignature", fallbackName: "PdbSignature"),
+            PDBAge = ReadUInt32Property(element, propertyName: "PDBAge", fallbackName: "PdbAge"),
             Symbols = symbols
         };
     }
@@ -323,11 +323,11 @@ internal static class PDBSymbolResolver
         foreach (CacheEntry entry in entries)
         {
             writer.WriteStartObject();
-            writer.WriteString("DLLPath", entry.DLLPath);
-            writer.WriteString("Version", entry.Version);
-            writer.WriteNumber("FileSize", entry.FileSize);
-            writer.WriteString("PDBSignature", entry.PDBSignature);
-            writer.WriteNumber("PDBAge", entry.PDBAge);
+            writer.WriteString(propertyName: "DLLPath", entry.DLLPath);
+            writer.WriteString(propertyName: "Version", entry.Version);
+            writer.WriteNumber(propertyName: "FileSize", entry.FileSize);
+            writer.WriteString(propertyName: "PDBSignature", entry.PDBSignature);
+            writer.WriteNumber(propertyName: "PDBAge", entry.PDBAge);
             writer.WritePropertyName("Symbols");
             writer.WriteStartObject();
             foreach (KeyValuePair<string, int> symbol in entry.Symbols.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
@@ -339,7 +339,7 @@ internal static class PDBSymbolResolver
         writer.WriteEndArray();
         writer.WriteEndObject();
         writer.Flush();
-        stream.Flush(flushToDisk: true);
+        stream.Flush(true);
     }
 
     private static bool ResolveByDownloadingPDB(
@@ -396,10 +396,10 @@ internal static class PDBSymbolResolver
         try
         {
             // DOS header: must start with 'MZ', e_lfanew at offset 0x3C points to the PE header.
-            short dosMagic = Marshal.ReadInt16(modBase, 0);
+            short dosMagic = Marshal.ReadInt16(modBase, ofs: 0);
             if (dosMagic != 0x5A4D) return false;
 
-            int peOffset = Marshal.ReadInt32(modBase, 0x3C);
+            int peOffset = Marshal.ReadInt32(modBase, ofs: 0x3C);
             int peSig = Marshal.ReadInt32(modBase, peOffset);
             if (peSig != 0x00004550) return false; // 'PE\0\0'
 
@@ -426,35 +426,35 @@ internal static class PDBSymbolResolver
             for (int i = 0; i < entryCount; i++)
             {
                 IntPtr entry = nint.Add(modBase, debugDirRva + i * 28);
-                int debugType = Marshal.ReadInt32(entry, 12); // IMAGE_DEBUG_DIRECTORY.Type
+                int debugType = Marshal.ReadInt32(entry, ofs: 12); // IMAGE_DEBUG_DIRECTORY.Type
                 if (debugType != 2) continue; // IMAGE_DEBUG_TYPE_CODEVIEW
 
-                int sizeOfData = Marshal.ReadInt32(entry, 16); // IMAGE_DEBUG_DIRECTORY.SizeOfData
-                int rvaOfData = Marshal.ReadInt32(entry, 20); // IMAGE_DEBUG_DIRECTORY.AddressOfRawData
+                int sizeOfData = Marshal.ReadInt32(entry, ofs: 16); // IMAGE_DEBUG_DIRECTORY.SizeOfData
+                int rvaOfData = Marshal.ReadInt32(entry, ofs: 20); // IMAGE_DEBUG_DIRECTORY.AddressOfRawData
                 // RSDS record: 4-byte sig + 16-byte GUID + 4-byte age + null-terminated path.
                 // 24 bytes is the minimum before the (possibly empty) name.
                 if (sizeOfData < 24 || rvaOfData == 0) continue;
 
                 IntPtr cv = nint.Add(modBase, rvaOfData);
-                int cvSig = Marshal.ReadInt32(cv, 0);
+                int cvSig = Marshal.ReadInt32(cv, ofs: 0);
                 if (cvSig != 0x53445352) continue; // 'RSDS'
 
                 byte[] guidBytes = new byte[16];
-                Marshal.Copy(nint.Add(cv, 4), guidBytes, 0, 16);
+                Marshal.Copy(nint.Add(cv, offset: 4), guidBytes, startIndex: 0, length: 16);
                 Guid sig = new(guidBytes);
 
-                uint a = (uint)Marshal.ReadInt32(cv, 20);
+                uint a = (uint)Marshal.ReadInt32(cv, ofs: 20);
 
                 // Name is null-terminated ANSI;
                 // bound the scan to the entry size to avoid a runaway read into adjacent debug data.
                 int maxNameBytes = sizeOfData - 24;
-                IntPtr nameAddr = nint.Add(cv, 24);
+                IntPtr nameAddr = nint.Add(cv, offset: 24);
                 int nameLen = 0;
                 while (nameLen < maxNameBytes && Marshal.ReadByte(nameAddr, nameLen) != 0) nameLen++;
                 if (nameLen == 0) continue;
 
                 byte[] nameBytes = new byte[nameLen];
-                Marshal.Copy(nameAddr, nameBytes, 0, nameLen);
+                Marshal.Copy(nameAddr, nameBytes, startIndex: 0, nameLen);
                 string fullName = System.Text.Encoding.ASCII.GetString(nameBytes);
 
                 // The recorded path can be a build-machine absolute path;
@@ -573,8 +573,8 @@ internal static class PDBSymbolResolver
             // that the caller can add back to LoadLibrary's return value.
             ulong modBase = SymLoadModuleExW(
                 hProc, IntPtr.Zero, pdbPath, ModuleName: null,
-                BaseOfDll: (ulong)loadedModuleBase.ToInt64(), DllSize: 0,
-                Data: IntPtr.Zero, Flags: 0);
+                (ulong)loadedModuleBase.ToInt64(), DllSize: 0,
+                IntPtr.Zero, Flags: 0);
 
             if (modBase == 0)
             {
@@ -610,9 +610,9 @@ internal static class PDBSymbolResolver
                 // Zero the struct each iteration:
                 // SymFromNameW writes into the variable-length tail
                 // and we want a clean slate for NameLen/Address etc.
-                for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(symbolInfoBuffer, i, 0);
-                Marshal.WriteInt32(symbolInfoBuffer, 0, sizeOfStruct);
-                Marshal.WriteInt32(symbolInfoBuffer, 80, maxNameChars);
+                for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(symbolInfoBuffer, i, val: 0);
+                Marshal.WriteInt32(symbolInfoBuffer, ofs: 0, sizeOfStruct);
+                Marshal.WriteInt32(symbolInfoBuffer, ofs: 80, maxNameChars);
 
                 if (!SymFromNameW(hProc, name, symbolInfoBuffer))
                 {
@@ -621,8 +621,8 @@ internal static class PDBSymbolResolver
                     return false;
                 }
 
-                long address = Marshal.ReadInt64(symbolInfoBuffer, 56); // SYMBOL_INFOW.Address
-                long moduleBase = Marshal.ReadInt64(symbolInfoBuffer, 32); // SYMBOL_INFOW.ModBase
+                long address = Marshal.ReadInt64(symbolInfoBuffer, ofs: 56); // SYMBOL_INFOW.Address
+                long moduleBase = Marshal.ReadInt64(symbolInfoBuffer, ofs: 32); // SYMBOL_INFOW.ModBase
                 long rva = address - moduleBase;
 
                 if (rva is < 0 or > int.MaxValue)

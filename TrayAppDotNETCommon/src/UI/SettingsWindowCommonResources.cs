@@ -8,9 +8,9 @@ public sealed partial class SettingsWindowCommonResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<SettingsWindowCommonResources> Resources =
         CommonAXAMLResourceStore<SettingsWindowCommonResources>.Create(
-            "Common settings-window resources",
+            resourceName: "Common settings-window resources",
             static () => new SettingsWindowCommonResources(),
-            "SettingsWindowCommon.axaml");
+            sourceFileName: "SettingsWindowCommon.axaml");
 #else
     private static readonly Lazy<SettingsWindowCommonResources> Resources =
         new(static () => new SettingsWindowCommonResources());

@@ -43,19 +43,16 @@ internal static class CSharpBuilderProvenanceGenerator
     private static CSharpBuilderBoundary Normalize(
         CSharpBuilderBoundary boundary,
         CSharpBuilderProvenanceSettings settings) =>
-        boundary with
-        {
-            SourcePath = AXAMLSourcePath.Normalize(boundary.SourcePath, settings.ProjectDirectory)
-        };
+        boundary with { SourcePath = AXAMLSourcePath.Normalize(boundary.SourcePath, settings.ProjectDirectory) };
 
     private static CSharpBuilderProvenanceSettings ReadSettings(
         AnalyzerConfigOptionsProvider optionsProvider)
     {
         AnalyzerConfigOptions options = optionsProvider.GlobalOptions;
-        _ = options.TryGetValue("build_property.RootNamespace", out string? rootNamespace);
-        _ = options.TryGetValue("build_property.ProjectDir", out string? projectDirectory);
+        _ = options.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace);
+        _ = options.TryGetValue(key: "build_property.ProjectDir", out string? projectDirectory);
         return new CSharpBuilderProvenanceSettings(
-            string.IsNullOrWhiteSpace(rootNamespace) ? DefaultRootNamespace : rootNamespace!,
+            string.IsNullOrWhiteSpace(rootNamespace) ? DefaultRootNamespace : rootNamespace,
             projectDirectory ?? string.Empty);
     }
 }

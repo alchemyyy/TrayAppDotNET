@@ -1,11 +1,10 @@
-using BatteryTrayAppDotNET.Visuals;
-using TrayAppDotNETCommon.UI.Controls;
 using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
 
-public sealed class BatteryUninstallerWindow(string installDir, BatteryInstallScope scope) : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
+public sealed class BatteryUninstallerWindow(string installDir, BatteryInstallScope scope)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
 {
     public BatteryUninstallerWindow()
         : this(string.Empty, BatteryInstallScope.LocalAppData)

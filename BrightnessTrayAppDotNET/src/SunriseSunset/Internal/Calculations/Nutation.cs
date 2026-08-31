@@ -7,19 +7,19 @@ internal readonly record struct NutationResult(double DelPsi, double DelEpsilon)
 internal static class Nutation
 {
     public static double MeanElongationMoonSun(double jce)
-        => MathUtils.ThirdOrderPolynomial(1.0 / 189474.0, -0.0019142, 445267.11148, 297.85036, jce);
+        => MathUtils.ThirdOrderPolynomial(1.0 / 189474.0, b: -0.0019142, c: 445267.11148, d: 297.85036, jce);
 
     public static double MeanAnomalySun(double jce)
-        => MathUtils.ThirdOrderPolynomial(-1.0 / 300000.0, -0.0001603, 35999.05034, 357.52772, jce);
+        => MathUtils.ThirdOrderPolynomial(-1.0 / 300000.0, b: -0.0001603, c: 35999.05034, d: 357.52772, jce);
 
     public static double MeanAnomalyMoon(double jce)
-        => MathUtils.ThirdOrderPolynomial(1.0 / 56250.0, 0.0086972, 477198.867398, 134.96298, jce);
+        => MathUtils.ThirdOrderPolynomial(1.0 / 56250.0, b: 0.0086972, c: 477198.867398, d: 134.96298, jce);
 
     public static double ArgumentLatitudeMoon(double jce)
-        => MathUtils.ThirdOrderPolynomial(1.0 / 327270.0, -0.0036825, 483202.017538, 93.27191, jce);
+        => MathUtils.ThirdOrderPolynomial(1.0 / 327270.0, b: -0.0036825, c: 483202.017538, d: 93.27191, jce);
 
     public static double AscendingLongitudeMoon(double jce)
-        => MathUtils.ThirdOrderPolynomial(1.0 / 450000.0, 0.0020708, -1934.136261, 125.04452, jce);
+        => MathUtils.ThirdOrderPolynomial(1.0 / 450000.0, b: 0.0020708, c: -1934.136261, d: 125.04452, jce);
 
     private static double XyTermSummation(int i, double[] x)
     {

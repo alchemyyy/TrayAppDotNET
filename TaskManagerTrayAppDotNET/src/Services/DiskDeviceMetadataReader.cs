@@ -45,7 +45,7 @@ internal sealed class DiskDeviceMetadataReader
     }
 
     /// <summary>Reads metadata while retaining explicitly supplied raw disks with no volumes.</summary>
-    internal DiskDeviceMetadataSnapshot[] Read(ReadOnlySpan<uint> physicalDiskNumbers)
+    internal static DiskDeviceMetadataSnapshot[] Read(ReadOnlySpan<uint> physicalDiskNumbers)
     {
         Dictionary<uint, DiskMetadataBuilder> metadataByDiskNumber = [];
         for (int diskIndex = 0; diskIndex < physicalDiskNumbers.Length; diskIndex++)
@@ -77,11 +77,12 @@ internal sealed class DiskDeviceMetadataReader
             if (roleMapping.HasPageFile)
                 mappedPageFileVolumeNames.Add(volumeName);
         }
+
         hasSystemDiskData &= mappedSystemVolume;
         hasPageFileData &= mappedPageFileVolumeNames.SetEquals(pageFileVolumeNames);
 
         uint[] sortedDiskNumbers = new uint[metadataByDiskNumber.Count];
-        metadataByDiskNumber.Keys.CopyTo(sortedDiskNumbers, 0);
+        metadataByDiskNumber.Keys.CopyTo(sortedDiskNumbers, index: 0);
         Array.Sort(sortedDiskNumbers);
         DiskDeviceMetadataSnapshot[] snapshots =
             new DiskDeviceMetadataSnapshot[sortedDiskNumbers.Length];
@@ -107,7 +108,7 @@ internal sealed class DiskDeviceMetadataReader
         if (descriptor.Length < VolumeExtentArrayOffset) return false;
 
         uint extentCount = BinaryPrimitives.ReadUInt32LittleEndian(descriptor);
-        if (extentCount == 0 || extentCount > int.MaxValue) return false;
+        if (extentCount is 0 or > int.MaxValue) return false;
 
         long requiredLength = VolumeExtentArrayOffset + (long)extentCount * DiskExtentSize;
         if (requiredLength > descriptor.Length) return false;
@@ -157,7 +158,7 @@ internal sealed class DiskDeviceMetadataReader
         ulong allocatedBytes = 0;
         foreach (KeyValuePair<uint, UInt128> pair in weightByDiskNumber)
         {
-            UInt128 product = (UInt128)byteCount * pair.Value;
+            UInt128 product = byteCount * pair.Value;
             ulong quotient = (ulong)(product / totalWeight);
             UInt128 remainder = product % totalWeight;
             allocations.Add(new AllocationBuilder(pair.Key, quotient, remainder));
@@ -200,9 +201,7 @@ internal sealed class DiskDeviceMetadataReader
         if (version < MinimumSeekPenaltyDescriptorSize
             || size < MinimumSeekPenaltyDescriptorSize
             || size > descriptor.Length)
-        {
             return DiskMediaKind.Unknown;
-        }
 
         return descriptor[SeekPenaltyValueOffset] == 0
             ? DiskMediaKind.SolidState
@@ -218,9 +217,7 @@ internal sealed class DiskDeviceMetadataReader
         using SafeFileHandle volumeHandle = OpenDevice(normalizedVolumeName);
         if (volumeHandle.IsInvalid
             || !TryReadVolumeDiskExtents(volumeHandle, out DiskVolumeExtent[] extents))
-        {
             return default;
-        }
 
         string volumePath = EnsureTrailingDirectorySeparator(normalizedVolumeName);
         bool hasVolumeData = GetDiskFreeSpaceExW(
@@ -281,9 +278,7 @@ internal sealed class DiskDeviceMetadataReader
         if (metadataByDiskNumber.TryGetValue(
                 physicalDiskNumber,
                 out DiskMetadataBuilder? builder))
-        {
             return builder;
-        }
 
         builder = new DiskMetadataBuilder(physicalDiskNumber);
         metadataByDiskNumber.Add(physicalDiskNumber, builder);
@@ -312,9 +307,7 @@ internal sealed class DiskDeviceMetadataReader
                         searchHandle,
                         volumeNameBuffer,
                         (uint)volumeNameBuffer.Length))
-                {
                     continue;
-                }
 
                 break;
             }
@@ -337,8 +330,8 @@ internal sealed class DiskDeviceMetadataReader
         {
             string volumeName = volumeNames[volumeIndex];
             string queryName = volumeName.StartsWith(
-                    ExtendedPathPrefix,
-                    StringComparison.Ordinal)
+                ExtendedPathPrefix,
+                StringComparison.Ordinal)
                 ? volumeName[ExtendedPathPrefix.Length..]
                 : volumeName;
             string[] nativePaths = QueryDosDeviceTargets(queryName);
@@ -348,9 +341,7 @@ internal sealed class DiskDeviceMetadataReader
                 if (!nativePath.StartsWith(
                         NativeDevicePathPrefix,
                         StringComparison.OrdinalIgnoreCase))
-                {
                     continue;
-                }
 
                 volumeByNativeDevicePath.TryAdd(nativePath, volumeName);
             }
@@ -362,7 +353,7 @@ internal sealed class DiskDeviceMetadataReader
     private static string[] QueryDosDeviceTargets(string queryName)
     {
         int bufferLength = InitialDosDeviceBufferLength;
-        while (bufferLength <= MaximumDosDeviceBufferLength)
+        while (true)
         {
             char[] targets = new char[bufferLength];
             uint characterCount = QueryDosDeviceW(
@@ -372,19 +363,15 @@ internal sealed class DiskDeviceMetadataReader
             if (characterCount > 0)
             {
                 int validLength = Math.Min(targets.Length, checked((int)characterCount));
-                return ParseMultiString(targets.AsSpan(0, validLength));
+                return ParseMultiString(targets.AsSpan(start: 0, validLength));
             }
 
             if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
                 || bufferLength == MaximumDosDeviceBufferLength)
-            {
                 return [];
-            }
 
             bufferLength = Math.Min(bufferLength * 2, MaximumDosDeviceBufferLength);
         }
-
-        return [];
     }
 
     private static string ReadSystemVolumeName(out bool hasSystemDiskData)
@@ -406,7 +393,7 @@ internal sealed class DiskDeviceMetadataReader
             uint characterCount = GetSystemWindowsDirectoryW(path, (uint)path.Length);
             if (characterCount == 0) return string.Empty;
             if (characterCount < path.Length)
-                return new string(path, 0, checked((int)characterCount));
+                return new string(path, startIndex: 0, checked((int)characterCount));
 
             if (characterCount > MaximumPathBufferLength) return string.Empty;
             bufferLength = checked((int)characterCount + 1);
@@ -438,8 +425,8 @@ internal sealed class DiskDeviceMetadataReader
             }
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or MarshalDirectiveException)
+                                              or EntryPointNotFoundException
+                                              or MarshalDirectiveException)
         {
             collector.FailureMessage = exception.Message;
         }
@@ -464,19 +451,15 @@ internal sealed class DiskDeviceMetadataReader
                     pageFilePath,
                     volumeByNativeDevicePath,
                     out string volumeName))
-            {
                 volumeNames.Add(volumeName);
-            }
             else
-            {
                 hasPageFileData = false;
-            }
         }
 
         return volumeNames;
     }
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvStdcall) })]
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static unsafe int CollectPageFilePath(
         IntPtr context,
         IntPtr pageFileInformation,
@@ -495,7 +478,7 @@ internal sealed class DiskDeviceMetadataReader
         }
         catch (Exception exception)
         {
-            if (collector is not null) collector.FailureMessage = exception.Message;
+            collector?.FailureMessage = exception.Message;
             return 0;
         }
     }
@@ -533,9 +516,7 @@ internal sealed class DiskDeviceMetadataReader
             {
                 if (nativePath.Length <= bestNativePath.Length
                     || !PathStartsWithDeviceName(path, nativePath))
-                {
                     continue;
-                }
 
                 bestNativePath = nativePath;
             }
@@ -562,9 +543,7 @@ internal sealed class DiskDeviceMetadataReader
                 mountPoint,
                 volumeNameBuffer,
                 (uint)volumeNameBuffer.Length))
-        {
             return false;
-        }
 
         volumeName = NormalizeVolumeName(ReadNullTerminatedString(volumeNameBuffer));
         return volumeName.Length > 0;
@@ -580,7 +559,7 @@ internal sealed class DiskDeviceMetadataReader
     private static string[] ReadVolumeDisplayNames(string volumeName)
     {
         int bufferLength = InitialPathBufferLength;
-        while (bufferLength <= MaximumPathBufferLength)
+        while (true)
         {
             char[] paths = new char[bufferLength];
             bool succeeded = GetVolumePathNamesForVolumeNameW(
@@ -600,13 +579,11 @@ internal sealed class DiskDeviceMetadataReader
                         || path[1] != ':'
                         || path[2] != Path.DirectorySeparatorChar
                         || !char.IsAsciiLetter(path[0]))
-                    {
                         continue;
-                    }
 
                     driveLetters.Add(string.Concat(
                         char.ToUpperInvariant(path[0]),
-                        ":"));
+                        arg1: ":"));
                 }
 
                 string[] result = new string[driveLetters.Count];
@@ -617,14 +594,10 @@ internal sealed class DiskDeviceMetadataReader
             if (Marshal.GetLastPInvokeError() != ErrorMoreData
                 || requiredLength <= paths.Length
                 || requiredLength > MaximumPathBufferLength)
-            {
                 return [];
-            }
 
             bufferLength = checked((int)requiredLength);
         }
-
-        return [];
     }
 
     private static DiskMediaKind ReadMediaKind(uint physicalDiskNumber)
@@ -648,12 +621,10 @@ internal sealed class DiskDeviceMetadataReader
                 (uint)descriptor.Length,
                 out uint bytesReturned,
                 IntPtr.Zero))
-        {
             return DiskMediaKind.Unknown;
-        }
 
         int validLength = Math.Min(descriptor.Length, checked((int)bytesReturned));
-        return ParseSeekPenaltyDescriptor(descriptor.AsSpan(0, validLength));
+        return ParseSeekPenaltyDescriptor(descriptor.AsSpan(start: 0, validLength));
     }
 
     private static bool TryReadVolumeDiskExtents(
@@ -662,14 +633,14 @@ internal sealed class DiskDeviceMetadataReader
     {
         extents = [];
         int bufferLength = InitialExtentBufferLength;
-        while (bufferLength <= MaximumExtentBufferLength)
+        while (true)
         {
             byte[] descriptor = new byte[bufferLength];
             bool succeeded = DeviceIoControlOutputBuffer(
                 volumeHandle,
                 IOCTLVolumeGetVolumeDiskExtents,
                 IntPtr.Zero,
-                0,
+                inputBufferSize: 0,
                 descriptor,
                 (uint)descriptor.Length,
                 out uint bytesReturned,
@@ -678,38 +649,32 @@ internal sealed class DiskDeviceMetadataReader
             {
                 int validLength = Math.Min(descriptor.Length, checked((int)bytesReturned));
                 return TryParseVolumeDiskExtents(
-                    descriptor.AsSpan(0, validLength),
+                    descriptor.AsSpan(start: 0, validLength),
                     out extents);
             }
 
             if (Marshal.GetLastPInvokeError() != ErrorMoreData
                 || descriptor.Length < sizeof(uint))
-            {
                 return false;
-            }
 
             uint extentCount = BinaryPrimitives.ReadUInt32LittleEndian(descriptor);
             long requiredLength = VolumeExtentArrayOffset + (long)extentCount * DiskExtentSize;
             if (requiredLength <= bufferLength
                 || requiredLength > MaximumExtentBufferLength)
-            {
                 return false;
-            }
 
             bufferLength = checked((int)requiredLength);
         }
-
-        return false;
     }
 
     private static SafeFileHandle OpenDevice(string path) =>
         CreateFileW(
             path,
-            0,
+            desiredAccess: 0,
             FileShareRead | FileShareWrite | FileShareDelete,
             IntPtr.Zero,
             OpenExisting,
-            0,
+            flagsAndAttributes: 0,
             IntPtr.Zero);
 
     private static string NormalizeVolumeName(string volumeName) =>
@@ -722,9 +687,9 @@ internal sealed class DiskDeviceMetadataReader
 
     private static string ReadNullTerminatedString(char[] characters)
     {
-        int terminatorIndex = Array.IndexOf(characters, '\0');
+        int terminatorIndex = Array.IndexOf(characters, value: '\0');
         int length = terminatorIndex >= 0 ? terminatorIndex : characters.Length;
-        return new string(characters, 0, length);
+        return new string(characters, startIndex: 0, length);
     }
 
     private static string[] ParseMultiString(ReadOnlySpan<char> value)
@@ -877,10 +842,10 @@ internal sealed class DiskDeviceMetadataReader
             DiskMediaKind mediaKind,
             bool hasSystemDiskData,
             bool hasPageFileData) => new(
-            true,
+            HasDeviceData: true,
             physicalDiskNumber,
             HasVolumeData,
-            string.Join(", ", _volumeNames),
+            string.Join(separator: ", ", _volumeNames),
             FormattedCapacityBytes,
             AvailableBytes,
             hasSystemDiskData,
@@ -898,9 +863,9 @@ internal sealed class DiskDeviceMetadataReader
         ulong bytes,
         UInt128 remainder)
     {
-        public uint PhysicalDiskNumber = physicalDiskNumber;
+        public readonly uint PhysicalDiskNumber = physicalDiskNumber;
         public ulong Bytes = bytes;
-        public UInt128 Remainder = remainder;
+        public readonly UInt128 Remainder = remainder;
     }
 
     private sealed class PageFilePathCollector

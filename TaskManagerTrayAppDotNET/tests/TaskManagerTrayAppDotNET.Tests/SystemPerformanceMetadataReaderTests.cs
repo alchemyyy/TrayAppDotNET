@@ -9,9 +9,9 @@ public sealed class SystemPerformanceMetadataReaderTests
     public void ProcessorPerformanceAboveOneHundredPercentProducesTurboSpeed()
     {
         ulong currentSpeedHertz = SystemPerformanceMetadataReader.CalculateCurrentSpeedHertz(
-            4_200_000_000,
-            128.24);
+            baseSpeedHertz: 4_200_000_000,
+            processorPerformancePercent: 128.24);
 
-        Assert.Equal(5_386_080_000UL, currentSpeedHertz);
+        Assert.Equal(expected: 5_386_080_000UL, currentSpeedHertz);
     }
 }

@@ -14,14 +14,14 @@ public static class AsyncUtils
 
         WaitRegistrationState state = new();
         RegisteredWaitHandle registeredWaitHandle = ThreadPool.RegisterWaitForSingleObject(
-            waitObject: handle,
-            callBack: static (callbackState, timedOut) =>
+            handle,
+            static (callbackState, timedOut) =>
             {
                 WaitRegistrationState registrationState = (WaitRegistrationState)callbackState!;
                 registrationState.Complete(!timedOut);
             },
-            state: state,
-            millisecondsTimeOutInterval: timeoutMs,
+            state,
+            timeoutMs,
             executeOnlyOnce: true);
         state.SetRegistration(registeredWaitHandle);
         return state.Task;
@@ -46,7 +46,7 @@ public static class AsyncUtils
             }
 
             RegisteredWaitHandle? previous =
-                Interlocked.CompareExchange(ref _registeredWaitHandle, registeredWaitHandle, null);
+                Interlocked.CompareExchange(ref _registeredWaitHandle, registeredWaitHandle, comparand: null);
             if (previous != null)
             {
                 registeredWaitHandle.Unregister(null);
@@ -60,7 +60,7 @@ public static class AsyncUtils
 
         public void Complete(bool signaled)
         {
-            if (Interlocked.Exchange(ref _completed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _completed, value: 1) != 0) return;
 
             Unregister();
             _taskCompletionSource.TrySetResult(signaled);
@@ -69,7 +69,7 @@ public static class AsyncUtils
         private void Unregister()
         {
             RegisteredWaitHandle? registeredWaitHandle =
-                Interlocked.Exchange(ref _registeredWaitHandle, null);
+                Interlocked.Exchange(ref _registeredWaitHandle, value: null);
             registeredWaitHandle?.Unregister(null);
         }
     }
@@ -105,12 +105,12 @@ public static class AsyncUtils
             }
             else
             {
-                eventWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
+                eventWaitHandle = new EventWaitHandle(initialState: false, EventResetMode.AutoReset);
                 int rc = RegNotifyChangeKeyValue(
                     key.Handle,
                     bWatchSubtree: false,
-                    dwNotifyFilter: RegNotifyChangeLastSet,
-                    hEvent: eventWaitHandle.SafeWaitHandle,
+                    RegNotifyChangeLastSet,
+                    eventWaitHandle.SafeWaitHandle,
                     fAsynchronous: true);
                 if (rc == 0)
                     armed = true;

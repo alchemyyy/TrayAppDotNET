@@ -77,16 +77,16 @@ internal readonly record struct StartupAppActionEligibility(
         {
             StartupAppStatus.Enabled => new StartupAppActionEligibility(
                 CanEnable: false,
-                CanDisable: supportsStatusChange,
-                CanShowProperties: hasResolvedTarget),
+                supportsStatusChange,
+                hasResolvedTarget),
             StartupAppStatus.Disabled => new StartupAppActionEligibility(
-                CanEnable: supportsStatusChange,
+                supportsStatusChange,
                 CanDisable: false,
-                CanShowProperties: hasResolvedTarget),
+                hasResolvedTarget),
             _ => new StartupAppActionEligibility(
                 CanEnable: false,
                 CanDisable: false,
-                CanShowProperties: hasResolvedTarget)
+                hasResolvedTarget)
         };
 }
 
@@ -116,10 +116,10 @@ internal readonly record struct StartupAppActionResult(
     string ErrorMessage)
 {
     public static StartupAppActionResult Success(StartupAppStatus status) =>
-        new(true, status, string.Empty);
+        new(Succeeded: true, status, string.Empty);
 
     public static StartupAppActionResult Failure(
         StartupAppStatus status,
         string errorMessage) =>
-        new(false, status, errorMessage);
+        new(Succeeded: false, status, errorMessage);
 }

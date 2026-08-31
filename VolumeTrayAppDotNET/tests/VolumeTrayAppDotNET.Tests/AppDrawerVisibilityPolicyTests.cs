@@ -2,7 +2,6 @@ using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
 using Xunit;
 
-
 namespace VolumeTrayAppDotNET.Tests;
 
 public sealed class AppDrawerVisibilityPolicyTests
@@ -12,8 +11,8 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("old-device", isDefaultDevice: false, AudioSessionState.Inactive),
-            Candidate("new-device", isDefaultDevice: true, AudioSessionState.Inactive)
+            Candidate(deviceID: "old-device", isDefaultDevice: false, AudioSessionState.Inactive),
+            Candidate(deviceID: "new-device", isDefaultDevice: true, AudioSessionState.Inactive)
         ];
 
         bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
@@ -27,8 +26,8 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("routed-device", isDefaultDevice: false, AudioSessionState.Active),
-            Candidate("default-device", isDefaultDevice: true, AudioSessionState.Inactive)
+            Candidate(deviceID: "routed-device", isDefaultDevice: false, AudioSessionState.Active),
+            Candidate(deviceID: "default-device", isDefaultDevice: true, AudioSessionState.Inactive)
         ];
 
         bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
@@ -42,8 +41,8 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("first-device", isDefaultDevice: false, AudioSessionState.Active),
-            Candidate("second-device", isDefaultDevice: true, AudioSessionState.Active)
+            Candidate(deviceID: "first-device", isDefaultDevice: false, AudioSessionState.Active),
+            Candidate(deviceID: "second-device", isDefaultDevice: true, AudioSessionState.Active)
         ];
 
         bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
@@ -57,8 +56,8 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("first-routed-device", isDefaultDevice: false, AudioSessionState.Inactive),
-            Candidate("second-routed-device", isDefaultDevice: false, AudioSessionState.Inactive)
+            Candidate(deviceID: "first-routed-device", isDefaultDevice: false, AudioSessionState.Inactive),
+            Candidate(deviceID: "second-routed-device", isDefaultDevice: false, AudioSessionState.Inactive)
         ];
 
         bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
@@ -72,10 +71,10 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("old-device", isDefaultDevice: false, AudioSessionState.Inactive),
-            Candidate("new-device", isDefaultDevice: true, AudioSessionState.Inactive),
+            Candidate(deviceID: "old-device", isDefaultDevice: false, AudioSessionState.Inactive),
+            Candidate(deviceID: "new-device", isDefaultDevice: true, AudioSessionState.Inactive),
             Candidate(
-                "old-device",
+                deviceID: "old-device",
                 isDefaultDevice: false,
                 AudioSessionState.Inactive,
                 appID: "unique-app")
@@ -92,9 +91,9 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("render-device", isDefaultDevice: true, AudioSessionState.Inactive),
+            Candidate(deviceID: "render-device", isDefaultDevice: true, AudioSessionState.Inactive),
             Candidate(
-                "capture-device",
+                deviceID: "capture-device",
                 isDefaultDevice: false,
                 AudioSessionState.Inactive,
                 EDataFlow.eCapture)
@@ -111,8 +110,8 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] candidates =
         [
-            Candidate("expired-default", isDefaultDevice: true, AudioSessionState.Expired),
-            Candidate("live-device", isDefaultDevice: false, AudioSessionState.Inactive)
+            Candidate(deviceID: "expired-default", isDefaultDevice: true, AudioSessionState.Expired),
+            Candidate(deviceID: "live-device", isDefaultDevice: false, AudioSessionState.Inactive)
         ];
 
         bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
@@ -126,12 +125,12 @@ public sealed class AppDrawerVisibilityPolicyTests
     {
         AppDrawerVisibilityCandidate[] sourceOnly =
         [
-            Candidate("old-device", isDefaultDevice: false, AudioSessionState.Inactive)
+            Candidate(deviceID: "old-device", isDefaultDevice: false, AudioSessionState.Inactive)
         ];
         AppDrawerVisibilityCandidate[] sourceAndDestination =
         [
-            Candidate("old-device", isDefaultDevice: false, AudioSessionState.Inactive),
-            Candidate("new-device", isDefaultDevice: true, AudioSessionState.Inactive)
+            Candidate(deviceID: "old-device", isDefaultDevice: false, AudioSessionState.Inactive),
+            Candidate(deviceID: "new-device", isDefaultDevice: true, AudioSessionState.Inactive)
         ];
 
         bool[] sourceOnlyVisibility = AppDrawerVisibilityPolicy.Resolve(sourceOnly);

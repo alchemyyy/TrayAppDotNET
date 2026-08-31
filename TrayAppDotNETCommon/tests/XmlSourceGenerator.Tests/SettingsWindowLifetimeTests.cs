@@ -1,10 +1,10 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using System.Reflection;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
@@ -25,25 +25,25 @@ public sealed class SettingsWindowLifetimeTests
             object? initialContent = window.Content;
             try
             {
-                Assert.Equal(1, window.PageBuildCount);
-                Assert.Equal(0, window.HotReloadPreparationCount);
-                Assert.Equal(0, window.HotReloadRestorationCount);
+                Assert.Equal(expected: 1, window.PageBuildCount);
+                Assert.Equal(expected: 0, window.HotReloadPreparationCount);
+                Assert.Equal(expected: 0, window.HotReloadRestorationCount);
 
                 window.HotReloadEvents.Clear();
                 CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
 
-                Assert.Equal(2, window.PageBuildCount);
-                Assert.Equal(1, window.HotReloadPreparationCount);
-                Assert.Equal(1, window.HotReloadRestorationCount);
+                Assert.Equal(expected: 2, window.PageBuildCount);
+                Assert.Equal(expected: 1, window.HotReloadPreparationCount);
+                Assert.Equal(expected: 1, window.HotReloadRestorationCount);
                 Assert.Equal(new[] { "before", "build", "after" }, window.HotReloadEvents);
                 Assert.NotSame(initialContent, window.Content);
 
                 window.HotReloadEvents.Clear();
                 GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
 
-                Assert.Equal(3, window.PageBuildCount);
-                Assert.Equal(2, window.HotReloadPreparationCount);
-                Assert.Equal(2, window.HotReloadRestorationCount);
+                Assert.Equal(expected: 3, window.PageBuildCount);
+                Assert.Equal(expected: 2, window.HotReloadPreparationCount);
+                Assert.Equal(expected: 2, window.HotReloadRestorationCount);
                 Assert.Equal(new[] { "before", "build", "after" }, window.HotReloadEvents);
             }
             finally
@@ -53,9 +53,9 @@ public sealed class SettingsWindowLifetimeTests
 
             CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
             GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
-            Assert.Equal(3, window.PageBuildCount);
-            Assert.Equal(2, window.HotReloadPreparationCount);
-            Assert.Equal(2, window.HotReloadRestorationCount);
+            Assert.Equal(expected: 3, window.PageBuildCount);
+            Assert.Equal(expected: 2, window.HotReloadPreparationCount);
+            Assert.Equal(expected: 2, window.HotReloadRestorationCount);
         });
 
     [Fact]
@@ -69,8 +69,8 @@ public sealed class SettingsWindowLifetimeTests
             CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
             GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
 
-            Assert.Equal(0, window.HotReloadPreparationCount);
-            Assert.Equal(0, window.HotReloadRestorationCount);
+            Assert.Equal(expected: 0, window.HotReloadPreparationCount);
+            Assert.Equal(expected: 0, window.HotReloadRestorationCount);
         });
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class SettingsWindowLifetimeTests
             double originalHeight = Assert.IsType<double>(resources[heightKey]);
             double originalMinWidth = Assert.IsType<double>(resources[minWidthKey]);
             double originalMinHeight = Assert.IsType<double>(resources[minHeightKey]);
-            DimensionReloadSettingsWindow window = new(useCompactProfile: false);
+            DimensionReloadSettingsWindow window = new(false);
             window.Show();
             try
             {
@@ -100,8 +100,8 @@ public sealed class SettingsWindowLifetimeTests
                 CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
 
                 Assert.Equal(originalWidth + 17, window.Width);
-                Assert.Equal(901, window.Height);
-                Assert.Equal(701, window.MinWidth);
+                Assert.Equal(expected: 901, window.Height);
+                Assert.Equal(expected: 701, window.MinWidth);
                 Assert.Equal(originalMinHeight + 11, window.MinHeight);
             }
             finally
@@ -127,7 +127,7 @@ public sealed class SettingsWindowLifetimeTests
             double originalHeight = Assert.IsType<double>(resources[heightKey]);
             double originalMinWidth = Assert.IsType<double>(resources[minWidthKey]);
             double originalMinHeight = Assert.IsType<double>(resources[minHeightKey]);
-            DimensionReloadSettingsWindow window = new(useCompactProfile: true);
+            DimensionReloadSettingsWindow window = new(true);
             window.Show();
             try
             {
@@ -140,10 +140,10 @@ public sealed class SettingsWindowLifetimeTests
 
                 CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
 
-                Assert.Equal(1202, window.Width);
+                Assert.Equal(expected: 1202, window.Width);
                 Assert.Equal(originalHeight + 19, window.Height);
                 Assert.Equal(originalMinWidth + 13, window.MinWidth);
-                Assert.Equal(502, window.MinHeight);
+                Assert.Equal(expected: 502, window.MinHeight);
             }
             finally
             {
@@ -177,8 +177,8 @@ public sealed class SettingsWindowLifetimeTests
 
                 CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
 
-                Assert.Equal(1401, window.Width);
-                Assert.Equal(801, window.MinWidth);
+                Assert.Equal(expected: 1401, window.Width);
+                Assert.Equal(expected: 801, window.MinWidth);
             }
             finally
             {
@@ -200,7 +200,7 @@ public sealed class SettingsWindowLifetimeTests
         {
             CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
 
-            Assert.Equal(1, notificationCount);
+            Assert.Equal(expected: 1, notificationCount);
         }
         finally
         {
@@ -214,21 +214,13 @@ public sealed class SettingsWindowLifetimeTests
     [Fact]
     public void CommonAXAMLSynchronizationReplacesEntriesInPlace()
     {
-        ResourceDictionary currentResources = new()
-        {
-            ["Existing"] = 1,
-            ["Removed"] = 2
-        };
-        ResourceDictionary candidateResources = new()
-        {
-            ["Existing"] = 3,
-            ["Added"] = 4
-        };
+        ResourceDictionary currentResources = new() { ["Existing"] = 1, ["Removed"] = 2 };
+        ResourceDictionary candidateResources = new() { ["Existing"] = 3, ["Added"] = 4 };
 
         CommonAXAMLHotReload.SynchronizeResources(currentResources, candidateResources);
 
-        Assert.Equal(3, currentResources["Existing"]);
-        Assert.Equal(4, currentResources["Added"]);
+        Assert.Equal(expected: 3, currentResources["Existing"]);
+        Assert.Equal(expected: 4, currentResources["Added"]);
         Assert.False(currentResources.ContainsKey("Removed"));
     }
 #endif
@@ -257,22 +249,22 @@ public sealed class SettingsWindowLifetimeTests
     [Fact]
     public void FullWorkAreaAxisUsesSharpCorners()
     {
-        PixelRect workArea = new(0, 0, 1920, 1040);
+        PixelRect workArea = new(x: 0, y: 0, width: 1920, height: 1040);
 
         Assert.False(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
-            new PixelRect(200, 150, 960, 670),
+            new PixelRect(x: 200, y: 150, width: 960, height: 670),
             workArea));
         Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
-            new PixelRect(300, 0, 900, 1040),
+            new PixelRect(x: 300, y: 0, width: 900, height: 1040),
             workArea));
         Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
-            new PixelRect(300, -8, 900, 1056),
+            new PixelRect(x: 300, y: -8, width: 900, height: 1056),
             workArea));
         Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
-            new PixelRect(0, 200, 1920, 600),
+            new PixelRect(x: 0, y: 200, width: 1920, height: 600),
             workArea));
         Assert.False(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
-            new PixelRect(2, 2, 1916, 1036),
+            new PixelRect(x: 2, y: 2, width: 1916, height: 1036),
             workArea));
     }
 
@@ -375,15 +367,12 @@ public sealed class SettingsWindowLifetimeTests
         window.Show();
         try
         {
-            Task<bool> confirmation = window.ConfirmAsync("Confirm", "Message", "Yes", "No");
+            Task<bool> confirmation = window.ConfirmAsync(title: "Confirm", message: "Message", confirmText: "Yes",
+                cancelText: "No");
 
             Assert.Equal(new[] { true }, window.ConfirmOverlayVisibilityChanges);
 
-            window.RaiseEvent(new KeyEventArgs
-            {
-                RoutedEvent = InputElement.KeyDownEvent,
-                Key = Key.Escape
-            });
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
 
             Assert.True(confirmation.IsCompletedSuccessfully);
             Assert.False(confirmation.Result);
@@ -405,15 +394,11 @@ public sealed class SettingsWindowLifetimeTests
         SettingsSidebarResizeHandle resizeHandle = Assert.Single(
             window.GetVisualDescendants().OfType<SettingsSidebarResizeHandle>());
         Assert.False(resizeHandle.IsHitTestVisible);
-        Assert.Equal(230, window.DisplayedSidebarWidth);
+        Assert.Equal(expected: 230, window.DisplayedSidebarWidth);
 
         Point dragStart = GetWindowPoint(window, resizeHandle);
         window.MouseMove(dragStart, RawInputModifiers.None);
-        window.RaiseEvent(new KeyEventArgs
-        {
-            RoutedEvent = InputElement.KeyDownEvent,
-            Key = Key.LeftCtrl
-        });
+        window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftCtrl });
 
         Assert.True(resizeHandle.IsHitTestVisible);
         Assert.Same(TrayAppDotNETCursors.SizeWestEast, resizeHandle.Cursor);
@@ -423,24 +408,20 @@ public sealed class SettingsWindowLifetimeTests
         window.MouseMove(dragEnd, RawInputModifiers.Control);
         window.MouseUp(dragEnd, MouseButton.Left, RawInputModifiers.Control);
 
-        Assert.Equal(290, window.PersistedSidebarWidth);
-        Assert.Equal(290, window.DisplayedSidebarWidth);
-        Assert.Equal(1, window.SaveCount);
+        Assert.Equal(expected: 290, window.PersistedSidebarWidth);
+        Assert.Equal(expected: 290, window.DisplayedSidebarWidth);
+        Assert.Equal(expected: 1, window.SaveCount);
 
         Point resetPoint = GetWindowPoint(window, resizeHandle);
         window.MouseMove(resetPoint, RawInputModifiers.Control);
         window.MouseDown(resetPoint, MouseButton.Right, RawInputModifiers.Control);
         window.MouseUp(resetPoint, MouseButton.Right, RawInputModifiers.Control);
 
-        Assert.Equal(0, window.PersistedSidebarWidth);
-        Assert.Equal(230, window.DisplayedSidebarWidth);
-        Assert.Equal(2, window.SaveCount);
+        Assert.Equal(expected: 0, window.PersistedSidebarWidth);
+        Assert.Equal(expected: 230, window.DisplayedSidebarWidth);
+        Assert.Equal(expected: 2, window.SaveCount);
 
-        window.RaiseEvent(new KeyEventArgs
-        {
-            RoutedEvent = InputElement.KeyUpEvent,
-            Key = Key.LeftCtrl
-        });
+        window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.LeftCtrl });
         Assert.False(resizeHandle.IsHitTestVisible);
         window.Close();
 
@@ -462,10 +443,10 @@ public sealed class SettingsWindowLifetimeTests
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(window.SelectFailingPage);
 
-        Assert.Equal("expected page failure", exception.Message);
+        Assert.Equal(expected: "expected page failure", exception.Message);
         Assert.Equal(TestPage.Stable, window.SelectedPage);
         Assert.Same(stableDataContext, window.StablePage.DataContext);
-        Assert.Equal(1, window.FailedPageCleanupCount);
+        Assert.Equal(expected: 1, window.FailedPageCleanupCount);
     });
 
     [Fact]
@@ -504,13 +485,13 @@ public sealed class SettingsWindowLifetimeTests
         Assert.True(window.AlphaCard.IsVisible);
         Assert.False(window.BetaPageRoot.IsVisible);
         Assert.False(window.BetaCard.IsVisible);
-        Assert.Equal(1, window.PageCleanupCount);
+        Assert.Equal(expected: 1, window.PageCleanupCount);
 
         searchBox.Clear();
 
         Assert.Equal(SearchPage.Alpha, window.SelectedPage);
         Assert.True(window.AlphaPageRoot.IsVisible);
-        Assert.Equal(3, window.PageCleanupCount);
+        Assert.Equal(expected: 3, window.PageCleanupCount);
         window.Close();
     });
 
@@ -541,9 +522,10 @@ public sealed class SettingsWindowLifetimeTests
         {
             window.UpdateLayout();
             FieldInfo pageScrollOffsetsField = typeof(SettingsWindowCommon<TestPage>).GetField(
-                "_pageScrollOffsets",
-                BindingFlags.Instance | BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException("The settings scroll-offset store is unavailable.");
+                                                   name: "_pageScrollOffsets",
+                                                   BindingFlags.Instance | BindingFlags.NonPublic)
+                                               ?? throw new InvalidOperationException(
+                                                   "The settings scroll-offset store is unavailable.");
             Dictionary<TestPage, double> pageScrollOffsets = Assert.IsType<Dictionary<TestPage, double>>(
                 pageScrollOffsetsField.GetValue(window));
             pageScrollOffsets[TestPage.Stable] = 300;
@@ -560,7 +542,7 @@ public sealed class SettingsWindowLifetimeTests
             window.MouseDown(windowPoint, MouseButton.Left, RawInputModifiers.None);
             window.MouseUp(windowPoint, MouseButton.Left, RawInputModifiers.None);
 
-            Assert.Equal(0, pageScrollOffsets[TestPage.Stable]);
+            Assert.Equal(expected: 0, pageScrollOffsets[TestPage.Stable]);
         }
         finally
         {
@@ -595,17 +577,17 @@ public sealed class SettingsWindowLifetimeTests
         textBox.SelectAll();
         window.KeyTextInput("750");
 
-        Assert.Equal(750, window.PersistedValue);
-        Assert.Equal(1, window.SaveCount);
-        Assert.Same(textBox, window.FocusManager?.GetFocusedElement());
+        Assert.Equal(expected: 750, window.PersistedValue);
+        Assert.Equal(expected: 1, window.SaveCount);
+        Assert.Same(textBox, window.FocusManager.GetFocusedElement());
 
-        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, keySymbol: null);
 
-        Assert.Null(window.FocusManager?.GetFocusedElement());
+        Assert.Null(window.FocusManager.GetFocusedElement());
         window.Close();
 
-        Assert.Equal(750, window.PersistedValue);
-        Assert.Equal(1, window.SaveCount);
+        Assert.Equal(expected: 750, window.PersistedValue);
+        Assert.Equal(expected: 1, window.SaveCount);
     });
 
     [Fact]
@@ -620,15 +602,15 @@ public sealed class SettingsWindowLifetimeTests
         textBox.SelectAll();
         window.KeyTextInput("updated");
 
-        Assert.Equal("initial", window.PersistedText);
-        Assert.Same(textBox, window.FocusManager?.GetFocusedElement());
+        Assert.Equal(expected: "initial", window.PersistedText);
+        Assert.Same(textBox, window.FocusManager.GetFocusedElement());
 
-        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
-        window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, keySymbol: null);
+        window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, keySymbol: null);
 
-        Assert.Equal("updated", window.PersistedText);
-        Assert.Equal(1, window.SaveCount);
-        Assert.Null(window.FocusManager?.GetFocusedElement());
+        Assert.Equal(expected: "updated", window.PersistedText);
+        Assert.Equal(expected: 1, window.SaveCount);
+        Assert.Null(window.FocusManager.GetFocusedElement());
         window.Close();
     });
 
@@ -648,9 +630,9 @@ public sealed class SettingsWindowLifetimeTests
 
         ClickSelectedNavigationItem(window);
 
-        Assert.Equal(750, window.PersistedValue);
-        Assert.Equal(1, window.SaveCount);
-        Assert.NotSame(textBox, window.FocusManager?.GetFocusedElement());
+        Assert.Equal(expected: 750, window.PersistedValue);
+        Assert.Equal(expected: 1, window.SaveCount);
+        Assert.NotSame(textBox, window.FocusManager.GetFocusedElement());
         window.Close();
     });
 
@@ -668,9 +650,9 @@ public sealed class SettingsWindowLifetimeTests
 
         ClickSelectedNavigationItem(window);
 
-        Assert.Equal("updated", window.PersistedText);
-        Assert.Equal(1, window.SaveCount);
-        Assert.NotSame(textBox, window.FocusManager?.GetFocusedElement());
+        Assert.Equal(expected: "updated", window.PersistedText);
+        Assert.Equal(expected: 1, window.SaveCount);
+        Assert.NotSame(textBox, window.FocusManager.GetFocusedElement());
         window.Close();
     });
 
@@ -708,7 +690,7 @@ public sealed class SettingsWindowLifetimeTests
         public TestSettingsWindow()
         {
             StablePage = new TextBlock { Text = "stable", DataContext = new object() };
-            ConfigureSettingsWindow("Test", null);
+            ConfigureSettingsWindow(title: "Test", icon: null);
             InitializeSettingsShell();
         }
 
@@ -733,8 +715,8 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", () => StablePage),
-            new SettingsPageDescriptor<TestPage>(TestPage.Failing, "Failing", BuildFailingPage)
+            new(TestPage.Stable, Label: "Stable", () => StablePage),
+            new(TestPage.Failing, Label: "Failing", BuildFailingPage)
         ];
 
         protected override void Save()
@@ -782,7 +764,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildPage)
+            new(TestPage.Stable, Label: "Stable", BuildPage)
         ];
 
         protected override void Save()
@@ -830,7 +812,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildFailingPage)
+            new(TestPage.Stable, Label: "Stable", BuildFailingPage)
         ];
 
         protected override void Save()
@@ -844,23 +826,21 @@ public sealed class SettingsWindowLifetimeTests
     private sealed class DimensionReloadSettingsWindow : SettingsWindowCommon<TestPage>
     {
         private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
-        private readonly bool _applyCommonDimensionsOnReload;
 
         public DimensionReloadSettingsWindow(
             bool useCompactProfile,
             bool applyCommonDimensionsOnReload = true)
         {
-            _applyCommonDimensionsOnReload = applyCommonDimensionsOnReload;
+            ApplyCommonAXAMLWindowDimensionsOnReload = applyCommonDimensionsOnReload;
             if (useCompactProfile)
-                ConfigureCompactSettingsWindow("Compact test", null);
+                ConfigureCompactSettingsWindow(title: "Compact test", icon: null);
             else
-                ConfigureSettingsWindow("Standard test", null);
+                ConfigureSettingsWindow(title: "Standard test", icon: null);
             InitializeSettingsShell();
         }
 
         protected override SettingsPalette ResolvePalette() => _testPalette;
-        protected override bool ApplyCommonAXAMLWindowDimensionsOnReload =>
-            _applyCommonDimensionsOnReload;
+        protected override bool ApplyCommonAXAMLWindowDimensionsOnReload { get; }
         protected override bool EnableRoundedCorners => false;
         protected override TestPage DefaultPageKey => TestPage.Stable;
         protected override string HeaderText => "Test";
@@ -869,7 +849,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
         ];
 
         protected override void Save()
@@ -885,7 +865,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public PaletteRefreshSettingsWindow()
         {
-            StablePage = TrayAppDotNETSettingsUI.Text("stable", Palette);
+            StablePage = TrayAppDotNETSettingsUI.Text(text: "stable", Palette);
             InitializeSettingsShell();
         }
 
@@ -908,7 +888,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", () => StablePage)
+            new(TestPage.Stable, Label: "Stable", () => StablePage)
         ];
 
         protected override void Save()
@@ -919,22 +899,21 @@ public sealed class SettingsWindowLifetimeTests
     private sealed class ResponsiveSettingsWindow : SettingsWindowCommon<TestPage>
     {
         private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
-        private readonly bool _enableResponsiveSidebarCollapse;
 
         public ResponsiveSettingsWindow(bool enableResponsiveSidebarCollapse, double width)
         {
-            _enableResponsiveSidebarCollapse = enableResponsiveSidebarCollapse;
-            ConfigureSettingsWindow("Responsive Test", null);
+            EnableResponsiveSidebarCollapse = enableResponsiveSidebarCollapse;
+            ConfigureSettingsWindow(title: "Responsive Test", icon: null);
             MinWidth = 0;
             Width = width;
-            ClientSize = new Size(width, 600);
+            ClientSize = new Size(width, height: 600);
             InitializeSettingsShell();
         }
 
         public double ConfiguredSidebarWidth => SidebarWidth;
 
         protected override bool EnableRoundedCorners => false;
-        protected override bool EnableResponsiveSidebarCollapse => _enableResponsiveSidebarCollapse;
+        protected override bool EnableResponsiveSidebarCollapse { get; }
         protected override double SidebarCollapseThreshold => 750;
         protected override TestPage DefaultPageKey => TestPage.Stable;
         protected override string HeaderText => "Responsive Test";
@@ -944,7 +923,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
         ];
 
         protected override void Save()
@@ -961,10 +940,10 @@ public sealed class SettingsWindowLifetimeTests
         {
             _alignToContentArea = alignToContentArea;
             Overlay = new Border();
-            ConfigureSettingsWindow("Overlay Test", null);
+            ConfigureSettingsWindow(title: "Overlay Test", icon: null);
             MinWidth = 0;
             Width = width;
-            ClientSize = new Size(width, 600);
+            ClientSize = new Size(width, height: 600);
             InitializeSettingsShell();
         }
 
@@ -984,7 +963,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
         ];
 
         protected override void Save()
@@ -999,7 +978,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public SidebarResizeSettingsWindow()
         {
-            ConfigureSettingsWindow("Sidebar Resize Test", null);
+            ConfigureSettingsWindow(title: "Sidebar Resize Test", icon: null);
             InitializeSettingsShell();
         }
 
@@ -1017,7 +996,7 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
         ];
 
         protected override void Save() => SaveCount++;
@@ -1037,7 +1016,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public EditorSettingsWindow()
         {
-            ConfigureSettingsWindow("Editor Test", null);
+            ConfigureSettingsWindow(title: "Editor Test", icon: null);
             InitializeSettingsShell();
         }
 
@@ -1055,31 +1034,31 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildPage)
+            new(TestPage.Stable, Label: "Stable", BuildPage)
         ];
 
         protected override void Save() => SaveCount++;
 
         private StackPanel BuildPage()
         {
-            StackPanel stack = PageStack("Test", Palette);
+            StackPanel stack = PageStack(title: "Test", Palette);
             stack.Children.Add(IntCard(
-                "Sampling interval",
-                "Test value",
+                title: "Sampling interval",
+                description: "Test value",
                 PersistedValue,
-                1,
-                60_000,
+                min: 1,
+                max: 60_000,
                 value => PersistedValue = value,
                 Palette));
-            TextEditor = TrayAppDotNETSettingsUI.TextBox(Palette, 120, PersistedText);
+            TextEditor = TrayAppDotNETSettingsUI.TextBox(Palette, width: 120, PersistedText);
             TextEditor.LostFocus += (_, _) =>
             {
                 PersistedText = TextEditor.Text ?? string.Empty;
                 Save();
             };
             stack.Children.Add(Card(
-                "Text value",
-                "Test text",
+                title: "Text value",
+                description: "Test text",
                 TextEditor,
                 Palette));
             return stack;
@@ -1097,7 +1076,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public SearchSettingsWindow()
         {
-            ConfigureSettingsWindow("Search Test", null);
+            ConfigureSettingsWindow(title: "Search Test", icon: null);
             InitializeSettingsShell();
         }
 
@@ -1118,8 +1097,8 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override IReadOnlyList<SettingsPageDescriptor<SearchPage>> CreatePageDescriptors() =>
         [
-            new SettingsPageDescriptor<SearchPage>(SearchPage.Alpha, "Alpha", BuildAlphaPage),
-            new SettingsPageDescriptor<SearchPage>(SearchPage.Beta, "Beta", BuildBetaPage)
+            new(SearchPage.Alpha, Label: "Alpha", BuildAlphaPage),
+            new(SearchPage.Beta, Label: "Beta", BuildBetaPage)
         ];
 
         protected override void Save()
@@ -1129,9 +1108,10 @@ public sealed class SettingsWindowLifetimeTests
         private StackPanel BuildAlphaPage()
         {
             AddPageCleanup(() => PageCleanupCount++);
-            AlphaPageRoot = PageStack("Alpha", Palette);
-            AlphaCard = Card("Alpha option", "Starts the alpha feature.", null, Palette);
-            MaximumCard = Card("Max apps per row", "Limits each row.", null, Palette);
+            AlphaPageRoot = PageStack(title: "Alpha", Palette);
+            AlphaCard = Card(title: "Alpha option", description: "Starts the alpha feature.", rightControl: null,
+                Palette);
+            MaximumCard = Card(title: "Max apps per row", description: "Limits each row.", rightControl: null, Palette);
             AlphaPageRoot.Children.Add(AlphaCard);
             AlphaPageRoot.Children.Add(MaximumCard);
             return AlphaPageRoot;
@@ -1140,8 +1120,8 @@ public sealed class SettingsWindowLifetimeTests
         private StackPanel BuildBetaPage()
         {
             AddPageCleanup(() => PageCleanupCount++);
-            BetaPageRoot = PageStack("Beta", Palette);
-            BetaCard = Card("Beta option", "Starts the beta feature.", null, Palette);
+            BetaPageRoot = PageStack(title: "Beta", Palette);
+            BetaCard = Card(title: "Beta option", description: "Starts the beta feature.", rightControl: null, Palette);
             BetaPageRoot.Children.Add(BetaCard);
             return BetaPageRoot;
         }
@@ -1170,5 +1150,4 @@ public sealed class SettingsWindowLifetimeTests
             Colors.Red,
             Colors.DarkRed,
             Colors.White);
-
 }

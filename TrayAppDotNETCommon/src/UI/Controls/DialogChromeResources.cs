@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.UI;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -9,9 +8,9 @@ public sealed partial class DialogChromeResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<DialogChromeResources> Resources =
         CommonAXAMLResourceStore<DialogChromeResources>.Create(
-            "Common dialog-chrome resources",
+            resourceName: "Common dialog-chrome resources",
             static () => new DialogChromeResources(),
-            "DialogChrome.axaml");
+            sourceFileName: "DialogChrome.axaml");
 #else
     private static readonly Lazy<DialogChromeResources> Resources =
         new(static () => new DialogChromeResources());

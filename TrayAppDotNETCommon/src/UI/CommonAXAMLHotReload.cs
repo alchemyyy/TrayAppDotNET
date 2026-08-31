@@ -71,7 +71,7 @@ internal sealed class CommonAXAMLResourceStore<TResource>
                 () => CommonAXAMLHotReload.NotifyResourcesReloaded(resourceName),
                 sourceFileName,
                 callerFilePath,
-                static (TResource currentResources, TResource candidateResources) =>
+                static (currentResources, candidateResources) =>
                     CommonAXAMLHotReload.SynchronizeResources(
                         currentResources,
                         candidateResources));

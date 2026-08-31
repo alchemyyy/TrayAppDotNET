@@ -14,12 +14,12 @@ public sealed class ControlNameScopeTests
         Window window = new();
         ControlNameScope scope = ControlNameScope.For(window);
 
-        Border parent = scope.Assign(new Border(), "SettingsRoot");
+        Border parent = scope.Assign(new Border(), parentName: "SettingsRoot");
         TextBlock child = scope.Assign(new TextBlock(), parent);
 
-        Assert.Equal("Window", window.Name);
-        Assert.Equal("Border_SettingsRoot_0001", parent.Name);
-        Assert.Equal("TextBlock_Border0001_0002", child.Name);
+        Assert.Equal(expected: "Window", window.Name);
+        Assert.Equal(expected: "Border_SettingsRoot_0001", parent.Name);
+        Assert.Equal(expected: "TextBlock_Border0001_0002", child.Name);
     });
 
     [Fact]
@@ -35,9 +35,9 @@ public sealed class ControlNameScopeTests
 
         scope.AssignLogicalSubtree(root, window);
 
-        Assert.Equal("DeviceList", root.Name);
-        Assert.Equal("Border_DeviceList_0001", card.Name);
-        Assert.Equal("TextBlock_Border0001_0002", value.Name);
+        Assert.Equal(expected: "DeviceList", root.Name);
+        Assert.Equal(expected: "Border_DeviceList_0001", card.Name);
+        Assert.Equal(expected: "TextBlock_Border0001_0002", value.Name);
     });
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ControlNameScopeTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference<string> CreateTransientGeneratedName(ControlNameScope scope)
     {
-        Border control = scope.Assign(new Border(), "TransientControl");
+        Border control = scope.Assign(new Border(), parentName: "TransientControl");
         return new WeakReference<string>(control.Name!);
     }
 #else

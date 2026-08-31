@@ -165,7 +165,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (_profileManager == null) return;
 
-        StopCurveSaveDebounceTimer(flushPendingSave: false);
+        StopCurveSaveDebounceTimer(false);
         DispatcherTimer timer = new()
         {
             Interval = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalCurveSaveDebounceMs)
@@ -175,7 +175,7 @@ public sealed partial class BrightnessSettingsWindow
         try { timer.Start(); }
         catch
         {
-            StopCurveSaveDebounceTimer(flushPendingSave: false);
+            StopCurveSaveDebounceTimer(false);
             throw;
         }
     }
@@ -187,9 +187,10 @@ public sealed partial class BrightnessSettingsWindow
         try { _curveSaveDebounceTimer.Stop(); }
         catch
         {
-            StopCurveSaveDebounceTimer(flushPendingSave: false);
+            StopCurveSaveDebounceTimer(false);
             throw;
         }
+
         _profileManager?.Save();
     }
 
@@ -212,6 +213,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             TADNLog.Log($"Brightness environmental save timer stop failed: {exception.Message}");
         }
+
         timer.Tick -= OnCurveSaveDebounceTimerTick;
         if (flushPendingSave && hadPendingSave) _profileManager?.Save();
     }

@@ -8,9 +8,11 @@ namespace FanControlTrayAppDotNET.Models;
 // containing DeadbandsList's RPMMode (duty cycle % when false, RPM when true).
 public class DeadbandRange
 {
-    [XmlAttribute] public int Lower { get; set; }
+    [XmlAttribute]
+    public int Lower { get; set; }
 
-    [XmlAttribute] public int Upper { get; set; }
+    [XmlAttribute]
+    public int Upper { get; set; }
 
     public DeadbandRange() { }
 
@@ -48,7 +50,8 @@ public class DeadbandsList : INotifyPropertyChanged
     } = string.Empty;
 
     // When true, Bands are interpreted as RPM ranges. When false, duty cycle %.
-    [XmlAttribute] public bool RPMMode { get; set; }
+    [XmlAttribute]
+    public bool RPMMode { get; set; }
 
     [XmlArray("Bands")]
     [XmlArrayItem("Band")]

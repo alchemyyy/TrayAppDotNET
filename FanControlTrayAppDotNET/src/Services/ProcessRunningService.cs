@@ -24,6 +24,8 @@ public sealed class ProcessSnapshot
 public sealed class ProcessRunningService : IDisposable
 {
     // Disabled while we investigate long-run memory growth from Process.GetProcesses churn
+    // Keep this runtime-readable so the gated implementation remains reachable to the compiler
+    // ReSharper disable once ConvertToConstant
     private static readonly bool IsProcessEnumerationEnabled = false;
 
     private readonly Dispatcher _dispatcher;
@@ -93,10 +95,7 @@ public sealed class ProcessRunningService : IDisposable
                 string image = SafeProcessName(process);
                 ProcessSnapshot snapshot = new()
                 {
-                    PID = process.Id,
-                    ImageName = image,
-                    CommandLine = string.Empty,
-                    FirstSeenUtc = now
+                    PID = process.Id, ImageName = image, CommandLine = string.Empty, FirstSeenUtc = now
                 };
                 if (_processes.TryAdd(process.Id, snapshot)) _observable.Add(snapshot);
             }

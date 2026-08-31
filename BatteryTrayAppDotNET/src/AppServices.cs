@@ -45,8 +45,8 @@ internal static class AppServices
         InstallLayout,
         TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName),
         BuildInfo.BuildNumber,
-        SyncStartMenu: StartMenu.Sync,
-        PostToUIThread: action => Dispatcher.UIThread.Post(action)));
+        StartMenu.Sync,
+        action => Dispatcher.UIThread.Post(action)));
 
     public static AppTheme? Theme { get; set; }
     public static AppSettings? Settings { get; set; }

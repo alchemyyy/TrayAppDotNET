@@ -37,12 +37,12 @@ public sealed class ControlHoverInspectorTests
 
         inspectorSession.ToggleFrozen();
         Assert.True(inspectorSession.IsFrozen);
-        Assert.Contains("FROZEN", inspectorSession.InspectorStatusText);
+        Assert.Contains(expectedSubstring: "FROZEN", inspectorSession.InspectorStatusText);
         Assert.Contains(ControlHoverInspectorShortcut.Hint, inspectorSession.InspectorStatusText);
 
         inspectorSession.ToggleFrozen();
         Assert.False(inspectorSession.IsFrozen);
-        Assert.Contains("LIVE", inspectorSession.InspectorStatusText);
+        Assert.Contains(expectedSubstring: "LIVE", inspectorSession.InspectorStatusText);
     });
 
     [Fact]
@@ -83,36 +83,28 @@ public sealed class ControlHoverInspectorTests
             Opacity = 0.75
         };
         valueText.Classes.Add("reading");
-        Grid.SetRow(valueText, 2);
+        Grid.SetRow(valueText, value: 2);
 
-        Border card = new()
-        {
-            Name = "DeviceCard",
-            Padding = new Thickness(8),
-            Child = valueText
-        };
-        Window window = new()
-        {
-            Title = "Inspector test",
-            Content = card
-        };
+        Border card = new() { Name = "DeviceCard", Padding = new Thickness(8), Child = valueText };
+        Window window = new() { Title = "Inspector test", Content = card };
 
         window.Show();
         ControlHoverInspectorSnapshot snapshot = ControlHoverInspectorSnapshotBuilder.Build(window, valueText);
         List<string> rows = Flatten(snapshot.Roots);
 
-        Assert.Equal("TextBlock#ValueText.reading", snapshot.TargetLabel);
-        Assert.Contains(rows, row => row.Contains("Target: TextBlock#ValueText.reading", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Window: Avalonia.Controls.Window", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Title: Inspector test", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Visual ancestry", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Border#DeviceCard", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("bounds=", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Render scaling", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Effective Avalonia properties", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Margin = L=4", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Width = 120 [LocalValue]", StringComparison.Ordinal));
-        Assert.Contains(rows, row => row.Contains("Row = 2 [LocalValue]", StringComparison.Ordinal));
+        Assert.Equal(expected: "TextBlock#ValueText.reading", snapshot.TargetLabel);
+        Assert.Contains(rows,
+            row => row.Contains(value: "Target: TextBlock#ValueText.reading", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Window: Avalonia.Controls.Window", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Title: Inspector test", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Visual ancestry", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Border#DeviceCard", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "bounds=", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Render scaling", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Effective Avalonia properties", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Margin = L=4", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Width = 120 [LocalValue]", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "Row = 2 [LocalValue]", StringComparison.Ordinal));
 
         window.Close();
     });
@@ -123,7 +115,7 @@ public sealed class ControlHoverInspectorTests
         List<Action> scheduledCaptures = [];
         IInputElement? capturedElement = null;
         ControlHoverInspectorCaptureQueue captureQueue = new(
-            callback => scheduledCaptures.Add(callback),
+            scheduledCaptures.Add,
             (_, hitElement) => capturedElement = hitElement);
         Window topLevel = new();
         TextBlock? latestTarget = null;
@@ -159,7 +151,7 @@ public sealed class ControlHoverInspectorTests
         }
 
         Assert.Same(rootItemsSource, inspectorWindow.RootItemsSource);
-        Assert.Equal(1, inspectorWindow.DisplayedRootCount);
+        Assert.Equal(expected: 1, inspectorWindow.DisplayedRootCount);
         inspectorWindow.Close();
     });
 
@@ -168,7 +160,7 @@ public sealed class ControlHoverInspectorTests
     {
         ControlHoverInspectorWindow inspectorWindow = new();
         inspectorWindow.Show();
-        WeakReference<ControlHoverInspectorNode> firstSnapshotRoot = ShowTransientSnapshot(inspectorWindow, 0);
+        WeakReference<ControlHoverInspectorNode> firstSnapshotRoot = ShowTransientSnapshot(inspectorWindow, index: 0);
 
         for (int index = 1; index <= 100; index++)
             _ = ShowTransientSnapshot(inspectorWindow, index);
@@ -218,7 +210,7 @@ public sealed class ControlHoverInspectorTests
         Assert.False(firstSnapshotRoot.TryGetTarget(out _));
         Assert.InRange(
             inspectorWindow.DisplayedRootCount,
-            1,
+            low: 1,
             ControlHoverInspectorSnapshotBuilder.MaximumSnapshotNodeCount);
         inspectorWindow.Close();
         sourceWindow.Close();
@@ -245,7 +237,7 @@ public sealed class ControlHoverInspectorTests
         Assert.True(
             rows.Count <= ControlHoverInspectorSnapshotBuilder.MaximumSnapshotNodeCount,
             $"Snapshot retained {rows.Count} rows.");
-        Assert.Contains(rows, row => row.Contains("visual ancestry truncated", StringComparison.Ordinal));
+        Assert.Contains(rows, row => row.Contains(value: "visual ancestry truncated", StringComparison.Ordinal));
 
         window.Close();
     });
@@ -255,14 +247,7 @@ public sealed class ControlHoverInspectorTests
     {
         TextBlock target = new() { Name = "Target", Text = "target" };
         Border unrelatedBranch = new() { Child = new TextBlock { Text = "unrelated" } };
-        StackPanel content = new()
-        {
-            Children =
-            {
-                target,
-                unrelatedBranch
-            }
-        };
+        StackPanel content = new() { Children = { target, unrelatedBranch } };
         Window window = new() { Content = content };
         window.Show();
 

@@ -1,5 +1,5 @@
-using TrayAppDotNETCommon.Visuals;
 using Avalonia.Platform;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
@@ -34,7 +34,7 @@ internal static class AppThemeStore
     {
         string appDirectory = AppSettings.GetDefaultDirectory();
         Directory.CreateDirectory(appDirectory);
-        return Path.Combine(appDirectory, "theme.xml");
+        return Path.Combine(appDirectory, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string path) =>

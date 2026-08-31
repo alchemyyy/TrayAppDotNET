@@ -40,7 +40,7 @@ internal static class AXAMLProvenanceParser
             AXAMLProvenanceItemKind.ResourceDefinition,
             element,
             element,
-            null,
+            propertyName: null,
             resourceKey,
             ElementValueExpression(element),
             FindSelector(element));
@@ -80,7 +80,7 @@ internal static class AXAMLProvenanceParser
             AXAMLProvenanceItemKind.Style,
             element,
             selectorAttribute ?? (XObject)element,
-            null,
+            propertyName: null,
             ResourceKey(element),
             selector,
             selector);
@@ -125,7 +125,7 @@ internal static class AXAMLProvenanceParser
             AXAMLProvenanceItemKind.ControlTheme,
             element,
             element,
-            "Theme",
+            propertyName: "Theme",
             resourceKey,
             targetType,
             ControlThemeSelector(resourceKey, targetType));
@@ -155,7 +155,7 @@ internal static class AXAMLProvenanceParser
             contextElement,
             element,
             FindPropertyName(element),
-            null,
+            resourceKey: null,
             ElementValueExpression(element),
             FindSelector(element));
     }
@@ -182,7 +182,7 @@ internal static class AXAMLProvenanceParser
         if (!IsPropertyElement(element)) return;
 
         XElement? ownerElement = element.Parent;
-        if (ownerElement == null || string.Equals(ownerElement.Name.LocalName, "Setter", StringComparison.Ordinal))
+        if (ownerElement == null || string.Equals(ownerElement.Name.LocalName, b: "Setter", StringComparison.Ordinal))
             return;
 
         string? propertyName = PropertyNameFromPropertyElement(element);
@@ -254,7 +254,8 @@ internal static class AXAMLProvenanceParser
             {
                 AXAMLMarkupExtensionKind.Binding => AXAMLProvenanceItemKind.Binding,
                 AXAMLMarkupExtensionKind.ResourceReference => AXAMLProvenanceItemKind.ResourceReference,
-                _ => throw new ArgumentOutOfRangeException(nameof(markupExtension.Kind), markupExtension.Kind, null)
+                _ => throw new ArgumentOutOfRangeException(nameof(markupExtension.Kind), markupExtension.Kind,
+                    message: null)
             };
 
             AddEntry(
@@ -322,13 +323,13 @@ internal static class AXAMLProvenanceParser
             }
         }
 
-        if (string.Equals(attribute.Name.LocalName, "Name", StringComparison.Ordinal) &&
+        if (string.Equals(attribute.Name.LocalName, b: "Name", StringComparison.Ordinal) &&
             string.IsNullOrEmpty(attribute.Name.NamespaceName))
             return true;
 
         return element.Name.LocalName switch
         {
-            "Style" => string.Equals(attribute.Name.LocalName, "Selector", StringComparison.Ordinal),
+            "Style" => string.Equals(attribute.Name.LocalName, b: "Selector", StringComparison.Ordinal),
             "Setter" => attribute.Name.LocalName is "Property" or "Value",
             _ => false
         };
@@ -336,7 +337,7 @@ internal static class AXAMLProvenanceParser
 
     private static string? ResourceKey(XElement element)
     {
-        XName keyAttributeName = XName.Get("Key", XamlNamespace);
+        XName keyAttributeName = XName.Get(localName: "Key", XamlNamespace);
         return EmptyToNull(element.Attribute(keyAttributeName)?.Value);
     }
 
@@ -344,7 +345,7 @@ internal static class AXAMLProvenanceParser
     {
         foreach (XElement ancestor in element.AncestorsAndSelf())
         {
-            if (string.Equals(ancestor.Name.LocalName, "ControlTheme", StringComparison.Ordinal))
+            if (string.Equals(ancestor.Name.LocalName, b: "ControlTheme", StringComparison.Ordinal))
                 return ResourceKey(ancestor);
         }
 
@@ -355,10 +356,10 @@ internal static class AXAMLProvenanceParser
     {
         foreach (XElement ancestor in element.AncestorsAndSelf())
         {
-            if (string.Equals(ancestor.Name.LocalName, "Style", StringComparison.Ordinal))
+            if (string.Equals(ancestor.Name.LocalName, b: "Style", StringComparison.Ordinal))
                 return EmptyToNull(ancestor.Attribute("Selector")?.Value);
 
-            if (string.Equals(ancestor.Name.LocalName, "ControlTheme", StringComparison.Ordinal))
+            if (string.Equals(ancestor.Name.LocalName, b: "ControlTheme", StringComparison.Ordinal))
             {
                 string? resourceKey = ResourceKey(ancestor);
                 string? targetType = ancestor.Attribute("TargetType")?.Value;
@@ -379,7 +380,7 @@ internal static class AXAMLProvenanceParser
     {
         foreach (XElement child in setter.Elements())
         {
-            if (child.Name.LocalName.EndsWith(".Value", StringComparison.Ordinal))
+            if (child.Name.LocalName.EndsWith(value: ".Value", StringComparison.Ordinal))
                 return child;
         }
 
@@ -404,7 +405,7 @@ internal static class AXAMLProvenanceParser
             if (IsPropertyElement(ancestor))
                 return PropertyNameFromPropertyElement(ancestor);
 
-            if (string.Equals(ancestor.Name.LocalName, "Setter", StringComparison.Ordinal))
+            if (string.Equals(ancestor.Name.LocalName, b: "Setter", StringComparison.Ordinal))
                 return EmptyToNull(ancestor.Attribute("Property")?.Value);
         }
 
@@ -435,7 +436,7 @@ internal static class AXAMLProvenanceParser
                 : "<" + ElementTypeName(child) + "> " + childValue;
         }
 
-        return string.Join(", ", childElements.Select(static child => "<" + ElementTypeName(child) + ">"));
+        return string.Join(separator: ", ", childElements.Select(static child => "<" + ElementTypeName(child) + ">"));
     }
 
     private static string? ElementValueExpression(XElement element)
@@ -444,7 +445,7 @@ internal static class AXAMLProvenanceParser
         foreach (XAttribute attribute in element.Attributes())
         {
             if (attribute.IsNamespaceDeclaration) continue;
-            if (attribute.Name.NamespaceName == XamlNamespace && attribute.Name.LocalName == "Key") continue;
+            if (attribute.Name is { NamespaceName: XamlNamespace, LocalName: "Key" }) continue;
 
             if (builder.Length > 0) builder.Append(' ');
             builder.Append(AttributeName(attribute));
@@ -495,7 +496,8 @@ internal static class AXAMLProvenanceParser
             int siblingIndex = 1;
             foreach (XElement sibling in ancestor.ElementsBeforeSelf())
             {
-                if (sibling.Name == ancestor.Name) siblingIndex++;
+                if (sibling.Name == ancestor.Name)
+                    siblingIndex++;
             }
 
             builder.Append('/');
@@ -510,7 +512,7 @@ internal static class AXAMLProvenanceParser
 
     private static string? FindControlName(XElement element)
     {
-        XName xamlName = XName.Get("Name", XamlNamespace);
+        XName xamlName = XName.Get(localName: "Name", XamlNamespace);
         string? name = element.Attribute(xamlName)?.Value ?? element.Attribute("Name")?.Value;
         return string.IsNullOrWhiteSpace(name) ? null : name;
     }
@@ -524,10 +526,10 @@ internal static class AXAMLProvenanceParser
     }
 
     private static bool IsPropertyElement(XElement element) =>
-        element.Name.LocalName.Contains('.', StringComparison.Ordinal);
+        element.Name.LocalName.Contains(value: '.', StringComparison.Ordinal);
 
     private static bool IsTemplateElement(XElement element) =>
-        !IsPropertyElement(element) && element.Name.LocalName.EndsWith("Template", StringComparison.Ordinal);
+        !IsPropertyElement(element) && element.Name.LocalName.EndsWith(value: "Template", StringComparison.Ordinal);
 
     private static bool IsBindingElement(string localName) =>
         localName is "Binding" or "CompiledBinding" or "ReflectionBinding" or "TemplateBinding";

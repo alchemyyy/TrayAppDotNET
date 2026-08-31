@@ -1,6 +1,5 @@
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -36,7 +35,7 @@ internal static class FlyoutDeviceOrdering
             devices,
             settings,
             applyFlyoutBluetoothPolicies: true,
-            isBluetoothRadioEnabled: isBluetoothRadioEnabled);
+            isBluetoothRadioEnabled);
 
     /// <summary>
     /// Internal surface switch keeps flyout-only Bluetooth preferences from changing tray-menu
@@ -105,8 +104,7 @@ internal static class FlyoutDeviceOrdering
     {
         if (device.DataFlow == EDataFlow.eRender) return true;
         return device.DataFlow == EDataFlow.eCapture
-               && settings.ShowRecordingDevices
-               && settings.ShowRecordingDevicesInFlyout;
+               && settings is { ShowRecordingDevices: true, ShowRecordingDevicesInFlyout: true };
     }
 
     internal static DisconnectedBluetoothPlacement ClassifyDisconnectedBluetooth(

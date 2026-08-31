@@ -12,11 +12,11 @@ public sealed partial class AppThemeResources : ResourceDictionary
 
     /// <summary>Reads a brightness theme color from this dictionary.</summary>
     public ThemeColor Color(string name) =>
-        AppThemeResourceReader.Color(this, "BrightnessAppTheme", name);
+        AppThemeResourceReader.Color(this, prefix: "BrightnessAppTheme", name);
 
     /// <summary>Reads a single brightness color from this dictionary.</summary>
     public Color SingleColor(string name) =>
-        AppThemeResourceReader.SingleColor(this, "BrightnessAppTheme", name);
+        AppThemeResourceReader.SingleColor(this, prefix: "BrightnessAppTheme", name);
 }
 
 internal static class AppThemeColorCatalog
@@ -24,7 +24,7 @@ internal static class AppThemeColorCatalog
 #if DEBUG
     private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
         AppThemeHotReloadStore<AppThemeResources>.Create(
-            "Brightness",
+            catalogName: "Brightness",
             static () => new AppThemeResources());
 #else
     private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());

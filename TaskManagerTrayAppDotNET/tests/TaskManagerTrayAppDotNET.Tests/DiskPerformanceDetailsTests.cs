@@ -11,8 +11,8 @@ public sealed class DiskPerformanceDetailsTests
     public void ParsesVolumeDiskExtentsUsingNativeX64Alignment()
     {
         byte[] descriptor = CreateVolumeDiskExtentsDescriptor(
-            new DiskVolumeExtent(12, 1_000),
-            new DiskVolumeExtent(4, 2_000));
+            new DiskVolumeExtent(PhysicalDiskNumber: 12, ExtentLengthBytes: 1_000),
+            new DiskVolumeExtent(PhysicalDiskNumber: 4, ExtentLengthBytes: 2_000));
 
         bool parsed = DiskDeviceMetadataReader.TryParseVolumeDiskExtents(
             descriptor,
@@ -22,8 +22,8 @@ public sealed class DiskPerformanceDetailsTests
         Assert.Equal(
             new DiskVolumeExtent[]
             {
-                new(12, 1_000),
-                new(4, 2_000)
+                new(PhysicalDiskNumber: 12, ExtentLengthBytes: 1_000),
+                new(PhysicalDiskNumber: 4, ExtentLengthBytes: 2_000)
             },
             extents);
     }
@@ -32,10 +32,10 @@ public sealed class DiskPerformanceDetailsTests
     public void RejectsTruncatedOrNonpositiveVolumeExtents()
     {
         byte[] descriptor = CreateVolumeDiskExtentsDescriptor(
-            new DiskVolumeExtent(0, 1_000));
+            new DiskVolumeExtent(PhysicalDiskNumber: 0, ExtentLengthBytes: 1_000));
         byte[] truncated = descriptor[..^1];
         byte[] zeroLength = [.. descriptor];
-        BinaryPrimitives.WriteInt64LittleEndian(zeroLength.AsSpan(24), 0);
+        BinaryPrimitives.WriteInt64LittleEndian(zeroLength.AsSpan(24), value: 0);
 
         Assert.False(DiskDeviceMetadataReader.TryParseVolumeDiskExtents(truncated, out _));
         Assert.False(DiskDeviceMetadataReader.TryParseVolumeDiskExtents(zeroLength, out _));
@@ -46,23 +46,19 @@ public sealed class DiskPerformanceDetailsTests
     {
         DiskVolumeExtent[] extents =
         [
-            new(5, 1),
-            new(2, 1),
-            new(5, 1)
+            new(PhysicalDiskNumber: 5, ExtentLengthBytes: 1),
+            new(PhysicalDiskNumber: 2, ExtentLengthBytes: 1),
+            new(PhysicalDiskNumber: 5, ExtentLengthBytes: 1)
         ];
 
         DiskByteAllocation[] allocations = DiskDeviceMetadataReader.AllocateBytesByDisk(
-            10,
+            byteCount: 10,
             extents);
 
         Assert.Equal(
-            new DiskByteAllocation[]
-            {
-                new(2, 3),
-                new(5, 7)
-            },
+            new DiskByteAllocation[] { new(PhysicalDiskNumber: 2, Bytes: 3), new(PhysicalDiskNumber: 5, Bytes: 7) },
             allocations);
-        Assert.Equal(10UL, allocations.Aggregate(0UL, static (sum, value) => sum + value.Bytes));
+        Assert.Equal(expected: 10UL, allocations.Aggregate(seed: 0UL, static (sum, value) => sum + value.Bytes));
     }
 
     [Fact]
@@ -70,17 +66,17 @@ public sealed class DiskPerformanceDetailsTests
     {
         DiskVolumeExtent[] extents =
         [
-            new(0, ulong.MaxValue),
-            new(1, ulong.MaxValue)
+            new(PhysicalDiskNumber: 0, ulong.MaxValue),
+            new(PhysicalDiskNumber: 1, ulong.MaxValue)
         ];
 
         DiskByteAllocation[] allocations = DiskDeviceMetadataReader.AllocateBytesByDisk(
             ulong.MaxValue,
             extents);
 
-        Assert.Equal(2, allocations.Length);
-        Assert.Equal(9_223_372_036_854_775_808UL, allocations[0].Bytes);
-        Assert.Equal(9_223_372_036_854_775_807UL, allocations[1].Bytes);
+        Assert.Equal(expected: 2, allocations.Length);
+        Assert.Equal(expected: 9_223_372_036_854_775_808UL, allocations[0].Bytes);
+        Assert.Equal(expected: 9_223_372_036_854_775_807UL, allocations[1].Bytes);
     }
 
     [Theory]
@@ -102,8 +98,8 @@ public sealed class DiskPerformanceDetailsTests
     public void RejectsMalformedSeekPenaltyDescriptor()
     {
         byte[] descriptor = new byte[12];
-        BinaryPrimitives.WriteUInt32LittleEndian(descriptor, 8);
-        BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), 12);
+        BinaryPrimitives.WriteUInt32LittleEndian(descriptor, value: 8);
+        BinaryPrimitives.WriteUInt32LittleEndian(descriptor.AsSpan(4), value: 12);
 
         Assert.Equal(
             DiskMediaKind.Unknown,
@@ -117,7 +113,7 @@ public sealed class DiskPerformanceDetailsTests
     {
         Assert.Equal(
             expected,
-            DiskDeviceMetadataReader.NormalizePageFilePath(path, @"C:\Windows"));
+            DiskDeviceMetadataReader.NormalizePageFilePath(path, windowsDirectory: @"C:\Windows"));
     }
 
     [Theory]
@@ -149,32 +145,32 @@ public sealed class DiskPerformanceDetailsTests
             writeBytesPerSecond: 6_000,
             averageResponseTimeMilliseconds: -1);
         DiskDeviceMetadataSnapshot metadata = new(
-            true,
-            3,
-            true,
-            "C:",
-            900_000,
-            400_000,
-            true,
-            true,
-            true,
-            true,
+            HasDeviceData: true,
+            PhysicalDiskNumber: 3,
+            HasVolumeData: true,
+            VolumeNames: "C:",
+            FormattedCapacityBytes: 900_000,
+            AvailableBytes: 400_000,
+            HasSystemDiskData: true,
+            IsSystemDisk: true,
+            HasPageFileData: true,
+            HasPageFile: true,
             DiskMediaKind.SolidState);
 
         DiskPerformanceDetailsSnapshot details = DiskPerformanceDetailsFactory.Create(
             performance,
             metadata);
 
-        Assert.Equal("disk:test", details.DeviceID);
-        Assert.Equal("Model", details.Model);
-        Assert.Equal("C:", details.VolumeNames);
-        Assert.Equal("SSD (NVMe)", details.DeviceType);
-        Assert.Equal(100, details.ActiveTimePercent);
-        Assert.Equal(10_000, details.TransferBytesPerSecond);
-        Assert.Equal(4_000, details.ReadBytesPerSecond);
-        Assert.Equal(6_000, details.WriteBytesPerSecond);
-        Assert.Equal(0, details.AverageResponseTimeMilliseconds);
-        Assert.Equal(900_000UL, details.FormattedCapacityBytes);
+        Assert.Equal(expected: "disk:test", details.DeviceID);
+        Assert.Equal(expected: "Model", details.Model);
+        Assert.Equal(expected: "C:", details.VolumeNames);
+        Assert.Equal(expected: "SSD (NVMe)", details.DeviceType);
+        Assert.Equal(expected: 100, details.ActiveTimePercent);
+        Assert.Equal(expected: 10_000, details.TransferBytesPerSecond);
+        Assert.Equal(expected: 4_000, details.ReadBytesPerSecond);
+        Assert.Equal(expected: 6_000, details.WriteBytesPerSecond);
+        Assert.Equal(expected: 0, details.AverageResponseTimeMilliseconds);
+        Assert.Equal(expected: 900_000UL, details.FormattedCapacityBytes);
         Assert.True(details.HasSystemDiskData);
         Assert.True(details.IsSystemDisk);
         Assert.True(details.HasPageFileData);
@@ -186,21 +182,21 @@ public sealed class DiskPerformanceDetailsTests
     {
         DiskPerformanceSnapshot performance = CreatePerformanceSnapshot(
             hasPerformanceSample: false,
-            activeTimePercent: double.NaN,
-            readBytesPerSecond: double.PositiveInfinity,
+            double.NaN,
+            double.PositiveInfinity,
             writeBytesPerSecond: -1,
-            averageResponseTimeMilliseconds: double.NaN);
+            double.NaN);
         DiskDeviceMetadataSnapshot metadata = new(
-            true,
-            4,
-            true,
-            "X:",
-            900_000,
-            400_000,
-            true,
-            true,
-            true,
-            true,
+            HasDeviceData: true,
+            PhysicalDiskNumber: 4,
+            HasVolumeData: true,
+            VolumeNames: "X:",
+            FormattedCapacityBytes: 900_000,
+            AvailableBytes: 400_000,
+            HasSystemDiskData: true,
+            IsSystemDisk: true,
+            HasPageFileData: true,
+            HasPageFile: true,
             DiskMediaKind.Rotational);
 
         DiskPerformanceDetailsSnapshot details = DiskPerformanceDetailsFactory.Create(
@@ -208,11 +204,11 @@ public sealed class DiskPerformanceDetailsTests
             metadata);
 
         Assert.False(details.HasPerformanceSample);
-        Assert.Equal(0, details.ActiveTimePercent);
-        Assert.Equal(0, details.TransferBytesPerSecond);
-        Assert.Equal("D:", details.VolumeNames);
-        Assert.Equal("NVMe", details.DeviceType);
-        Assert.Equal(800_000UL, details.FormattedCapacityBytes);
+        Assert.Equal(expected: 0, details.ActiveTimePercent);
+        Assert.Equal(expected: 0, details.TransferBytesPerSecond);
+        Assert.Equal(expected: "D:", details.VolumeNames);
+        Assert.Equal(expected: "NVMe", details.DeviceType);
+        Assert.Equal(expected: 800_000UL, details.FormattedCapacityBytes);
         Assert.False(details.HasSystemDiskData);
         Assert.False(details.IsSystemDisk);
         Assert.False(details.HasPageFileData);
@@ -223,9 +219,8 @@ public sealed class DiskPerformanceDetailsTests
     public void NativeReaderReturnsEveryExposedDiskAndFindsTheSystemDisk()
     {
         uint[] exposedDiskNumbers = DiskPerformanceSampler.EnumeratePhysicalDiskNumbers();
-        DiskDeviceMetadataReader reader = new();
 
-        DiskDeviceMetadataSnapshot[] metadata = reader.Read(exposedDiskNumbers);
+        DiskDeviceMetadataSnapshot[] metadata = DiskDeviceMetadataReader.Read(exposedDiskNumbers);
 
         Assert.NotEmpty(exposedDiskNumbers);
         for (int diskIndex = 0; diskIndex < exposedDiskNumbers.Length; diskIndex++)
@@ -236,6 +231,7 @@ public sealed class DiskPerformanceDetailsTests
                 candidate => candidate.PhysicalDiskNumber == expectedDiskNumber);
             Assert.True(disk.HasDeviceData);
         }
+
         Assert.Contains(metadata, static disk => disk.IsSystemDisk);
     }
 
@@ -245,21 +241,21 @@ public sealed class DiskPerformanceDetailsTests
         double readBytesPerSecond,
         double writeBytesPerSecond,
         double averageResponseTimeMilliseconds) => new(
-        "disk:test",
+        DeviceID: "disk:test",
         PerformanceDeviceKind.Disk,
-        3,
-        "Model",
-        "D:",
-        "NVMe",
+        SortKey: 3,
+        Name: "Model",
+        VolumeNames: "D:",
+        DeviceType: "NVMe",
         hasPerformanceSample,
         activeTimePercent,
         readBytesPerSecond,
         writeBytesPerSecond,
         averageResponseTimeMilliseconds,
-        1,
-        1_000_000,
-        800_000,
-        300_000);
+        QueueDepth: 1,
+        CapacityBytes: 1_000_000,
+        FormattedCapacityBytes: 800_000,
+        AvailableBytes: 300_000);
 
     private static byte[] CreateVolumeDiskExtentsDescriptor(
         params DiskVolumeExtent[] extents)

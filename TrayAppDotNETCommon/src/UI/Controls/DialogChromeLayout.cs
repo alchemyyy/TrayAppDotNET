@@ -27,19 +27,26 @@ internal static class TrayAppDotNETDialogChromeLayout
     public static Thickness OptionRadioMargin => AXAMLResources.AxamlDialogChrome.OptionRadioMargin;
     public static Thickness OptionCardPadding => AXAMLResources.AxamlDialogChrome.OptionCardPadding;
     public static Thickness OptionCardMargin => AXAMLResources.AxamlDialogChrome.OptionCardMargin;
+
     public static Thickness InstallerLocationTitleMargin =>
         AXAMLResources.AxamlDialogChrome.InstallerLocationTitleMargin;
+
     public static Thickness InstallerLocationButtonsMargin =>
         AXAMLResources.AxamlDialogChrome.InstallerLocationButtonsMargin;
+
     public static Thickness InstallerLocationButtonPadding =>
         AXAMLResources.AxamlDialogChrome.InstallerLocationButtonPadding;
+
     public static Thickness InstallerLocationButtonBorderThickness =>
         AXAMLResources.AxamlDialogChrome.InstallerLocationButtonBorderThickness;
+
     public static Thickness InstallerLocationButtonGap => AXAMLResources.AxamlDialogChrome.InstallerLocationButtonGap;
     public static Thickness InstallerPathPadding => AXAMLResources.AxamlDialogChrome.InstallerPathPadding;
     public static Thickness InstallerPathMargin => AXAMLResources.AxamlDialogChrome.InstallerPathMargin;
+
     public static Thickness InstallerPathBorderThickness =>
         AXAMLResources.AxamlDialogChrome.InstallerPathBorderThickness;
+
     public static Thickness InstallerShortcutMargin => AXAMLResources.AxamlDialogChrome.InstallerShortcutMargin;
     public static Thickness InstallerShortcutPadding => AXAMLResources.AxamlDialogChrome.InstallerShortcutPadding;
     public static double InstallerPathFontSize => AXAMLResources.AxamlDialogChrome.InstallerPathFontSize;

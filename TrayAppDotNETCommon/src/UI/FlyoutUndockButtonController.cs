@@ -98,7 +98,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
         TrayAppDotNETToolTip.SetTip(Button, _docking.IsUndocked ? _redockTooltip() : _undockTooltip());
     }
 
-    private TrayAppDotNETCommon.Visuals.Glyph CurrentGlyph() =>
+    private Glyph CurrentGlyph() =>
         _docking.IsUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private void WireButton()
@@ -135,6 +135,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
             e.Handled = true;
             return;
         }
+
         if (e.GetCurrentPoint(Button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
 
         _pointerInside = true;
@@ -157,7 +158,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
         if (!ReferenceEquals(_capturedPointer, e.Pointer)) return;
 
         bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(Button, e);
-        FinishButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
+        FinishButtonDrag(e.Pointer, commitDrag: true, releasedInside);
         _pointerInside = releasedInside;
         Button.Background = releasedInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
         e.Handled = true;
@@ -168,7 +169,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
         if (_disposed || !IsPointerCaptured) return;
         if (!ReferenceEquals(_capturedPointer, e.Pointer)) return;
 
-        FinishButtonDrag(e.Pointer, commitDrag: DragOccurred, clickWhenNotDragged: false);
+        FinishButtonDrag(e.Pointer, DragOccurred, clickWhenNotDragged: false);
         Button.Background = _pointerInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
     }
 
@@ -236,10 +237,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
                 return;
             }
 
-            if (clickWhenNotDragged)
-            {
-                _docking.ToggleUndocked();
-            }
+            if (clickWhenNotDragged) _docking.ToggleUndocked();
         }
         finally
         {
@@ -293,7 +291,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
         Button.PointerMoved -= OnPointerMoved;
         Button.PointerReleased -= OnPointerReleased;
         Button.PointerCaptureLost -= OnPointerCaptureLost;
-        TrayAppDotNETToolTip.SetTip(Button, null);
+        TrayAppDotNETToolTip.SetTip(Button, tip: null);
         Button.Cursor = null;
         Button.Child = null;
     }

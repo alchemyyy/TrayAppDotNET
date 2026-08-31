@@ -42,16 +42,16 @@ public sealed class ProcessTableAXAMLHotReloadTests
             out List<ProcessColumnSetting> updated);
 
         Assert.True(changed);
-        Assert.Equal(281, Find(updated, ProcessTableColumnKind.Name).Width);
-        Assert.Equal(83, Find(updated, ProcessTableColumnKind.ProcessID).Width);
-        Assert.Equal(107, Find(updated, ProcessTableColumnKind.Status).Width);
-        Assert.Equal(141, Find(updated, ProcessTableColumnKind.UserName).Width);
-        Assert.Equal(69, Find(updated, ProcessTableColumnKind.CPU).Width);
-        Assert.Equal(113, Find(updated, ProcessTableColumnKind.Lifetime).Width);
-        Assert.Equal(137, Find(updated, ProcessTableColumnKind.PrivateMemory).Width);
-        Assert.Equal(138, Find(updated, ProcessTableColumnKind.WorkingSet).Width);
-        Assert.Equal(138, Find(updated, ProcessTableColumnKind.SharedWorkingSet).Width);
-        Assert.Equal(521, Find(updated, ProcessTableColumnKind.CommandLine).Width);
+        Assert.Equal(expected: 281, Find(updated, ProcessTableColumnKind.Name).Width);
+        Assert.Equal(expected: 83, Find(updated, ProcessTableColumnKind.ProcessID).Width);
+        Assert.Equal(expected: 107, Find(updated, ProcessTableColumnKind.Status).Width);
+        Assert.Equal(expected: 141, Find(updated, ProcessTableColumnKind.UserName).Width);
+        Assert.Equal(expected: 69, Find(updated, ProcessTableColumnKind.CPU).Width);
+        Assert.Equal(expected: 113, Find(updated, ProcessTableColumnKind.Lifetime).Width);
+        Assert.Equal(expected: 137, Find(updated, ProcessTableColumnKind.PrivateMemory).Width);
+        Assert.Equal(expected: 138, Find(updated, ProcessTableColumnKind.WorkingSet).Width);
+        Assert.Equal(expected: 138, Find(updated, ProcessTableColumnKind.SharedWorkingSet).Width);
+        Assert.Equal(expected: 521, Find(updated, ProcessTableColumnKind.CommandLine).Width);
         Assert.Equal(
             originalWidths[ProcessTableColumnKind.Disk],
             Find(updated, ProcessTableColumnKind.Disk).Width);

@@ -30,15 +30,15 @@ public sealed class MemoryPerformanceTests
             sample);
 
         Assert.True(composition.HasCompositionData);
-        Assert.Equal(450UL, composition.InUseBytes);
-        Assert.Equal(500UL, composition.AvailableBytes);
-        Assert.Equal(50UL, composition.ModifiedBytes);
-        Assert.Equal(300UL, composition.StandbyBytes);
-        Assert.Equal(200UL, composition.FreeBytes);
-        Assert.Equal(400UL, composition.CachedBytes);
-        Assert.Equal(40UL, composition.CompressedBytes);
-        Assert.Equal(100UL, composition.EstimatedDataBytes);
-        Assert.Equal(60UL, composition.SavedBytes);
+        Assert.Equal(expected: 450UL, composition.InUseBytes);
+        Assert.Equal(expected: 500UL, composition.AvailableBytes);
+        Assert.Equal(expected: 50UL, composition.ModifiedBytes);
+        Assert.Equal(expected: 300UL, composition.StandbyBytes);
+        Assert.Equal(expected: 200UL, composition.FreeBytes);
+        Assert.Equal(expected: 400UL, composition.CachedBytes);
+        Assert.Equal(expected: 40UL, composition.CompressedBytes);
+        Assert.Equal(expected: 100UL, composition.EstimatedDataBytes);
+        Assert.Equal(expected: 60UL, composition.SavedBytes);
     }
 
     [Fact]
@@ -66,9 +66,9 @@ public sealed class MemoryPerformanceTests
     public void MemoryPresentationIncludesOfficialAndHardwareMetrics()
     {
         PhysicalMemoryModuleSnapshot module = new(
-            "BANK 0",
+            BankLabel: "BANK 0",
             32 * Gibibyte,
-            "TEST-PART",
+            PartNumber: "TEST-PART",
             string.Empty);
         MemoryPerformanceSnapshot memory = MemoryPerformanceSnapshot.Empty with
         {
@@ -85,20 +85,20 @@ public sealed class MemoryPerformanceTests
             NonPagedPoolBytes = 3 * Gibibyte,
             HardwareReservedBytes = 648 * Mebibyte,
             Composition = new MemoryCompositionSnapshot(
-                true,
+                HasCompositionData: true,
                 Mebibyte,
                 64 * Gibibyte,
                 16 * Gibibyte,
-                true,
+                HasCompressionData: true,
                 3 * Gibibyte,
                 17 * Gibibyte,
                 14 * Gibibyte),
             Hardware = new PhysicalMemoryHardwareSnapshot(
-                6_000,
-                4,
-                4,
-                "DIMM",
-                new PhysicalMemoryModuleSnapshot[] { module })
+                SpeedMegatransfersPerSecond: 6_000,
+                UsedSlotCount: 4,
+                TotalSlotCount: 4,
+                FormFactor: "DIMM",
+                new[] { module })
         };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { Memory = memory };
 
@@ -108,14 +108,14 @@ public sealed class MemoryPerformanceTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.Equal("48.0 GB (3.0 GB)", values["In use (Compressed)"]);
-        Assert.Equal("68.0/191 GB", values["Committed"]);
-        Assert.Equal("6000 MT/s", values["Speed"]);
-        Assert.Equal("4 of 4", values["Slots used"]);
-        Assert.Equal("DIMM", values["Form factor"]);
-        Assert.Equal("648 MB", values["Hardware reserved"]);
-        Assert.DoesNotContain("Commit limit", values.Keys);
-        Assert.DoesNotContain("Installed", values.Keys);
+        Assert.Equal(expected: "48.0 GB (3.0 GB)", values["In use (Compressed)"]);
+        Assert.Equal(expected: "68.0/191 GB", values["Committed"]);
+        Assert.Equal(expected: "6000 MT/s", values["Speed"]);
+        Assert.Equal(expected: "4 of 4", values["Slots used"]);
+        Assert.Equal(expected: "DIMM", values["Form factor"]);
+        Assert.Equal(expected: "648 MB", values["Hardware reserved"]);
+        Assert.DoesNotContain(expected: "Commit limit", values.Keys);
+        Assert.DoesNotContain(expected: "Installed", values.Keys);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class MemoryPerformanceTests
     {
         string settingsPath = Path.Combine(
             Path.GetTempPath(),
-            string.Concat(Guid.NewGuid().ToString("N"), ".xml"));
+            string.Concat(Guid.NewGuid().ToString("N"), str1: ".xml"));
         try
         {
             AppSettings defaults = new();

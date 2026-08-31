@@ -6,7 +6,6 @@ using System.Security.Principal;
 using Microsoft.Win32;
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -286,7 +285,7 @@ internal static class EqualizerAPOInstaller
 
         // Auto-select for a fresh install. Windows 10+ always satisfies the Win8.1 gate; we keep
         // the check explicit so a hypothetical Win7/8 run path falls through to LFX/GFX.
-        if (!IsWindowsVersionAtLeast(6, 3)) return InstallMode.LfxGfx;
+        if (!IsWindowsVersionAtLeast(major: 6, minor: 3)) return InstallMode.LfxGfx;
 
         using RegistryKey? fxProps = hklm.OpenSubKey($@"{deviceSubKey}\FxProperties", writable: false);
         bool hasLegacyOnly = fxProps != null
@@ -326,7 +325,7 @@ internal static class EqualizerAPOInstaller
         DeviceAPOInfo? existing = Probe(deviceGuid, isCapture);
         InstallMode resolvedMode = mode ?? existing?.CurrentInstallMode ?? InstallMode.SfxEfx;
 
-        bool installPreMix = true;
+        const bool installPreMix = true;
         // Capture endpoints have no post-mix concept - EAPO's defaults set installPostMix=!input
         // and the per-mode branches further gate writes on !input. We collapse that here.
         bool installPostMix = !isCapture;
@@ -360,7 +359,7 @@ internal static class EqualizerAPOInstaller
             // First-ever enhancement on this endpoint. Tag the new key with EAPO's title so
             // mmsys.cpl shows the right label, and seed every backup slot as NOKEY so a later
             // uninstall deletes the synthetic key wholesale.
-            fxProps.SetValue(FxTitleValueName, "Equalizer APO", RegistryValueKind.String);
+            fxProps.SetValue(FxTitleValueName, value: "Equalizer APO", RegistryValueKind.String);
             for (int i = 0; i < FxSlotCount; i++)
                 childDevice.SetValue(FxSlotValueNames[i], APOGUID_NOKEY, RegistryValueKind.String);
         }
@@ -380,9 +379,9 @@ internal static class EqualizerAPOInstaller
         // useOriginalAPO* is true. We default to empty (no upstream APO) here; surfacing the
         // toggle would require reading the original slot GUIDs back, which the EAPO dialog
         // does in InstallState - skipped for the basic toggle.
-        childDevice.SetValue(PreMixChildGuidValueName, "", RegistryValueKind.String);
-        childDevice.SetValue(PostMixChildGuidValueName, "", RegistryValueKind.String);
-        childDevice.SetValue(AllowSilentBufferValueName, "false", RegistryValueKind.String);
+        childDevice.SetValue(PreMixChildGuidValueName, value: "", RegistryValueKind.String);
+        childDevice.SetValue(PostMixChildGuidValueName, value: "", RegistryValueKind.String);
+        childDevice.SetValue(AllowSilentBufferValueName, value: "false", RegistryValueKind.String);
         // autoAdjust defaults to true (EAPO behavior). 'true' means we DON'T write the
         // DisableAutomaticAdjustment value; only set it on autoAdjust=false. Clean up a stale
         // value if one survived from a previous install.
@@ -497,7 +496,7 @@ internal static class EqualizerAPOInstaller
         }
 
         TADNLog.Log(
-            $"EqualizerAPOInstaller.Uninstall({deviceGuid}): childBackup={childBackupFound} slots=[{string.Join(",", originalApoGuids)}]");
+            $"EqualizerAPOInstaller.Uninstall({deviceGuid}): childBackup={childBackupFound} slots=[{string.Join(separator: ",", originalApoGuids)}]");
 
         if (originalApoGuids[0] == APOGUID_NOKEY)
         {
@@ -514,7 +513,7 @@ internal static class EqualizerAPOInstaller
             {
                 try
                 {
-                    deviceKey.DeleteSubKeyTree("FxProperties", throwOnMissingSubKey: false);
+                    deviceKey.DeleteSubKeyTree(subkey: "FxProperties", throwOnMissingSubKey: false);
                     TADNLog.Log($"EqualizerAPOInstaller.Uninstall({deviceGuid}): deleted synthetic FxProperties key");
                 }
                 catch (ArgumentException)
@@ -572,7 +571,11 @@ internal static class EqualizerAPOInstaller
         {
             if (childParent == null) return;
             try { childParent.DeleteValue(deviceGuid, throwOnMissingValue: false); }
-            catch { }
+            catch (Exception exception)
+            {
+                TADNLog.Log(
+                    $"EqualizerAPOInstaller.Uninstall({deviceGuid}): backup cleanup failed: {exception.Message}");
+            }
 
             try { childParent.DeleteSubKeyTree(deviceGuid, throwOnMissingSubKey: false); }
             catch (ArgumentException)
@@ -584,7 +587,7 @@ internal static class EqualizerAPOInstaller
             int valueCount = childParent.ValueCount;
             if (subKeyCount != 0 || valueCount != 0) return;
             using RegistryKey? appRoot = hklm.OpenSubKey(AppRegSubKey, writable: true);
-            try { appRoot?.DeleteSubKeyTree("Child APOs", throwOnMissingSubKey: false); }
+            try { appRoot?.DeleteSubKeyTree(subkey: "Child APOs", throwOnMissingSubKey: false); }
             catch (ArgumentException)
             {
                 /* already gone */
@@ -663,7 +666,7 @@ internal static class EqualizerAPOInstaller
         }
 
         using RegistryKey hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
-        SecurityIdentifier admins = new(WellKnownSidType.BuiltinAdministratorsSid, null);
+        SecurityIdentifier admins = new(WellKnownSidType.BuiltinAdministratorsSid, domainSid: null);
 
         // Phase 1: take ownership. Open with WRITE_OWNER + ReadPermissions so we can both read
         // the existing security descriptor and set a new owner. The privilege we just enabled
@@ -774,13 +777,14 @@ internal static class EqualizerAPOInstaller
             if (!Advapi32.OpenProcessToken(currentProcess.Handle,
                     Advapi32.TOKEN_ADJUST_PRIVILEGES | Advapi32.TOKEN_QUERY, out token))
                 return false;
-            if (!Advapi32.LookupPrivilegeValueW(null, Advapi32.SE_TAKE_OWNERSHIP_NAME, out long luid))
+            if (!Advapi32.LookupPrivilegeValueW(lpSystemName: null, Advapi32.SE_TAKE_OWNERSHIP_NAME, out long luid))
                 return false;
             Advapi32.TOKEN_PRIVILEGES tp = new()
             {
                 PrivilegeCount = 1, Luid = luid, Attributes = Advapi32.SE_PRIVILEGE_ENABLED
             };
-            if (!Advapi32.AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
+            if (!Advapi32.AdjustTokenPrivileges(token, disableAllPrivileges: false, ref tp, bufferLength: 0,
+                    IntPtr.Zero, IntPtr.Zero))
                 return false;
             // AdjustTokenPrivileges returns true even when not all privileges were assigned.
             // GetLastError == ERROR_NOT_ALL_ASSIGNED (1300) is the "you weren't admin" case.
@@ -799,17 +803,23 @@ internal static class EqualizerAPOInstaller
 /// </summary>
 internal sealed class DeviceAPOInfo
 {
+    // Preserve the complete EAPO-compatible probe snapshot for future consumers
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required string DeviceGuid { get; init; }
+
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required bool IsCapture { get; init; }
     public required bool IsInstalled { get; init; }
     public required bool EnhancementsDisabled { get; init; }
     public required InstallMode CurrentInstallMode { get; init; }
 
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required string Version { get; init; }
 
     // Per-slot backup of whatever lived in FxProperties before EAPO. Five entries indexed by
     // LFX/GFX/SFX/MFX/EFX. Values are either '!KEY' (FxProperties didn't exist), '!VALUE' (slot
     // had no value), '' (never touched), or a GUID string.
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required string[] OriginalApoGuids { get; init; }
 }
 

@@ -153,6 +153,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
                 Detach(window);
                 Cached = null;
             }
+
             TrayAppDotNETWarmWindowResourcePurger.RequestAfterEviction(logError);
         }
     }

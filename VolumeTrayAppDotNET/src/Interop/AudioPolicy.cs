@@ -78,7 +78,7 @@ internal partial interface IAudioSessionControl2
 
     // Added by IAudioSessionControl2
     void GetSessionIdentifier(out string pRetVal);
-    void GetSessionInstanceIdentifier(out string pRetVal);
+    void GetSessionInstanceIdentifier(out string? pRetVal);
     void GetProcessId(out uint pRetVal);
 
     [PreserveSig]

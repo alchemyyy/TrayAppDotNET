@@ -8,9 +8,9 @@ public sealed partial class CommonBindingsResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<CommonBindingsResources> Resources =
         CommonAXAMLResourceStore<CommonBindingsResources>.Create(
-            "Common binding resources",
+            resourceName: "Common binding resources",
             static () => new CommonBindingsResources(),
-            "CommonBindings.axaml");
+            sourceFileName: "CommonBindings.axaml");
 #else
     private static readonly Lazy<CommonBindingsResources> Resources =
         new(static () => new CommonBindingsResources());

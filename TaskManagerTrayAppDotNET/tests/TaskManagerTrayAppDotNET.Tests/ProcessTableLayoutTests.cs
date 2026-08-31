@@ -72,8 +72,8 @@ public sealed class ProcessTableLayoutTests
     {
         int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
             baseFontWeight,
-            referenceFontSize: AppSettings.GridFontSizeDefault,
-            fontSize: AppSettings.GridFontSizeDefault);
+            AppSettings.GridFontSizeDefault,
+            AppSettings.GridFontSizeDefault);
 
         Assert.Equal(expectedFontWeight, fontWeight);
     }
@@ -89,7 +89,7 @@ public sealed class ProcessTableLayoutTests
     {
         int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
             DetailsGridFontWeight.Normal,
-            referenceFontSize: AppSettings.GridFontSizeDefault,
+            AppSettings.GridFontSizeDefault,
             fontSize);
 
         Assert.Equal(expectedFontWeight, fontWeight);
@@ -122,8 +122,8 @@ public sealed class ProcessTableLayoutTests
     {
         int previousFontWeight = ProcessTableLayout.CalculateZoomFontWeight(
             baseFontWeight,
-            referenceFontSize: AppSettings.GridFontSizeDefault,
-            fontSize: AppSettings.GridFontSizeMinimum);
+            AppSettings.GridFontSizeDefault,
+            AppSettings.GridFontSizeMinimum);
 
         for (double fontSize = AppSettings.GridFontSizeMinimum + 0.5;
              fontSize <= AppSettings.GridFontSizeMaximum;
@@ -131,7 +131,7 @@ public sealed class ProcessTableLayoutTests
         {
             int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
                 baseFontWeight,
-                referenceFontSize: AppSettings.GridFontSizeDefault,
+                AppSettings.GridFontSizeDefault,
                 fontSize);
             Assert.True(fontWeight >= previousFontWeight);
             previousFontWeight = fontWeight;
@@ -150,7 +150,7 @@ public sealed class ProcessTableLayoutTests
     {
         int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
             baseFontWeight,
-            referenceFontSize: AppSettings.GridFontSizeDefault,
+            AppSettings.GridFontSizeDefault,
             fontSize);
 
         Assert.Equal(expectedFontWeight, fontWeight);
@@ -182,13 +182,13 @@ public sealed class ProcessTableLayoutTests
     {
         ProcessTableColumn[] columns =
         [
-            new(ProcessTableColumnKind.Name, "Name", 0, 100, ProcessTableColumnAlignment.Left),
-            new(ProcessTableColumnKind.ProcessID, "PID", 100, 50, ProcessTableColumnAlignment.Right)
+            new(ProcessTableColumnKind.Name, Title: "Name", Left: 0, Width: 100, ProcessTableColumnAlignment.Left),
+            new(ProcessTableColumnKind.ProcessID, Title: "PID", Left: 100, Width: 50, ProcessTableColumnAlignment.Right)
         ];
 
-        Assert.Equal(0, ProcessTableLayout.HitTestColumn(99.9, columns));
-        Assert.Equal(1, ProcessTableLayout.HitTestColumn(100, columns));
-        Assert.Equal(-1, ProcessTableLayout.HitTestColumn(150, columns));
+        Assert.Equal(expected: 0, ProcessTableLayout.HitTestColumn(x: 99.9, columns));
+        Assert.Equal(expected: 1, ProcessTableLayout.HitTestColumn(x: 100, columns));
+        Assert.Equal(expected: -1, ProcessTableLayout.HitTestColumn(x: 150, columns));
     }
 
     [Fact]
@@ -196,10 +196,10 @@ public sealed class ProcessTableLayoutTests
     {
         ProcessTableColumn[] columns = CreateColumns();
 
-        Assert.Equal(0, ProcessTableLayout.HitTestColumnDivider(96, columns, 4));
-        Assert.Equal(0, ProcessTableLayout.HitTestColumnDivider(104, columns, 4));
-        Assert.Equal(-1, ProcessTableLayout.HitTestColumnDivider(105, columns, 4));
-        Assert.Equal(2, ProcessTableLayout.HitTestColumnDivider(228, columns, 4));
+        Assert.Equal(expected: 0, ProcessTableLayout.HitTestColumnDivider(x: 96, columns, hitRadius: 4));
+        Assert.Equal(expected: 0, ProcessTableLayout.HitTestColumnDivider(x: 104, columns, hitRadius: 4));
+        Assert.Equal(expected: -1, ProcessTableLayout.HitTestColumnDivider(x: 105, columns, hitRadius: 4));
+        Assert.Equal(expected: 2, ProcessTableLayout.HitTestColumnDivider(x: 228, columns, hitRadius: 4));
     }
 
     [Fact]
@@ -208,14 +208,14 @@ public sealed class ProcessTableLayoutTests
         ProcessTableColumn[] columns = CreateColumns();
         ProcessTableColumn[] resized = new ProcessTableColumn[columns.Length];
 
-        ProcessTableLayout.WriteResizedColumns(columns, 1, 80, resized);
+        ProcessTableLayout.WriteResizedColumns(columns, resizedColumnIndex: 1, width: 80, resized);
 
         Assert.Equal(columns[0], resized[0]);
-        Assert.Equal(80, resized[1].Width);
-        Assert.Equal(100, resized[1].Left);
-        Assert.Equal(180, resized[2].Left);
-        Assert.Equal(100, columns[1].Left);
-        Assert.Equal(150, columns[2].Left);
+        Assert.Equal(expected: 80, resized[1].Width);
+        Assert.Equal(expected: 100, resized[1].Left);
+        Assert.Equal(expected: 180, resized[2].Left);
+        Assert.Equal(expected: 100, columns[1].Left);
+        Assert.Equal(expected: 150, columns[2].Left);
     }
 
     [Fact]
@@ -223,19 +223,22 @@ public sealed class ProcessTableLayoutTests
     {
         ProcessTableColumn[] columns = CreateColumns();
 
-        Assert.Equal(0, ProcessTableLayout.GetReorderInsertionIndex(0, columns, 1));
-        Assert.Equal(1, ProcessTableLayout.GetReorderInsertionIndex(110, columns, 2));
-        Assert.Equal(2, ProcessTableLayout.GetReorderInsertionIndex(200, columns, 1));
-        Assert.Equal(150, ProcessTableLayout.GetReorderInsertionX(columns, 0, 1));
-        Assert.Equal(0, ProcessTableLayout.GetReorderInsertionX(columns, 2, 0));
-        Assert.Equal(225, ProcessTableLayout.GetReorderInsertionX(columns, 1, 2));
+        Assert.Equal(expected: 0, ProcessTableLayout.GetReorderInsertionIndex(x: 0, columns, sourceColumnIndex: 1));
+        Assert.Equal(expected: 1, ProcessTableLayout.GetReorderInsertionIndex(x: 110, columns, sourceColumnIndex: 2));
+        Assert.Equal(expected: 2, ProcessTableLayout.GetReorderInsertionIndex(x: 200, columns, sourceColumnIndex: 1));
+        Assert.Equal(expected: 150,
+            ProcessTableLayout.GetReorderInsertionX(columns, sourceColumnIndex: 0, insertionIndex: 1));
+        Assert.Equal(expected: 0,
+            ProcessTableLayout.GetReorderInsertionX(columns, sourceColumnIndex: 2, insertionIndex: 0));
+        Assert.Equal(expected: 225,
+            ProcessTableLayout.GetReorderInsertionX(columns, sourceColumnIndex: 1, insertionIndex: 2));
     }
 
     private static ProcessTableColumn[] CreateColumns() =>
     [
-        new(ProcessTableColumnKind.Name, "Name", 0, 100, ProcessTableColumnAlignment.Left),
-        new(ProcessTableColumnKind.ProcessID, "PID", 100, 50, ProcessTableColumnAlignment.Right),
-        new(ProcessTableColumnKind.CPU, "CPU", 150, 75, ProcessTableColumnAlignment.Right)
+        new(ProcessTableColumnKind.Name, Title: "Name", Left: 0, Width: 100, ProcessTableColumnAlignment.Left),
+        new(ProcessTableColumnKind.ProcessID, Title: "PID", Left: 100, Width: 50, ProcessTableColumnAlignment.Right),
+        new(ProcessTableColumnKind.CPU, Title: "CPU", Left: 150, Width: 75, ProcessTableColumnAlignment.Right)
     ];
 
     private static int CalculateNormalFontWeight(double fontSize) =>

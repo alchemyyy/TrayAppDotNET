@@ -75,7 +75,11 @@ public sealed class FlyoutDockingController
     public static bool ShouldRestoreOnStartup(IFlyoutDockSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return settings is { AllowFlyoutUndock: true, RestoreFlyoutUndockedOnStartup: true, FlyoutUndocked: true, FlyoutHasSavedPosition: true };
+        return settings is
+        {
+            AllowFlyoutUndock: true, RestoreFlyoutUndockedOnStartup: true, FlyoutUndocked: true,
+            FlyoutHasSavedPosition: true
+        };
     }
 
     /// <summary>Returns the current saved or docked position according to the active state.</summary>
@@ -94,7 +98,7 @@ public sealed class FlyoutDockingController
 
     /// <summary>Captures the dock target and snap tolerance at the start of a drag.</summary>
     public (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition() =>
-        (_resolveDockedPosition(), Math.Max(0, _resolveSnapTolerance()));
+        (_resolveDockedPosition(), Math.Max(val1: 0, _resolveSnapTolerance()));
 
     /// <summary>Toggles between docked and undocked state.</summary>
     public bool ToggleUndocked() =>
@@ -147,13 +151,7 @@ public sealed class FlyoutDockingController
     /// <summary>Redocks a snapped drag or persists its floating position.</summary>
     public FlyoutDockStateChange? CommitDragPosition()
     {
-        if (!_settings.AllowFlyoutUndock)
-        {
-            bool redocked = Redock();
-            return redocked ? FlyoutDockStateChange.Redocked : null;
-        }
-
-        if (DragHelper.IsCurrentlySnapped)
+        if (!_settings.AllowFlyoutUndock || DragHelper.IsCurrentlySnapped)
         {
             bool redocked = Redock();
             return redocked ? FlyoutDockStateChange.Redocked : null;

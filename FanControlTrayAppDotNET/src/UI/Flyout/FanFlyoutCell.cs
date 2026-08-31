@@ -177,13 +177,13 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
             int fanMaximum = fan.MaxRPM > 0
                 ? fan.MaxRPM
                 : fan.CurrentRPM > 0
-                    ? Math.Max(100, fan.CurrentRPM)
+                    ? Math.Max(val1: 100, fan.CurrentRPM)
                     : maximum;
             if (fanMaximum > maximum)
                 maximum = fanMaximum;
         }
 
-        return Math.Max(100, maximum);
+        return Math.Max(val1: 100, maximum);
     }
 
     /// <summary>

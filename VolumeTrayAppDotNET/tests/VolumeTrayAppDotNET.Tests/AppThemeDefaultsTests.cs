@@ -17,8 +17,8 @@ public sealed class AppThemeDefaultsTests
         Assert.Equal(
             resources.Color(nameof(AppTheme.MeterPeakStereoColorDefault)),
             AppTheme.MeterPeakStereoColorDefault);
-        Assert.Equal("#FFFFFFFF", AppTheme.MeterPeakColorDefaultHex);
-        Assert.Equal("#80FFFFFF", AppTheme.MeterPeakStereoColorDefaultHex);
+        Assert.Equal(expected: "#FFFFFFFF", AppTheme.MeterPeakColorDefaultHex);
+        Assert.Equal(expected: "#80FFFFFF", AppTheme.MeterPeakStereoColorDefaultHex);
         Assert.Equal(
             resources.Color("LegacyMeterPeakColorDefault"),
             Color.Parse(AppTheme.LegacyMeterPeakColorDefaultHex));
@@ -30,11 +30,7 @@ public sealed class AppThemeDefaultsTests
     [Fact]
     public void LegacyMeterPeakDefaultsRemainResourceBacked()
     {
-        AppSettings settings = new()
-        {
-            MeterPeakColorHex = "#FFFFFFFF",
-            MeterPeakStereoColorHex = "#80FFFFFF"
-        };
+        AppSettings settings = new() { MeterPeakColorHex = "#FFFFFFFF", MeterPeakStereoColorHex = "#80FFFFFF" };
 
         Assert.Equal(AppTheme.MeterPeakColorDefaultHex, settings.MeterPeakColorHex);
         Assert.Equal(AppTheme.MeterPeakStereoColorDefaultHex, settings.MeterPeakStereoColorHex);
@@ -45,11 +41,7 @@ public sealed class AppThemeDefaultsTests
     [Fact]
     public void CustomMeterPeakColorsStillOverrideAxamlDefaults()
     {
-        AppSettings settings = new()
-        {
-            MeterPeakColorHex = "#102030",
-            MeterPeakStereoColorHex = "#80405060"
-        };
+        AppSettings settings = new() { MeterPeakColorHex = "#102030", MeterPeakStereoColorHex = "#80405060" };
 
         Assert.Equal(Color.Parse("#102030"), settings.EffectiveMeterPeakColor);
         Assert.Equal(Color.Parse("#80405060"), settings.EffectiveMeterPeakStereoColor);
@@ -61,10 +53,8 @@ public sealed class AppThemeDefaultsTests
         string path = Path.Combine(
             Path.GetTempPath(),
             $"VolumeTrayAppDotNET.AppThemeDefaultsTests.{Guid.NewGuid():N}.xml");
-        using AppTheme source = new()
-        {
-            Background = new ThemeColor("123456", "ABCDEF")
-        };
+        using AppTheme source = new();
+        source.Background = new ThemeColor(lightHex: "123456", darkHex: "ABCDEF");
 
         try
         {
@@ -72,10 +62,10 @@ public sealed class AppThemeDefaultsTests
             using AppTheme loaded = AppTheme.Load(path);
             using AppTheme untouched = new();
 
-            Assert.Equal("#123456", loaded.Background.LightHex);
-            Assert.Equal("#ABCDEF", loaded.Background.DarkHex);
-            Assert.Equal("#F3F3F3", untouched.Background.LightHex);
-            Assert.Equal("#202020", untouched.Background.DarkHex);
+            Assert.Equal(expected: "#123456", loaded.Background.LightHex);
+            Assert.Equal(expected: "#ABCDEF", loaded.Background.DarkHex);
+            Assert.Equal(expected: "#F3F3F3", untouched.Background.LightHex);
+            Assert.Equal(expected: "#202020", untouched.Background.DarkHex);
         }
         finally
         {

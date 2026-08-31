@@ -105,7 +105,7 @@ public static class SunShifter
             || !TryBuildAnchorPair(from, to, out double[] fromAnchors, out double[] toAnchors))
             return t;
 
-        double clamped = Math.Clamp(t, 0.0, 1.0);
+        double clamped = Math.Clamp(t, min: 0.0, max: 1.0);
         int i = FindSegment(fromAnchors, clamped);
         double segLen = fromAnchors[i + 1] - fromAnchors[i];
         double prop = segLen > 0 ? (clamped - fromAnchors[i]) / segLen : 0.0;
@@ -302,7 +302,7 @@ public static class SunShifter
         double hours = t.DateTime.TimeOfDay.TotalHours;
         if (hours is < 0.0 or > 24.0) return null;
 
-        return Math.Clamp(hours / 24.0, 0.0, 1.0);
+        return Math.Clamp(hours / 24.0, min: 0.0, max: 1.0);
     }
 
     private static void ShiftPoints(List<EnvironmentalCurvePoint>? points, double[] from, double[] to)
@@ -311,7 +311,7 @@ public static class SunShifter
 
         foreach (EnvironmentalCurvePoint p in points)
         {
-            double t = Math.Clamp(p.Time, 0.0, 1.0);
+            double t = Math.Clamp(p.Time, min: 0.0, max: 1.0);
             int i = FindSegment(from, t);
             double segLen = from[i + 1] - from[i];
             double prop = segLen > 0 ? (t - from[i]) / segLen : 0.0;

@@ -8,10 +8,10 @@ public sealed class PerformanceSamplingSettingsTests
     [Fact]
     public void DefaultsRetainOneMinuteAtOneSecondIntervals()
     {
-        Assert.Equal(1, PerformanceSamplingSettings.DefaultHistoryLengthMinutes);
-        Assert.Equal(1_000, PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds);
+        Assert.Equal(expected: 1, PerformanceSamplingSettings.DefaultHistoryLengthMinutes);
+        Assert.Equal(expected: 1_000, PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds);
         Assert.Equal(
-            60,
+            expected: 60,
             PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                 PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
                 PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds));
@@ -25,10 +25,8 @@ public sealed class PerformanceSamplingSettingsTests
     [InlineData(60, 60)]
     [InlineData(61, 60)]
     [InlineData(int.MaxValue, 60)]
-    public void HistoryLengthNormalizationClampsToSupportedMinutes(int value, int expected)
-    {
+    public void HistoryLengthNormalizationClampsToSupportedMinutes(int value, int expected) =>
         Assert.Equal(expected, PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(value));
-    }
 
     [Theory]
     [InlineData(int.MinValue, 1)]
@@ -40,10 +38,8 @@ public sealed class PerformanceSamplingSettingsTests
     [InlineData(int.MaxValue, 60_000)]
     public void SampleIntervalNormalizationClampsToSupportedMilliseconds(
         int value,
-        int expected)
-    {
+        int expected) =>
         Assert.Equal(expected, PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
-    }
 
     [Theory]
     [InlineData(1, 1, 60_000)]

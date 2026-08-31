@@ -1,6 +1,5 @@
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
@@ -41,7 +40,7 @@ internal sealed class ProcessExitMonitor : IDisposable
         // Auto-reset (bManualReset = false) so a SetEvent fires exactly one Wait wake-up and
         // resets atomically when observed - no chance of a Watch's SetEvent being lost to a
         // foreign ResetEvent racing inside the loop.
-        _wakeEvent = Kernel32Wait.CreateEventW(IntPtr.Zero, false, false, null);
+        _wakeEvent = Kernel32Wait.CreateEventW(IntPtr.Zero, bManualReset: false, bInitialState: false, lpName: null);
         if (_wakeEvent == IntPtr.Zero) throw new InvalidOperationException("CreateEventW failed");
 
         _thread = new Thread(WaitLoop) { IsBackground = true, Name = "VolumeTrayApp.ProcessExitMonitor" };
@@ -63,7 +62,7 @@ internal sealed class ProcessExitMonitor : IDisposable
             return false;
         }
 
-        IntPtr handle = Kernel32.OpenProcess(Kernel32Wait.SYNCHRONIZE, false, pid);
+        IntPtr handle = Kernel32.OpenProcess(Kernel32Wait.SYNCHRONIZE, bInheritHandle: false, pid);
         if (handle == IntPtr.Zero)
         {
             // Process gone between session creation and our subscribe, or denied. Fire now.
@@ -71,14 +70,9 @@ internal sealed class ProcessExitMonitor : IDisposable
             return false;
         }
 
-        bool invokeNow = false;
         lock (_gate)
         {
-            if (_disposed)
-            {
-                invokeNow = true;
-            }
-            else if (_watches.TryGetValue(pid, out WatchEntry? existing))
+            if (!_disposed && _watches.TryGetValue(pid, out WatchEntry? existing))
             {
                 // Already watching this PID - fold the new callback into the existing watch
                 // and drop the redundant handle. SYNCHRONIZE handles refcount on the kernel
@@ -92,7 +86,8 @@ internal sealed class ProcessExitMonitor : IDisposable
                 };
                 return true;
             }
-            else
+
+            if (!_disposed)
             {
                 _watches[pid] = new WatchEntry { Handle = handle, Callback = onExit };
                 Kernel32Wait.SetEvent(_wakeEvent);
@@ -100,14 +95,9 @@ internal sealed class ProcessExitMonitor : IDisposable
             }
         }
 
-        if (invokeNow)
-        {
-            Kernel32.CloseHandle(handle);
-            InvokeExitCallback(onExit);
-            return false;
-        }
-
-        return true;
+        Kernel32.CloseHandle(handle);
+        InvokeExitCallback(onExit);
+        return false;
     }
 
     /// <summary>
@@ -175,7 +165,7 @@ internal sealed class ProcessExitMonitor : IDisposable
             uint result = Kernel32Wait.WaitForMultipleObjects(
                 (uint)handles.Length,
                 handles,
-                false,
+                bWaitAll: false,
                 Kernel32Wait.INFINITE);
             if (_disposed) return;
 

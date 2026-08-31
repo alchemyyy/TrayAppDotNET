@@ -19,7 +19,7 @@ public sealed class FlyoutSliderTests
         double thumbCenter =
             FlyoutSlider.CalculateCenteredTop(containerHeight, thumbHeight) + thumbHeight / 2.0;
 
-        Assert.Equal(containerHeight / 2.0, trackCenter, 10);
-        Assert.Equal(trackCenter, thumbCenter, 10);
+        Assert.Equal(containerHeight / 2.0, trackCenter, precision: 10);
+        Assert.Equal(trackCenter, thumbCenter, precision: 10);
     }
 }

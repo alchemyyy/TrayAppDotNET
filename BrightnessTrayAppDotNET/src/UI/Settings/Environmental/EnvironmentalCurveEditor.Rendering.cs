@@ -73,19 +73,19 @@ public sealed partial class EnvironmentalCurveEditor
         {
             if (astroDawn is { } dawn)
             {
-                AddOverlayBand(context, 0.0, dawn, _palette.NightBackdrop, plot);
+                AddOverlayBand(context, startT: 0.0, dawn, _palette.NightBackdrop, plot);
                 AddOverlayBand(context, dawn, sr, _palette.TwilightBackdrop, plot);
             }
             else
-                AddOverlayBand(context, 0.0, sr, _palette.TwilightBackdrop, plot);
+                AddOverlayBand(context, startT: 0.0, sr, _palette.TwilightBackdrop, plot);
 
             if (astroDusk is { } dusk)
             {
                 AddOverlayBand(context, ss, dusk, _palette.TwilightBackdrop, plot);
-                AddOverlayBand(context, dusk, 1.0, _palette.NightBackdrop, plot);
+                AddOverlayBand(context, dusk, endT: 1.0, _palette.NightBackdrop, plot);
             }
             else
-                AddOverlayBand(context, ss, 1.0, _palette.TwilightBackdrop, plot);
+                AddOverlayBand(context, ss, endT: 1.0, _palette.TwilightBackdrop, plot);
         }
         else
             AddOverlayBand(context, ss, sr, _palette.TwilightBackdrop, plot);
@@ -97,8 +97,8 @@ public sealed partial class EnvironmentalCurveEditor
         if (noonPosition == null || noonPosition.Elevation > 0.0) return;
         AddOverlayBand(
             context,
-            0.0,
-            1.0,
+            startT: 0.0,
+            endT: 1.0,
             noonPosition.Elevation > -18.0 ? _palette.TwilightBackdrop : _palette.NightBackdrop,
             plot);
     }
@@ -170,8 +170,8 @@ public sealed partial class EnvironmentalCurveEditor
     private static void AddOverlayBand(DrawingContext context, double startT, double endT, Color color, Rect plot)
     {
         if (endT <= startT) return;
-        double x1 = ScreenX(Math.Clamp(startT, 0.0, 1.0), plot);
-        double x2 = ScreenX(Math.Clamp(endT, 0.0, 1.0), plot);
+        double x1 = ScreenX(Math.Clamp(startT, min: 0.0, max: 1.0), plot);
+        double x2 = ScreenX(Math.Clamp(endT, min: 0.0, max: 1.0), plot);
         if (x2 <= x1) return;
         context.FillRectangle(Brush(color), new Rect(x1, plot.Top, x2 - x1, plot.Height));
     }
@@ -190,7 +190,7 @@ public sealed partial class EnvironmentalCurveEditor
         if (when is not { } t) return null;
         double hours = t.DateTime.TimeOfDay.TotalHours;
         if (hours is < 0.0 or > 24.0) return null;
-        return Math.Clamp(hours / 24.0, 0.0, 1.0);
+        return Math.Clamp(hours / 24.0, min: 0.0, max: 1.0);
     }
 
     private void DrawGrid(DrawingContext context, Rect plot)
@@ -205,7 +205,7 @@ public sealed partial class EnvironmentalCurveEditor
                 new Point(plot.Left, y),
                 new Point(plot.Right, y),
                 WithOpacity(_palette.GridLine, zeroLine ? 0.85 : 0.4),
-                1.0);
+                thickness: 1.0);
         }
 
         for (int i = 0; i <= HorizontalGridDivisions; i++)
@@ -215,8 +215,8 @@ public sealed partial class EnvironmentalCurveEditor
                 context,
                 new Point(x, plot.Top),
                 new Point(x, plot.Bottom),
-                WithOpacity(_palette.GridLine, 0.4),
-                1.0);
+                WithOpacity(_palette.GridLine, opacity: 0.4),
+                thickness: 1.0);
         }
     }
 
@@ -230,7 +230,7 @@ public sealed partial class EnvironmentalCurveEditor
             using TextLayout formatted = Text(
                 text,
                 TimeAxisLabelFontSize,
-                WithOpacity(_palette.SecondaryForeground, 0.7));
+                WithOpacity(_palette.SecondaryForeground, opacity: 0.7));
             double x = ScreenX((double)i / HorizontalGridDivisions, plot) - formatted.Width / 2.0;
             double y = bounds.Height - TimeAxisHeight + 2.0;
             formatted.Draw(context, new Point(x, y));
@@ -246,13 +246,13 @@ public sealed partial class EnvironmentalCurveEditor
             using TextLayout left = Text(
                 text,
                 TimeAxisLabelFontSize,
-                WithOpacity(_palette.SecondaryForeground, 0.7));
+                WithOpacity(_palette.SecondaryForeground, opacity: 0.7));
             left.Draw(context, new Point(AxisGutterWidth - left.Width - 2.0, y - left.Height / 2.0));
 
             using TextLayout right = Text(
                 text,
                 TimeAxisLabelFontSize,
-                WithOpacity(_palette.SecondaryForeground, 0.7));
+                WithOpacity(_palette.SecondaryForeground, opacity: 0.7));
             right.Draw(context, new Point(bounds.Width - AxisGutterWidth + 2.0, y - right.Height / 2.0));
         }
     }
@@ -278,7 +278,7 @@ public sealed partial class EnvironmentalCurveEditor
             }
 
             double[] tangents = EnvironmentalCurveSampler.ComputeMonotonicTangents(xs, ys);
-            int samples = Math.Max(2, (int)Math.Ceiling(plot.Width));
+            int samples = Math.Max(val1: 2, (int)Math.Ceiling(plot.Width));
             StreamGeometry geometry = new();
             using (StreamGeometryContext geometryContext = geometry.Open())
             {
@@ -296,7 +296,7 @@ public sealed partial class EnvironmentalCurveEditor
                 }
             }
 
-            context.DrawGeometry(null, new Pen(Brush(color), 2.0), geometry);
+            context.DrawGeometry(brush: null, new Pen(Brush(color), thickness: 2.0), geometry);
         }
 
         foreach (EnvironmentalCurvePoint point in ordered)
@@ -345,7 +345,8 @@ public sealed partial class EnvironmentalCurveEditor
             (_hoveredLimit is { } hovered && hovered.Series == series && hovered.Kind == kind) ||
             (_draggingLimit && _limitDragSeries == series && _limitDragKind == kind);
         Color color = WithOpacity(_palette.Foreground, active ? 1.0 : 0.7);
-        DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y), color, 1.5, 4.0, 3.0);
+        DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y), color, thickness: 1.5, dash: 4.0,
+            gap: 3.0);
         labelSpecs.Add((series, kind, y, active));
     }
 
@@ -481,7 +482,7 @@ public sealed partial class EnvironmentalCurveEditor
         }
         else
         {
-            double gap = Math.Max(0.0, maxB - minB);
+            double gap = Math.Max(val1: 0.0, maxB - minB);
             upperSample = 100.0 - gap;
             lowerSample = gap;
         }
@@ -494,8 +495,9 @@ public sealed partial class EnvironmentalCurveEditor
     {
         if (sample is < 0.0 or > 100.0) return;
         double y = ScreenY(sample, plot);
-        Color color = WithOpacity(_palette.SecondaryForeground, 0.45);
-        DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y), color, 1.0, 1.0, 2.5);
+        Color color = WithOpacity(_palette.SecondaryForeground, opacity: 0.45);
+        DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y), color, thickness: 1.0, dash: 1.0,
+            gap: 2.5);
 
         string label = kind == LimitKind.Max
             ? L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_UpperBrightnessOffset))
@@ -511,8 +513,8 @@ public sealed partial class EnvironmentalCurveEditor
             DrawDisabledBand(context, _disabledPeriodStart, _disabledPeriodEnd, plot);
         else
         {
-            DrawDisabledBand(context, _disabledPeriodStart, 1.0, plot);
-            DrawDisabledBand(context, 0.0, _disabledPeriodEnd, plot);
+            DrawDisabledBand(context, _disabledPeriodStart, endT: 1.0, plot);
+            DrawDisabledBand(context, startT: 0.0, _disabledPeriodEnd, plot);
         }
 
         double pinY = TopInset / 2.0;
@@ -535,8 +537,8 @@ public sealed partial class EnvironmentalCurveEditor
             context,
             new Point(x, pinY + ThumbSize / 2.0),
             new Point(x, plot.Bottom),
-            WithOpacity(_palette.SecondaryForeground, 0.5),
-            1.0);
+            WithOpacity(_palette.SecondaryForeground, opacity: 0.5),
+            thickness: 1.0);
 
         bool active =
             (_hoveredDisabledPin is { } hovered && hovered == pin) ||
@@ -547,15 +549,15 @@ public sealed partial class EnvironmentalCurveEditor
     private void DrawCurrentTimeLine(DrawingContext context, Rect plot)
     {
         double t = _previewSweepRunning ? _previewSweepCursor : EnvironmentalCurveSampler.CurrentDayFraction();
-        double x = ScreenX(Math.Clamp(t, 0.0, 1.0), plot);
+        double x = ScreenX(Math.Clamp(t, min: 0.0, max: 1.0), plot);
         DrawDashedLine(
             context,
             new Point(x, plot.Top),
             new Point(x, plot.Bottom),
-            WithOpacity(_palette.CurrentTime, 0.85),
-            1.25,
-            3.0,
-            2.0);
+            WithOpacity(_palette.CurrentTime, opacity: 0.85),
+            thickness: 1.25,
+            dash: 3.0,
+            gap: 2.0);
     }
 
     private void DrawCursorOverlay(DrawingContext context, Rect plot)
@@ -563,10 +565,10 @@ public sealed partial class EnvironmentalCurveEditor
         if (_cursorPos is not { } cursor) return;
         if (!plot.Contains(cursor)) return;
 
-        double t = Math.Clamp(FromScreenX(cursor.X, plot), 0.0, 1.0);
-        double v = Math.Clamp(FromScreenY(cursor.Y, plot), 0.0, 100.0);
+        double t = Math.Clamp(FromScreenX(cursor.X, plot), min: 0.0, max: 1.0);
+        double v = Math.Clamp(FromScreenY(cursor.Y, plot), min: 0.0, max: 100.0);
         string readout = $"{FormatCursorTime(t, SystemUses24HourClock())}  {FormatCursorValue(v)}";
-        using TextLayout text = Text(readout, 12.0, _palette.Foreground, monospace: true);
+        using TextLayout text = Text(readout, size: 12.0, _palette.Foreground, monospace: true);
         Rect pill = ReadoutRect(text, plot, cursor, avoidCursor: true, verticalSlot: 0);
         DrawPill(context, pill, text, _palette.CardBackground, _palette.Foreground);
 
@@ -577,10 +579,10 @@ public sealed partial class EnvironmentalCurveEditor
             context,
             new Point(x, plot.Top),
             new Point(x, plot.Bottom),
-            WithOpacity(_palette.SecondaryForeground, 0.6),
-            1.0,
-            2.0,
-            3.0);
+            WithOpacity(_palette.SecondaryForeground, opacity: 0.6),
+            thickness: 1.0,
+            dash: 2.0,
+            gap: 3.0);
         DrawCursorMarker(context, _brightness, _showBrightness, t, _palette.BrightnessCurve, plot);
         DrawCursorMarker(context, _nightLight, _showNightLight, t, _palette.NightLightCurve, plot);
     }
@@ -599,12 +601,12 @@ public sealed partial class EnvironmentalCurveEditor
         if (double.IsNaN(sample)) return;
 
         Point center = new(ScreenX(t, plot), ScreenY(sample, plot));
-        context.DrawEllipse(Brush(color), new Pen(Brush(_palette.Foreground)), center, 4.0, 4.0);
+        context.DrawEllipse(Brush(color), new Pen(Brush(_palette.Foreground)), center, radiusX: 4.0, radiusY: 4.0);
 
-        using TextLayout label = Text(FormatCursorValue(sample), 11.0, color, monospace: true);
+        using TextLayout label = Text(FormatCursorValue(sample), size: 11.0, color, monospace: true);
         const double gap = 6.0;
-        double left = SampleCurveAt(series, Math.Max(0.0, t - 0.01));
-        double right = SampleCurveAt(series, Math.Min(1.0, t + 0.01));
+        double left = SampleCurveAt(series, Math.Max(val1: 0.0, t - 0.01));
+        double right = SampleCurveAt(series, Math.Min(val1: 1.0, t + 0.01));
         double slope = double.IsNaN(left) || double.IsNaN(right) ? 0.0 : right - left;
         double x = slope > 0 ? center.X - gap - label.Width : center.X + gap;
         double y = center.Y - label.Height - 2.0;
@@ -624,7 +626,7 @@ public sealed partial class EnvironmentalCurveEditor
             FormatCursorTime(_selectedPoint.Time, SystemUses24HourClock()),
             FormatCursorValue(_selectedPoint.Value));
         Color color = _selectedSeries == Series.Brightness ? _palette.BrightnessCurve : _palette.NightLightCurve;
-        using TextLayout text = Text(textValue, 12.0, color, monospace: true);
+        using TextLayout text = Text(textValue, size: 12.0, color, monospace: true);
         Rect pill = ReadoutRect(text, plot, _cursorPos ?? new Point(plot.Right, plot.Top), avoidCursor: false,
             verticalSlot: 1);
         DrawPill(context, pill, text, _palette.CardBackground, color);
@@ -632,18 +634,18 @@ public sealed partial class EnvironmentalCurveEditor
 
     private void DrawPreviewOverlay(DrawingContext context, Rect bounds, Rect plot)
     {
-        context.FillRectangle(Brush(_palette.PreviewTint), bounds, 6);
+        context.FillRectangle(Brush(_palette.PreviewTint), bounds, cornerRadius: 6);
 
         string label = L(nameof(AppStrings.Settings_CurveEditor_ExitPreviewMode_Button));
-        using TextLayout text = Text(label, 12.0, _palette.Foreground);
+        using TextLayout text = Text(label, size: 12.0, _palette.Foreground);
         Rect button = new(
             plot.Right - text.Width - 28.0,
             plot.Bottom - text.Height - 20.0,
             text.Width + 20.0,
             text.Height + 10.0);
         _exitPreviewButtonRect = button;
-        context.FillRectangle(Brush(WithOpacity(_palette.CardBackground, 0.92)), button, 4);
-        context.DrawRectangle(new Pen(Brush(WithOpacity(_palette.Foreground, 0.4))), button, 4);
+        context.FillRectangle(Brush(WithOpacity(_palette.CardBackground, opacity: 0.92)), button, cornerRadius: 4);
+        context.DrawRectangle(new Pen(Brush(WithOpacity(_palette.Foreground, opacity: 0.4))), button, cornerRadius: 4);
         text.Draw(context, new Point(button.X + 10.0, button.Y + 5.0));
     }
 
@@ -659,8 +661,8 @@ public sealed partial class EnvironmentalCurveEditor
 
     private static void DrawPill(DrawingContext context, Rect rect, TextLayout text, Color background, Color border)
     {
-        context.FillRectangle(Brush(WithOpacity(background, 0.88)), rect, 3);
-        context.DrawRectangle(new Pen(Brush(WithOpacity(border, 0.22))), rect, 3);
+        context.FillRectangle(Brush(WithOpacity(background, opacity: 0.88)), rect, cornerRadius: 3);
+        context.DrawRectangle(new Pen(Brush(WithOpacity(border, opacity: 0.22))), rect, cornerRadius: 3);
         text.Draw(context, new Point(rect.X + 6.0, rect.Y + 2.0));
     }
 
@@ -669,7 +671,7 @@ public sealed partial class EnvironmentalCurveEditor
         double stroke = selected ? 1.5 : active ? 1.25 : 0.0;
         Pen? ring = stroke > 0.0 ? new Pen(Brush(_palette.Foreground), stroke) : null;
         double radius = stroke > 0.0
-            ? Math.Max(0.0, ThumbSize / 2.0 - stroke / 2.0)
+            ? Math.Max(val1: 0.0, ThumbSize / 2.0 - stroke / 2.0)
             : ThumbSize / 2.0;
         context.DrawEllipse(Brush(fill), ring, center, radius, radius);
     }

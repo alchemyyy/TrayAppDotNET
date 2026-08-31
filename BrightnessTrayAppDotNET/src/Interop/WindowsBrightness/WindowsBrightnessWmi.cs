@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
-using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Utils;
 
 namespace BrightnessTrayAppDotNET.Interop.WindowsBrightness;
@@ -43,14 +42,14 @@ internal static class WindowsBrightnessWmi
 
                 Query(
                     services,
-                    "SELECT * FROM WmiMonitorBrightness WHERE Active = TRUE",
+                    wql: "SELECT * FROM WmiMonitorBrightness WHERE Active = TRUE",
                     obj =>
                     {
-                        if (!TryGetString(obj, "InstanceName", out string instanceName)
+                        if (!TryGetString(obj, name: "InstanceName", out string instanceName)
                             || string.IsNullOrWhiteSpace(instanceName))
                             return;
 
-                        if (!TryGetUInt(obj, "CurrentBrightness", out uint currentRaw))
+                        if (!TryGetUInt(obj, name: "CurrentBrightness", out uint currentRaw))
                             return;
 
                         if (!methodPathByInstance.TryGetValue(instanceName, out string? methodPath)
@@ -61,7 +60,7 @@ internal static class WindowsBrightnessWmi
                             instanceName,
                             NormalizeDisplayInstancePath(instanceName),
                             methodPath,
-                            (int)Math.Clamp(currentRaw, 0, 100)));
+                            (int)Math.Clamp(currentRaw, min: 0, max: 100)));
                     });
 
                 targets = found;
@@ -115,7 +114,7 @@ internal static class WindowsBrightnessWmi
             return false;
         }
 
-        int clamped = Math.Clamp(brightness, 0, 100);
+        int clamped = Math.Clamp(brightness, min: 0, max: 100);
 
         try
         {
@@ -131,8 +130,8 @@ internal static class WindowsBrightnessWmi
 
                 int hr = services.ExecMethod(
                     methodPath,
-                    "WmiSetBrightness",
-                    0,
+                    strMethodName: "WmiSetBrightness",
+                    lFlags: 0,
                     IntPtr.Zero,
                     inParams,
                     out IntPtr outParamsPtr,
@@ -148,14 +147,14 @@ internal static class WindowsBrightnessWmi
                 outParams = COMActivation.GetObjectForComInstance<IWbemClassObject>(
                     outParamsPtr,
                     releaseInputReference: true);
-                if (!TryGetUInt(outParams, "ReturnValue", out uint returnValue))
+                if (!TryGetUInt(outParams, name: "ReturnValue", out uint returnValue))
                     return true;
 
                 if (returnValue == 0) return true;
 
                 error = string.Format(
                     CultureInfo.InvariantCulture,
-                    "WmiSetBrightness returned error {0}.",
+                    format: "WmiSetBrightness returned error {0}.",
                     returnValue);
                 return false;
             }
@@ -214,11 +213,11 @@ internal static class WindowsBrightnessWmi
 
             int hr = locator.ConnectServer(
                 WmiNamespace,
-                null,
-                null,
-                null,
-                0,
-                null,
+                strUser: null,
+                strPassword: null,
+                strLocale: null,
+                lSecurityFlags: 0,
+                strAuthority: null,
                 IntPtr.Zero,
                 out IntPtr servicesPtr);
             if (hr < 0 || servicesPtr == IntPtr.Zero)
@@ -259,14 +258,14 @@ internal static class WindowsBrightnessWmi
         Dictionary<string, string> result = new(StringComparer.Ordinal);
         Query(
             services,
-            "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE",
+            wql: "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE",
             obj =>
             {
-                if (!TryGetString(obj, "InstanceName", out string instanceName)
+                if (!TryGetString(obj, name: "InstanceName", out string instanceName)
                     || string.IsNullOrWhiteSpace(instanceName))
                     return;
 
-                if (!TryGetString(obj, "__PATH", out string path)
+                if (!TryGetString(obj, name: "__PATH", out string path)
                     || string.IsNullOrWhiteSpace(path))
                     return;
 
@@ -278,7 +277,7 @@ internal static class WindowsBrightnessWmi
 
     private static void Query(IWbemServices services, string wql, Action<IWbemClassObject> handleObject)
     {
-        int hr = services.ExecQuery("WQL", wql, WbemQueryFlags, IntPtr.Zero, out IntPtr enumPtr);
+        int hr = services.ExecQuery(strQueryLanguage: "WQL", wql, WbemQueryFlags, IntPtr.Zero, out IntPtr enumPtr);
         if (hr < 0 || enumPtr == IntPtr.Zero)
             throw new InvalidOperationException($"IWbemServices.ExecQuery failed ({FormatHr(hr)}): {wql}");
 
@@ -291,7 +290,7 @@ internal static class WindowsBrightnessWmi
 
             while (true)
             {
-                hr = enumerator.Next(WbemInfinite, 1, out IntPtr objPtr, out uint returned);
+                hr = enumerator.Next(WbemInfinite, uCount: 1, out IntPtr objPtr, out uint returned);
                 if (hr < 0)
                     throw new InvalidOperationException($"IEnumWbemClassObject.Next failed ({FormatHr(hr)}).");
 
@@ -327,8 +326,8 @@ internal static class WindowsBrightnessWmi
         error = null;
 
         int hr = services.GetObject(
-            "WmiMonitorBrightnessMethods",
-            0,
+            strObjectPath: "WmiMonitorBrightnessMethods",
+            lFlags: 0,
             IntPtr.Zero,
             out IntPtr classObjectPtr,
             IntPtr.Zero);
@@ -347,7 +346,8 @@ internal static class WindowsBrightnessWmi
                 classObjectPtr,
                 releaseInputReference: true);
 
-            hr = classObject.GetMethod("WmiSetBrightness", 0, out IntPtr inSignaturePtr, out IntPtr outSignaturePtr);
+            hr = classObject.GetMethod(wszName: "WmiSetBrightness", lFlags: 0, out IntPtr inSignaturePtr,
+                out IntPtr outSignaturePtr);
             if (outSignaturePtr != IntPtr.Zero) Marshal.Release(outSignaturePtr);
             if (hr < 0 || inSignaturePtr == IntPtr.Zero)
             {
@@ -360,7 +360,7 @@ internal static class WindowsBrightnessWmi
                 inSignaturePtr,
                 releaseInputReference: true);
 
-            hr = inSignature.SpawnInstance(0, out IntPtr inParamsPtr);
+            hr = inSignature.SpawnInstance(lFlags: 0, out IntPtr inParamsPtr);
             if (hr < 0 || inParamsPtr == IntPtr.Zero)
             {
                 error = $"IWbemClassObject.SpawnInstance(WmiSetBrightness input) failed ({FormatHr(hr)}).";
@@ -371,8 +371,8 @@ internal static class WindowsBrightnessWmi
                 inParamsPtr,
                 releaseInputReference: true);
 
-            if (!TryPutUInt32(parameters, "Timeout", 0, out error)) return false;
-            if (!TryPutUInt8(parameters, "Brightness", (byte)brightness, out error)) return false;
+            if (!TryPutUInt32(parameters, name: "Timeout", value: 0, out error)) return false;
+            if (!TryPutUInt8(parameters, name: "Brightness", (byte)brightness, out error)) return false;
 
             inParams = parameters;
             parameters = null;
@@ -390,7 +390,7 @@ internal static class WindowsBrightnessWmi
     {
         value = string.Empty;
         WmiVariant variant = default;
-        int hr = obj.Get(name, 0, (IntPtr)(&variant), IntPtr.Zero, IntPtr.Zero);
+        int hr = obj.Get(name, lFlags: 0, (IntPtr)(&variant), IntPtr.Zero, IntPtr.Zero);
         try
         {
             if (hr < 0) return false;
@@ -398,7 +398,7 @@ internal static class WindowsBrightnessWmi
             if ((variant.Vt & WmiVariant.VtTypeMask) != WmiVariant.VtBStr || variant.BstrVal == IntPtr.Zero)
                 return false;
 
-            value = Marshal.PtrToStringBSTR(variant.BstrVal) ?? string.Empty;
+            value = Marshal.PtrToStringBSTR(variant.BstrVal);
             return true;
         }
         finally
@@ -411,7 +411,7 @@ internal static class WindowsBrightnessWmi
     {
         value = 0;
         WmiVariant variant = default;
-        int hr = obj.Get(name, 0, (IntPtr)(&variant), IntPtr.Zero, IntPtr.Zero);
+        int hr = obj.Get(name, lFlags: 0, (IntPtr)(&variant), IntPtr.Zero, IntPtr.Zero);
         try
         {
             if (hr < 0) return false;
@@ -463,7 +463,7 @@ internal static class WindowsBrightnessWmi
 
         variant.Vt = WmiVariant.VtI4;
         variant.LVal = (int)value;
-        int hr = obj.Put(name, 0, (IntPtr)(&variant), 0);
+        int hr = obj.Put(name, lFlags: 0, (IntPtr)(&variant), type: 0);
         if (hr >= 0) return true;
 
         error = $"IWbemClassObject.Put('{name}') failed ({FormatHr(hr)}).";
@@ -476,7 +476,7 @@ internal static class WindowsBrightnessWmi
         WmiVariant variant = default;
         variant.Vt = WmiVariant.VtUi1;
         variant.BVal = value;
-        int hr = obj.Put(name, 0, (IntPtr)(&variant), 0);
+        int hr = obj.Put(name, lFlags: 0, (IntPtr)(&variant), type: 0);
         if (hr >= 0) return true;
 
         error = $"IWbemClassObject.Put('{name}') failed ({FormatHr(hr)}).";
@@ -499,11 +499,11 @@ internal static class WindowsBrightnessWmi
             bool uninitialize = hr is WmiNative.SOk or WmiNative.SFalse;
             if (hr < 0 && hr != WmiNative.RpcEChangedMode) Marshal.ThrowExceptionForHR(hr);
 
-            if (Interlocked.Exchange(ref _securityInitialized, 1) == 0)
+            if (Interlocked.Exchange(ref _securityInitialized, value: 1) == 0)
             {
                 int securityHr = WmiNative.CoInitializeSecurity(
                     IntPtr.Zero,
-                    -1,
+                    cAuthSvc: -1,
                     IntPtr.Zero,
                     IntPtr.Zero,
                     WmiNative.RpcCAuthnLevelDefault,
@@ -540,14 +540,29 @@ internal struct WmiVariant
     public const ushort VtInt = 22;
     public const ushort VtUint = 23;
 
-    [FieldOffset(0)] public ushort Vt;
-    [FieldOffset(8)] public sbyte CVal;
-    [FieldOffset(8)] public byte BVal;
-    [FieldOffset(8)] public short IVal;
-    [FieldOffset(8)] public ushort UiVal;
-    [FieldOffset(8)] public int LVal;
-    [FieldOffset(8)] public uint UlVal;
-    [FieldOffset(8)] public IntPtr BstrVal;
+    [FieldOffset(0)]
+    public ushort Vt;
+
+    [FieldOffset(8)]
+    public sbyte CVal;
+
+    [FieldOffset(8)]
+    public byte BVal;
+
+    [FieldOffset(8)]
+    public short IVal;
+
+    [FieldOffset(8)]
+    public ushort UiVal;
+
+    [FieldOffset(8)]
+    public int LVal;
+
+    [FieldOffset(8)]
+    public uint UlVal;
+
+    [FieldOffset(8)]
+    public IntPtr BstrVal;
 }
 
 [GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]

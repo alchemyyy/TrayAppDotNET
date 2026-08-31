@@ -8,9 +8,9 @@ public sealed partial class FlyoutUndockButtonResources : ResourceDictionary
 #if DEBUG
     private static readonly CommonAXAMLResourceStore<FlyoutUndockButtonResources> Resources =
         CommonAXAMLResourceStore<FlyoutUndockButtonResources>.Create(
-            "Common flyout-undock-button resources",
+            resourceName: "Common flyout-undock-button resources",
             static () => new FlyoutUndockButtonResources(),
-            "FlyoutUndockButtonController.axaml");
+            sourceFileName: "FlyoutUndockButtonController.axaml");
 #else
     private static readonly Lazy<FlyoutUndockButtonResources> Resources =
         new(static () => new FlyoutUndockButtonResources());

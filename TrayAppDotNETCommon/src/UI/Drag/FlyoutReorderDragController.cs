@@ -54,14 +54,14 @@ public sealed class FlyoutReorderDragController<TItem>
         _pointerOffsetY = pointerOffsetY;
 
         Control content = _createGhostContent(item);
-        content.Width = Math.Max(1, source.Content.Bounds.Width);
-        content.Height = Math.Max(1, source.Content.Bounds.Height);
+        content.Width = Math.Max(val1: 1, source.Content.Bounds.Width);
+        content.Height = Math.Max(val1: 1, source.Content.Bounds.Height);
         content.IsHitTestVisible = false;
 
         _ghost = new Border
         {
-            Width = Math.Max(1, source.Content.Bounds.Width),
-            Height = Math.Max(1, source.Content.Bounds.Height),
+            Width = Math.Max(val1: 1, source.Content.Bounds.Width),
+            Height = Math.Max(val1: 1, source.Content.Bounds.Height),
             Opacity = opacity,
             IsHitTestVisible = false,
             BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 2, Blur = 18, Color = shadowColor }),
@@ -105,7 +105,7 @@ public sealed class FlyoutReorderDragController<TItem>
         List<FlyoutDragTarget<TItem>> targets = [];
         foreach ((TItem item, Control root, Control content, Border? slotCover, string? groupKey) in items)
         {
-            Point topLeft = content.TranslatePoint(new Point(0, 0), _coordinateRoot) ?? new Point();
+            Point topLeft = content.TranslatePoint(new Point(x: 0, y: 0), _coordinateRoot) ?? new Point();
             targets.Add(new FlyoutDragTarget<TItem>(
                 item,
                 root,
@@ -113,7 +113,7 @@ public sealed class FlyoutReorderDragController<TItem>
                 slotCover,
                 topLeft.X,
                 topLeft.Y,
-                Math.Max(content.Bounds.Height, 1),
+                Math.Max(content.Bounds.Height, val2: 1),
                 groupKey));
         }
 
@@ -135,7 +135,7 @@ public sealed class FlyoutReorderDragController<TItem>
             else break;
         }
 
-        return Math.Clamp(insertion, 0, count);
+        return Math.Clamp(insertion, min: 0, count);
     }
 
     public static bool IsInteractiveDragSource(Visual? source) =>

@@ -15,10 +15,10 @@ public sealed class TaskManagerReorderListLogicTests
 
         List<ReorderItem> filtered = TaskManagerReorderListLogic.FilterItems(
             items,
-            "alpha",
+            filter: "alpha",
             static item => item.Name);
 
-        Assert.Equal(2, filtered.Count);
+        Assert.Equal(expected: 2, filtered.Count);
         Assert.Same(prefix, filtered[0]);
         Assert.Same(exact, filtered[1]);
     }
@@ -26,14 +26,14 @@ public sealed class TaskManagerReorderListLogicTests
     [Fact]
     public void FilterItemsCombinesTextAndItemPredicates()
     {
-        ReorderItem includedMatch = new("alpha", isIncluded: true);
-        ReorderItem excludedMatch = new("alphabet", isIncluded: false);
-        ReorderItem includedMismatch = new("beta", isIncluded: true);
+        ReorderItem includedMatch = new(name: "alpha", isIncluded: true);
+        ReorderItem excludedMatch = new(name: "alphabet", isIncluded: false);
+        ReorderItem includedMismatch = new(name: "beta", isIncluded: true);
         List<ReorderItem> items = [includedMatch, excludedMatch, includedMismatch];
 
         List<ReorderItem> filtered = TaskManagerReorderListLogic.FilterItems(
             items,
-            "alpha",
+            filter: "alpha",
             static item => item.Name,
             static item => item.IsIncluded);
 
@@ -80,7 +80,7 @@ public sealed class TaskManagerReorderListLogicTests
             items,
             visibleItems,
             first,
-            targetVisibleIndex: int.MaxValue);
+            int.MaxValue);
 
         Assert.True(changed);
         Assert.Same(second, items[0]);

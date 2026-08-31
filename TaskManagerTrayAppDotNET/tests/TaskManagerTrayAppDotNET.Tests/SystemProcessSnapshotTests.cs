@@ -29,7 +29,7 @@ public sealed class SystemProcessSnapshotTests
         Assert.False(string.IsNullOrWhiteSpace(snapshot.ReadImageName(current)));
 
         using Process process = Process.GetCurrentProcess();
-        Assert.InRange(current.ThreadCount, 1, process.Threads.Count + 8);
+        Assert.InRange(current.ThreadCount, low: 1, process.Threads.Count + 8);
     }
 
     [Fact]
@@ -38,20 +38,18 @@ public sealed class SystemProcessSnapshotTests
         using SystemProcessSnapshot snapshot = new();
         Dictionary<int, SystemProcessData> processes = [];
 
-        bool captured = snapshot.TryCapture(processes, true);
+        bool captured = snapshot.TryCapture(processes, includeJobObjectIDs: true);
 
         Assert.True(captured);
         Assert.True(processes.TryGetValue(Environment.ProcessId, out SystemProcessData current));
         if (snapshot.HasJobObjectIDs)
             Assert.True(current.JobObjectID >= 0);
         else
-            Assert.Equal(-1, current.JobObjectID);
+            Assert.Equal(expected: -1, current.JobObjectID);
         Assert.NotEqual(ProcessExecutionState.Suspended, snapshot.ReadExecutionState(current));
     }
 
     [Fact]
-    public void NominalProcessorCapacityIsAvailable()
-    {
+    public void NominalProcessorCapacityIsAvailable() =>
         Assert.True(NativeProcessInfo.ReadNominalProcessorCycleCapacity() > 0);
-    }
 }

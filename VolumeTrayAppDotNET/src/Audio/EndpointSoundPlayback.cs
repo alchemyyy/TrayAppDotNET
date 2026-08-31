@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using VolumeTrayAppDotNET.Interop;
-
 using IAudioClient = VolumeTrayAppDotNET.Interop.IAudioClient;
 using IAudioRenderClient = VolumeTrayAppDotNET.Interop.IAudioRenderClient;
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
@@ -65,22 +64,22 @@ internal static class EndpointSoundPlayback
             // Synthesize a clean 18-byte WAVEFORMATEX matching the source PCM. Avoids feeding the
             // engine any extra fields that may sit after cbSize in the file's fmt chunk.
             byte[] format = new byte[18];
-            BitConverter.GetBytes((ushort)1).CopyTo(format, 0); // WAVE_FORMAT_PCM
-            BitConverter.GetBytes((ushort)channels).CopyTo(format, 2);
-            BitConverter.GetBytes((uint)samplesPerSec).CopyTo(format, 4);
-            BitConverter.GetBytes((uint)(samplesPerSec * blockAlign)).CopyTo(format, 8);
-            BitConverter.GetBytes((ushort)blockAlign).CopyTo(format, 12);
-            BitConverter.GetBytes((ushort)bitsPerSample).CopyTo(format, 14);
-            BitConverter.GetBytes((ushort)0).CopyTo(format, 16); // cbSize
+            BitConverter.GetBytes((ushort)1).CopyTo(format, index: 0); // WAVE_FORMAT_PCM
+            BitConverter.GetBytes((ushort)channels).CopyTo(format, index: 2);
+            BitConverter.GetBytes((uint)samplesPerSec).CopyTo(format, index: 4);
+            BitConverter.GetBytes((uint)(samplesPerSec * blockAlign)).CopyTo(format, index: 8);
+            BitConverter.GetBytes((ushort)blockAlign).CopyTo(format, index: 12);
+            BitConverter.GetBytes((ushort)bitsPerSample).CopyTo(format, index: 14);
+            BitConverter.GetBytes((ushort)0).CopyTo(format, index: 16); // cbSize
 
             formatPtr = Marshal.AllocHGlobal(format.Length);
-            Marshal.Copy(format, 0, formatPtr, format.Length);
+            Marshal.Copy(format, startIndex: 0, formatPtr, format.Length);
 
             const uint streamFlags = AudioClientStreamFlags.NoPersist
                                      | AudioClientStreamFlags.AutoConvertPcm
                                      | AudioClientStreamFlags.SrcDefaultQuality;
             hr = client.Initialize(AudioClientShareMode.Shared, streamFlags,
-                TimeConstants.EndpointSoundPlaybackBufferDurationHns, 0, formatPtr, IntPtr.Zero);
+                TimeConstants.EndpointSoundPlaybackBufferDurationHns, hnsPeriodicity: 0, formatPtr, IntPtr.Zero);
             if (hr < 0)
             {
                 TADNLog.Log($"EndpointSoundPlayback.Initialize: hr=0x{hr:X8}");
@@ -94,9 +93,8 @@ internal static class EndpointSoundPlayback
             if (hr < 0 || render == null) return;
 
 
-
             // Initial fill before Start so the engine never plays a glitch of silence.
-             int byteCursor = FillBuffer(render, bufferFrames, wavBytes, dataOffset,
+            int byteCursor = FillBuffer(render, bufferFrames, wavBytes, dataOffset,
                 dataLength, blockAlign);
 
             hr = client.Start();
@@ -155,7 +153,7 @@ internal static class EndpointSoundPlayback
 
         int bytesToWrite = framesToWrite * blockAlign;
         Marshal.Copy(source, sourceOffset, buffer, bytesToWrite);
-        render.ReleaseBuffer((uint)framesToWrite, 0);
+        render.ReleaseBuffer((uint)framesToWrite, dwFlags: 0);
         return bytesToWrite;
     }
 }

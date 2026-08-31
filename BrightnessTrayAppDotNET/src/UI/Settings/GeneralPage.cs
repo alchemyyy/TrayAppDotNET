@@ -134,12 +134,11 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_General_PDBTimeout_Title)),
             L(nameof(AppStrings.Settings_General_PDBTimeout_Description)),
             _settings.NightLightPDBDownloadTimeoutSeconds,
-            1,
-            600,
+            min: 1,
+            max: 600,
             v => _settings.NightLightPDBDownloadTimeoutSeconds = v,
             p,
             L(nameof(AppStrings.Common_SecondsSuffix)),
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_PDBTimeout_SearchKeywords))
             ]));
@@ -147,12 +146,11 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Title)),
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Description)),
             _settings.EnvironmentalCurveTickIntervalMs,
-            250,
-            600_000,
+            min: 250,
+            max: 600_000,
             v => _settings.EnvironmentalCurveTickIntervalMs = v,
             p,
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_EnvironmentalTick_SearchKeywords))
             ]));
@@ -204,7 +202,7 @@ public sealed partial class BrightnessSettingsWindow
             AutoEngageEnvironmentalCurveDelayBoxWidth,
             L(nameof(AppStrings.Common_SecondsSuffix)));
         delayBox.IsVisible = _settings.AutoEngageEnvironmentalCurveEnabled;
-        delayBox.Margin = new Thickness(0, 0, AutoEngageEnvironmentalCurveControlSpacing, 0);
+        delayBox.Margin = new Thickness(left: 0, top: 0, AutoEngageEnvironmentalCurveControlSpacing, bottom: 0);
         delayBox.ValueChanged += (_, e) =>
         {
             if (!e.NewValue.HasValue) return;
@@ -228,7 +226,6 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_General_AutoEngageEnvironmentalCurve_Description)),
             controls,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_AutoEngageEnvironmentalCurve_SearchKeywords))
             ]);
@@ -245,7 +242,7 @@ public sealed partial class BrightnessSettingsWindow
                 TrayAppDotNETSettingsUI.DescriptionText(
                     L(nameof(AppStrings.Settings_General_ProfileManagerUnavailable)),
                     Palette),
-                "ProfileSlots");
+                parentName: "ProfileSlots");
             _profileSlotPanel.Children.Add(unavailable);
             return;
         }
@@ -269,7 +266,7 @@ public sealed partial class BrightnessSettingsWindow
         TextBlock label = TrayAppDotNETSettingsUI.TitleText((index + 1).ToString(CultureInfo.InvariantCulture), p);
         label.Width = 28;
         label.VerticalAlignment = VerticalAlignment.Center;
-        TextBox nameBox = TrayAppDotNETSettingsUI.TextBox(p, 220, entry.Name);
+        TextBox nameBox = TrayAppDotNETSettingsUI.TextBox(p, width: 220, entry.Name);
         nameBox.LostFocus += (_, _) => CommitProfileName(entry, nameBox.Text);
         SettingsButton up = Button(GlyphCatalog.CHEVRON_UP.Text, p);
         SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN.Text, p);
@@ -281,21 +278,21 @@ public sealed partial class BrightnessSettingsWindow
         down.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         up.IsEnabled = index > 0;
         down.IsEnabled = index < _profileSlots.Count - 1;
-        up.Click += (_, _) => MoveProfileSlot(index, -1);
-        down.Click += (_, _) => MoveProfileSlot(index, 1);
-        Grid row = new() { Margin = new Thickness(0, 0, 0, 6) };
+        up.Click += (_, _) => MoveProfileSlot(index, delta: -1);
+        down.Click += (_, _) => MoveProfileSlot(index, delta: 1);
+        Grid row = new() { Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 6) };
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.Children.Add(label);
-        Grid.SetColumn(nameBox, 1);
+        Grid.SetColumn(nameBox, value: 1);
         row.Children.Add(nameBox);
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(up, down);
-        buttons.Margin = new Thickness(12, 0, 0, 0);
-        Grid.SetColumn(buttons, 3);
+        buttons.Margin = new Thickness(left: 12, top: 0, right: 0, bottom: 0);
+        Grid.SetColumn(buttons, value: 3);
         row.Children.Add(buttons);
-        ControlNames.AssignLogicalSubtree(row, "ProfileSlot");
+        ControlNames.AssignLogicalSubtree(row, parentName: "ProfileSlot");
         return row;
     }
 

@@ -63,18 +63,18 @@ internal sealed class Win32MessageWindow : IDisposable
 
         ushort atom = RegisterClassEx(ref windowClass);
         if (atom == 0)
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "RegisterClassEx failed.");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), message: "RegisterClassEx failed.");
         _registered = true;
 
         Handle = CreateWindowEx(
-            0,
+            dwExStyle: 0,
             _className,
             string.Empty,
-            0,
-            0,
-            0,
-            0,
-            0,
+            dwStyle: 0,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
             HotkeyUser32.HWND_MESSAGE,
             IntPtr.Zero,
             _hInstance,
@@ -85,7 +85,7 @@ internal sealed class Win32MessageWindow : IDisposable
             int error = Marshal.GetLastWin32Error();
             UnregisterClass(_className, _hInstance);
             _registered = false;
-            throw new Win32Exception(error, "CreateWindowEx failed.");
+            throw new Win32Exception(error, message: "CreateWindowEx failed.");
         }
     }
 

@@ -7,7 +7,6 @@ using System.Timers;
 using Avalonia.Threading;
 using Microsoft.Win32;
 using VolumeTrayAppDotNET.Interop;
-
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
 using IMMDeviceCollection = VolumeTrayAppDotNET.Interop.IMMDeviceCollection;
 using IMMDeviceEnumerator = VolumeTrayAppDotNET.Interop.IMMDeviceEnumerator;
@@ -31,6 +30,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // field reference once into a local and operate on a single coherent reference per call.
     private IMMDeviceEnumerator _enumerator;
     private readonly NotificationBridge _bridge;
+    private bool _enumeratorInitialized;
+    private bool _bridgeRegistered;
 
     private readonly Dispatcher _dispatcher;
 
@@ -49,6 +50,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // rate, so each painted frame catches a smoothly-stepped value instead of a snap-to-sample.
     private readonly System.Timers.Timer _peakSampleTimer;
     private readonly System.Timers.Timer _peakRenderTimer;
+    private bool _peakSampleTimerInitialized;
+    private bool _peakRenderTimerInitialized;
 
     private readonly ObservableCollection<AudioDevice> _devices = [];
 
@@ -97,12 +100,14 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // render device on each change. Non-admin runs leave the monitor inert and CurrentCodec
     // stays null on every device.
     private readonly BluetoothCodecMonitor _codecMonitor;
+    private bool _codecMonitorInitialized;
 
     // CfgMgr32-backed battery monitor keyed by PnP container id. Reads Windows' aggregated
     // DEVPKEY_Bluetooth_Battery (covers BLE GATT, HFP IPHONEACCEV, HID battery reports),
     // classifies Bluetooth containers, and fans changes out to every AudioDevice sharing that
     // container.
     private readonly BluetoothBatteryMonitor _batteryMonitor;
+    private bool _batteryMonitorInitialized;
 
     // Session-lifetime cache survives AudioDevice wrapper replacement and battery-monitor removal
     // when a Bluetooth container disconnects.
@@ -209,8 +214,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
         Guid? containerID = device.ContainerId;
         AudioDevice[] relatedDevices = _devices
-            .Where(candidate => candidate.IsBluetooth
-                                && candidate.IsDisconnected
+            .Where(candidate => candidate is { IsBluetooth: true, IsDisconnected: true }
                                 && (containerID is null
                                     ? ReferenceEquals(candidate, device)
                                     : candidate.ContainerId == containerID))
@@ -232,8 +236,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             TADNLog.LogDebug("AudioDeviceManager.ConnectBluetoothDevice: retrying pending reconnect");
 
         long nowMilliseconds = Environment.TickCount64;
-        long previousDeadlineMilliseconds = relatedDevices.Max(
-            static candidate => candidate.BluetoothConnectionDeadlineMilliseconds);
+        long previousDeadlineMilliseconds =
+            relatedDevices.Max(static candidate => candidate.BluetoothConnectionDeadlineMilliseconds);
         long deadlineMilliseconds = ResolveBluetoothConnectionAttemptDeadline(
             nowMilliseconds,
             previousDeadlineMilliseconds);
@@ -256,17 +260,15 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
             catch (Exception exception)
             {
-                TADNLog.Log($"AudioDeviceManager.ConnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
+                TADNLog.Log(
+                    $"AudioDeviceManager.ConnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
             }
             finally
             {
                 // A rejected retry can mean the preceding asynchronous driver attempt still owns
                 // the target. Preserve the observation window in that case and let state events or
                 // its deadline settle it. Only a rejected initial request is known to have no work.
-                if (!requested && !isRetry)
-                {
-                    PostEndBluetoothConnectionAttempts(endpointIDs, deadlineMilliseconds);
-                }
+                if (!requested && !isRetry) PostEndBluetoothConnectionAttempts(endpointIDs, deadlineMilliseconds);
             }
         });
     }
@@ -373,7 +375,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         foreach (AudioDevice candidate in _devices)
         {
-            if (candidate.ContainerId == containerID) candidate.EndBluetoothConnectionAttempt();
+            if (candidate.ContainerId == containerID)
+                candidate.EndBluetoothConnectionAttempt();
         }
 
         StopBluetoothConnectionCountdownTimerIfIdle();
@@ -410,7 +413,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             return;
         }
 
-        if (Interlocked.CompareExchange(ref _bluetoothDisconnectInFlight, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _bluetoothDisconnectInFlight, value: 1, comparand: 0) != 0)
         {
             TADNLog.LogDebug("AudioDeviceManager.DisconnectBluetoothDevice: prior disconnect still in flight");
             return;
@@ -424,11 +427,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
             catch (Exception exception)
             {
-                TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisconnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
             }
             finally
             {
-                Interlocked.Exchange(ref _bluetoothDisconnectInFlight, 0);
+                Interlocked.Exchange(ref _bluetoothDisconnectInFlight, value: 0);
                 try
                 {
                     _dispatcher.Post(() =>
@@ -439,7 +443,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 catch (Exception exception)
                 {
                     if (!_disposed)
-                        TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice refresh failed: {exception.Message}");
+                    {
+                        TADNLog.Log(
+                            $"AudioDeviceManager.DisconnectBluetoothDevice refresh failed: {exception.Message}");
+                    }
                 }
             }
         });
@@ -477,10 +484,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // the coalescing instead. Cooldown would only space out successive runs, which we don't
             // need - one final UpdateAllDefaults per quiet window is the goal.
             _defaultsRefreshThrottler = new AsyncThrottler<string>(
-                0,
+                cooldownMs: 0,
                 drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
             _deviceListRefreshThrottler = new AsyncThrottler<string>(
-                0,
+                cooldownMs: 0,
                 drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
             // Must be running before any AudioDevice activates IAudioSessionManager2 and registers
@@ -489,14 +496,17 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             _sessionNotificationMTAThread = new CoreAudioSessionMTAThread();
             _captureMeterActivationService = new CaptureMeterActivationService();
             _enumerator = CreateDeviceEnumerator();
+            _enumeratorInitialized = true;
 
             // Sample timer's Elapsed fires on the threadpool and does the COM peak read off the UI
             // thread; render timer's Elapsed BeginInvokes the lerp advancement onto the dispatcher.
             // SynchronizingObject left null on purpose so Elapsed runs on the threadpool rather than
             // any captured sync context.
             _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true };
+            _peakSampleTimerInitialized = true;
 
             _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true };
+            _peakRenderTimerInitialized = true;
 
             // Retune timers immediately when the user changes the rates from the settings page.
             // Active timers stop and rearm under a fresh generation before Interval changes.
@@ -510,6 +520,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             _bridge = new NotificationBridge(this);
             _enumerator.RegisterEndpointNotificationCallback(_bridge);
+            _bridgeRegistered = true;
 
             RebuildDeviceList();
 
@@ -517,9 +528,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // runs it stays inert and exposes RequiresElevation = true. CodecChanged marshals onto
             // the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
             _codecMonitor = new BluetoothCodecMonitor(dispatcher);
+            _codecMonitorInitialized = true;
             _codecMonitor.CodecChanged += OnBluetoothCodecChanged;
             try { _codecMonitor.Start(); }
             catch (Exception ex) { TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor disabled: {ex.Message}"); }
+
             PropagateCodecToBluetoothDevices(_codecMonitor.CurrentCodec);
 
             // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
@@ -528,6 +541,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // device and fires BluetoothContainerConnectionChanged so we can promote endpoints
             // whose property store did not surface BTHENUM.
             _batteryMonitor = new BluetoothBatteryMonitor(dispatcher);
+            _batteryMonitorInitialized = true;
             _batteryMonitor.BatteryChanged += OnBluetoothBatteryChanged;
             _batteryMonitor.BluetoothContainerConnectionChanged += OnBluetoothContainerConnectionChanged;
             _batteryMonitor.Start();
@@ -544,9 +558,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private void DisposePartialConstruction()
     {
         _disposed = true;
-        Volatile.Write(ref _activeMeteringGeneration, 0);
-        Interlocked.Exchange(ref _peakSampleDispatchGeneration, 0);
-        Interlocked.Exchange(ref _peakRenderDispatchGeneration, 0);
+        Volatile.Write(ref _activeMeteringGeneration, value: 0);
+        Interlocked.Exchange(ref _peakSampleDispatchGeneration, value: 0);
+        Interlocked.Exchange(ref _peakRenderDispatchGeneration, value: 0);
 
         try { SystemEvents.PowerModeChanged -= OnPowerModeChanged; }
         catch (Exception ex)
@@ -565,7 +579,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             try { _settings.MeterPeakSampleRateChanged -= OnMeterPeakSampleRateChanged; }
             catch (Exception ex)
             {
-                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample-rate unsubscribe failed: {ex.Message}");
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: sample-rate unsubscribe failed: {ex.Message}");
             }
 
             try
@@ -580,10 +595,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
         }
 
-        System.Timers.Timer? peakSampleTimer = _peakSampleTimer;
-        if (peakSampleTimer != null)
+        if (_peakSampleTimerInitialized)
         {
-            try { peakSampleTimer.Stop(); }
+            try { _peakSampleTimer.Stop(); }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer stop failed: {ex.Message}");
@@ -593,20 +607,20 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             _peakSampleElapsedHandler = null;
             try
             {
-                if (sampleHandler != null) peakSampleTimer.Elapsed -= sampleHandler;
+                if (sampleHandler != null) _peakSampleTimer.Elapsed -= sampleHandler;
             }
             catch (Exception ex)
             {
-                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer unsubscribe failed: {ex.Message}");
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: sample timer unsubscribe failed: {ex.Message}");
             }
 
-            Safe.Dispose(peakSampleTimer);
+            Safe.Dispose(_peakSampleTimer);
         }
 
-        System.Timers.Timer? peakRenderTimer = _peakRenderTimer;
-        if (peakRenderTimer != null)
+        if (_peakRenderTimerInitialized)
         {
-            try { peakRenderTimer.Stop(); }
+            try { _peakRenderTimer.Stop(); }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer stop failed: {ex.Message}");
@@ -616,32 +630,31 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             _peakRenderElapsedHandler = null;
             try
             {
-                if (renderHandler != null) peakRenderTimer.Elapsed -= renderHandler;
+                if (renderHandler != null) _peakRenderTimer.Elapsed -= renderHandler;
             }
             catch (Exception ex)
             {
-                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer unsubscribe failed: {ex.Message}");
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: render timer unsubscribe failed: {ex.Message}");
             }
 
-            Safe.Dispose(peakRenderTimer);
+            Safe.Dispose(_peakRenderTimer);
         }
 
-        BluetoothCodecMonitor? codecMonitor = _codecMonitor;
-        if (codecMonitor != null)
+        if (_codecMonitorInitialized)
         {
-            try { codecMonitor.CodecChanged -= OnBluetoothCodecChanged; }
+            try { _codecMonitor.CodecChanged -= OnBluetoothCodecChanged; }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: codec unsubscribe failed: {ex.Message}");
             }
 
-            Safe.Dispose(codecMonitor);
+            Safe.Dispose(_codecMonitor);
         }
 
-        BluetoothBatteryMonitor? batteryMonitor = _batteryMonitor;
-        if (batteryMonitor != null)
+        if (_batteryMonitorInitialized)
         {
-            try { batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged; }
+            try { _batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged; }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: battery unsubscribe failed: {ex.Message}");
@@ -649,7 +662,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             try
             {
-                batteryMonitor.BluetoothContainerConnectionChanged -= OnBluetoothContainerConnectionChanged;
+                _batteryMonitor.BluetoothContainerConnectionChanged -= OnBluetoothContainerConnectionChanged;
             }
             catch (Exception ex)
             {
@@ -658,14 +671,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                     $"unsubscribe failed: {ex.Message}");
             }
 
-            Safe.Dispose(batteryMonitor);
+            Safe.Dispose(_batteryMonitor);
         }
 
-        IMMDeviceEnumerator? enumerator = _enumerator;
-        NotificationBridge? bridge = _bridge;
-        if (enumerator != null && bridge != null)
+        IMMDeviceEnumerator? enumerator = _enumeratorInitialized ? _enumerator : null;
+        if (_bridgeRegistered)
         {
-            try { enumerator.UnregisterEndpointNotificationCallback(bridge); }
+            try { _enumerator.UnregisterEndpointNotificationCallback(_bridge); }
             catch (Exception ex)
             {
                 TADNLog.Log(
@@ -710,7 +722,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         int fps = _settings?.MeterPeakFps ?? AppSettings.MeterPeakFpsDefault;
         int rate = _settings?.MeterPeakSampleRate ?? AppSettings.MeterPeakSampleRateDefault;
         if (rate < 1) rate = 1;
-        return Math.Max(1, fps / rate);
+        return Math.Max(val1: 1, fps / rate);
     }
 
     private void OnMeterPeakFpsChanged()
@@ -752,9 +764,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             if (device is { DataFlow: EDataFlow.eCapture, IsActive: true }
                 && !string.IsNullOrEmpty(device.Id))
-            {
                 activeCaptureDeviceIDs.Add(device.Id);
-            }
         }
 
         _captureMeterActivationService.SetActiveDeviceIDs(activeCaptureDeviceIDs);
@@ -823,9 +833,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void InvalidateAndStopPeakMeterTimers()
     {
-        Volatile.Write(ref _activeMeteringGeneration, 0);
-        Interlocked.Exchange(ref _peakSampleDispatchGeneration, 0);
-        Interlocked.Exchange(ref _peakRenderDispatchGeneration, 0);
+        Volatile.Write(ref _activeMeteringGeneration, value: 0);
+        Interlocked.Exchange(ref _peakSampleDispatchGeneration, value: 0);
+        Interlocked.Exchange(ref _peakRenderDispatchGeneration, value: 0);
         try
         {
             _peakSampleTimer.Stop();
@@ -889,10 +899,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
 
         if (!IsMeteringGenerationCurrent(generation)) return;
-        if (Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, generation, 0) != 0) return;
+        if (Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, generation, comparand: 0) != 0) return;
         if (!IsMeteringGenerationCurrent(generation))
         {
-            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
+            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, value: 0, generation);
             return;
         }
 
@@ -914,13 +924,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 }
                 finally
                 {
-                    Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
+                    Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, value: 0, generation);
                 }
             });
         }
         catch
         {
-            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
+            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, value: 0, generation);
         }
     }
 
@@ -944,10 +954,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         float maxStep = percent / 100f;
 
         if (!IsMeteringGenerationCurrent(generation)) return;
-        if (Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, generation, 0) != 0) return;
+        if (Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, generation, comparand: 0) != 0) return;
         if (!IsMeteringGenerationCurrent(generation))
         {
-            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
+            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, value: 0, generation);
             return;
         }
 
@@ -969,13 +979,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 }
                 finally
                 {
-                    Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
+                    Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, value: 0, generation);
                 }
             });
         }
         catch
         {
-            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
+            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, value: 0, generation);
         }
     }
 
@@ -1010,7 +1020,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 DisposeTemporaryDevices(rebuilt);
                 rebuilt.Clear();
 
-                if (!TryRecreateEnumerator("rebuild-enumeration-failed", firstFailure)) return false;
+                if (!TryRecreateEnumerator(reason: "rebuild-enumeration-failed", firstFailure)) return false;
                 if (!TryBuildDeviceList(rebuilt, out _)) return false;
             }
 
@@ -1020,7 +1030,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 DisposeTemporaryDevices(rebuilt);
                 rebuilt.Clear();
 
-                if (!TryRecreateEnumerator("empty-runtime-snapshot", null)) return false;
+                if (!TryRecreateEnumerator(reason: "empty-runtime-snapshot", cause: null)) return false;
                 if (!TryBuildDeviceList(rebuilt, out _)) return false;
                 if (rebuilt.Count == 0) return false;
             }
@@ -1048,9 +1058,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             if (pendingBluetoothConnections.TryGetValue(rebuiltDevice.Id, out long deadlineMilliseconds)
                 && deadlineMilliseconds > nowMilliseconds)
-            {
                 rebuiltDevice.BeginBluetoothConnectionAttempt(deadlineMilliseconds, nowMilliseconds);
-            }
         }
 
         if (_devices.Any(static device => device.IsBluetoothConnectionPending))
@@ -1574,7 +1582,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         if (_disposed) return;
 
-        int dwellMs = Math.Max(0, delayMs);
+        int dwellMs = Math.Max(val1: 0, delayMs);
         string key = reason == "power-resume"
             ? ResumeDeviceListRefreshKey
             : MissingDefaultDeviceListRefreshKey;
@@ -1619,7 +1627,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 if (_disposed) return;
                 _missingDefaultRecoveryArmed = false;
-                ScheduleDeviceListRefresh("power-resume", TimeConstants.DeviceListRefreshAfterResumeMs);
+                ScheduleDeviceListRefresh(reason: "power-resume", TimeConstants.DeviceListRefreshAfterResumeMs);
             });
         }
         catch
@@ -1934,7 +1942,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         string enumerator = d.EnumeratorName;
         if (enumerator.Length == 0) return true;
-        return enumerator.StartsWith("BTH", StringComparison.OrdinalIgnoreCase);
+        return enumerator.StartsWith(value: "BTH", StringComparison.OrdinalIgnoreCase);
     }
 
     // True when at least one Bluetooth render endpoint is currently Active. Drives the codec
@@ -1970,6 +1978,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             TADNLog.Log($"AudioDeviceManager peak timer teardown failed: {exception.Message}");
         }
+
         Safe.Dispose(_peakSampleTimer);
         Safe.Dispose(_peakRenderTimer);
         if (_settings != null)

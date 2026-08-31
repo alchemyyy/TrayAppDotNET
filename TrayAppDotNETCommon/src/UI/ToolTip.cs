@@ -8,6 +8,7 @@ namespace TrayAppDotNETCommon.UI;
 public static class TrayAppDotNETToolTip
 {
     private const double TargetGap = 4.0;
+
     private const PopupPositionerConstraintAdjustment NonOccludingAdjustments =
         PopupPositionerConstraintAdjustment.FlipY |
         PopupPositionerConstraintAdjustment.SlideX |
@@ -45,13 +46,13 @@ public static class TrayAppDotNETToolTip
 
     public static void Suppress(Control control)
     {
-        ToolTip.SetIsOpen(control, false);
-        ToolTip.SetServiceEnabled(control, false);
+        ToolTip.SetIsOpen(control, value: false);
+        ToolTip.SetServiceEnabled(control, value: false);
     }
 
     public static void Restore(Control control)
     {
-        ToolTip.SetServiceEnabled(control, true);
+        ToolTip.SetServiceEnabled(control, value: true);
         ApplyShowDelay(control);
     }
 
@@ -71,8 +72,8 @@ public static class TrayAppDotNETToolTip
     private static void ApplyNonOccludingPlacement(Control control)
     {
         ToolTip.SetPlacement(control, PlacementMode.Custom);
-        ToolTip.SetHorizontalOffset(control, 0);
-        ToolTip.SetVerticalOffset(control, 0);
+        ToolTip.SetHorizontalOffset(control, value: 0);
+        ToolTip.SetVerticalOffset(control, value: 0);
         ToolTip.SetCustomPopupPlacementCallback(control, NonOccludingPlacementCallback);
     }
 

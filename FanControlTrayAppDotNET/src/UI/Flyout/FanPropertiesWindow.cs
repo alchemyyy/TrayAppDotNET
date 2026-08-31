@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -7,10 +10,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
-using TrayAppDotNETCommon.UI;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -50,7 +49,7 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
     private readonly SettingsButton _closeButton;
-    private readonly ControlNameScope _controlNames;
+    private ControlNameScope ControlNames { get; }
     private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
     private readonly Dictionary<FanCurveEditorWindow, UIResourceScope> _curveEditorSubscriptionResources = [];
     private readonly UIResourceScope _windowResources = new(nameof(FanPropertiesWindow));
@@ -59,7 +58,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     public FanPropertiesWindow()
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNames = ControlNameScope.For(this);
         _fan = null!;
         _settings = null!;
         _palette = null!;
@@ -89,7 +88,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     public FanPropertiesWindow(Fan fan, AppSettings settings)
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNames = ControlNameScope.For(this);
         _fan = fan;
         _settings = settings;
 
@@ -107,85 +106,85 @@ public sealed partial class FanPropertiesWindow : Window
 
             _titleText = ControlNames.Assign(
                 TrayAppDotNETSettingsUI.Text(
-                    "Fan Properties",
+                    text: "Fan Properties",
                     palette,
                     Layout.TitleFontSize,
                     FontWeight.SemiBold),
-                "TitleBar");
-            _fanIDText = ControlNames.Assign(ValueText(palette), "FanID");
-            _sensorControllerText = ControlNames.Assign(ValueText(palette), "SensorController");
+                parentName: "TitleBar");
+            _fanIDText = ControlNames.Assign(ValueText(palette), parentName: "FanID");
+            _sensorControllerText = ControlNames.Assign(ValueText(palette), parentName: "SensorController");
             _nameBox = ControlNames.Assign(
                 TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth),
-                "FanName");
+                parentName: "FanName");
             _groupCombo = _windowResources.Own(
                 ControlNames.Assign(
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.TextBoxWidth,
                         autoSizeToText: true),
-                    "FanGroup"));
+                    parentName: "FanGroup"));
             _curveCombo = _windowResources.Own(
                 ControlNames.Assign(
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.CurveComboBoxWidth,
                         autoSizeToText: true),
-                    "FanCurve"));
+                    parentName: "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
-            _curveModeRadio = ControlNames.Assign(CompactRadio("Curve", palette), "FanMode");
-            _manualModeRadio = ControlNames.Assign(CompactRadio("Manual", palette), "FanMode");
-            _detachedModeRadio = ControlNames.Assign(CompactRadio("Detached", palette), "FanMode");
+            _curveModeRadio = ControlNames.Assign(CompactRadio(text: "Curve", palette), parentName: "FanMode");
+            _manualModeRadio = ControlNames.Assign(CompactRadio(text: "Manual", palette), parentName: "FanMode");
+            _detachedModeRadio = ControlNames.Assign(CompactRadio(text: "Detached", palette), parentName: "FanMode");
             _jumpstartBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
-                    "Jumpstart"));
+                    parentName: "Jumpstart"));
             _clampHighBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
-                    "ClampHigh"));
+                    parentName: "ClampHigh"));
             _clampLowBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
-                    "ClampLow"));
+                    parentName: "ClampLow"));
             _warnLowBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
-                    "WarnLow"));
+                    parentName: "WarnLow"));
             _warnHighBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
-                    "WarnHigh"));
+                    parentName: "WarnHigh"));
             _deltaMaxBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix),
-                    "DeltaMax"));
+                    parentName: "DeltaMax"));
             _offsetBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix),
-                    "Offset"));
+                    parentName: "Offset"));
             _editCurveButton = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.Button("Edit curve", palette),
-                "FanCurve");
+                TrayAppDotNETSettingsUI.Button(text: "Edit curve", palette),
+                parentName: "FanCurve");
 
-            _pinButton = ControlNames.Assign(CaptionButton(GlyphCatalog.PIN, palette), "TitleBar");
-            _closeButton = ControlNames.Assign(CaptionButton(GlyphCatalog.EXIT, palette), "TitleBar");
+            _pinButton = ControlNames.Assign(CaptionButton(GlyphCatalog.PIN, palette), parentName: "TitleBar");
+            _closeButton = ControlNames.Assign(CaptionButton(GlyphCatalog.EXIT, palette), parentName: "TitleBar");
             _pinButton.Click += (_, _) => IsPinned = !IsPinned;
             _closeButton.Click += (_, _) => RequestClose();
 
             Grid titleBar = ControlNames.Assign(
                 BuildTitleBar(palette, _pinButton, _closeButton),
-                "Chrome");
-            Grid body = ControlNames.Assign(BuildBody(palette), "Chrome");
-            Grid footer = ControlNames.Assign(BuildFooter(palette), "Chrome");
+                parentName: "Chrome");
+            Grid body = ControlNames.Assign(BuildBody(palette), parentName: "Chrome");
+            Grid footer = ControlNames.Assign(BuildFooter(palette), parentName: "Chrome");
 
             Grid chrome = ControlNames.Assign(new Grid(), nameof(FanPropertiesWindow));
             chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TitleBarHeight)));
             chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
             chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.FooterHeight)));
             chrome.Children.Add(titleBar);
-            Grid.SetRow(body, 1);
+            Grid.SetRow(body, value: 1);
             chrome.Children.Add(body);
-            Grid.SetRow(footer, 2);
+            Grid.SetRow(footer, value: 2);
             chrome.Children.Add(footer);
 
             Border root = ControlNames.Assign(
@@ -230,8 +229,6 @@ public sealed partial class FanPropertiesWindow : Window
         MaxWidth = Layout.WindowWidth;
         MaxHeight = Layout.WindowHeight;
     }
-
-    private ControlNameScope ControlNames => _controlNames;
 
 #if DEBUG
     /// <summary>
@@ -349,7 +346,7 @@ public sealed partial class FanPropertiesWindow : Window
             VerticalAlignment = VerticalAlignment.Top,
             Children = { pinButton, closeButton }
         };
-        Grid.SetColumn(buttons, 1);
+        Grid.SetColumn(buttons, value: 1);
         titleBar.Children.Add(buttons);
         return titleBar;
     }
@@ -361,25 +358,25 @@ public sealed partial class FanPropertiesWindow : Window
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         StackPanel left = new() { Margin = Layout.LeftMargin };
-        left.Children.Add(Row("ID", _fanIDText, p));
-        left.Children.Add(Row("Sensor", _sensorControllerText, p, bottomMargin: 6));
-        left.Children.Add(Row("Name", _nameBox, p));
-        left.Children.Add(Row("Group", _groupCombo, p));
-        left.Children.Add(Row("Mode",
+        left.Children.Add(Row(label: "ID", _fanIDText, p));
+        left.Children.Add(Row(label: "Sensor", _sensorControllerText, p, bottomMargin: 6));
+        left.Children.Add(Row(label: "Name", _nameBox, p));
+        left.Children.Add(Row(label: "Group", _groupCombo, p));
+        left.Children.Add(Row(label: "Mode",
             new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
             }, p));
         left.Children.Add(RPMModeHeaderRow(p));
-        left.Children.Add(NumberRow("Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed, p));
-        left.Children.Add(NumberRow("Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh, p));
-        left.Children.Add(NumberRow("Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow, p));
-        left.Children.Add(NumberRow("Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow, p));
-        left.Children.Add(NumberRow("Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh, p));
-        left.Children.Add(NumberRow("Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax, p));
-        left.Children.Add(NumberRow("Offset", _offsetBox, FanPropertyUnitKind.Offset, p,
-            bottomMargin: Layout.OffsetRowBottomMargin));
+        left.Children.Add(NumberRow(label: "Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed, p));
+        left.Children.Add(NumberRow(label: "Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh, p));
+        left.Children.Add(NumberRow(label: "Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow, p));
+        left.Children.Add(NumberRow(label: "Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow, p));
+        left.Children.Add(NumberRow(label: "Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh, p));
+        left.Children.Add(NumberRow(label: "Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax, p));
+        left.Children.Add(NumberRow(label: "Offset", _offsetBox, FanPropertyUnitKind.Offset, p,
+            Layout.OffsetRowBottomMargin));
 
         ScrollViewer scroll = new()
         {
@@ -401,14 +398,14 @@ public sealed partial class FanPropertiesWindow : Window
             CornerRadius = _settings.EnableRoundedCorners ? Layout.InnerCornerRadius : Layout.ZeroCornerRadius
         });
         _curveCombo.Margin = Layout.CurveComboBoxMargin;
-        Grid.SetRow(_curveCombo, 1);
+        Grid.SetRow(_curveCombo, value: 1);
         right.Children.Add(_curveCombo);
         _editCurveButton.Margin = Layout.EditCurveButtonMargin;
         _editCurveButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         _editCurveButton.Click += (_, _) => OpenCurveEditor();
-        Grid.SetRow(_editCurveButton, 2);
+        Grid.SetRow(_editCurveButton, value: 2);
         right.Children.Add(_editCurveButton);
-        Grid.SetColumn(right, 1);
+        Grid.SetColumn(right, value: 1);
         body.Children.Add(right);
         return body;
     }
@@ -416,8 +413,8 @@ public sealed partial class FanPropertiesWindow : Window
     private Grid BuildFooter(SettingsPalette p)
     {
         Grid footer = new() { Margin = Layout.FooterMargin };
-        SettingsButton reset = TrayAppDotNETSettingsUI.Button("Reset to defaults", p);
-        SettingsButton save = TrayAppDotNETSettingsUI.Button("Save", p);
+        SettingsButton reset = TrayAppDotNETSettingsUI.Button(text: "Reset to defaults", p);
+        SettingsButton save = TrayAppDotNETSettingsUI.Button(text: "Save", p);
         reset.Margin = Layout.ResetButtonMargin;
         reset.Click += (_, _) => ResetToDefaults();
         save.Click += (_, _) => SaveFromControls();
@@ -459,7 +456,7 @@ public sealed partial class FanPropertiesWindow : Window
     private void PopulateGroupCombo()
     {
         _groupCombo.Items.Clear();
-        _groupCombo.Items.Add(new SettingsComboBoxItem(string.Empty, "None", Palette()));
+        _groupCombo.Items.Add(new SettingsComboBoxItem(string.Empty, text: "None", Palette()));
 
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         foreach (FanGroup group in _settings.FanGroups
@@ -486,7 +483,7 @@ public sealed partial class FanPropertiesWindow : Window
     private void PopulateCurveCombo()
     {
         _curveCombo.Items.Clear();
-        _curveCombo.Items.Add(new SettingsComboBoxItem(string.Empty, "None", Palette()));
+        _curveCombo.Items.Add(new SettingsComboBoxItem(string.Empty, text: "None", Palette()));
         foreach (Curve curve in Curve.Curves.Values
                      .Where(c => !string.IsNullOrWhiteSpace(c.CurveName))
                      .OrderBy(c => c.CurveName, StringComparer.OrdinalIgnoreCase))
@@ -604,11 +601,7 @@ public sealed partial class FanPropertiesWindow : Window
         _curveModeRadio.IsChecked = true;
         PersistAndNotify();
 
-        FanCurveEditorWindow window = new(_fan, curve, _settings)
-        {
-            Topmost = Topmost,
-            ShowInTaskbar = false
-        };
+        FanCurveEditorWindow window = new(_fan, curve, _settings) { Topmost = Topmost, ShowInTaskbar = false };
         try
         {
             _curveEditorWindows.Add(window);
@@ -624,6 +617,7 @@ public sealed partial class FanPropertiesWindow : Window
             {
                 TADNLog.Log($"FanPropertiesWindow failed curve editor cleanup: {exception.Message}");
             }
+
             throw;
         }
     }
@@ -688,7 +682,7 @@ public sealed partial class FanPropertiesWindow : Window
     private Curve CreateCurveForFan()
     {
         string name = UniqueCurveName($"{_fan.DisplayName} Curve");
-        int maxRPM = _fan.MaxRPM > 0 ? _fan.MaxRPM : _fan.CurrentRPM > 0 ? Math.Max(100, _fan.CurrentRPM) : 3000;
+        int maxRPM = _fan.MaxRPM > 0 ? _fan.MaxRPM : _fan.CurrentRPM > 0 ? Math.Max(val1: 100, _fan.CurrentRPM) : 3000;
         Curve curve = new()
         {
             CurveName = name,
@@ -726,7 +720,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     private void PersistAndNotify()
     {
-        AppServices.LHMService?.PersistLiveState(save: false);
+        AppServices.LHMService?.PersistLiveState(false);
         _settings.SyncFanControlRegistriesForSave();
         _settings.Save();
         _settings.RaiseChanged();
@@ -785,18 +779,18 @@ public sealed partial class FanPropertiesWindow : Window
         FanSettingsWindow.CreatePalette(AppServices.Theme, _settings, AppTheme.ResolveEffectiveIsLightTheme(_settings));
 
     private SettingsNumberBox Number(SettingsPalette p, int min, int max, string suffix) =>
-        TrayAppDotNETSettingsUI.NumberBox(p, 0, min, max, Layout.NumberBoxWidth, suffix);
+        TrayAppDotNETSettingsUI.NumberBox(p, value: 0, min, max, Layout.NumberBoxWidth, suffix);
 
     private Grid RPMModeHeaderRow(SettingsPalette p)
     {
-        TextBlock header = TrayAppDotNETSettingsUI.Text("RPM Mode", p, Layout.RPMModeHeaderFontSize,
+        TextBlock header = TrayAppDotNETSettingsUI.Text(text: "RPM Mode", p, Layout.RPMModeHeaderFontSize,
             FontWeight.SemiBold);
         header.Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground);
         header.HorizontalAlignment = HorizontalAlignment.Center;
         header.VerticalAlignment = VerticalAlignment.Center;
 
         Grid grid = NumberRowGrid(Layout.RPMModeHeaderBottomMargin);
-        Grid.SetColumn(header, 3);
+        Grid.SetColumn(header, value: 3);
         grid.Children.Add(header);
         return grid;
     }
@@ -816,9 +810,9 @@ public sealed partial class FanPropertiesWindow : Window
 
         Grid grid = NumberRowGrid(bottomMargin ?? Layout.RowBottomMargin);
         grid.Children.Add(labelBlock);
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         grid.Children.Add(value);
-        Grid.SetColumn(rpmModeToggle, 3);
+        Grid.SetColumn(rpmModeToggle, value: 3);
         grid.Children.Add(rpmModeToggle);
         return grid;
     }
@@ -841,7 +835,7 @@ public sealed partial class FanPropertiesWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        TrayAppDotNETToolTip.SetTip(toggle, "Use RPM units for this property");
+        TrayAppDotNETToolTip.SetTip(toggle, tip: "Use RPM units for this property");
         return toggle;
     }
 
@@ -912,7 +906,9 @@ public sealed partial class FanPropertiesWindow : Window
         int minimum = binding.Kind == FanPropertyUnitKind.Offset ? -maximum : DutyCycleMinimum;
         string suffix = binding.Kind == FanPropertyUnitKind.DeltaMax
             ? rpmMode ? RPMRateSuffix : DutyCycleRateSuffix
-            : rpmMode ? RPMSuffix : DutyCycleSuffix;
+            : rpmMode
+                ? RPMSuffix
+                : DutyCycleSuffix;
 
         binding.NumberBox.Minimum = minimum;
         binding.NumberBox.Maximum = maximum;
@@ -935,7 +931,10 @@ public sealed partial class FanPropertiesWindow : Window
     private bool PropertyRPMMode(FanPropertyUnitKind kind)
     {
         foreach (FanPropertyUnitBinding binding in _propertyUnitBindings)
-            if (binding.Kind == kind) return binding.Toggle.IsChecked;
+        {
+            if (binding.Kind == kind)
+                return binding.Toggle.IsChecked;
+        }
 
         return false;
     }
@@ -972,7 +971,7 @@ public sealed partial class FanPropertiesWindow : Window
 
         double converted = targetRPMMode
             ? value / (double)DutyCycleMaximum * rpmReference
-            : value / (double)Math.Max(1, rpmReference) * DutyCycleMaximum;
+            : value / (double)Math.Max(val1: 1, rpmReference) * DutyCycleMaximum;
         return (int)Math.Round(converted);
     }
 
@@ -1021,7 +1020,7 @@ public sealed partial class FanPropertiesWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.Children.Add(labelBlock);
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, value: 1);
         grid.Children.Add(value);
         return grid;
     }
@@ -1087,7 +1086,7 @@ public sealed partial class FanPropertiesWindow : Window
     private static string NormalizeCurveName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return string.Empty;
-        return string.Equals(name, "None", StringComparison.OrdinalIgnoreCase) ? string.Empty : name;
+        return string.Equals(name, b: "None", StringComparison.OrdinalIgnoreCase) ? string.Empty : name;
     }
 
     private static void SelectComboByTag(SettingsComboBox combo, string? tag)

@@ -14,8 +14,10 @@ public sealed class AppTheme : CommonAppTheme
 
     public ThemeColor BatteryChargingFill { get; set; } =
         AppThemeColorCatalog.Color(nameof(BatteryChargingFill));
+
     public ThemeColor BatteryCriticalFill { get; set; } =
         AppThemeColorCatalog.Color(nameof(BatteryCriticalFill));
+
     public ThemeColor BatteryLowFill { get; set; } = AppThemeColorCatalog.Color(nameof(BatteryLowFill));
 
     public static WindowIcon? LoadAppIcon()
@@ -62,7 +64,7 @@ public sealed class AppTheme : CommonAppTheme
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "theme.xml");
+        return Path.Combine(appFolder, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>

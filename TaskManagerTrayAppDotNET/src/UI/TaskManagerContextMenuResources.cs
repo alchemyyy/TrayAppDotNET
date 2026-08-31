@@ -9,10 +9,10 @@ public sealed partial class TaskManagerContextMenuResources : ResourceDictionary
 #if DEBUG
     private static readonly AXAMLResourceHotReloadStore<TaskManagerContextMenuResources> Resources =
         AXAMLResourceHotReloadStore<TaskManagerContextMenuResources>.Create(
-            "Task Manager context menu resources",
+            resourceName: "Task Manager context menu resources",
             static () => new TaskManagerContextMenuResources(),
             NotifyResourcesReloaded,
-            "TaskManagerContextMenuResources.axaml",
+            sourceFileName: "TaskManagerContextMenuResources.axaml",
             synchronizeReload: SynchronizeResources);
 #else
     private static readonly Lazy<TaskManagerContextMenuResources> Resources =

@@ -1,5 +1,5 @@
-using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 using TrayAppDotNETCommon.Visuals;
+using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
@@ -11,7 +11,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 #if DEBUG
     private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
         GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            "Brightness",
+            catalogName: "Brightness",
             static () => new GlyphCatalogResources());
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());

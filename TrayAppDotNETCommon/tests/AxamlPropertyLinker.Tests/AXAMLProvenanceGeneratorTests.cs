@@ -1,6 +1,6 @@
 #if DEBUG
-using Microsoft.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
 using Xunit;
 
 namespace TrayAppDotNETCommon.AxamlPropertyLinker.Tests;
@@ -16,7 +16,7 @@ public sealed class AXAMLProvenanceGeneratorTests
             AxamlPropertyLinkerGeneratorTests.SampleSource,
             [new AxamlTestFile(SourcePath, ProvenanceAXAML)],
             isDebug: true,
-            projectDirectory: ProjectDirectory);
+            ProjectDirectory);
 
         Assert.Empty(result.CompilationDiagnostics);
         GeneratedSourceResult generatedResult = result.RunResult.Results
@@ -25,23 +25,24 @@ public sealed class AXAMLProvenanceGeneratorTests
             .Single(static source => source.HintName == "AxamlPropertyLinker.AxamlProvenance.g.cs");
         string generatedSource = generatedResult.SourceText.ToString();
 
-        Assert.Contains("#if DEBUG", generatedSource);
-        Assert.Contains("internal static class AXAMLProvenanceCatalog", generatedSource);
-        Assert.Contains("DebugUIProvenance.RegisterAXAML(", generatedSource);
-        Assert.Contains("\"Samples/src/Views/SampleWindow.axaml\"", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.ResourceDefinition", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.PropertyAssignment", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.ResourceReference", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.Style", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.StyleSetter", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.ControlTheme", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.Template", generatedSource);
-        Assert.Contains("AXAMLProvenanceKind.Binding", generatedSource);
-        Assert.Contains("\"/Window[1]/Window.Resources[1]/Color[1]\"", generatedSource);
-        Assert.Contains("\"PART_Border\"", generatedSource);
-        Assert.Contains("\"Palette.Card\"", generatedSource);
-        Assert.Contains("\"Button:pointerover\"", generatedSource);
+        Assert.Contains(expectedSubstring: "#if DEBUG", generatedSource);
+        Assert.Contains(expectedSubstring: "internal static class AXAMLProvenanceCatalog", generatedSource);
+        Assert.Contains(expectedSubstring: "DebugUIProvenance.RegisterAXAML(", generatedSource);
+        Assert.Contains(expectedSubstring: "\"Samples/src/Views/SampleWindow.axaml\"", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.ResourceDefinition", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.PropertyAssignment", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.ResourceReference", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.Style", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.StyleSetter", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.ControlTheme", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.Template", generatedSource);
+        Assert.Contains(expectedSubstring: "AXAMLProvenanceKind.Binding", generatedSource);
+        Assert.Contains(expectedSubstring: "\"/Window[1]/Window.Resources[1]/Color[1]\"", generatedSource);
+        Assert.Contains(expectedSubstring: "\"PART_Border\"", generatedSource);
+        Assert.Contains(expectedSubstring: "\"Palette.Card\"", generatedSource);
+        Assert.Contains(expectedSubstring: "\"Button:pointerover\"", generatedSource);
         Assert.Matches(
+            expectedRegexPattern:
             "\"Border\",\\s*\"/Window\\[1\\]/Grid\\[1\\]/Border\\[1\\]\",\\s*null,\\s*\"Background\"",
             generatedSource);
     }
@@ -51,7 +52,7 @@ public sealed class AXAMLProvenanceGeneratorTests
     {
         AxamlGeneratorResult result = AxamlGeneratorHost.RunGenerator(
             AxamlPropertyLinkerGeneratorTests.SampleSource,
-            [new AxamlTestFile("SampleWindow.axaml", ProvenanceAXAML)],
+            [new AxamlTestFile(Path: "SampleWindow.axaml", ProvenanceAXAML)],
             isDebug: true);
 
         GeneratedSourceResult generatedResult = result.RunResult.Results
@@ -66,8 +67,8 @@ public sealed class AXAMLProvenanceGeneratorTests
             "(?<line>\\d+),\\s*(?<column>\\d+),.*?\"Palette\\.Card\"",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(resourceLocation.Success);
-        Assert.Equal("9", resourceLocation.Groups["line"].Value);
-        Assert.Equal("10", resourceLocation.Groups["column"].Value);
+        Assert.Equal(expected: "9", resourceLocation.Groups["line"].Value);
+        Assert.Equal(expected: "10", resourceLocation.Groups["column"].Value);
 
         Match styleLocation = Regex.Match(
             generatedSource,
@@ -75,8 +76,8 @@ public sealed class AXAMLProvenanceGeneratorTests
             "(?<line>\\d+),\\s*(?<column>\\d+),.*?\"Button:pointerover\"",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(styleLocation.Success);
-        Assert.Equal("21", styleLocation.Groups["line"].Value);
-        Assert.Equal("16", styleLocation.Groups["column"].Value);
+        Assert.Equal(expected: "21", styleLocation.Groups["line"].Value);
+        Assert.Equal(expected: "16", styleLocation.Groups["column"].Value);
     }
 
     private const string ProvenanceAXAML =

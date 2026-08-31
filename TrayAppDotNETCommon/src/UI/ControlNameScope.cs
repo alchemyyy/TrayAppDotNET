@@ -29,7 +29,7 @@ public sealed class ControlNameScope
     private ControlNameScope(TopLevel topLevel)
     {
         _topLevel = topLevel;
-        _topLevelToken = SanitizeToken(topLevel.GetType().Name, "TopLevel");
+        _topLevelToken = SanitizeToken(topLevel.GetType().Name, fallback: "TopLevel");
 
         if (string.IsNullOrWhiteSpace(topLevel.Name))
         {
@@ -37,7 +37,7 @@ public sealed class ControlNameScope
             ControlNameOrigin origin = assignedAvaloniaName
                 ? ControlNameOrigin.TopLevel
                 : ControlNameOrigin.VisualFallback;
-            RegisterDetails(topLevel, new ControlNameDetails(_topLevelToken, _topLevelToken, 0, origin));
+            RegisterDetails(topLevel, new ControlNameDetails(_topLevelToken, _topLevelToken, Index: 0, origin));
             if (!assignedAvaloniaName)
             {
                 ReportIssue(
@@ -46,9 +46,7 @@ public sealed class ControlNameScope
             }
         }
         else
-        {
             RegisterExistingName(topLevel);
-        }
     }
 
     /// <summary>Gets the naming scope whose monotonic index belongs to one top-level instance.</summary>
@@ -205,15 +203,14 @@ public sealed class ControlNameScope
             return;
         }
 
-        string controlType = SanitizeToken(ControlTypeName(control.GetType()), "Control");
+        string controlType = SanitizeToken(ControlTypeName(control.GetType()), fallback: "Control");
         // The monotonic index guarantees generated uniqueness without retaining retired controls
         int index = Interlocked.Increment(ref _nextIndex);
         string generatedName =
             $"{controlType}_{parentToken}_{index.ToString(GeneratedIndexFormat, CultureInfo.InvariantCulture)}";
 
-        bool assignedAvaloniaName;
         ControlNameOrigin requestedOrigin = origin;
-        assignedAvaloniaName = TrySetName(control, generatedName);
+        bool assignedAvaloniaName = TrySetName(control, generatedName);
         if (!assignedAvaloniaName)
             origin = ControlNameOrigin.VisualFallback;
 
@@ -239,7 +236,7 @@ public sealed class ControlNameScope
             return;
 
         string token = SanitizeToken(name, _topLevelToken);
-        RegisterDetails(element, new ControlNameDetails(name, token, 0, ControlNameOrigin.Explicit));
+        RegisterDetails(element, new ControlNameDetails(name, token, Index: 0, ControlNameOrigin.Explicit));
     }
 
     private string ResolveParentToken(StyledElement parent)
@@ -326,7 +323,7 @@ public sealed class ControlNameScope
     private static string ControlTypeName(Type type)
     {
         string typeName = type.Name;
-        int genericMarker = typeName.IndexOf('`', StringComparison.Ordinal);
+        int genericMarker = typeName.IndexOf(value: '`', StringComparison.Ordinal);
         return genericMarker < 0 ? typeName : typeName[..genericMarker];
     }
 
@@ -343,7 +340,7 @@ public sealed class ControlNameScope
         }
 
         if (token.Length == 0) return fallback;
-        if (token[0] is >= '0' and <= '9') token.Insert(0, 'P');
+        if (token[0] is >= '0' and <= '9') token.Insert(index: 0, value: 'P');
         return token.ToString();
     }
 
@@ -352,8 +349,7 @@ public sealed class ControlNameScope
         if (value.Length == 0) return false;
 
         char first = value[0];
-        bool validFirst = first == '_'
-                          || (first is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+        bool validFirst = first is '_' or >= 'A' and <= 'Z' or >= 'a' and <= 'z';
         if (!validFirst) return false;
 
         for (int index = 1; index < value.Length; index++)

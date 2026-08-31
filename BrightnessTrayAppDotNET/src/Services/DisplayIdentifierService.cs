@@ -89,6 +89,7 @@ public static class DisplayIdentifierService
         {
             TADNLog.Log($"DisplayIdentifierService.StopTimer: {exception.Message}");
         }
+
         timer.Tick -= OnTimerTick;
     }
 
@@ -121,7 +122,7 @@ public static class DisplayIdentifierService
         bool Callback(IntPtr hMonitor, IntPtr hdc, ref User32Monitor.Rect rect, IntPtr data)
         {
             User32Monitor.MonitorInfoEx info = new();
-            if (User32Monitor.GetMonitorInfo(new HandleRef(null, hMonitor), info))
+            if (User32Monitor.GetMonitorInfo(new HandleRef(wrapper: null, hMonitor), info))
             {
                 string device = new string(info.szDevice).TrimEnd('\0');
                 int number = CCD.ResolveFriendlyDisplayNumber(device, friendlyByAdapter);

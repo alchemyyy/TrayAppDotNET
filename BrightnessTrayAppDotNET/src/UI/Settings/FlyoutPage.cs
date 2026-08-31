@@ -30,8 +30,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Flyout),
-            searchKeywords:
+            () => RebuildShell(BrightnessSettingsPage.Flyout),
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ]));
@@ -182,8 +181,7 @@ public sealed partial class BrightnessSettingsWindow
             AppSettings.FlyoutScrollWheelStepMax,
             v => _settings.FlyoutScrollWheelStep = v,
             p,
-            "%",
-            searchKeywords:
+            suffix: "%",
             [
                 L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_SearchKeywords))
             ]));

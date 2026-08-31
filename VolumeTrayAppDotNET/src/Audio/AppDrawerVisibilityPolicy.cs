@@ -1,6 +1,5 @@
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>Lightweight app-group state used to resolve cross-device drawer ownership.</summary>

@@ -123,7 +123,7 @@ internal sealed class WAVTemplate
     public byte[] CloneScaled(float volume)
     {
         byte[] scaled = (byte[])Bytes.Clone();
-        float clamped = Math.Clamp(volume, 0f, 1f);
+        float clamped = Math.Clamp(volume, min: 0f, max: 1f);
         if (clamped >= ScaleSkipThreshold) return scaled;
 
         int end = DataOffset + DataLength;

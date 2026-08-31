@@ -94,7 +94,7 @@ public static class UninstallScript
                 ? Environment.SpecialFolder.CommonDesktopDirectory
                 : Environment.SpecialFolder.DesktopDirectory),
             identity.ApplicationName + ".lnk");
-        string retryDelaySeconds = Math.Max(1, TimeConstants.UninstallFileRetryDelayMs / 1000)
+        string retryDelaySeconds = Math.Max(val1: 1, TimeConstants.UninstallFileRetryDelayMs / 1000)
             .ToString(CultureInfo.InvariantCulture);
 
         string regularFileCommands = string.Join(
@@ -116,78 +116,79 @@ public static class UninstallScript
             Environment.NewLine,
             payload.InstalledFiles(installedExecutableFileName)
                 .Where(file => file.RemoveOnlyWhenInstallRootHasNoExe)
-                .Select(file => DeleteFileCommands(Path.Combine(installDirectory, file.Name), "  ")));
+                .Select(file => DeleteFileCommands(Path.Combine(installDirectory, file.Name), indent: "  ")));
         string sharedDirectoryCommands = string.Join(
             Environment.NewLine,
             payload.InstalledDirectories
                 .Where(directory => directory.RemoveOnlyWhenInstallRootHasNoExe)
-                .Select(directory => DeleteDirectoryCommands(Path.Combine(installDirectory, directory.Name), "  ")));
+                .Select(directory =>
+                    DeleteDirectoryCommands(Path.Combine(installDirectory, directory.Name), indent: "  ")));
         string rootFileCommands = payload.CopySourceDirectoryRootFiles
-            ? $"  del /f /q \"{Escape(Path.Combine(installDirectory, "*"))}\" >nul 2>&1"
+            ? $"  del /f /q \"{Escape(Path.Combine(installDirectory, path2: "*"))}\" >nul 2>&1"
             : string.Empty;
         string settingsCommands = deleteSettings
             ? DeleteDirectoryCommands(identity.SettingsDirectory)
             : string.Empty;
 
-        return $$"""
-            @echo off
-            setlocal EnableExtensions DisableDelayedExpansion
-            set "ERR=0"
+        return $"""
+                 @echo off
+                 setlocal EnableExtensions DisableDelayedExpansion
+                 set "ERR=0"
 
-            rem Reconcile shortcuts, registry state, and exact installed processes in C#.
-            start "" /wait "{{Escape(helperExecutable)}}" {{TrayAppDotNETInstallOptions.PrepareUninstallArgument}} --scope {{InstallScopeExtensions.ToArg(scope)}}
-            if errorlevel 1 set "ERR=1"
+                 rem Reconcile shortcuts, registry state, and exact installed processes in C#.
+                 start "" /wait "{Escape(helperExecutable)}" {TrayAppDotNETInstallOptions.PrepareUninstallArgument} --scope {InstallScopeExtensions.ToArg(scope)}
+                 if errorlevel 1 set "ERR=1"
 
-            rem The helper can itself be the installed exe, so retry until its image is unmapped.
-            set "DELETE_ATTEMPT=0"
-            :delete_executable
-            del /f /q "{{Escape(installExecutable)}}" >nul 2>&1
-            if not exist "{{Escape(installExecutable)}}" goto delete_payload
-            set /a DELETE_ATTEMPT+=1
-            if %DELETE_ATTEMPT% GEQ {{FileDeleteAttempts}} goto executable_locked
-            timeout /t {{retryDelaySeconds}} /nobreak >nul 2>&1
-            goto delete_executable
+                 rem The helper can itself be the installed exe, so retry until its image is unmapped.
+                 set "DELETE_ATTEMPT=0"
+                 :delete_executable
+                 del /f /q "{Escape(installExecutable)}" >nul 2>&1
+                 if not exist "{Escape(installExecutable)}" goto delete_payload
+                 set /a DELETE_ATTEMPT+=1
+                 if %DELETE_ATTEMPT% GEQ {FileDeleteAttempts} goto executable_locked
+                 timeout /t {retryDelaySeconds} /nobreak >nul 2>&1
+                 goto delete_executable
 
-            :executable_locked
-            set "ERR=1"
-            goto metadata
+                 :executable_locked
+                 set "ERR=1"
+                 goto metadata
 
-            :delete_payload
-            {{regularFileCommands}}
-            {{regularDirectoryCommands}}
-            set "HAS_SIBLING_EXE="
-            for %%F in ("{{Escape(Path.Combine(installDirectory, "*.exe"))}}") do if exist "%%~fF" set "HAS_SIBLING_EXE=1"
-            if not defined HAS_SIBLING_EXE (
-            {{sharedFileCommands}}
-            {{sharedDirectoryCommands}}
-            {{rootFileCommands}}
-            )
-            rmdir "{{Escape(installDirectory)}}" >nul 2>&1
+                 :delete_payload
+                 {regularFileCommands}
+                 {regularDirectoryCommands}
+                 set "HAS_SIBLING_EXE="
+                 for %%F in ("{Escape(Path.Combine(installDirectory, path2: "*.exe"))}") do if exist "%%~fF" set "HAS_SIBLING_EXE=1"
+                 if not defined HAS_SIBLING_EXE (
+                 {sharedFileCommands}
+                 {sharedDirectoryCommands}
+                 {rootFileCommands}
+                 )
+                 rmdir "{Escape(installDirectory)}" >nul 2>&1
 
-            :metadata
-            del /f /q "{{Escape(desktopShortcut)}}" >nul 2>&1
-            reg delete "{{registryPath}}" /f >nul 2>&1
-            reg query "{{registryPath}}" >nul 2>&1
-            if not errorlevel 1 set "ERR=1"
-            reg delete "HKCU\{{identity.LegacyRunKeyRegistryPath}}" /v "{{identity.ApplicationName}}" /f >nul 2>&1
-            {{settingsCommands}}
-            (goto) 2>nul & del /f /q "%~f0" & exit /b %ERR%
-            """;
+                 :metadata
+                 del /f /q "{Escape(desktopShortcut)}" >nul 2>&1
+                 reg delete "{registryPath}" /f >nul 2>&1
+                 reg query "{registryPath}" >nul 2>&1
+                 if not errorlevel 1 set "ERR=1"
+                 reg delete "HKCU\{identity.LegacyRunKeyRegistryPath}" /v "{identity.ApplicationName}" /f >nul 2>&1
+                 {settingsCommands}
+                 (goto) 2>nul & del /f /q "%~f0" & exit /b %ERR%
+                 """;
     }
 
     private static string DeleteFileCommands(string path, string indent = "") =>
         $"""
-        {indent}del /f /q "{Escape(path)}" >nul 2>&1
-        {indent}if exist "{Escape(path)}" set "ERR=1"
-        """;
+         {indent}del /f /q "{Escape(path)}" >nul 2>&1
+         {indent}if exist "{Escape(path)}" set "ERR=1"
+         """;
 
     private static string DeleteDirectoryCommands(string path, string indent = "") =>
         $"""
-        {indent}rmdir /s /q "{Escape(path)}" >nul 2>&1
-        {indent}if exist "{Escape(path)}" set "ERR=1"
-        """;
+         {indent}rmdir /s /q "{Escape(path)}" >nul 2>&1
+         {indent}if exist "{Escape(path)}" set "ERR=1"
+         """;
 
-    private static string Escape(string path) => path.Replace("%", "%%", StringComparison.Ordinal);
+    private static string Escape(string path) => path.Replace(oldValue: "%", newValue: "%%", StringComparison.Ordinal);
 
     private static void TryDeleteBatch(string? path, TrayAppDotNETInstallIdentity identity)
     {

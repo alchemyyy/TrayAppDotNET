@@ -56,7 +56,7 @@ public sealed class RestoredWindowDragGeometryTests
             searchRightWithinWindow: 700,
             outsideMarginPixels: 8);
 
-        Assert.Equal(0, offset);
+        Assert.Equal(expected: 0, offset);
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public sealed class RestoredWindowDragGeometryTests
             searchRightWithinWindow: 700,
             outsideMarginPixels: 8);
 
-        Assert.Equal(58, offset);
-        Assert.Equal(292, 450 - (100 + offset));
+        Assert.Equal(expected: 58, offset);
+        Assert.Equal(expected: 292, 450 - (100 + offset));
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public sealed class RestoredWindowDragGeometryTests
             searchRightWithinWindow: 700,
             outsideMarginPixels: 8);
 
-        Assert.Equal(-58, offset);
-        Assert.Equal(708, 750 - (100 + offset));
+        Assert.Equal(expected: -58, offset);
+        Assert.Equal(expected: 708, 750 - (100 + offset));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class RestoredWindowDragGeometryTests
             searchRightWithinWindow: 700,
             outsideMarginPixels: 8);
 
-        Assert.Equal(208, offset);
+        Assert.Equal(expected: 208, offset);
     }
 
     [Fact]
@@ -110,6 +110,6 @@ public sealed class RestoredWindowDragGeometryTests
             searchRightWithinWindow: 300,
             outsideMarginPixels: 8);
 
-        Assert.Equal(0, offset);
+        Assert.Equal(expected: 0, offset);
     }
 }

@@ -11,17 +11,17 @@ public sealed class DingSuppressionPeakTests
         const long startMilliseconds = 10_000;
         DingSuppressionPeak peak = new();
 
-        float initial = peak.Observe(0.8f, startMilliseconds);
+        float initial = peak.Observe(currentPeak: 0.8f, startMilliseconds);
         float decayed = peak.Observe(
-            0.1f,
+            currentPeak: 0.1f,
             startMilliseconds + TimeConstants.DingSuppressionPeakHalfLifeMs);
         float replaced = peak.Observe(
-            0.6f,
+            currentPeak: 0.6f,
             startMilliseconds + TimeConstants.DingSuppressionPeakHalfLifeMs * 2L);
 
-        Assert.Equal(0.8f, initial);
-        Assert.InRange(decayed, 0.3999f, 0.4001f);
-        Assert.Equal(0.6f, replaced);
+        Assert.Equal(expected: 0.8f, initial);
+        Assert.InRange(decayed, low: 0.3999f, high: 0.4001f);
+        Assert.Equal(expected: 0.6f, replaced);
     }
 
     [Fact]
@@ -29,13 +29,13 @@ public sealed class DingSuppressionPeakTests
     {
         const long startMilliseconds = 20_000;
         DingSuppressionPeak peak = new();
-        peak.Observe(1f, startMilliseconds);
+        peak.Observe(currentPeak: 1f, startMilliseconds);
 
         float afterTwoSeconds = peak.Read(startMilliseconds + 2_000L);
         float afterThreeSeconds = peak.Read(startMilliseconds + 3_000L);
 
-        Assert.InRange(afterTwoSeconds, 0.0039062f, 0.0039063f);
-        Assert.InRange(afterThreeSeconds, 0.0002441f, 0.0002442f);
+        Assert.InRange(afterTwoSeconds, low: 0.0039062f, high: 0.0039063f);
+        Assert.InRange(afterThreeSeconds, low: 0.0002441f, high: 0.0002442f);
     }
 
     [Fact]
@@ -43,11 +43,11 @@ public sealed class DingSuppressionPeakTests
     {
         const long startMilliseconds = 30_000;
         DingSuppressionPeak peak = new();
-        peak.Observe(1f, startMilliseconds);
+        peak.Observe(currentPeak: 1f, startMilliseconds);
 
-        float current = peak.Observe(0.12f, startMilliseconds + 2_000L);
+        float current = peak.Observe(currentPeak: 0.12f, startMilliseconds + 2_000L);
 
-        Assert.Equal(0.12f, current);
+        Assert.Equal(expected: 0.12f, current);
     }
 
     [Theory]

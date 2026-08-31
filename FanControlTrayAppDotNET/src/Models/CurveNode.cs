@@ -7,9 +7,11 @@ namespace FanControlTrayAppDotNET.Models;
 // the curve is assigned to). Both are doubles since interpolation needs sub-integer precision.
 public class CurveNode
 {
-    [XmlAttribute] public double X { get; set; }
+    [XmlAttribute]
+    public double X { get; set; }
 
-    [XmlAttribute] public double Y { get; set; }
+    [XmlAttribute]
+    public double Y { get; set; }
 
     public CurveNode() { }
 

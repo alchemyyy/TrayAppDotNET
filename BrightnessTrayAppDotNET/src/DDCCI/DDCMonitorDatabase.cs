@@ -62,7 +62,7 @@ public static class DDCMonitorDatabase
         if (stream == null)
         {
             TADNLog.Log($"DDCMonitorDatabase: embedded resource '{ResourceName}' not found - using empty DB");
-            return new Dictionary<string, ParsedProfile>(0, StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, ParsedProfile>(capacity: 0, StringComparer.OrdinalIgnoreCase);
         }
 
         try
@@ -73,15 +73,16 @@ public static class DDCMonitorDatabase
         catch (Exception ex)
         {
             TADNLog.Log($"DDCMonitorDatabase: failed to parse embedded JSON - {ex.GetType().Name}: {ex.Message}");
-            return new Dictionary<string, ParsedProfile>(0, StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, ParsedProfile>(capacity: 0, StringComparer.OrdinalIgnoreCase);
         }
     }
 
     private static Dictionary<string, ParsedProfile> ParseRoot(JsonElement root)
     {
-        Dictionary<string, ParsedProfile> result = new(309, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, ParsedProfile> result = new(capacity: 309, StringComparer.OrdinalIgnoreCase);
 
-        if (!root.TryGetProperty("monitors", out JsonElement monitorsObj) || monitorsObj.ValueKind != JsonValueKind.Object) return result;
+        if (!root.TryGetProperty(propertyName: "monitors", out JsonElement monitorsObj) ||
+            monitorsObj.ValueKind != JsonValueKind.Object) return result;
 
         foreach (JsonProperty entry in monitorsObj.EnumerateObject())
         {
@@ -97,18 +98,19 @@ public static class DDCMonitorDatabase
     {
         if (m.ValueKind != JsonValueKind.Object) return null;
 
-        string EDIDDatabaseID = ReadString(m, "edidId");
+        string EDIDDatabaseID = ReadString(m, name: "edidId");
         if (string.IsNullOrEmpty(EDIDDatabaseID)) return null;
 
         byte brightnessCode = 0x10;
-        if (m.TryGetProperty("brightness", out JsonElement brightnessElem)
+        if (m.TryGetProperty(propertyName: "brightness", out JsonElement brightnessElem)
             && brightnessElem.ValueKind == JsonValueKind.Object
-            && brightnessElem.TryGetProperty("code", out JsonElement bcElem)
+            && brightnessElem.TryGetProperty(propertyName: "code", out JsonElement bcElem)
             && bcElem.TryGetInt32(out int bcInt))
             brightnessCode = (byte)bcInt;
 
         List<MonitorPowerCommand> powerCommands = [];
-        if (m.TryGetProperty("powerOff", out JsonElement powerArr) && powerArr.ValueKind == JsonValueKind.Array)
+        if (m.TryGetProperty(propertyName: "powerOff", out JsonElement powerArr) &&
+            powerArr.ValueKind == JsonValueKind.Array)
         {
             foreach (JsonElement p in powerArr.EnumerateArray())
             {
@@ -118,7 +120,8 @@ public static class DDCMonitorDatabase
         }
 
         List<string> quirks = [];
-        if (m.TryGetProperty("quirks", out JsonElement quirksArr) && quirksArr.ValueKind == JsonValueKind.Array)
+        if (m.TryGetProperty(propertyName: "quirks", out JsonElement quirksArr) &&
+            quirksArr.ValueKind == JsonValueKind.Array)
         {
             foreach (JsonElement q in quirksArr.EnumerateArray())
             {
@@ -132,7 +135,7 @@ public static class DDCMonitorDatabase
 
         return new ParsedProfile
         {
-            ModelName = ReadString(m, "modelName"),
+            ModelName = ReadString(m, name: "modelName"),
             BrightnessCode = brightnessCode,
             PowerOffCommands = powerCommands,
             Quirks = quirks
@@ -142,23 +145,23 @@ public static class DDCMonitorDatabase
     private static MonitorPowerCommand? ParsePowerCommand(JsonElement p)
     {
         if (p.ValueKind != JsonValueKind.Object) return null;
-        if (!p.TryGetProperty("code", out JsonElement codeElem) || !codeElem.TryGetInt32(out int codeInt))
+        if (!p.TryGetProperty(propertyName: "code", out JsonElement codeElem) || !codeElem.TryGetInt32(out int codeInt))
             return null;
 
         byte code = (byte)codeInt;
-        bool isInverted = p.TryGetProperty("isInverted", out JsonElement invElem)
+        bool isInverted = p.TryGetProperty(propertyName: "isInverted", out JsonElement invElem)
                           && invElem.ValueKind == JsonValueKind.True;
 
         // Hard-off value lives under "valueHardOff" for 0xD6 (which has multiple off levels);
         // 0xE1 has a single off value under "valueOff". Either is the "off" we use for the
         // most aggressive power-off.
-        byte valueHardOff = ReadByte(p, "valueHardOff", defaultValue: ReadByte(p, "valueOff", defaultValue: 0));
-        byte valueOn = ReadByte(p, "valueOn", defaultValue: 0x01);
+        byte valueHardOff = ReadByte(p, name: "valueHardOff", ReadByte(p, name: "valueOff", defaultValue: 0));
+        byte valueOn = ReadByte(p, name: "valueOn", defaultValue: 0x01);
 
-        byte? valueStandby = TryReadByte(p, "valueStandby");
-        byte? valueSoftOff = TryReadByte(p, "valueSoftOff");
+        byte? valueStandby = TryReadByte(p, name: "valueStandby");
+        byte? valueSoftOff = TryReadByte(p, name: "valueSoftOff");
 
-        string label = ReadString(p, "label");
+        string label = ReadString(p, name: "label");
 
         return new MonitorPowerCommand
         {

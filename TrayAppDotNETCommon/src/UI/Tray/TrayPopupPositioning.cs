@@ -15,9 +15,9 @@ public static class TrayPopupPositioning
         PixelRect? trayIconRect,
         int edgePadding)
     {
-        int popupWidth = Math.Max(1, popupSize.Width);
-        int popupHeight = Math.Max(1, popupSize.Height);
-        int padding = Math.Max(0, edgePadding);
+        int popupWidth = Math.Max(val1: 1, popupSize.Width);
+        int popupHeight = Math.Max(val1: 1, popupSize.Height);
+        int padding = Math.Max(val1: 0, edgePadding);
 
         int requestedLeft = workArea.Right - popupWidth - padding;
         int requestedTop = workArea.Bottom - popupHeight - padding;
@@ -41,9 +41,9 @@ public static class TrayPopupPositioning
         PixelPoint target,
         int edgePadding)
     {
-        int padding = Math.Max(0, edgePadding);
-        int popupWidth = Math.Max(1, popupSize.Width);
-        int popupHeight = Math.Max(1, popupSize.Height);
+        int padding = Math.Max(val1: 0, edgePadding);
+        int popupWidth = Math.Max(val1: 1, popupSize.Width);
+        int popupHeight = Math.Max(val1: 1, popupSize.Height);
         int minLeft = workArea.X + padding;
         int minTop = workArea.Y + padding;
         int maxLeft = Math.Max(minLeft, workArea.Right - popupWidth - padding);

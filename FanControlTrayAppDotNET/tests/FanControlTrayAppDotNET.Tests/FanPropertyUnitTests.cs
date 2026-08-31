@@ -22,8 +22,8 @@ public sealed class FanPropertyUnitTests
         Curve rpmCurve = new() { RPMMode = true, MaxRPM = 3000 };
         Curve dutyCycleCurve = new() { RPMMode = false, MaxRPM = 3000 };
 
-        Assert.Equal(900, fan.ClampLowForCurve(rpmCurve));
-        Assert.Equal(80, fan.ClampHighForCurve(dutyCycleCurve));
+        Assert.Equal(expected: 900, fan.ClampLowForCurve(rpmCurve));
+        Assert.Equal(expected: 80, fan.ClampHighForCurve(dutyCycleCurve));
     }
 
     /// <summary>
@@ -33,16 +33,9 @@ public sealed class FanPropertyUnitTests
     public void AssignedCurveDoesNotForceFanRPMMode()
     {
         string curveName = $"Unit Test Curve {Guid.NewGuid():N}";
-        Curve curve = new()
-        {
-            CurveName = curveName,
-            RPMMode = true
-        };
+        Curve curve = new() { CurveName = curveName, RPMMode = true };
         Curve.Register(curve);
-        Fan fan = new()
-        {
-            RPMMode = false, AssignedCurveName = curveName
-        };
+        Fan fan = new() { RPMMode = false, AssignedCurveName = curveName };
 
         FanCurveModeSync.ApplyToFan(fan, curve);
 

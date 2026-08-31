@@ -41,12 +41,12 @@ public sealed class BatteryTrayMenuWindow : ContextMenuWindow
         Action exit)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add("Power options", openPowerOptions);
-        entries.Add("Battery report", openBatteryReport);
+        entries.Add(text: "Power options", openPowerOptions);
+        entries.Add(text: "Battery report", openBatteryReport);
         entries.AddSeparator();
-        entries.Add("Settings", openSettings);
+        entries.Add(text: "Settings", openSettings);
         entries.AddSeparator();
-        entries.Add("Exit", exit);
+        entries.Add(text: "Exit", exit);
         return entries.ToList();
     }
 
@@ -56,9 +56,7 @@ public sealed class BatteryTrayMenuWindow : ContextMenuWindow
         {
             using Process? _ = Process.Start(new ProcessStartInfo
             {
-                FileName = "control.exe",
-                Arguments = "/name Microsoft.PowerOptions",
-                UseShellExecute = false
+                FileName = "control.exe", Arguments = "/name Microsoft.PowerOptions", UseShellExecute = false
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryTrayMenuWindow.OpenPowerOptions: {ex.Message}"); }

@@ -163,7 +163,7 @@ public sealed class TrayAppDotNETStartMenuShortcut(TrayAppDotNETStartMenuShortcu
         {
             foreach (string sid in root.GetSubKeyNames())
             {
-                if (!sid.StartsWith("S-1-5-21-", StringComparison.Ordinal)) continue;
+                if (!sid.StartsWith(value: "S-1-5-21-", StringComparison.Ordinal)) continue;
 
                 using RegistryKey? sub = root.OpenSubKey(sid);
                 if (sub?.GetValue("ProfileImagePath") is not string path) continue;
@@ -189,7 +189,7 @@ public sealed class TrayAppDotNETStartMenuShortcut(TrayAppDotNETStartMenuShortcu
         string? parent = Path.GetDirectoryName(current);
         if (string.IsNullOrEmpty(parent)) return null;
 
-        string defaultProfile = Path.Combine(parent, "Default");
+        string defaultProfile = Path.Combine(parent, path2: "Default");
         return Directory.Exists(defaultProfile) ? defaultProfile : null;
     }
 }

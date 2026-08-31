@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Avalonia.Media;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -33,28 +32,27 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         TaskManagerWindowResources resources,
         Func<string, bool> startProcess)
         : base(
-            "App history",
+            title: "App history",
             CreateSchema(resources),
             processIconService,
             settings,
             palette,
             resources,
             startProcess,
-            "Search app history")
+            searchPlaceholder: "Search app history")
     {
         _snapshotService = snapshotService;
         _historyStore = historyStore;
         _schema = ProcessDataSchema.Create(
-            Array.Empty<ProcessColumnSetting>(),
+            [],
             AppHistoryStore.RequiredColumnMask);
 
         _deleteHistoryButton = new SettingsButton(
-            "Delete usage history",
+            text: "Delete usage history",
             palette,
             transparentBase: true)
         {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = resources.AxamlTaskManagerTable.LinkButtonPadding
+            HorizontalAlignment = HorizontalAlignment.Left, Padding = resources.AxamlTaskManagerTable.LinkButtonPadding
         };
         _deleteHistoryButton.Click += OnDeleteHistoryClick;
         _historyDescription = TrayAppDotNETSettingsUI.DescriptionText(string.Empty, palette);
@@ -73,24 +71,24 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         new(
         [
             new TaskManagerTableColumn(
-                "name",
-                "Name",
+                Key: "name",
+                Title: "Name",
                 resources.AxamlTaskManagerTable.AppHistoryNameColumnWidth),
             new TaskManagerTableColumn(
-                "cpuTime",
-                "CPU time",
+                Key: "cpuTime",
+                Title: "CPU time",
                 resources.AxamlTaskManagerTable.AppHistoryCPUTimeColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "network",
-                "Network",
+                Key: "network",
+                Title: "Network",
                 resources.AxamlTaskManagerTable.AppHistoryNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "notifications",
-                "Notifications",
+                Key: "notifications",
+                Title: "Notifications",
                 resources.AxamlTaskManagerTable.AppHistoryNotificationsColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true)
@@ -108,10 +106,10 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             _snapshotService.SetWarmProcesses(
                 _schema.VisibleMask,
                 NoWarmProcessIDs,
-                0,
+                count: 0,
                 sampleEveryProcess: true);
             _snapshotService.RequestRefresh();
-            _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
+            _ = RefreshHistoryAsync(false);
             return;
         }
 
@@ -120,7 +118,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
     }
 
     private void OnSnapshotAvailable() =>
-        _ = RefreshHistoryAsync(consumeLatestSnapshot: true);
+        _ = RefreshHistoryAsync(true);
 
     private async Task RefreshHistoryAsync(bool consumeLatestSnapshot)
     {
@@ -152,7 +150,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             if (_isPageActive && _refreshRequested)
             {
                 _refreshRequested = false;
-                _ = RefreshHistoryAsync(consumeLatestSnapshot: true);
+                _ = RefreshHistoryAsync(true);
             }
         }
     }
@@ -212,26 +210,26 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
     {
         _historyStore.DeleteHistory();
         UpdateHistoryDescription();
-        _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
+        _ = RefreshHistoryAsync(false);
     }
 
     private void UpdateHistoryDescription()
     {
         _historyDescription.Text = string.Concat(
-            "Resource usage collected by TaskManagerTrayAppDotNET since ",
+            str0: "Resource usage collected by TaskManagerTrayAppDotNET since ",
             _historyStore.StartedAt.ToString("g"),
-            " for current user and system accounts.");
+            str2: " for current user and system accounts.");
     }
 
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry("Refresh", _snapshotService.RequestRefresh));
-        entries.Add(new ContextMenuEntry("Delete usage history", () =>
+        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh));
+        entries.Add(new ContextMenuEntry(Text: "Delete usage history", () =>
         {
             _historyStore.DeleteHistory();
             UpdateHistoryDescription();
-            _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
+            _ = RefreshHistoryAsync(false);
         }));
         ShowActionMenu(_moreButton, entries.ToList());
     }

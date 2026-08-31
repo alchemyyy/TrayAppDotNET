@@ -22,9 +22,7 @@ internal static class PerformanceDeviceColumnLayout
             || !double.IsFinite(start.Y)
             || !double.IsFinite(current.X)
             || !double.IsFinite(current.Y))
-        {
             return false;
-        }
 
         return Math.Abs(current.X - start.X) >= DragThreshold
                || Math.Abs(current.Y - start.Y) >= DragThreshold;
@@ -39,9 +37,7 @@ internal static class PerformanceDeviceColumnLayout
         ArgumentNullException.ThrowIfNull(rows);
         if (!double.IsFinite(draggedMidpointY)
             || (uint)sourceIndex >= (uint)rows.Count)
-        {
             return -1;
-        }
 
         int insertionIndex = 0;
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -52,9 +48,7 @@ internal static class PerformanceDeviceColumnLayout
             if (!double.IsFinite(row.Top)
                 || !double.IsFinite(row.Height)
                 || row.Height < 0)
-            {
                 return sourceIndex;
-            }
 
             if (draggedMidpointY > row.Top + row.Height / 2.0)
                 insertionIndex++;
@@ -62,7 +56,7 @@ internal static class PerformanceDeviceColumnLayout
                 break;
         }
 
-        return Math.Clamp(insertionIndex, 0, Math.Max(0, rows.Count - 1));
+        return Math.Clamp(insertionIndex, min: 0, Math.Max(val1: 0, rows.Count - 1));
     }
 
     /// <summary>Returns a copy with one item moved to its final list index.</summary>
@@ -146,20 +140,21 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         foreach (PerformanceDeviceColumnRow row in rows)
         {
             if (string.IsNullOrWhiteSpace(row.StableID))
-                throw new ArgumentException("Device stable IDs cannot be empty.", nameof(rows));
+                throw new ArgumentException(message: "Device stable IDs cannot be empty.", nameof(rows));
             if (row.Content == null)
-                throw new ArgumentException("Device row content cannot be null.", nameof(rows));
+                throw new ArgumentException(message: "Device row content cannot be null.", nameof(rows));
             if (!requestedStableIDs.Add(row.StableID))
                 throw new ArgumentException($"Duplicate device stable ID '{row.StableID}'.", nameof(rows));
             if (!requestedContent.Add(row.Content))
-                throw new ArgumentException("A device row control cannot be used more than once.", nameof(rows));
+                throw new ArgumentException(message: "A device row control cannot be used more than once.",
+                    nameof(rows));
 
             requestedRows.Add(row);
         }
 
         if (MatchesCurrentRows(requestedRows)) return;
 
-        ResetGesture(releasePointer: true);
+        ResetGesture(true);
 
         Dictionary<string, RowEntry> existingByStableID = new(StringComparer.Ordinal);
         foreach (RowEntry row in _rows)
@@ -170,15 +165,14 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         {
             if (existingByStableID.TryGetValue(requestedRow.StableID, out RowEntry? existing)
                 && ReferenceEquals(existing.Content, requestedRow.Content))
-            {
                 retainedRows.Add(existing);
-            }
         }
 
         Children.Clear();
         foreach (RowEntry row in _rows)
         {
-            if (!retainedRows.Contains(row)) DetachRow(row);
+            if (!retainedRows.Contains(row))
+                DetachRow(row);
         }
 
         List<RowEntry> nextRows = new(requestedRows.Count);
@@ -202,11 +196,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 
     private RowEntry AttachRow(PerformanceDeviceColumnRow row)
     {
-        Grid host = new()
-        {
-            Background = Brushes.Transparent,
-            Focusable = true
-        };
+        Grid host = new() { Background = Brushes.Transparent, Focusable = true };
         host.Children.Add(row.Content);
         RowEntry entry = new(row.StableID, row.Content, host);
 
@@ -256,7 +246,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         }
         catch (Exception exception)
         {
-            ResetGesture(releasePointer: true);
+            ResetGesture(true);
             TADNLog.Log($"PerformanceDeviceColumn pointer capture failed: {exception.Message}");
         }
 
@@ -270,32 +260,30 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             || !ReferenceEquals(_capturedPointer, eventArgs.Pointer)
             || _pressedRow is not { } pressedRow
             || !ReferenceEquals(pressedRow.Host, host))
-        {
             return;
-        }
 
         Point currentPosition = eventArgs.GetPosition(this);
         if (!_isDragging)
         {
             if (!PerformanceDeviceColumnLayout.HasReachedDragThreshold(_pressPosition, currentPosition)) return;
             _isDragging = true;
-            host.SetValue(Panel.ZIndexProperty, 1);
+            host.SetValue(ZIndexProperty, value: 1);
         }
 
         ResetPreviewTransforms();
         int sourceIndex = _rows.IndexOf(pressedRow);
         if (sourceIndex < 0)
         {
-            ResetGesture(releasePointer: true);
+            ResetGesture(true);
             return;
         }
 
         double draggedMidpointY = currentPosition.Y
-                                    - _pressedRowPointerOffsetY
-                                    + Math.Max(1, host.Bounds.Height) / 2.0;
+                                  - _pressedRowPointerOffsetY
+                                  + Math.Max(val1: 1, host.Bounds.Height) / 2.0;
         _targetIndex = CalculateInsertionIndex(draggedMidpointY, sourceIndex);
         ApplyDragPreview(sourceIndex, _targetIndex);
-        host.RenderTransform = new TranslateTransform(0, currentPosition.Y - _pressPosition.Y);
+        host.RenderTransform = new TranslateTransform(x: 0, currentPosition.Y - _pressPosition.Y);
         eventArgs.Handled = true;
     }
 
@@ -306,9 +294,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             || !ReferenceEquals(_capturedPointer, eventArgs.Pointer)
             || _pressedRow is not { } pressedRow
             || !ReferenceEquals(pressedRow.Host, host))
-        {
             return;
-        }
         if (eventArgs.InitialPressMouseButton != MouseButton.Left) return;
 
         bool wasDragging = _isDragging;
@@ -316,9 +302,9 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         int targetIndex = _targetIndex;
         Point releasePosition = eventArgs.GetPosition(host);
         bool isClick = !wasDragging
-                       && new Rect(0, 0, host.Bounds.Width, host.Bounds.Height).Contains(releasePosition);
+                       && new Rect(x: 0, y: 0, host.Bounds.Width, host.Bounds.Height).Contains(releasePosition);
 
-        ResetGesture(releasePointer: true);
+        ResetGesture(true);
 
         if (wasDragging)
         {
@@ -326,14 +312,9 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
                 && targetIndex >= 0
                 && targetIndex < _rows.Count
                 && sourceIndex != targetIndex)
-            {
                 MoveRow(sourceIndex, targetIndex);
-            }
         }
-        else if (isClick)
-        {
-            _selectionRequested(pressedRow.StableID);
-        }
+        else if (isClick) _selectionRequested(pressedRow.StableID);
 
         eventArgs.Handled = true;
     }
@@ -343,11 +324,9 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         if (_disposed
             || _isResettingGesture
             || !ReferenceEquals(_capturedPointer, eventArgs.Pointer))
-        {
             return;
-        }
 
-        ResetGesture(releasePointer: false);
+        ResetGesture(false);
     }
 
     private void OnRowKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -368,8 +347,11 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             return;
         }
 
-        if (eventArgs.KeyModifiers == KeyModifiers.None
-            && eventArgs.Key is Key.Enter or Key.Space)
+        if (eventArgs is
+            {
+                KeyModifiers: KeyModifiers.None,
+                Key: Key.Enter or Key.Space
+            })
         {
             _selectionRequested(row.StableID);
             eventArgs.Handled = true;
@@ -382,12 +364,12 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         for (int rowIndex = 0; rowIndex < _rows.Count; rowIndex++)
         {
             Grid host = _rows[rowIndex].Host;
-            Point? topLeft = host.TranslatePoint(default, this);
+            Point? topLeft = host.TranslatePoint(point: default, this);
             if (!topLeft.HasValue) return sourceIndex;
 
             geometry[rowIndex] = new PerformanceDeviceRowGeometry(
                 topLeft.Value.Y,
-                Math.Max(1, host.Bounds.Height));
+                Math.Max(val1: 1, host.Bounds.Height));
         }
 
         return PerformanceDeviceColumnLayout.GetInsertionIndex(
@@ -400,22 +382,20 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
     {
         if ((uint)sourceIndex >= (uint)_rows.Count
             || (uint)targetIndex >= (uint)_rows.Count)
-        {
             return;
-        }
 
         double slotOffset = Math.Max(
-            1,
-            _rows[sourceIndex].Host.Bounds.Height + Math.Max(0, Spacing));
+            val1: 1,
+            _rows[sourceIndex].Host.Bounds.Height + Math.Max(val1: 0, Spacing));
         if (targetIndex < sourceIndex)
         {
             for (int rowIndex = targetIndex; rowIndex < sourceIndex; rowIndex++)
-                _rows[rowIndex].Host.RenderTransform = new TranslateTransform(0, slotOffset);
+                _rows[rowIndex].Host.RenderTransform = new TranslateTransform(x: 0, slotOffset);
             return;
         }
 
         for (int rowIndex = sourceIndex + 1; rowIndex <= targetIndex; rowIndex++)
-            _rows[rowIndex].Host.RenderTransform = new TranslateTransform(0, -slotOffset);
+            _rows[rowIndex].Host.RenderTransform = new TranslateTransform(x: 0, -slotOffset);
     }
 
     private void ResetPreviewTransforms()
@@ -449,7 +429,8 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
     {
         foreach (RowEntry row in _rows)
         {
-            if (ReferenceEquals(row.Host, host)) return row;
+            if (ReferenceEquals(row.Host, host))
+                return row;
         }
 
         return null;
@@ -464,9 +445,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             RowEntry currentRow = _rows[rowIndex];
             if (!string.Equals(requestedRow.StableID, currentRow.StableID, StringComparison.Ordinal)
                 || !ReferenceEquals(requestedRow.Content, currentRow.Content))
-            {
                 return false;
-            }
         }
 
         return true;
@@ -484,7 +463,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 
         ResetPreviewTransforms();
         foreach (RowEntry row in _rows)
-            row.Host.SetValue(Panel.ZIndexProperty, 0);
+            row.Host.SetValue(ZIndexProperty, value: 0);
 
         if (!releasePointer || pointer == null) return;
 
@@ -508,7 +487,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
     {
         if (_disposed) return;
 
-        ResetGesture(releasePointer: true);
+        ResetGesture(true);
         Children.Clear();
         foreach (RowEntry row in _rows)
             DetachRow(row);

@@ -14,8 +14,6 @@ public sealed class DisplayIdentifierOverlayWindow : Window
     private readonly int _pxTop;
     private readonly int _pxWidth;
     private readonly int _pxHeight;
-    private readonly ControlNameScope _controlNames;
-
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const int GWL_EXSTYLE = -20;
@@ -25,11 +23,11 @@ public sealed class DisplayIdentifierOverlayWindow : Window
 
     public DisplayIdentifierOverlayWindow(int displayNumber, int pxLeft, int pxTop, int pxWidth, int pxHeight)
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNameScope controlNames = ControlNameScope.For(this);
         _pxLeft = pxLeft;
         _pxTop = pxTop;
-        _pxWidth = Math.Max(1, pxWidth);
-        _pxHeight = Math.Max(1, pxHeight);
+        _pxWidth = Math.Max(val1: 1, pxWidth);
+        _pxHeight = Math.Max(val1: 1, pxHeight);
 
         double DPIScale = ResolveDPIScale(_pxLeft, _pxTop, _pxWidth, _pxHeight);
 
@@ -47,8 +45,8 @@ public sealed class DisplayIdentifierOverlayWindow : Window
         Focusable = false;
         IsHitTestVisible = false;
 
-        Grid content = BuildContent(displayNumber, _controlNames);
-        _controlNames.AssignLogicalSubtree(content, nameof(DisplayIdentifierOverlayWindow));
+        Grid content = BuildContent(displayNumber, controlNames);
+        controlNames.AssignLogicalSubtree(content, nameof(DisplayIdentifierOverlayWindow));
         Content = content;
         Opened += OnOpened;
     }
@@ -71,7 +69,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
                 Focusable = false,
                 IsHitTestVisible = false
             },
-            "DisplayIdentifier");
+            parentName: "DisplayIdentifier");
 
         Border card = controlNames.Assign(
             new Border
@@ -80,18 +78,18 @@ public sealed class DisplayIdentifierOverlayWindow : Window
                 BorderBrush = Brush(theme.DisplayIdentifierBorder.For(isLightTheme)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(24),
-                Padding = new Thickness(56, 28),
+                Padding = new Thickness(horizontal: 56, vertical: 28),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 BoxShadow = new BoxShadows(new BoxShadow
                 {
-                    Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), 0.5)
+                    Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), opacity: 0.5)
                 }),
                 Child = number,
                 Focusable = false,
                 IsHitTestVisible = false
             },
-            "DisplayIdentifier");
+            parentName: "DisplayIdentifier");
 
         Grid root = new() { Background = Brushes.Transparent, Focusable = false, IsHitTestVisible = false };
         root.Children.Add(card);
@@ -119,13 +117,14 @@ public sealed class DisplayIdentifierOverlayWindow : Window
 
     private static double ResolveDPIScale(int pxLeft, int pxTop, int pxWidth, int pxHeight)
     {
-        User32.POINT point = new() { X = pxLeft + Math.Max(1, pxWidth) / 2, Y = pxTop + Math.Max(1, pxHeight) / 2 };
+        User32.POINT point = new()
+            { X = pxLeft + Math.Max(val1: 1, pxWidth) / 2, Y = pxTop + Math.Max(val1: 1, pxHeight) / 2 };
 
         IntPtr monitor = User32.MonitorFromPoint(point, User32.MONITOR_DEFAULTTONEAREST);
         if (monitor != IntPtr.Zero
             && User32.GetDpiForMonitor(monitor, User32.MDT_EFFECTIVE_DPI, out uint DPIX, out _) == 0
             && DPIX > 0)
-            return Math.Max(0.25, DPIX / 96.0);
+            return Math.Max(val1: 0.25, DPIX / 96.0);
 
         return 1.0;
     }
@@ -134,7 +133,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
 
     private static Color WithOpacity(Color color, double opacity)
     {
-        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * opacity), 0, 255);
+        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * opacity), min: 0, max: 255);
         return Color.FromArgb(alpha, color.R, color.G, color.B);
     }
 

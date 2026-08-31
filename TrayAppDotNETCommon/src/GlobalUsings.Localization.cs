@@ -1,1 +1,1 @@
-global using CommonStrings = global::TrayAppDotNETCommon.Localization.CommonStrings;
+global using CommonStrings = TrayAppDotNETCommon.Localization.CommonStrings;

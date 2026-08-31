@@ -25,7 +25,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
     private const uint TerminationExitCode = 1;
 
     private readonly Action<string>? _log;
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
     private Process? _helperProcess;
     private IntPtr _helperProcessHandle;
     private IntPtr _mappingHandle;
@@ -70,7 +70,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             log?.Invoke(ownerErrorMessage);
             return new ElevatedKillHelperStartResult(
                 ElevatedKillHelperStartOutcome.Failed,
-                null,
+                Session: null,
                 ownerErrorMessage);
         }
 
@@ -97,7 +97,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         }
 
         client.Dispose();
-        return new ElevatedKillHelperStartResult(outcome, null, errorMessage);
+        return new ElevatedKillHelperStartResult(outcome, Session: null, errorMessage);
     }
 
     /// <summary>Pre-opens the selected target in the elevated helper.</summary>
@@ -136,7 +136,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             _mailbox->FireExitCode = TerminationExitCode;
             _ = Interlocked.Increment(ref _mailbox->FirePayloadSequence);
             Interlocked.Exchange(ref _mailbox->FireResult, KillHelperProtocol.ResultNone);
-            Interlocked.Exchange(ref _mailbox->FireError, 0);
+            Interlocked.Exchange(ref _mailbox->FireError, value: 0);
             requestSequence = Interlocked.Increment(ref _mailbox->FireRequestSequence);
             return KillHelperNativeMethods.SetEvent(_requestEvent);
         }
@@ -156,7 +156,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             if (_disposed || _mailbox == null || requestSequence <= 0) return false;
 
             long deadline = Environment.TickCount64 + timeoutMilliseconds;
-            for (; ; )
+            for (;;)
             {
                 if (Volatile.Read(ref _mailbox->FireResponseSequence) == requestSequence)
                 {
@@ -209,9 +209,9 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             KillHelperNativeMethods.InvalidHandleValue,
             IntPtr.Zero,
             KillHelperNativeMethods.PageReadWrite,
-            0,
+            maximumSizeHigh: 0,
             KillHelperProtocol.MailboxSize,
-            null);
+            name: null);
         if (_mappingHandle == IntPtr.Zero)
         {
             errorMessage = LogWin32Failure("CreateFileMapping");
@@ -221,8 +221,8 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         _mappingView = KillHelperNativeMethods.MapViewOfFile(
             _mappingHandle,
             KillHelperNativeMethods.FileMapAllAccess,
-            0,
-            0,
+            fileOffsetHigh: 0,
+            fileOffsetLow: 0,
             KillHelperProtocol.MailboxSize);
         if (_mappingView == IntPtr.Zero)
         {
@@ -245,7 +245,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             IntPtr.Zero,
             isManualReset: false,
             initialState: false,
-            null);
+            name: null);
         if (_requestEvent == IntPtr.Zero)
         {
             errorMessage = LogWin32Failure("CreateEvent request");
@@ -256,7 +256,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             IntPtr.Zero,
             isManualReset: false,
             initialState: false,
-            null);
+            name: null);
         if (_responseEvent == IntPtr.Zero)
         {
             errorMessage = LogWin32Failure("CreateEvent response");
@@ -266,11 +266,11 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         string arguments = string.Concat(
             Environment.ProcessId.ToString(CultureInfo.InvariantCulture),
             " ",
-            _mappingHandle.ToInt64().ToString("X", CultureInfo.InvariantCulture),
+            _mappingHandle.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
             " ",
-            _requestEvent.ToInt64().ToString("X", CultureInfo.InvariantCulture),
+            _requestEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
             " ",
-            _responseEvent.ToInt64().ToString("X", CultureInfo.InvariantCulture));
+            _responseEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture));
         ProcessStartInfo startInfo = CreateStartInfo(helperPath, arguments, ownerWindowHandle);
 
         try
@@ -282,6 +282,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 _log?.Invoke(errorMessage);
                 return ElevatedKillHelperStartOutcome.Failed;
             }
+
             _helperProcessHandle = _helperProcess.Handle;
         }
         catch (Win32Exception exception) when (exception.NativeErrorCode == ErrorCancelled)
@@ -334,12 +335,12 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
     private bool IsHelperProcessAlive()
     {
         if (_helperProcessHandle == IntPtr.Zero) return false;
-        return Kernel32.WaitForSingleObject(_helperProcessHandle, 0) == Kernel32.WAIT_TIMEOUT;
+        return Kernel32.WaitForSingleObject(_helperProcessHandle, dwMilliseconds: 0) == Kernel32.WAIT_TIMEOUT;
     }
 
     private void LogHelperHardeningState(int flags)
     {
-        int requiredFlags = KillHelperProtocol.RequiredHardeningFlags;
+        const int requiredFlags = KillHelperProtocol.RequiredHardeningFlags;
         if ((flags & requiredFlags) == requiredFlags)
         {
             _log?.Invoke($"Elevated kill helper ready, PID {_mailbox->HelperProcessID}; hardening 0x{flags:X8}.");
@@ -381,12 +382,14 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 _ = KillHelperNativeMethods.VirtualUnlock(_mappingView, KillHelperProtocol.MailboxSize);
                 _mappingViewLocked = false;
             }
+
             if (_mappingView != IntPtr.Zero)
             {
                 _ = KillHelperNativeMethods.UnmapViewOfFile(_mappingView);
                 _mappingView = IntPtr.Zero;
                 _mailbox = null;
             }
+
             CloseNativeHandle(ref _responseEvent);
             CloseNativeHandle(ref _requestEvent);
             CloseNativeHandle(ref _mappingHandle);

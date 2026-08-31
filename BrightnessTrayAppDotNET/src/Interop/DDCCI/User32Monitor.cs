@@ -30,7 +30,7 @@ internal static class User32Monitor
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool GetMonitorInfo(HandleRef hMonitor, [In, Out] MonitorInfoEx lpmi);
+    public static extern bool GetMonitorInfo(HandleRef hMonitor, [In] [Out] MonitorInfoEx lpmi);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "EnumDisplayDevicesW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -50,12 +50,12 @@ internal static class User32Monitor
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 4)]
-    public class MonitorInfoEx()
+    public class MonitorInfoEx
     {
         internal int cbSize = Marshal.SizeOf<MonitorInfoEx>();
-        internal Rect rcMonitor;
-        internal Rect rcWork;
-        internal int dwFlags;
+        internal Rect rcMonitor = default;
+        internal Rect rcWork = default;
+        internal int dwFlags = 0;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
         internal readonly char[] szDevice = new char[32];

@@ -19,15 +19,15 @@ public sealed class CSharpBuilderProvenanceGeneratorTests
             .Single()
             .GeneratedSources
             .Single(static source => source.HintName ==
-                "AxamlPropertyLinker.CSharpBuilderProvenance.g.cs");
+                                     "AxamlPropertyLinker.CSharpBuilderProvenance.g.cs");
         string generatedSource = generatedResult.SourceText.ToString();
 
-        Assert.Contains("global::Avalonia.Controls.TextBlock.TextProperty", generatedSource);
-        Assert.Contains("global::Avalonia.Controls.TextBlock.OpacityProperty", generatedSource);
-        Assert.DoesNotContain("global::Avalonia.Controls.TextBlock.WidthProperty", generatedSource);
-        Assert.Contains("\"value + \\\"!\\\"\"", generatedSource);
-        Assert.DoesNotContain("\"value\",", generatedSource);
-        Assert.Contains("DebugUIProvenance.RegisterCSharpBuilders(Entries)", generatedSource);
+        Assert.Contains(expectedSubstring: "global::Avalonia.Controls.TextBlock.TextProperty", generatedSource);
+        Assert.Contains(expectedSubstring: "global::Avalonia.Controls.TextBlock.OpacityProperty", generatedSource);
+        Assert.DoesNotContain(expectedSubstring: "global::Avalonia.Controls.TextBlock.WidthProperty", generatedSource);
+        Assert.Contains(expectedSubstring: "\"value + \\\"!\\\"\"", generatedSource);
+        Assert.DoesNotContain(expectedSubstring: "\"value\",", generatedSource);
+        Assert.Contains(expectedSubstring: "DebugUIProvenance.RegisterCSharpBuilders(Entries)", generatedSource);
     }
 
     private const string SampleSource =

@@ -1,6 +1,6 @@
+using TrayAppDotNETCommon.Visuals;
 using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
-using TrayAppDotNETCommon.Visuals;
 
 namespace FanControlTrayAppDotNET.Visuals;
 
@@ -12,7 +12,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 #if DEBUG
     private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
         GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            "Fan",
+            catalogName: "Fan",
             static () => []);
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());

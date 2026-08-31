@@ -13,10 +13,10 @@ public sealed class FanGroupVisualBuildStageTests
         Dictionary<string, FanGroup> activeGroups = new(StringComparer.OrdinalIgnoreCase);
         FanGroupVisualBuildStage stage = new();
 
-        FanGroup group = stage.Resolve(groupName, activeGroups, FanGroup.Find, 7);
+        FanGroup group = stage.Resolve(groupName, activeGroups, FanGroup.Find, defaultDisplayOrder: 7);
 
         Assert.Equal(groupName, group.Name);
-        Assert.Equal(7, group.DisplayOrder);
+        Assert.Equal(expected: 7, group.DisplayOrder);
         Assert.Empty(activeGroups);
         Assert.Null(FanGroup.Find(groupName));
     }
@@ -29,8 +29,8 @@ public sealed class FanGroupVisualBuildStageTests
         Dictionary<string, FanGroup> activeGroups = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, FanGroup> registry = new(StringComparer.OrdinalIgnoreCase);
         FanGroupVisualBuildStage stage = new();
-        _ = stage.Resolve(firstName, activeGroups, registry.GetValueOrDefault, 0);
-        _ = stage.Resolve(secondName, activeGroups, registry.GetValueOrDefault, 1);
+        _ = stage.Resolve(firstName, activeGroups, registry.GetValueOrDefault, defaultDisplayOrder: 0);
+        _ = stage.Resolve(secondName, activeGroups, registry.GetValueOrDefault, defaultDisplayOrder: 1);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             stage.Publish(
@@ -42,13 +42,13 @@ public sealed class FanGroupVisualBuildStageTests
                         throw new InvalidOperationException("publish failure");
                 }));
 
-        Assert.Equal("publish failure", exception.Message);
+        Assert.Equal(expected: "publish failure", exception.Message);
         Assert.Empty(activeGroups);
         Assert.Empty(registry);
 
         stage.Publish(activeGroups, registry);
-        Assert.Equal(2, activeGroups.Count);
-        Assert.Equal(2, registry.Count);
+        Assert.Equal(expected: 2, activeGroups.Count);
+        Assert.Equal(expected: 2, registry.Count);
     }
 
     [Fact]
@@ -58,7 +58,8 @@ public sealed class FanGroupVisualBuildStageTests
         Dictionary<string, FanGroup> activeGroups = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, FanGroup> registry = new(StringComparer.OrdinalIgnoreCase);
         FanGroupVisualBuildStage stage = new();
-        FanGroup stagedGroup = stage.Resolve(groupName, activeGroups, registry.GetValueOrDefault, 3);
+        FanGroup stagedGroup =
+            stage.Resolve(groupName, activeGroups, registry.GetValueOrDefault, defaultDisplayOrder: 3);
         FanGroup previousActiveGroup = FanGroup.CreateUnregistered(groupName);
         FanGroup previousRegisteredGroup = FanGroup.CreateUnregistered(groupName);
         activeGroups[groupName] = previousActiveGroup;

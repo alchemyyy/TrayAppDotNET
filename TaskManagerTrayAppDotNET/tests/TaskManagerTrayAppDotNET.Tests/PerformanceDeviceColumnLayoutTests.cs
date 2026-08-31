@@ -9,11 +9,11 @@ public sealed class PerformanceDeviceColumnLayoutTests
     [Fact]
     public void PendingDragThresholdStartsAtFourDipsOnEitherAxis()
     {
-        Point start = new(10, 20);
+        Point start = new(x: 10, y: 20);
 
-        Assert.False(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(13.99, 23.99)));
-        Assert.True(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(14, 20)));
-        Assert.True(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(10, 16)));
+        Assert.False(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(x: 13.99, y: 23.99)));
+        Assert.True(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(x: 14, y: 20)));
+        Assert.True(PerformanceDeviceColumnLayout.HasReachedDragThreshold(start, new Point(x: 10, y: 16)));
     }
 
     [Fact]
@@ -21,16 +21,21 @@ public sealed class PerformanceDeviceColumnLayoutTests
     {
         PerformanceDeviceRowGeometry[] rows =
         [
-            new(0, 40),
-            new(50, 40),
-            new(100, 40)
+            new(Top: 0, Height: 40),
+            new(Top: 50, Height: 40),
+            new(Top: 100, Height: 40)
         ];
 
-        Assert.Equal(0, PerformanceDeviceColumnLayout.GetInsertionIndex(20, rows, 1));
-        Assert.Equal(1, PerformanceDeviceColumnLayout.GetInsertionIndex(21, rows, 1));
-        Assert.Equal(2, PerformanceDeviceColumnLayout.GetInsertionIndex(121, rows, 1));
-        Assert.Equal(1, PerformanceDeviceColumnLayout.GetInsertionIndex(75, rows, 0));
-        Assert.Equal(1, PerformanceDeviceColumnLayout.GetInsertionIndex(50, rows, 2));
+        Assert.Equal(expected: 0,
+            PerformanceDeviceColumnLayout.GetInsertionIndex(draggedMidpointY: 20, rows, sourceIndex: 1));
+        Assert.Equal(expected: 1,
+            PerformanceDeviceColumnLayout.GetInsertionIndex(draggedMidpointY: 21, rows, sourceIndex: 1));
+        Assert.Equal(expected: 2,
+            PerformanceDeviceColumnLayout.GetInsertionIndex(draggedMidpointY: 121, rows, sourceIndex: 1));
+        Assert.Equal(expected: 1,
+            PerformanceDeviceColumnLayout.GetInsertionIndex(draggedMidpointY: 75, rows, sourceIndex: 0));
+        Assert.Equal(expected: 1,
+            PerformanceDeviceColumnLayout.GetInsertionIndex(draggedMidpointY: 50, rows, sourceIndex: 2));
     }
 
     [Fact]
@@ -38,8 +43,8 @@ public sealed class PerformanceDeviceColumnLayoutTests
     {
         string[] stableIDs = ["cpu", "memory", "gpu", "network"];
 
-        List<string> movedUp = PerformanceDeviceColumnLayout.Move(stableIDs, 3, 1);
-        List<string> movedDown = PerformanceDeviceColumnLayout.Move(stableIDs, 0, 3);
+        List<string> movedUp = PerformanceDeviceColumnLayout.Move(stableIDs, sourceIndex: 3, targetIndex: 1);
+        List<string> movedDown = PerformanceDeviceColumnLayout.Move(stableIDs, sourceIndex: 0, targetIndex: 3);
 
         Assert.Equal(["cpu", "network", "memory", "gpu"], movedUp);
         Assert.Equal(["memory", "gpu", "network", "cpu"], movedDown);

@@ -10,19 +10,21 @@ public sealed class CompositeGlyph
         double outerMarginFraction,
         IReadOnlyList<CompositeGlyphLayer> layers)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(designCanvasSize, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(designCanvasSize, other: 1);
         if (outerMarginFraction is < 0.0 or >= 0.5)
             throw new ArgumentOutOfRangeException(nameof(outerMarginFraction));
 
         ArgumentNullException.ThrowIfNull(layers);
         if (layers.Count == 0)
-            throw new ArgumentException("A composite glyph requires at least one layer.", nameof(layers));
+            throw new ArgumentException(message: "A composite glyph requires at least one layer.", nameof(layers));
 
         CompositeGlyphLayer[] copiedLayers = new CompositeGlyphLayer[layers.Count];
         for (int index = 0; index < layers.Count; index++)
         {
             CompositeGlyphLayer layer = layers[index]
-                ?? throw new ArgumentException("Composite glyph layers cannot contain null entries.", nameof(layers));
+                                        ?? throw new ArgumentException(
+                                            message: "Composite glyph layers cannot contain null entries.",
+                                            nameof(layers));
             ArgumentNullException.ThrowIfNull(layer.Glyph);
             copiedLayers[index] = layer;
         }

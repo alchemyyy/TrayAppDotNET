@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
 
@@ -81,7 +82,7 @@ public class FanGroup : INotifyPropertyChanged
         get;
         set
         {
-            int normalized = Math.Clamp(value, 0, RPMMode ? int.MaxValue : 100);
+            int normalized = Math.Clamp(value, min: 0, RPMMode ? int.MaxValue : 100);
             if (field == normalized) return;
             field = normalized;
             OnPropertyChanged();
@@ -101,6 +102,7 @@ public class FanGroup : INotifyPropertyChanged
     } = FanControlMode.Curve;
 
     [XmlAttribute]
+    [AllowNull]
     public string AssignedCurveName
     {
         get;
@@ -115,7 +117,8 @@ public class FanGroup : INotifyPropertyChanged
         }
     } = string.Empty;
 
-    [XmlIgnore] public Curve? AssignedCurve => Curve.Find(AssignedCurveName);
+    [XmlIgnore]
+    public Curve? AssignedCurve => Curve.Find(AssignedCurveName);
 
     [XmlIgnore]
     public string AssignedCurveDisplayLabel =>
@@ -160,11 +163,14 @@ public class FanGroup : INotifyPropertyChanged
 /// </summary>
 public class ProbeCard
 {
-    [XmlAttribute] public string Name { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string Name { get; set; } = string.Empty;
 
-    [XmlAttribute] public int DisplayOrder { get; set; } = -1;
+    [XmlAttribute]
+    public int DisplayOrder { get; set; } = -1;
 
-    [XmlAttribute] public bool IsCollapsed { get; set; }
+    [XmlAttribute]
+    public bool IsCollapsed { get; set; }
 
     [XmlArray("Probes")]
     [XmlArrayItem("Probe")]
@@ -195,13 +201,17 @@ public class ProbeCard
 /// </summary>
 public class ProbeCardProbe
 {
-    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DataSourceKey { get; set; } = string.Empty;
 
-    [XmlAttribute] public bool IsSelected { get; set; } = true;
+    [XmlAttribute]
+    public bool IsSelected { get; set; } = true;
 
-    [XmlAttribute] public string TransformString { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string TransformString { get; set; } = string.Empty;
 
-    [XmlAttribute] public bool TruncateValue { get; set; }
+    [XmlAttribute]
+    public bool TruncateValue { get; set; }
 }
 
 /// <summary>
@@ -209,66 +219,104 @@ public class ProbeCardProbe
 /// </summary>
 public class DeviceNicknameRule
 {
-    [XmlAttribute] public string TargetRegex { get; set; } = string.Empty;
+    [XmlAttribute]
+    [AllowNull]
+    public string TargetRegex
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = string.Empty;
 
-    [XmlAttribute] public string ReplacementString { get; set; } = string.Empty;
+    [XmlAttribute]
+    [AllowNull]
+    public string ReplacementString
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = string.Empty;
 }
 
 // User-editable fan settings only. Hardware identity and live telemetry intentionally do not live
 // here so these records can be applied or swapped between Fan instances safely.
 public class FanUserSettings
 {
-    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DataSourceKey { get; set; } = string.Empty;
 
-    [XmlAttribute] public bool RPMMode { get; set; }
+    [XmlAttribute]
+    public bool RPMMode { get; set; }
 
-    [XmlAttribute] public int ClampLow { get; set; }
+    [XmlAttribute]
+    public int ClampLow { get; set; }
 
-    [XmlAttribute] public bool ClampLowRPMMode { get; set; }
+    [XmlAttribute]
+    public bool ClampLowRPMMode { get; set; }
 
-    [XmlAttribute] public int ClampHigh { get; set; } = 100;
+    [XmlAttribute]
+    public int ClampHigh { get; set; } = 100;
 
-    [XmlAttribute] public bool ClampHighRPMMode { get; set; }
+    [XmlAttribute]
+    public bool ClampHighRPMMode { get; set; }
 
-    [XmlAttribute] public int WarnLow { get; set; }
+    [XmlAttribute]
+    public int WarnLow { get; set; }
 
-    [XmlAttribute] public bool WarnLowRPMMode { get; set; }
+    [XmlAttribute]
+    public bool WarnLowRPMMode { get; set; }
 
-    [XmlAttribute] public int WarnHigh { get; set; } = 100;
+    [XmlAttribute]
+    public int WarnHigh { get; set; } = 100;
 
-    [XmlAttribute] public bool WarnHighRPMMode { get; set; }
+    [XmlAttribute]
+    public bool WarnHighRPMMode { get; set; }
 
-    [XmlAttribute] public int DeltaMax { get; set; } = 100;
+    [XmlAttribute]
+    public int DeltaMax { get; set; } = 100;
 
-    [XmlAttribute] public bool DeltaMaxRPMMode { get; set; }
+    [XmlAttribute]
+    public bool DeltaMaxRPMMode { get; set; }
 
-    [XmlAttribute] public int Offset { get; set; }
+    [XmlAttribute]
+    public int Offset { get; set; }
 
-    [XmlAttribute] public bool OffsetRPMMode { get; set; }
+    [XmlAttribute]
+    public bool OffsetRPMMode { get; set; }
 
-    [XmlAttribute] public int FanDisplayedValue { get; set; } = 50;
+    [XmlAttribute]
+    public int FanDisplayedValue { get; set; } = 50;
 
-    [XmlAttribute] public int StartupSpeed { get; set; } = 50;
+    [XmlAttribute]
+    public int StartupSpeed { get; set; } = 50;
 
-    [XmlAttribute] public bool StartupSpeedRPMMode { get; set; }
+    [XmlAttribute]
+    public bool StartupSpeedRPMMode { get; set; }
 
-    [XmlAttribute] public int MaxRPM { get; set; } = -1;
+    [XmlAttribute]
+    public int MaxRPM { get; set; } = -1;
 
-    [XmlAttribute] public string AssignedCurveName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string AssignedCurveName { get; set; } = string.Empty;
 
-    [XmlAttribute] public string UserDefinedName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string UserDefinedName { get; set; } = string.Empty;
 
-    [XmlAttribute] public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
+    [XmlAttribute]
+    public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
 
-    [XmlAttribute] public string DeadbandsName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DeadbandsName { get; set; } = string.Empty;
 
-    [XmlAttribute] public string? Group { get; set; }
+    [XmlAttribute]
+    public string? Group { get; set; }
 
-    [XmlAttribute] public int FlyoutDisplayOrder { get; set; } = -1;
+    [XmlAttribute]
+    public int FlyoutDisplayOrder { get; set; } = -1;
 
-    [XmlAttribute] public bool ModeLocked { get; set; }
+    [XmlAttribute]
+    public bool ModeLocked { get; set; }
 
-    [XmlAttribute] public bool ForcedNonFunctioning { get; set; }
+    [XmlAttribute]
+    public bool ForcedNonFunctioning { get; set; }
 
     [XmlIgnore]
     public bool ForceNonFunctional
@@ -286,7 +334,8 @@ public class FanUserSettings
 // control state only: curve assignment, lock flag, manual target, and active mode.
 public class FanProfile
 {
-    [XmlAttribute] public string Name { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string Name { get; set; } = string.Empty;
 
     [XmlArray("Fans")]
     [XmlArrayItem("Fan")]
@@ -321,15 +370,20 @@ public class FanProfile
 
 public class FanProfileEntry
 {
-    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string DataSourceKey { get; set; } = string.Empty;
 
-    [XmlAttribute] public string AssignedCurveName { get; set; } = string.Empty;
+    [XmlAttribute]
+    public string AssignedCurveName { get; set; } = string.Empty;
 
-    [XmlAttribute] public bool ModeLocked { get; set; }
+    [XmlAttribute]
+    public bool ModeLocked { get; set; }
 
-    [XmlAttribute] public int FanDisplayedValue { get; set; } = 50;
+    [XmlAttribute]
+    public int FanDisplayedValue { get; set; } = 50;
 
-    [XmlAttribute] public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
+    [XmlAttribute]
+    public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
 
     public static FanProfileEntry FromFan(Fan fan) => new()
     {

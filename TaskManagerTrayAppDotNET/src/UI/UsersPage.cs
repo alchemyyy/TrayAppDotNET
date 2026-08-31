@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -34,60 +33,59 @@ internal sealed class UsersPage : TaskManagerTablePage
         Func<string, bool> startProcess,
         Action<string, string> reportMessage)
         : base(
-            "Users",
+            title: "Users",
             CreateSchema(resources),
             processIconService,
             settings,
             palette,
             resources,
             startProcess,
-            "Search users and processes")
+            searchPlaceholder: "Search users and processes")
     {
         _snapshotService = snapshotService;
         _sessionService = sessionService;
         _startProcess = startProcess;
         _reportMessage = reportMessage;
         _schema = ProcessDataSchema.Create(
-            Array.Empty<ProcessColumnSetting>(),
+            [],
             UserSnapshotBuilder.RequiredColumnMask);
-        _disconnectButton = AddHeaderAction("Disconnect", OnDisconnectClick, isEnabled: false);
-        _manageUsersButton = AddHeaderAction("Manage user accounts", OnManageUsersClick);
+        _disconnectButton = AddHeaderAction(label: "Disconnect", OnDisconnectClick, isEnabled: false);
+        _manageUsersButton = AddHeaderAction(label: "Manage user accounts", OnManageUsersClick);
         _moreButton = AddMoreAction(OnMoreClick);
-
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
         new(
         [
             new TaskManagerTableColumn(
-                "user",
-                "User",
+                Key: "user",
+                Title: "User",
                 resources.AxamlTaskManagerTable.UsersNameColumnWidth),
             new TaskManagerTableColumn(
-                "status",
-                "Status",
+                Key: "status",
+                Title: "Status",
                 resources.AxamlTaskManagerTable.UsersStatusColumnWidth),
             new TaskManagerTableColumn(
-                "cpu",
-                "CPU",
+                Key: "cpu",
+                Title: "CPU",
                 resources.AxamlTaskManagerTable.UsersCPUColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "memory",
-                "Memory",
+                Key: "memory",
+                Title: "Memory",
                 resources.AxamlTaskManagerTable.UsersMemoryColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "disk",
-                "Disk",
+                Key: "disk",
+                Title: "Disk",
                 resources.AxamlTaskManagerTable.UsersDiskColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
-                "network",
-                "Network",
+                Key: "network",
+                Title: "Network",
                 resources.AxamlTaskManagerTable.UsersNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true)
@@ -108,7 +106,7 @@ internal sealed class UsersPage : TaskManagerTablePage
             _snapshotService.SetWarmProcesses(
                 _schema.VisibleMask,
                 NoWarmProcessIDs,
-                0,
+                count: 0,
                 sampleEveryProcess: true);
             _snapshotService.RequestRefresh();
             _ = RefreshFromSnapshotServiceAsync();
@@ -161,9 +159,7 @@ internal sealed class UsersPage : TaskManagerTablePage
                 out int count,
                 out long version)
             || version == _snapshotVersion)
-        {
             return null;
-        }
 
         _snapshotVersion = version;
         _ = count;
@@ -202,6 +198,7 @@ internal sealed class UsersPage : TaskManagerTablePage
                 hasDiskUsage = true;
                 totalDiskBytesPerSecond += group.DiskBytesPerSecond;
             }
+
             if (group.HasNetworkUsage)
             {
                 hasNetworkUsage = true;
@@ -211,16 +208,16 @@ internal sealed class UsersPage : TaskManagerTablePage
 
         string CPUHeader = string.Concat(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.CPUAveragePercent),
-            " CPU");
+            str1: " CPU");
         string memoryHeader = string.Concat(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.MemoryPercent),
-            " Memory");
+            str1: " Memory");
         string diskHeader = string.Concat(
             TaskManagerUsageFormatter.FormatDiskRate(hasDiskUsage, totalDiskBytesPerSecond),
-            " Disk");
+            str1: " Disk");
         string networkHeader = string.Concat(
             TaskManagerUsageFormatter.FormatNetworkRate(hasNetworkUsage, totalNetworkBytesPerSecond),
-            " Network");
+            str1: " Network");
         return new UserPageRenderData(
             rows,
             CPUHeader,
@@ -231,10 +228,10 @@ internal sealed class UsersPage : TaskManagerTablePage
 
     private void ApplyRenderData(UserPageRenderData renderData)
     {
-        SetColumnTitle(2, renderData.CPUHeader);
-        SetColumnTitle(3, renderData.MemoryHeader);
-        SetColumnTitle(4, renderData.DiskHeader);
-        SetColumnTitle(5, renderData.NetworkHeader);
+        SetColumnTitle(columnIndex: 2, renderData.CPUHeader);
+        SetColumnTitle(columnIndex: 3, renderData.MemoryHeader);
+        SetColumnTitle(columnIndex: 4, renderData.DiskHeader);
+        SetColumnTitle(columnIndex: 5, renderData.NetworkHeader);
         SetRows(renderData.Rows);
         UpdateDisconnectButton(SelectedRow?.Tag as UserGroupSnapshot);
     }
@@ -304,16 +301,14 @@ internal sealed class UsersPage : TaskManagerTablePage
         Func<bool, double, System.Globalization.CultureInfo?, string> formatter) =>
         isAvailable
             ? TaskManagerTableCell.DecimalCell(
-                formatter(true, bytesPerSecond, null),
+                formatter(arg1: true, bytesPerSecond, arg3: null),
                 bytesPerSecond)
             : TaskManagerTableCell.Empty;
 
     private static string CreateGroupKey(int sessionID) => $"user:{sessionID}";
 
-    private void UpdateDisconnectButton(UserGroupSnapshot? group)
-    {
+    private void UpdateDisconnectButton(UserGroupSnapshot? group) =>
         _disconnectButton.IsEnabled = !_disconnectPending && group?.CanDisconnect == true;
-    }
 
     private void OnDisconnectClick(object? sender, EventArgs eventArgs)
     {
@@ -329,13 +324,12 @@ internal sealed class UsersPage : TaskManagerTablePage
         UpdateDisconnectButton(group);
         try
         {
-            UserSessionActionResult result = await Task.Run(
-                () => _sessionService.Disconnect(group.Session));
+            UserSessionActionResult result = await Task.Run(() => _sessionService.Disconnect(group.Session));
             if (_disposed) return;
             if (!result.Succeeded)
             {
                 _reportMessage(
-                    "Disconnect failed",
+                    arg1: "Disconnect failed",
                     string.IsNullOrWhiteSpace(result.ErrorMessage)
                         ? "Windows could not disconnect the selected user session."
                         : result.ErrorMessage);
@@ -347,7 +341,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         catch (Exception exception)
         {
             TADNLog.Log($"Disconnect user session failed: {exception}");
-            if (!_disposed) _reportMessage("Disconnect failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: "Disconnect failed", exception.Message);
         }
         finally
         {
@@ -362,18 +356,19 @@ internal sealed class UsersPage : TaskManagerTablePage
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry("Refresh", _snapshotService.RequestRefresh));
+        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh));
         UserGroupSnapshot? group = SelectedRow?.Tag as UserGroupSnapshot;
         if (!_disconnectPending && group?.CanDisconnect == true)
         {
-            entries.Add(new ContextMenuEntry("Disconnect", () =>
+            entries.Add(new ContextMenuEntry(Text: "Disconnect", () =>
             {
                 if (SelectedRow?.Tag is UserGroupSnapshot selectedGroup)
                     _ = DisconnectAsync(selectedGroup);
             }));
         }
+
         entries.Add(new ContextMenuEntry(
-            "Manage user accounts",
+            Text: "Manage user accounts",
             () => _ = _startProcess("ms-settings:otherusers")));
         ShowActionMenu(_moreButton, entries.ToList());
     }

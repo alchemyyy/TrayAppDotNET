@@ -50,7 +50,7 @@ public static class TADNLog
                 _activePath = Path.Combine(folder, ActiveName);
                 _oldPath = Path.Combine(folder, OldName);
                 _timer = new Timer(
-                    OnTimerTick, null, TimeConstants.LogFlushIntervalMs, TimeConstants.LogFlushIntervalMs);
+                    OnTimerTick, state: null, TimeConstants.LogFlushIntervalMs, TimeConstants.LogFlushIntervalMs);
                 _initialized = true;
             }
             catch
@@ -153,7 +153,7 @@ public static class TADNLog
 
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TrayAppDotNET",
+            path2: "TrayAppDotNET",
             applicationName);
     }
 

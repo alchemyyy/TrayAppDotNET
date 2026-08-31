@@ -143,7 +143,8 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
                 return options.Layout.LocalAppDataInstallExecutable;
 
             string? running = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(running) || !running.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+            if (string.IsNullOrEmpty(running) || !running.EndsWith(value: ".exe", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
 
             if (exclude.HasValue)
             {

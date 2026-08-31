@@ -22,17 +22,17 @@ internal sealed record GPUPerformanceDetailsSnapshot(
     ulong HardwareReservedMemoryBytes)
 {
     public static GPUPerformanceDetailsSnapshot Empty { get; } = new(
-        false,
+        HasDetailData: false,
         ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
-        false,
-        0,
+        HasTemperatureData: false,
+        TemperatureCelsius: 0,
         string.Empty,
-        null,
+        DriverDate: null,
         string.Empty,
         string.Empty,
         string.Empty,
-        false,
-        0);
+        HasHardwareReservedMemoryData: false,
+        HardwareReservedMemoryBytes: 0);
 }
 
 /// <summary>Static GPU metadata retained by adapter LUID between performance samples.</summary>
@@ -48,14 +48,14 @@ internal sealed record GPUAdapterHardwareMetadata(
     ReadOnlyMemory<GPUAdapterEngineIdentity> EngineCatalog)
 {
     public static GPUAdapterHardwareMetadata Empty { get; } = new(
-        false,
+        HasMetadata: false,
         string.Empty,
-        null,
+        DriverDate: null,
         string.Empty,
         string.Empty,
         string.Empty,
-        false,
-        0,
+        HasHardwareReservedMemoryData: false,
+        HardwareReservedMemoryBytes: 0,
         ReadOnlyMemory<GPUAdapterEngineIdentity>.Empty);
 }
 

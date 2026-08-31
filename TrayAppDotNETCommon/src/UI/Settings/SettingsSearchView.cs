@@ -291,7 +291,8 @@ internal sealed class SettingsSearchView
     }
 
     private static string JoinContext(params string[] values) =>
-        string.Join(". ", values.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase));
+        string.Join(separator: ". ",
+            values.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase));
 }
 
 internal static class SettingsSearchTextExtractor
@@ -340,7 +341,7 @@ internal static class SettingsSearchTextExtractor
     }
 
     public static string JoinValues(IEnumerable<string> values) =>
-        string.Join(". ", values.Where(static value => !string.IsNullOrWhiteSpace(value)));
+        string.Join(separator: ". ", values.Where(static value => !string.IsNullOrWhiteSpace(value)));
 
     private static void AddValue(string value, HashSet<string> seenValues, List<string> values)
     {
@@ -373,6 +374,7 @@ internal static class SettingsSearchTextExtractor
                     if (item is Control itemControl)
                         pending.Add(itemControl);
                 }
+
                 break;
         }
     }

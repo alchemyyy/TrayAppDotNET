@@ -13,7 +13,7 @@ public sealed class EnvironmentalMapPickerWindowTests
     {
         bool cancel = EnvironmentalMapPickerWindow.ShouldCancelCloseForReuse(
             isRetiring: false,
-            closeReason: closeReason);
+            closeReason);
 
         Assert.True(cancel);
     }
@@ -26,7 +26,7 @@ public sealed class EnvironmentalMapPickerWindowTests
     {
         bool cancel = EnvironmentalMapPickerWindow.ShouldCancelCloseForReuse(
             isRetiring: false,
-            closeReason: closeReason);
+            closeReason);
 
         Assert.False(cancel);
     }
@@ -36,7 +36,7 @@ public sealed class EnvironmentalMapPickerWindowTests
     {
         bool cancel = EnvironmentalMapPickerWindow.ShouldCancelCloseForReuse(
             isRetiring: true,
-            closeReason: WindowCloseReason.WindowClosing);
+            WindowCloseReason.WindowClosing);
 
         Assert.False(cancel);
     }

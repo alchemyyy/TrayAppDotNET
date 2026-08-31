@@ -74,7 +74,7 @@ public sealed partial class BrightnessSettingsWindow
         }
         catch
         {
-            StopEnvironmentalPageSession(clearPreviewHardware: false);
+            StopEnvironmentalPageSession(false);
             throw;
         }
     }
@@ -111,7 +111,8 @@ public sealed partial class BrightnessSettingsWindow
         }
 
         RunEnvironmentalPageCleanup(nameof(UnwireEnvironmentalColorCallbacks), UnwireEnvironmentalColorCallbacks);
-        RunEnvironmentalPageCleanup(nameof(ReleaseEnvironmentalSunOverlayCalendar), ReleaseEnvironmentalSunOverlayCalendar);
+        RunEnvironmentalPageCleanup(nameof(ReleaseEnvironmentalSunOverlayCalendar),
+            ReleaseEnvironmentalSunOverlayCalendar);
         RunEnvironmentalPageCleanup(nameof(FlushDebouncedCurveSave), FlushDebouncedCurveSave);
         if (clearPreviewHardware)
         {
@@ -119,10 +120,13 @@ public sealed partial class BrightnessSettingsWindow
                 nameof(ClearEnvironmentalPreviewHardwareState),
                 ClearEnvironmentalPreviewHardwareState);
         }
+
         if (curveEditor != null)
+        {
             RunEnvironmentalPageCleanup(
                 nameof(Environmental.EnvironmentalCurveEditor.SetPreviewSweepRunning),
                 () => curveEditor.SetPreviewSweepRunning(false));
+        }
     }
 
     private void OnEnvironmentalProfilesListChanged()
@@ -174,7 +178,8 @@ public sealed partial class BrightnessSettingsWindow
                 ? string.Format(CultureInfo.CurrentCulture,
                     L(nameof(AppStrings.Settings_Environmental_Profile_Default_Format)), i + 1)
                 : string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Environmental_Profile_Named_Format)), _profileManager.GetName(i), i + 1);
+                    L(nameof(AppStrings.Settings_Environmental_Profile_Named_Format)), _profileManager.GetName(i),
+                    i + 1);
             _environmentalProfileCombo.Items.Add(new SettingsComboBoxItem(i, label, Palette));
         }
 

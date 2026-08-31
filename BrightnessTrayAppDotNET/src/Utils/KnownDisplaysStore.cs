@@ -33,7 +33,7 @@ public sealed class KnownDisplaysStore : IDisposable
         _path = path;
         _stampDebounceTimer = new Timer(
             _ => FlushPendingSave(),
-            null,
+            state: null,
             Timeout.Infinite,
             Timeout.Infinite);
     }
@@ -60,7 +60,7 @@ public sealed class KnownDisplaysStore : IDisposable
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "displays.json");
+        return Path.Combine(appFolder, path2: "displays.json");
     }
 
     /// <summary>
@@ -248,7 +248,7 @@ public sealed class KnownDisplaysStore : IDisposable
             using Utf8JsonWriter writer = new(stream, s_jsonWriterOptions);
             WriteEntries(writer, _entries);
             writer.Flush();
-            stream.Flush(flushToDisk: true);
+            stream.Flush(true);
         }
         catch (Exception ex)
         {
@@ -339,7 +339,7 @@ public sealed class KnownDisplaysStore : IDisposable
         if (string.IsNullOrEmpty(edidKey)) return;
         if (Volatile.Read(ref _disposed) != 0) return;
 
-        int clamped = (int)Math.Round(Math.Clamp(value, 0, 100));
+        int clamped = (int)Math.Round(Math.Clamp(value, min: 0, max: 100));
         bool changed;
         lock (_gate)
         {
@@ -382,7 +382,7 @@ public sealed class KnownDisplaysStore : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
         try { _stampDebounceTimer.Change(Timeout.Infinite, Timeout.Infinite); }
         catch (ObjectDisposedException)
         {

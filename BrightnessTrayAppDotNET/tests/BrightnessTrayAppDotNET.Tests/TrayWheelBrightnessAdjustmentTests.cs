@@ -17,12 +17,12 @@ public sealed class TrayWheelBrightnessAdjustmentTests
         Dictionary<MonitorInfo, int>? targets = BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(
             isBrightnessCurveEnabled: true,
             isCurveAbsoluteMode: true,
-            masterMonitor: masterMonitor,
-            monitors: monitors,
+            masterMonitor,
+            monitors,
             delta: 10);
 
         Assert.NotNull(targets);
-        Assert.Equal(43, targets[activeMonitor]);
+        Assert.Equal(expected: 43, targets[activeMonitor]);
         Assert.False(targets.ContainsKey(releasedMonitor));
     }
 
@@ -36,12 +36,12 @@ public sealed class TrayWheelBrightnessAdjustmentTests
         Dictionary<MonitorInfo, int>? targets = BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(
             isBrightnessCurveEnabled: true,
             isCurveAbsoluteMode: true,
-            masterMonitor: masterMonitor,
-            monitors: monitors,
+            masterMonitor,
+            monitors,
             delta: -10);
 
         Assert.NotNull(targets);
-        Assert.Equal(0, targets[activeMonitor]);
+        Assert.Equal(expected: 0, targets[activeMonitor]);
     }
 
     [Fact]
@@ -55,15 +55,15 @@ public sealed class TrayWheelBrightnessAdjustmentTests
             BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(
                 isBrightnessCurveEnabled: false,
                 isCurveAbsoluteMode: true,
-                masterMonitor: masterMonitor,
-                monitors: monitors,
+                masterMonitor,
+                monitors,
                 delta: 10);
         Dictionary<MonitorInfo, int>? offsetModeTargets =
             BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(
                 isBrightnessCurveEnabled: true,
                 isCurveAbsoluteMode: false,
-                masterMonitor: masterMonitor,
-                monitors: monitors,
+                masterMonitor,
+                monitors,
                 delta: 10);
 
         masterMonitor.SliderState = SliderState.CurveReleased;
@@ -71,8 +71,8 @@ public sealed class TrayWheelBrightnessAdjustmentTests
             BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(
                 isBrightnessCurveEnabled: true,
                 isCurveAbsoluteMode: true,
-                masterMonitor: masterMonitor,
-                monitors: monitors,
+                masterMonitor,
+                monitors,
                 delta: 10);
 
         Assert.Null(disabledCurveTargets);
@@ -118,8 +118,8 @@ public sealed class TrayWheelBrightnessAdjustmentTests
             providerStrength: 0,
             invertNightLightSlider: false);
 
-        Assert.Equal(0, zeroStrength);
-        Assert.Equal(1, onePercentStrength);
+        Assert.Equal(expected: 0, zeroStrength);
+        Assert.Equal(expected: 1, onePercentStrength);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class TrayWheelBrightnessAdjustmentTests
             providerStrength: 75,
             invertNightLightSlider: true);
 
-        Assert.Equal(1, strength);
+        Assert.Equal(expected: 1, strength);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class TrayWheelBrightnessAdjustmentTests
             providerStrength: 42,
             invertNightLightSlider: true);
 
-        Assert.Equal(42, strength);
+        Assert.Equal(expected: 42, strength);
     }
 
     /// <summary>

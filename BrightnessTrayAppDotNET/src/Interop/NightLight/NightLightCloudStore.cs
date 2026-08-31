@@ -193,7 +193,7 @@ internal static class NightLightCloudStore
         }
 
         if (shouldSchedule && !ScheduleStreamingDrain())
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
 
         return completionSource.Task;
     }
@@ -203,7 +203,7 @@ internal static class NightLightCloudStore
         Task<bool> drainTask = QueueBackendRequest(DrainStreamingOnMTAThread);
         if (drainTask.IsCompletedSuccessfully && !drainTask.GetAwaiter().GetResult())
         {
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
             return false;
         }
 
@@ -217,12 +217,12 @@ internal static class NightLightCloudStore
         {
             bool succeeded = await drainTask.ConfigureAwait(false);
             if (!succeeded)
-                CompleteStreamingDrain(success: false);
+                CompleteStreamingDrain(false);
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NightLightCloudStore streaming drain failed: {ex.Message}");
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
         }
     }
 
@@ -233,7 +233,7 @@ internal static class NightLightCloudStore
             _setPreviewColorTemperatureChanges;
         if (setTargetColorTemperature == null || setPreviewColorTemperatureChanges == null)
         {
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
             return false;
         }
 
@@ -275,7 +275,7 @@ internal static class NightLightCloudStore
                     setTargetColorTemperature(_singleton, kelvin);
                     if (!_streamPreviewActive)
                     {
-                        setPreviewColorTemperatureChanges(_singleton, 1);
+                        setPreviewColorTemperatureChanges(_singleton, isDragging: 1);
                         _streamPreviewActive = true;
                     }
 
@@ -284,18 +284,18 @@ internal static class NightLightCloudStore
 
                 if (releasePreview && _streamPreviewActive)
                 {
-                    setPreviewColorTemperatureChanges(_singleton, 0);
+                    setPreviewColorTemperatureChanges(_singleton, isDragging: 0);
                     _streamPreviewActive = false;
                 }
             }
 
-            CompleteStreamingDrain(success: true);
+            CompleteStreamingDrain(true);
             return true;
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NightLightCloudStore streaming native call failed: {ex.Message}");
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
             return false;
         }
     }
@@ -308,9 +308,7 @@ internal static class NightLightCloudStore
         {
             long elapsedMs = Environment.TickCount64 - _lastStreamingRequestTick;
             if (elapsedMs < TimeConstants.NightLightStreamingPreviewReleaseDelayMs)
-            {
                 remainingDelayMs = TimeConstants.NightLightStreamingPreviewReleaseDelayMs - (int)elapsedMs;
-            }
             else
             {
                 _streamReleaseRequested = true;
@@ -327,6 +325,7 @@ internal static class NightLightCloudStore
             {
                 // Shutdown already owns the timer
             }
+
             return;
         }
 
@@ -400,12 +399,12 @@ internal static class NightLightCloudStore
                     CallerName)
                 .GetAwaiter().GetResult();
             AsyncUtils.IssueWithSaveNotifyAsync(
-                    SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, 1),
+                    SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, isDragging: 1),
                     TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightCloudStoreFallbackDwellMs,
                     CallerName)
                 .GetAwaiter().GetResult();
             AsyncUtils.IssueWithSaveNotifyAsync(
-                    SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, 0),
+                    SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, isDragging: 0),
                     TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightCloudStoreFallbackDwellMs,
                     CallerName)
                 .GetAwaiter().GetResult();
@@ -532,7 +531,7 @@ internal static class NightLightCloudStore
         if (backendThread == null || ReferenceEquals(Thread.CurrentThread, backendThread))
         {
             streamReleaseTimer?.Dispose();
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
             return;
         }
 
@@ -542,7 +541,7 @@ internal static class NightLightCloudStore
                 $"NightLightCloudStore.Shutdown: backend thread did not stop within " +
                 $"{BackendShutdownTimeoutMs}ms");
             streamReleaseTimer?.Dispose();
-            CompleteStreamingDrain(success: false);
+            CompleteStreamingDrain(false);
             return;
         }
 
@@ -557,7 +556,7 @@ internal static class NightLightCloudStore
 
         backendRequests?.Dispose();
         streamReleaseTimer?.Dispose();
-        CompleteStreamingDrain(success: false);
+        CompleteStreamingDrain(false);
     }
 
     private static Task<bool> QueueBackendRequest(Func<bool> operation)
@@ -569,9 +568,7 @@ internal static class NightLightCloudStore
             BlockingCollection<BackendRequest>? backendRequests = _backendRequests;
             if (_shutdownRequested || !_supported || backendRequests == null ||
                 backendRequests.IsAddingCompleted)
-            {
                 return Task.FromResult(false);
-            }
 
             try
             {
@@ -609,12 +606,11 @@ internal static class NightLightCloudStore
         BlockingCollection<BackendRequest> backendRequests = [];
         TaskCompletionSource<bool> initializationCompletionSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Thread backendThread = new(
-            () => BackendThreadMain(backendRequests, initializationCompletionSource))
-        {
-            IsBackground = true,
-            Name = BackendThreadName
-        };
+        Thread backendThread =
+            new(() => BackendThreadMain(backendRequests, initializationCompletionSource))
+            {
+                IsBackground = true, Name = BackendThreadName
+            };
         backendThread.SetApartmentState(ApartmentState.MTA);
 
         _backendRequests = backendRequests;
@@ -777,9 +773,9 @@ internal static class NightLightCloudStore
         }
 
         // Sanity-check every pointer required by SetBlueLightActive and SetTargetColorTemperature
-        IntPtr stateInner = Marshal.ReadIntPtr(_singleton, 264);
-        IntPtr stateWrapper = Marshal.ReadIntPtr(_singleton, 272);
-        IntPtr settingsInner = Marshal.ReadIntPtr(_singleton, 296);
+        IntPtr stateInner = Marshal.ReadIntPtr(_singleton, ofs: 264);
+        IntPtr stateWrapper = Marshal.ReadIntPtr(_singleton, ofs: 272);
+        IntPtr settingsInner = Marshal.ReadIntPtr(_singleton, ofs: 296);
         if (stateInner == IntPtr.Zero || stateWrapper == IntPtr.Zero || settingsInner == IntPtr.Zero)
         {
             throw new InvalidOperationException(
@@ -810,7 +806,6 @@ internal static class NightLightCloudStore
 
     private sealed class BackendRequest(Func<bool> operation)
     {
-        private readonly Func<bool> _operation = operation;
         private readonly TaskCompletionSource<bool> _completionSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -820,7 +815,7 @@ internal static class NightLightCloudStore
         {
             try
             {
-                _completionSource.TrySetResult(_operation());
+                _completionSource.TrySetResult(operation());
             }
             catch (Exception ex)
             {
@@ -903,9 +898,9 @@ internal static class NightLightCloudStore
     {
         NightLightKnownRVAsDocument document = new();
         foreach (KeyValuePair<string,
-                     (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
-                     int SetBlueLightActiveRVA)>
-                 kvp in dict.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
+                         (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                         int SetBlueLightActiveRVA)>
+                     kvp in dict.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
         {
             document.Entries.Add(new NightLightKnownRVAEntry
             {

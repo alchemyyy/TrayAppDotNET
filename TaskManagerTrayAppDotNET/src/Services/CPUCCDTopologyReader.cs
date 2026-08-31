@@ -37,9 +37,7 @@ internal static unsafe class CPUCCDTopologyReader
             if (!TryReadProcessorRelationships(
                     RelationProcessorCore,
                     out ProcessorRelationshipMasks[] coreRelationships))
-            {
                 return CPUCCDTopology.Empty;
-            }
 
             if (TryReadProcessorRelationships(
                     RelationProcessorDie,
@@ -70,10 +68,13 @@ internal static unsafe class CPUCCDTopologyReader
     {
         if (!X86Base.IsSupported) return false;
 
-        (int Eax, int Ebx, int Ecx, int Edx) vendor = X86Base.CpuId(0, 0);
-        return vendor.Ebx == AuthenticAMDEBX
-               && vendor.Ecx == AuthenticAMDECX
-               && vendor.Edx == AuthenticAMDEDX;
+        (int Eax, int Ebx, int Ecx, int Edx) vendor = X86Base.CpuId(functionId: 0, subFunctionId: 0);
+        return vendor is
+        {
+            Ebx: AuthenticAMDEBX,
+            Ecx: AuthenticAMDECX,
+            Edx: AuthenticAMDEDX
+        };
     }
 
     /// <summary>Returns whether the processor advertises AMD extended CPU topology.</summary>
@@ -82,7 +83,7 @@ internal static unsafe class CPUCCDTopologyReader
         if (!IsAMDProcessor()) return false;
 
         (int Eax, int Ebx, int Ecx, int Edx) maximumExtendedFunction =
-            X86Base.CpuId(AMDExtendedFunctionMaximum, 0);
+            X86Base.CpuId(AMDExtendedFunctionMaximum, subFunctionId: 0);
         return unchecked((uint)maximumExtendedFunction.Eax) >= AMDExtendedCPUTopologyFunction;
     }
 
@@ -126,9 +127,7 @@ internal static unsafe class CPUCCDTopologyReader
                 dieRelationships,
                 logicalProcessorKeys,
                 out NormalizedProcessorRelationship[] normalizedDies))
-        {
             return CPUCCDTopology.Empty;
-        }
 
         Dictionary<CPULogicalProcessorKey, int> dieIndexByProcessor = new();
         for (int dieIndex = 0; dieIndex < normalizedDies.Length; dieIndex++)
@@ -150,7 +149,7 @@ internal static unsafe class CPUCCDTopologyReader
 
         List<int>[] coreIndexesByDie = new List<int>[normalizedDies.Length];
         for (int dieIndex = 0; dieIndex < coreIndexesByDie.Length; dieIndex++)
-            coreIndexesByDie[dieIndex] = new List<int>();
+            coreIndexesByDie[dieIndex] = [];
 
         CPUCoreTopologyEntry[] cores = new CPUCoreTopologyEntry[normalizedCores.Length];
         for (int coreIndex = 0; coreIndex < normalizedCores.Length; coreIndex++)
@@ -168,9 +167,7 @@ internal static unsafe class CPUCCDTopologyReader
                     logicalProcessorKeys[logicalProcessorIndexes[processorOffset]];
                 if (!dieIndexByProcessor.TryGetValue(processor, out int matchingDieIndex)
                     || matchingDieIndex != dieIndex)
-                {
                     return CPUCCDTopology.Empty;
-                }
             }
 
             cores[coreIndex] = new CPUCoreTopologyEntry(
@@ -210,7 +207,7 @@ internal static unsafe class CPUCCDTopologyReader
         uint expectedRelationship,
         out ProcessorRelationshipMasks[] relationships)
     {
-        List<ProcessorRelationshipMasks> parsedRelationships = new();
+        List<ProcessorRelationshipMasks> parsedRelationships = [];
         int offset = 0;
         while (offset < buffer.Length)
         {
@@ -232,8 +229,7 @@ internal static unsafe class CPUCCDTopologyReader
             }
 
             int entrySize = (int)entrySizeValue;
-            if (entrySize > buffer.Length - offset
-                || entrySize < ProcessorGroupCountOffset + sizeof(ushort))
+            if (entrySize > buffer.Length - offset)
             {
                 relationships = [];
                 return false;
@@ -262,6 +258,7 @@ internal static unsafe class CPUCCDTopologyReader
                     relationships = [];
                     return false;
                 }
+
                 groupMasks[groupIndex] = new ProcessorGroupAffinityMask(group, mask);
             }
 
@@ -306,9 +303,7 @@ internal static unsafe class CPUCCDTopologyReader
             || Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
             || requiredLength < ProcessorGroupMasksOffset
             || requiredLength > int.MaxValue)
-        {
             return false;
-        }
 
         IntPtr buffer = Marshal.AllocHGlobal((int)requiredLength);
         try
@@ -317,9 +312,7 @@ internal static unsafe class CPUCCDTopologyReader
             if (!GetLogicalProcessorInformationEx(relationship, buffer, ref returnedLength)
                 || returnedLength == 0
                 || returnedLength > requiredLength)
-            {
                 return false;
-            }
 
             ReadOnlySpan<byte> bytes = new((void*)buffer, (int)returnedLength);
             return TryParseProcessorRelationships(bytes, relationship, out relationships);
@@ -341,9 +334,7 @@ internal static unsafe class CPUCCDTopologyReader
             || !TryCollectLogicalProcessors(
                 coreRelationships,
                 out CPULogicalProcessorKey[] logicalProcessors))
-        {
             return false;
-        }
 
         uint[] hardwareTopologyIDs = new uint[logicalProcessors.Length];
         bool probeSucceeded = false;
@@ -375,11 +366,7 @@ internal static unsafe class CPUCCDTopologyReader
                     }
                 }
             }
-        })
-        {
-            IsBackground = true,
-            Name = Constants.ApplicationName + ".CCDTopologyProbe"
-        };
+        }) { IsBackground = true, Name = Constants.ApplicationName + ".CCDTopologyProbe" };
         probeThread.Start();
         probeThread.Join();
         if (probeException != null)
@@ -387,6 +374,7 @@ internal static unsafe class CPUCCDTopologyReader
             TADNLog.Log($"CPUCCDTopologyReader CPUID probe: {probeException}");
             return false;
         }
+
         if (!probeSucceeded) return false;
 
         Dictionary<uint, List<CPULogicalProcessorKey>> processorsByHardwareTopologyID = new();
@@ -397,14 +385,15 @@ internal static unsafe class CPUCCDTopologyReader
                     hardwareTopologyID,
                     out List<CPULogicalProcessorKey>? processors))
             {
-                processors = new List<CPULogicalProcessorKey>();
+                processors = [];
                 processorsByHardwareTopologyID.Add(hardwareTopologyID, processors);
             }
+
             processors.Add(logicalProcessors[processorIndex]);
         }
 
         uint[] sortedHardwareTopologyIDs = new uint[processorsByHardwareTopologyID.Count];
-        processorsByHardwareTopologyID.Keys.CopyTo(sortedHardwareTopologyIDs, 0);
+        processorsByHardwareTopologyID.Keys.CopyTo(sortedHardwareTopologyIDs, index: 0);
         Array.Sort(sortedHardwareTopologyIDs);
         ProcessorRelationshipMasks[] dieRelationships =
             new ProcessorRelationshipMasks[sortedHardwareTopologyIDs.Length];
@@ -433,8 +422,7 @@ internal static unsafe class CPUCCDTopologyReader
             CPULogicalProcessorKey requestedProcessor = logicalProcessors[processorIndex];
             GROUP_AFFINITY affinity = new()
             {
-                Mask = (nuint)(1UL << requestedProcessor.Number),
-                Group = requestedProcessor.Group
+                Mask = (nuint)(1UL << requestedProcessor.Number), Group = requestedProcessor.Group
             };
             if (!SetThreadGroupAffinity(currentThread, ref affinity, IntPtr.Zero)) return false;
 
@@ -442,17 +430,16 @@ internal static unsafe class CPUCCDTopologyReader
             if (currentProcessor.Group != requestedProcessor.Group
                 || currentProcessor.Number != requestedProcessor.Number
                 || !TryReadCurrentProcessorCCD(out uint hardwareTopologyID))
-            {
                 return false;
-            }
             hardwareTopologyIDs[processorIndex] = hardwareTopologyID;
         }
+
         return true;
     }
 
     private static bool TryReadCurrentProcessorCCD(out uint hardwareTopologyID)
     {
-        int topologyFunction = unchecked((int)AMDExtendedCPUTopologyFunction);
+        const int topologyFunction = unchecked((int)AMDExtendedCPUTopologyFunction);
         for (int levelIndex = 0; levelIndex < MaximumTopologyLevelCount; levelIndex++)
         {
             (int Eax, int Ebx, int Ecx, int Edx) level =
@@ -466,9 +453,7 @@ internal static unsafe class CPUCCDTopologyReader
                     level.Ecx,
                     level.Edx,
                     out hardwareTopologyID))
-            {
                 return true;
-            }
         }
 
         hardwareTopologyID = 0;
@@ -484,11 +469,11 @@ internal static unsafe class CPUCCDTopologyReader
         {
             CPULogicalProcessorKey processor = processors[processorIndex];
             maskByGroup.TryGetValue(processor.Group, out ulong mask);
-            maskByGroup[processor.Group] = mask | 1UL << processor.Number;
+            maskByGroup[processor.Group] = mask | (1UL << processor.Number);
         }
 
         ushort[] groups = new ushort[maskByGroup.Count];
-        maskByGroup.Keys.CopyTo(groups, 0);
+        maskByGroup.Keys.CopyTo(groups, index: 0);
         Array.Sort(groups);
         ProcessorGroupAffinityMask[] groupMasks = new ProcessorGroupAffinityMask[groups.Length];
         for (int groupIndex = 0; groupIndex < groups.Length; groupIndex++)
@@ -496,6 +481,7 @@ internal static unsafe class CPUCCDTopologyReader
             ushort group = groups[groupIndex];
             groupMasks[groupIndex] = new ProcessorGroupAffinityMask(group, maskByGroup[group]);
         }
+
         return new ProcessorRelationshipMasks(groupMasks, hardwareTopologyID);
     }
 
@@ -509,6 +495,7 @@ internal static unsafe class CPUCCDTopologyReader
             normalizedRelationships = [];
             return false;
         }
+
         return TryNormalizeRelationships(
             relationships,
             logicalProcessors,
@@ -524,7 +511,7 @@ internal static unsafe class CPUCCDTopologyReader
         for (int processorIndex = 0; processorIndex < logicalProcessors.Length; processorIndex++)
             processorIndexes.Add(logicalProcessors[processorIndex], processorIndex);
 
-        HashSet<int> assignedProcessorIndexes = new();
+        HashSet<int> assignedProcessorIndexes = [];
         normalizedRelationships = new NormalizedProcessorRelationship[relationships.Count];
         for (int relationshipIndex = 0;
              relationshipIndex < relationships.Count;
@@ -546,8 +533,10 @@ internal static unsafe class CPUCCDTopologyReader
                     normalizedRelationships = [];
                     return false;
                 }
+
                 relationshipProcessorIndexes[processorOffset] = processorIndex;
             }
+
             Array.Sort(relationshipProcessorIndexes);
             normalizedRelationships[relationshipIndex] = new NormalizedProcessorRelationship(
                 relationshipProcessorIndexes,
@@ -562,7 +551,7 @@ internal static unsafe class CPUCCDTopologyReader
 
         Array.Sort(
             normalizedRelationships,
-            static (NormalizedProcessorRelationship left, NormalizedProcessorRelationship right) =>
+            static (left, right) =>
                 left.LogicalProcessorIndexes[0].CompareTo(right.LogicalProcessorIndexes[0]));
         return true;
     }
@@ -571,7 +560,7 @@ internal static unsafe class CPUCCDTopologyReader
         IReadOnlyList<ProcessorRelationshipMasks> relationships,
         out CPULogicalProcessorKey[] logicalProcessors)
     {
-        HashSet<CPULogicalProcessorKey> uniqueProcessors = new();
+        HashSet<CPULogicalProcessorKey> uniqueProcessors = [];
         for (int relationshipIndex = 0;
              relationshipIndex < relationships.Count;
              relationshipIndex++)
@@ -598,7 +587,7 @@ internal static unsafe class CPUCCDTopologyReader
         uniqueProcessors.CopyTo(logicalProcessors);
         Array.Sort(
             logicalProcessors,
-            static (CPULogicalProcessorKey left, CPULogicalProcessorKey right) =>
+            static (left, right) =>
             {
                 int groupComparison = left.Group.CompareTo(right.Group);
                 return groupComparison != 0
@@ -619,8 +608,8 @@ internal static unsafe class CPUCCDTopologyReader
             return false;
         }
 
-        List<CPULogicalProcessorKey> expandedProcessors = new();
-        HashSet<ushort> seenGroups = new();
+        List<CPULogicalProcessorKey> expandedProcessors = [];
+        HashSet<ushort> seenGroups = [];
         for (int groupIndex = 0; groupIndex < groupMasks.Length; groupIndex++)
         {
             ProcessorGroupAffinityMask groupMask = groupMasks[groupIndex];
@@ -644,7 +633,7 @@ internal static unsafe class CPUCCDTopologyReader
         processors = expandedProcessors.ToArray();
         Array.Sort(
             processors,
-            static (CPULogicalProcessorKey left, CPULogicalProcessorKey right) =>
+            static (left, right) =>
             {
                 int groupComparison = left.Group.CompareTo(right.Group);
                 return groupComparison != 0

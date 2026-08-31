@@ -19,7 +19,6 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.BrightnessUpdateRateMinMs,
             TimeConstants.BrightnessUpdateRateMaxMs,
             v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_BrightnessRate_SearchKeywords))
             ]));
@@ -30,13 +29,12 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.ValidationDwellMaxMs,
             v => _settings.ValidationDwellMs = v, p,
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationDwell_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title)),
             L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Description)),
-            _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p,
+            _settings.ValidationAttempts, min: 1, max: 20, v => _settings.ValidationAttempts = v, p,
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_SearchKeywords))
@@ -48,7 +46,6 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.DDCOperationTimeoutMaxMs,
             v => _settings.DDCOperationTimeoutMs = v, p,
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_SearchKeywords))
             ]));
@@ -87,7 +84,7 @@ public sealed partial class BrightnessSettingsWindow
             ]));
         stack.Children.Add(ComboCard(
             L(nameof(AppStrings.Settings_Monitors_DefaultSort_Title)),
-            "",
+            description: "",
             [
                 ("Arrangement", L(nameof(AppStrings.Settings_Monitors_Sort_Arrangement))),
                 ("ArrangementRev", L(nameof(AppStrings.Settings_Monitors_Sort_ArrangementRev))),
@@ -123,7 +120,6 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Description)),
             clear,
             p,
-            searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_DisplayOrder_SearchKeywords))
             ]));
@@ -140,28 +136,33 @@ public sealed partial class BrightnessSettingsWindow
         content.Children.Add(TrayAppDotNETSettingsUI.TitleText(row.DisplayName, p));
         if (!string.IsNullOrWhiteSpace(row.Detail))
             content.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(row.Detail, p));
-        Grid controls = new() { Margin = new Thickness(0, 12, 0, 0) };
+        Grid controls = new() { Margin = new Thickness(left: 0, top: 12, right: 0, bottom: 0) };
         controls.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         controls.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(12)));
         controls.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        AddTextOverride(controls, 0, 0, L(nameof(AppStrings.Settings_Monitors_Name_Label)), row.Override.Name,
+        AddTextOverride(controls, row: 0, column: 0, L(nameof(AppStrings.Settings_Monitors_Name_Label)),
+            row.Override.Name,
             text => UpdateMonitorOverride(row.EDIDKey, o => o.Name = text.Trim()));
-        AddNumberOverride(controls, 0, 2, L(nameof(AppStrings.Settings_Monitors_MinBrightnessOverride_Label)),
-            row.Override.MinBrightness, 0, 100,
+        AddNumberOverride(controls, row: 0, column: 2,
+            L(nameof(AppStrings.Settings_Monitors_MinBrightnessOverride_Label)),
+            row.Override.MinBrightness, min: 0, max: 100,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.MinBrightness = value));
-        AddNumberOverride(controls, 1, 0, L(nameof(AppStrings.Settings_Monitors_MaxBrightnessOverride_Label)),
-            row.Override.MaxBrightness, 0, 100,
+        AddNumberOverride(controls, row: 1, column: 0,
+            L(nameof(AppStrings.Settings_Monitors_MaxBrightnessOverride_Label)),
+            row.Override.MaxBrightness, min: 0, max: 100,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.MaxBrightness = value));
-        AddNumberOverride(controls, 1, 2, L(nameof(AppStrings.Settings_Monitors_ValidationDwellOverride_Label)),
-            row.Override.ValidationDwellMs, -1, 10_000,
+        AddNumberOverride(controls, row: 1, column: 2,
+            L(nameof(AppStrings.Settings_Monitors_ValidationDwellOverride_Label)),
+            row.Override.ValidationDwellMs, min: -1, max: 10_000,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.ValidationDwellMs = value));
-        AddNumberOverride(controls, 2, 0, L(nameof(AppStrings.Settings_Monitors_BrightnessDwellOverride_Label)),
-            row.Override.BrightnessDwellMs, -1, 10_000,
+        AddNumberOverride(controls, row: 2, column: 0,
+            L(nameof(AppStrings.Settings_Monitors_BrightnessDwellOverride_Label)),
+            row.Override.BrightnessDwellMs, min: -1, max: 10_000,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.BrightnessDwellMs = value));
-        AddTextOverride(controls, 2, 2, L(nameof(AppStrings.Settings_Monitors_PowerOffVcpOverride_Label)),
+        AddTextOverride(controls, row: 2, column: 2, L(nameof(AppStrings.Settings_Monitors_PowerOffVcpOverride_Label)),
             row.Override.PowerOffVcpOverride,
             text => UpdateMonitorOverride(row.EDIDKey, o => o.PowerOffVcpOverride = text.Trim()));
         content.Children.Add(controls);
@@ -172,7 +173,8 @@ public sealed partial class BrightnessSettingsWindow
     {
         SettingsPalette p = Palette;
         StackPanel cell = new();
-        cell.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(0, 0, 0, 4)));
+        cell.Children.Add(
+            TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(left: 0, top: 0, right: 0, bottom: 4)));
         TextBox box = TrayAppDotNETSettingsUI.TextBox(p, double.NaN, value);
         box.HorizontalAlignment = HorizontalAlignment.Stretch;
         box.LostFocus += (_, _) =>
@@ -191,8 +193,9 @@ public sealed partial class BrightnessSettingsWindow
     {
         SettingsPalette p = Palette;
         StackPanel cell = new();
-        cell.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(0, 0, 0, 4)));
-        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(p, value, min, max, 96);
+        cell.Children.Add(
+            TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(left: 0, top: 0, right: 0, bottom: 4)));
+        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(p, value, min, max, width: 96);
         box.ValueChanged += (_, e) =>
         {
             if (!e.NewValue.HasValue) return;
@@ -212,9 +215,11 @@ public sealed partial class BrightnessSettingsWindow
             .GroupBy(static m => m.EDIDKey, StringComparer.Ordinal)
             .ToDictionary(static g => g.Key, static g => g.First(), StringComparer.Ordinal);
         HashSet<string> keys = new(live.Keys, StringComparer.Ordinal);
-        foreach (KnownDisplayEntry known in _settings.KnownDisplays.Where(known => !string.IsNullOrWhiteSpace(known.EDIDKey)))
+        foreach (KnownDisplayEntry known in _settings.KnownDisplays.Where(known =>
+                     !string.IsNullOrWhiteSpace(known.EDIDKey)))
             keys.Add(known.EDIDKey);
-        foreach (MonitorOverrideEntry monitorOverrideEntry in _settings.MonitorOverrides.Where(ov => !string.IsNullOrWhiteSpace(ov.ID)))
+        foreach (MonitorOverrideEntry monitorOverrideEntry in _settings.MonitorOverrides.Where(ov =>
+                     !string.IsNullOrWhiteSpace(ov.ID)))
             keys.Add(monitorOverrideEntry.ID);
         List<MonitorSettingsRow> rows = [];
         foreach (string EDIDKey in keys.OrderBy(static k => k, StringComparer.OrdinalIgnoreCase))
@@ -238,7 +243,7 @@ public sealed partial class BrightnessSettingsWindow
     private MonitorOverrideEntry FindOrCreateMonitorOverride(string EDIDKey)
     {
         MonitorOverrideEntry? existing =
-            _settings.MonitorOverrides.FirstOrDefault<MonitorOverrideEntry>(o => o.ID == EDIDKey);
+            _settings.MonitorOverrides.FirstOrDefault(o => o.ID == EDIDKey);
         if (existing != null) return existing;
         existing = new MonitorOverrideEntry { ID = EDIDKey };
         _settings.MonitorOverrides.Add(existing);

@@ -14,8 +14,10 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 
     public ThemeColor NetworkConnectedTrayIconColor { get; set; } =
         AppThemeColorCatalog.Color(nameof(NetworkConnectedTrayIconColor));
+
     public ThemeColor NetworkNoInternetTrayIconColor { get; set; } =
         AppThemeColorCatalog.Color(nameof(NetworkNoInternetTrayIconColor));
+
     public ThemeColor NetworkDisconnectedTrayIconColor { get; set; } =
         AppThemeColorCatalog.Color(nameof(NetworkDisconnectedTrayIconColor));
 
@@ -31,7 +33,7 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "theme.xml");
+        return Path.Combine(appFolder, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>

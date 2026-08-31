@@ -52,7 +52,7 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         if (logicalSize <= 0) return;
 
         double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
-        int pixelSize = Math.Max(1, (int)Math.Ceiling(logicalSize * renderScaling));
+        int pixelSize = Math.Max(val1: 1, (int)Math.Ceiling(logicalSize * renderScaling));
         Bitmap? bitmap = GetOrCreateBitmap(pixelSize);
         if (bitmap == null) return;
 
@@ -65,15 +65,12 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         context.DrawImage(bitmap, dest);
     }
 
-    protected void InvalidateIcon()
-    {
-        InvalidateVisual();
-    }
+    protected void InvalidateIcon() => InvalidateVisual();
 
     /// <summary>Disposes every shared Skia flyout glyph resource owned by this renderer.</summary>
     public static void DisposeSharedResources()
     {
-        if (Interlocked.Exchange(ref s_shutdown, 1) != 0) return;
+        if (Interlocked.Exchange(ref s_shutdown, value: 1) != 0) return;
 
         List<Bitmap> bitmaps = [];
         List<SKTypeface> typefaces = [];
@@ -84,7 +81,8 @@ public abstract class SkiaFlyoutGlyphIcon : Control
 
             foreach (TypefaceCacheEntry entry in s_typefaceCache.Values)
             {
-                if (entry.IsOwned) typefaces.Add(entry.Typeface);
+                if (entry.IsOwned)
+                    typefaces.Add(entry.Typeface);
             }
 
             s_bitmapCache.Clear();
@@ -123,7 +121,7 @@ public abstract class SkiaFlyoutGlyphIcon : Control
     {
         using SKFont font = CreateIconFont(fontSize, weight);
         font.GetFontMetrics(out SKFontMetrics metrics);
-        return font.GetTextPath(glyph.Text, new SKPoint(0, -metrics.Ascent));
+        return font.GetTextPath(glyph.Text, new SKPoint(x: 0, -metrics.Ascent));
     }
 
     protected static SKPath BuildBoundsCenteredGlyphPath(
@@ -138,7 +136,7 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         SKRect bounds = path.Bounds;
         float x = (canvasSize - bounds.Width) / 2.0f - bounds.Left + (float)translateX;
         float y = (canvasSize - bounds.Height) / 2.0f - bounds.Top + (float)translateY;
-        return TransformPath(path, 1.0, 1.0, 0.0, 0.0, x, y);
+        return TransformPath(path, scaleX: 1.0, scaleY: 1.0, centerX: 0.0, centerY: 0.0, x, y);
     }
 
     protected static SKPath TransformPath(
@@ -184,7 +182,6 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         if (left.Op(right, op, result) && !result.IsEmpty) return result;
         result.Dispose();
         return new SKPath();
-
     }
 
     private Bitmap? GetOrCreateBitmap(int pixelSize)
@@ -267,7 +264,7 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         using SKImage source = SKImage.FromBitmap(bitmap);
         if (designSize == size)
         {
-            using SKData sourceData = source.Encode(SKEncodedImageFormat.Png, 100);
+            using SKData sourceData = source.Encode(SKEncodedImageFormat.Png, quality: 100);
             return sourceData.ToArray();
         }
 
@@ -276,10 +273,10 @@ public abstract class SkiaFlyoutGlyphIcon : Control
         scaledSurface.Canvas.Clear(SKColors.Transparent);
         scaledSurface.Canvas.DrawImage(
             source,
-            new SKRect(0, 0, size, size),
+            new SKRect(left: 0, top: 0, size, size),
             new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
         using SKImage image = scaledSurface.Snapshot();
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 
@@ -330,11 +327,11 @@ public abstract class SkiaFlyoutGlyphIcon : Control
             SKFontStyleWidth.Normal,
             SKFontStyleSlant.Upright);
         if (typeface != null && typeface.FamilyName.Equals(IconFontFamily, StringComparison.OrdinalIgnoreCase))
-            return new TypefaceCacheEntry(typeface, true);
+            return new TypefaceCacheEntry(typeface, IsOwned: true);
 
         typeface?.Dispose();
         TADNLog.Log("SkiaFlyoutGlyphIcon.ResolveIconTypeface: icon font unavailable; using Skia default typeface");
-        return new TypefaceCacheEntry(SKTypeface.Default, false);
+        return new TypefaceCacheEntry(SKTypeface.Default, IsOwned: false);
     }
 
     private static void DisposeBitmaps(List<Bitmap> bitmaps)

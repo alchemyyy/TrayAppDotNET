@@ -25,7 +25,7 @@ internal sealed class DingSuppressionPeak
     internal static float ResolveThreshold(int configuredPercent, float scalarVolume)
     {
         int clampedPercent = Math.Clamp(configuredPercent, ThresholdPercentMin, ThresholdPercentMax);
-        float clampedVolume = float.IsFinite(scalarVolume) ? Math.Clamp(scalarVolume, 0f, 1f) : 0f;
+        float clampedVolume = float.IsFinite(scalarVolume) ? Math.Clamp(scalarVolume, min: 0f, max: 1f) : 0f;
         return clampedPercent * PercentToScalar * clampedVolume;
     }
 
@@ -41,7 +41,7 @@ internal sealed class DingSuppressionPeak
     {
         if (!isPeakAvailable) return true;
 
-        float clampedPeak = float.IsFinite(recentPeak) ? Math.Clamp(recentPeak, 0f, 1f) : 0f;
+        float clampedPeak = float.IsFinite(recentPeak) ? Math.Clamp(recentPeak, min: 0f, max: 1f) : 0f;
         return clampedPeak > ResolveThreshold(configuredPercent, scalarVolume);
     }
 
@@ -49,15 +49,12 @@ internal sealed class DingSuppressionPeak
     // falloff when the user changes the configurable peak-meter sample rate.
     internal float Observe(float currentPeak, long timestampMilliseconds)
     {
-        float clampedPeak = float.IsFinite(currentPeak) ? Math.Clamp(currentPeak, 0f, 1f) : 0f;
+        float clampedPeak = float.IsFinite(currentPeak) ? Math.Clamp(currentPeak, min: 0f, max: 1f) : 0f;
 
         lock (_gate)
         {
             Advance(timestampMilliseconds);
-            if (clampedPeak >= _value)
-            {
-                _value = clampedPeak;
-            }
+            if (clampedPeak >= _value) _value = clampedPeak;
 
             return _value;
         }
@@ -86,7 +83,7 @@ internal sealed class DingSuppressionPeak
         long elapsedMilliseconds = timestampMilliseconds - _lastUpdateMilliseconds;
         _lastUpdateMilliseconds = timestampMilliseconds;
         float falloff = MathF.Pow(
-            0.5f,
+            x: 0.5f,
             elapsedMilliseconds / (float)TimeConstants.DingSuppressionPeakHalfLifeMs);
         _value *= falloff;
     }

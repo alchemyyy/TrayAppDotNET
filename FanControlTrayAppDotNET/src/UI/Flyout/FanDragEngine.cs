@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using Avalonia.Controls;
-using FanControlTrayAppDotNET.Models;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
@@ -95,10 +94,10 @@ internal static class FanDragEngine
                 return new FanDragPreviewPlan(
                     CalculateIntoGroupPreviewOffsets(snapshot),
                     CalculateSameGroupFanOffsets(snapshot, placement.GroupCell, placement.GroupFanIndex),
-                    null,
-                    0,
-                    false,
-                    false);
+                    GroupDropPreviewCell: null,
+                    GroupDropPreviewFanIndex: 0,
+                    GroupDropPreviewExpandsUpward: false,
+                    RetainsTopLevelPreviewSlot: false);
             }
 
             int groupIndex = IndexOfDragSlot(snapshot, placement.GroupCell);
@@ -119,10 +118,10 @@ internal static class FanDragEngine
         return new FanDragPreviewPlan(
             CalculateTopLevelPreviewOffsets(snapshot, placement.TopLevelIndex),
             [],
-            null,
-            0,
-            false,
-            false);
+            GroupDropPreviewCell: null,
+            GroupDropPreviewFanIndex: 0,
+            GroupDropPreviewExpandsUpward: false,
+            RetainsTopLevelPreviewSlot: false);
     }
 
     private static bool CanReuseSameGroupSourceSlot(FanDragSnapshot snapshot, FanFlyoutCell groupCell) =>
@@ -140,10 +139,10 @@ internal static class FanDragEngine
         if (draggedFan == null) return [];
 
         int sourceFanIndex = IndexOfFan(groupCell, draggedFan);
-        int target = Math.Clamp(targetFanIndex, 0, Math.Max(0, groupCell.Fans.Count - 1));
+        int target = Math.Clamp(targetFanIndex, min: 0, Math.Max(val1: 0, groupCell.Fans.Count - 1));
         if (sourceFanIndex < 0 || target == sourceFanIndex) return [];
 
-        double sourceExtent = Math.Max(1, snapshot.DragSourceFanSlotHeight);
+        double sourceExtent = Math.Max(val1: 1, snapshot.DragSourceFanSlotHeight);
         double offset = target < sourceFanIndex ? sourceExtent : -sourceExtent;
         List<FanDragFanSlotOffset> offsets = [];
         foreach (FanDragFanSlot slot in snapshot.FanSlots)
@@ -172,12 +171,12 @@ internal static class FanDragEngine
             : TopLevelPreviewExtent(snapshot);
         if (!hasRootSource)
         {
-            return OffsetRange(snapshot, Math.Clamp(targetIndex, 0, snapshot.Slots.Count), snapshot.Slots.Count,
+            return OffsetRange(snapshot, Math.Clamp(targetIndex, min: 0, snapshot.Slots.Count), snapshot.Slots.Count,
                 sourceExtent);
         }
 
         int sourceIndex = snapshot.DragSourceTopLevelIndex;
-        int target = Math.Clamp(targetIndex, 0, snapshot.Slots.Count - 1);
+        int target = Math.Clamp(targetIndex, min: 0, snapshot.Slots.Count - 1);
         if (target < sourceIndex)
             return OffsetRange(snapshot, target, sourceIndex, sourceExtent);
 
@@ -201,7 +200,7 @@ internal static class FanDragEngine
         Fan? draggedFan,
         int childCount)
     {
-        int insertionIndex = 1 + Math.Max(0, groupFanIndex);
+        int insertionIndex = 1 + Math.Max(val1: 0, groupFanIndex);
         if (draggedFan != null && IsSameGroup(dragSourceCell, groupCell))
         {
             int sourceFanIndex = IndexOfFan(groupCell, draggedFan);
@@ -209,7 +208,7 @@ internal static class FanDragEngine
                 insertionIndex++;
         }
 
-        return Math.Clamp(insertionIndex, 1, childCount);
+        return Math.Clamp(insertionIndex, min: 1, childCount);
     }
 
     public static List<FanDragCellArrangement> MoveFanToTopLevel(
@@ -244,7 +243,11 @@ internal static class FanDragEngine
         }
 
         if (fan.Group == null)
-            result.Insert(Math.Clamp(targetIndex, 0, result.Count), new FanDragCellArrangement(null, [fan]));
+        {
+            result.Insert(Math.Clamp(targetIndex, min: 0, result.Count),
+                new FanDragCellArrangement(GroupSettings: null, [fan]));
+        }
+
         return result;
     }
 
@@ -273,7 +276,7 @@ internal static class FanDragEngine
             if (IsSameGroup(cell, targetGroupSettings, targetGroupName))
             {
                 List<Fan> fans = [.. cell.Fans.Where(candidate => !ReferenceEquals(candidate, fan))];
-                fans.Insert(Math.Clamp(targetFanIndex, 0, fans.Count), fan);
+                fans.Insert(Math.Clamp(targetFanIndex, min: 0, fans.Count), fan);
                 result.Add(new FanDragCellArrangement(cell.GroupSettings, fans));
                 continue;
             }
@@ -340,14 +343,14 @@ internal static class FanDragEngine
             FanFlyoutCell? candidate = snapshot.Slots[i].Cell;
             if (candidate == null) continue;
             if (ReferenceEquals(candidate, cell)
-                || candidate.GroupSettings != null
-                && cell.GroupSettings != null
-                && ReferenceEquals(candidate.GroupSettings, cell.GroupSettings)
-                || !candidate.HasGroupHeader
-                && !cell.HasGroupHeader
-                && candidate.Fans.Count == 1
-                && cell.Fans.Count == 1
-                && ReferenceEquals(candidate.Fans[0], cell.Fans[0]))
+                || (candidate.GroupSettings != null
+                    && cell.GroupSettings != null
+                    && ReferenceEquals(candidate.GroupSettings, cell.GroupSettings))
+                || (!candidate.HasGroupHeader
+                    && !cell.HasGroupHeader
+                    && candidate.Fans.Count == 1
+                    && cell.Fans.Count == 1
+                    && ReferenceEquals(candidate.Fans[0], cell.Fans[0])))
                 return i;
         }
 
@@ -364,15 +367,15 @@ internal static class FanDragEngine
             .. snapshot.FanSlots
                 .Where(slot => IsSameGroup(slot.Cell, groupCell)
                                && (!excludeDraggedFan || snapshot.DraggedFan == null
-                                   || !ReferenceEquals(slot.Fan, snapshot.DraggedFan)))
+                                                      || !ReferenceEquals(slot.Fan, snapshot.DraggedFan)))
                 .OrderBy(slot => slot.Top)
         ];
     }
 
     public static FanDragBounds DragBoundsForHeight(FanDragSnapshot snapshot, FanDragBounds drag, double height)
     {
-        double adjustedHeight = Math.Max(1, height);
-        double pointerOffset = Math.Clamp(snapshot.DragPointerOffsetRatio * adjustedHeight, 0.0, adjustedHeight);
+        double adjustedHeight = Math.Max(val1: 1, height);
+        double pointerOffset = Math.Clamp(snapshot.DragPointerOffsetRatio * adjustedHeight, min: 0.0, adjustedHeight);
         double top = drag.PointerY - pointerOffset;
         return new FanDragBounds(top, top + adjustedHeight, adjustedHeight, top + adjustedHeight / 2.0,
             drag.PointerY, drag.MovingDown);
@@ -409,7 +412,7 @@ internal static class FanDragEngine
         FanDragPlacement rootPlacement = TopLevelPlacementForRootInsertion(snapshot, rootIndex);
         FanDragPlacement firstGroupPlacement = FanDragPlacement.IntoGroup(
             rootCell,
-            AdjustGroupFanInsertionIndex(snapshot, rootCell, 0));
+            AdjustGroupFanInsertionIndex(snapshot, rootCell, groupFanIndex: 0));
         targets.Add(new FanDragTarget(
             FanDragTargetKind.GroupHeader,
             FanDragRange.FromBounds(root.Top, root.GroupInsertionTop),
@@ -418,10 +421,7 @@ internal static class FanDragEngine
             rootIsSource));
 
         List<FanDragFanSlot> fanSlots = GroupFanSlots(snapshot, rootCell, excludeDraggedFan: true);
-        foreach (FanDragFanSlot fanSlot in fanSlots)
-        {
-            targets.Add(GroupFanTarget(snapshot, rootCell, fanSlot));
-        }
+        foreach (FanDragFanSlot fanSlot in fanSlots) targets.Add(GroupFanTarget(snapshot, rootCell, fanSlot));
 
         FanDragRange appendRange = GroupAppendRange(root, fanSlots);
         if (appendRange.Height <= 1) return;
@@ -432,7 +432,7 @@ internal static class FanDragEngine
             appendRange,
             FanDragPlacement.IntoGroup(rootCell, appendIndex),
             TopLevelPlacementForRootInsertion(snapshot, rootIndex + 1),
-            false));
+            IsSource: false));
     }
 
     private static FanDragTarget RootTarget(
@@ -455,7 +455,8 @@ internal static class FanDragEngine
             FanDragTargetKind.GroupFan,
             FanDragRange.FromBounds(fanSlot.Top, fanSlot.Top + fanSlot.Height),
             FanDragPlacement.IntoGroup(groupCell, AdjustGroupFanInsertionIndex(snapshot, groupCell, fanSlot.FanIndex)),
-            FanDragPlacement.IntoGroup(groupCell, AdjustGroupFanInsertionIndex(snapshot, groupCell, fanSlot.FanIndex + 1)),
+            FanDragPlacement.IntoGroup(groupCell,
+                AdjustGroupFanInsertionIndex(snapshot, groupCell, fanSlot.FanIndex + 1)),
             ReferenceEquals(fanSlot.Fan, snapshot.DraggedFan));
 
     private static FanDragRange GroupAppendRange(FanDragSlot root, List<FanDragFanSlot> fanSlots)
@@ -465,7 +466,7 @@ internal static class FanDragEngine
             : Math.Max(root.GroupInsertionTop, fanSlots[^1].Top + fanSlots[^1].Height);
         double bottomExtension = fanSlots.Count == 0
             ? 0
-            : Math.Max(1, fanSlots[^1].Height) * LastGroupFanDropExtensionRatio;
+            : Math.Max(val1: 1, fanSlots[^1].Height) * LastGroupFanDropExtensionRatio;
         return FanDragRange.FromBounds(top, root.GroupDropBottom + bottomExtension);
     }
 
@@ -476,11 +477,11 @@ internal static class FanDragEngine
         HasRootSource(snapshot) && rootIndex == snapshot.DragSourceTopLevelIndex;
 
     private static double SourceRootExtent(FanDragSnapshot snapshot) =>
-        Math.Max(1, snapshot.DragSourceSlotHeight);
+        Math.Max(val1: 1, snapshot.DragSourceSlotHeight);
 
     private static double TopLevelPreviewExtent(FanDragSnapshot snapshot) =>
         Math.Max(
-            1,
+            val1: 1,
             snapshot.TopLevelPreviewSlotHeight > 0
                 ? snapshot.TopLevelPreviewSlotHeight
                 : snapshot.DragSourceSlotHeight);
@@ -491,7 +492,7 @@ internal static class FanDragEngine
         int end,
         double offset)
     {
-        int clampedStart = Math.Clamp(start, 0, snapshot.Slots.Count);
+        int clampedStart = Math.Clamp(start, min: 0, snapshot.Slots.Count);
         int clampedEnd = Math.Clamp(end, clampedStart, snapshot.Slots.Count);
         if (clampedStart == clampedEnd || offset == 0) return [];
 
@@ -501,7 +502,8 @@ internal static class FanDragEngine
         return offsets;
     }
 
-    private static FanDragPlacement TopLevelPlacementForRootInsertion(FanDragSnapshot snapshot, int rootInsertionIndex) =>
+    private static FanDragPlacement
+        TopLevelPlacementForRootInsertion(FanDragSnapshot snapshot, int rootInsertionIndex) =>
         FanDragPlacement.TopLevel(AdjustTopLevelInsertionIndex(snapshot, rootInsertionIndex));
 
     private static int AdjustTopLevelInsertionIndex(FanDragSnapshot snapshot, int rootInsertionIndex)
@@ -512,7 +514,7 @@ internal static class FanDragEngine
             insertion--;
 
         int max = snapshot.Slots.Count - (snapshot.DragSourceTopLevelControl != null ? 1 : 0);
-        return Math.Clamp(insertion, 0, max);
+        return Math.Clamp(insertion, min: 0, max);
     }
 
     private static int AdjustGroupFanInsertionIndex(
@@ -531,7 +533,7 @@ internal static class FanDragEngine
         int max = groupCell.Fans.Count;
         if (snapshot.DraggedFan != null && groupCell.Fans.Any(fan => ReferenceEquals(fan, snapshot.DraggedFan)))
             max--;
-        return Math.Clamp(insertion, 0, Math.Max(0, max));
+        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
     }
 }
 
@@ -589,11 +591,11 @@ internal sealed record FanDragTarget(
         }
 
         double height = Kind == FanDragTargetKind.GroupFan
-            ? Math.Max(1, snapshot.DragSourceFanSlotHeight)
-            : Math.Max(1, drag.Height);
+            ? Math.Max(val1: 1, snapshot.DragSourceFanSlotHeight)
+            : Math.Max(val1: 1, drag.Height);
         double pointerOffset = Kind == FanDragTargetKind.GroupFan
-            ? Math.Clamp(snapshot.DragPointerOffsetRatio * height, 0.0, height)
-            : Math.Clamp(drag.PointerY - drag.Top, 0.0, height);
+            ? Math.Clamp(snapshot.DragPointerOffsetRatio * height, min: 0.0, height)
+            : Math.Clamp(drag.PointerY - drag.Top, min: 0.0, height);
         double threshold = Math.Min(height, Range.Height) * slotPassRatio;
 
         double enterY = drag.MovingDown
@@ -613,10 +615,10 @@ internal sealed record FanDragTarget(
 
 internal readonly record struct FanDragRange(double Top, double Bottom)
 {
-    public double Height => Math.Max(1, Bottom - Top);
+    public double Height => Math.Max(val1: 1, Bottom - Top);
 
     public static FanDragRange FromTopAndHeight(double top, double height) =>
-        new(top, top + Math.Max(1, height));
+        new(top, top + Math.Max(val1: 1, height));
 
     public static FanDragRange FromBounds(double top, double bottom) =>
         FromTopAndHeight(top, bottom - top);
@@ -706,16 +708,17 @@ internal sealed record FanDragPreviewPlan(
     {
         string offsets = TopLevelOffsets.Count == 0
             ? "none"
-            : string.Join(",", TopLevelOffsets.Select(offset =>
+            : string.Join(separator: ",", TopLevelOffsets.Select(offset =>
                 string.Create(CultureInfo.InvariantCulture, $"{offset.Index}:{offset.Offset:0.##}")));
         string fanOffsets = GroupFanOffsets.Count == 0
             ? "none"
-            : string.Join(",", GroupFanOffsets.Select(offset =>
+            : string.Join(separator: ",", GroupFanOffsets.Select(offset =>
                 string.Create(CultureInfo.InvariantCulture, $"{offset.Fan.DisplayName}:{offset.Offset:0.##}")));
         string group = GroupDropPreviewCell?.GroupName ?? "<none>";
         string expansion = GroupDropPreviewExpandsUpward ? "up" : "down";
         string rootSlot = RetainsTopLevelPreviewSlot ? "retained" : "closed";
-        return $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}:{expansion};rootSlot={rootSlot}";
+        return
+            $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}:{expansion};rootSlot={rootSlot}";
     }
 }
 
@@ -745,13 +748,14 @@ internal readonly record struct FanDragPlacement(
     FanFlyoutCell? GroupCell,
     int GroupFanIndex)
 {
-    public static FanDragPlacement None => new(FanDragPlacementKind.None, 0, null, 0);
+    public static FanDragPlacement None =>
+        new(FanDragPlacementKind.None, TopLevelIndex: 0, GroupCell: null, GroupFanIndex: 0);
 
     public static FanDragPlacement TopLevel(int index) =>
-        new(FanDragPlacementKind.TopLevel, index, null, 0);
+        new(FanDragPlacementKind.TopLevel, index, GroupCell: null, GroupFanIndex: 0);
 
     public static FanDragPlacement IntoGroup(FanFlyoutCell groupCell, int groupFanIndex) =>
-        new(FanDragPlacementKind.IntoGroup, 0, groupCell, groupFanIndex);
+        new(FanDragPlacementKind.IntoGroup, TopLevelIndex: 0, groupCell, groupFanIndex);
 
     public string ToCompactString()
     {

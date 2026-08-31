@@ -25,7 +25,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
         try
         {
-            ShowPage(key, force: wasShowingSearch);
+            ShowPage(key, wasShowingSearch);
         }
         catch
         {
@@ -67,7 +67,6 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             TADNLog.Log(
                 $"{GetType().Name} settings search view failed: " +
                 $"{exception.GetType().Name}: {exception.Message}");
-            return;
         }
     }
 
@@ -126,9 +125,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 Control builtPage = descriptor.BuildPage();
                 StackPanel pageRoot;
                 if (builtPage is StackPanel stackPanel)
-                {
                     pageRoot = stackPanel;
-                }
                 else
                 {
                     pageRoot = TrayAppDotNETSettingsCards.PageStack(descriptor.Label, palette);

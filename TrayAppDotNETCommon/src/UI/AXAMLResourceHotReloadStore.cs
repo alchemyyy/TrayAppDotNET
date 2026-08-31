@@ -22,7 +22,7 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
     private readonly Action<TResource, TResource>? _synchronizeReload;
     private TResource? _hotReloadedResources;
     private FileSystemWatcher? _watcher;
-    private System.Threading.Timer? _reloadTimer;
+    private Timer? _reloadTimer;
 
     private AXAMLResourceHotReloadStore(
         string resourceName,
@@ -80,9 +80,9 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
             string? sourceDirectory = Path.GetDirectoryName(_sourcePath);
             if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) return;
 
-            _reloadTimer = new System.Threading.Timer(
+            _reloadTimer = new Timer(
                 QueueReloadOnUIThread,
-                null,
+                state: null,
                 Timeout.Infinite,
                 Timeout.Infinite);
 
@@ -134,13 +134,14 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
     }
 
     [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2026",
+        category: "Trimming",
+        checkId: "IL2026",
         Justification = "This Debug-only loader uses types rooted by the matching compiled AXAML.")]
     [UnconditionalSuppressMessage(
-        "AOT",
-        "IL3050",
-        Justification = "This Debug-only hot-reload path intentionally uses runtime XAML compilation and is excluded from AOT releases.")]
+        category: "AOT",
+        checkId: "IL3050",
+        Justification =
+            "This Debug-only hot-reload path intentionally uses runtime XAML compilation and is excluded from AOT releases.")]
     private void Reload()
     {
         try

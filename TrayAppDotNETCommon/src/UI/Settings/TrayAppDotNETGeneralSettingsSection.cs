@@ -96,7 +96,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             Border storeCard = TrayAppDotNETSettingsCards.MutableCard(
                 storeInstall.Title,
                 storeInstall.Description(),
-                null,
+                rightControl: null,
                 p,
                 _options.CardRadius,
                 out TextBlock storeDescription,
@@ -120,12 +120,12 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         SettingsPalette p = _options.Palette;
         SettingsButton installButton = Button(L(nameof(CommonStrings.Common_Install)));
         SettingsButton uninstallButton = Button(L(nameof(CommonStrings.Settings_General_Uninstall_Button)));
-        installButton.Margin = new Thickness(0, 0, 8, 0);
+        installButton.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(installButton, uninstallButton);
 
         Border card = TrayAppDotNETSettingsCards.MutableCard(
             entry.Title,
-            "...",
+            description: "...",
             buttons,
             p,
             _options.CardRadius,
@@ -140,7 +140,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                                                      entry.Scope,
                                                      entry.ExecutablePath,
                                                      TrayAppDotNETInstallStatus.NotInstalled,
-                                                     null);
+                                                     InstalledVersion: null);
             ApplyInstallRow(info, description, installButton, uninstallButton, entry.ExecutablePath, entry.Elevated);
         });
 
@@ -161,7 +161,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             if (!ok) return;
 
             installButton.IsEnabled = false;
-            TrayAppDotNETInstallResult? result = null;
+            TrayAppDotNETInstallResult? result;
             try
             {
                 result = await Task.Run(entry.Install);
@@ -210,7 +210,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         try
         {
             if (!File.Exists(executablePath))
-                throw new FileNotFoundException("Installed executable was not found.", executablePath);
+                throw new FileNotFoundException(message: "Installed executable was not found.", executablePath);
 
             ProcessStartInfo startInfo = new()
             {

@@ -11,6 +11,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
     private const string LatestReleaseTag = "TrayAppDotNET_110";
     private const string PreviousReleaseTag = "TrayAppDotNET_109";
     private const int CurrentBuild = 100;
+
     private readonly string _testDirectory = Path.Combine(
         Path.GetTempPath(),
         nameof(UpdateCheckServiceTests),
@@ -33,16 +34,16 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         Assert.Null(skippedUpdate);
         Assert.NotNull(nextUpdate);
-        Assert.Equal(201, nextUpdate.Version);
-        Assert.Equal(200, service.SkippedUpdateVersion);
-        Assert.Equal(2, messageHandler.RequestCount);
+        Assert.Equal(expected: 201, nextUpdate.Version);
+        Assert.Equal(expected: 200, service.SkippedUpdateVersion);
+        Assert.Equal(expected: 2, messageHandler.RequestCount);
     }
 
     [Fact]
     public async Task ScheduledCheck_UsesFreshSharedManifestAndWaitsOnlyUntilItExpires()
     {
         const int cachedVersion = 200;
-        DateTime currentTimeUTC = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
+        DateTime currentTimeUTC = new(year: 2026, month: 8, day: 20, hour: 12, minute: 0, second: 0, DateTimeKind.Utc);
         TimeSpan pollInterval = TimeSpan.FromHours(1);
         WriteCachedManifest(cachedVersion, currentTimeUTC - TimeSpan.FromMinutes(45));
         using ManifestMessageHandler messageHandler = new(999);
@@ -59,7 +60,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         Assert.NotNull(update);
         Assert.Equal(cachedVersion, update.Version);
-        Assert.Equal(0, messageHandler.RequestCount);
+        Assert.Equal(expected: 0, messageHandler.RequestCount);
         Assert.Equal(TimeSpan.FromMinutes(15), nextPollInterval);
     }
 
@@ -79,7 +80,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         Assert.NotNull(update);
         Assert.Equal(receivedVersion, update.Version);
-        Assert.Equal(1, messageHandler.RequestCount);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
         Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
         Assert.True(File.GetLastWriteTimeUtc(CachePath) > staleWriteTimeUTC);
         Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
@@ -99,7 +100,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         Assert.NotNull(update);
         Assert.Equal(receivedVersion, update.Version);
-        Assert.Equal(1, messageHandler.RequestCount);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
         Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
         Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
     }
@@ -134,7 +135,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
             aggregateVersion,
             appVersion,
             includeApp: true,
-            appReleaseTag: appReleaseTag);
+            appReleaseTag);
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
 
         UpdateInfo? update = await service.CheckNowAsync();
@@ -199,11 +200,11 @@ public sealed class UpdateCheckServiceTests : IDisposable
         service.StateChanged += () => stateChangeCount++;
         await service.SkipReleaseAsync(availableUpdate);
 
-        Assert.Equal(200, skippedUpdateVersion);
-        Assert.Equal(1, persistCount);
-        Assert.Equal(1, stateChangeCount);
+        Assert.Equal(expected: 200, skippedUpdateVersion);
+        Assert.Equal(expected: 1, persistCount);
+        Assert.Equal(expected: 1, stateChangeCount);
         Assert.Null(service.AvailableUpdate);
-        Assert.Equal(200, service.SkippedUpdateVersion);
+        Assert.Equal(expected: 200, service.SkippedUpdateVersion);
 
         UpdateInfo? repeatedUpdate = await service.CheckNowAsync();
         Assert.Null(repeatedUpdate);
@@ -212,7 +213,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
     [Fact]
     public async Task GetPreviousReleaseAsync_UsesThePreviousIndexedTagWithoutListingReleases()
     {
-        using PreviousReleaseMessageHandler messageHandler = new(directManifestAvailable: true);
+        using PreviousReleaseMessageHandler messageHandler = new(true);
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
 
         UpdateInfo? previousRelease = await service.GetPreviousReleaseAsync();
@@ -221,7 +222,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.NotNull(previousRelease);
         Assert.Same(previousRelease, cachedPreviousRelease);
         Assert.Equal(CurrentBuild - 1, previousRelease.Version);
-        Assert.Equal("TrayAppDotNET_109", previousRelease.TagName);
+        Assert.Equal(expected: "TrayAppDotNET_109", previousRelease.TagName);
         Assert.Equal(
             $"https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_109/"
             + $"{ApplicationName}_{CurrentBuild - 1}.zip",
@@ -237,20 +238,20 @@ public sealed class UpdateCheckServiceTests : IDisposable
     [Fact]
     public async Task GetPreviousReleaseAsync_ListsReleasesOnlyWhenThePreviousIndexedTagIsUnavailable()
     {
-        using PreviousReleaseMessageHandler messageHandler = new(directManifestAvailable: false);
+        using PreviousReleaseMessageHandler messageHandler = new(false);
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
 
         UpdateInfo? previousRelease = await service.GetPreviousReleaseAsync();
 
         Assert.NotNull(previousRelease);
         Assert.Equal(CurrentBuild - 1, previousRelease.Version);
-        Assert.Equal("TrayAppDotNET_109", previousRelease.TagName);
-        Assert.Equal(123L, previousRelease.AssetSize);
-        Assert.Equal(3, messageHandler.RequestUrls.Count);
+        Assert.Equal(expected: "TrayAppDotNET_109", previousRelease.TagName);
+        Assert.Equal(expected: 123L, previousRelease.AssetSize);
+        Assert.Equal(expected: 3, messageHandler.RequestUrls.Count);
         Assert.Equal(
-            "https://api.github.com/repos/test-owner/test-repository/releases?per_page=10&page=1",
+            expected: "https://api.github.com/repos/test-owner/test-repository/releases?per_page=10&page=1",
             messageHandler.RequestUrls[2]);
-        Assert.Equal("2026-03-10", messageHandler.GitHubApiVersion);
+        Assert.Equal(expected: "2026-03-10", messageHandler.GitHubApiVersion);
         Assert.True(messageHandler.RequestedGitHubJSON);
     }
 
@@ -259,7 +260,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
     {
         using PreviousReleaseMessageHandler messageHandler = new(
             directManifestAvailable: true,
-            latestVersion: CurrentBuild + 1,
+            CurrentBuild + 1,
             latestTag: "TrayAppDotNET_110",
             directTag: "TrayAppDotNET_108");
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
@@ -268,10 +269,10 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         Assert.NotNull(previousRelease);
         Assert.Equal(CurrentBuild - 1, previousRelease.Version);
-        Assert.Equal("TrayAppDotNET_108", previousRelease.TagName);
-        Assert.Equal(2, messageHandler.RequestUrls.Count);
+        Assert.Equal(expected: "TrayAppDotNET_108", previousRelease.TagName);
+        Assert.Equal(expected: 2, messageHandler.RequestUrls.Count);
         Assert.Equal(
-            "https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_108/versions.xml",
+            expected: "https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_108/versions.xml",
             messageHandler.RequestUrls[1]);
     }
 
@@ -288,9 +289,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                    choiceHandler,
                    () => skippedUpdateVersion,
                    version => skippedUpdateVersion = version))
-        {
             await currentService.SetCurrentVersionSkippedAsync(skipCurrentVersion);
-        }
 
         using ManifestMessageHandler backdatedHandler = new(CurrentBuild);
         using UpdateCheckService backdatedService = CreateService(
@@ -308,45 +307,45 @@ public sealed class UpdateCheckServiceTests : IDisposable
     [Fact]
     public async Task DownloadAndStageAsync_RetriesAndRemovesPartialDownloads()
     {
-        byte[] partialAsset = Encoding.UTF8.GetBytes("partial zip response");
+        byte[] partialAsset = "partial zip response"u8.ToArray();
         using FixedAssetMessageHandler messageHandler = new(partialAsset);
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
         UpdateInfo update = new(
-            Version: CurrentBuild + 1,
-            TagName: LatestReleaseTag,
+            CurrentBuild + 1,
+            LatestReleaseTag,
             ReleaseName: "Partial asset test",
-            Changelog: string.Empty,
+            string.Empty,
             AssetUrl: "https://downloads.test/TestTrayApp.zip",
             AssetName: "TestTrayApp.zip",
-            AssetSize: partialAsset.Length + 1);
+            partialAsset.Length + 1);
 
         bool staged = await service.DownloadAndStageAsync(update);
 
         Assert.False(staged);
-        Assert.Equal(3, messageHandler.RequestCount);
-        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, "*_update_*"));
+        Assert.Equal(expected: 3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, searchPattern: "*_update_*"));
     }
 
     [Fact]
     public async Task DownloadAndStageAsync_RetriesAndRemovesCorruptArchives()
     {
-        byte[] corruptArchive = Encoding.UTF8.GetBytes("not a zip archive");
+        byte[] corruptArchive = "not a zip archive"u8.ToArray();
         using FixedAssetMessageHandler messageHandler = new(corruptArchive);
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
         UpdateInfo update = new(
-            Version: CurrentBuild + 1,
-            TagName: LatestReleaseTag,
+            CurrentBuild + 1,
+            LatestReleaseTag,
             ReleaseName: "Corrupt asset test",
-            Changelog: string.Empty,
+            string.Empty,
             AssetUrl: "https://downloads.test/TestTrayApp.zip",
             AssetName: "TestTrayApp.zip",
-            AssetSize: corruptArchive.Length);
+            corruptArchive.Length);
 
         bool staged = await service.DownloadAndStageAsync(update);
 
         Assert.False(staged);
-        Assert.Equal(3, messageHandler.RequestCount);
-        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, "*_update_*"));
+        Assert.Equal(expected: 3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, searchPattern: "*_update_*"));
     }
 
     private UpdateCheckService CreateService(
@@ -391,15 +390,15 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
     private static string CreateManifest(int version) =>
         $"""
-        <?xml version="1.0" encoding="utf-8"?>
-        <versions>
-          <release tag="v{version}" name="Release {version}" />
-          <artifacts>
-            <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
-                      fileName="{ApplicationName}_{version}.zip" size="0" />
-          </artifacts>
-        </versions>
-        """;
+         <?xml version="1.0" encoding="utf-8"?>
+         <versions>
+           <release tag="v{version}" name="Release {version}" />
+           <artifacts>
+             <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
+                       fileName="{ApplicationName}_{version}.zip" size="0" />
+           </artifacts>
+         </versions>
+         """;
 
     public void Dispose()
     {
@@ -421,7 +420,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
             string manifest = CreateManifest(version);
             HttpResponseMessage response = new(HttpStatusCode.OK)
             {
-                Content = new StringContent(manifest, Encoding.UTF8, "application/xml"),
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
                 RequestMessage = request
             };
             return Task.FromResult(response);
@@ -440,8 +439,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
             RequestCount++;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new ByteArrayContent(content),
-                RequestMessage = request
+                Content = new ByteArrayContent(content), RequestMessage = request
             });
         }
     }
@@ -460,7 +458,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             Uri requestUri = request.RequestUri
-                ?? throw new InvalidOperationException("The test request did not have a URL.");
+                             ?? throw new InvalidOperationException("The test request did not have a URL.");
             RequestUrls.Add(requestUri.AbsoluteUri);
 
             HttpResponseMessage response = requestUri.Host switch
@@ -479,24 +477,24 @@ public sealed class UpdateCheckServiceTests : IDisposable
                 : $" releaseTag=\"{appReleaseTag}\"";
             string appArtifact = includeApp
                 ? $"""
-                      <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
-                                fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} size="0" />
-                  """
+                       <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
+                                 fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} size="0" />
+                   """
                 : string.Empty;
             string manifest = $"""
-                <?xml version="1.0" encoding="utf-8"?>
-                <versions>
-                  <release tag="TrayAppDotNET_{aggregateVersion}" name="TrayAppDotNET {aggregateVersion}" />
-                  <artifacts>
-                    <artifact profile="release" kind="aggregate" appId="TrayAppDotNET" version="{aggregateVersion}"
-                              fileName="TrayAppDotNET_{aggregateVersion}.zip" size="0" />
-                {appArtifact}
-                  </artifacts>
-                </versions>
-                """;
+                               <?xml version="1.0" encoding="utf-8"?>
+                               <versions>
+                                 <release tag="TrayAppDotNET_{aggregateVersion}" name="TrayAppDotNET {aggregateVersion}" />
+                                 <artifacts>
+                                   <artifact profile="release" kind="aggregate" appId="TrayAppDotNET" version="{aggregateVersion}"
+                                             fileName="TrayAppDotNET_{aggregateVersion}.zip" size="0" />
+                               {appArtifact}
+                                 </artifacts>
+                               </versions>
+                               """;
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(manifest, Encoding.UTF8, "application/xml"),
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
                 RequestMessage = request
             };
         }
@@ -504,24 +502,24 @@ public sealed class UpdateCheckServiceTests : IDisposable
         private HttpResponseMessage ReleasesResponse(HttpRequestMessage request)
         {
             string releases = $$"""
-                [
-                  {
-                    "tag_name": "TrayAppDotNET_{{aggregateVersion - 1}}",
-                    "body": "App release notes",
-                    "draft": false,
-                    "prerelease": false,
-                    "assets": [
-                      {
-                        "name": "{{ApplicationName}}_{{appVersion}}.zip",
-                        "size": 123
-                      }
-                    ]
-                  }
-                ]
-                """;
+                                [
+                                  {
+                                    "tag_name": "TrayAppDotNET_{{aggregateVersion - 1}}",
+                                    "body": "App release notes",
+                                    "draft": false,
+                                    "prerelease": false,
+                                    "assets": [
+                                      {
+                                        "name": "{{ApplicationName}}_{{appVersion}}.zip",
+                                        "size": 123
+                                      }
+                                    ]
+                                  }
+                                ]
+                                """;
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(releases, Encoding.UTF8, "application/json"),
+                Content = new StringContent(releases, Encoding.UTF8, mediaType: "application/json"),
                 RequestMessage = request
             };
         }
@@ -543,7 +541,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             Uri requestUri = request.RequestUri
-                ?? throw new InvalidOperationException("The test request did not have a URL.");
+                             ?? throw new InvalidOperationException("The test request did not have a URL.");
             RequestUrls.Add(requestUri.AbsoluteUri);
 
             HttpResponseMessage response;
@@ -560,12 +558,12 @@ public sealed class UpdateCheckServiceTests : IDisposable
                     break;
                 case "api.github.com":
                     GitHubApiVersion = request.Headers.TryGetValues(
-                            "X-GitHub-Api-Version",
-                            out IEnumerable<string>? apiVersions)
+                        name: "X-GitHub-Api-Version",
+                        out IEnumerable<string>? apiVersions)
                         ? apiVersions.Single()
                         : string.Empty;
                     RequestedGitHubJSON = request.Headers.Accept.Any(value =>
-                        string.Equals(value.MediaType, "application/vnd.github+json", StringComparison.Ordinal));
+                        string.Equals(value.MediaType, b: "application/vnd.github+json", StringComparison.Ordinal));
                     response = ReleasesResponse(request, directTag);
                     break;
                 default:
@@ -581,18 +579,18 @@ public sealed class UpdateCheckServiceTests : IDisposable
             string tagName)
         {
             string manifest = $"""
-                <?xml version="1.0" encoding="utf-8"?>
-                <versions>
-                  <release tag="{tagName}" name="Release {version}" />
-                  <artifacts>
-                    <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
-                              fileName="{ApplicationName}_{version}.zip" size="0" />
-                  </artifacts>
-                </versions>
-                """;
+                               <?xml version="1.0" encoding="utf-8"?>
+                               <versions>
+                                 <release tag="{tagName}" name="Release {version}" />
+                                 <artifacts>
+                                   <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
+                                             fileName="{ApplicationName}_{version}.zip" size="0" />
+                                 </artifacts>
+                               </versions>
+                               """;
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(manifest, Encoding.UTF8, "application/xml"),
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
                 RequestMessage = request
             };
         }
@@ -600,24 +598,24 @@ public sealed class UpdateCheckServiceTests : IDisposable
         private static HttpResponseMessage ReleasesResponse(HttpRequestMessage request, string tagName)
         {
             string releases = $$"""
-                [
-                  {
-                    "tag_name": "{{tagName}}",
-                    "body": "Previous release notes",
-                    "draft": false,
-                    "prerelease": false,
-                    "assets": [
-                      {
-                        "name": "{{ApplicationName}}_{{CurrentBuild - 1}}.zip",
-                        "size": 123
-                      }
-                    ]
-                  }
-                ]
-                """;
+                                [
+                                  {
+                                    "tag_name": "{{tagName}}",
+                                    "body": "Previous release notes",
+                                    "draft": false,
+                                    "prerelease": false,
+                                    "assets": [
+                                      {
+                                        "name": "{{ApplicationName}}_{{CurrentBuild - 1}}.zip",
+                                        "size": 123
+                                      }
+                                    ]
+                                  }
+                                ]
+                                """;
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(releases, Encoding.UTF8, "application/json"),
+                Content = new StringContent(releases, Encoding.UTF8, mediaType: "application/json"),
                 RequestMessage = request
             };
         }

@@ -18,7 +18,7 @@ public sealed class ProgramStartupTests
 
         TrayAppDotNETProgramOptions options = new(
             applicationName,
-            "TrayAppDotNETInstallTests",
+            SharedRootFolderName: "TrayAppDotNETInstallTests",
             uniqueID,
             static _ => throw new InvalidOperationException("Application mode was not expected."),
             static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
@@ -37,7 +37,7 @@ public sealed class ProgramStartupTests
             () => Path.Combine(Path.GetTempPath(), applicationName + "-system.exe"),
             logMessages.Add);
 
-        int exitCode = TrayAppDotNETProgram.RunInstall("local", options, logMessages.Add, startInstalled: false);
+        int exitCode = TrayAppDotNETProgram.RunInstall(scope: "local", options, logMessages.Add, startInstalled: false);
 
         Assert.True(exitCode == 0, string.Join(Environment.NewLine, logMessages));
         Assert.True(unrelatedProcessesWereRunning);
@@ -56,7 +56,7 @@ public sealed class ProgramStartupTests
 
         TrayAppDotNETProgramOptions options = new(
             applicationName,
-            "TrayAppDotNETInstallTests",
+            SharedRootFolderName: "TrayAppDotNETInstallTests",
             uniqueID,
             static _ => throw new InvalidOperationException("Application mode was not expected."),
             static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
@@ -76,9 +76,10 @@ public sealed class ProgramStartupTests
             () => Path.Combine(Path.GetTempPath(), applicationName + "-system.exe"),
             logMessages.Add);
 
-        int exitCode = TrayAppDotNETProgram.RunInstall("system", options, logMessages.Add, startInstalled: false);
+        int exitCode =
+            TrayAppDotNETProgram.RunInstall(scope: "system", options, logMessages.Add, startInstalled: false);
 
-        Assert.Equal(1, exitCode);
+        Assert.Equal(expected: 1, exitCode);
         Assert.True(systemInstallInvoked);
         Assert.False(runningApplication.ProcessesExited);
     }
@@ -141,7 +142,7 @@ public sealed class ProgramStartupTests
                 if (!watcherExited || !monitoredExited)
                     throw new TimeoutException("The install coordinator did not stop both recorded processes.");
 
-                Volatile.Write(ref _processesExited, true);
+                Volatile.Write(ref _processesExited, value: true);
             }
             catch (Exception exception)
             {
@@ -160,7 +161,7 @@ public sealed class ProgramStartupTests
         {
             ProcessStartInfo startInfo = new()
             {
-                FileName = Path.Combine(Environment.SystemDirectory, "ping.exe"),
+                FileName = Path.Combine(Environment.SystemDirectory, path2: "ping.exe"),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
@@ -180,7 +181,7 @@ public sealed class ProgramStartupTests
             {
                 if (!process.HasExited)
                 {
-                    process.Kill(entireProcessTree: true);
+                    process.Kill(true);
                     process.WaitForExit(OwnerShutdownTimeoutMs);
                 }
             }

@@ -97,9 +97,9 @@ internal readonly record struct WindowsServiceOperationResult(
             action,
             WindowsServiceOperationStage.Completed,
             serviceName,
-            true,
+            Succeeded: true,
             finalStatus,
-            0,
+            Win32ErrorCode: 0,
             string.Empty);
 
     public static WindowsServiceOperationResult Failure(
@@ -113,7 +113,7 @@ internal readonly record struct WindowsServiceOperationResult(
             action,
             stage,
             serviceName,
-            false,
+            Succeeded: false,
             finalStatus,
             win32ErrorCode,
             errorMessage);
@@ -127,10 +127,10 @@ internal sealed record WindowsServiceQueryResult(
     string ErrorMessage)
 {
     public static WindowsServiceQueryResult Success(IReadOnlyList<WindowsServiceSnapshot> services) =>
-        new(true, services, 0, string.Empty);
+        new(Succeeded: true, services, Win32ErrorCode: 0, string.Empty);
 
     public static WindowsServiceQueryResult Failure(int win32ErrorCode, string errorMessage) =>
-        new(false, Array.Empty<WindowsServiceSnapshot>(), win32ErrorCode, errorMessage);
+        new(Succeeded: false, [], win32ErrorCode, errorMessage);
 }
 
 /// <summary>Pure mappings and UI action rules for native service values.</summary>
@@ -211,9 +211,9 @@ internal static class WindowsServiceState
         bool hasStableStatus = isRunning || service.Status == WindowsServiceStatus.Stopped;
 
         return new WindowsServiceActionState(
-            CanStart: !isPending && !isDisabled && service.Status == WindowsServiceStatus.Stopped,
-            CanStop: !isPending && isRunning && acceptsStop,
-            CanRestart: !isPending && !isDisabled && isRunning && acceptsStop,
-            CanDisable: !isPending && !isDisabled && hasStableStatus);
+            !isPending && !isDisabled && service.Status == WindowsServiceStatus.Stopped,
+            !isPending && isRunning && acceptsStop,
+            !isPending && !isDisabled && isRunning && acceptsStop,
+            !isPending && !isDisabled && hasStableStatus);
     }
 }

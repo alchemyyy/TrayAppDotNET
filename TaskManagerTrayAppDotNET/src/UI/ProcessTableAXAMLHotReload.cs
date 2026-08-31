@@ -53,9 +53,7 @@ internal static class ProcessTableAXAMLHotReload
             if (!currentWidths.TryGet(setting.Column, out double currentWidth)
                 || !nextWidths.TryGet(setting.Column, out double nextWidth)
                 || Math.Abs(currentWidth - nextWidth) < WidthEqualityTolerance)
-            {
                 continue;
-            }
 
             setting.Width = Math.Max(ProcessColumnSettings.MinimumWidth, nextWidth);
             changed = true;

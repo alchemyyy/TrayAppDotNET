@@ -16,17 +16,24 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     public new static AppTheme Default { get; } = new();
 
     public ThemeColor FlyoutBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutBackground));
+
     public ThemeColor FlyoutTitleBarBackground { get; set; } =
         AppThemeColorCatalog.Color(nameof(FlyoutTitleBarBackground));
+
     public ThemeColor FanCardBackground { get; set; } =
         AppThemeColorCatalog.Color(nameof(FanCardBackground));
+
     public ThemeColor GroupCardBackground { get; set; } =
         AppThemeColorCatalog.Color(nameof(GroupCardBackground));
+
     public ThemeColor FlyoutCardBorder { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutCardBorder));
+
     public ThemeColor CurveEditorGridLine { get; set; } =
         AppThemeColorCatalog.Color(nameof(CurveEditorGridLine));
+
     public ThemeColor CurveEditorEffectiveCurve { get; set; } =
         AppThemeColorCatalog.Color(nameof(CurveEditorEffectiveCurve));
+
     public ThemeColor CurveEditorDisabledBand { get; set; } =
         AppThemeColorCatalog.Color(nameof(CurveEditorDisabledBand));
 
@@ -34,7 +41,7 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "theme.xml");
+        return Path.Combine(appFolder, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
@@ -69,13 +76,13 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
         {
             string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconRelativePath);
             if (File.Exists(filePath))
-                return NativeIcon.FromIco(File.ReadAllBytes(filePath), 32);
+                return NativeIcon.FromIco(File.ReadAllBytes(filePath), desiredSize: 32);
 
             Uri resource = new(Constants.AppIconResourceUri);
             using Stream stream = AssetLoader.Open(resource);
             using MemoryStream memory = new();
             stream.CopyTo(memory);
-            return NativeIcon.FromIco(memory.ToArray(), 32);
+            return NativeIcon.FromIco(memory.ToArray(), desiredSize: 32);
         }
         catch (Exception ex)
         {
@@ -137,5 +144,4 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
         if (settings?.CardBorderColor.Resolve(isLightTheme) is { } color) return color;
         return FlyoutCardBorder.For(isLightTheme);
     }
-
 }

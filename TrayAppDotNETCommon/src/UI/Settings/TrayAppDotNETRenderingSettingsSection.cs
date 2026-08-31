@@ -32,6 +32,7 @@ public sealed class TrayAppDotNETRenderingSettingsSectionOptions
 public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRenderingSettingsSectionOptions options)
 {
     private const double RenderingBackendComboWidth = 172;
+
     private readonly TrayAppDotNETRenderingSettingsCardContext _cardContext =
         new(options.Palette, options.CardRadius, options.L, options.Save);
 
@@ -95,7 +96,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             palette,
             options.CardRadius,
             options.Save,
-            " ms",
+            suffix: " ms",
             [L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_SearchKeywords))]);
         submenuDelayCard.IsVisible = !trayMenuSettings.UseSystemSubmenuShowDelay;
 
@@ -187,7 +188,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
         {
             string? executablePath = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
-                throw new FileNotFoundException("Current executable was not found.", executablePath);
+                throw new FileNotFoundException(message: "Current executable was not found.", executablePath);
 
             ProcessStartInfo startInfo = new()
             {

@@ -17,7 +17,7 @@ public sealed partial class EnvironmentalCurveEditor
         double right = Math.Max(left, Bounds.Width - AxisGutterWidth - PlotInsetX);
         double top = TopInset;
         double bottom = Math.Max(top, Bounds.Height - TimeAxisHeight - PlotInsetYBase);
-        return new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        return new Rect(left, top, Math.Max(val1: 0, right - left), Math.Max(val1: 0, bottom - top));
     }
 
     private static double ScreenX(double t, Rect plot) => plot.Left + t * plot.Width;
@@ -77,7 +77,8 @@ public sealed partial class EnvironmentalCurveEditor
 
     private static Color WithOpacity(Color color, double opacity)
     {
-        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * Math.Clamp(opacity, 0.0, 1.0)), 0, 255);
+        byte alpha = (byte)Math.Clamp((int)Math.Round(color.A * Math.Clamp(opacity, min: 0.0, max: 1.0)), min: 0,
+            max: 255);
         return Color.FromArgb(alpha, color.R, color.G, color.B);
     }
 
@@ -153,7 +154,7 @@ public sealed partial class EnvironmentalCurveEditor
     private static string FormatCursorTime(double t, bool use24Hour)
     {
         int totalMinutes = (int)Math.Round(t * 24.0 * 60.0);
-        totalMinutes = Math.Clamp(totalMinutes, 0, 24 * 60);
+        totalMinutes = Math.Clamp(totalMinutes, min: 0, 24 * 60);
         if (totalMinutes == 24 * 60) totalMinutes = 0;
         int hour = totalMinutes / 60;
         int minute = totalMinutes % 60;

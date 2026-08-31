@@ -16,10 +16,10 @@ public sealed record TrayAppDotNETInstallLayout(
         Path.Combine(ProgramFilesInstallDirectory, InstalledExecutableFileName);
 
     public string WindowsAppsRoot { get; init; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), path2: "WindowsApps");
 
     public string LocalAppDataExecutableProfileRelativePath =>
-        Path.Combine("AppData", "Local", SharedRootFolderName, InstalledExecutableFileName);
+        Path.Combine(path1: "AppData", path2: "Local", SharedRootFolderName, InstalledExecutableFileName);
 
     public static TrayAppDotNETInstallLayout Create(
         string applicationName,
@@ -49,7 +49,7 @@ public sealed record TrayAppDotNETInstallPayload(
 {
     public IReadOnlyList<TrayAppDotNETInstallFile> InstalledFiles(string installedExecutableFileName) =>
     [
-        new TrayAppDotNETInstallFile(installedExecutableFileName),
+        new(installedExecutableFileName),
         .. RequiredFiles,
         .. OptionalFiles
     ];
@@ -86,15 +86,15 @@ public sealed record TrayAppDotNETInstallPayload(
     {
         TrayAppDotNETInstallFile[] requiredFiles =
         [
-            new("av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new("libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new("libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
+            new(Name: "av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
         [
-            new("libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new("MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
+            new(Name: "libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];
 
         return new TrayAppDotNETInstallPayload(

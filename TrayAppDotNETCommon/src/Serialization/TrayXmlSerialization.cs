@@ -33,9 +33,7 @@ public static class TrayXmlSerializer
 
     public static XmlReaderSettings ReaderSettings { get; } = new()
     {
-        IgnoreComments = true,
-        IgnoreProcessingInstructions = true,
-        IgnoreWhitespace = true
+        IgnoreComments = true, IgnoreProcessingInstructions = true, IgnoreWhitespace = true
     };
 
     public static void Register(ITrayXmlTypeSerializer serializer)
@@ -167,7 +165,7 @@ public static class TrayXmlSerializer
 
     private static void ReplaceFileWithRetry(string temporaryPath, string path)
     {
-        for (int attempt = 1; ; attempt++)
+        for (int attempt = 1;; attempt++)
         {
             try
             {

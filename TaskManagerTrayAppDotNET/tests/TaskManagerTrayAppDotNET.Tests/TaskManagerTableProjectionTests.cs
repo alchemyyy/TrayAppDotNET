@@ -10,11 +10,11 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("user-b", null, "Beta", 20, isGroup: true),
-            Row("process-b2", "user-b", "Zulu", 5),
-            Row("process-b1", "user-b", "Alpha", 10),
-            Row("user-a", null, "Alpha", 30, isGroup: true),
-            Row("process-a1", "user-a", "Gamma", 7)
+            Row(key: "user-b", parentKey: null, name: "Beta", value: 20, isGroup: true),
+            Row(key: "process-b2", parentKey: "user-b", name: "Zulu", value: 5),
+            Row(key: "process-b1", parentKey: "user-b", name: "Alpha", value: 10),
+            Row(key: "user-a", parentKey: null, name: "Alpha", value: 30, isGroup: true),
+            Row(key: "process-a1", parentKey: "user-a", name: "Gamma", value: 7)
         ];
 
         List<TaskManagerTableRow> projected = TaskManagerTableProjection.Build(
@@ -22,7 +22,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 0,
             sortDescending: false,
-            collapsedGroupKeys: new HashSet<string>(),
+            new HashSet<string>(),
             filterText: null);
 
         Assert.Equal(
@@ -35,9 +35,9 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("user-a", null, "Alchemy", 30, isGroup: true),
-            Row("terminal", "user-a", "Terminal", 7),
-            Row("browser", "user-a", "Browser", 12)
+            Row(key: "user-a", parentKey: null, name: "Alchemy", value: 30, isGroup: true),
+            Row(key: "terminal", parentKey: "user-a", name: "Terminal", value: 7),
+            Row(key: "browser", parentKey: "user-a", name: "Browser", value: 12)
         ];
 
         List<TaskManagerTableRow> projected = TaskManagerTableProjection.Build(
@@ -45,7 +45,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 0,
             sortDescending: false,
-            collapsedGroupKeys: new HashSet<string>(),
+            new HashSet<string>(),
             filterText: "term");
 
         Assert.Equal(["user-a", "terminal"], projected.Select(static row => row.Key));
@@ -56,9 +56,9 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("user-a", null, "Alchemy", 30, isGroup: true),
-            Row("terminal", "user-a", "Terminal", 7),
-            Row("browser", "user-a", "Browser", 12)
+            Row(key: "user-a", parentKey: null, name: "Alchemy", value: 30, isGroup: true),
+            Row(key: "terminal", parentKey: "user-a", name: "Terminal", value: 7),
+            Row(key: "browser", parentKey: "user-a", name: "Browser", value: 12)
         ];
 
         List<TaskManagerTableRow> projected = TaskManagerTableProjection.Build(
@@ -66,7 +66,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 0,
             sortDescending: false,
-            collapsedGroupKeys: new HashSet<string>(),
+            new HashSet<string>(),
             filterText: "alchemy");
 
         Assert.Equal(
@@ -79,8 +79,8 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("user-a", null, "Alchemy", 30, isGroup: true),
-            Row("terminal", "user-a", "Terminal", 7)
+            Row(key: "user-a", parentKey: null, name: "Alchemy", value: 30, isGroup: true),
+            Row(key: "terminal", parentKey: "user-a", name: "Terminal", value: 7)
         ];
         HashSet<string> collapsed = new(StringComparer.Ordinal) { "user-a" };
 
@@ -89,7 +89,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 1,
             sortDescending: true,
-            collapsedGroupKeys: collapsed,
+            collapsed,
             filterText: null);
 
         Assert.Equal(["user-a"], projected.Select(static row => row.Key));
@@ -100,8 +100,8 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("ten", null, "Ten", 10),
-            Row("two", null, "Two", 2)
+            Row(key: "ten", parentKey: null, name: "Ten", value: 10),
+            Row(key: "two", parentKey: null, name: "Two", value: 2)
         ];
 
         List<TaskManagerTableRow> projected = TaskManagerTableProjection.Build(
@@ -109,7 +109,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 1,
             sortDescending: false,
-            collapsedGroupKeys: new HashSet<string>(),
+            new HashSet<string>(),
             filterText: null);
 
         Assert.Equal(["two", "ten"], projected.Select(static row => row.Key));
@@ -120,8 +120,8 @@ public sealed class TaskManagerTableProjectionTests
     {
         TaskManagerTableRow[] rows =
         [
-            Row("same", null, "One", 1),
-            Row("same", null, "Two", 2)
+            Row(key: "same", parentKey: null, name: "One", value: 1),
+            Row(key: "same", parentKey: null, name: "Two", value: 2)
         ];
 
         Assert.Throws<ArgumentException>(() => TaskManagerTableProjection.Build(
@@ -129,7 +129,7 @@ public sealed class TaskManagerTableProjectionTests
             columnCount: 2,
             sortColumnIndex: 0,
             sortDescending: false,
-            collapsedGroupKeys: new HashSet<string>(),
+            new HashSet<string>(),
             filterText: null));
     }
 

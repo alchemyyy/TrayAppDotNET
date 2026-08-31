@@ -25,17 +25,17 @@ public readonly record struct FanCurveEditorPalette(
     {
         AppTheme resolvedTheme = theme ?? AppTheme.Default;
         return new FanCurveEditorPalette(
-            Background: palette.Background,
-            Foreground: palette.Foreground,
-            SecondaryForeground: palette.SecondaryForeground,
-            CardBackground: palette.CardBackground,
-            Border: palette.Border,
-            GridLine: resolvedTheme.CurveEditorGridLine.For(isLight),
-            Curve: palette.Accent,
-            EffectiveCurve: resolvedTheme.CurveEditorEffectiveCurve.For(isLight),
-            CurrentValue: palette.Foreground,
-            DisabledBand: resolvedTheme.CurveEditorDisabledBand.For(isLight),
-            Accent: palette.Accent);
+            palette.Background,
+            palette.Foreground,
+            palette.SecondaryForeground,
+            palette.CardBackground,
+            palette.Border,
+            resolvedTheme.CurveEditorGridLine.For(isLight),
+            palette.Accent,
+            resolvedTheme.CurveEditorEffectiveCurve.For(isLight),
+            palette.Foreground,
+            resolvedTheme.CurveEditorDisabledBand.For(isLight),
+            palette.Accent);
     }
 
     private static SettingsPalette CreateSettingsPalette(AppTheme theme, bool isLight) =>

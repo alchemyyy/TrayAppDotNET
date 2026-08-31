@@ -1,3 +1,6 @@
+#if DEBUG
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -8,9 +11,6 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
-#if DEBUG
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -78,12 +78,12 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             },
-            "MapViewport");
+            parentName: "MapViewport");
         _map.CoordinateChanged += (_, _) => UpdateCoordinateText();
 
         _coordinateText = _controlNames.Assign(
-            TrayAppDotNETSettingsUI.Text("", palette, 13),
-            "CoordinateHUD");
+            TrayAppDotNETSettingsUI.Text(text: "", palette, fontSize: 13),
+            parentName: "CoordinateHUD");
         _coordinateText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
 
         Border content = BuildContent();
@@ -116,7 +116,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         TextBlock title =
             TrayAppDotNETSettingsUI.Text(L(nameof(AppStrings.Settings_Environmental_PickOnMap_Title)), _palette);
         title.VerticalAlignment = VerticalAlignment.Center;
-        title.Margin = new Thickness(16, 0, 0, 0);
+        title.Margin = new Thickness(left: 16, top: 0, right: 0, bottom: 0);
         titleBar.Children.Add(title);
 
         SettingsButton close = _controlNames.Assign(
@@ -127,16 +127,16 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 Padding = new Thickness(0),
                 Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
             },
-            "TitleBar");
+            parentName: "TitleBar");
         BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
         close.Click += (_, _) => Hide();
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Common_Close)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(close, value: 1);
         titleBar.Children.Add(close);
         root.Children.Add(titleBar);
 
-        Grid body = new() { Margin = new Thickness(20, 8, 20, 20) };
+        Grid body = new() { Margin = new Thickness(left: 20, top: 8, right: 20, bottom: 20) };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Border mapHost = new()
@@ -148,10 +148,10 @@ public sealed class EnvironmentalMapPickerWindow : Window
             ClipToBounds = true,
             Child = BuildMapViewport()
         };
-        Grid.SetRow(mapHost, 0);
+        Grid.SetRow(mapHost, value: 0);
         body.Children.Add(mapHost);
 
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, value: 1);
         root.Children.Add(body);
 
         return new Border
@@ -168,7 +168,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         Grid viewport = new();
         viewport.Children.Add(_map);
 
-        TextBlock crosshair = TrayAppDotNETSettingsUI.Text("+", _palette, 14, FontWeight.SemiBold);
+        TextBlock crosshair = TrayAppDotNETSettingsUI.Text(text: "+", _palette, fontSize: 14, FontWeight.SemiBold);
         crosshair.HorizontalAlignment = HorizontalAlignment.Center;
         crosshair.VerticalAlignment = VerticalAlignment.Center;
         crosshair.Opacity = 0.55;
@@ -196,21 +196,21 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 L(nameof(AppStrings.Settings_MapPicker_Apply_Button)),
                 p,
                 new CornerRadius(4)),
-            "CoordinateHUD");
+            parentName: "CoordinateHUD");
         SettingsButton abort = _controlNames.Assign(
             TrayAppDotNETSettingsCards.Button(
                 L(nameof(AppStrings.Settings_MapPicker_Abort_Button)),
                 p,
                 new CornerRadius(4)),
-            "CoordinateHUD");
+            parentName: "CoordinateHUD");
         apply.MinWidth = 64;
         abort.MinWidth = 64;
-        apply.Margin = new Thickness(0, 0, 6, 0);
+        apply.Margin = new Thickness(left: 0, top: 0, right: 6, bottom: 0);
         apply.Click += (_, _) => ApplyAndClose();
         abort.Click += (_, _) => Hide();
 
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(apply, abort);
-        buttons.Margin = new Thickness(0, 8, 0, 0);
+        buttons.Margin = new Thickness(left: 0, top: 8, right: 0, bottom: 0);
 
         StackPanel panel = new();
         panel.Children.Add(_coordinateText);
@@ -219,12 +219,13 @@ public sealed class EnvironmentalMapPickerWindow : Window
         return new Border
         {
             VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0, 0, HudClusterSpacing, 0),
-            Background = TrayAppDotNETSettingsUI.Brush(_theme.ResolveEnvironmentalMapHudBackdrop(_settings, _isLight)),
+            Margin = new Thickness(left: 0, top: 0, HudClusterSpacing, bottom: 0),
+            Background =
+                TrayAppDotNETSettingsUI.Brush(_theme.ResolveEnvironmentalMapHudBackdrop(_settings, _isLight)),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(10, 8),
+            Padding = new Thickness(horizontal: 10, vertical: 8),
             Child = panel
         };
     }
@@ -241,17 +242,18 @@ public sealed class EnvironmentalMapPickerWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(6)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        AddHudGlyphButton(grid, p, "Up", static () => GlyphCatalog.CHEVRON_UP, 0, 1);
-        AddHudGlyphButton(grid, p, "Left", static () => GlyphCatalog.CHEVRON_LEFT, 1, 0);
-        AddHudGlyphButton(grid, p, "Right", static () => GlyphCatalog.CHEVRON_RIGHT, 1, 2);
-        AddHudGlyphButton(grid, p, "Down", static () => GlyphCatalog.CHEVRON_DOWN, 2, 1);
-        AddHudButton(grid, p, "ZoomIn", "+", 0, 4, useIconFont: false);
-        AddHudButton(grid, p, "ZoomOut", "-", 1, 4, useIconFont: false);
-        AddHudGlyphButton(grid, p, "Center", static () => GlyphCatalog.MAP_CENTER, 2, 4);
+        AddHudGlyphButton(grid, p, action: "Up", static () => GlyphCatalog.CHEVRON_UP, row: 0, column: 1);
+        AddHudGlyphButton(grid, p, action: "Left", static () => GlyphCatalog.CHEVRON_LEFT, row: 1, column: 0);
+        AddHudGlyphButton(grid, p, action: "Right", static () => GlyphCatalog.CHEVRON_RIGHT, row: 1, column: 2);
+        AddHudGlyphButton(grid, p, action: "Down", static () => GlyphCatalog.CHEVRON_DOWN, row: 2, column: 1);
+        AddHudButton(grid, p, action: "ZoomIn", text: "+", row: 0, column: 4, useIconFont: false);
+        AddHudButton(grid, p, action: "ZoomOut", text: "-", row: 1, column: 4, useIconFont: false);
+        AddHudGlyphButton(grid, p, action: "Center", static () => GlyphCatalog.MAP_CENTER, row: 2, column: 4);
 
         return new Border
         {
-            Background = TrayAppDotNETSettingsUI.Brush(_theme.ResolveEnvironmentalMapHudBackdrop(_settings, _isLight)),
+            Background =
+                TrayAppDotNETSettingsUI.Brush(_theme.ResolveEnvironmentalMapHudBackdrop(_settings, _isLight)),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
@@ -341,16 +343,16 @@ public sealed class EnvironmentalMapPickerWindow : Window
         switch (action)
         {
             case "Up":
-                _map.PanViewport(0, EnvironmentalMapPickerCanvas.HudPanStep);
+                _map.PanViewport(dx: 0, EnvironmentalMapPickerCanvas.HudPanStep);
                 break;
             case "Down":
-                _map.PanViewport(0, -EnvironmentalMapPickerCanvas.HudPanStep);
+                _map.PanViewport(dx: 0, -EnvironmentalMapPickerCanvas.HudPanStep);
                 break;
             case "Left":
-                _map.PanViewport(EnvironmentalMapPickerCanvas.HudPanStep, 0);
+                _map.PanViewport(EnvironmentalMapPickerCanvas.HudPanStep, dy: 0);
                 break;
             case "Right":
-                _map.PanViewport(-EnvironmentalMapPickerCanvas.HudPanStep, 0);
+                _map.PanViewport(-EnvironmentalMapPickerCanvas.HudPanStep, dy: 0);
                 break;
             case "ZoomIn":
                 _map.ZoomAtViewportCenter(EnvironmentalMapPickerCanvas.HudZoomStep);
@@ -421,7 +423,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         GeoCoordinate selected = _map.SelectedCoordinate;
         _coordinateText.Text = string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
-            "{0:F4}, {1:F4}",
+            format: "{0:F4}, {1:F4}",
             selected.Latitude,
             selected.Longitude);
     }

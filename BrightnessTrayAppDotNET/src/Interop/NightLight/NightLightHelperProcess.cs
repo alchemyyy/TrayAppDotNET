@@ -13,13 +13,14 @@ internal static class NightLightHelperClient
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
 
     internal static readonly Encoding PipeEncoding =
-        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        new UTF8Encoding(false);
 
     private static readonly Lock StateGate = new();
     private static readonly NightLightLatestStrengthQueue PendingStrength = new();
     private static readonly SemaphoreSlim PendingSignal = new(initialCount: 0, maxCount: 1);
     private static readonly CancellationTokenSource ShutdownTokenSource = new();
     private static readonly List<Task> RetirementTasks = [];
+
     private static readonly Lazy<Task<bool>> InitializationTask =
         new(InitializeAsync, LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -41,7 +42,8 @@ internal static class NightLightHelperClient
     {
         lock (StateGate)
         {
-            if (_shutdownRequested) return false;
+            if (_shutdownRequested)
+                return false;
         }
 
         try
@@ -66,7 +68,7 @@ internal static class NightLightHelperClient
         if (!NightLightRegistry.IsEnabled()) return false;
         if (!IsSupported()) return false;
 
-        int clamped = Math.Clamp(percent, 0, 100);
+        int clamped = Math.Clamp(percent, min: 0, max: 100);
         lock (StateGate)
         {
             if (_shutdownRequested) return false;
@@ -100,7 +102,7 @@ internal static class NightLightHelperClient
         if (helper == null) return false;
 
         int? clampedStrength = enableStrength.HasValue
-            ? Math.Clamp(enableStrength.Value, 0, 100)
+            ? Math.Clamp(enableStrength.Value, min: 0, max: 100)
             : null;
         try
         {
@@ -134,7 +136,7 @@ internal static class NightLightHelperClient
     internal static bool ShouldStartWarmup(int completedOperations)
     {
         int warmupThreshold = Math.Max(
-            1,
+            val1: 1,
             Constants.NightLightHelperRecycleOperationCount -
             Constants.NightLightHelperWarmupLeadOperationCount);
         return completedOperations >= warmupThreshold;
@@ -159,7 +161,7 @@ internal static class NightLightHelperClient
 
         if (!accepted)
         {
-            await helper.StopAsync(graceful: false).ConfigureAwait(false);
+            await helper.StopAsync(false).ConfigureAwait(false);
             return false;
         }
 
@@ -170,11 +172,7 @@ internal static class NightLightHelperClient
         lock (StateGate)
         {
             accepted = !_shutdownRequested && _activeHelper != null;
-            if (accepted)
-            {
-                _pumpTask = Task.Run(
-                    () => PumpAsync(ShutdownTokenSource.Token, pumpReadySource));
-            }
+            if (accepted) _pumpTask = Task.Run(() => PumpAsync(ShutdownTokenSource.Token, pumpReadySource));
         }
 
         if (!accepted) return false;
@@ -211,11 +209,7 @@ internal static class NightLightHelperClient
             NightLightHelperConnection? activeHelper = GetActiveHelper();
             bool drained = processed && activeHelper != null &&
                            await activeHelper.DrainAsync(cancellationToken).ConfigureAwait(false);
-            if (!drained)
-            {
-                TADNLog.Log("NightLightHelperClient: startup native streaming prime did not drain");
-                return;
-            }
+            if (!drained) TADNLog.Log("NightLightHelperClient: startup native streaming prime did not drain");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -286,7 +280,8 @@ internal static class NightLightHelperClient
         if (helper == null)
         {
             RestorePendingStrength(percent);
-            bool recovered = await RecoverActiveHelperAsync(null, cancellationToken).ConfigureAwait(false);
+            bool recovered =
+                await RecoverActiveHelperAsync(failedHelper: null, cancellationToken).ConfigureAwait(false);
             if (!recovered)
             {
                 await Task.Delay(TimeConstants.NightLightHelperRecoveryDelayMs, cancellationToken)
@@ -369,9 +364,7 @@ internal static class NightLightHelperClient
         NightLightHelperConnection? activeHelper = _activeHelper;
         if (_shutdownRequested || activeHelper == null ||
             !ShouldRecycle(activeHelper.CompletedOperationCount) || _warmingHelperTask == null)
-        {
             return;
-        }
 
         _recycleRequested = false;
         _recycleQuietTimer ??= new Timer(
@@ -384,15 +377,12 @@ internal static class NightLightHelperClient
 
     private static void OnRecycleQuietTimerFired(object? state)
     {
-        bool signal = false;
         lock (StateGate)
         {
             NightLightHelperConnection? activeHelper = _activeHelper;
             if (_shutdownRequested || activeHelper == null ||
                 !ShouldRecycle(activeHelper.CompletedOperationCount))
-            {
                 return;
-            }
 
             long elapsedMs = Environment.TickCount64 - _lastQueuedStrengthTick;
             if (elapsedMs < TimeConstants.NightLightHelperRecycleQuietDelayMs)
@@ -412,11 +402,9 @@ internal static class NightLightHelperClient
             }
 
             _recycleRequested = true;
-            signal = true;
         }
 
-        if (signal)
-            SignalPendingWork();
+        SignalPendingWork();
     }
 
     private static NightLightHelperConnection? TakeRecycleRequest()
@@ -434,21 +422,15 @@ internal static class NightLightHelperClient
     {
         if (!ShouldStartWarmup(activeHelper.CompletedOperationCount)) return;
 
-        bool started = false;
         lock (StateGate)
         {
             if (_shutdownRequested || !ReferenceEquals(_activeHelper, activeHelper) ||
                 _warmingHelperTask != null ||
                 activeHelper.CompletedOperationCount < _warmupRetryAfterOperationCount)
-            {
                 return;
-            }
 
             _warmingHelperTask = StartHelperSafelyAsync(ShutdownTokenSource.Token);
-            started = true;
         }
-
-        if (!started) return;
 
         TADNLog.Log(
             $"NightLightHelperClient: warming replacement before PID {activeHelper.ProcessID} reaches " +
@@ -475,9 +457,7 @@ internal static class NightLightHelperClient
 
         if (warmingTask is not { IsCompleted: true } ||
             !IsRecycleBoundaryStillQuiet(activeHelper))
-        {
             return activeHelper;
-        }
 
         NightLightHelperConnection? replacement = await warmingTask.ConfigureAwait(false);
         bool replacementAvailable;
@@ -498,7 +478,7 @@ internal static class NightLightHelperClient
         if (!replacementAvailable)
         {
             if (replacement != null)
-                TrackRetirement(replacement.StopAsync(graceful: true));
+                TrackRetirement(replacement.StopAsync(true));
             return GetActiveHelper() ?? activeHelper;
         }
 
@@ -529,13 +509,14 @@ internal static class NightLightHelperClient
                 _recycleRequested = false;
                 try { _recycleQuietTimer?.Change(Timeout.Infinite, Timeout.Infinite); }
                 catch (ObjectDisposedException) { }
+
                 swapped = true;
             }
         }
 
         if (!swapped)
         {
-            TrackRetirement(replacement!.StopAsync(graceful: true));
+            TrackRetirement(replacement!.StopAsync(true));
             return GetActiveHelper() ?? activeHelper;
         }
 
@@ -543,16 +524,13 @@ internal static class NightLightHelperClient
 
         // The old helper has already released preview mode. Activate the warm replacement before waiting for
         // process teardown so input that resumes at the quiet boundary is never held behind graceful exit.
-        TrackRetirement(activeHelper.StopAsync(graceful: true));
+        TrackRetirement(activeHelper.StopAsync(true));
 
         TADNLog.Log(
             $"NightLightHelperClient: recycled helper PID {activeHelper.ProcessID} after " +
             $"{activeHelper.CompletedOperationCount} operations; PID {replacementHelper.ProcessID} is active");
 
-        if (replayPercent.HasValue && PendingStrength.RestoreIfEmpty(replayPercent.Value))
-        {
-            SignalPendingWork();
-        }
+        if (replayPercent.HasValue && PendingStrength.RestoreIfEmpty(replayPercent.Value)) SignalPendingWork();
 
         return replacementHelper;
     }
@@ -588,7 +566,7 @@ internal static class NightLightHelperClient
         }
 
         if (failedHelper != null)
-            TrackRetirement(failedHelper.StopAsync(graceful: false));
+            TrackRetirement(failedHelper.StopAsync(false));
 
         NightLightHelperConnection? replacement = null;
         if (warmingTask != null)
@@ -610,7 +588,7 @@ internal static class NightLightHelperClient
 
         if (!accepted)
         {
-            TrackRetirement(replacement.StopAsync(graceful: true));
+            TrackRetirement(replacement.StopAsync(true));
             return GetActiveHelper() != null;
         }
 
@@ -702,20 +680,19 @@ internal static class NightLightHelperClient
 
         List<Task> stopTasks = [];
         if (activeHelper != null)
-            stopTasks.Add(activeHelper.StopAsync(graceful: true));
+            stopTasks.Add(activeHelper.StopAsync(true));
 
         if (warmingTask != null)
         {
             NightLightHelperConnection? warmingHelper =
                 await WaitForWarmingHelperDuringShutdownAsync(warmingTask).ConfigureAwait(false);
             if (warmingHelper != null)
-                stopTasks.Add(warmingHelper.StopAsync(graceful: false));
+                stopTasks.Add(warmingHelper.StopAsync(false));
         }
 
         stopTasks.AddRange(retirementTasks);
         if (stopTasks.Count > 0)
             await WaitForShutdownTaskAsync(Task.WhenAll(stopTasks)).ConfigureAwait(false);
-
     }
 
     private static async Task<NightLightHelperConnection?> WaitForWarmingHelperDuringShutdownAsync(
@@ -819,10 +796,7 @@ internal static class NightLightHelperClient
                 startupTokenSource.CancelAfter(TimeConstants.NightLightHelperStartTimeoutMs);
                 await pipe.WaitForConnectionAsync(startupTokenSource.Token).ConfigureAwait(false);
 
-                writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true)
-                {
-                    AutoFlush = true
-                };
+                writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
                 reader = new StreamReader(
                     pipe,
                     PipeEncoding,
@@ -846,13 +820,17 @@ internal static class NightLightHelperClient
             {
                 try { writer?.Dispose(); }
                 catch { }
+
                 try { reader?.Dispose(); }
                 catch { }
+
                 try { pipe.Dispose(); }
                 catch { }
+
                 KillProcess(process);
                 try { process?.Dispose(); }
                 catch { }
+
                 throw;
             }
         }
@@ -865,7 +843,7 @@ internal static class NightLightHelperClient
             string? response = await SendCommandAsync(
                     command,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
-                    "strength acknowledgement",
+                    operationName: "strength acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -888,15 +866,12 @@ internal static class NightLightHelperClient
         {
             string command = NightLightHelperServer.SetEnabledCommand + "\t" +
                              (enabled ? "1" : "0");
-            if (enableStrength.HasValue)
-            {
-                command += "\t" + enableStrength.Value.ToString(CultureInfo.InvariantCulture);
-            }
+            if (enableStrength.HasValue) command += "\t" + enableStrength.Value.ToString(CultureInfo.InvariantCulture);
 
             string? response = await SendCommandAsync(
                     command,
                     TimeConstants.NightLightHelperStateChangeTimeoutMs,
-                    "active-state acknowledgement",
+                    operationName: "active-state acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
             return response switch
@@ -913,7 +888,7 @@ internal static class NightLightHelperClient
             string? response = await SendCommandAsync(
                     NightLightHelperServer.PingCommand,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
-                    "PING acknowledgement",
+                    operationName: "PING acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
             return response switch
@@ -930,7 +905,7 @@ internal static class NightLightHelperClient
             string? response = await SendCommandAsync(
                     NightLightHelperServer.DrainCommand,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
-                    "drain acknowledgement",
+                    operationName: "drain acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
             return response switch
@@ -981,7 +956,7 @@ internal static class NightLightHelperClient
 
         public async Task StopAsync(bool graceful)
         {
-            if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
+            if (Interlocked.Exchange(ref _stopped, value: 1) != 0) return;
 
             try
             {
@@ -1035,10 +1010,13 @@ internal static class NightLightHelperClient
             {
                 try { _writer.Dispose(); }
                 catch { }
+
                 try { _reader.Dispose(); }
                 catch { }
+
                 try { _pipe.Dispose(); }
                 catch { }
+
                 try { _process.Dispose(); }
                 catch { }
             }
@@ -1051,7 +1029,7 @@ internal static class NightLightHelperClient
             try
             {
                 if (!process.HasExited)
-                    process.Kill(entireProcessTree: true);
+                    process.Kill(true);
             }
             catch (Exception ex)
             {
@@ -1098,7 +1076,7 @@ internal static class NightLightHelperServer
 
         try
         {
-            using NamedPipeClientStream pipe = new(".", pipeName, PipeDirection.InOut);
+            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
             pipe.Connect(HelperPipeConnectTimeoutMs);
             using StreamReader reader = new(
                 pipe,
@@ -1109,10 +1087,7 @@ internal static class NightLightHelperServer
                 pipe,
                 NightLightHelperClient.PipeEncoding,
                 bufferSize: 1024,
-                leaveOpen: true)
-            {
-                AutoFlush = true
-            };
+                leaveOpen: true) { AutoFlush = true };
 
             bool supported = NightLightCloudStore.IsSupported();
             writer.WriteLine(supported ? ReadyResponse : UnsupportedResponse);
@@ -1186,9 +1161,7 @@ internal static class NightLightHelperServer
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
                     out int percent) || percent is < 0 or > 100)
-            {
                 return FailureResponse;
-            }
 
             // Reject a late main-process queue item after an off transition. Pre-enable strength priming uses
             // the ACTIVE command's combined transaction and therefore does not need this path while disabled.
@@ -1216,9 +1189,7 @@ internal static class NightLightHelperServer
                         NumberStyles.Integer,
                         CultureInfo.InvariantCulture,
                         out int parsedStrength) || parsedStrength is < 0 or > 100)
-                {
                     return FailureResponse;
-                }
 
                 enableStrength = parsedStrength;
             }
@@ -1247,9 +1218,7 @@ internal static class NightLightHelperServer
         string? value = ParseArgValue(args, ParentProcessIDArg);
         if (value != null &&
             int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
-        {
             return parentProcessID;
-        }
 
         return null;
     }
@@ -1271,8 +1240,7 @@ internal static class NightLightHelperServer
 
         Thread watchdog = new(() => WatchParent(parentPID))
         {
-            IsBackground = true,
-            Name = "BrightnessTrayApp.NightLightHelperParentWatchdog"
+            IsBackground = true, Name = "BrightnessTrayApp.NightLightHelperParentWatchdog"
         };
         watchdog.Start();
     }

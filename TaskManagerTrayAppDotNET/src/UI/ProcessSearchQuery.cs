@@ -10,10 +10,10 @@ internal readonly record struct ProcessSearchColumnValue(
     double NumericValue,
     bool HasNumericValue)
 {
-    public static ProcessSearchColumnValue TextOnly(string text) => new(text, 0, false);
+    public static ProcessSearchColumnValue TextOnly(string text) => new(text, NumericValue: 0, HasNumericValue: false);
 
     public static ProcessSearchColumnValue Numeric(string text, double numericValue) =>
-        new(text, numericValue, true);
+        new(text, numericValue, HasNumericValue: true);
 }
 
 internal delegate ProcessSearchColumnValue ProcessSearchValueResolver(
@@ -69,6 +69,7 @@ internal sealed class ProcessSearchQuery
     private const double Tebibyte = 1_099_511_627_776;
 
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(MatchTimeoutMilliseconds);
+
     private static readonly ulong DefaultSearchMask =
         ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.Name)
         | ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.ProcessID);
@@ -85,7 +86,7 @@ internal sealed class ProcessSearchQuery
         string? parseError)
     {
         _instructions = instructions;
-        _evaluationStack = new bool[Math.Max(1, predicateCount)];
+        _evaluationStack = new bool[Math.Max(val1: 1, predicateCount)];
         RequiredColumnMask = requiredColumnMask;
         _parseError = parseError;
     }
@@ -154,16 +155,16 @@ internal sealed class ProcessSearchQuery
 
         string queryText = filterText?.Trim() ?? string.Empty;
         if (queryText.Length == 0)
-            return new ProcessSearchQuery([], 0, 0, null);
+            return new ProcessSearchQuery([], predicateCount: 0, requiredColumnMask: 0, parseError: null);
 
         if (!LooksLikeExpression(queryText))
         {
             Predicate defaultPredicate = Predicate.DefaultContains(queryText);
             return new ProcessSearchQuery(
                 [Instruction.ForPredicate(defaultPredicate)],
-                1,
+                predicateCount: 1,
                 DefaultSearchMask,
-                null);
+                parseError: null);
         }
 
         List<Instruction> output = [];
@@ -196,9 +197,7 @@ internal sealed class ProcessSearchQuery
                         columnSettings,
                         out Predicate? predicate,
                         out string? parseError))
-                {
                     return Invalid(parseError ?? "The predicate is invalid.");
-                }
 
                 predicateCount++;
                 if (predicateCount > MaximumPredicateCount)
@@ -260,13 +259,13 @@ internal sealed class ProcessSearchQuery
             output.Add(Instruction.ForOperator(top));
         }
 
-        return new ProcessSearchQuery(output.ToArray(), predicateCount, requiredColumnMask, null);
+        return new ProcessSearchQuery(output.ToArray(), predicateCount, requiredColumnMask, parseError: null);
     }
 
     private static bool LooksLikeExpression(string queryText) =>
         queryText.Contains('{')
-        || queryText.Contains("&&", StringComparison.Ordinal)
-        || queryText.Contains("||", StringComparison.Ordinal);
+        || queryText.Contains(value: "&&", StringComparison.Ordinal)
+        || queryText.Contains(value: "||", StringComparison.Ordinal);
 
     private static bool TryParsePredicate(
         string queryText,
@@ -281,9 +280,7 @@ internal sealed class ProcessSearchQuery
             while (textIndex < queryText.Length
                    && queryText[textIndex] != ')'
                    && !StartsBooleanOperator(queryText, textIndex))
-            {
                 textIndex++;
-            }
 
             string defaultText = queryText[predicateStart..textIndex].Trim();
             if (defaultText.Length == 0)
@@ -299,7 +296,7 @@ internal sealed class ProcessSearchQuery
         }
 
         int openingBraceIndex = textIndex;
-        int closingBraceIndex = queryText.IndexOf('}', openingBraceIndex + 1);
+        int closingBraceIndex = queryText.IndexOf(value: '}', openingBraceIndex + 1);
         if (closingBraceIndex < 0)
         {
             predicate = null;
@@ -377,9 +374,9 @@ internal sealed class ProcessSearchQuery
         }
 
         if (comparison is ComparisonKind.Greater
-            or ComparisonKind.GreaterOrEqual
-            or ComparisonKind.Less
-            or ComparisonKind.LessOrEqual
+                or ComparisonKind.GreaterOrEqual
+                or ComparisonKind.Less
+                or ComparisonKind.LessOrEqual
             && IsNumericColumn(column))
         {
             predicate = null;
@@ -413,9 +410,7 @@ internal sealed class ProcessSearchQuery
         while (textIndex < queryText.Length
                && queryText[textIndex] != ')'
                && !StartsBooleanOperator(queryText, textIndex))
-        {
             textIndex++;
-        }
 
         literal = queryText[literalStart..textIndex].Trim();
         if (literal.Length > 0)
@@ -505,14 +500,14 @@ internal sealed class ProcessSearchQuery
         ref int textIndex,
         out ParserOperator parserOperator)
     {
-        if (queryText.AsSpan(textIndex).StartsWith("&&", StringComparison.Ordinal))
+        if (queryText.AsSpan(textIndex).StartsWith(value: "&&", StringComparison.Ordinal))
         {
             textIndex += 2;
             parserOperator = ParserOperator.And;
             return true;
         }
 
-        if (queryText.AsSpan(textIndex).StartsWith("||", StringComparison.Ordinal))
+        if (queryText.AsSpan(textIndex).StartsWith(value: "||", StringComparison.Ordinal))
         {
             textIndex += 2;
             parserOperator = ParserOperator.Or;
@@ -524,8 +519,8 @@ internal sealed class ProcessSearchQuery
     }
 
     private static bool StartsBooleanOperator(string queryText, int textIndex) =>
-        queryText.AsSpan(textIndex).StartsWith("&&", StringComparison.Ordinal)
-        || queryText.AsSpan(textIndex).StartsWith("||", StringComparison.Ordinal);
+        queryText.AsSpan(textIndex).StartsWith(value: "&&", StringComparison.Ordinal)
+        || queryText.AsSpan(textIndex).StartsWith(value: "||", StringComparison.Ordinal);
 
     private static int GetPrecedence(ParserOperator parserOperator) => parserOperator switch
     {
@@ -552,9 +547,7 @@ internal sealed class ProcessSearchQuery
             ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Definitions[definitionIndex];
             if (!string.Equals(definition.Title, columnName, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(definition.Kind.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
-            {
                 continue;
-            }
 
             column = definition.Kind;
             return true;
@@ -565,9 +558,7 @@ internal sealed class ProcessSearchQuery
             ProcessColumnSetting setting = columnSettings[settingIndex];
             if (string.IsNullOrWhiteSpace(setting.Nickname)
                 || !string.Equals(setting.Nickname.Trim(), columnName, StringComparison.OrdinalIgnoreCase))
-            {
                 continue;
-            }
 
             column = setting.Column;
             return true;
@@ -614,12 +605,12 @@ internal sealed class ProcessSearchQuery
         if (IsPercentageColumn(column))
             return TryParsePercentage(literal, out numericValue);
         if (column == ProcessTableColumnKind.Disk)
-            return TryParseRate(literal, true, out numericValue);
+            return TryParseRate(literal, useBinaryUnits: true, out numericValue);
         if (column == ProcessTableColumnKind.Network)
-            return TryParseRate(literal, false, out numericValue);
+            return TryParseRate(literal, useBinaryUnits: false, out numericValue);
         if (IsByteColumn(column))
-            return TryParseScaledNumber(literal, true, out numericValue);
-        return TryParseScaledNumber(literal, false, out numericValue);
+            return TryParseScaledNumber(literal, useBinaryUnits: true, out numericValue);
+        return TryParseScaledNumber(literal, useBinaryUnits: false, out numericValue);
     }
 
     private static bool IsTimeColumn(ProcessTableColumnKind column) =>
@@ -653,10 +644,10 @@ internal sealed class ProcessSearchQuery
         bool useBinaryUnits,
         out double numericValue)
     {
-        string normalized = literal.Replace(" ", string.Empty, StringComparison.Ordinal);
-        if (normalized.EndsWith("/s", StringComparison.OrdinalIgnoreCase))
+        string normalized = literal.Replace(oldValue: " ", string.Empty, StringComparison.Ordinal);
+        if (normalized.EndsWith(value: "/s", StringComparison.OrdinalIgnoreCase))
             normalized = normalized[..^2];
-        else if (normalized.EndsWith("ps", StringComparison.OrdinalIgnoreCase))
+        else if (normalized.EndsWith(value: "ps", StringComparison.OrdinalIgnoreCase))
             normalized = normalized[..^2];
 
         return TryParseScaledNumber(normalized, useBinaryUnits, out numericValue);
@@ -716,9 +707,7 @@ internal sealed class ProcessSearchQuery
                     CultureInfo.InvariantCulture,
                     out days)
                 || days < 0)
-            {
                 return false;
-            }
 
             clockText = literal[(dayMarkerIndex + 1)..].TrimStart();
         }
@@ -735,9 +724,7 @@ internal sealed class ProcessSearchQuery
             || hours < 0
             || minutes is < 0 or >= 60
             || seconds is < 0 or >= 60)
-        {
             return false;
-        }
 
         double totalSeconds = days * 86_400.0 + hours * 3_600.0 + minutes * 60.0 + seconds;
         numericValue = totalSeconds * TimeSpan.TicksPerSecond;
@@ -795,7 +782,7 @@ internal sealed class ProcessSearchQuery
         && double.IsFinite(value);
 
     private static ProcessSearchQuery Invalid(string errorMessage) =>
-        new([], 0, 0, errorMessage);
+        new([], predicateCount: 0, requiredColumnMask: 0, errorMessage);
 
     private readonly record struct Instruction(InstructionKind Kind, Predicate? Predicate)
     {
@@ -804,8 +791,8 @@ internal sealed class ProcessSearchQuery
 
         public static Instruction ForOperator(ParserOperator parserOperator) => parserOperator switch
         {
-            ParserOperator.And => new Instruction(InstructionKind.And, null),
-            ParserOperator.Or => new Instruction(InstructionKind.Or, null),
+            ParserOperator.And => new Instruction(InstructionKind.And, Predicate: null),
+            ParserOperator.Or => new Instruction(InstructionKind.Or, Predicate: null),
             _ => throw new ArgumentOutOfRangeException(nameof(parserOperator))
         };
     }
@@ -845,8 +832,8 @@ internal sealed class ProcessSearchQuery
                 ComparisonKind.Equal,
                 ProcessTableColumnKind.Name,
                 text,
-                0,
-                null,
+                numericValue: 0,
+                regex: null,
                 DefaultSearchMask);
 
         public static Predicate Text(
@@ -858,8 +845,8 @@ internal sealed class ProcessSearchQuery
                 comparison,
                 column,
                 text,
-                0,
-                null,
+                numericValue: 0,
+                regex: null,
                 ProcessTableColumnCatalog.GetMask(column));
 
         public static Predicate Numeric(
@@ -872,7 +859,7 @@ internal sealed class ProcessSearchQuery
                 column,
                 string.Empty,
                 numericValue,
-                null,
+                regex: null,
                 ProcessTableColumnCatalog.GetMask(column));
 
         public static Predicate Regex(
@@ -884,7 +871,7 @@ internal sealed class ProcessSearchQuery
                 comparison,
                 column,
                 string.Empty,
-                0,
+                numericValue: 0,
                 regex,
                 ProcessTableColumnCatalog.GetMask(column));
 

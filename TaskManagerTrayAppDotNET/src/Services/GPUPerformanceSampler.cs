@@ -38,7 +38,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
 
     public GPUPerformanceSampler()
     {
-        if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != PdhSuccess) return;
+        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
 
         _utilizationCounter = AddCounter(UtilizationPath);
         _dedicatedMemoryCounter = AddCounter(DedicatedMemoryPath);
@@ -46,9 +46,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         if (_utilizationCounter != IntPtr.Zero
             || _dedicatedMemoryCounter != IntPtr.Zero
             || _sharedMemoryCounter != IntPtr.Zero)
-        {
             return;
-        }
 
         _ = PdhCloseQuery(_query);
         _query = IntPtr.Zero;
@@ -71,8 +69,8 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             if (canReadFormattedValues)
             {
                 hasUtilizationQuery = ReadUtilizationCounters();
-                hasDedicatedMemoryQuery = ReadMemoryCounters(_dedicatedMemoryCounter, true);
-                hasSharedMemoryQuery = ReadMemoryCounters(_sharedMemoryCounter, false);
+                hasDedicatedMemoryQuery = ReadMemoryCounters(_dedicatedMemoryCounter, isDedicated: true);
+                hasSharedMemoryQuery = ReadMemoryCounters(_sharedMemoryCounter, isDedicated: false);
             }
         }
 
@@ -82,9 +80,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             GPUAdapterMetadata adapter = adapters[adapterIndex];
             if (!metadataByLUID.TryGetValue(adapter.LUID, out GPUAdapterMetadata existing)
                 || adapter.DisplayIndex < existing.DisplayIndex)
-            {
                 metadataByLUID[adapter.LUID] = adapter;
-            }
         }
 
         GPUAdapterKey[] displayDeviceKeys = ResolveDisplayDeviceKeys(adapters, _accumulators.Keys);
@@ -99,7 +95,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                     key.LUID,
                     out GPUAdapterPersistentIdentity baseIdentity))
             {
-                baseIdentity = D3DKMTAdapterIdentityReader.Read(new GPUAdapterKey(key.LUID, 0));
+                baseIdentity = D3DKMTAdapterIdentityReader.Read(key with { PhysicalAdapterIndex = 0 });
                 baseIdentitiesByLUID.Add(key.LUID, baseIdentity);
             }
 
@@ -120,7 +116,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 metadata.SubsystemID,
                 metadata.Revision,
                 metadata.DisplayIndex,
-                0);
+                physicalAdapterIndex: 0);
             GPUDeviceIdentity identity = new(
                 key,
                 hardwarePNPKey,
@@ -145,6 +141,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 hasDedicatedMemoryQuery,
                 hasSharedMemoryQuery));
         }
+
         candidates.Sort(static (left, right) =>
         {
             int displayComparison = left.DisplayIndex.CompareTo(right.DisplayIndex);
@@ -192,9 +189,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             if (sample.EngineIndex < 0
                 || !double.IsFinite(sample.UtilizationPercent)
                 || sample.UtilizationPercent < 0)
-            {
                 continue;
-            }
 
             if (!byEngineIndex.TryGetValue(sample.EngineIndex, out MutableEngineSample? aggregate))
             {
@@ -212,7 +207,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             result[resultIndex] = new GPUPerformanceEngineSnapshot(
                 pair.Key,
                 pair.Value.Name,
-                Math.Clamp(pair.Value.UtilizationPercent, 0, 100));
+                Math.Clamp(pair.Value.UtilizationPercent, min: 0, max: 100));
             resultIndex++;
         }
 
@@ -239,7 +234,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         }
 
         for (int adapterIndex = 0; adapterIndex < adapters.Count; adapterIndex++)
-            resultKeys.Add(new GPUAdapterKey(adapters[adapterIndex].LUID, 0));
+            resultKeys.Add(new GPUAdapterKey(adapters[adapterIndex].LUID, PhysicalAdapterIndex: 0));
 
         GPUAdapterKey[] result = new GPUAdapterKey[resultKeys.Count];
         resultKeys.CopyTo(result);
@@ -267,9 +262,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 PdhFormatDouble | PdhFormatNoCap100,
                 out PDH_FORMATTED_COUNTER_VALUE_ITEM* items,
                 out uint itemCount))
-        {
             return false;
-        }
 
         for (uint itemIndex = 0; itemIndex < itemCount; itemIndex++)
         {
@@ -278,17 +271,13 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 || !double.IsFinite(item.Value.DoubleValue)
                 || item.Value.DoubleValue < 0
                 || item.Name == IntPtr.Zero)
-            {
                 continue;
-            }
 
             ReadOnlySpan<char> instanceName = ReadNullTerminatedSpan((char*)item.Name);
             if (!AcceleratorCounterInstanceParser.TryParseEngine(
                     instanceName,
                     out AcceleratorCounterInstance instance))
-            {
                 continue;
-            }
 
             GPUAdapterKey adapterKey = new(instance.AdapterLUID, instance.PhysicalAdapterIndex);
             GPUCounterAccumulator accumulator = GetOrCreateAccumulator(adapterKey);
@@ -310,9 +299,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 PdhFormatLarge,
                 out PDH_FORMATTED_COUNTER_VALUE_ITEM* items,
                 out uint itemCount))
-        {
             return false;
-        }
 
         for (uint itemIndex = 0; itemIndex < itemCount; itemIndex++)
         {
@@ -320,18 +307,14 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             if (!HasValidStatus(item.Value.Status)
                 || item.Value.LargeValue < 0
                 || item.Name == IntPtr.Zero)
-            {
                 continue;
-            }
 
             ReadOnlySpan<char> instanceName = ReadNullTerminatedSpan((char*)item.Name);
             if (!GPUAdapterCounterInstanceParser.TryParse(
                     instanceName,
                     out ulong adapterLUID,
                     out int physicalAdapterIndex))
-            {
                 continue;
-            }
 
             GPUCounterAccumulator accumulator = GetOrCreateAccumulator(
                 new GPUAdapterKey(adapterLUID, physicalAdapterIndex));
@@ -399,7 +382,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
     {
         if (requiredSize <= _counterBufferSize) return;
 
-        uint capacity = Math.Max(4_096U, _counterBufferSize);
+        uint capacity = Math.Max(val1: 4_096U, _counterBufferSize);
         while (capacity < requiredSize)
             capacity = checked(capacity * 2);
         _counterBuffer = _counterBuffer == IntPtr.Zero
@@ -421,13 +404,13 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         int duplicateSuffixIndex = engineType.IndexOf('#');
         if (duplicateSuffixIndex >= 0)
             engineType = engineType[..duplicateSuffixIndex];
-        if (engineType.Equals("3d", StringComparison.OrdinalIgnoreCase)) return "3D";
-        if (engineType.Equals("copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
-        if (engineType.Equals("compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
-        if (engineType.Equals("videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
-        if (engineType.Equals("videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
-        if (engineType.Equals("videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
-        if (engineType.Equals("opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
+        if (engineType.Equals(other: "3d", StringComparison.OrdinalIgnoreCase)) return "3D";
+        if (engineType.Equals(other: "copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
+        if (engineType.Equals(other: "compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
+        if (engineType.Equals(other: "videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
+        if (engineType.Equals(other: "videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
+        if (engineType.Equals(other: "videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
+        if (engineType.Equals(other: "opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
         return engineType.ToString();
     }
 
@@ -462,10 +445,10 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
 
         int separatorIndex = canonicalKey.IndexOf('/');
         ReadOnlySpan<char> enumerator = separatorIndex >= 0
-            ? canonicalKey.AsSpan(0, separatorIndex)
+            ? canonicalKey.AsSpan(start: 0, separatorIndex)
             : canonicalKey.AsSpan();
-        return enumerator.Equals("root", StringComparison.OrdinalIgnoreCase)
-               || enumerator.Equals("swd", StringComparison.OrdinalIgnoreCase);
+        return enumerator.Equals(other: "root", StringComparison.OrdinalIgnoreCase)
+               || enumerator.Equals(other: "swd", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveStableDeviceID(GPUDeviceIdentity identity)
@@ -613,6 +596,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                     _dedicatedMemoryBytes,
                     accumulator.DedicatedMemoryBytes);
             }
+
             if (accumulator.HasSharedMemoryData)
             {
                 _hasSharedMemoryData = true;
@@ -698,11 +682,7 @@ internal static unsafe class D3DKMTAdapterIdentityReader
     {
         D3DKMT_OPENADAPTERFROMLUID openAdapter = new()
         {
-            AdapterLUID = new NATIVE_LUID
-            {
-                LowPart = (uint)key.LUID,
-                HighPart = unchecked((int)(key.LUID >> 32))
-            }
+            AdapterLUID = new NATIVE_LUID { LowPart = (uint)key.LUID, HighPart = unchecked((int)(key.LUID >> 32)) }
         };
 
         int openStatus;
@@ -711,8 +691,8 @@ internal static unsafe class D3DKMTAdapterIdentityReader
             openStatus = D3DKMTOpenAdapterFromLuid(ref openAdapter);
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             return default;
         }
@@ -729,10 +709,7 @@ internal static unsafe class D3DKMTAdapterIdentityReader
         }
         finally
         {
-            D3DKMT_CLOSEADAPTER closeAdapter = new()
-            {
-                AdapterHandle = openAdapter.AdapterHandle
-            };
+            D3DKMT_CLOSEADAPTER closeAdapter = new() { AdapterHandle = openAdapter.AdapterHandle };
             _ = D3DKMTCloseAdapter(ref closeAdapter);
         }
     }
@@ -742,7 +719,7 @@ internal static unsafe class D3DKMTAdapterIdentityReader
     {
         if (string.IsNullOrWhiteSpace(hardwarePNPKey)) return string.Empty;
 
-        string canonicalKey = hardwarePNPKey.Trim().Replace('/', '\\');
+        string canonicalKey = hardwarePNPKey.Trim().Replace(oldChar: '/', newChar: '\\');
         int enumPathIndex = canonicalKey.IndexOf(EnumPathSegment, StringComparison.OrdinalIgnoreCase);
         if (enumPathIndex >= 0)
             canonicalKey = canonicalKey[(enumPathIndex + EnumPathSegment.Length)..];
@@ -751,7 +728,7 @@ internal static unsafe class D3DKMTAdapterIdentityReader
 
         return canonicalKey
             .Trim('\\')
-            .Replace('\\', '/')
+            .Replace(oldChar: '\\', newChar: '/')
             .ToLowerInvariant();
     }
 
@@ -804,9 +781,9 @@ internal static unsafe class D3DKMTAdapterIdentityReader
 
     private static string ReadNullTerminatedString(char[] value)
     {
-        int length = Array.IndexOf(value, '\0');
+        int length = Array.IndexOf(value, value: '\0');
         if (length < 0) length = value.Length;
-        return length == 0 ? string.Empty : new string(value, 0, length);
+        return length == 0 ? string.Empty : new string(value, startIndex: 0, length);
     }
 
     [DllImport("gdi32.dll")]
@@ -884,9 +861,7 @@ internal static class GPUAdapterCounterInstanceParser
                 NumberStyles.HexNumber,
                 CultureInfo.InvariantCulture,
                 out uint highLUID))
-        {
             return false;
-        }
 
         position += highEnd + LUIDPartDelimiter.Length;
         int lowEnd = value[position..].IndexOf(PhysicalAdapterDelimiter, StringComparison.OrdinalIgnoreCase);
@@ -896,9 +871,7 @@ internal static class GPUAdapterCounterInstanceParser
                 NumberStyles.HexNumber,
                 CultureInfo.InvariantCulture,
                 out uint lowLUID))
-        {
             return false;
-        }
 
         position += lowEnd + PhysicalAdapterDelimiter.Length;
         int suffixIndex = value[position..].IndexOf('#');
@@ -937,8 +910,8 @@ internal static unsafe class DXGIAdapterEnumerator
             result = CreateDXGIFactory1(ref interfaceID, out factory);
         }
         catch (Exception exception) when (exception is DllNotFoundException
-                                          or EntryPointNotFoundException
-                                          or BadImageFormatException)
+                                              or EntryPointNotFoundException
+                                              or BadImageFormatException)
         {
             return [];
         }
@@ -966,9 +939,7 @@ internal static unsafe class DXGIAdapterEnumerator
                     DXGI_ADAPTER_DESC1 description = default;
                     if (getDescription(adapter, &description) < 0
                         || (description.Flags & DXGIAdapterFlagSoftware) != 0)
-                    {
                         continue;
-                    }
 
                     adapters.Add(new GPUAdapterMetadata(
                         ToLUID(description.AdapterLUID),
@@ -980,7 +951,7 @@ internal static unsafe class DXGIAdapterEnumerator
                         description.Revision,
                         description.DedicatedVideoMemory,
                         description.SharedSystemMemory,
-                        true));
+                        HasValue: true));
                 }
                 finally
                 {

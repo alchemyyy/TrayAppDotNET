@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Xml.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
@@ -6,10 +7,20 @@ namespace TaskManagerTrayAppDotNET.Models;
 public sealed class ProcessSavedSearch
 {
     [XmlAttribute]
-    public string Name { get; set; } = string.Empty;
+    [AllowNull]
+    public string Name
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = string.Empty;
 
     [XmlAttribute]
-    public string Query { get; set; } = string.Empty;
+    [AllowNull]
+    public string Query
+    {
+        get;
+        set => field = value ?? string.Empty;
+    } = string.Empty;
 }
 
 /// <summary>Normalizes and edits persisted process searches without sharing mutable entries.</summary>
@@ -18,7 +29,7 @@ internal static class ProcessSavedSearchCollection
     private const string DefaultNamePrefix = "Saved Search ";
 
     public static List<ProcessSavedSearch> Normalize(
-        IEnumerable<ProcessSavedSearch>? searches)
+        IEnumerable<ProcessSavedSearch?>? searches)
     {
         List<ProcessSavedSearch> normalized = [];
         if (searches == null) return normalized;
@@ -27,17 +38,13 @@ internal static class ProcessSavedSearchCollection
         {
             if (search == null) continue;
 
-            string query = search.Query?.Trim() ?? string.Empty;
+            string query = search.Query.Trim();
             if (query.Length == 0) continue;
 
-            string name = search.Name?.Trim() ?? string.Empty;
+            string name = search.Name.Trim();
             if (name.Length == 0)
                 name = ResolveNextDefaultName(normalized);
-            normalized.Add(new ProcessSavedSearch
-            {
-                Name = name,
-                Query = query
-            });
+            normalized.Add(new ProcessSavedSearch { Name = name, Query = query });
         }
 
         return normalized;
@@ -52,11 +59,7 @@ internal static class ProcessSavedSearchCollection
         string normalizedQuery = query?.Trim() ?? string.Empty;
         if (normalizedQuery.Length == 0) return updated;
 
-        updated.Add(new ProcessSavedSearch
-        {
-            Name = ResolveNextDefaultName(updated),
-            Query = normalizedQuery
-        });
+        updated.Add(new ProcessSavedSearch { Name = ResolveNextDefaultName(updated), Query = normalizedQuery });
         return updated;
     }
 
@@ -73,11 +76,7 @@ internal static class ProcessSavedSearchCollection
         if (normalizedName.Length == 0) return updated;
 
         ProcessSavedSearch existing = updated[searchIndex];
-        updated[searchIndex] = new ProcessSavedSearch
-        {
-            Name = normalizedName,
-            Query = existing.Query
-        };
+        updated[searchIndex] = new ProcessSavedSearch { Name = normalizedName, Query = existing.Query };
         return updated;
     }
 
@@ -96,9 +95,7 @@ internal static class ProcessSavedSearchCollection
             ProcessSavedSearch rightSearch = right[searchIndex];
             if (!string.Equals(leftSearch.Name, rightSearch.Name, StringComparison.Ordinal)
                 || !string.Equals(leftSearch.Query, rightSearch.Query, StringComparison.Ordinal))
-            {
                 return false;
-            }
         }
 
         return true;
@@ -142,17 +139,13 @@ internal static class ProcessSavedSearchCollection
             int operatorIndex = characterIndex + 1;
             while (operatorIndex < queryText.Length
                    && char.IsWhiteSpace(queryText[operatorIndex]))
-            {
                 operatorIndex++;
-            }
 
             if (operatorIndex + 1 >= queryText.Length) continue;
             char operatorStart = queryText[operatorIndex];
             if (operatorStart is '=' or '!'
                 && queryText[operatorIndex + 1] == '~')
-            {
                 return true;
-            }
         }
 
         return false;

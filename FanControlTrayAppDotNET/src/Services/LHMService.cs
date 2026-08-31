@@ -20,8 +20,10 @@ public sealed class LHMService : IDisposable
     private readonly Lock _hardwareLock = new();
     private readonly Lock _controlWriteQueueLock = new();
     private readonly Dictionary<string, ISensor> _controlSensorsByKey = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, FanControlWriteRequest> _pendingControlWrites =
         new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Computer _computer = new()
     {
         IsCpuEnabled = true,
@@ -109,7 +111,7 @@ public sealed class LHMService : IDisposable
         if (pollingCancellationToken == null) return;
 
         pollingCancellationToken.Cancel();
-        WaitForTask(pollTask, "poll loop");
+        WaitForTask(pollTask, taskName: "poll loop");
         pollingCancellationToken.Dispose();
         _pollingCancellationToken = null;
         _pollTask = null;
@@ -175,7 +177,7 @@ public sealed class LHMService : IDisposable
             _discoveryChanged = true;
         if (_settings?.EnsureDefaultProbeNicknameRules() == true)
             _discoveryChanged = true;
-        if (_discoveryChanged) PersistLiveState(save: true);
+        if (_discoveryChanged) PersistLiveState();
     }
 
     private void VisitHardware(IHardware hardware)
@@ -222,6 +224,7 @@ public sealed class LHMService : IDisposable
                     existingSource.ControllerHardwareType = hardwareType;
                     _discoveryChanged = true;
                 }
+
                 if (existingSource.DataSourceType == DataSourceTypeEnum.Unknown)
                     existingSource.DataSourceType = type;
                 if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
@@ -369,11 +372,13 @@ public sealed class LHMService : IDisposable
             existingSource.ControllerHardwareType = hardwareType;
             _discoveryChanged = true;
         }
+
         if (existingSource.DataSourceType != DataSourceTypeEnum.Clock)
         {
             existingSource.DataSourceType = DataSourceTypeEnum.Clock;
             _discoveryChanged = true;
         }
+
         if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
             existingSource.UserDefinedName = displayName;
         existingSource.EnsureDisplayMetadata();
@@ -396,6 +401,7 @@ public sealed class LHMService : IDisposable
                         fan.CurrentDutyCycle = reading.Value;
                         UpdateFanFunctionalState(fan);
                     }
+
                     break;
                 }
                 case SensorType.Fan:
@@ -406,6 +412,7 @@ public sealed class LHMService : IDisposable
                         fan.CurrentRPM = (int)Math.Round(reading.Value);
                         UpdateFanFunctionalState(fan);
                     }
+
                     break;
                 }
             }
@@ -419,10 +426,7 @@ public sealed class LHMService : IDisposable
 
         Fan fan = new()
         {
-            DataSourceKey = key,
-            ControllerModel = hardware.Name,
-            ControlsName = "Controls",
-            FansName = sensor.Name
+            DataSourceKey = key, ControllerModel = hardware.Name, ControlsName = "Controls", FansName = sensor.Name
         };
         ApplyDefaultsToNewFan(fan);
         if (_settings?.FindPersistedFan(key) is { } persisted) fan.ApplyUserSettings(persisted);
@@ -449,7 +453,7 @@ public sealed class LHMService : IDisposable
     private static string NormalizeCurveName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return string.Empty;
-        return string.Equals(name, "None", StringComparison.OrdinalIgnoreCase) ? string.Empty : name;
+        return string.Equals(name, b: "None", StringComparison.OrdinalIgnoreCase) ? string.Empty : name;
     }
 
     private void OnFanPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -462,7 +466,7 @@ public sealed class LHMService : IDisposable
         if (IsControlWriteProperty(e.PropertyName))
             QueueFanControlWriteForCurrentState(fan);
         _settings?.UpsertPersistedFan(fan);
-        PersistLiveState(save: true);
+        PersistLiveState();
     }
 
     private static bool IsControlWriteProperty(string propertyName) =>
@@ -477,9 +481,10 @@ public sealed class LHMService : IDisposable
     {
         if (_disposed || string.IsNullOrWhiteSpace(fan.DataSourceKey)) return;
 
-        FanControlWriteRequest request = fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual }
-            ? FanControlWriteRequest.Software(fan.DataSourceKey, ResolveManualDutyCyclePercent(fan))
-            : FanControlWriteRequest.Default(fan.DataSourceKey);
+        FanControlWriteRequest request =
+            fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual }
+                ? FanControlWriteRequest.Software(fan.DataSourceKey, ResolveManualDutyCyclePercent(fan))
+                : FanControlWriteRequest.Default(fan.DataSourceKey);
 
         lock (_controlWriteQueueLock)
         {
@@ -525,8 +530,10 @@ public sealed class LHMService : IDisposable
         finally
         {
             lock (_controlWriteQueueLock)
+            {
                 if (_disposed || _pendingControlWrites.Count == 0)
                     _controlWriteWorkerScheduled = false;
+            }
         }
     }
 
@@ -560,14 +567,14 @@ public sealed class LHMService : IDisposable
 
     private static double ResolveManualDutyCyclePercent(Fan fan)
     {
-        double value = Math.Clamp(fan.FanDisplayedValue, 0, Math.Max(1, fan.FanSliderMaximum));
+        double value = Math.Clamp(fan.FanDisplayedValue, min: 0, Math.Max(val1: 1, fan.FanSliderMaximum));
         if (fan.RPMMode)
         {
-            double rpmReference = Math.Max(1, fan.FanSliderMaximum);
+            double rpmReference = Math.Max(val1: 1, fan.FanSliderMaximum);
             value = value / rpmReference * 100.0;
         }
 
-        return Math.Clamp(value, 0.0, 100.0);
+        return Math.Clamp(value, min: 0.0, max: 100.0);
     }
 
     private static float ClampToSoftwareRange(IControl control, double dutyCyclePercent)
@@ -606,7 +613,11 @@ public sealed class LHMService : IDisposable
     private Fan? FindFanByControlKey(string key)
     {
         foreach (Fan fan in Fans)
-            if (string.Equals(fan.DataSourceKey, key, StringComparison.OrdinalIgnoreCase)) return fan;
+        {
+            if (string.Equals(fan.DataSourceKey, key, StringComparison.OrdinalIgnoreCase))
+                return fan;
+        }
+
         return null;
     }
 
@@ -620,6 +631,7 @@ public sealed class LHMService : IDisposable
             if (!string.Equals(fan.ControllerModel, hardwareName, StringComparison.OrdinalIgnoreCase)) continue;
             if (fan.FansName.Contains(sensorName, StringComparison.OrdinalIgnoreCase)) return fan;
         }
+
         return null;
     }
 
@@ -628,27 +640,27 @@ public sealed class LHMService : IDisposable
     // stable across runs as long as the hardware enumerates the same way.
     private static string BuildSensorKey(IHardware hardware, ISensor sensor)
     {
-        string controller = hardware.Name.Replace(' ', '_');
+        string controller = hardware.Name.Replace(oldChar: ' ', newChar: '_');
         string folder = sensor.SensorType.ToString();
-        string leaf = sensor.Name.Replace(' ', '_');
+        string leaf = sensor.Name.Replace(oldChar: ' ', newChar: '_');
         return $"{controller}.{folder}.{leaf}";
     }
 
     private static DataSourceTypeEnum MapSensorType(SensorType t) => t switch
     {
-        SensorType.Voltage      => DataSourceTypeEnum.Voltage,
-        SensorType.Current      => DataSourceTypeEnum.Current,
-        SensorType.Power        => DataSourceTypeEnum.Power,
-        SensorType.Clock        => DataSourceTypeEnum.Clock,
-        SensorType.Temperature  => DataSourceTypeEnum.Temperature,
-        SensorType.Load         => DataSourceTypeEnum.Load,
-        SensorType.Fan          => DataSourceTypeEnum.Fan,
-        SensorType.Flow         => DataSourceTypeEnum.Flow,
-        SensorType.Control      => DataSourceTypeEnum.Control,
-        SensorType.Level        => DataSourceTypeEnum.Level,
-        SensorType.Data         => DataSourceTypeEnum.Data,
-        SensorType.Throughput   => DataSourceTypeEnum.Throughput,
-        _                       => DataSourceTypeEnum.Unknown
+        SensorType.Voltage => DataSourceTypeEnum.Voltage,
+        SensorType.Current => DataSourceTypeEnum.Current,
+        SensorType.Power => DataSourceTypeEnum.Power,
+        SensorType.Clock => DataSourceTypeEnum.Clock,
+        SensorType.Temperature => DataSourceTypeEnum.Temperature,
+        SensorType.Load => DataSourceTypeEnum.Load,
+        SensorType.Fan => DataSourceTypeEnum.Fan,
+        SensorType.Flow => DataSourceTypeEnum.Flow,
+        SensorType.Control => DataSourceTypeEnum.Control,
+        SensorType.Level => DataSourceTypeEnum.Level,
+        SensorType.Data => DataSourceTypeEnum.Data,
+        SensorType.Throughput => DataSourceTypeEnum.Throughput,
+        _ => DataSourceTypeEnum.Unknown
     };
 
     public void Dispose()
@@ -685,7 +697,7 @@ public sealed class LHMService : IDisposable
             controlWriteTask = _controlWriteTask;
         }
 
-        WaitForTask(controlWriteTask, "control write worker");
+        WaitForTask(controlWriteTask, taskName: "control write worker");
 
         lock (_controlWriteQueueLock)
         {
@@ -737,7 +749,7 @@ public sealed class LHMService : IDisposable
             new(dataSourceKey, dutyCyclePercent, UseDefault: false);
 
         public static FanControlWriteRequest Default(string dataSourceKey) =>
-            new(dataSourceKey, 0.0, UseDefault: true);
+            new(dataSourceKey, DutyCyclePercent: 0.0, UseDefault: true);
     }
 
     private readonly record struct SensorReading(

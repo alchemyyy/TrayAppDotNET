@@ -38,7 +38,7 @@ public sealed class UIResourceScopeTests
 
         Assert.Equal(["first", "last"], events);
         Assert.Single(errors);
-        Assert.Equal("expected", errors[0].Message);
+        Assert.Equal(expected: "expected", errors[0].Message);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class UIResourceScopeTests
 
         scope.Add(() => cleanupCount++);
 
-        Assert.Equal(1, cleanupCount);
+        Assert.Equal(expected: 1, cleanupCount);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class UIResourceScopeTests
         scope.Dispose();
         scope.Dispose();
 
-        Assert.Equal(1, resource.DisposeCount);
+        Assert.Equal(expected: 1, resource.DisposeCount);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class UIResourceScopeTests
         ForceCollection();
 
         int retainedCount = retiredRoots.Count(reference => reference.TryGetTarget(out Control? _));
-        Assert.Equal(0, retainedCount);
+        Assert.Equal(expected: 0, retainedCount);
         Assert.Equal(ReplacementStressCount - 1, disposedCount);
         Assert.False(activeGeneration.IsDisposed);
         activeGeneration.Dispose();
@@ -183,7 +183,7 @@ public sealed class UIResourceScopeTests
     {
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
         }
     }

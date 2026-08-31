@@ -13,7 +13,7 @@ public static class TrayAppDotNETTrayIconMetrics
 
     public static uint GetTaskbarDPI()
     {
-        IntPtr taskbarHwnd = User32.FindWindow(TaskbarWindowClassName, null);
+        IntPtr taskbarHwnd = User32.FindWindow(TaskbarWindowClassName, lpWindowName: null);
         if (taskbarHwnd != IntPtr.Zero)
         {
             uint dpi = User32.GetDpiForWindow(taskbarHwnd);

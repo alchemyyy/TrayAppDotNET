@@ -41,14 +41,14 @@ public sealed class Win32Window : IDisposable
             throw new InvalidOperationException($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
 
         Handle = CreateWindowEx(
-            0,
+            dwExStyle: 0,
             _className,
             string.Empty,
-            0,
-            0,
-            0,
-            0,
-            0,
+            dwStyle: 0,
+            x: 0,
+            y: 0,
+            nWidth: 0,
+            nHeight: 0,
             parentWindow,
             IntPtr.Zero,
             _hInstance,

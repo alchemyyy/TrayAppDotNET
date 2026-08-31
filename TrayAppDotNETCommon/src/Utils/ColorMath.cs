@@ -22,14 +22,14 @@ public static class ColorMath
             return s.Length switch
             {
                 6 => Color.FromRgb(
-                    Convert.ToByte(s[..2], 16),
-                    Convert.ToByte(s[2..4], 16),
-                    Convert.ToByte(s[4..6], 16)),
+                    Convert.ToByte(s[..2], fromBase: 16),
+                    Convert.ToByte(s[2..4], fromBase: 16),
+                    Convert.ToByte(s[4..6], fromBase: 16)),
                 8 => Color.FromArgb(
-                    Convert.ToByte(s[..2], 16),
-                    Convert.ToByte(s[2..4], 16),
-                    Convert.ToByte(s[4..6], 16),
-                    Convert.ToByte(s[6..8], 16)),
+                    Convert.ToByte(s[..2], fromBase: 16),
+                    Convert.ToByte(s[2..4], fromBase: 16),
+                    Convert.ToByte(s[4..6], fromBase: 16),
+                    Convert.ToByte(s[6..8], fromBase: 16)),
                 _ => null
             };
         }

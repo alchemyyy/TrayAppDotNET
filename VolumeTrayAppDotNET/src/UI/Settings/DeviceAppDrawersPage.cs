@@ -32,7 +32,8 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_General_IconRetryInterval_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_PlaybackDrawer_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_PlaybackDrawer_Header)), p));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Description)),
@@ -46,18 +47,22 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_RecordingDrawer_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_RecordingDrawer_Header)),
+                p));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Description)),
             [
-                (AppDrawerDisplayType.Icons, Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Icons))),
-                (AppDrawerDisplayType.Sliders, Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Sliders)))
+                (AppDrawerDisplayType.Icons,
+                    Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Icons))),
+                (AppDrawerDisplayType.Sliders,
+                    Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_Sliders)))
             ],
             _settings.RecordingAppDrawerDisplayType,
             v => _settings.RecordingAppDrawerDisplayType = v,
             p,
-            afterSave: RefreshCurrentPage,
+            RefreshCurrentPage,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_SearchKeywords))
@@ -90,9 +95,12 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Title)),
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Description)),
             [
-                (CaptureActivityIndicator.DimInactive, Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_DimInactive))),
-                (CaptureActivityIndicator.ActiveGlyph, Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_ActiveGlyph))),
-                (CaptureActivityIndicator.HideInactive, Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_HideInactive))),
+                (CaptureActivityIndicator.DimInactive,
+                    Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_DimInactive))),
+                (CaptureActivityIndicator.ActiveGlyph,
+                    Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_ActiveGlyph))),
+                (CaptureActivityIndicator.HideInactive,
+                    Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_HideInactive))),
                 (CaptureActivityIndicator.None, Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_None)))
             ],
             _settings.CaptureActivityIndicator,
@@ -109,13 +117,15 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCentered_Description)),
             [
                 (AppDrawerIconsCenterMode.Off, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterMode_Off))),
-                (AppDrawerIconsCenterMode.Centered, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterMode_Centered))),
-                (AppDrawerIconsCenterMode.CenteredSoftMax, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterMode_SoftMax)))
+                (AppDrawerIconsCenterMode.Centered,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterMode_Centered))),
+                (AppDrawerIconsCenterMode.CenteredSoftMax,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterMode_SoftMax)))
             ],
             _settings.AppDrawerIconsCenterMode,
             v => _settings.AppDrawerIconsCenterMode = v,
             p,
-            afterSave: RefreshCurrentPage,
+            RefreshCurrentPage,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCentered_SearchKeywords))
@@ -150,15 +160,19 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Description)),
             [
                 (AppDrawerStackDirection.Auto, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Auto))),
-                (AppDrawerStackDirection.TopBottom, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_TopBottom))),
-                (AppDrawerStackDirection.BottomTop, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_BottomTop))),
-                (AppDrawerStackDirection.LeftRight, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_LeftRight))),
-                (AppDrawerStackDirection.RightLeft, Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_RightLeft)))
+                (AppDrawerStackDirection.TopBottom,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_TopBottom))),
+                (AppDrawerStackDirection.BottomTop,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_BottomTop))),
+                (AppDrawerStackDirection.LeftRight,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_LeftRight))),
+                (AppDrawerStackDirection.RightLeft,
+                    Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_RightLeft)))
             ],
             _settings.AppDrawerStackDirection,
             v => _settings.AppDrawerStackDirection = v,
             p,
-            afterSave: RefreshCurrentPage,
+            RefreshCurrentPage,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_SearchKeywords))

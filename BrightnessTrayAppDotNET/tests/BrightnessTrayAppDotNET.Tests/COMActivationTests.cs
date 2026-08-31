@@ -24,7 +24,7 @@ public sealed class COMActivationTests
                 WmiNative.ClsidWbemLocator,
                 typeof(IWbemLocator).GUID);
 
-            Assert.IsAssignableFrom<ComObject>((object)locator);
+            Assert.IsAssignableFrom<ComObject>(locator);
             Assert.True(COMActivation.TryReleaseGeneratedComObject(locator));
             locator = null;
         }

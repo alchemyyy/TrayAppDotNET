@@ -62,34 +62,35 @@ internal sealed class CPUPerformanceDetailedView : Grid
             _resources.AxamlTaskManagerPerformance.DetailedCPUGridAspectRatio);
         int rowCount = (graphCount + columnCount - 1) / columnCount;
         double graphSpacing = Math.Max(
-            0,
+            val1: 0,
             _resources.AxamlTaskManagerPerformance.DetailedCPUGraphSpacing);
         BuildGridDefinitions(columnCount, rowCount, graphSpacing);
 
         Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
         int graphIndex = 0;
         AddGraph(
-            "Overall usage",
+            labelText: "Overall usage",
             overallHistory,
             accent,
-            null,
+            hoverMetricProvider: null,
             graphIndex++,
             columnCount);
         for (int CCDIndex = 0; CCDIndex < visibleCCDCount; CCDIndex++)
         {
             AddGraph(
-                string.Concat("CCD ", CCDIndex),
+                string.Concat(arg0: "CCD ", CCDIndex),
                 _ccdHistories[CCDIndex],
                 accent,
-                null,
+                hoverMetricProvider: null,
                 graphIndex++,
                 columnCount);
         }
+
         AddGraph(
-            "Highest single LP utilization",
+            labelText: "Highest single LP utilization",
             highestCoreHistory,
             accent,
-            null,
+            hoverMetricProvider: null,
             graphIndex,
             columnCount);
     }
@@ -137,7 +138,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
     internal static int GetVisibleCCDGraphCount(CPUCCDTopology topology)
     {
         ArgumentNullException.ThrowIfNull(topology);
-        return topology.IsAvailable && topology.CCDs.Length > 1
+        return topology is { IsAvailable: true, CCDs.Length: > 1 }
             ? topology.CCDs.Length
             : 0;
     }
@@ -160,9 +161,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             || !topology.IsAvailable
             || !snapshot.CCDTopology.IsAvailable
             || topology.CCDs.Length != histories.Count)
-        {
             return;
-        }
 
         ReadOnlySpan<double> processorUtilization =
             snapshot.LogicalProcessorUtilizationPercents.Span;
@@ -188,9 +187,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             for (int processorOffset = 0;
                  processorOffset < processorIndexes.Length;
                  processorOffset++)
-            {
                 utilizationTotal += processorUtilization[processorIndexes[processorOffset]];
-            }
 
             histories[CCDIndex].Add(
                 capturedTimestamp,
@@ -250,8 +247,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             _resources,
             hoverMetricProvider)
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch
         };
         graph.SetUnderfillVisible(_showGraphUnderfill);
         Grid tile = new()
@@ -259,20 +255,16 @@ internal sealed class CPUPerformanceDetailedView : Grid
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            RowDefinitions =
-            {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star)
-            }
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) }
         };
         tile.Children.Add(label);
-        Grid.SetRow(graph, 1);
+        SetRow(graph, value: 1);
         tile.Children.Add(graph);
 
         int graphColumn = graphIndex % columnCount;
         int graphRow = graphIndex / columnCount;
-        Grid.SetColumn(tile, graphColumn * 2);
-        Grid.SetRow(tile, graphRow * 2);
+        SetColumn(tile, graphColumn * 2);
+        SetRow(tile, graphRow * 2);
         Children.Add(tile);
         _graphs.Add(graph);
     }
@@ -293,9 +285,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             double distance = Math.Abs(candidateColumnCount - targetColumnCount);
             if (distance > bestDistance
                 || (distance == bestDistance && candidateColumnCount <= bestColumnCount))
-            {
                 continue;
-            }
 
             bestColumnCount = candidateColumnCount;
             bestDistance = distance;

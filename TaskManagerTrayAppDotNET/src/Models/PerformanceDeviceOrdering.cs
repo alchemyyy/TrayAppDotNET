@@ -22,7 +22,7 @@ internal readonly record struct PerformanceDeviceOrderItem(
 internal static class PerformanceDeviceOrdering
 {
     private static readonly ReadOnlyCollection<PerformanceDeviceKind> DefaultPriorityValues =
-        Array.AsReadOnly<PerformanceDeviceKind>(
+        Array.AsReadOnly(
         [
             PerformanceDeviceKind.CPU,
             PerformanceDeviceKind.Memory,
@@ -32,14 +32,13 @@ internal static class PerformanceDeviceOrdering
         ]);
 
     private static readonly IComparer<PerformanceDeviceOrderItem> FallbackItemComparer =
-        Comparer<PerformanceDeviceOrderItem>.Create(
-            static (PerformanceDeviceOrderItem left, PerformanceDeviceOrderItem right) =>
-            {
-                int sortKeyComparison = left.SortKey.CompareTo(right.SortKey);
-                return sortKeyComparison != 0
-                    ? sortKeyComparison
-                    : StringComparer.Ordinal.Compare(left.ID, right.ID);
-            });
+        Comparer<PerformanceDeviceOrderItem>.Create(static (left, right) =>
+        {
+            int sortKeyComparison = left.SortKey.CompareTo(right.SortKey);
+            return sortKeyComparison != 0
+                ? sortKeyComparison
+                : StringComparer.Ordinal.Compare(left.ID, right.ID);
+        });
 
     public static IReadOnlyList<PerformanceDeviceKind> DefaultPriority => DefaultPriorityValues;
 
@@ -63,13 +62,15 @@ internal static class PerformanceDeviceOrdering
 
         foreach (PerformanceDeviceKind kind in DefaultPriorityValues)
         {
-            if (used.Add(kind)) normalized.Add(kind);
+            if (used.Add(kind))
+                normalized.Add(kind);
         }
 
         // Future enum members remain usable even before they receive a deliberate default position
         foreach (PerformanceDeviceKind kind in Enum.GetValues<PerformanceDeviceKind>())
         {
-            if (used.Add(kind)) normalized.Add(kind);
+            if (used.Add(kind))
+                normalized.Add(kind);
         }
 
         return normalized;
@@ -174,7 +175,7 @@ internal static class PerformanceDeviceOrdering
         if ((uint)sourceIndex >= (uint)visibleDeviceIDs.Count)
             return NormalizeExplicitOrder(explicitDeviceIDs);
 
-        int clampedTargetIndex = Math.Clamp(targetIndex, 0, visibleDeviceIDs.Count - 1);
+        int clampedTargetIndex = Math.Clamp(targetIndex, min: 0, visibleDeviceIDs.Count - 1);
         string movedDeviceID = visibleDeviceIDs[sourceIndex];
         visibleDeviceIDs.RemoveAt(sourceIndex);
         visibleDeviceIDs.Insert(clampedTargetIndex, movedDeviceID);
@@ -229,7 +230,8 @@ internal static class PerformanceDeviceOrdering
         int lastSameKindIndex = -1;
         for (int itemIndex = 0; itemIndex < resolved.Count; itemIndex++)
         {
-            if (resolved[itemIndex].Kind == kind) lastSameKindIndex = itemIndex;
+            if (resolved[itemIndex].Kind == kind)
+                lastSameKindIndex = itemIndex;
         }
 
         if (lastSameKindIndex >= 0) return lastSameKindIndex + 1;
@@ -251,7 +253,8 @@ internal static class PerformanceDeviceOrdering
     {
         for (int priorityIndex = 0; priorityIndex < priority.Count; priorityIndex++)
         {
-            if (priority[priorityIndex] == kind) return priorityIndex;
+            if (priority[priorityIndex] == kind)
+                return priorityIndex;
         }
 
         return int.MaxValue;

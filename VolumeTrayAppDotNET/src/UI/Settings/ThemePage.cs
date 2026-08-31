@@ -14,7 +14,8 @@ public sealed partial class VolumeSettingsWindow
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         bool isLight = ResolveEffectiveIsLight();
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_Theme_FontSize_Title)),
             Loc(nameof(AppStrings.Settings_Theme_FontSize_Description)),
@@ -28,7 +29,8 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
             Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
@@ -40,7 +42,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
             p,
-            afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
+            () => RebuildShell(VolumeSettingsPage.Theme),
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
@@ -51,13 +53,12 @@ public sealed partial class VolumeSettingsWindow
             _settings.UseWindows11SettingsNavigation,
             value => _settings.UseWindows11SettingsNavigation = value,
             p,
-            afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(VolumeSettingsPage.Theme),
             [
                 Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "Text",
+            name: "Text",
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
@@ -66,12 +67,11 @@ public sealed partial class VolumeSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            "Background",
+            name: "Background",
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
@@ -80,20 +80,19 @@ public sealed partial class VolumeSettingsWindow
             theme.Background.Light,
             theme.Background.Dark,
             p,
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
-            afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
-            searchKeywords:
+            () => RebuildShell(VolumeSettingsPage.Theme),
             [
                 Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
@@ -108,7 +107,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.AnimationMode,
             v => _settings.AnimationMode = v,
             p,
-            afterSave: () =>
+            () =>
             {
                 if (Application.Current != null)
                     TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
@@ -132,7 +131,6 @@ public sealed partial class VolumeSettingsWindow
             },
             p,
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
             ]));
@@ -165,14 +163,14 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_Description)),
             sliderThumbCombo,
             p,
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
         stack.Children.Add(VariantColorCard(
-            "TrayIcon",
+            name: "TrayIcon",
             Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
             Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
@@ -181,12 +179,12 @@ public sealed partial class VolumeSettingsWindow
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
+        stack.Children.Add(
+            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
         stack.Children.Add(SingleColorCard(
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Description)),
@@ -201,7 +199,6 @@ public sealed partial class VolumeSettingsWindow
             },
             p,
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip)),
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_SearchKeywords))
             ]));
@@ -220,7 +217,6 @@ public sealed partial class VolumeSettingsWindow
             },
             p,
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip)),
-            searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
             ]));
@@ -244,11 +240,12 @@ public sealed partial class VolumeSettingsWindow
     {
         Grid preview = new()
         {
-            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center
+            Width = 22, Margin = new Thickness(left: 0, top: 0, right: 10, bottom: 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        double width = Math.Max(1, option.Width);
-        double height = Math.Max(1, option.Height);
+        double width = Math.Max(val1: 1, option.Width);
+        double height = Math.Max(val1: 1, option.Height);
         if (option.IsCapsule)
         {
             preview.Children.Add(new Border
@@ -263,16 +260,16 @@ public sealed partial class VolumeSettingsWindow
         }
         else
         {
-            TextBlock glyph = TrayAppDotNETSettingsUI.Text(option.Glyph, p, Math.Max(1, option.FontSize));
+            TextBlock glyph = TrayAppDotNETSettingsUI.Text(option.Glyph, p, Math.Max(val1: 1, option.FontSize));
             glyph.FontFamily = new FontFamily(option.FontFamily);
             glyph.Width = width;
             glyph.Height = height;
             glyph.TextAlignment = TextAlignment.Center;
             glyph.HorizontalAlignment = HorizontalAlignment.Center;
             glyph.VerticalAlignment = VerticalAlignment.Center;
-            glyph.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+            glyph.RenderTransformOrigin = new RelativePoint(x: 0.5, y: 0.5, RelativeUnit.Relative);
             if (Math.Abs(option.XScale - 1.0) > 0.001)
-                glyph.RenderTransform = new ScaleTransform(option.XScale, 1);
+                glyph.RenderTransform = new ScaleTransform(option.XScale, scaleY: 1);
             preview.Children.Add(glyph);
         }
 
@@ -285,7 +282,7 @@ public sealed partial class VolumeSettingsWindow
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.Children.Add(preview);
-        Grid.SetColumn(name, 1);
+        Grid.SetColumn(name, value: 1);
         row.Children.Add(name);
         return row;
     }

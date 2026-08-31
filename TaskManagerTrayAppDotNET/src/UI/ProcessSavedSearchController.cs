@@ -68,12 +68,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity)
-        {
-            IsVisible = HasQuery()
-        };
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity) { IsVisible = HasQuery() };
         _clearButton.Click += OnClearClick;
-        TrayAppDotNETToolTip.SetTip(_clearButton, "Clear search");
+        TrayAppDotNETToolTip.SetTip(_clearButton, tip: "Clear search");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_clearButton);
 
         _saveButton = new InsetGlyphButton(
@@ -84,12 +81,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity)
-        {
-            IsVisible = HasQuery()
-        };
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity) { IsVisible = HasQuery() };
         _saveButton.Click += OnSaveClick;
-        TrayAppDotNETToolTip.SetTip(_saveButton, "Save search");
+        TrayAppDotNETToolTip.SetTip(_saveButton, tip: "Save search");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_saveButton);
 
         _textBox.TextChanged += OnTextChanged;
@@ -160,9 +154,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         if (_disposed
             || !eventArgs.GetCurrentPoint(_textBox).Properties.IsLeftButtonPressed
             || HasQuery())
-        {
             return;
-        }
 
         _textBox.Focus();
         Dispatcher.UIThread.Post(() =>
@@ -193,7 +185,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         double configuredWidth = double.IsFinite(_textBox.Width) ? _textBox.Width : 1;
         double menuWidth = _textBox.Bounds.Width > 0
             ? _textBox.Bounds.Width
-            : Math.Max(1, configuredWidth);
+            : Math.Max(val1: 1, configuredWidth);
         menuWindow.SizeToContent = SizeToContent.Height;
         menuWindow.Width = menuWidth;
         menuWindow.MinWidth = menuWidth;
@@ -231,10 +223,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
         List<EditableContextMenuEntry> entries = [];
         if (_savedSearches.Count == 0)
         {
-            entries.Add(new EditableContextMenuEntry("No saved searches", static () => { })
-            {
-                IsEnabled = false
-            });
+            entries.Add(new EditableContextMenuEntry(Text: "No saved searches", static () => { })
+                { IsEnabled = false });
             return entries;
         }
 
@@ -274,8 +264,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
                     resources.AxamlTaskManagerContextMenu.SavedSearchLeadingButtonTextSpacing,
                 LeadingButton = renameButton,
                 TrailingButton = deleteButton,
-                InlineTextEdit = new EditableContextMenuInlineTextEdit(
-                    name => RenameSavedSearch(capturedSearchIndex, name))
+                InlineTextEdit =
+                    new EditableContextMenuInlineTextEdit(name => RenameSavedSearch(capturedSearchIndex, name))
             });
         }
 
@@ -338,7 +328,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
     private void OnMenuOwnerPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
         EditableContextMenuWindow? menuWindow = _menuWindow;
-        if (menuWindow?.CommitInlineTextEdit(keepOpenAcrossPendingDeactivation: true) == true)
+        if (menuWindow?.CommitInlineTextEdit(true) == true)
         {
             eventArgs.Handled = true;
             return;
@@ -353,7 +343,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             if (_disposed || !_textBox.IsKeyboardFocusWithin) return;
 
             _textBox.ClearSelection();
-            TopLevel.GetTopLevel(_textBox)?.FocusManager?.Focus(null);
+            TopLevel.GetTopLevel(_textBox)?.FocusManager.Focus(null);
         }, DispatcherPriority.Input);
     }
 
@@ -382,9 +372,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 || !ReferenceEquals(_menuWindow, menuWindow)
                 || owner.IsActive
                 || menuWindow.IsActive)
-            {
                 return;
-            }
 
             Close();
         }, DispatcherPriority.Input);
@@ -401,9 +389,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 || !ReferenceEquals(_menuWindow, menuWindow)
                 || _textBox.IsKeyboardFocusWithin
                 || menuWindow.IsActive)
-            {
                 return;
-            }
 
             Close();
         }, DispatcherPriority.Input);
@@ -575,10 +561,10 @@ internal sealed class ProcessSavedSearchController : IDisposable
             ArgumentNullException.ThrowIfNull(palette);
 
             _palette = palette;
-            double normalizedHitTargetSize = Math.Max(0, hitTargetSize);
+            double normalizedHitTargetSize = Math.Max(val1: 0, hitTargetSize);
             double normalizedInset = Math.Clamp(
                 visualInset,
-                0,
+                min: 0,
                 normalizedHitTargetSize / 2);
             Width = normalizedHitTargetSize;
             Height = normalizedHitTargetSize;
@@ -590,7 +576,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             TextBlock glyphText = TrayAppDotNETSettingsUI.Text(
                 string.Empty,
                 palette,
-                Math.Max(0, glyphFontSize));
+                Math.Max(val1: 0, glyphFontSize));
 #if DEBUG
             _glyphText = glyphText;
 #endif
@@ -598,7 +584,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             glyphText.HorizontalAlignment = HorizontalAlignment.Center;
             glyphText.VerticalAlignment = VerticalAlignment.Center;
             glyphText.IsHitTestVisible = false;
-            glyphText.Opacity = Math.Clamp(glyphOpacity, 0, 1);
+            glyphText.Opacity = Math.Clamp(glyphOpacity, min: 0, max: 1);
 
             _surface = new Border
             {
@@ -634,10 +620,10 @@ internal sealed class ProcessSavedSearchController : IDisposable
             ArgumentNullException.ThrowIfNull(glyph);
             if (_disposed) return;
 
-            double normalizedHitTargetSize = Math.Max(0, hitTargetSize);
+            double normalizedHitTargetSize = Math.Max(val1: 0, hitTargetSize);
             double normalizedInset = Math.Clamp(
                 visualInset,
-                0,
+                min: 0,
                 normalizedHitTargetSize / 2);
             Width = normalizedHitTargetSize;
             Height = normalizedHitTargetSize;
@@ -645,8 +631,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             _surface.Margin = new Thickness(normalizedInset);
             _surface.Padding = visualPadding;
             _surface.CornerRadius = cornerRadius;
-            _glyphText.FontSize = Math.Max(0, glyphFontSize);
-            _glyphText.Opacity = Math.Clamp(glyphOpacity, 0, 1);
+            _glyphText.FontSize = Math.Max(val1: 0, glyphFontSize);
+            _glyphText.Opacity = Math.Clamp(glyphOpacity, min: 0, max: 1);
             GlyphApplicator.ApplyTo(_glyphText, glyph);
         }
 #endif
@@ -671,10 +657,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
         private void OnPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
         {
             if (_disposed || !IsEnabled
-                || !eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            {
+                          || !eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
                 return;
-            }
 
             _isPressed = true;
             UpdateVisual();

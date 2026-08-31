@@ -93,7 +93,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (!fileExists)
         {
             return new TrayAppDotNETInstallationInfo(scope, installExecutable, TrayAppDotNETInstallStatus.NotInstalled,
-                null);
+                InstalledVersion: null);
         }
 
         bool running = string.Equals(
@@ -122,11 +122,11 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (IsRunningFromWindowsStore())
         {
             return new TrayAppDotNETInstallationInfo(InstallScope.WindowsStore, currentPath,
-                TrayAppDotNETInstallStatus.CurrentlyRunning, null);
+                TrayAppDotNETInstallStatus.CurrentlyRunning, InstalledVersion: null);
         }
 
         return new TrayAppDotNETInstallationInfo(InstallScope.WindowsStore, string.Empty,
-            TrayAppDotNETInstallStatus.NotInstalled, null);
+            TrayAppDotNETInstallStatus.NotInstalled, InstalledVersion: null);
     }
 
     public TrayAppDotNETInstallResult InstallToLocalAppData(
@@ -135,7 +135,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
-            return new TrayAppDotNETInstallResult(false, "Cannot determine running executable path");
+        {
+            return new TrayAppDotNETInstallResult(Success: false,
+                ErrorMessage: "Cannot determine running executable path");
+        }
 
         try
         {
@@ -159,7 +162,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.InstallToLocalAppData: {ex}");
-            return new TrayAppDotNETInstallResult(false, ex.Message);
+            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
         }
     }
 
@@ -169,7 +172,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
-            return new TrayAppDotNETInstallResult(false, "Cannot determine running executable path");
+        {
+            return new TrayAppDotNETInstallResult(Success: false,
+                ErrorMessage: "Cannot determine running executable path");
+        }
 
         if (IsElevated(Identity.WriteLog))
             return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber, installOptions);
@@ -187,9 +193,13 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         try
         {
             if (!IsElevated(Identity.WriteLog))
-                return new TrayAppDotNETInstallResult(false, "System installation requires elevation");
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    ErrorMessage: "System installation requires elevation");
+            }
+
             if (!File.Exists(sourceExe))
-                return new TrayAppDotNETInstallResult(false, $"Source exe not found: {sourceExe}");
+                return new TrayAppDotNETInstallResult(Success: false, $"Source exe not found: {sourceExe}");
 
             StopInstalledProcesses(InstallScope.ProgramFiles);
 
@@ -211,7 +221,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.RunAdminInstallSystem: {ex}");
-            return new TrayAppDotNETInstallResult(false, ex.Message);
+            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
         }
     }
 
@@ -223,24 +233,33 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         try
         {
             if (!File.Exists(sourceExe))
-                return new TrayAppDotNETInstallResult(false, $"Source exe not found: {sourceExe}");
+                return new TrayAppDotNETInstallResult(Success: false, $"Source exe not found: {sourceExe}");
 
             string? sourceDirectory = Path.GetDirectoryName(sourceExe);
             if (string.IsNullOrWhiteSpace(sourceDirectory))
-                return new TrayAppDotNETInstallResult(false, $"Cannot determine source directory for {sourceExe}");
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    $"Cannot determine source directory for {sourceExe}");
+            }
 
             foreach (TrayAppDotNETInstallDirectory directory in Payload.RequiredDirectories)
             {
                 string sourcePath = Path.Combine(sourceDirectory, directory.Name);
                 if (!Directory.Exists(sourcePath))
-                    return new TrayAppDotNETInstallResult(false, $"Required install folder not found: {sourcePath}");
+                {
+                    return new TrayAppDotNETInstallResult(Success: false,
+                        $"Required install folder not found: {sourcePath}");
+                }
             }
 
             foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
             {
                 string sourceFile = Path.Combine(sourceDirectory, file.Name);
                 if (!File.Exists(sourceFile))
-                    return new TrayAppDotNETInstallResult(false, $"Required install file not found: {sourceFile}");
+                {
+                    return new TrayAppDotNETInstallResult(Success: false,
+                        $"Required install file not found: {sourceFile}");
+                }
             }
 
             Directory.CreateDirectory(destinationDirectory);
@@ -291,7 +310,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.CopyInstallPayload: {ex}");
-            return new TrayAppDotNETInstallResult(false, ex.Message);
+            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
         }
     }
 
@@ -337,9 +356,12 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     public TrayAppDotNETInstallResult PrepareUninstall(InstallScope scope)
     {
         if (scope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
-            return new TrayAppDotNETInstallResult(false, $"Unsupported uninstall scope: {scope}");
+            return new TrayAppDotNETInstallResult(Success: false, $"Unsupported uninstall scope: {scope}");
         if (scope == InstallScope.ProgramFiles && !IsElevated(Identity.WriteLog))
-            return new TrayAppDotNETInstallResult(false, "System uninstall preparation requires elevation");
+        {
+            return new TrayAppDotNETInstallResult(Success: false,
+                ErrorMessage: "System uninstall preparation requires elevation");
+        }
 
         try
         {
@@ -360,7 +382,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         catch (Exception exception)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.PrepareUninstall({scope}): {exception}");
-            return new TrayAppDotNETInstallResult(false, exception.Message);
+            return new TrayAppDotNETInstallResult(Success: false, exception.Message);
         }
     }
 
@@ -421,7 +443,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             {
                 try
                 {
-                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                    if (!process.HasExited) process.Kill(true);
                 }
                 catch (Exception exception)
                 {
@@ -443,7 +465,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         {
             if (remaining.Count > 0)
             {
-                string processIDs = string.Join(", ", remaining.Select(SafeProcessID));
+                string processIDs = string.Join(separator: ", ", remaining.Select(SafeProcessID));
                 throw new IOException($"Could not stop installed process IDs: {processIDs}");
             }
         }
@@ -511,21 +533,23 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             };
 
             using Process? process = Process.Start(psi);
-            if (process == null) return new TrayAppDotNETInstallResult(false, "Failed to start elevated process");
+            if (process == null)
+                return new TrayAppDotNETInstallResult(Success: false, ErrorMessage: "Failed to start elevated process");
 
             process.WaitForExit();
             return process.ExitCode == 0
                 ? new TrayAppDotNETInstallResult(true)
-                : new TrayAppDotNETInstallResult(false, $"Elevated process exited with code {process.ExitCode}");
+                : new TrayAppDotNETInstallResult(Success: false,
+                    $"Elevated process exited with code {process.ExitCode}");
         }
         catch (Win32Exception ex) when ((uint)ex.NativeErrorCode == 0x800704C7 || ex.NativeErrorCode == 1223)
         {
-            return new TrayAppDotNETInstallResult(false, UserCancelled: true);
+            return new TrayAppDotNETInstallResult(Success: false, UserCancelled: true);
         }
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.TryInvokeElevated: {ex}");
-            return new TrayAppDotNETInstallResult(false, ex.Message);
+            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
         }
     }
 
@@ -557,8 +581,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (desktopResult.Success) return desktopResult;
 
         return new TrayAppDotNETInstallResult(
-            false,
-            $"Application files were installed, but the desktop shortcut could not be updated: "
+            Success: false,
+            "Application files were installed, but the desktop shortcut could not be updated: "
             + desktopResult.ErrorMessage);
     }
 
@@ -588,12 +612,12 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (string.IsNullOrWhiteSpace(fileName)) return false;
 
         string extension = Path.GetExtension(fileName);
-        if (string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".ps1", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(extension, b: ".bat", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, b: ".cmd", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, b: ".ps1", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        if (fileName.StartsWith("TrayAppDotNETCommon.XmlSourceGenerator.", StringComparison.OrdinalIgnoreCase))
+        if (fileName.StartsWith(value: "TrayAppDotNETCommon.XmlSourceGenerator.", StringComparison.OrdinalIgnoreCase))
             return false;
 
         string applicationName = Path.GetFileNameWithoutExtension(installedExecutableFileName);
@@ -602,13 +626,13 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
     private static bool IsSiblingTrayAppRootFile(string fileName, string applicationName)
     {
-        if (TryGetStructuredJsonBaseName(fileName, ".deps.json", out string? baseName)
-            || TryGetStructuredJsonBaseName(fileName, ".runtimeconfig.json", out baseName))
+        if (TryGetStructuredJsonBaseName(fileName, suffix: ".deps.json", out string? baseName)
+            || TryGetStructuredJsonBaseName(fileName, suffix: ".runtimeconfig.json", out baseName))
             return baseName is not null && IsOtherTrayAppName(baseName, applicationName);
 
         string extension = Path.GetExtension(fileName);
-        if (!string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(extension, b: ".exe", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, b: ".dll", StringComparison.OrdinalIgnoreCase))
             return false;
 
         string stem = Path.GetFileNameWithoutExtension(fileName);
@@ -632,7 +656,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     private static bool IsOtherTrayAppName(string name, string applicationName) =>
-        name.EndsWith("TrayAppDotNET", StringComparison.OrdinalIgnoreCase)
+        name.EndsWith(value: "TrayAppDotNET", StringComparison.OrdinalIgnoreCase)
         && !string.Equals(name, applicationName, StringComparison.OrdinalIgnoreCase);
 
     private static void CopyFileIfDifferent(string sourceFile, string destinationFile)
@@ -653,7 +677,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     private static bool IsDllFile(string path) =>
-        string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase);
+        string.Equals(Path.GetExtension(path), b: ".dll", StringComparison.OrdinalIgnoreCase);
 
     private static bool DllContentsMatch(string sourceFile, string destinationFile)
     {
@@ -673,13 +697,15 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
         Directory.CreateDirectory(destinationDirectory);
 
-        foreach (string directory in Directory.EnumerateDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+        foreach (string directory in Directory.EnumerateDirectories(sourceDirectory, searchPattern: "*",
+                     SearchOption.AllDirectories))
         {
             string relativePath = Path.GetRelativePath(sourceDirectory, directory);
             Directory.CreateDirectory(Path.Combine(destinationDirectory, relativePath));
         }
 
-        foreach (string file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(sourceDirectory, searchPattern: "*",
+                     SearchOption.AllDirectories))
         {
             string relativePath = Path.GetRelativePath(sourceDirectory, file);
             CopyFileIfDifferent(file, Path.Combine(destinationDirectory, relativePath));

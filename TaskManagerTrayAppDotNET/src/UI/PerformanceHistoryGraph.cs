@@ -58,8 +58,8 @@ internal sealed class PerformanceHistoryGraph : Control
         byte gridAlpha = (byte)Math.Round(
             byte.MaxValue * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphGridLineOpacity,
-                0,
-                1));
+                min: 0,
+                max: 1));
         Color gridColor = Color.FromArgb(
             gridAlpha,
             palette.Border.R,
@@ -72,8 +72,8 @@ internal sealed class PerformanceHistoryGraph : Control
         byte hoverLineAlpha = (byte)Math.Round(
             hoverLineColor.A * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
-                0,
-                1));
+                min: 0,
+                max: 1));
         IBrush hoverLineBrush = new SolidColorBrush(Color.FromArgb(
             hoverLineAlpha,
             hoverLineColor.R,
@@ -98,15 +98,15 @@ internal sealed class PerformanceHistoryGraph : Control
         _hoverTextCursorGap = resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
         _hoverMaximumTextLines = Math.Max(
-            1,
+            val1: 1,
             resources.AxamlTaskManagerPerformance.GraphHoverMaximumTextLines);
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
         _secondaryLineThickness =
             resources.AxamlTaskManagerPerformance.GraphSecondaryLineThickness;
         _secondaryLineOpacity = Math.Clamp(
             resources.AxamlTaskManagerPerformance.GraphSecondaryLineOpacity,
-            0,
-            1);
+            min: 0,
+            max: 1);
         _underfillOpacity = resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity;
         _underfillDarkenAmount =
             resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount;
@@ -158,10 +158,7 @@ internal sealed class PerformanceHistoryGraph : Control
     }
 
     /// <summary>Schedules a repaint after the current history receives a sample.</summary>
-    public void Refresh()
-    {
-        InvalidateVisual();
-    }
+    public void Refresh() => InvalidateVisual();
 
     protected override void OnPointerEntered(PointerEventArgs eventArgs)
     {
@@ -207,19 +204,20 @@ internal sealed class PerformanceHistoryGraph : Control
         double height = Bounds.Height;
         if (width <= 0 || height <= 0) return;
 
-        Rect graphBounds = new(0, 0, width, height);
+        Rect graphBounds = new(x: 0, y: 0, width, height);
         context.DrawRectangle(_backgroundBrush, _borderPen, graphBounds);
         if (_showUnderfill)
             DrawHistoryUnderfill(context, _history, _underfillBrush, width, height);
         for (int columnIndex = 1; columnIndex < _gridColumns; columnIndex++)
         {
             double positionX = width * columnIndex / _gridColumns;
-            context.DrawLine(_gridPen, new Point(positionX, 0), new Point(positionX, height));
+            context.DrawLine(_gridPen, new Point(positionX, y: 0), new Point(positionX, height));
         }
+
         for (int rowIndex = 1; rowIndex < _gridRows; rowIndex++)
         {
             double positionY = height * rowIndex / _gridRows;
-            context.DrawLine(_gridPen, new Point(0, positionY), new Point(width, positionY));
+            context.DrawLine(_gridPen, new Point(x: 0, positionY), new Point(width, positionY));
         }
 
         if (_secondaryHistory != null)
@@ -238,16 +236,14 @@ internal sealed class PerformanceHistoryGraph : Control
                 _hoverPointerPosition.X,
                 width,
                 out PerformanceHistoryGraphHoverSample sample))
-        {
             return;
-        }
 
-        double maximumTextWidth = Math.Max(0, width - _hoverTextInset * 2);
+        double maximumTextWidth = Math.Max(val1: 0, width - _hoverTextInset * 2);
         if (maximumTextWidth <= 0)
         {
             context.DrawLine(
                 _hoverLinePen,
-                new Point(sample.PositionX, 0),
+                new Point(sample.PositionX, y: 0),
                 new Point(sample.PositionX, height));
             return;
         }
@@ -255,8 +251,8 @@ internal sealed class PerformanceHistoryGraph : Control
         string? providedMetric = _hoverMetricProvider?.Invoke(sample.Timestamp);
         string metric = string.IsNullOrEmpty(providedMetric)
             ? string.Concat(
-                sample.Value.ToString("N0", CultureInfo.CurrentCulture),
-                "%")
+                sample.Value.ToString(format: "N0", CultureInfo.CurrentCulture),
+                str1: "%")
             : providedMetric;
         using TextLayout metricText = new(
             metric,
@@ -300,7 +296,7 @@ internal sealed class PerformanceHistoryGraph : Control
         double availableLength,
         double metricLength)
     {
-        double maximumCoordinate = Math.Max(0, availableLength - metricLength);
+        double maximumCoordinate = Math.Max(val1: 0, availableLength - metricLength);
         double edgeInset = Math.Min(_hoverTextInset, maximumCoordinate / 2);
         return Math.Clamp(
             preferredCoordinate,
@@ -316,22 +312,23 @@ internal sealed class PerformanceHistoryGraph : Control
         double metricInkTop,
         double metricInkBottom)
     {
-        double upperLineEnd = Math.Clamp(metricInkTop - _hoverLineClipPadding, 0, height);
-        double lowerLineStart = Math.Clamp(metricInkBottom + _hoverLineClipPadding, 0, height);
+        double upperLineEnd = Math.Clamp(metricInkTop - _hoverLineClipPadding, min: 0, height);
+        double lowerLineStart = Math.Clamp(metricInkBottom + _hoverLineClipPadding, min: 0, height);
         if (upperLineEnd > 0)
         {
             context.DrawLine(
                 _hoverLinePen,
-                new Point(positionX, 0),
+                new Point(positionX, y: 0),
                 new Point(positionX, upperLineEnd));
             double terminalStart = Math.Max(
-                0,
+                val1: 0,
                 upperLineEnd - _hoverLineTerminalPen.Thickness * _hoverLineDashGapLength);
             context.DrawLine(
                 _hoverLineTerminalPen,
                 new Point(positionX, terminalStart),
                 new Point(positionX, upperLineEnd));
         }
+
         if (lowerLineStart < height)
         {
             context.DrawLine(
@@ -356,7 +353,7 @@ internal sealed class PerformanceHistoryGraph : Control
                                       - (double)history.WindowDurationTicks;
         Point previousPoint = PointForSample(
             history,
-            0,
+            sampleIndex: 0,
             width,
             height,
             windowStartTimestamp);
@@ -388,7 +385,7 @@ internal sealed class PerformanceHistoryGraph : Control
                                       - (double)history.WindowDurationTicks;
         Point firstPoint = PointForSample(
             history,
-            0,
+            sampleIndex: 0,
             width,
             height,
             windowStartTimestamp);
@@ -408,10 +405,12 @@ internal sealed class PerformanceHistoryGraph : Control
                     windowStartTimestamp);
                 geometryContext.LineTo(lastPoint);
             }
+
             geometryContext.LineTo(new Point(lastPoint.X, height));
-            geometryContext.EndFigure(isClosed: true);
+            geometryContext.EndFigure(true);
         }
-        context.DrawGeometry(brush, null, geometry);
+
+        context.DrawGeometry(brush, pen: null, geometry);
     }
 
     /// <summary>Maps one history sample onto the graph's fixed-duration timeline.</summary>
@@ -426,7 +425,7 @@ internal sealed class PerformanceHistoryGraph : Control
         long timestamp = history.GetTimestampChronological(sampleIndex);
         double elapsedWindowFraction = (timestamp - windowStartTimestamp)
                                        / history.WindowDurationTicks;
-        double positionX = Math.Clamp(elapsedWindowFraction, 0, 1) * width;
+        double positionX = Math.Clamp(elapsedWindowFraction, min: 0, max: 1) * width;
         double positionY = height - value / 100.0 * height;
         return new Point(positionX, positionY);
     }

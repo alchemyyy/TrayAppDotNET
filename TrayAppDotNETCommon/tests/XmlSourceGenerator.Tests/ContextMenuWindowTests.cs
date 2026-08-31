@@ -6,8 +6,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
-using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.ContextMenus;
+using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
 
@@ -26,10 +26,7 @@ public sealed class ContextMenuWindowTests
                 translateX: 1);
             ContextMenuWindow menu = new(
                 [
-                    new ContextMenuEntry("Selected", static () => { })
-                    {
-                        TrailingGlyphMetadata = trailingGlyph
-                    }
+                    new ContextMenuEntry(Text: "Selected", static () => { }) { TrailingGlyphMetadata = trailingGlyph }
                 ],
                 new ContextMenuWindowOptions { Palette = Palette() });
 
@@ -56,16 +53,16 @@ public sealed class ContextMenuWindowTests
     [Fact]
     public void OverlayPositionUsesSpaceBelowTopMountedAnchor()
     {
-        PixelRect containingBounds = new(100, 100, 350, 500);
-        PixelRect anchorBounds = new(210, 100, 37, 38);
-        PixelSize menuSize = new(180, 80);
+        PixelRect containingBounds = new(x: 100, y: 100, width: 350, height: 500);
+        PixelRect anchorBounds = new(x: 210, y: 100, width: 37, height: 38);
+        PixelSize menuSize = new(width: 180, height: 80);
 
         PixelPoint position = ContextMenuWindow.ResolveOverlayPosition(
             containingBounds,
             anchorBounds,
             menuSize);
 
-        Assert.Equal(new PixelPoint(210, 138), position);
+        Assert.Equal(new PixelPoint(x: 210, y: 138), position);
         Assert.Equal(
             containingBounds.Bottom - anchorBounds.Bottom,
             ContextMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
@@ -74,16 +71,16 @@ public sealed class ContextMenuWindowTests
     [Fact]
     public void OverlayPositionUsesSpaceAboveBottomMountedAnchorAndStaysInsideFlyout()
     {
-        PixelRect containingBounds = new(100, 100, 350, 500);
-        PixelRect anchorBounds = new(430, 562, 37, 38);
-        PixelSize menuSize = new(180, 80);
+        PixelRect containingBounds = new(x: 100, y: 100, width: 350, height: 500);
+        PixelRect anchorBounds = new(x: 430, y: 562, width: 37, height: 38);
+        PixelSize menuSize = new(width: 180, height: 80);
 
         PixelPoint position = ContextMenuWindow.ResolveOverlayPosition(
             containingBounds,
             anchorBounds,
             menuSize);
 
-        Assert.Equal(new PixelPoint(270, 482), position);
+        Assert.Equal(new PixelPoint(x: 270, y: 482), position);
         Assert.Equal(
             anchorBounds.Y - containingBounds.Y,
             ContextMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
@@ -92,9 +89,9 @@ public sealed class ContextMenuWindowTests
     [Fact]
     public void SubmenuPositionOpensBesideOwnerWhenRightSideHasSpace()
     {
-        PixelRect workArea = new(0, 0, 1000, 800);
-        PixelRect ownerBounds = new(200, 300, 160, 30);
-        PixelSize menuSize = new(180, 200);
+        PixelRect workArea = new(x: 0, y: 0, width: 1000, height: 800);
+        PixelRect ownerBounds = new(x: 200, y: 300, width: 160, height: 30);
+        PixelSize menuSize = new(width: 180, height: 200);
 
         PixelPoint position = ContextMenuWindow.ResolveSubmenuPosition(
             workArea,
@@ -102,15 +99,15 @@ public sealed class ContextMenuWindowTests
             menuSize,
             edgePadding: 8);
 
-        Assert.Equal(new PixelPoint(360, 300), position);
+        Assert.Equal(new PixelPoint(x: 360, y: 300), position);
     }
 
     [Fact]
     public void SubmenuPositionFlipsLeftAndClampsToBottomEdge()
     {
-        PixelRect workArea = new(0, 0, 1000, 800);
-        PixelRect ownerBounds = new(900, 750, 80, 30);
-        PixelSize menuSize = new(180, 200);
+        PixelRect workArea = new(x: 0, y: 0, width: 1000, height: 800);
+        PixelRect ownerBounds = new(x: 900, y: 750, width: 80, height: 30);
+        PixelSize menuSize = new(width: 180, height: 200);
 
         PixelPoint position = ContextMenuWindow.ResolveSubmenuPosition(
             workArea,
@@ -118,28 +115,28 @@ public sealed class ContextMenuWindowTests
             menuSize,
             edgePadding: 8);
 
-        Assert.Equal(new PixelPoint(720, 592), position);
+        Assert.Equal(new PixelPoint(x: 720, y: 592), position);
     }
 
     [Fact]
     public void ScreenPointPositionClampsMenuInsideWorkArea()
     {
-        PixelRect workArea = new(100, 100, 500, 400);
-        PixelSize menuSize = new(180, 200);
+        PixelRect workArea = new(x: 100, y: 100, width: 500, height: 400);
+        PixelSize menuSize = new(width: 180, height: 200);
 
         PixelPoint insidePosition = ContextMenuWindow.ResolveScreenPointPosition(
             workArea,
-            new PixelPoint(250, 180),
+            new PixelPoint(x: 250, y: 180),
             menuSize,
             edgePadding: 8);
         PixelPoint clampedPosition = ContextMenuWindow.ResolveScreenPointPosition(
             workArea,
-            new PixelPoint(590, 490),
+            new PixelPoint(x: 590, y: 490),
             menuSize,
             edgePadding: 8);
 
-        Assert.Equal(new PixelPoint(250, 180), insidePosition);
-        Assert.Equal(new PixelPoint(412, 292), clampedPosition);
+        Assert.Equal(new PixelPoint(x: 250, y: 180), insidePosition);
+        Assert.Equal(new PixelPoint(x: 412, y: 292), clampedPosition);
     }
 
     [Theory]
@@ -169,11 +166,11 @@ public sealed class ContextMenuWindowTests
                 HoverThumbThickness: 12,
                 ThumbEndMargin: 4,
                 MinimumThumbLength: 24,
-                TrackColor: Colors.Transparent,
-                IdleThumbColor: Colors.Gray,
-                HoverThumbColor: Colors.LightGray,
-                DragThumbColor: Colors.White,
-                ArrowColor: Colors.White,
+                Colors.Transparent,
+                Colors.Gray,
+                Colors.LightGray,
+                Colors.White,
+                Colors.White,
                 ShowButtonsOnHover: true);
             ContextMenuWindowOptions options = new() { Palette = palette };
             using SettingsScrollBar verticalScrollBar = new(
@@ -187,10 +184,10 @@ public sealed class ContextMenuWindowTests
                 TrayAppDotNETCursors.Arrow,
                 options);
 
-            string[] verticalCommands = verticalScrollBar.BuildContextMenuEntries(pointerAxis: 50)
+            string[] verticalCommands = verticalScrollBar.BuildContextMenuEntries(50)
                 .Select(entry => entry.Text)
                 .ToArray();
-            string[] horizontalCommands = horizontalScrollBar.BuildContextMenuEntries(pointerAxis: 50)
+            string[] horizontalCommands = horizontalScrollBar.BuildContextMenuEntries(50)
                 .Select(entry => entry.Text)
                 .ToArray();
 
@@ -215,7 +212,7 @@ public sealed class ContextMenuWindowTests
             menu = new ContextMenuWindow(
                 [
                     new ContextMenuEntry(
-                        "Add Group Card",
+                        Text: "Add Group Card",
                         () =>
                         {
                             invoked = true;
@@ -224,9 +221,7 @@ public sealed class ContextMenuWindowTests
                 ],
                 new ContextMenuWindowOptions
                 {
-                    Palette = Palette(),
-                    InvokeOnPointerReleased = true,
-                    InvokeBeforeClose = true
+                    Palette = Palette(), InvokeOnPointerReleased = true, InvokeBeforeClose = true
                 });
 
             try
@@ -261,23 +256,18 @@ public sealed class ContextMenuWindowTests
         {
             EditableContextMenuWindow menu = new(
                 [
-                    new EditableContextMenuEntry("Saved Search 1", static () => { })
+                    new EditableContextMenuEntry(Text: "Saved Search 1", static () => { })
                     {
                         SecondaryText = "{Name}=~\"browser\"",
                         TrailingButton = new EditableContextMenuEntryButton(static () => { })
                         {
-                            Text = "x",
-                            Size = 24,
-                            FontSize = 20
+                            Text = "x", Size = 24, FontSize = 20
                         }
                     }
                 ],
                 new EditableContextMenuWindowOptions
                 {
-                    Palette = Palette(),
-                    ItemHeight = 32,
-                    ItemMinWidth = 260,
-                    InvokeOnPointerReleased = true
+                    Palette = Palette(), ItemHeight = 32, ItemMinWidth = 260, InvokeOnPointerReleased = true
                 });
 
             try
@@ -287,12 +277,12 @@ public sealed class ContextMenuWindowTests
                 SettingsButton deleteButton = menu.GetVisualDescendants()
                     .OfType<SettingsButton>()
                     .Single();
-                Assert.Equal(0d, deleteButton.Opacity);
+                Assert.Equal(expected: 0d, deleteButton.Opacity);
                 Assert.False(deleteButton.IsHitTestVisible);
 
                 Point entryCenter = new(menu.Bounds.Width / 2, menu.Bounds.Height / 2);
                 menu.MouseMove(entryCenter, RawInputModifiers.None);
-                Assert.Equal(1d, deleteButton.Opacity);
+                Assert.Equal(expected: 1d, deleteButton.Opacity);
                 Assert.True(deleteButton.IsHitTestVisible);
 
                 Point? deleteCenter = deleteButton.TranslatePoint(
@@ -302,7 +292,7 @@ public sealed class ContextMenuWindowTests
                 menu.MouseMove(deleteCenter.Value, RawInputModifiers.None);
                 menu.MouseMove(entryCenter, RawInputModifiers.None);
 
-                Assert.Equal(1d, deleteButton.Opacity);
+                Assert.Equal(expected: 1d, deleteButton.Opacity);
                 Assert.True(deleteButton.IsHitTestVisible);
             }
             finally
@@ -320,25 +310,19 @@ public sealed class ContextMenuWindowTests
             EditableContextMenuWindow? menu = null;
             menu = new EditableContextMenuWindow(
                 [
-                    new EditableContextMenuEntry("Saved Search 1", static () => { })
+                    new EditableContextMenuEntry(Text: "Saved Search 1", static () => { })
                     {
                         TrailingButton = new EditableContextMenuEntryButton(() =>
                         {
                             invoked = true;
                             menu!.ReplaceEntries(
-                                [new EditableContextMenuEntry("Saved Search 2", static () => { })]);
-                        })
-                        {
-                            DismissMenuOnClick = false
-                        }
+                                [new EditableContextMenuEntry(Text: "Saved Search 2", static () => { })]);
+                        }) { DismissMenuOnClick = false }
                     }
                 ],
                 new EditableContextMenuWindowOptions
                 {
-                    Palette = Palette(),
-                    ItemHeight = 32,
-                    ItemMinWidth = 260,
-                    InvokeOnPointerReleased = true
+                    Palette = Palette(), ItemHeight = 32, ItemMinWidth = 260, InvokeOnPointerReleased = true
                 });
 
             try
@@ -401,17 +385,20 @@ public sealed class ContextMenuWindowTests
             {
                 menu.Show();
                 menu.UpdateLayout();
-                SettingsButton[] actionButtons = [..
-                    menu.GetVisualDescendants().OfType<SettingsButton>()];
-                Assert.Equal(2, actionButtons.Length);
+                SettingsButton[] actionButtons =
+                [
+                    ..
+                    menu.GetVisualDescendants().OfType<SettingsButton>()
+                ];
+                Assert.Equal(expected: 2, actionButtons.Length);
 
-                menu.MouseMove(new Point(menu.Bounds.Width / 2, 16), RawInputModifiers.None);
-                Assert.Equal(1d, actionButtons[0].Opacity);
-                Assert.Equal(0d, actionButtons[1].Opacity);
+                menu.MouseMove(new Point(menu.Bounds.Width / 2, y: 16), RawInputModifiers.None);
+                Assert.Equal(expected: 1d, actionButtons[0].Opacity);
+                Assert.Equal(expected: 0d, actionButtons[1].Opacity);
 
-                menu.MouseMove(new Point(menu.Bounds.Width / 2, 48), RawInputModifiers.None);
-                Assert.Equal(0d, actionButtons[0].Opacity);
-                Assert.Equal(1d, actionButtons[1].Opacity);
+                menu.MouseMove(new Point(menu.Bounds.Width / 2, y: 48), RawInputModifiers.None);
+                Assert.Equal(expected: 0d, actionButtons[0].Opacity);
+                Assert.Equal(expected: 1d, actionButtons[1].Opacity);
             }
             finally
             {
@@ -422,10 +409,7 @@ public sealed class ContextMenuWindowTests
             return;
 
             static EditableContextMenuEntry Entry(string text) =>
-                new(text, static () => { })
-                {
-                    TrailingButton = new EditableContextMenuEntryButton(static () => { })
-                };
+                new(text, static () => { }) { TrailingButton = new EditableContextMenuEntryButton(static () => { }) };
         });
 
     [Fact]
@@ -436,7 +420,7 @@ public sealed class ContextMenuWindowTests
             string committedText = string.Empty;
             EditableContextMenuWindow menu = new(
                 [
-                    new EditableContextMenuEntry("Saved Search 1", () => entryInvoked = true)
+                    new EditableContextMenuEntry(Text: "Saved Search 1", () => entryInvoked = true)
                     {
                         LeadingButton = new EditableContextMenuEntryButton(static () => { }),
                         InlineTextEdit = new EditableContextMenuInlineTextEdit(text =>
@@ -448,10 +432,7 @@ public sealed class ContextMenuWindowTests
                 ],
                 new EditableContextMenuWindowOptions
                 {
-                    Palette = Palette(),
-                    ItemHeight = 32,
-                    ItemMinWidth = 260,
-                    InvokeOnPointerReleased = true
+                    Palette = Palette(), ItemHeight = 32, ItemMinWidth = 260, InvokeOnPointerReleased = true
                 });
 
             try
@@ -475,9 +456,9 @@ public sealed class ContextMenuWindowTests
                 Assert.True(editor.IsVisible);
                 editor.Text = "  Browsers  ";
                 editor.Focus();
-                menu.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+                menu.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, keySymbol: null);
 
-                Assert.Equal("  Browsers  ", committedText);
+                Assert.Equal(expected: "  Browsers  ", committedText);
                 Assert.False(editor.IsVisible);
                 Assert.False(entryInvoked);
                 Assert.True(menu.IsVisible);
@@ -498,7 +479,7 @@ public sealed class ContextMenuWindowTests
             string committedText = string.Empty;
             EditableContextMenuWindow menu = new(
                 [
-                    new EditableContextMenuEntry("Saved Search 1", () => selectedEntryIndex = 0)
+                    new EditableContextMenuEntry(Text: "Saved Search 1", () => selectedEntryIndex = 0)
                     {
                         LeadingButton = new EditableContextMenuEntryButton(static () => { }),
                         InlineTextEdit = new EditableContextMenuInlineTextEdit(text =>
@@ -507,7 +488,7 @@ public sealed class ContextMenuWindowTests
                             return text;
                         })
                     },
-                    new EditableContextMenuEntry("Saved Search 2", () => selectedEntryIndex = 1)
+                    new EditableContextMenuEntry(Text: "Saved Search 2", () => selectedEntryIndex = 1)
                 ],
                 new EditableContextMenuWindowOptions
                 {
@@ -526,7 +507,7 @@ public sealed class ContextMenuWindowTests
             {
                 menu.Show();
                 menu.UpdateLayout();
-                menu.MouseMove(new Point(menu.Bounds.Width / 2, 16), RawInputModifiers.None);
+                menu.MouseMove(new Point(menu.Bounds.Width / 2, y: 16), RawInputModifiers.None);
 
                 SettingsButton renameButton = menu.GetVisualDescendants()
                     .OfType<SettingsButton>()
@@ -540,13 +521,13 @@ public sealed class ContextMenuWindowTests
 
                 TextBox editor = menu.GetVisualDescendants().OfType<TextBox>().Single();
                 editor.Text = "Browsers";
-                Point secondEntryCenter = new(menu.Bounds.Width / 2, 48);
+                Point secondEntryCenter = new(menu.Bounds.Width / 2, y: 48);
                 menu.MouseMove(secondEntryCenter, RawInputModifiers.None);
                 menu.MouseDown(secondEntryCenter, MouseButton.Left, RawInputModifiers.None);
                 menu.MouseUp(secondEntryCenter, MouseButton.Left, RawInputModifiers.None);
 
-                Assert.Equal("Browsers", committedText);
-                Assert.Equal(-1, selectedEntryIndex);
+                Assert.Equal(expected: "Browsers", committedText);
+                Assert.Equal(expected: -1, selectedEntryIndex);
                 Assert.True(menu.IsVisible);
                 Assert.False(menu.ClosedFromSelection);
             }

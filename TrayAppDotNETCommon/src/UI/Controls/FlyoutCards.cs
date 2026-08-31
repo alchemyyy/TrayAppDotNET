@@ -43,7 +43,7 @@ public static class TrayAppDotNETFlyoutUI
 
     public static IBrush Brush(Color color, double opacity) =>
         new SolidColorBrush(Color.FromArgb(
-            (byte)Math.Round(color.A * Math.Clamp(opacity, 0, 1)),
+            (byte)Math.Round(color.A * Math.Clamp(opacity, min: 0, max: 1)),
             color.R,
             color.G,
             color.B));
@@ -102,7 +102,7 @@ public static class TrayAppDotNETFlyoutUI
             fontSize,
             fontFamily ?? TADNFontResolver.ResolveFontFamilyName(glyph.Font),
             weight);
-        GlyphApplicator.ApplyTo(icon, glyph, applyFontFamily: fontFamily == null);
+        GlyphApplicator.ApplyTo(icon, glyph, fontFamily == null);
         return icon;
     }
 

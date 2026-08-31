@@ -61,14 +61,14 @@ public class ThemeColor
             return hexString.Length switch
             {
                 6 => Color.FromRgb(
-                    Convert.ToByte(hexString[..2], 16),
-                    Convert.ToByte(hexString[2..4], 16),
-                    Convert.ToByte(hexString[4..6], 16)),
+                    Convert.ToByte(hexString[..2], fromBase: 16),
+                    Convert.ToByte(hexString[2..4], fromBase: 16),
+                    Convert.ToByte(hexString[4..6], fromBase: 16)),
                 8 => Color.FromArgb(
-                    Convert.ToByte(hexString[..2], 16),
-                    Convert.ToByte(hexString[2..4], 16),
-                    Convert.ToByte(hexString[4..6], 16),
-                    Convert.ToByte(hexString[6..8], 16)),
+                    Convert.ToByte(hexString[..2], fromBase: 16),
+                    Convert.ToByte(hexString[2..4], fromBase: 16),
+                    Convert.ToByte(hexString[4..6], fromBase: 16),
+                    Convert.ToByte(hexString[6..8], fromBase: 16)),
                 _ => throw new FormatException($"Invalid color literal '{hex}'.")
             };
         }
@@ -88,7 +88,7 @@ internal static class AppThemeColorCatalog
 #if DEBUG
     private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
         AppThemeHotReloadStore<AppThemeResources>.Create(
-            "Common",
+            catalogName: "Common",
             static () => new AppThemeResources());
 #else
     private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());
@@ -122,17 +122,18 @@ public class AppTheme : IDisposable
 {
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 
-    public static readonly Color ColorPickerDefaultColor = Color.FromArgb(0xFF, 0x00, 0x00, 0x00);
-    public static readonly Color ColorPickerBlack = Color.FromArgb(0xFF, 0x00, 0x00, 0x00);
-    public static readonly Color ColorPickerWhite = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-    public static readonly Color ColorPickerTransparentBlack = Color.FromArgb(0x00, 0x00, 0x00, 0x00);
-    public static readonly Color ColorPickerTransparentWhite = Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF);
-    public static readonly Color ColorPickerHueRed = Color.FromArgb(0xFF, 0xFF, 0x00, 0x00);
-    public static readonly Color ColorPickerHueMagenta = Color.FromArgb(0xFF, 0xFF, 0x00, 0xFF);
-    public static readonly Color ColorPickerHueBlue = Color.FromArgb(0xFF, 0x00, 0x00, 0xFF);
-    public static readonly Color ColorPickerHueCyan = Color.FromArgb(0xFF, 0x00, 0xFF, 0xFF);
-    public static readonly Color ColorPickerHueLime = Color.FromArgb(0xFF, 0x00, 0xFF, 0x00);
-    public static readonly Color ColorPickerHueYellow = Color.FromArgb(0xFF, 0xFF, 0xFF, 0x00);
+    public static readonly Color ColorPickerDefaultColor = Color.FromArgb(a: 0xFF, r: 0x00, g: 0x00, b: 0x00);
+    public static readonly Color ColorPickerBlack = Color.FromArgb(a: 0xFF, r: 0x00, g: 0x00, b: 0x00);
+    public static readonly Color ColorPickerWhite = Color.FromArgb(a: 0xFF, r: 0xFF, g: 0xFF, b: 0xFF);
+    public static readonly Color ColorPickerTransparentBlack = Color.FromArgb(a: 0x00, r: 0x00, g: 0x00, b: 0x00);
+    public static readonly Color ColorPickerTransparentWhite = Color.FromArgb(a: 0x00, r: 0xFF, g: 0xFF, b: 0xFF);
+    public static readonly Color ColorPickerHueRed = Color.FromArgb(a: 0xFF, r: 0xFF, g: 0x00, b: 0x00);
+    public static readonly Color ColorPickerHueMagenta = Color.FromArgb(a: 0xFF, r: 0xFF, g: 0x00, b: 0xFF);
+    public static readonly Color ColorPickerHueBlue = Color.FromArgb(a: 0xFF, r: 0x00, g: 0x00, b: 0xFF);
+    public static readonly Color ColorPickerHueCyan = Color.FromArgb(a: 0xFF, r: 0x00, g: 0xFF, b: 0xFF);
+    public static readonly Color ColorPickerHueLime = Color.FromArgb(a: 0xFF, r: 0x00, g: 0xFF, b: 0x00);
+    public static readonly Color ColorPickerHueYellow = Color.FromArgb(a: 0xFF, r: 0xFF, g: 0xFF, b: 0x00);
+
     public static byte TextSelectionHighlightAlpha =>
         AppThemeColorCatalog.SingleColor(nameof(TextSelectionHighlightAlpha)).A;
 
@@ -159,14 +160,18 @@ public class AppTheme : IDisposable
     public ThemeColor Pressed { get; set; } = AppThemeColorCatalog.Color(nameof(Pressed));
     public ThemeColor PressedDeep { get; set; } = AppThemeColorCatalog.Color(nameof(PressedDeep));
     public ThemeColor ControlBackground { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBackground));
+
     public ThemeColor ControlBackgroundDeep { get; set; } =
         AppThemeColorCatalog.Color(nameof(ControlBackgroundDeep));
+
     public ThemeColor ControlBorder { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBorder));
     public ThemeColor DisabledForeground { get; set; } = AppThemeColorCatalog.Color(nameof(DisabledForeground));
     public ThemeColor Accent { get; set; } = AppThemeColorCatalog.Color(nameof(Accent));
     public ThemeColor Acrylic { get; set; } = AppThemeColorCatalog.Color(nameof(Acrylic));
+
     public ThemeColor SecondaryForeground { get; set; } =
         AppThemeColorCatalog.Color(nameof(SecondaryForeground));
+
     public ThemeColor FooterBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FooterBackground));
     public ThemeColor SliderTrack { get; set; } = AppThemeColorCatalog.Color(nameof(SliderTrack));
     public ThemeColor SliderProgress { get; set; } = AppThemeColorCatalog.Color(nameof(SliderProgress));
@@ -176,20 +181,28 @@ public class AppTheme : IDisposable
     public ThemeColor IconForeground { get; set; } = AppThemeColorCatalog.Color(nameof(IconForeground));
     public ThemeColor CardBackground { get; set; } = AppThemeColorCatalog.Color(nameof(CardBackground));
     public ThemeColor TextBoxFocused { get; set; } = AppThemeColorCatalog.Color(nameof(TextBoxFocused));
+
     public ThemeColor SearchListItemSelected { get; set; } =
         AppThemeColorCatalog.Color(nameof(SearchListItemSelected));
+
     public ThemeColor SearchListItemHover { get; set; } =
         AppThemeColorCatalog.Color(nameof(SearchListItemHover));
+
     public ThemeColor ToggleSwitchOnTrack { get; set; } =
         AppThemeColorCatalog.Color(nameof(ToggleSwitchOnTrack));
+
     public ThemeColor ToggleSwitchOnThumb { get; set; } =
         AppThemeColorCatalog.Color(nameof(ToggleSwitchOnThumb));
+
     public ThemeColor CloseButtonHover { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonHover));
     public ThemeColor CloseButtonPressed { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonPressed));
+
     public ThemeColor CloseButtonGlyphActive { get; set; } =
         AppThemeColorCatalog.Color(nameof(CloseButtonGlyphActive));
+
     public ThemeColor FlyoutOverlayBackdrop { get; set; } =
         AppThemeColorCatalog.Color(nameof(FlyoutOverlayBackdrop));
+
     public ThemeColor FlyoutShadow { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutShadow));
     public ThemeColor MenuShadow { get; set; } = AppThemeColorCatalog.Color(nameof(MenuShadow));
 

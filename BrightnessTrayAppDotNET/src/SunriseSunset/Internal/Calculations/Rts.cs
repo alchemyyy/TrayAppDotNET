@@ -103,7 +103,8 @@ internal static class Rts
     {
         double h0Prime = -1 * (SPAConstants.SunRadius + spa.AtmosphericRefraction);
 
-        double sunRtsJd = DateUtils.JulianDay(spa.Year, spa.Month, spa.Day, 0, 0, 0, 0, 0);
+        double sunRtsJd = DateUtils.JulianDay(spa.Year, spa.Month, spa.Day, hour: 0, minute: 0, second: 0, deltaUt1: 0,
+            timezone: 0);
 
         RaDecResult rtsNoon = calculateRaDec(sunRtsJd, spa.DeltaT);
         double nu = rtsNoon.Nu;
@@ -128,13 +129,13 @@ internal static class Rts
         if (h0 == SPAConstants.InvalidValue)
         {
             return new RtsResult(
-                Sunrise: SPAConstants.InvalidValue,
-                Suntransit: SPAConstants.InvalidValue,
-                Sunset: SPAConstants.InvalidValue,
-                Srha: SPAConstants.InvalidValue,
-                Ssha: SPAConstants.InvalidValue,
-                Sta: SPAConstants.InvalidValue,
-                Eot: eot);
+                SPAConstants.InvalidValue,
+                SPAConstants.InvalidValue,
+                SPAConstants.InvalidValue,
+                SPAConstants.InvalidValue,
+                SPAConstants.InvalidValue,
+                SPAConstants.InvalidValue,
+                eot);
         }
 
         ApproxSunRiseAndSet(mRts, h0);
@@ -189,7 +190,7 @@ internal static class Rts
             (Math.Cos(zenithRad) - Math.Sin(latRad) * Math.Sin(deltaRad))
             / (Math.Cos(latRad) * Math.Cos(deltaRad));
 
-        if (cosH0 is < -1 or > 1) return new CustomZenithTimes(null, null);
+        if (cosH0 is < -1 or > 1) return new CustomZenithTimes(Sunrise: null, Sunset: null);
 
         double h0H = MathUtils.Rad2Deg(Math.Acos(cosH0)) / 15.0;
 

@@ -6,7 +6,7 @@ namespace FanControlTrayAppDotNET.Services;
 
 internal static class PawnIoDriverInstaller
 {
-    private static readonly Version RequiredVersion = new(2, 0, 0, 0);
+    private static readonly Version RequiredVersion = new(major: 2, minor: 0, build: 0, revision: 0);
 
     public static bool EnsureInstalled()
     {
@@ -23,7 +23,7 @@ internal static class PawnIoDriverInstaller
             }
 
             TADNLog.Log($"Installing PawnIO from {setupPath}");
-            ProcessStartInfo startInfo = new(setupPath, "-install") { UseShellExecute = true };
+            ProcessStartInfo startInfo = new(setupPath, arguments: "-install") { UseShellExecute = true };
 
             if (!TrayAppDotNETInstallationService.IsElevated(TADNLog.Log))
                 startInfo.Verb = "runas";
@@ -91,12 +91,12 @@ internal static class PawnIoDriverInstaller
     private static IEnumerable<string> EnumerateCandidatePaths(string baseDirectory, string? processDirectory)
     {
         yield return Path.Combine(baseDirectory, AppServices.PawnIoSetupFileName);
-        yield return Path.Combine(baseDirectory, "Resources", AppServices.PawnIoSetupFileName);
+        yield return Path.Combine(baseDirectory, path2: "Resources", AppServices.PawnIoSetupFileName);
 
         if (string.IsNullOrWhiteSpace(processDirectory))
             yield break;
 
         yield return Path.Combine(processDirectory, AppServices.PawnIoSetupFileName);
-        yield return Path.Combine(processDirectory, "Resources", AppServices.PawnIoSetupFileName);
+        yield return Path.Combine(processDirectory, path2: "Resources", AppServices.PawnIoSetupFileName);
     }
 }

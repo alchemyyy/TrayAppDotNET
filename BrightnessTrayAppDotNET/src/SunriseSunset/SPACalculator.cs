@@ -58,13 +58,13 @@ public static class SPACalculator
         SPAData spa = SPACore.Initialize(date ?? DateTimeOffset.Now, latitude, longitude, options);
         if (SPACore.Calculate(spa) != 0) return null;
         return new SolarPosition(
-            Zenith: spa.Zenith,
-            Azimuth: spa.Azimuth,
-            AzimuthAstro: spa.AzimuthAstro,
-            Elevation: spa.E,
-            RightAscension: spa.Alpha,
-            Declination: spa.Delta,
-            HourAngle: spa.H);
+            spa.Zenith,
+            spa.Azimuth,
+            spa.AzimuthAstro,
+            spa.E,
+            spa.Alpha,
+            spa.Delta,
+            spa.H);
     }
 
     /// <summary>Get civil, nautical and astronomical twilight, plus golden- and blue-hour windows</summary>
@@ -87,7 +87,8 @@ public static class SPACalculator
         SPAOptions? options = null)
     {
         SPAData spa = SPACore.Initialize(date ?? DateTimeOffset.Now, latitude, longitude, options);
-        if (SPACore.Calculate(spa) != 0) return new SunTimes(null, null, null, null);
+        if (SPACore.Calculate(spa) != 0)
+            return new SunTimes(Sunrise: null, Sunset: null, SolarNoon: null, Twilight: null);
 
         DateTimeOffset? sunrise = SPACore.IsValidSunTime(spa.Sunrise)
             ? TimeUtils.FractionalHourToDate(spa.Year, spa.Month, spa.Day, spa.Sunrise, spa.Timezone)
@@ -121,18 +122,18 @@ public static class SPACalculator
         DateTimeOffset? sunsetDate = ValidSunDate(spa.Sunset);
 
         return new TwilightTimes(
-            CivilDawn: ToDate(civil.Sunrise),
-            CivilDusk: ToDate(civil.Sunset),
-            NauticalDawn: ToDate(nautical.Sunrise),
-            NauticalDusk: ToDate(nautical.Sunset),
-            AstronomicalDawn: ToDate(astronomical.Sunrise),
-            AstronomicalDusk: ToDate(astronomical.Sunset),
-            GoldenHour: new HourPeriod(
-                Morning: new TwilightWindow(sunriseDate, ToDate(golden.Sunrise)),
-                Evening: new TwilightWindow(ToDate(golden.Sunset), sunsetDate)),
-            BlueHour: new HourPeriod(
-                Morning: new TwilightWindow(ToDate(blue.Sunrise), sunriseDate),
-                Evening: new TwilightWindow(sunsetDate, ToDate(blue.Sunset))));
+            ToDate(civil.Sunrise),
+            ToDate(civil.Sunset),
+            ToDate(nautical.Sunrise),
+            ToDate(nautical.Sunset),
+            ToDate(astronomical.Sunrise),
+            ToDate(astronomical.Sunset),
+            new HourPeriod(
+                new TwilightWindow(sunriseDate, ToDate(golden.Sunrise)),
+                new TwilightWindow(ToDate(golden.Sunset), sunsetDate)),
+            new HourPeriod(
+                new TwilightWindow(ToDate(blue.Sunrise), sunriseDate),
+                new TwilightWindow(sunsetDate, ToDate(blue.Sunset))));
 
         DateTimeOffset? ToDate(double? hours)
         {

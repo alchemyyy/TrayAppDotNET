@@ -27,10 +27,7 @@ public sealed class NetworkTrayMenuWindow(
             exit),
         new ContextMenuWindowOptions
         {
-            Palette = palette,
-            Rounded = rounded,
-            FontSize = fontSize,
-            ContextMenuSettings = settings
+            Palette = palette, Rounded = rounded, FontSize = fontSize, ContextMenuSettings = settings
         })
 {
     public void ShowAt(

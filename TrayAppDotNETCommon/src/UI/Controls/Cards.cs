@@ -124,11 +124,7 @@ public static class TrayAppDotNETSettingsCards
             max,
             SettingsCardsLayout.NumberBoxWidth,
             suffix,
-            decimalPlaces)
-        {
-            Step = step,
-            WheelStep = step
-        };
+            decimalPlaces) { Step = step, WheelStep = step };
         input.ValueChanged += (_, eventArgs) =>
         {
             if (!eventArgs.NewValue.HasValue) return;
@@ -198,7 +194,7 @@ public static class TrayAppDotNETSettingsCards
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
             rightControl.Margin = SettingsCardsLayout.RightControlMargin;
-            Grid.SetColumn(rightControl, 1);
+            Grid.SetColumn(rightControl, value: 1);
             DebugUIProvenance.RecordBuilder(rightControl);
             grid.Children.Add(rightControl);
         }
@@ -257,7 +253,7 @@ public static class TrayAppDotNETSettingsCards
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
             rightControl.Margin = SettingsCardsLayout.RightControlMargin;
-            Grid.SetColumn(rightControl, 1);
+            Grid.SetColumn(rightControl, value: 1);
             DebugUIProvenance.RecordBuilder(rightControl);
             grid.Children.Add(rightControl);
         }

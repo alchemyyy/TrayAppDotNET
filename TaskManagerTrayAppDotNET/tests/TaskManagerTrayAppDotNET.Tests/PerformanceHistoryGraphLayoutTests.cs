@@ -23,10 +23,10 @@ public sealed class PerformanceHistoryGraphLayoutTests
             out PerformanceHistoryGraphHoverSample sample);
 
         Assert.True(wasFound);
-        Assert.Equal(1, sample.ChronologicalIndex);
+        Assert.Equal(expected: 1, sample.ChronologicalIndex);
         Assert.Equal(history.GetTimestampChronological(1), sample.Timestamp);
-        Assert.Equal(50, sample.Value);
-        Assert.Equal(100, sample.PositionX, precision: 6);
+        Assert.Equal(expected: 50, sample.Value);
+        Assert.Equal(expected: 100, sample.PositionX, precision: 6);
     }
 
     [Theory]

@@ -30,7 +30,8 @@ internal static class AXAMLProvenanceEmitter
         builder.AppendLine("{");
         builder.AppendLine("    internal static class AXAMLProvenanceCatalog");
         builder.AppendLine("    {");
-        builder.AppendLine("        private static readonly global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceEntry[] EntriesStorage =");
+        builder.AppendLine(
+            "        private static readonly global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceEntry[] EntriesStorage =");
         builder.AppendLine("        [");
 
         foreach (AXAMLProvenanceDocument document in orderedDocuments)
@@ -41,7 +42,8 @@ internal static class AXAMLProvenanceEmitter
 
         builder.AppendLine("        ];");
         builder.AppendLine();
-        builder.AppendLine("        internal static global::System.Collections.Generic.IReadOnlyList<global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceEntry> Entries =>");
+        builder.AppendLine(
+            "        internal static global::System.Collections.Generic.IReadOnlyList<global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceEntry> Entries =>");
         builder.AppendLine("            EntriesStorage;");
         builder.AppendLine();
         builder.AppendLine("        [global::System.Runtime.CompilerServices.ModuleInitializer]");
@@ -62,7 +64,7 @@ internal static class AXAMLProvenanceEmitter
     {
         builder.AppendLine("            new global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceEntry(");
         builder.Append("                global::TrayAppDotNETCommon.UI.Debugging.AXAMLProvenanceKind.");
-        builder.AppendLine(entry.Kind.ToString() + ",");
+        builder.AppendLine(entry.Kind + ",");
         AppendArgument(builder, document.SourcePath);
         builder.Append("                ");
         builder.Append(entry.Line);

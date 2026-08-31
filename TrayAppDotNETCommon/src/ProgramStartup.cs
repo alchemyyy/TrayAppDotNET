@@ -65,7 +65,7 @@ public static class TrayAppDotNETProgram
     {
         ResetState();
 
-        if (HasArg(args, "--watcher"))
+        if (HasArg(args, flag: "--watcher"))
         {
             CrashHandler.Configure(new CrashHandlerOptions(
                 applicationName,
@@ -127,61 +127,59 @@ public static class TrayAppDotNETProgram
         if (HasArg(args, TrayAppDotNETInstallOptions.PrepareUninstallArgument))
             return RunOnStaThreadIfNeeded(() => RunUninstallPreparation(args, options, log));
 
-        if (HasArg(args, "--installer") || HasArg(args, "--install-gui"))
+        if (HasArg(args, flag: "--installer") || HasArg(args, flag: "--install-gui"))
             return RunInstaller(args, options);
 
-        if (HasArg(args, "--uninstall-headless"))
+        if (HasArg(args, flag: "--uninstall-headless"))
             return RunHeadlessUninstall(args, options, log);
 
         TrayAppDotNETInstallOptions installOptions = ParseInstallOptions(args, useDefaults: true)!;
-        if (HasArg(args, "--installlocal"))
+        if (HasArg(args, flag: "--installlocal"))
         {
             return RunOnStaThreadIfNeeded(() =>
-                RunInstall("local", options, log, startInstalled: true, installOptions));
+                RunInstall(scope: "local", options, log, startInstalled: true, installOptions));
         }
 
-        if (HasArg(args, "--installsystem"))
+        if (HasArg(args, flag: "--installsystem"))
         {
             return RunOnStaThreadIfNeeded(() =>
-                RunInstall("system", options, log, startInstalled: true, installOptions));
+                RunInstall(scope: "system", options, log, startInstalled: true, installOptions));
         }
 
-        if (HasArg(args, "--install-headless"))
+        if (HasArg(args, flag: "--install-headless"))
         {
             return RunOnStaThreadIfNeeded(() =>
                 RunInstall(
-                    TryGetArgValue(args, "--install-headless"),
+                    TryGetArgValue(args, flag: "--install-headless"),
                     options,
                     log,
                     startInstalled: false,
                     installOptions));
         }
 
-        if (HasArg(args, "--install"))
+        if (HasArg(args, flag: "--install"))
         {
             return RunOnStaThreadIfNeeded(() =>
                 RunInstall(
-                    TryGetArgValue(args, "--install"),
+                    TryGetArgValue(args, flag: "--install"),
                     options,
                     log,
                     startInstalled: false,
                     installOptions));
         }
 
-        string? installDir = TryGetArgValue(args, "--uninstall")
-                             ?? TryGetArgValue(args, "--uninstall-gui");
+        string? installDir = TryGetArgValue(args, flag: "--uninstall")
+                             ?? TryGetArgValue(args, flag: "--uninstall-gui");
         if (installDir != null)
             return RunUninstall(args, installDir, options);
 
-        bool isWatcher = HasArg(args, "--watcher");
-        bool isMonitored = HasArg(args, "--monitored");
+        bool isWatcher = HasArg(args, flag: "--watcher");
+        bool isMonitored = HasArg(args, flag: "--monitored");
 
         if (isWatcher) return CrashHandler.RunWatcher();
 
         if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
-        {
             return !CrashHandler.LaunchWatcherDetached() ? 1 : 0;
-        }
 
         WatcherPID = ParseWatcherPID(args);
         bool shouldOwnSingleInstance =
@@ -213,7 +211,7 @@ public static class TrayAppDotNETProgram
     {
         for (int i = 0; i < args.Length - 1; i++)
         {
-            if (args[i].Equals("--watcher-pid", StringComparison.OrdinalIgnoreCase) &&
+            if (args[i].Equals(value: "--watcher-pid", StringComparison.OrdinalIgnoreCase) &&
                 int.TryParse(args[i + 1], out int pid))
                 return pid;
         }
@@ -351,19 +349,19 @@ public static class TrayAppDotNETProgram
     private static bool ShouldLaunchWatcherBeforeConfiguring(string[] args) =>
         !Debugger.IsAttached &&
         !NoWatcherRequested() &&
-        !HasArg(args, "--monitored") &&
-        !HasArg(args, "--install") &&
-        !HasArg(args, "--installer") &&
-        !HasArg(args, "--install-gui") &&
-        !HasArg(args, "--install-headless") &&
-        !HasArg(args, "--installlocal") &&
-        !HasArg(args, "--installsystem") &&
+        !HasArg(args, flag: "--monitored") &&
+        !HasArg(args, flag: "--install") &&
+        !HasArg(args, flag: "--installer") &&
+        !HasArg(args, flag: "--install-gui") &&
+        !HasArg(args, flag: "--install-headless") &&
+        !HasArg(args, flag: "--installlocal") &&
+        !HasArg(args, flag: "--installsystem") &&
         !HasArg(args, TrayAppDotNETInstallOptions.SystemInstallArgument) &&
         !HasArg(args, TrayAppDotNETInstallOptions.SyncStartMenuArgument) &&
         !HasArg(args, TrayAppDotNETInstallOptions.PrepareUninstallArgument) &&
-        !HasArg(args, "--uninstall") &&
-        !HasArg(args, "--uninstall-gui") &&
-        !HasArg(args, "--uninstall-headless") &&
+        !HasArg(args, flag: "--uninstall") &&
+        !HasArg(args, flag: "--uninstall-gui") &&
+        !HasArg(args, flag: "--uninstall-headless") &&
         !UpdateInstaller.IsUpdateMode(args);
 
     private static bool NoWatcherRequested() =>
@@ -373,10 +371,10 @@ public static class TrayAppDotNETProgram
     {
         if (string.IsNullOrWhiteSpace(value)) return false;
 
-        return !value.Equals("0", StringComparison.OrdinalIgnoreCase) &&
-               !value.Equals("false", StringComparison.OrdinalIgnoreCase) &&
-               !value.Equals("no", StringComparison.OrdinalIgnoreCase) &&
-               !value.Equals("off", StringComparison.OrdinalIgnoreCase);
+        return !value.Equals(value: "0", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals(value: "false", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals(value: "no", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals(value: "off", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void NoopLog(string _) { }
@@ -437,8 +435,8 @@ public static class TrayAppDotNETProgram
 
     private static int RunStartMenuSync(string[] args, TrayAppDotNETProgramOptions options)
     {
-        InstallScope? removingScope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, "--remove-scope"));
-        options.SyncStartMenu(removingScope, true);
+        InstallScope? removingScope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, flag: "--remove-scope"));
+        options.SyncStartMenu(removingScope, arg2: true);
         return 0;
     }
 
@@ -447,7 +445,7 @@ public static class TrayAppDotNETProgram
         TrayAppDotNETProgramOptions options,
         Action<string> log)
     {
-        InstallScope? scope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, "--scope"));
+        InstallScope? scope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, flag: "--scope"));
         if (scope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
         {
             log("TrayAppDotNETProgram.RunUninstallPreparation: requires local or system scope");
@@ -462,7 +460,7 @@ public static class TrayAppDotNETProgram
 
     private static int RunUninstall(string[] args, string installDir, TrayAppDotNETProgramOptions options)
     {
-        InstallScope scope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, "--scope"))
+        InstallScope scope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, flag: "--scope"))
                              ?? InstallScope.LocalAppData;
         if (scope == InstallScope.WindowsStore) scope = InstallScope.LocalAppData;
 
@@ -479,21 +477,21 @@ public static class TrayAppDotNETProgram
         Action<string> log)
     {
         InstallScope? scope = InstallScopeExtensions.ParseArg(
-            TryGetArgValue(args, "--uninstall-headless"));
+            TryGetArgValue(args, flag: "--uninstall-headless"));
         if (scope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
         {
             WriteInstallMessage(
-                "Usage: --uninstall-headless <local|system> [--delete-settings <true|false>]",
+                text: "Usage: --uninstall-headless <local|system> [--delete-settings <true|false>]",
                 error: true,
                 log);
             return 2;
         }
 
-        string? deleteSettingsValue = TryGetArgValue(args, "--delete-settings");
-        if (HasArg(args, "--delete-settings") && deleteSettingsValue == null)
+        string? deleteSettingsValue = TryGetArgValue(args, flag: "--delete-settings");
+        if (HasArg(args, flag: "--delete-settings") && deleteSettingsValue == null)
             throw new ArgumentException("--delete-settings must be followed by true or false.");
         bool deleteSettings = deleteSettingsValue != null
-                              && ParseBooleanArgument("--delete-settings", deleteSettingsValue);
+                              && ParseBooleanArgument(name: "--delete-settings", deleteSettingsValue);
 
         using Process? process = options.RunHeadlessUninstall(scope.Value, deleteSettings);
         if (process == null)
@@ -519,14 +517,14 @@ public static class TrayAppDotNETProgram
         TrayAppDotNETInstallOptions installOptions)
     {
         TrayAppDotNETProgramOptions options = _installerProgramOptions
-                                             ?? throw new InvalidOperationException(
-                                                 "No installer GUI is active for this process.");
+                                              ?? throw new InvalidOperationException(
+                                                  "No installer GUI is active for this process.");
         Action<string> log = options.Log ?? TADNLog.Log;
         string scopeArgument = scope switch
         {
             InstallScope.LocalAppData => "local",
             InstallScope.ProgramFiles => "system",
-            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unsupported install scope.")
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, message: "Unsupported install scope.")
         };
         return RunInstall(scopeArgument, options, log, startInstalled: true, installOptions);
     }
@@ -538,7 +536,7 @@ public static class TrayAppDotNETProgram
         bool startInstalled,
         TrayAppDotNETInstallOptions? installOptions = null)
     {
-        if (scope is null) return PrintInstallUsage("Missing scope argument after --install", log);
+        if (scope is null) return PrintInstallUsage(reason: "Missing scope argument after --install", log);
         string normalizedScope = scope.ToLowerInvariant();
         if (normalizedScope is not ("local" or "system"))
             return PrintInstallUsage($"Unknown scope '{scope}'", log);
@@ -568,7 +566,7 @@ public static class TrayAppDotNETProgram
             result,
             installExecutable,
             startInstalled,
-            successMessage: $"Installed to {installExecutable}",
+            $"Installed to {installExecutable}",
             failureMessage,
             log);
     }

@@ -11,12 +11,12 @@ public sealed class ToolTipTests
     {
         Button target = new();
 
-        TrayAppDotNETToolTip.SetTip(target, "Tooltip");
+        TrayAppDotNETToolTip.SetTip(target, tip: "Tooltip");
 
-        Assert.Equal("Tooltip", ToolTip.GetTip(target));
+        Assert.Equal(expected: "Tooltip", ToolTip.GetTip(target));
         Assert.Equal(PlacementMode.Custom, ToolTip.GetPlacement(target));
-        Assert.Equal(0, ToolTip.GetHorizontalOffset(target));
-        Assert.Equal(0, ToolTip.GetVerticalOffset(target));
+        Assert.Equal(expected: 0, ToolTip.GetHorizontalOffset(target));
+        Assert.Equal(expected: 0, ToolTip.GetVerticalOffset(target));
         Assert.NotNull(ToolTip.GetCustomPopupPlacementCallback(target));
     });
 }

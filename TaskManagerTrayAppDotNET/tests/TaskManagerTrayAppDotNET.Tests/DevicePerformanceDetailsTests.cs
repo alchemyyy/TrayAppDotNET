@@ -25,32 +25,32 @@ public sealed class DevicePerformanceDetailsTests
     {
         GPUPerformanceEngineSnapshot[] engines =
         [
-            new(0, "3D", 12),
-            new(1, "Copy", 70),
-            new(2, "3D", 44)
+            new(EngineIndex: 0, Name: "3D", UtilizationPercent: 12),
+            new(EngineIndex: 1, Name: "Copy", UtilizationPercent: 70),
+            new(EngineIndex: 2, Name: "3D", UtilizationPercent: 44)
         ];
 
         bool found = GPUPerformanceDetailsView.TryGetEngineUtilization(
             engines,
-            "3D",
+            engineName: "3D",
             out double utilizationPercent);
 
         Assert.True(found);
-        Assert.Equal(44, utilizationPercent);
+        Assert.Equal(expected: 44, utilizationPercent);
     }
 
     [Fact]
     public void GPUCategoryDoesNotInventMissingEngineData()
     {
-        GPUPerformanceEngineSnapshot[] engines = [new(0, "3D", 12)];
+        GPUPerformanceEngineSnapshot[] engines = [new(EngineIndex: 0, Name: "3D", UtilizationPercent: 12)];
 
         bool found = GPUPerformanceDetailsView.TryGetEngineUtilization(
             engines,
-            "Video Decode",
+            engineName: "Video Decode",
             out double utilizationPercent);
 
         Assert.False(found);
-        Assert.Equal(0, utilizationPercent);
+        Assert.Equal(expected: 0, utilizationPercent);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class DevicePerformanceDetailsTests
         string fallbackName = GPUPerformanceDetailsView.SelectFallbackEngineName(
             displayedEngineNames);
 
-        Assert.Equal("Video Encode", fallbackName);
+        Assert.Equal(expected: "Video Encode", fallbackName);
     }
 
     [Fact]
@@ -70,12 +70,12 @@ public sealed class DevicePerformanceDetailsTests
         string[] displayedEngineNames = ["GPU Engine"];
         GPUPerformanceDetailEngineSnapshot[] detailEngines =
         [
-            new(0, "GPU Engine", true, 10)
+            new(EngineIndex: 0, Name: "GPU Engine", HasUtilizationSample: true, UtilizationPercent: 10)
         ];
         GPUPerformanceEngineSnapshot[] liveEngines =
         [
-            new(0, "3D", 80),
-            new(1, "Copy", 20)
+            new(EngineIndex: 0, Name: "3D", UtilizationPercent: 80),
+            new(EngineIndex: 1, Name: "Copy", UtilizationPercent: 20)
         ];
 
         bool found = GPUPerformanceDetailsView.TrySelectFallbackEngine(
@@ -86,7 +86,7 @@ public sealed class DevicePerformanceDetailsTests
             out double utilizationPercent);
 
         Assert.True(found);
-        Assert.Equal("Copy", engineName);
-        Assert.Equal(20, utilizationPercent);
+        Assert.Equal(expected: "Copy", engineName);
+        Assert.Equal(expected: 20, utilizationPercent);
     }
 }

@@ -14,15 +14,15 @@ public sealed class CPUCCDTopologyReaderTests
     {
         ProcessorRelationshipMasks[] cores =
         [
-            Relationship(0, 0xC0),
-            Relationship(0, 0x03),
-            Relationship(0, 0x30),
-            Relationship(0, 0x0C)
+            Relationship(group: 0, mask: 0xC0),
+            Relationship(group: 0, mask: 0x03),
+            Relationship(group: 0, mask: 0x30),
+            Relationship(group: 0, mask: 0x0C)
         ];
         ProcessorRelationshipMasks[] dies =
         [
-            Relationship(0, 0xF0, 9),
-            Relationship(0, 0x0F, 4)
+            Relationship(group: 0, mask: 0xF0, hardwareTopologyID: 9),
+            Relationship(group: 0, mask: 0x0F, hardwareTopologyID: 4)
         ];
 
         CPUCCDTopology topology = CPUCCDTopologyReader.BuildTopology(
@@ -32,21 +32,21 @@ public sealed class CPUCCDTopologyReaderTests
 
         Assert.True(topology.IsAvailable);
         Assert.Equal(CPUCCDTopologySource.AMDExtendedCPUTopology, topology.Source);
-        Assert.Equal(8, topology.LogicalProcessors.Length);
-        Assert.Equal(4, topology.Cores.Length);
-        Assert.Equal(2, topology.CCDs.Length);
+        Assert.Equal(expected: 8, topology.LogicalProcessors.Length);
+        Assert.Equal(expected: 4, topology.Cores.Length);
+        Assert.Equal(expected: 2, topology.CCDs.Length);
         Assert.Equal([0, 1], topology.CCDs.Span[0].CoreIndexes.ToArray());
         Assert.Equal([0, 1, 2, 3], topology.CCDs.Span[0].LogicalProcessorIndexes.ToArray());
-        Assert.Equal(4U, topology.CCDs.Span[0].HardwareTopologyID);
+        Assert.Equal(expected: 4U, topology.CCDs.Span[0].HardwareTopologyID);
         Assert.Equal([2, 3], topology.CCDs.Span[1].CoreIndexes.ToArray());
         Assert.Equal([4, 5, 6, 7], topology.CCDs.Span[1].LogicalProcessorIndexes.ToArray());
-        Assert.Equal(9U, topology.CCDs.Span[1].HardwareTopologyID);
+        Assert.Equal(expected: 9U, topology.CCDs.Span[1].HardwareTopologyID);
         Assert.All(
             topology.Cores.Span[..2].ToArray(),
-            static (CPUCoreTopologyEntry core) => Assert.Equal(0, core.CCDIndex));
+            static core => Assert.Equal(expected: 0, core.CCDIndex));
         Assert.All(
             topology.Cores.Span[2..].ToArray(),
-            static (CPUCoreTopologyEntry core) => Assert.Equal(1, core.CCDIndex));
+            static core => Assert.Equal(expected: 1, core.CCDIndex));
     }
 
     [Fact]
@@ -54,13 +54,13 @@ public sealed class CPUCCDTopologyReaderTests
     {
         ProcessorRelationshipMasks[] cores =
         [
-            Relationship(1, 0x03),
-            Relationship(0, 0x03)
+            Relationship(group: 1, mask: 0x03),
+            Relationship(group: 0, mask: 0x03)
         ];
         ProcessorRelationshipMasks[] dies =
         [
-            Relationship(1, 0x03),
-            Relationship(0, 0x03)
+            Relationship(group: 1, mask: 0x03),
+            Relationship(group: 0, mask: 0x03)
         ];
 
         CPUCCDTopology topology = CPUCCDTopologyReader.BuildTopology(
@@ -71,10 +71,10 @@ public sealed class CPUCCDTopologyReaderTests
         Assert.True(topology.IsAvailable);
         Assert.Collection(
             topology.LogicalProcessors.ToArray(),
-            static processor => Assert.Equal(new CPULogicalProcessor(0, 0, 0), processor),
-            static processor => Assert.Equal(new CPULogicalProcessor(1, 0, 1), processor),
-            static processor => Assert.Equal(new CPULogicalProcessor(2, 1, 0), processor),
-            static processor => Assert.Equal(new CPULogicalProcessor(3, 1, 1), processor));
+            static processor => Assert.Equal(new CPULogicalProcessor(SystemIndex: 0, Group: 0, Number: 0), processor),
+            static processor => Assert.Equal(new CPULogicalProcessor(SystemIndex: 1, Group: 0, Number: 1), processor),
+            static processor => Assert.Equal(new CPULogicalProcessor(SystemIndex: 2, Group: 1, Number: 0), processor),
+            static processor => Assert.Equal(new CPULogicalProcessor(SystemIndex: 3, Group: 1, Number: 1), processor));
         Assert.Equal([0, 1], topology.CCDs.Span[0].LogicalProcessorIndexes.ToArray());
         Assert.Equal([2, 3], topology.CCDs.Span[1].LogicalProcessorIndexes.ToArray());
         Assert.Null(topology.CCDs.Span[0].HardwareTopologyID);
@@ -83,11 +83,11 @@ public sealed class CPUCCDTopologyReaderTests
     [Fact]
     public void BuildTopologyRejectsPhysicalCoreSplitAcrossDies()
     {
-        ProcessorRelationshipMasks[] cores = [Relationship(0, 0x03)];
+        ProcessorRelationshipMasks[] cores = [Relationship(group: 0, mask: 0x03)];
         ProcessorRelationshipMasks[] dies =
         [
-            Relationship(0, 0x01),
-            Relationship(0, 0x02)
+            Relationship(group: 0, mask: 0x01),
+            Relationship(group: 0, mask: 0x02)
         ];
 
         CPUCCDTopology topology = CPUCCDTopologyReader.BuildTopology(
@@ -104,10 +104,10 @@ public sealed class CPUCCDTopologyReaderTests
     {
         ProcessorRelationshipMasks[] cores =
         [
-            Relationship(0, 0x03),
-            Relationship(0, 0x0C)
+            Relationship(group: 0, mask: 0x03),
+            Relationship(group: 0, mask: 0x0C)
         ];
-        ProcessorRelationshipMasks[] dies = [Relationship(0, 0x03)];
+        ProcessorRelationshipMasks[] dies = [Relationship(group: 0, mask: 0x03)];
 
         CPUCCDTopology topology = CPUCCDTopologyReader.BuildTopology(
             cores,
@@ -121,7 +121,7 @@ public sealed class CPUCCDTopologyReaderTests
     public void ParserReadsVariableProcessorRelationshipRecords()
     {
         byte[] buffer = new byte[NativeProcessorRelationshipSize * 2];
-        WriteProcessorRelationship(buffer, 0, relationship: 5, group: 0, mask: 0x0F);
+        WriteProcessorRelationship(buffer, offset: 0, relationship: 5, group: 0, mask: 0x0F);
         WriteProcessorRelationship(
             buffer,
             NativeProcessorRelationshipSize,
@@ -138,10 +138,10 @@ public sealed class CPUCCDTopologyReaderTests
         Assert.Collection(
             relationships,
             static relationship => Assert.Equal(
-                new ProcessorGroupAffinityMask(0, 0x0F),
+                new ProcessorGroupAffinityMask(Group: 0, Mask: 0x0F),
                 Assert.Single(relationship.GroupMasks.ToArray())),
             static relationship => Assert.Equal(
-                new ProcessorGroupAffinityMask(1, 0xF0),
+                new ProcessorGroupAffinityMask(Group: 1, Mask: 0xF0),
                 Assert.Single(relationship.GroupMasks.ToArray())));
     }
 
@@ -149,7 +149,7 @@ public sealed class CPUCCDTopologyReaderTests
     public void ParserRejectsUnexpectedRelationshipType()
     {
         byte[] buffer = new byte[NativeProcessorRelationshipSize];
-        WriteProcessorRelationship(buffer, 0, relationship: 0, group: 0, mask: 0x03);
+        WriteProcessorRelationship(buffer, offset: 0, relationship: 0, group: 0, mask: 0x03);
 
         bool parsed = CPUCCDTopologyReader.TryParseProcessorRelationships(
             buffer,
@@ -171,7 +171,7 @@ public sealed class CPUCCDTopologyReaderTests
             out uint hardwareTopologyID);
 
         Assert.True(decoded);
-        Assert.Equal(1U, hardwareTopologyID);
+        Assert.Equal(expected: 1U, hardwareTopologyID);
     }
 
     [Theory]
@@ -201,12 +201,11 @@ public sealed class CPUCCDTopologyReaderTests
         Assert.NotEmpty(topology.Cores.ToArray());
         Assert.NotEmpty(topology.CCDs.ToArray());
         Assert.Equal(
-            Enumerable.Range(0, topology.LogicalProcessors.Length),
-            topology.LogicalProcessors.ToArray().Select(
-                static processor => processor.SystemIndex));
+            Enumerable.Range(start: 0, topology.LogicalProcessors.Length),
+            topology.LogicalProcessors.ToArray().Select(static processor => processor.SystemIndex));
         Assert.All(topology.Cores.ToArray(), core =>
         {
-            Assert.InRange(core.CCDIndex, 0, topology.CCDs.Length - 1);
+            Assert.InRange(core.CCDIndex, low: 0, topology.CCDs.Length - 1);
             Assert.NotEmpty(core.LogicalProcessorIndexes.ToArray());
         });
         Assert.All(topology.CCDs.ToArray(), ccd =>
@@ -252,10 +251,7 @@ public sealed class CPUCCDTopologyReaderTests
         ulong mask,
         uint? hardwareTopologyID = null) =>
         new(
-            new ProcessorGroupAffinityMask[]
-            {
-                new(group, mask)
-            },
+            new ProcessorGroupAffinityMask[] { new(group, mask) },
             hardwareTopologyID);
 
     private static void WriteProcessorRelationship(
@@ -270,7 +266,7 @@ public sealed class CPUCCDTopologyReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(
             entry[sizeof(uint)..],
             NativeProcessorRelationshipSize);
-        BinaryPrimitives.WriteUInt16LittleEndian(entry[30..], 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(entry[30..], value: 1);
         BinaryPrimitives.WriteUInt64LittleEndian(entry[32..], mask);
         BinaryPrimitives.WriteUInt16LittleEndian(entry[40..], group);
     }

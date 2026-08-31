@@ -119,7 +119,8 @@ internal sealed class DeviceNicknameResolver
         foreach (DeviceMetadata device in devices)
         {
             if (!string.Equals(device.DeviceName, candidate.DeviceName, StringComparison.OrdinalIgnoreCase)) continue;
-            if (!string.Equals(device.HardwareType, candidate.HardwareType, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.Equals(device.HardwareType, candidate.HardwareType,
+                    StringComparison.OrdinalIgnoreCase)) continue;
             return true;
         }
 
@@ -191,7 +192,8 @@ internal sealed class DeviceNicknameResolver
         string normalizedTarget = target.ToUpperInvariant();
         return normalizedTarget switch
         {
-            CPUHardwareTypeTarget => string.Equals(hardwareType, LHMCPUHardwareType, StringComparison.OrdinalIgnoreCase),
+            CPUHardwareTypeTarget => string.Equals(hardwareType, LHMCPUHardwareType,
+                StringComparison.OrdinalIgnoreCase),
             GPUHardwareTypeTarget => IsGPUHardwareType(hardwareType),
             _ => string.Equals(hardwareType, target, StringComparison.OrdinalIgnoreCase)
         };

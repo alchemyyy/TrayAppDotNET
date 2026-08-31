@@ -53,9 +53,9 @@ public sealed class UIContentGeneration : IDisposable
     /// <summary>Cancels work, releases owned resources, and severs the detached root from its descendants.</summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
-        Control? root = Interlocked.Exchange(ref _root, null);
+        Control? root = Interlocked.Exchange(ref _root, value: null);
         if (root != null)
         {
             try

@@ -16,11 +16,14 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     private const int CurveSamplesPerPixel = 4;
     private const float GridOpacity = 0.27f;
 
-    private static readonly SKColor BackgroundColor = new(46, 48, 47);
-    private static readonly SKColor GraphFillColor = new(215, 216, 212);
-    private static readonly SKColor GraphLineColor = new(239, 239, 235);
-    private static readonly SKColor GridColor = new(177, 180, 178, (byte)Math.Round(byte.MaxValue * GridOpacity));
-    private static readonly SKColor BorderColor = new(137, 140, 138);
+    private static readonly SKColor BackgroundColor = new(red: 46, green: 48, blue: 47);
+    private static readonly SKColor GraphFillColor = new(red: 215, green: 216, blue: 212);
+    private static readonly SKColor GraphLineColor = new(red: 239, green: 239, blue: 235);
+
+    private static readonly SKColor GridColor = new(red: 177, green: 180, blue: 178,
+        (byte)Math.Round(byte.MaxValue * GridOpacity));
+
+    private static readonly SKColor BorderColor = new(red: 137, green: 140, blue: 138);
 
     private readonly Lock _gate = new();
     private readonly SystemPerformanceSample[] _history = new SystemPerformanceSample[HistoryCapacity];
@@ -48,7 +51,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         TrayGraphStyle style,
         TrayGraphDataSource dataSource)
     {
-        int valueCount = Math.Max(1, _historyCount);
+        int valueCount = Math.Max(val1: 1, _historyCount);
         double[] values = new double[valueCount];
         for (int valueIndex = 0; valueIndex < _historyCount; valueIndex++)
         {
@@ -91,7 +94,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         using SKCanvas canvas = new(bitmap);
         canvas.Clear(BackgroundColor);
 
-        float borderWidth = Math.Max(1.0f, size / 24.0f);
+        float borderWidth = Math.Max(val1: 1.0f, size / 24.0f);
         SKRect graphBounds = new(
             borderWidth,
             borderWidth,
@@ -99,7 +102,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             size - borderWidth);
 
         canvas.Save();
-        canvas.ClipRect(graphBounds, SKClipOperation.Intersect, antialias: false);
+        canvas.ClipRect(graphBounds, antialias: false);
         switch (input.Style)
         {
             case TrayGraphStyle.Current:
@@ -117,7 +120,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         DrawBorder(canvas, size, borderWidth);
 
         using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 
@@ -128,12 +131,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     {
         double currentPercent = values.Count > 0 ? NormalizePercent(values[^1]) : 0;
         float graphTop = PercentToY(graphBounds, currentPercent);
-        using SKPaint fillPaint = new()
-        {
-            Color = GraphFillColor,
-            IsAntialias = false,
-            Style = SKPaintStyle.Fill
-        };
+        using SKPaint fillPaint = new() { Color = GraphFillColor, IsAntialias = false, Style = SKPaintStyle.Fill };
         canvas.DrawRect(
             new SKRect(graphBounds.Left, graphTop, graphBounds.Right, graphBounds.Bottom),
             fillPaint);
@@ -149,7 +147,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         IReadOnlyList<double> values)
     {
         int curveSampleCount = Math.Max(
-            2,
+            val1: 2,
             (int)Math.Ceiling(graphBounds.Width * CurveSamplesPerPixel) + 1);
         double[] curveSamples = TaskManagerTrayGraphSampler.SampleMarquee(values, curveSampleCount);
 
@@ -175,12 +173,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         areaPath.LineTo(graphBounds.Right, graphBounds.Bottom);
         areaPath.Close();
 
-        using SKPaint fillPaint = new()
-        {
-            Color = GraphFillColor,
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill
-        };
+        using SKPaint fillPaint = new() { Color = GraphFillColor, IsAntialias = true, Style = SKPaintStyle.Fill };
         canvas.DrawPath(areaPath, fillPaint);
 
         using SKPaint linePaint = CreateGraphLinePaint();
@@ -191,10 +184,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     {
         using SKPaint gridPaint = new()
         {
-            Color = GridColor,
-            IsAntialias = false,
-            StrokeWidth = 1,
-            Style = SKPaintStyle.Stroke
+            Color = GridColor, IsAntialias = false, StrokeWidth = 1, Style = SKPaintStyle.Stroke
         };
         for (int gridIndex = 1; gridIndex < 4; gridIndex++)
         {
@@ -210,10 +200,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     {
         using SKPaint borderPaint = new()
         {
-            Color = BorderColor,
-            IsAntialias = false,
-            StrokeWidth = borderWidth,
-            Style = SKPaintStyle.Stroke
+            Color = BorderColor, IsAntialias = false, StrokeWidth = borderWidth, Style = SKPaintStyle.Stroke
         };
         float inset = borderWidth / 2.0f;
         canvas.DrawRect(new SKRect(inset, inset, size - inset, size - inset), borderPaint);
@@ -234,7 +221,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         graphBounds.Bottom - (float)(NormalizePercent(percent) / 100.0) * graphBounds.Height;
 
     private static double NormalizePercent(double value) =>
-        double.IsFinite(value) ? Math.Clamp(value, 0, 100) : 0;
+        double.IsFinite(value) ? Math.Clamp(value, min: 0, max: 100) : 0;
 
     public void Dispose()
     {

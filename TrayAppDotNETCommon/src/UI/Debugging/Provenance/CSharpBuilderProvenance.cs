@@ -18,7 +18,8 @@ public readonly record struct CSharpBuilderProvenanceEntry(
 /// <summary>Indexes generated builder assignments by their single runtime boundary call.</summary>
 internal static class CSharpBuilderProvenanceRegistry
 {
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
+
     private static readonly Dictionary<string, List<CSharpBuilderProvenanceEntry>> EntriesByBoundary =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -54,6 +55,7 @@ internal static class CSharpBuilderProvenanceRegistry
     }
 
     private static string BoundaryKey(string sourcePath, int sourceLine) =>
-        DebugSourcePath.Normalize(sourcePath) + ":" + sourceLine.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        DebugSourcePath.Normalize(sourcePath) + ":" +
+        sourceLine.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 #endif

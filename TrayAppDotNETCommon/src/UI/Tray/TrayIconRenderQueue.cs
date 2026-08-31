@@ -10,7 +10,7 @@ public sealed class TrayIconRenderQueue(Action<string>? log = null) : IDisposabl
 {
     private const string RenderKey = "tray-icon";
 
-    private readonly AsyncThrottler<string> _throttler = new(cooldownMs: 0);
+    private readonly AsyncThrottler<string> _throttler = new(0);
     private int _requestVersion;
     private volatile bool _disposed;
 

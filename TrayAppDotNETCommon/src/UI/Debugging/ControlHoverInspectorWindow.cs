@@ -52,12 +52,12 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public ControlHoverInspectorWindow()
     {
-        _backgroundBrush = new(ResolveColor(BackgroundResourceName));
-        _borderBrush = new(ResolveColor(BorderResourceName));
-        _foregroundBrush = new(ResolveColor(ForegroundResourceName));
-        _secondaryForegroundBrush = new(ResolveColor(SecondaryForegroundResourceName));
-        _statusBrush = new(ResolveColor(LiveResourceName));
-        _headerBackgroundBrush = new(ResolveColor(HeaderBackgroundResourceName));
+        _backgroundBrush = new SolidColorBrush(ResolveColor(BackgroundResourceName));
+        _borderBrush = new SolidColorBrush(ResolveColor(BorderResourceName));
+        _foregroundBrush = new SolidColorBrush(ResolveColor(ForegroundResourceName));
+        _secondaryForegroundBrush = new SolidColorBrush(ResolveColor(SecondaryForegroundResourceName));
+        _statusBrush = new SolidColorBrush(ResolveColor(LiveResourceName));
+        _headerBackgroundBrush = new SolidColorBrush(ResolveColor(HeaderBackgroundResourceName));
 
         ControlNameScope controlNames = ControlNameScope.For(this);
         Title = "Avalonia Hover Inspector";
@@ -91,22 +91,14 @@ internal sealed class ControlHoverInspectorWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
-        StackPanel header = new()
-        {
-            Spacing = 3,
-            Children =
-            {
-                _statusText,
-                _targetText
-            }
-        };
+        StackPanel header = new() { Spacing = 3, Children = { _statusText, _targetText } };
 
         Border headerBorder = new()
         {
             Background = _headerBackgroundBrush,
             BorderBrush = _borderBrush,
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(12, 9),
+            BorderThickness = new Thickness(left: 0, top: 0, right: 0, bottom: 1),
+            Padding = new Thickness(horizontal: 12, vertical: 9),
             Child = header
         };
         DockPanel.SetDock(headerBorder, Dock.Top);
@@ -118,31 +110,23 @@ internal sealed class ControlHoverInspectorWindow : Window
             FontFamily = new FontFamily("Consolas"),
             FontSize = TreeFontSize,
             FontWeight = FontWeight.Normal,
-            Margin = new Thickness(7, 5, 7, 7),
+            Margin = new Thickness(left: 7, top: 5, right: 7, bottom: 7),
             ItemsSource = _treeRoots,
             ItemTemplate = new FuncTreeDataTemplate<ControlHoverInspectorNode>(
                 static (node, _) => new ControlHoverInspectorTreeRow(node),
                 static node => node.Children)
         };
         Style treeItemStyle = new(selector => selector.OfType<TreeViewItem>());
-        treeItemStyle.Setters.Add(new Setter(TreeViewItem.FontSizeProperty, TreeFontSize));
-        treeItemStyle.Setters.Add(new Setter(TreeViewItem.FontWeightProperty, FontWeight.Normal));
-        treeItemStyle.Setters.Add(new Setter(TreeViewItem.MarginProperty, new Thickness(0)));
-        treeItemStyle.Setters.Add(new Setter(TreeViewItem.MinHeightProperty, TreeRowHeight));
-        treeItemStyle.Setters.Add(new Setter(TreeViewItem.PaddingProperty, new Thickness(0)));
+        treeItemStyle.Setters.Add(new Setter(FontSizeProperty, TreeFontSize));
+        treeItemStyle.Setters.Add(new Setter(FontWeightProperty, FontWeight.Normal));
+        treeItemStyle.Setters.Add(new Setter(MarginProperty, new Thickness(0)));
+        treeItemStyle.Setters.Add(new Setter(MinHeightProperty, TreeRowHeight));
+        treeItemStyle.Setters.Add(new Setter(PaddingProperty, new Thickness(0)));
         _treeView.Styles.Add(treeItemStyle);
         ScrollViewer.SetHorizontalScrollBarVisibility(_treeView, ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_treeView, ScrollBarVisibility.Auto);
 
-        DockPanel contentPanel = new()
-        {
-            LastChildFill = true,
-            Children =
-            {
-                headerBorder,
-                _treeView
-            }
-        };
+        DockPanel contentPanel = new() { LastChildFill = true, Children = { headerBorder, _treeView } };
 
         Border root = new()
         {
@@ -177,7 +161,7 @@ internal sealed class ControlHoverInspectorWindow : Window
         List<ControlHoverInspectorNode> roots =
         [
             capture.IdentityNode,
-            new ControlHoverInspectorNode("Loading property and provenance data...")
+            new("Loading property and provenance data...")
         ];
         if (capture.AncestryNode != null)
             roots.Add(capture.AncestryNode);
@@ -225,8 +209,8 @@ internal sealed class ControlHoverInspectorWindow : Window
     private void OnOpened(object? sender, EventArgs eventArgs)
     {
         PixelRect workArea = Screens.Primary?.WorkingArea
-                             ?? new PixelRect(0, 0, FallbackWorkAreaWidthPixels, FallbackWorkAreaHeightPixels);
-        double renderScaling = Math.Max(RenderScaling, 1);
+                             ?? new PixelRect(x: 0, y: 0, FallbackWorkAreaWidthPixels, FallbackWorkAreaHeightPixels);
+        double renderScaling = Math.Max(RenderScaling, val2: 1);
         int inspectorWidthPixels = (int)Math.Ceiling(InspectorWidth * renderScaling);
         int inspectorHeightPixels = (int)Math.Ceiling(InspectorHeight * renderScaling);
         int horizontalPosition = Math.Max(

@@ -40,8 +40,8 @@ public sealed record BatterySnapshot(
 
             return Math.Clamp(
                 FullChargeCapacityMilliwattHours.Value / DesignedCapacityMilliwattHours.Value * 100f,
-                0f,
-                100f);
+                min: 0f,
+                max: 100f);
         }
     }
 

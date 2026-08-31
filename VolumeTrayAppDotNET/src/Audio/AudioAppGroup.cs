@@ -4,7 +4,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Interop;
 
-
 namespace VolumeTrayAppDotNET.Audio;
 
 // Aggregates every audio session that shares an AppID into a single slider, mirroring EarTrumpet's

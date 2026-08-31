@@ -9,16 +9,16 @@ public sealed class EnvironmentalAutoEngageTests
     [Fact]
     public void AutoEngageComparisonTreatsNearEqualAsBoundaryHit()
     {
-        int comparison = EnvironmentalCurveService.CompareAutoEngageTargets(50.0004, 50.0);
+        int comparison = EnvironmentalCurveService.CompareAutoEngageTargets(curveTarget: 50.0004, manualTarget: 50.0);
 
-        Assert.Equal(0, comparison);
+        Assert.Equal(expected: 0, comparison);
     }
 
     [Fact]
     public void AutoEngageCrossingRequiresPriorComparison()
     {
         bool shouldReengage =
-            EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(null, currentComparison: 1);
+            EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(previousComparison: null, currentComparison: 1);
 
         Assert.False(shouldReengage);
     }
@@ -26,8 +26,10 @@ public sealed class EnvironmentalAutoEngageTests
     [Fact]
     public void AutoEngageCrossingDetectsHitAndCross()
     {
-        bool hit = EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(-1, currentComparison: 0);
-        bool cross = EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(-1, currentComparison: 1);
+        bool hit = EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(previousComparison: -1,
+            currentComparison: 0);
+        bool cross =
+            EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(previousComparison: -1, currentComparison: 1);
 
         Assert.True(hit);
         Assert.True(cross);
@@ -37,7 +39,7 @@ public sealed class EnvironmentalAutoEngageTests
     public void AutoEngageCrossingIgnoresLeavingSuppressedBoundary()
     {
         bool shouldReengage =
-            EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(0, currentComparison: 1);
+            EnvironmentalCurveService.DidAutoEngageTargetReachOrCross(previousComparison: 0, currentComparison: 1);
 
         Assert.False(shouldReengage);
     }

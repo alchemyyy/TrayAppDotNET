@@ -37,11 +37,11 @@ internal sealed class TaskManagerResizeGrip : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(_backgroundBrush, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        context.FillRectangle(_backgroundBrush, new Rect(x: 0, y: 0, Bounds.Width, Bounds.Height));
         double availableSize = Math.Min(Bounds.Width, Bounds.Height);
         int visibleRows = Math.Clamp(
             (int)Math.Floor((availableSize - _dotSize * 2) / _dotStep) + 1,
-            0,
+            min: 0,
             _dotRows);
         for (int row = 0; row < visibleRows; row++)
         {

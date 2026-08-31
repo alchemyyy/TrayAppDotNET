@@ -24,7 +24,7 @@ internal static class CriticalProcessActions
     private const uint TerminationExitCode = 1;
 
     public static bool TryTerminate(int processID, out string errorMessage) =>
-        TryTerminate(new ProcessTerminationTarget(processID, 0), out errorMessage);
+        TryTerminate(new ProcessTerminationTarget(processID, CreationTimeFileTime: 0), out errorMessage);
 
     public static bool TryTerminate(ProcessTerminationTarget target, out string errorMessage)
     {
@@ -79,8 +79,8 @@ internal static class CriticalProcessActions
         }
 
         uint processAccess = Kernel32.PROCESS_TERMINATE |
-            Kernel32.SYNCHRONIZE |
-            Kernel32.PROCESS_QUERY_LIMITED_INFORMATION;
+                             Kernel32.SYNCHRONIZE |
+                             Kernel32.PROCESS_QUERY_LIMITED_INFORMATION;
 
         processHandle = Kernel32.OpenProcess(
             processAccess,
@@ -126,6 +126,7 @@ internal static class CriticalProcessActions
             processHandle = IntPtr.Zero;
             return false;
         }
+
         if (isCritical)
         {
             errorCode = ErrorAccessDenied;
@@ -169,8 +170,7 @@ internal static class CriticalProcessActions
         {
             using Process? process = Process.Start(new ProcessStartInfo
             {
-                FileName = command.Trim(),
-                UseShellExecute = true
+                FileName = command.Trim(), UseShellExecute = true
             });
             if (process == null)
             {
@@ -203,7 +203,7 @@ internal static class CriticalProcessActions
             exception is InvalidOperationException or Win32Exception or NotSupportedException)
         {
             return new ExplorerRestartResult(
-                false,
+                Succeeded: false,
                 $"Windows Explorer processes could not be enumerated: {exception.Message}");
         }
 
@@ -249,7 +249,7 @@ internal static class CriticalProcessActions
                     {
                         failures.Add(FormatExplorerFailure(
                             processID,
-                            "The process did not exit before the timeout."));
+                            errorMessage: "The process did not exit before the timeout."));
                     }
                 }
                 catch (Exception exception) when (
@@ -271,7 +271,7 @@ internal static class CriticalProcessActions
         if (failures.Count > 0)
         {
             return new ExplorerRestartResult(
-                false,
+                Succeeded: false,
                 string.Join(Environment.NewLine, failures));
         }
 
@@ -286,8 +286,8 @@ internal static class CriticalProcessActions
         if (string.IsNullOrWhiteSpace(windowsDirectory))
         {
             return new ExplorerRestartResult(
-                false,
-                "The Windows directory could not be resolved.");
+                Succeeded: false,
+                ErrorMessage: "The Windows directory could not be resolved.");
         }
 
         string explorerPath = Path.Combine(windowsDirectory, ExplorerExecutableName);
@@ -295,19 +295,17 @@ internal static class CriticalProcessActions
         {
             using Process? process = Process.Start(new ProcessStartInfo
             {
-                FileName = explorerPath,
-                WorkingDirectory = windowsDirectory,
-                UseShellExecute = false
+                FileName = explorerPath, WorkingDirectory = windowsDirectory, UseShellExecute = false
             });
             return process == null
                 ? new ExplorerRestartResult(
-                    false,
-                    "Windows did not create a new Explorer process.")
-                : new ExplorerRestartResult(true, string.Empty);
+                    Succeeded: false,
+                    ErrorMessage: "Windows did not create a new Explorer process.")
+                : new ExplorerRestartResult(Succeeded: true, string.Empty);
         }
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
         {
-            return new ExplorerRestartResult(false, exception.Message);
+            return new ExplorerRestartResult(Succeeded: false, exception.Message);
         }
     }
 

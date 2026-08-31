@@ -10,7 +10,7 @@ namespace BrightnessTrayAppDotNET.Tests;
 public sealed class TextBlockLayoutLifetimeTests
 {
     private static readonly FieldInfo TextLayoutField =
-        typeof(TextBlock).GetField("_textLayout", BindingFlags.Instance | BindingFlags.NonPublic)
+        typeof(TextBlock).GetField(name: "_textLayout", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Avalonia TextBlock._textLayout was not found.");
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class TextBlockLayoutLifetimeTests
     private static void VerifyGenerationReleasesAlreadyInvalidLayout()
     {
         TextBlock textBlock = new() { Text = "Initial text" };
-        textBlock.Measure(new Size(200, 40));
+        textBlock.Measure(new Size(width: 200, height: 40));
         Assert.True(textBlock.IsMeasureValid);
 
         textBlock.Text = "Replacement text";
@@ -50,12 +50,7 @@ public sealed class TextBlockLayoutLifetimeTests
     {
         TextBlock textBlock = new() { Text = "Attached text" };
         Border root = new() { Child = textBlock };
-        Window window = new()
-        {
-            Width = 240,
-            Height = 80,
-            Content = root
-        };
+        Window window = new() { Width = 240, Height = 80, Content = root };
 
         try
         {

@@ -16,8 +16,8 @@ public sealed class FanDragEngineTests
         FanDragEvaluation beforeThreshold = FanDragEngine.Evaluate(snapshot, BoundsFromTop(55));
         FanDragEvaluation afterThreshold = FanDragEngine.Evaluate(snapshot, BoundsFromTop(58));
 
-        AssertTopLevel(beforeThreshold, 0);
-        AssertTopLevel(afterThreshold, 1);
+        AssertTopLevel(beforeThreshold, index: 0);
+        AssertTopLevel(afterThreshold, index: 1);
     }
 
     [Fact]
@@ -26,11 +26,11 @@ public sealed class FanDragEngineTests
         DragRig rig = DragRig.CreateTopLevelOnly();
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanC, rig.CellC, sourceTopLevelIndex: 2);
 
-        FanDragEvaluation notFarEnough = FanDragEngine.Evaluate(snapshot, BoundsFromTop(110, movingDown: false));
-        FanDragEvaluation farEnough = FanDragEngine.Evaluate(snapshot, BoundsFromTop(125, movingDown: false));
+        FanDragEvaluation notFarEnough = FanDragEngine.Evaluate(snapshot, BoundsFromTop(top: 110, movingDown: false));
+        FanDragEvaluation farEnough = FanDragEngine.Evaluate(snapshot, BoundsFromTop(top: 125, movingDown: false));
 
-        AssertTopLevel(notFarEnough, 1);
-        AssertTopLevel(farEnough, 2);
+        AssertTopLevel(notFarEnough, index: 1);
+        AssertTopLevel(farEnough, index: 2);
     }
 
     [Fact]
@@ -49,17 +49,17 @@ public sealed class FanDragEngineTests
             rig.FanB,
             rig.CellB,
             rig.Slots[1].Visual,
-            1,
-            88,
-            36,
-            80,
-            0.5);
+            DragSourceTopLevelIndex: 1,
+            DragSourceSlotHeight: 88,
+            DragSourceFanSlotHeight: 36,
+            DragPlacementSourceHeight: 80,
+            DragPointerOffsetRatio: 0.5);
 
-        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(70, movingDown: true));
+        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(top: 70, movingDown: true));
         IReadOnlyList<FanDragDebugMarker> markers =
-            FanDragEngine.CalculateDebugMarkers(snapshot, BoundsFromTop(70, movingDown: true));
+            FanDragEngine.CalculateDebugMarkers(snapshot, BoundsFromTop(top: 70, movingDown: true));
 
-        AssertTopLevel(evaluation, 1);
+        AssertTopLevel(evaluation, index: 1);
         Assert.Contains(markers, marker =>
             marker.Placement is { Kind: FanDragPlacementKind.TopLevel, TopLevelIndex: 1 }
             && Math.Abs(marker.Y - 97.6) < 0.001);
@@ -73,7 +73,7 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(29));
 
-        AssertTopLevel(evaluation, 0);
+        AssertTopLevel(evaluation, index: 0);
         Assert.Null(evaluation.Preview.GroupDropPreviewCell);
     }
 
@@ -85,9 +85,9 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(92));
 
-        AssertIntoGroup(evaluation, rig.GroupCell, 1);
+        AssertIntoGroup(evaluation, rig.GroupCell, groupFanIndex: 1);
         Assert.Same(rig.GroupCell, evaluation.Preview.GroupDropPreviewCell);
-        Assert.Equal(1, evaluation.Preview.GroupDropPreviewFanIndex);
+        Assert.Equal(expected: 1, evaluation.Preview.GroupDropPreviewFanIndex);
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public sealed class FanDragEngineTests
         IReadOnlyList<FanDragDebugMarker> markers =
             FanDragEngine.CalculateDebugMarkers(snapshot, BoundsFromTop(31));
 
-        AssertTopLevel(beforeHeaderPassBoundary, 0);
-        AssertIntoGroup(afterHeaderPassBoundary, rig.GroupCell, 0);
+        AssertTopLevel(beforeHeaderPassBoundary, index: 0);
+        AssertIntoGroup(afterHeaderPassBoundary, rig.GroupCell, groupFanIndex: 0);
         Assert.Contains(markers, marker =>
             marker.Placement is { Kind: FanDragPlacementKind.IntoGroup, GroupFanIndex: 0 }
             && Math.Abs(marker.Y - 70.32) < 0.001);
@@ -137,8 +137,8 @@ public sealed class FanDragEngineTests
         FanDragEvaluation beforeFirstFanPass = FanDragEngine.Evaluate(snapshot, BoundsFromTop(31));
         FanDragEvaluation afterFirstFanPass = FanDragEngine.Evaluate(snapshot, BoundsFromTop(40));
 
-        AssertIntoGroup(beforeFirstFanPass, rig.GroupCell, 0);
-        AssertIntoGroup(afterFirstFanPass, rig.GroupCell, 1);
+        AssertIntoGroup(beforeFirstFanPass, rig.GroupCell, groupFanIndex: 0);
+        AssertIntoGroup(afterFirstFanPass, rig.GroupCell, groupFanIndex: 1);
     }
 
     [Fact]
@@ -154,16 +154,16 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation atExtendedBottom = FanDragEngine.Evaluate(
             snapshot,
-            BoundsFromTop(topAtExtendedBottom, height: dragHeight));
+            BoundsFromTop(topAtExtendedBottom, dragHeight));
         FanDragEvaluation fourPixelsBeyond = FanDragEngine.Evaluate(
             snapshot,
-            BoundsFromTop(topAtExtendedBottom + groupExitOffset, height: dragHeight));
+            BoundsFromTop(topAtExtendedBottom + groupExitOffset, dragHeight));
         IReadOnlyList<FanDragDebugMarker> markers = FanDragEngine.CalculateDebugMarkers(
             snapshot,
-            BoundsFromTop(topAtExtendedBottom, height: dragHeight));
+            BoundsFromTop(topAtExtendedBottom, dragHeight));
 
-        AssertIntoGroup(atExtendedBottom, rig.GroupCell, 2);
-        AssertTopLevel(fourPixelsBeyond, 1);
+        AssertIntoGroup(atExtendedBottom, rig.GroupCell, groupFanIndex: 2);
+        AssertTopLevel(fourPixelsBeyond, index: 1);
         Assert.Null(fourPixelsBeyond.Preview.GroupDropPreviewCell);
         Assert.Contains(markers, marker =>
             marker.Placement is { Kind: FanDragPlacementKind.TopLevel, TopLevelIndex: 1 }
@@ -173,15 +173,15 @@ public sealed class FanDragEngineTests
     [Fact]
     public void IntoGroupPreviewFromSourceAboveClosesTheWholeRootSourceGap()
     {
-        DragRig rig = DragRig.Create(includeFanBetweenSourceAndGroup: true);
+        DragRig rig = DragRig.Create(true);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
-        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1);
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
 
         AssertOffsets(preview.TopLevelOffsets, (1, -88), (2, -88), (3, -88));
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
-        Assert.Equal(1, preview.GroupDropPreviewFanIndex);
+        Assert.Equal(expected: 1, preview.GroupDropPreviewFanIndex);
         Assert.False(preview.GroupDropPreviewExpandsUpward);
         Assert.False(preview.RetainsTopLevelPreviewSlot);
     }
@@ -189,15 +189,15 @@ public sealed class FanDragEngineTests
     [Fact]
     public void IntoGroupPreviewFromSourceBelowExpandsTheGroupUpward()
     {
-        DragRig rig = DragRig.Create(includeFanBetweenSourceAndGroup: true);
+        DragRig rig = DragRig.Create(true);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanC, rig.CellC, sourceTopLevelIndex: 3);
-        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1);
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
 
         Assert.Empty(preview.TopLevelOffsets);
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
-        Assert.Equal(1, preview.GroupDropPreviewFanIndex);
+        Assert.Equal(expected: 1, preview.GroupDropPreviewFanIndex);
         Assert.True(preview.GroupDropPreviewExpandsUpward);
         Assert.True(preview.RetainsTopLevelPreviewSlot);
     }
@@ -212,8 +212,8 @@ public sealed class FanDragEngineTests
             rig.CellB,
             new Border(),
             intermediateTop,
-            80,
-            88,
+            Height: 80,
+            SlotHeight: 88,
             intermediateTop,
             intermediateTop + 80);
         double sourceTop = intermediateTop + 88;
@@ -221,8 +221,8 @@ public sealed class FanDragEngineTests
             rig.CellC,
             new Border(),
             sourceTop,
-            80,
-            88,
+            Height: 80,
+            SlotHeight: 88,
             sourceTop,
             sourceTop + 80);
         List<FanDragSlot> slots =
@@ -233,17 +233,17 @@ public sealed class FanDragEngineTests
             sourceSlot
         ];
         FanDragSnapshot snapshot = rig.Snapshot(
-            rig.FanC,
-            rig.CellC,
-            sourceTopLevelIndex: 3,
-            sourceTopLevelControl: sourceSlot.Visual) with
-        {
-            Slots = slots
-        };
+                rig.FanC,
+                rig.CellC,
+                sourceTopLevelIndex: 3,
+                sourceSlot.Visual) with
+            {
+                Slots = slots
+            };
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(
             snapshot,
-            FanDragPlacement.IntoGroup(rig.GroupCell, 1));
+            FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1));
 
         AssertOffsets(preview.TopLevelOffsets, (2, 88));
         Assert.True(preview.GroupDropPreviewExpandsUpward);
@@ -258,14 +258,14 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(170));
 
-        AssertIntoGroup(evaluation, rig.GroupCell, 0);
+        AssertIntoGroup(evaluation, rig.GroupCell, groupFanIndex: 0);
         AssertOffsets(evaluation.Preview.TopLevelOffsets, (1, -88), (2, -88), (3, -88));
     }
 
     [Fact]
     public void TopLevelPlacementFromBelowUsesFlattenedRootOffsets()
     {
-        DragRig rig = DragRig.Create(includeFanBetweenSourceAndGroup: true);
+        DragRig rig = DragRig.Create(true);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanC, rig.CellC, sourceTopLevelIndex: 3);
         FanDragPlacement placement = FanDragPlacement.TopLevel(1);
 
@@ -277,15 +277,15 @@ public sealed class FanDragEngineTests
     [Fact]
     public void IntoGroupPreviewUsesBlankGroupPlaceholderAndSourceGapOffsets()
     {
-        DragRig rig = DragRig.Create(includeFanBetweenSourceAndGroup: true);
+        DragRig rig = DragRig.Create(true);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
-        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1);
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
 
         AssertOffsets(preview.TopLevelOffsets, (1, -88), (2, -88), (3, -88));
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
-        Assert.Equal(1, preview.GroupDropPreviewFanIndex);
+        Assert.Equal(expected: 1, preview.GroupDropPreviewFanIndex);
     }
 
     [Fact]
@@ -312,9 +312,9 @@ public sealed class FanDragEngineTests
             rig.FanA,
             childCount: 4);
 
-        Assert.Equal(1, beforeSource);
-        Assert.Equal(4, afterSource);
-        Assert.Equal(3, differentGroup);
+        Assert.Equal(expected: 1, beforeSource);
+        Assert.Equal(expected: 4, afterSource);
+        Assert.Equal(expected: 3, differentGroup);
     }
 
     [Fact]
@@ -330,7 +330,7 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(164));
 
-        AssertIntoGroup(evaluation, rig.GroupCell, 1);
+        AssertIntoGroup(evaluation, rig.GroupCell, groupFanIndex: 1);
     }
 
     [Fact]
@@ -343,7 +343,7 @@ public sealed class FanDragEngineTests
             sourceTopLevelIndex: -1,
             sourceTopLevelControl: null,
             sourceFanSlotHeight: 36);
-        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1);
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
 
@@ -370,10 +370,10 @@ public sealed class FanDragEngineTests
 
         FanDragPreviewPlan earlierPreview = FanDragEngine.CalculatePreviewPlan(
             movingEarlier,
-            FanDragPlacement.IntoGroup(rig.GroupCell, 0));
+            FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 0));
         FanDragPreviewPlan laterPreview = FanDragEngine.CalculatePreviewPlan(
             movingLater,
-            FanDragPlacement.IntoGroup(rig.GroupCell, 1));
+            FanDragPlacement.IntoGroup(rig.GroupCell, groupFanIndex: 1));
 
         AssertFanOffsets(earlierPreview.GroupFanOffsets, (rig.GroupFan0, 36));
         AssertFanOffsets(laterPreview.GroupFanOffsets, (rig.GroupFan1, -36));
@@ -410,19 +410,20 @@ public sealed class FanDragEngineTests
 
         rig.FanA.Group = rig.GroupCell.GroupName;
         List<FanDragCellArrangement> grouped =
-            FanDragEngine.MoveFanIntoGroup(cells, rig.FanA, rig.GroupCell, 1);
+            FanDragEngine.MoveFanIntoGroup(cells, rig.FanA, rig.GroupCell, targetFanIndex: 1);
 
         FanDragCellArrangement groupedCell = Assert.Single(grouped, cell => cell.HasGroupHeader);
         Assert.Equal([rig.GroupFan0, rig.FanA, rig.GroupFan1], groupedCell.Fans.ToArray());
         Assert.DoesNotContain(grouped, cell => !cell.HasGroupHeader && cell.Fans.Contains(rig.FanA));
 
         rig.FanA.Group = null;
-        List<FanDragCellArrangement> ungrouped = FanDragEngine.MoveFanToTopLevel(grouped, rig.FanA, 1);
+        List<FanDragCellArrangement> ungrouped = FanDragEngine.MoveFanToTopLevel(grouped, rig.FanA, targetIndex: 1);
 
         Assert.Equal([rig.GroupCell.GroupName!, rig.FanA.DisplayName, rig.FanC.DisplayName],
             DescribeCells(ungrouped));
         Assert.All([rig.FanA, rig.GroupFan0, rig.GroupFan1, rig.FanC], fan =>
-            Assert.Equal(1, ungrouped.Sum(cell => cell.Fans.Count(candidate => ReferenceEquals(candidate, fan)))));
+            Assert.Equal(expected: 1,
+                ungrouped.Sum(cell => cell.Fans.Count(candidate => ReferenceEquals(candidate, fan)))));
     }
 
     [Fact]
@@ -441,7 +442,7 @@ public sealed class FanDragEngineTests
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
-        Assert.True(trace.ToCompactString().Contains("group[Group A:2]", StringComparison.Ordinal),
+        Assert.True(trace.ToCompactString().Contains(value: "group[Group A:2]", StringComparison.Ordinal),
             trace.ToCompactString());
         Assert.Equal(["group:Group A:0", "group:Group A:0", "group:Group A:1", "group:Group A:1", "group:Group A:2"],
             placements);
@@ -481,7 +482,8 @@ public sealed class FanDragEngineTests
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
-        Assert.True(trace.ToCompactString().Contains("top[1]", StringComparison.Ordinal), trace.ToCompactString());
+        Assert.True(trace.ToCompactString().Contains(value: "top[1]", StringComparison.Ordinal),
+            trace.ToCompactString());
         Assert.Equal(["group:Group A:1", "group:Group A:2", "top:1:<none>"], placements);
     }
 
@@ -493,7 +495,7 @@ public sealed class FanDragEngineTests
 
         FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(92));
 
-        AssertIntoGroup(evaluation, rig.GroupCell, 0);
+        AssertIntoGroup(evaluation, rig.GroupCell, groupFanIndex: 0);
     }
 
     [Fact]
@@ -502,14 +504,14 @@ public sealed class FanDragEngineTests
         DragRig rig = DragRig.Create();
         FanDragSnapshot snapshot = rig.Snapshot(
             draggedFan: null,
-            dragSourceCell: rig.GroupCell,
+            rig.GroupCell,
             sourceTopLevelIndex: 1,
-            sourceTopLevelControl: rig.Slots[1].Visual,
+            rig.Slots[1].Visual,
             dragPlacementSourceHeight: 200);
 
-        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(100, height: 200));
+        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(top: 100, height: 200));
 
-        AssertTopLevel(evaluation, 1);
+        AssertTopLevel(evaluation, index: 1);
         Assert.Null(evaluation.Preview.GroupDropPreviewCell);
     }
 
@@ -536,7 +538,8 @@ public sealed class FanDragEngineTests
         Assert.Equal(groupFanIndex, evaluation.Placement.GroupFanIndex);
     }
 
-    private static void AssertOffsets(IReadOnlyList<FanDragSlotOffset> actual, params (int Index, double Offset)[] expected)
+    private static void AssertOffsets(IReadOnlyList<FanDragSlotOffset> actual,
+        params (int Index, double Offset)[] expected)
     {
         Assert.Equal(expected.Length, actual.Count);
         for (int i = 0; i < expected.Length; i++)
@@ -629,38 +632,38 @@ public sealed class FanDragEngineTests
             Fan fanA = Fan("Fan A");
             Fan fanB = Fan("Fan B");
             Fan fanC = Fan("Fan C");
-            Fan groupFan0 = Fan("Grouped 0", "Group A");
-            Fan groupFan1 = Fan("Grouped 1", "Group A");
+            Fan groupFan0 = Fan(name: "Grouped 0", group: "Group A");
+            Fan groupFan1 = Fan(name: "Grouped 1", group: "Group A");
 
-            FanFlyoutCell cellA = new(null, [fanA]);
-            FanFlyoutCell cellB = new(null, [fanB]);
-            FanFlyoutCell cellC = new(null, [fanC]);
+            FanFlyoutCell cellA = new(groupSettings: null, [fanA]);
+            FanFlyoutCell cellB = new(groupSettings: null, [fanB]);
+            FanFlyoutCell cellC = new(groupSettings: null, [fanC]);
             FanGroup group = new() { Name = "Group A" };
             FanFlyoutCell groupCell = new(group, emptyGroup ? [] : [groupFan0, groupFan1]);
 
             List<FanDragSlot> slots = [];
             double top = 0;
-            slots.Add(Slot(cellA, top, 80, 88));
+            slots.Add(Slot(cellA, top, height: 80, slotHeight: 88));
             top += 88;
 
             if (includeFanBetweenSourceAndGroup)
             {
-                slots.Add(Slot(cellB, top, 80, 88));
+                slots.Add(Slot(cellB, top, height: 80, slotHeight: 88));
                 top += 88;
             }
 
-            slots.Add(Slot(groupCell, top, groupHeight, groupHeight + 8, groupInsertionTop: top + groupInsertionOffset,
-                groupDropBottom: groupDropBottom));
+            slots.Add(Slot(groupCell, top, groupHeight, groupHeight + 8, top + groupInsertionOffset,
+                groupDropBottom));
             top += groupHeight + 8;
-            slots.Add(Slot(cellC, top, 80, 88));
+            slots.Add(Slot(cellC, top, height: 80, slotHeight: 88));
 
             double groupTop = slots.Single(slot => ReferenceEquals(slot.Cell, groupCell)).Top;
             List<FanDragFanSlot> fanSlots = emptyGroup
                 ? []
                 :
                 [
-                    FanSlot(groupCell, groupFan0, groupTop + 42, 32, 0),
-                    FanSlot(groupCell, groupFan1, groupTop + 78, 32, 1)
+                    FanSlot(groupCell, groupFan0, groupTop + 42, height: 32, fanIndex: 0),
+                    FanSlot(groupCell, groupFan1, groupTop + 78, height: 32, fanIndex: 1)
                 ];
 
             return new DragRig(fanA, fanB, fanC, groupFan0, groupFan1, cellA, cellB, cellC, groupCell,
@@ -672,20 +675,20 @@ public sealed class FanDragEngineTests
             Fan fanA = Fan("Fan A");
             Fan fanB = Fan("Fan B");
             Fan fanC = Fan("Fan C");
-            Fan groupFan0 = Fan("Grouped 0", "Group A");
-            Fan groupFan1 = Fan("Grouped 1", "Group A");
+            Fan groupFan0 = Fan(name: "Grouped 0", group: "Group A");
+            Fan groupFan1 = Fan(name: "Grouped 1", group: "Group A");
 
-            FanFlyoutCell cellA = new(null, [fanA]);
-            FanFlyoutCell cellB = new(null, [fanB]);
-            FanFlyoutCell cellC = new(null, [fanC]);
+            FanFlyoutCell cellA = new(groupSettings: null, [fanA]);
+            FanFlyoutCell cellB = new(groupSettings: null, [fanB]);
+            FanFlyoutCell cellC = new(groupSettings: null, [fanC]);
             FanGroup group = new() { Name = "Group A" };
             FanFlyoutCell groupCell = new(group, [groupFan0, groupFan1]);
 
             List<FanDragSlot> slots =
             [
-                Slot(cellA, 0, 80, 88),
-                Slot(cellB, 88, 80, 88),
-                Slot(cellC, 176, 80, 88)
+                Slot(cellA, top: 0, height: 80, slotHeight: 88),
+                Slot(cellB, top: 88, height: 80, slotHeight: 88),
+                Slot(cellC, top: 176, height: 80, slotHeight: 88)
             ];
 
             return new DragRig(fanA, fanB, fanC, groupFan0, groupFan1, cellA, cellB, cellC, groupCell,
@@ -717,17 +720,12 @@ public sealed class FanDragEngineTests
                 sourceSlotHeight,
                 sourceFanSlotHeight,
                 dragPlacementSourceHeight,
-                pointerOffsetRatio)
-            {
-                TopLevelPreviewSlotHeight = topLevelPreviewSlotHeight
-            };
+                pointerOffsetRatio) { TopLevelPreviewSlotHeight = topLevelPreviewSlotHeight };
         }
 
         private static Fan Fan(string name, string? group = null) => new()
         {
-            FansName = name,
-            DataSourceKey = name,
-            Group = group
+            FansName = name, DataSourceKey = name, Group = group
         };
 
         private static FanDragSlot Slot(

@@ -31,11 +31,11 @@ public sealed class SettingsMiniToggleLayout
 
     public Thickness BorderThickness { get; set; } = new(1);
 
-    public Thickness ThumbUncheckedMargin { get; set; } = new(4, 0, 0, 0);
+    public Thickness ThumbUncheckedMargin { get; set; } = new(left: 4, top: 0, right: 0, bottom: 0);
 
-    public Thickness ThumbCheckedMargin { get; set; } = new(0, 0, 4, 0);
+    public Thickness ThumbCheckedMargin { get; set; } = new(left: 0, top: 0, right: 4, bottom: 0);
 
-    public Thickness LabelMargin { get; set; } = new(4, 0, 0, 0);
+    public Thickness LabelMargin { get; set; } = new(left: 4, top: 0, right: 0, bottom: 0);
 
     public Thickness Margin { get; set; }
 
@@ -68,12 +68,7 @@ public sealed class SettingsMiniToggle : Border
         Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
 
-        Grid toggle = new()
-        {
-            Width = layout.TrackWidth,
-            Height = layout.TrackHeight,
-            IsHitTestVisible = false
-        };
+        Grid toggle = new() { Width = layout.TrackWidth, Height = layout.TrackHeight, IsHitTestVisible = false };
         _track = new Border
         {
             Width = layout.TrackWidth,
@@ -164,7 +159,7 @@ public sealed class SettingsMiniToggle : Border
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.Children.Add(toggle);
-        Grid.SetColumn(label, 1);
+        Grid.SetColumn(label, value: 1);
         row.Children.Add(label);
         return row;
     }

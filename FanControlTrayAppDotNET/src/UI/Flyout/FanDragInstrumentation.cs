@@ -28,7 +28,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
 
     public static string DefaultTraceDirectory()
     {
-        string directory = Path.Combine(Program.AppLocalAppDataDirectory, "drag-traces");
+        string directory = Path.Combine(Program.AppLocalAppDataDirectory, path2: "drag-traces");
         Directory.CreateDirectory(directory);
         return directory;
     }
@@ -64,11 +64,11 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
                     ? 1.0
                     : (y - previous.Y) / (current.Y - previous.Y);
                 double x = previous.X + (current.X - previous.X) * ratio;
-                AddFrame(captureFactory(new Point(x, y), true));
+                AddFrame(captureFactory(new Point(x, y), arg2: true));
             }
         }
 
-        AddFrame(captureFactory(current, false));
+        AddFrame(captureFactory(current, arg2: false));
         _lastMovementPoint = current;
     }
 
@@ -83,7 +83,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         FanDragInstrumentationFrame frame = AddFrame(capture);
         _lines.Add(WriteKey(frame.Index, key, expectation, capture.Evaluation));
         _keyCount++;
-        Flush(appendHistory: false);
+        Flush(false);
         return true;
     }
 
@@ -93,7 +93,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
 
         IsActive = false;
         _lines.Add(WriteEnd(reason));
-        Flush(appendHistory: true);
+        Flush(true);
     }
 
     public static bool TryResolveExpectation(Key key, out FanDragExpectedIndexing expectation)
@@ -154,9 +154,9 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         StringBuilder builder = new();
         builder.Append("{\"type\":\"begin\",\"session\":");
         builder.Append(_sessionId.ToString(CultureInfo.InvariantCulture));
-        AppendName(builder, "sourceKind", start.SourceKind);
-        AppendName(builder, "sourceName", start.SourceName);
-        AppendName(builder, "sourceCell", start.SourceCell);
+        AppendName(builder, property: "sourceKind", start.SourceKind);
+        AppendName(builder, property: "sourceName", start.SourceName);
+        AppendName(builder, property: "sourceCell", start.SourceCell);
         builder.Append(",\"sourceTopLevelIndex\":");
         builder.Append(start.SourceTopLevelIndex.ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"sourceSlotHeight\":");
@@ -175,7 +175,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         builder.Append(_sessionId.ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"frame\":");
         builder.Append(frame.Index.ToString(CultureInfo.InvariantCulture));
-        AppendName(builder, "stage", capture.Stage);
+        AppendName(builder, property: "stage", capture.Stage);
         builder.Append(",\"interpolated\":");
         builder.Append(capture.Interpolated ? "true" : "false");
         builder.Append(",\"pointer\":{\"x\":");
@@ -184,10 +184,10 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         AppendNumber(builder, capture.Pointer.Y);
         builder.Append('}');
         AppendBounds(builder, capture.Evaluation.Bounds);
-        AppendPlacement(builder, "placement", capture.Evaluation.Placement);
+        AppendPlacement(builder, property: "placement", capture.Evaluation.Placement);
         AppendPreview(builder, capture.Evaluation.Preview);
-        AppendPlacement(builder, "activePlacement", capture.ActivePlacement);
-        AppendName(builder, "ghostStyle", capture.GhostStyle.ToString());
+        AppendPlacement(builder, property: "activePlacement", capture.ActivePlacement);
+        AppendName(builder, property: "ghostStyle", capture.GhostStyle.ToString());
         AppendSnapshot(builder, capture.Evaluation.Snapshot);
         AppendSlots(builder, capture.Slots);
         AppendFanSlots(builder, capture.FanSlots);
@@ -209,9 +209,9 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         builder.Append(_sessionId.ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"frame\":");
         builder.Append(frameIndex.ToString(CultureInfo.InvariantCulture));
-        AppendName(builder, "key", KeyLabel(key));
-        AppendName(builder, "expectation", expectation.ToString());
-        AppendPlacement(builder, "placement", evaluation.Placement);
+        AppendName(builder, property: "key", KeyLabel(key));
+        AppendName(builder, property: "expectation", expectation.ToString());
+        AppendPlacement(builder, property: "placement", evaluation.Placement);
         AppendPreview(builder, evaluation.Preview);
         builder.Append('}');
         return builder.ToString();
@@ -222,7 +222,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         StringBuilder builder = new();
         builder.Append("{\"type\":\"end\",\"session\":");
         builder.Append(_sessionId.ToString(CultureInfo.InvariantCulture));
-        AppendName(builder, "reason", reason);
+        AppendName(builder, property: "reason", reason);
         builder.Append(",\"frames\":");
         builder.Append(_nextFrameIndex.ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"keys\":");
@@ -328,8 +328,8 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
             FanDragInstrumentationSlot slot = slots[i];
             builder.Append("{\"index\":");
             builder.Append(slot.Index.ToString(CultureInfo.InvariantCulture));
-            AppendName(builder, "kind", slot.Kind);
-            AppendName(builder, "name", slot.Name);
+            AppendName(builder, property: "kind", slot.Kind);
+            AppendName(builder, property: "name", slot.Name);
             builder.Append(",\"top\":");
             AppendNumber(builder, slot.Top);
             builder.Append(",\"visualTop\":");
@@ -381,7 +381,8 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         builder.Append(']');
     }
 
-    private static void AppendDebugMarkers(StringBuilder builder, IReadOnlyList<FanDragInstrumentationDebugMarker> markers)
+    private static void AppendDebugMarkers(StringBuilder builder,
+        IReadOnlyList<FanDragInstrumentationDebugMarker> markers)
     {
         builder.Append(",\"debugMarkers\":[");
         for (int i = 0; i < markers.Count; i++)
@@ -390,7 +391,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
             FanDragInstrumentationDebugMarker marker = markers[i];
             builder.Append("{\"y\":");
             AppendNumber(builder, marker.Y);
-            AppendPlacement(builder, "placement", marker.Placement);
+            AppendPlacement(builder, property: "placement", marker.Placement);
             builder.Append('}');
         }
 
@@ -452,7 +453,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
     private static void AppendNumber(StringBuilder builder, double value)
     {
         if (double.IsFinite(value))
-            builder.Append(value.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(value.ToString(format: "0.###", CultureInfo.InvariantCulture));
         else
             builder.Append('0');
     }
@@ -489,7 +490,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
                     if (char.IsControl(c))
                     {
                         builder.Append("\\u");
-                        builder.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        builder.Append(((int)c).ToString(format: "x4", CultureInfo.InvariantCulture));
                     }
                     else
                         builder.Append(c);

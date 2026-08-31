@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using VolumeTrayAppDotNET.Interop;
-
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
 using IMMDeviceEnumerator = VolumeTrayAppDotNET.Interop.IMMDeviceEnumerator;
 using MMDeviceEnumeratorFactory = VolumeTrayAppDotNET.Interop.MMDeviceEnumeratorFactory;
@@ -43,7 +42,8 @@ internal static class BluetoothAudioConnector
                 return false;
             }
 
-            int connectorHr = KSTopologyNative.CallTopologyGetConnector(topologyPtr, 0, out connectorPtr);
+            int connectorHr =
+                KSTopologyNative.CallTopologyGetConnector(topologyPtr, connectorIndex: 0, out connectorPtr);
             if (connectorHr < 0 || connectorPtr == IntPtr.Zero)
             {
                 TADNLog.Log(

@@ -81,7 +81,6 @@ public static class TrayAppDotNETAvalonia
         return backend switch
         {
             TrayAppDotNETRenderingBackend.Software => UseWin32SoftwareRendering(builder),
-            TrayAppDotNETRenderingBackend.GPUPreferred => builder,
             _ => builder
         };
     }
@@ -123,7 +122,9 @@ public static class TrayAppDotNETAvalonia
                     continue;
 
                 string text = reader.ReadElementContentAsString();
-                return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend) ? backend : defaultBackend;
+                return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend)
+                    ? backend
+                    : defaultBackend;
             }
         }
         catch (Exception ex)
@@ -200,7 +201,7 @@ public static class TrayAppDotNETAvalonia
     /// <summary>Prevents dispatcher callback failures from killing the tray message thread.</summary>
     private static void WireDispatcherUnhandledExceptionHandler()
     {
-        if (Interlocked.Exchange(ref _dispatcherUnhandledExceptionHandlerWired, 1) == 1) return;
+        if (Interlocked.Exchange(ref _dispatcherUnhandledExceptionHandlerWired, value: 1) == 1) return;
 
         Dispatcher.UIThread.UnhandledException += (_, args) =>
         {
@@ -339,7 +340,7 @@ public static class TrayAppDotNETAvalonia
             UserAgent = applicationName + "-Updater",
             StagingDirectory = static () => Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Temp"),
+                path2: "Temp"),
             IsEnabled = () => settings.CheckForUpdatesEnabled,
             PollInterval = () => TimeSpan.FromMilliseconds(settings.UpdateCheckIntervalMs),
             GetSkippedUpdateVersion = () => settings.SkippedUpdateVersion,

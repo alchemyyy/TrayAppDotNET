@@ -27,7 +27,7 @@ public sealed class FlyoutWindowDragHelper
             pointerScreenPosition.Y - windowPosition.Y);
         _startPosition = windowPosition;
         _dockedPosition = dockedPosition;
-        _snapTolerance = Math.Max(0, snapTolerance);
+        _snapTolerance = Math.Max(val1: 0, snapTolerance);
         IsCurrentlySnapped = IsWithinSnapTolerance(windowPosition);
     }
 

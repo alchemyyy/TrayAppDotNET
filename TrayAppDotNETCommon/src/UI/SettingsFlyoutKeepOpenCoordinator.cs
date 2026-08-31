@@ -118,7 +118,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
             }
 
             _attachedFlyoutWindow?.KeepOpenForSettingsWindow = false;
-            DetachFlyout(cancelPendingHide: true);
+            DetachFlyout(true);
             return;
         }
 
@@ -152,7 +152,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         }
         finally
         {
-            DetachFlyout(cancelPendingHide: !preservePendingHide);
+            DetachFlyout(!preservePendingHide);
             DetachSettingsChildWindows();
         }
     }
@@ -181,7 +181,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
     private void DetachSettingsWindow()
     {
         _attachedSettingsWindow = null;
-        UIResourceScope? resources = Interlocked.Exchange(ref _settingsWindowResources, null);
+        UIResourceScope? resources = Interlocked.Exchange(ref _settingsWindowResources, value: null);
         resources?.Dispose();
     }
 
@@ -200,7 +200,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         {
             ClearImmediateSettingsCloseTracking();
             DetachSettingsChildWindows();
-            DetachFlyout(cancelPendingHide: true);
+            DetachFlyout(true);
             DetachSettingsWindow();
             _windowProvider = null;
             _flyoutWindowProvider = null;
@@ -277,7 +277,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         ClearImmediateSettingsCloseTracking();
         try
         {
-            ReleaseCore(hideFlyout: hideFlyout, activateFlyout: !hideFlyout);
+            ReleaseCore(hideFlyout, !hideFlyout);
         }
         finally
         {
@@ -340,7 +340,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         _immediateSettingsCloseWindow = null;
         _hideRestoredFlyoutOnImmediateSettingsClose = false;
         _immediateSettingsCloseRestoreVersion++;
-        UIResourceScope? resources = Interlocked.Exchange(ref _immediateSettingsCloseResources, null);
+        UIResourceScope? resources = Interlocked.Exchange(ref _immediateSettingsCloseResources, value: null);
         resources?.Dispose();
     }
 
@@ -443,7 +443,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         CancelPendingHide();
         if (ReferenceEquals(_attachedFlyoutWindow, flyout)) return;
 
-        DetachFlyout(cancelPendingHide: false);
+        DetachFlyout(false);
         InvalidateQueuedFocusGroupEvaluation();
         UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".Flyout");
         _attachedFlyoutWindow = flyout;
@@ -470,7 +470,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
 
         if (_attachedFlyoutWindow == null && _flyoutResources == null) return;
         _attachedFlyoutWindow = null;
-        UIResourceScope? resources = Interlocked.Exchange(ref _flyoutResources, null);
+        UIResourceScope? resources = Interlocked.Exchange(ref _flyoutResources, value: null);
         resources?.Dispose();
         InvalidateQueuedFocusGroupEvaluation();
     }
@@ -478,7 +478,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
     private void OnFlyoutWindowClosed(object? sender, EventArgs e)
     {
         if (!ReferenceEquals(sender, _attachedFlyoutWindow)) return;
-        DetachFlyout(cancelPendingHide: true);
+        DetachFlyout(true);
     }
 
     private void AttachSettingsChildWindows(Window settingsWindow)
@@ -604,7 +604,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
     {
         _pendingHideVersion++;
         _pendingHideFlyout = null;
-        UIResourceScope? resources = Interlocked.Exchange(ref _pendingHideResources, null);
+        UIResourceScope? resources = Interlocked.Exchange(ref _pendingHideResources, value: null);
         resources?.Dispose();
     }
 

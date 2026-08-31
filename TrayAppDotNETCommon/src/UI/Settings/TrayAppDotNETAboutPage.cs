@@ -4,11 +4,9 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.Controls;
@@ -23,8 +21,10 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius ButtonRadius { get; init; }
     public required CornerRadius CardRadius { get; init; }
+
     public Color UpdatePromptOwnerBackdrop { get; init; } =
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
+
     public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
     public required string ApplicationName { get; init; }
@@ -66,6 +66,7 @@ public sealed class TrayAppDotNETAboutPageOptions
 public sealed class TrayAppDotNETAboutPage : IDisposable
 {
     private const string DevelopmentBuildLabel = "dev";
+
     private static TrayAppDotNETAboutPageResources LayoutResources =>
         TrayAppDotNETAboutPageResources.Current;
 
@@ -134,6 +135,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 commitHash,
                 p));
         }
+
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_RuntimeLabel)),
             RuntimeInformation.FrameworkDescription, p));
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_AuthorLabel)), _options.Publisher, p));
@@ -190,6 +192,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             {
                 TADNLog.Log($"TrayAppDotNETAboutPage timer stop failed: {exception.Message}");
             }
+
             staleTimer.Tick -= OnStaleTimerTick;
         }
 
@@ -219,8 +222,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             L(nameof(CommonStrings.Settings_About_CheckForUpdates_Description)),
             settings.CheckForUpdatesEnabled,
             value => settings.CheckForUpdatesEnabled = value,
-            afterSave: _options.RebuildAboutPage,
-            searchKeywords: [L(nameof(CommonStrings.Settings_About_Updates_SearchKeywords))]));
+            _options.RebuildAboutPage,
+            [L(nameof(CommonStrings.Settings_About_Updates_SearchKeywords))]));
         stack.Children.Add(BoolCard(
             L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Title)),
             L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Description)),
@@ -240,9 +243,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         stack.Children.Add(IntCard(
             L(nameof(CommonStrings.Settings_About_UpdateInterval_Title)),
             L(nameof(CommonStrings.Settings_About_UpdateInterval_Description)),
-            Math.Clamp(settings.UpdateCheckIntervalMs / 60_000, 1, 1440),
-            1,
-            1440,
+            Math.Clamp(settings.UpdateCheckIntervalMs / 60_000, min: 1, max: 1440),
+            min: 1,
+            max: 1440,
             minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
             L(nameof(CommonStrings.Settings_About_UpdateInterval_MinutesSuffix)),
             [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))]));
@@ -277,7 +280,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         grid.Children.Add(text);
 
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(check, skip, install);
-        Grid.SetColumn(buttons, 1);
+        Grid.SetColumn(buttons, value: 1);
         grid.Children.Add(buttons);
 
         StartUpdateRefresh(description, check, skip, install);
@@ -307,7 +310,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         text.Children.Add(description);
         grid.Children.Add(text);
 
-        Grid.SetColumn(backdate, 1);
+        Grid.SetColumn(backdate, value: 1);
         grid.Children.Add(backdate);
 
         _backdateDescriptionText = description;
@@ -331,9 +334,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         bool lookupFailed = false;
         UpdateCheckService? service = CurrentService;
         if (service == null)
-        {
             lookupFailed = true;
-        }
         else
         {
             try
@@ -582,13 +583,13 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         bool isUpdateAvailable = service?.AvailableUpdate != null;
         _updateStatusText.Text = UpdateStatusText(service);
         _checkForUpdatesButton.IsEnabled = service != null && !_manualCheckInProgress && !_skipInProgress
-            && !_installInProgress && !_backdateInProgress;
+                                           && !_installInProgress && !_backdateInProgress;
         _skipUpdateButton.IsVisible = isUpdateAvailable;
         _skipUpdateButton.IsEnabled = isUpdateAvailable && !_manualCheckInProgress && !_skipInProgress
-            && !_installInProgress && !_backdateInProgress;
+                                      && !_installInProgress && !_backdateInProgress;
         _installUpdateButton.Text = UpdateInstallButtonText(service);
         _installUpdateButton.IsEnabled = isUpdateAvailable && !_skipInProgress && !_installInProgress
-            && !_backdateInProgress;
+                                         && !_backdateInProgress;
     }
 
     private void RefreshBackdateUI()
@@ -596,13 +597,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         if (_disposed || _backdateDescriptionText == null || _backdateButton == null) return;
 
         if (_previousReleaseLookupInProgress)
-        {
             _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_Checking));
-        }
         else if (_previousReleaseLookupFailed)
-        {
             _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_Failed));
-        }
         else if (_previousRelease is { } previousRelease)
         {
             _backdateDescriptionText.Text = string.Format(
@@ -611,16 +608,14 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 previousRelease.Version);
         }
         else
-        {
             _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_None));
-        }
 
         _backdateButton.IsEnabled = _previousRelease != null
-            && !_previousReleaseLookupInProgress
-            && !_manualCheckInProgress
-            && !_skipInProgress
-            && !_installInProgress
-            && !_backdateInProgress;
+                                    && !_previousReleaseLookupInProgress
+                                    && !_manualCheckInProgress
+                                    && !_skipInProgress
+                                    && !_installInProgress
+                                    && !_backdateInProgress;
     }
 
     private UpdateCheckService? CurrentService => _updateService ?? _options.UpdateService();
@@ -654,8 +649,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         }
 
         return string.Format(CultureInfo.CurrentCulture, service.LastResult == UpdateCheckResult.Cancelled
-            ? L(nameof(CommonStrings.Settings_About_UpdateStatus_CancelledFormat))
-            : L(nameof(CommonStrings.Settings_About_UpdateStatus_LastCheckedFormat)),
+                ? L(nameof(CommonStrings.Settings_About_UpdateStatus_CancelledFormat))
+                : L(nameof(CommonStrings.Settings_About_UpdateStatus_LastCheckedFormat)),
             FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
     }
 
@@ -686,19 +681,19 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             return string.Format(CultureInfo.CurrentCulture,
                 L(nameof(CommonStrings.Settings_About_RelativeTime_MinutesFormat)),
-                Math.Max(1, (int)diff.TotalMinutes));
+                Math.Max(val1: 1, (int)diff.TotalMinutes));
         }
 
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampHoursThresholdMs))
         {
             return string.Format(CultureInfo.CurrentCulture,
                 L(nameof(CommonStrings.Settings_About_RelativeTime_HoursFormat)),
-                Math.Max(1, (int)diff.TotalHours));
+                Math.Max(val1: 1, (int)diff.TotalHours));
         }
 
         return string.Format(CultureInfo.CurrentCulture,
             L(nameof(CommonStrings.Settings_About_RelativeTime_DaysFormat)),
-            Math.Max(1, (int)diff.TotalDays));
+            Math.Max(val1: 1, (int)diff.TotalDays));
     }
 
     private Border BoolCard(
@@ -761,7 +756,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)
     {
         TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
-        TextBlock labelBlock = TrayAppDotNETSettingsUI.Text(label, p, layout.AboutRowLabelFontSize, FontWeight.SemiBold);
+        TextBlock labelBlock =
+            TrayAppDotNETSettingsUI.Text(label, p, layout.AboutRowLabelFontSize, FontWeight.SemiBold);
         labelBlock.Width = layout.AboutRowLabelWidth;
 
         TextBlock valueBlock = TrayAppDotNETSettingsUI.Text(value, p);

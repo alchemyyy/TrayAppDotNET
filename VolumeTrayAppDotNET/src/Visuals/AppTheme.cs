@@ -12,12 +12,16 @@ public sealed class AppTheme : CommonAppTheme
     public new static AppTheme Default { get; } = new();
 
     public static Color MeterPeakColorDefault => AppThemeColorCatalog.Color(nameof(MeterPeakColorDefault));
+
     public static Color MeterPeakStereoColorDefault =>
         AppThemeColorCatalog.Color(nameof(MeterPeakStereoColorDefault));
+
     public static string MeterPeakColorDefaultHex => ToArgbHex(MeterPeakColorDefault);
     public static string MeterPeakStereoColorDefaultHex => ToArgbHex(MeterPeakStereoColorDefault);
+
     internal static string LegacyMeterPeakColorDefaultHex =>
         ToArgbHex(AppThemeColorCatalog.Color("LegacyMeterPeakColorDefault"));
+
     internal static string LegacyMeterPeakStereoColorDefaultHex =>
         ToArgbHex(AppThemeColorCatalog.Color("LegacyMeterPeakStereoColorDefault"));
 
@@ -65,7 +69,7 @@ public sealed class AppTheme : CommonAppTheme
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, "theme.xml");
+        return Path.Combine(appFolder, path2: "theme.xml");
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>

@@ -108,7 +108,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         }
         finally
         {
-            Volatile.Write(ref _available, 0);
+            Volatile.Write(ref _available, value: 0);
             CoUninitialize();
         }
     }
@@ -159,12 +159,12 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
                 return false;
             }
 
-            Volatile.Write(ref _available, 1);
+            Volatile.Write(ref _available, value: 1);
             return WaitForShutdownWithMessagePump();
         }
         finally
         {
-            Volatile.Write(ref _available, 0);
+            Volatile.Write(ref _available, value: 0);
             ReleaseRegistration(exports, ref registration, ref initialRecordSet);
             callbackContext.Free();
             NativeLibrary.Free(exports.Module);
@@ -177,7 +177,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         while (!_shutdown.WaitOne(0))
         {
             uint waitResult = MsgWaitForMultipleObjectsEx(
-                1,
+                count: 1,
                 &shutdownHandle,
                 Infinite,
                 QueueStatusAllInput,
@@ -188,10 +188,12 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
                 LogFailureOnce($"The SRUM message pump failed ({Marshal.GetLastPInvokeError()}).");
                 return false;
             }
+
             if (waitResult != 1) continue;
 
             while (!_shutdown.WaitOne(0)
-                   && PeekMessageW(out MSG message, IntPtr.Zero, 0, 0, PeekMessageRemove))
+                   && PeekMessageW(out MSG message, IntPtr.Zero, messageFilterMinimum: 0, messageFilterMaximum: 0,
+                       PeekMessageRemove))
             {
                 _ = TranslateMessage(ref message);
                 _ = DispatchMessageW(ref message);
@@ -257,7 +259,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         return true;
     }
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvStdcall) })]
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static void OnRecordSet(IntPtr callbackContext, IntPtr recordSetAddress)
     {
         try
@@ -279,10 +281,8 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
             {
                 GCHandle contextHandle = GCHandle.FromIntPtr(callbackContext);
                 if (contextHandle.Target is ProcessNetworkUsageSampler sampler
-                    && Interlocked.Exchange(ref sampler._callbackFailureLogged, 1) == 0)
-                {
+                    && Interlocked.Exchange(ref sampler._callbackFailureLogged, value: 1) == 0)
                     TADNLog.Log($"ProcessNetworkUsageSampler callback failed: {exception}");
-                }
             }
             catch
             {
@@ -302,9 +302,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         SRU_STATS_RECORD_SET* recordSet = (SRU_STATS_RECORD_SET*)recordSetAddress;
         if (recordSet->Count > MaximumRecordCount
             || (recordSet->Count > 0 && recordSet->Records == null))
-        {
             return false;
-        }
 
         for (uint recordIndex = 0; recordIndex < recordSet->Count; recordIndex++)
         {
@@ -313,9 +311,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
                 || record->ColumnCount == 0
                 || record->ColumnCount > MaximumColumnCount
                 || record->Columns == null)
-            {
                 continue;
-            }
 
             uint processIDValue = uint.MaxValue;
             ulong transferredBytes = 0;
@@ -360,7 +356,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
 
     private void LogFailureOnce(string message)
     {
-        if (Interlocked.Exchange(ref _failureLogged, 1) != 0) return;
+        if (Interlocked.Exchange(ref _failureLogged, value: 1) != 0) return;
         TADNLog.Log($"ProcessNetworkUsageSampler: {message}");
     }
 
@@ -369,7 +365,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         _shutdown.Set();
         if (!_workerThread.Join(ShutdownJoinTimeoutMilliseconds))
@@ -497,6 +493,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         delegate* unmanaged[Stdcall]<IntPtr, void> freeRecordSet)
     {
         public IntPtr Module { get; } = module;
+
         public delegate* unmanaged[Stdcall]<
             uint,
             SYSTEMTIME*,
@@ -506,6 +503,7 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
             IntPtr*,
             IntPtr*,
             uint> Register { get; } = register;
+
         public delegate* unmanaged[Stdcall]<IntPtr, void> Unregister { get; } = unregister;
         public delegate* unmanaged[Stdcall]<IntPtr, void> FreeRecordSet { get; } = freeRecordSet;
     }

@@ -48,18 +48,22 @@ public sealed class MonitorService : IDisposable
     private readonly IMonitorServiceDispatcher _dispatcher;
 
     private readonly ConcurrentDictionary<string, MonitorEntry> _entries = new(StringComparer.Ordinal);
+
     // Failed rows retain only immutable matching data, not handles or transport state. This lets targeted recovery
     // find an HDMI display whose display number or DeviceID drifted while the link was renegotiating.
-    private readonly ConcurrentDictionary<string, DDCRecoveryIdentity> _recoveryIdentities = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DDCRecoveryIdentity>
+        _recoveryIdentities = new(StringComparer.Ordinal);
 
     // Per-monitor latest-pending-wins scheduler.
     // Owns the cooldown between brightness writes; the payloads it runs hold the per-monitor DDC mutex (the lock is
     // for bus atomicity vs other DDC ops, the throttler is for pacing - different concerns).
     private readonly AsyncThrottler<string> _writeThrottler;
+
     // Mode handoffs must bypass the normal cooldown without running untracked fire-and-forget tasks.
     // A separate zero-cooldown driver gives shutdown a drainable owner; target generations below
     // arbitrate between the normal and immediate drivers.
     private readonly AsyncThrottler<string> _immediateWriteThrottler;
+
     // Full monitor enumeration touches CCD, the registry, and WMI. Keep it off the dispatcher and collapse topology
     // bursts to the latest request before the UI-owned reconcile phase.
     private readonly AsyncThrottler<string> _refreshThrottler;
@@ -94,6 +98,7 @@ public sealed class MonitorService : IDisposable
     // ScheduleStartupRecoverySweep's +2s/+5s Refreshes go through Refresh() so they participate naturally -
     // the latest scheduled Phase B wins.
     private int _refreshGen;
+
     // Public refresh generation. Worker enumeration results must still own this generation when posted to the
     // dispatcher, otherwise a newer topology/settings request superseded their snapshot.
     private long _refreshEnumerationGeneration;
@@ -148,7 +153,9 @@ public sealed class MonitorService : IDisposable
     /// Creates the monitor service and optionally uses an injected known-display store.
     /// </summary>
     public MonitorService(IDisplayService display, AppSettings settings, KnownDisplaysStore? knownDisplays = null)
-        : this(display, settings, knownDisplays, new AvaloniaMonitorServiceDispatcher(Dispatcher.UIThread)) { }
+        : this(display, settings, knownDisplays, new AvaloniaMonitorServiceDispatcher(Dispatcher.UIThread))
+    {
+    }
 
     internal MonitorService(
         IDisplayService display,
@@ -171,12 +178,12 @@ public sealed class MonitorService : IDisposable
         // accumulated history (or, more importantly, the sticky WasEverDDCCapable flags DDCRecoveryService relies on).
         _knownDisplays.Load(_settings.KnownDisplays);
 
-        _writeCooldownMs = Math.Max(0, settings.BrightnessUpdateRateMs);
-        _validationDwellMs = Math.Max(0, settings.ValidationDwellMs);
+        _writeCooldownMs = Math.Max(val1: 0, settings.BrightnessUpdateRateMs);
+        _validationDwellMs = Math.Max(val1: 0, settings.ValidationDwellMs);
         _display.OperationTimeoutMs = settings.DDCOperationTimeoutMs;
         _writeThrottler = new AsyncThrottler<string>(_writeCooldownMs, StringComparer.Ordinal);
-        _immediateWriteThrottler = new AsyncThrottler<string>(0, StringComparer.Ordinal);
-        _refreshThrottler = new AsyncThrottler<string>(0, StringComparer.Ordinal);
+        _immediateWriteThrottler = new AsyncThrottler<string>(cooldownMs: 0, StringComparer.Ordinal);
+        _refreshThrottler = new AsyncThrottler<string>(cooldownMs: 0, StringComparer.Ordinal);
 
         // Re-sort the monitor list whenever the sort settings or manual override change.
         _settings.Changed += OnSettingsChanged;
@@ -235,8 +242,8 @@ public sealed class MonitorService : IDisposable
         }
 
         ApplyDDCTimingOverridesToExisting();
-        ApplyBrightnessBoundOverridesToExisting(replayHardware: true);
-        ApplyNormCurveOverridesToExisting(replayHardware: true);
+        ApplyBrightnessBoundOverridesToExisting(true);
+        ApplyNormCurveOverridesToExisting(true);
         ResortMonitors();
     }
 
@@ -323,10 +330,10 @@ public sealed class MonitorService : IDisposable
 
             Volatile.Write(
                 ref entry.ValidationDwellMs,
-                Math.Clamp(validationDwellMs, -1, TimeConstants.ValidationDwellMaxMs));
+                Math.Clamp(validationDwellMs, min: -1, TimeConstants.ValidationDwellMaxMs));
             Volatile.Write(
                 ref entry.BrightnessDwellMs,
-                Math.Clamp(brightnessDwellMs, -1, TimeConstants.BrightnessUpdateRateMaxMs));
+                Math.Clamp(brightnessDwellMs, min: -1, TimeConstants.BrightnessUpdateRateMaxMs));
         }
     }
 
@@ -352,7 +359,7 @@ public sealed class MonitorService : IDisposable
         if (string.IsNullOrWhiteSpace(text)) return false;
 
         string firstToken = text.Split([' ', '\t', ','], StringSplitOptions.RemoveEmptyEntries)[0];
-        if (firstToken.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        if (firstToken.StartsWith(value: "0x", StringComparison.OrdinalIgnoreCase))
             return byte.TryParse(firstToken[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code);
 
         return byte.TryParse(firstToken, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code);
@@ -536,9 +543,9 @@ public sealed class MonitorService : IDisposable
             && map.TryGetValue(info.EDIDKey, out MonitorOverrideEntry? ov))
         {
             // Min 0 / max 100 are the no-op defaults; only values that actually narrow the range apply.
-            if (ov.MinBrightness > 0) floor = Math.Clamp(ov.MinBrightness, 0, 100);
+            if (ov.MinBrightness > 0) floor = Math.Clamp(ov.MinBrightness, min: 0, max: 100);
             if (ov.MaxBrightness is >= 0 and < 100)
-                ceiling = Math.Clamp(ov.MaxBrightness, 0, 100);
+                ceiling = Math.Clamp(ov.MaxBrightness, min: 0, max: 100);
             // User-input sanity: if min > max, treat min as inactive so the user still has a usable
             // range rather than collapsing the cap to a single point at the (smaller) max.
             if (floor > ceiling) floor = 0;
@@ -595,7 +602,7 @@ public sealed class MonitorService : IDisposable
         get => _writeCooldownMs;
         set
         {
-            _writeCooldownMs = Math.Max(0, value);
+            _writeCooldownMs = Math.Max(val1: 0, value);
             _writeThrottler.CooldownMs = _writeCooldownMs;
         }
     }
@@ -610,7 +617,7 @@ public sealed class MonitorService : IDisposable
     public int ValidationDwellMs
     {
         get => _validationDwellMs;
-        set => _validationDwellMs = Math.Max(0, value);
+        set => _validationDwellMs = Math.Max(val1: 0, value);
     }
 
     /// <summary>
@@ -779,7 +786,7 @@ public sealed class MonitorService : IDisposable
             // / audit_08 F-06.
             if (!stillPresent
                 && existing.EDIDKey is { Length: > 0 } EDIDKey
-                && EDIDKey.StartsWith("port:", StringComparison.Ordinal)
+                && EDIDKey.StartsWith(value: "port:", StringComparison.Ordinal)
                 && latestByPortForm.ContainsKey(EDIDKey))
                 stillPresent = true;
             if (stillPresent) continue;
@@ -827,10 +834,13 @@ public sealed class MonitorService : IDisposable
         //    before we hammer them with VCP reads. Reading too early can desync the monitor MCU's I2C reply
         //    pipeline and wedge it into persistent INVALID_MESSAGE_CHECKSUM. Removal reconcile above stays
         //    immediate because leaving stale handles around invites doomed writes.
+        // Keep the deferred phase's snapshot inputs explicit across dispatcher and delay boundaries
+        // ReSharper disable InlineTemporaryVariable
         Dictionary<string, DDCMonitor> capturedLatestByID = latestByID;
         Dictionary<string, string> capturedEDIDKeyByID = EDIDKeyByID;
         Dictionary<string, string> capturedNameOverrides = nameOverridesByEDID;
         bool capturedStrategyChanged = strategyChanged;
+        // ReSharper restore InlineTemporaryVariable
         long capturedBrightnessReplayGeneration = Volatile.Read(ref _brightnessReplayGeneration);
         // latestByPortForm is consumed by Phase A above; Phase B computes its own per-DDC port form
         // inline via ComputePortFormKey, so no capture is needed here.
@@ -920,7 +930,7 @@ public sealed class MonitorService : IDisposable
             {
                 MonitorInfo? portMatch = Monitors.FirstOrDefault(m =>
                     !string.IsNullOrEmpty(m.EDIDKey)
-                    && m.EDIDKey.StartsWith("port:", StringComparison.Ordinal)
+                    && m.EDIDKey.StartsWith(value: "port:", StringComparison.Ordinal)
                     && string.Equals(m.EDIDKey, portForm, StringComparison.Ordinal));
                 if (portMatch != null && !string.Equals(portMatch.EDIDKey, EDIDKey, StringComparison.Ordinal))
                 {
@@ -945,6 +955,7 @@ public sealed class MonitorService : IDisposable
                         movingEntry.EDIDKey = EDIDKey;
                         _entries[id] = movingEntry;
                     }
+
                     if (oldID != id
                         && _recoveryIdentities.TryRemove(oldID, out DDCRecoveryIdentity movingRecoveryIdentity))
                         _recoveryIdentities[id] = movingRecoveryIdentity;
@@ -1001,12 +1012,11 @@ public sealed class MonitorService : IDisposable
                         _recoveryIdentities.TryRemove(existingInfo.ID, out DDCRecoveryIdentity _);
                         entry.Max = NormalizeBrightnessMax(probe.Max);
                         existingInfo.LastKnownBrightnessMax = entry.Max;
-                        if (!existingInfo.HasUserBrightness
-                            && !existingInfo.WasCurveDrivenBeforeFailure
+                        if (existingInfo is { HasUserBrightness: false, WasCurveDrivenBeforeFailure: false }
                             && !IsBrightnessCurveEnabledForHardware())
                         {
                             int hardwarePercent = (int)Math.Round(probe.Current * 100.0 / entry.Max);
-                            SyncBrightnessReadOnly(existingInfo, Math.Clamp(hardwarePercent, 0, 100));
+                            SyncBrightnessReadOnly(existingInfo, Math.Clamp(hardwarePercent, min: 0, max: 100));
                         }
 
                         RecordDDCCapableObservation(existingInfo);
@@ -1037,6 +1047,7 @@ public sealed class MonitorService : IDisposable
                                 InvalidateBrightnessTarget(failedEntry);
                                 existingInfo.LastKnownBrightnessMax = NormalizeBrightnessMax(failedEntry.Max);
                             }
+
                             // Drop any queued write for this monitor - a fresh value applied to a now-demoted entry would
                             // only generate a doomed retry. An in-flight payload is left to drain on its own (it
                             // captured the entry's DDC handle and will release cleanly).
@@ -1078,7 +1089,7 @@ public sealed class MonitorService : IDisposable
 
                         if (existingInfo is { HasUserBrightness: false, WasCurveDrivenBeforeFailure: false }
                             && !curveEngagedAtPromote)
-                            SyncBrightnessReadOnly(existingInfo, Math.Clamp(percent, 0, 100));
+                            SyncBrightnessReadOnly(existingInfo, Math.Clamp(percent, min: 0, max: 100));
                         // Recovery transitions Failed -> the right curve-aware state in ONE PropertyChanged fan-out.
                         // Plumbing the live curve flags here lets the row land directly in CurveActive / CurveSleeping
                         // when curves are engaged, instead of going Enabled first and getting harmonized after by the
@@ -1122,7 +1133,7 @@ public sealed class MonitorService : IDisposable
 
             // New rows start from the current DDC read. Saved/profile manual values are restored by
             // BrightnessFlyout as UI state; LastBusBrightness is deliberately not an acquisition source.
-            int seededBrightness = Math.Clamp(newPct, 0, 100);
+            int seededBrightness = Math.Clamp(newPct, min: 0, max: 100);
 
             SliderState initialSliderState = supported
                 ? InitialHardwareFunctionalSliderState()
@@ -1159,10 +1170,7 @@ public sealed class MonitorService : IDisposable
             {
                 _recoveryIdentities.TryRemove(id, out DDCRecoveryIdentity _);
                 LogProfileIfMatched(ddc);
-                _entries[id] = new MonitorEntry
-                {
-                    ID = id, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax
-                };
+                _entries[id] = new MonitorEntry { ID = id, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax };
             }
             else
             {
@@ -1186,12 +1194,12 @@ public sealed class MonitorService : IDisposable
         // Runs after the loop populates Monitors so newly-added entries are covered too. Acquisition stays
         // read-only here; an explicit manual replay or curve evaluation applies the projection when required.
         ApplyDDCTimingOverridesToExisting();
-        ApplyBrightnessBoundOverridesToExisting(replayHardware: false);
+        ApplyBrightnessBoundOverridesToExisting(false);
 
         // Same idea for the per-monitor norm curve: project the persisted points into pre-sorted
         // xs/ys arrays on each MonitorEntry so EnqueueDirectBrightness can sample without re-sorting
         // per write. Hot-plugged panels with a saved curve get re-shaped on their first write.
-        ApplyNormCurveOverridesToExisting(replayHardware: false);
+        ApplyNormCurveOverridesToExisting(false);
 
         ReplayBrightnessTargetsAfterRefresh(brightnessReplayGeneration);
 
@@ -1221,7 +1229,7 @@ public sealed class MonitorService : IDisposable
     private static uint NormalizeBrightnessMax(uint max) => max > 0 ? max : 100;
 
     private static uint ScaleBrightnessPercentToRaw(int percent, uint max) =>
-        (uint)Math.Round(Math.Clamp(percent, 0, 100) / 100.0 * NormalizeBrightnessMax(max));
+        (uint)Math.Round(Math.Clamp(percent, min: 0, max: 100) / 100.0 * NormalizeBrightnessMax(max));
 
     private static DDCMonitor CloneDDCMonitor(DDCMonitor source) =>
         new()
@@ -1413,7 +1421,7 @@ public sealed class MonitorService : IDisposable
         TADNLog.Log(
             $"MonitorService: matched '{ddc.Name}' to monitor profile {ddc.EDIDIdentifier} "
             + $"'{ddc.ProfileModelName}'"
-            + (ddc.ProfileQuirks.Count > 0 ? $" (quirks: {string.Join("; ", ddc.ProfileQuirks)})" : ""));
+            + (ddc.ProfileQuirks.Count > 0 ? $" (quirks: {string.Join(separator: "; ", ddc.ProfileQuirks)})" : ""));
     }
 
     private bool TryReadBrightness(DDCMonitor ddc, out uint current, out uint max, out string? error)
@@ -1458,7 +1466,7 @@ public sealed class MonitorService : IDisposable
         max = 0;
         error = null;
 
-        int attempts = Math.Max(1, _settings.ValidationAttempts);
+        int attempts = Math.Max(val1: 1, _settings.ValidationAttempts);
 
         for (int i = 0; i < attempts; i++)
         {
@@ -1785,8 +1793,8 @@ public sealed class MonitorService : IDisposable
 
         return !string.IsNullOrEmpty(info.EDIDSerial)
                && known.Any(k => k.WasEverDDCCapable
-                                  && !string.IsNullOrEmpty(k.EDIDSerial)
-                                  && string.Equals(k.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
+                                 && !string.IsNullOrEmpty(k.EDIDSerial)
+                                 && string.Equals(k.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -1864,7 +1872,7 @@ public sealed class MonitorService : IDisposable
             // which already includes norm/bounds projection; never fall back to an unprojected slider percentage.
             int? lastConfirmedBusBrightness = knownDisplay?.LastBusBrightness;
             writeTransportProbePercent = lastConfirmedBusBrightness ?? 0;
-            blindRecoveryWritePercent = Math.Clamp(info.RecoveryProbeBrightness, 0, 100);
+            blindRecoveryWritePercent = Math.Clamp(info.RecoveryProbeBrightness, min: 0, max: 100);
             lastKnownBrightnessMax = info.LastKnownBrightnessMax;
             shouldAttemptWriteTransportProbe = lastConfirmedBusBrightness.HasValue
                                                && ShouldAttemptReadDegradedWriteTransportProbe(info);
@@ -1958,6 +1966,7 @@ public sealed class MonitorService : IDisposable
                     + $"target={selectedProbePercent} result={writeTransportAccepted}"
                     + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
             }
+
             if (writeTransportAccepted)
             {
                 // Transport acceptance is not proof that the brightness changed. Make one post-write read attempt
@@ -2011,6 +2020,7 @@ public sealed class MonitorService : IDisposable
                         InvalidateBrightnessTarget(droppedEntry);
                         failedInfo.LastKnownBrightnessMax = NormalizeBrightnessMax(droppedEntry.Max);
                     }
+
                     DropQueuedBrightnessWrites(failedInfo.ID);
                     failedInfo.SliderState = SliderStateMachine.OnHardwareFailed();
                     TADNLog.Log(
@@ -2026,8 +2036,11 @@ public sealed class MonitorService : IDisposable
 
         // Promote on the UI thread -
         // mutating Monitors / _entries / IsDDCCISupported off-thread would race with Refresh and UI bindings.
+        // Keep the dispatcher closure's recovery snapshot explicit
+        // ReSharper disable InlineTemporaryVariable
         DDCMonitor capturedDDC = ddc;
         MonitorInfo capturedInfo = info;
+        // ReSharper restore InlineTemporaryVariable
         InvokeOnDispatcher(() => PromoteRecovered(capturedInfo, capturedDDC, current, max));
         return true;
     }
@@ -2084,7 +2097,7 @@ public sealed class MonitorService : IDisposable
             if (match != null) return match;
         }
 
-        if (requestedID.StartsWith("port:", StringComparison.Ordinal))
+        if (requestedID.StartsWith(value: "port:", StringComparison.Ordinal))
         {
             match = live.FirstOrDefault(d =>
                 string.Equals(ComputePortFormKey(d), requestedID, StringComparison.Ordinal));
@@ -2171,6 +2184,7 @@ public sealed class MonitorService : IDisposable
                 ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
             };
         }
+
         ApplyRecoveredBrightnessProjections(info);
 
         // Plumb the live curve flags so a read-degraded promotion under an engaged curve lands directly
@@ -2275,6 +2289,7 @@ public sealed class MonitorService : IDisposable
                 RequestBrightnessReplayAfterRefresh();
                 Refresh();
             }
+
             return false;
         }
 
@@ -2310,10 +2325,7 @@ public sealed class MonitorService : IDisposable
             DropQueuedBrightnessWrites(info.ID);
         }
 
-        _entries[info.ID] = new MonitorEntry
-        {
-            ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
-        };
+        _entries[info.ID] = new MonitorEntry { ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax };
         ApplyRecoveredBrightnessProjections(info);
         // Acquisition is read-only for slider intent: a hardware read may initialize rows that have
         // no explicit manual/profile value yet, but it must not overwrite a user-owned slider baseline
@@ -2325,7 +2337,7 @@ public sealed class MonitorService : IDisposable
 
         if (info is { HasUserBrightness: false, WasCurveDrivenBeforeFailure: false }
             && !curveEngagedAtPromote)
-            SyncBrightnessReadOnly(info, Math.Clamp(pct, 0, 100));
+            SyncBrightnessReadOnly(info, Math.Clamp(pct, min: 0, max: 100));
         // Same Failed -> right-curve-state transition the Refresh-promotion path uses, plumbed with the live
         // curve flags so the row lands in one PropertyChanged fan-out instead of two (see Refresh inline block
         // comment for the master-jitter rationale).
@@ -2401,7 +2413,7 @@ public sealed class MonitorService : IDisposable
         switch (state)
         {
             case SliderState.CurveActive:
-                if (!info.HasCurveTargetBrightness && !info.HasUserBrightness) return false;
+                if (info is { HasCurveTargetBrightness: false, HasUserBrightness: false }) return false;
                 percentage = info.EffectiveRoundedBrightness;
                 return true;
 
@@ -2437,8 +2449,8 @@ public sealed class MonitorService : IDisposable
         string newID = ComputeMonitorID(ddc, _activeStrategy);
         string newEDIDKey = ComputeEDIDKey(ddc);
 
-        bool EDIDUpgraded = info.EDIDKey.StartsWith("port:", StringComparison.Ordinal)
-                            && newEDIDKey.StartsWith("edid:", StringComparison.Ordinal);
+        bool EDIDUpgraded = info.EDIDKey.StartsWith(value: "port:", StringComparison.Ordinal)
+                            && newEDIDKey.StartsWith(value: "edid:", StringComparison.Ordinal);
         bool shouldRekeyID = !string.IsNullOrEmpty(newID)
                              && !string.Equals(oldID, newID, StringComparison.Ordinal)
                              && (_activeStrategy != MonitorIdentityStrategy.DisplayNumber || EDIDUpgraded);
@@ -2542,6 +2554,7 @@ public sealed class MonitorService : IDisposable
                     RequestBrightnessReplayAfterRefresh();
                     Refresh();
                 }
+
                 return;
             case PowerStateApplyOutcome.Applied:
                 break;
@@ -2575,7 +2588,7 @@ public sealed class MonitorService : IDisposable
         byte code,
         byte value)
     {
-        int attempts = Math.Max(1, _settings.ValidationAttempts);
+        int attempts = Math.Max(val1: 1, _settings.ValidationAttempts);
         int finalDwellMs = ResolveValidationDwellMs(entry);
         string? lastError = null;
         PowerWriteAttempt initialWrite = await TryWritePowerStateAsync(
@@ -2585,11 +2598,13 @@ public sealed class MonitorService : IDisposable
                 value)
             .ConfigureAwait(false);
         if (!initialWrite.WasAttempted)
-            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
         if (!initialWrite.Success)
+        {
             return new PowerStateApplyResult(
                 PowerStateApplyOutcome.Failed,
                 initialWrite.Error ?? "TrySetVCPFeature failed");
+        }
 
         // Publish the recovery gate as soon as the write is accepted. Hard-off can remove the row before read-back
         // completes; recovery must not race verification and send traffic that wakes the panel.
@@ -2603,7 +2618,7 @@ public sealed class MonitorService : IDisposable
                 entry,
                 powerIntentGeneration,
                 initialVerificationDwellMs).ConfigureAwait(false))
-            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
 
         for (int attempt = 0; attempt < attempts; attempt++)
         {
@@ -2613,21 +2628,23 @@ public sealed class MonitorService : IDisposable
                     code)
                 .ConfigureAwait(false);
             if (!readBack.WasAttempted)
-                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
 
             if (!readBack.Success)
             {
                 if (!latestWriteAccepted)
+                {
                     return new PowerStateApplyResult(
                         PowerStateApplyOutcome.Failed,
                         lastError ?? readBack.Error ?? "power write and read-back both failed");
+                }
 
                 // Hard-off is intentionally write-only on many monitors and removes the DDC endpoint. Do not turn an
                 // expected missing reply into failure or reset the transport after an accepted off command.
                 TADNLog.Log(
                     $"MonitorService: power verification unavailable for '{readBack.MonitorName}'; "
                     + $"accepted write remains unverified: {readBack.Error}");
-                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, Error: null);
             }
 
             if (readBack.Actual == value)
@@ -2635,7 +2652,7 @@ public sealed class MonitorService : IDisposable
                 TADNLog.Log(
                     $"MonitorService: power write verified for '{readBack.MonitorName}'; "
                     + $"code=0x{code:X2}; value=0x{value:X2}");
-                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, Error: null);
             }
 
             lastError = $"read-back 0x{readBack.Actual:X2}, expected 0x{value:X2}";
@@ -2651,7 +2668,7 @@ public sealed class MonitorService : IDisposable
                     value)
                 .ConfigureAwait(false);
             if (!reapply.WasAttempted)
-                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
             latestWriteAccepted = reapply.Success;
             if (!reapply.Success)
             {
@@ -2666,7 +2683,7 @@ public sealed class MonitorService : IDisposable
                     entry,
                     powerIntentGeneration,
                     waitMs).ConfigureAwait(false))
-                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
         }
 
         return new PowerStateApplyResult(
@@ -2684,11 +2701,11 @@ public sealed class MonitorService : IDisposable
         return await WithDDCLockAsync(ddc, () =>
         {
             if (!IsPowerIntentCurrent(entry, powerIntentGeneration))
-                return new PowerWriteAttempt(false, false, ddc.Name, null);
+                return new PowerWriteAttempt(WasAttempted: false, Success: false, ddc.Name, Error: null);
 
             bool success = _display.TrySetVCPFeature(ddc, code, value, out string? error);
             if (!success) _display.ResetDDCTransport(ddc);
-            return new PowerWriteAttempt(true, success, ddc.Name, error);
+            return new PowerWriteAttempt(WasAttempted: true, success, ddc.Name, error);
         }).ConfigureAwait(false);
     }
 
@@ -2701,7 +2718,7 @@ public sealed class MonitorService : IDisposable
         return await WithDDCLockAsync(ddc, () =>
         {
             if (!IsPowerIntentCurrent(entry, powerIntentGeneration))
-                return new PowerReadBack(false, false, ddc.Name, 0, null);
+                return new PowerReadBack(WasAttempted: false, Success: false, ddc.Name, Actual: 0, Error: null);
 
             bool success = _display.TryGetVCPFeature(
                 ddc,
@@ -2709,7 +2726,7 @@ public sealed class MonitorService : IDisposable
                 out uint actual,
                 out _,
                 out string? error);
-            return new PowerReadBack(true, success, ddc.Name, actual, error);
+            return new PowerReadBack(WasAttempted: true, success, ddc.Name, actual, error);
         }).ConfigureAwait(false);
     }
 
@@ -2749,6 +2766,7 @@ public sealed class MonitorService : IDisposable
             monitor.SuppressDDCRecoveryForPowerIntent = false;
             monitor.IsPoweredOn = true;
         }
+
         if (ShouldSuppressSliderBrightnessWrite(monitor)) return;
 
         // Auto-release a CurveActive (or CurveSleeping) row whenever an external write reaches us:
@@ -2798,7 +2816,7 @@ public sealed class MonitorService : IDisposable
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
             Interlocked.Decrement(ref owner._hardwareWritesSuspendCount);
         }
     }
@@ -2831,7 +2849,7 @@ public sealed class MonitorService : IDisposable
         // before letting the next queued payload run,
         // mirroring the pre-throttler hand-rolled write loop's "write -> wait -> verify -> loop" pacing.
         _ = _writeThrottler.RunAsync(entry.ID, context =>
-            DoBrightnessWriteAsync(entry, target, context),
+                DoBrightnessWriteAsync(entry, target, context),
             cooldownOverrideMs: ResolveBrightnessDwellMs(entry));
     }
 
@@ -2896,7 +2914,7 @@ public sealed class MonitorService : IDisposable
         int floor = resolvedEntry.FloorPercent;
         int ceiling = resolvedEntry.CeilingPercent;
         if (floor > ceiling) floor = ceiling;
-        int clampedPercent = Math.Clamp(Math.Clamp(shaped, 0, 100), floor, ceiling);
+        int clampedPercent = Math.Clamp(Math.Clamp(shaped, min: 0, max: 100), floor, ceiling);
 
         lock (resolvedEntry.BrightnessTargetGate)
         {
@@ -2966,7 +2984,7 @@ public sealed class MonitorService : IDisposable
                 continue;
 
             _ = _writeThrottler.RunAsync(entry.ID, context =>
-                DoBrightnessWriteAsync(entry, target, context),
+                    DoBrightnessWriteAsync(entry, target, context),
                 cooldownOverrideMs: ResolveBrightnessDwellMs(entry));
             count++;
         }
@@ -3023,7 +3041,7 @@ public sealed class MonitorService : IDisposable
         // (gives a slow monitor real settle time before we give up).
         // Supersession-aware waits poll the explicit generation, so a fresh slider target waits at most
         // one short polling slice rather than the full final dwell before it can take over.
-        int writeAttempts = Math.Max(1, _settings.ValidationAttempts);
+        int writeAttempts = Math.Max(val1: 1, _settings.ValidationAttempts);
         int writeFinalDwellMs = ResolveValidationDwellMs(entry);
         string? lastWriteError = null;
         bool wrote = false;
@@ -3107,7 +3125,7 @@ public sealed class MonitorService : IDisposable
         Func<bool>? shouldWrite)
     {
         const long Tolerance = 1;
-        int attempts = Math.Max(1, _settings.ValidationAttempts);
+        int attempts = Math.Max(val1: 1, _settings.ValidationAttempts);
         int finalDwellMs = ResolveValidationDwellMs(entry);
 
         for (int attempt = 0; attempt < attempts; attempt++)
@@ -3121,7 +3139,7 @@ public sealed class MonitorService : IDisposable
                 .ConfigureAwait(false);
             if (!readBack.WasAttempted) return;
 
-            bool readable = readBack.Success && readBack.Maximum > 0;
+            bool readable = readBack is { Success: true, Maximum: > 0 };
             if (!readable)
             {
                 TADNLog.Log(
@@ -3206,7 +3224,8 @@ public sealed class MonitorService : IDisposable
         DDCMonitor currentDDC = Volatile.Read(ref entry.DDC);
         TADNLog.Log(
             $"MonitorService: verification exhausted for '{currentDDC.Name}' - target raw={finalExpectedRaw}");
-        DemoteOnDDCFailure(entry, "Brightness write was not acknowledged after retry - DDC/CI link is unresponsive.");
+        DemoteOnDDCFailure(entry,
+            error: "Brightness write was not acknowledged after retry - DDC/CI link is unresponsive.");
     }
 
     private async Task<BrightnessWriteAttempt> TryWriteBrightnessTargetAsync(
@@ -3229,7 +3248,7 @@ public sealed class MonitorService : IDisposable
                 out string? error,
                 cancellationToken);
             if (!success) _display.ResetDDCTransport(ddc);
-            return new BrightnessWriteAttempt(true, success, ddc.Name, error);
+            return new BrightnessWriteAttempt(WasAttempted: true, success, ddc.Name, error);
         }).ConfigureAwait(false);
     }
 
@@ -3252,7 +3271,7 @@ public sealed class MonitorService : IDisposable
                 out string? error,
                 cancellationToken);
             if (!success) _display.ResetDDCTransport(ddc);
-            return new BrightnessReadBack(true, success, actual, maximum, ddc.Name, error);
+            return new BrightnessReadBack(WasAttempted: true, success, actual, maximum, ddc.Name, error);
         }).ConfigureAwait(false);
     }
 
@@ -3283,13 +3302,13 @@ public sealed class MonitorService : IDisposable
     private int ResolveValidationDwellMs(MonitorEntry entry)
     {
         int overrideMs = Volatile.Read(ref entry.ValidationDwellMs);
-        return overrideMs >= 0 ? overrideMs : Math.Max(0, Volatile.Read(ref _validationDwellMs));
+        return overrideMs >= 0 ? overrideMs : Math.Max(val1: 0, Volatile.Read(ref _validationDwellMs));
     }
 
     private int ResolveBrightnessDwellMs(MonitorEntry entry)
     {
         int overrideMs = Volatile.Read(ref entry.BrightnessDwellMs);
-        return overrideMs >= 0 ? overrideMs : Math.Max(0, Volatile.Read(ref _writeCooldownMs));
+        return overrideMs >= 0 ? overrideMs : Math.Max(val1: 0, Volatile.Read(ref _writeCooldownMs));
     }
 
     private async Task<bool> DelayWhileBrightnessTargetCurrentAsync(
@@ -3298,7 +3317,7 @@ public sealed class MonitorService : IDisposable
         int delayMs,
         CancellationToken cancellationToken)
     {
-        int remainingMs = Math.Max(0, delayMs);
+        int remainingMs = Math.Max(val1: 0, delayMs);
         while (remainingMs > 0)
         {
             if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return false;
@@ -3306,6 +3325,7 @@ public sealed class MonitorService : IDisposable
             int sliceMs = Math.Min(TimeConstants.BrightnessTargetSupersessionPollIntervalMs, remainingMs);
             try { await Task.Delay(sliceMs, cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) { return false; }
+
             remainingMs -= sliceMs;
         }
 
@@ -3624,7 +3644,7 @@ public sealed class MonitorService : IDisposable
         {
             if (!_ddcLocks.TryGetValue(key, out SemaphoreSlim? ddcSemaphore))
             {
-                ddcSemaphore = new SemaphoreSlim(1, 1);
+                ddcSemaphore = new SemaphoreSlim(initialCount: 1, maxCount: 1);
                 _ddcLocks[key] = ddcSemaphore;
             }
 
@@ -3758,7 +3778,7 @@ public sealed class MonitorService : IDisposable
         string? Error)
     {
         public static BrightnessWriteAttempt Superseded(string monitorName) =>
-            new(false, false, monitorName, null);
+            new(WasAttempted: false, Success: false, monitorName, Error: null);
     }
 
     private readonly record struct BrightnessReadBack(
@@ -3770,7 +3790,7 @@ public sealed class MonitorService : IDisposable
         string? Error)
     {
         public static BrightnessReadBack Superseded(string monitorName) =>
-            new(false, false, 0, 0, monitorName, null);
+            new(WasAttempted: false, Success: false, Actual: 0, Maximum: 0, monitorName, Error: null);
     }
 
     private sealed class NormCurveProjection(double[] xs, double[] ys)
@@ -3792,6 +3812,6 @@ public sealed class MonitorService : IDisposable
         if (normCurve?.Xs is not { Length: >= 2 } xs || normCurve.Ys is not { Length: >= 2 } ys) return percent;
 
         double y = EnvironmentalCurveSampler.InterpolateLinear(xs, ys, percent);
-        return (int)Math.Round(Math.Clamp(y, 0.0, 100.0));
+        return (int)Math.Round(Math.Clamp(y, min: 0.0, max: 100.0));
     }
 }

@@ -65,7 +65,7 @@ internal static class BluetoothDeviceDisconnector
                         ref address,
                         sizeof(ulong),
                         IntPtr.Zero,
-                        0,
+                        nOutBufferSize: 0,
                         out _,
                         IntPtr.Zero);
                     if (!disconnected) lastError = Marshal.GetLastWin32Error();

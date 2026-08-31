@@ -74,7 +74,7 @@ internal static class NightLightSettingsHandler
     {
         if (!NightLightRegistry.IsEnabled()) return;
 
-        int clamped = Math.Clamp(percent, 0, 100);
+        int clamped = Math.Clamp(percent, min: 0, max: 100);
         if (!NightLightHelperClient.TryQueueSettingsKelvin(clamped)) return;
 
         Volatile.Write(ref _deferredStrengthPercent, clamped);
@@ -95,7 +95,7 @@ internal static class NightLightSettingsHandler
             // with two timers; the loser disposes its candidate.
             Timer candidate = new(
                 OnDeferredRegistryTimerFired, state: null, Timeout.Infinite, Timeout.Infinite);
-            timer = Interlocked.CompareExchange(ref _deferredRegistryTimer, candidate, null) ?? candidate;
+            timer = Interlocked.CompareExchange(ref _deferredRegistryTimer, candidate, comparand: null) ?? candidate;
             if (!ReferenceEquals(timer, candidate)) candidate.Dispose();
         }
 
@@ -113,7 +113,7 @@ internal static class NightLightSettingsHandler
             if (percent < 0) return;
 
             // Reset the sentinel before the write so a gesture arriving during the write owns the next fire
-            Volatile.Write(ref _deferredStrengthPercent, -1);
+            Volatile.Write(ref _deferredStrengthPercent, value: -1);
             if (!NightLightRegistry.IsEnabled()) return;
             NightLightRegistry.SetStrength(percent);
         }
@@ -130,7 +130,7 @@ internal static class NightLightSettingsHandler
     public static void CancelPendingResend()
     {
         NightLightHelperClient.CancelPendingStrength();
-        Volatile.Write(ref _deferredStrengthPercent, -1);
+        Volatile.Write(ref _deferredStrengthPercent, value: -1);
         Timer? timer = _deferredRegistryTimer;
         timer?.Change(Timeout.Infinite, Timeout.Infinite);
     }
@@ -140,9 +140,9 @@ internal static class NightLightSettingsHandler
     /// </summary>
     public static void Shutdown()
     {
-        Volatile.Write(ref _deferredStrengthPercent, -1);
+        Volatile.Write(ref _deferredStrengthPercent, value: -1);
 
-        Timer? timer = Interlocked.Exchange(ref _deferredRegistryTimer, null);
+        Timer? timer = Interlocked.Exchange(ref _deferredRegistryTimer, value: null);
         if (timer != null)
         {
             try { timer.Change(Timeout.Infinite, Timeout.Infinite); }

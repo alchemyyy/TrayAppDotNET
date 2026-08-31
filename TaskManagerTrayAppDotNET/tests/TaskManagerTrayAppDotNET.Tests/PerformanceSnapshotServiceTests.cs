@@ -24,7 +24,7 @@ public sealed class PerformanceSnapshotServiceTests
             () => service.GetSnapshotHistory().Count >= 3,
             TimeSpan.FromSeconds(5)));
         IReadOnlyList<PerformanceSnapshot> retainedHistory = service.GetSnapshotHistory();
-        Assert.Equal(3, retainedHistory.Count);
+        Assert.Equal(expected: 3, retainedHistory.Count);
         Assert.True(retainedHistory[0].CapturedTimestamp < retainedHistory[1].CapturedTimestamp);
         Assert.True(retainedHistory[1].CapturedTimestamp < retainedHistory[2].CapturedTimestamp);
 
@@ -47,7 +47,7 @@ public sealed class PerformanceSnapshotServiceTests
         PerformanceSnapshot thirdSnapshot = service.SampleNow();
 
         IReadOnlyList<PerformanceSnapshot> retainedHistory = service.GetSnapshotHistory();
-        Assert.Equal(2, retainedHistory.Count);
+        Assert.Equal(expected: 2, retainedHistory.Count);
         Assert.Equal(secondSnapshot.CapturedTimestamp, retainedHistory[0].CapturedTimestamp);
         Assert.Equal(thirdSnapshot.CapturedTimestamp, retainedHistory[1].CapturedTimestamp);
 
@@ -63,7 +63,7 @@ public sealed class PerformanceSnapshotServiceTests
             maximumHistoryCount: 3);
         PerformanceSnapshot fourthSnapshot = service.SampleNow();
         retainedHistory = service.GetSnapshotHistory();
-        Assert.Equal(2, retainedHistory.Count);
+        Assert.Equal(expected: 2, retainedHistory.Count);
         Assert.Equal(thirdSnapshot.CapturedTimestamp, retainedHistory[0].CapturedTimestamp);
         Assert.Equal(fourthSnapshot.CapturedTimestamp, retainedHistory[1].CapturedTimestamp);
 
@@ -91,7 +91,7 @@ public sealed class PerformanceSnapshotServiceTests
         Assert.Equal(
             snapshot.CPU.LogicalProcessorCount,
             snapshot.CPU.LogicalProcessorUtilizationPercents.Length);
-        Assert.InRange(snapshot.CPU.UtilizationPercent, 0, 100);
+        Assert.InRange(snapshot.CPU.UtilizationPercent, low: 0, high: 100);
         Assert.True(snapshot.CPU.HasFrequencyData);
         Assert.True(snapshot.CPU.HighestCurrentSpeedHertz > 0);
         Assert.True(snapshot.CPU.BaseSpeedHertz > 0);
@@ -127,14 +127,14 @@ public sealed class PerformanceSnapshotServiceTests
 
         Assert.All(snapshot.GPUs.ToArray(), static gpu =>
         {
-            Assert.StartsWith("gpu:", gpu.DeviceID, StringComparison.Ordinal);
+            Assert.StartsWith(expectedStartString: "gpu:", gpu.DeviceID, StringComparison.Ordinal);
             Assert.Equal(PerformanceDeviceKind.GPU, gpu.Kind);
-            Assert.InRange(gpu.UtilizationPercent, 0, 100);
+            Assert.InRange(gpu.UtilizationPercent, low: 0, high: 100);
             Assert.NotNull(gpu.Details);
         });
         Assert.All(snapshot.Networks.ToArray(), static network =>
         {
-            Assert.StartsWith("network:", network.DeviceID, StringComparison.Ordinal);
+            Assert.StartsWith(expectedStartString: "network:", network.DeviceID, StringComparison.Ordinal);
             Assert.Equal(PerformanceDeviceKind.Network, network.Kind);
             Assert.True(network.ReceiveBytesPerSecond >= 0);
             Assert.True(network.SendBytesPerSecond >= 0);
@@ -142,9 +142,9 @@ public sealed class PerformanceSnapshotServiceTests
         Assert.NotEmpty(snapshot.Disks.ToArray());
         Assert.All(snapshot.Disks.ToArray(), static disk =>
         {
-            Assert.StartsWith("disk:", disk.DeviceID, StringComparison.Ordinal);
+            Assert.StartsWith(expectedStartString: "disk:", disk.DeviceID, StringComparison.Ordinal);
             Assert.Equal(PerformanceDeviceKind.Disk, disk.Kind);
-            Assert.InRange(disk.ActiveTimePercent, 0, 100);
+            Assert.InRange(disk.ActiveTimePercent, low: 0, high: 100);
             Assert.NotNull(disk.Details);
         });
     }

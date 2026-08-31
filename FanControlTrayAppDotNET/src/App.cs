@@ -1,22 +1,20 @@
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
+#if DEBUG
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using FanControlTrayAppDotNET.Localization;
 using FanControlTrayAppDotNET.Services;
-using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Flyout;
 using FanControlTrayAppDotNET.UI.Settings;
 using FanControlTrayAppDotNET.UI.Tray;
-#if HOTAVALONIA_ENABLE
-using HotAvalonia;
-#endif
 using TrayAppDotNETCommon.UI.WarmWindows;
-#if DEBUG
-using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
-using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
-#endif
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using FanHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
@@ -75,8 +73,8 @@ internal sealed class FanAvaloniaApp : Application
         TADNLog.Initialize();
         TADNLog.Log("FanAvaloniaApp.OnFrameworkInitializationCompleted");
         LocalizationManager.Instance.Initialize(
-            Strings.ResourceManager,
-            culture => Strings.Culture = culture);
+            AppStrings.ResourceManager,
+            culture => AppStrings.Culture = culture);
         WireCrashHandlers();
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
@@ -240,10 +238,10 @@ internal sealed class FanAvaloniaApp : Application
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
                     repositoryName: "TrayAppDotNET",
-                    applicationName: Program.ApplicationName,
-                    currentBuild: BuildInfo.BuildNumber,
-                    saveSettings: _settings.Save,
-                    sharedSettingsDirectory: Program.LocalAppDataRoot);
+                    Program.ApplicationName,
+                    BuildInfo.BuildNumber,
+                    _settings.Save,
+                    Program.LocalAppDataRoot);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;
@@ -427,7 +425,7 @@ internal sealed class FanAvaloniaApp : Application
         if (showGPU && TryGetTempC("GPU") is { } gpuC)
             lines.Add(string.Format(L(nameof(AppStrings.Tray_Tooltip_GPUTemp_Format)), gpuC));
 
-        return string.Join('\n', lines);
+        return string.Join(separator: '\n', lines);
     }
 
     private static int? TryGetTempC(string controllerHint)
@@ -444,8 +442,8 @@ internal sealed class FanAvaloniaApp : Application
                 continue;
             }
 
-            if (source.UserDefinedName.Contains("Package", StringComparison.OrdinalIgnoreCase)
-                || source.DataSourceKey.Contains("Package", StringComparison.OrdinalIgnoreCase))
+            if (source.UserDefinedName.Contains(value: "Package", StringComparison.OrdinalIgnoreCase)
+                || source.DataSourceKey.Contains(value: "Package", StringComparison.OrdinalIgnoreCase))
                 best = source;
         }
 
@@ -780,21 +778,21 @@ internal sealed class FanAvaloniaApp : Application
         if (_settingsWindow != null)
         {
             _settingsWindow.Closed -= OnSettingsWindowClosed;
-            CloseWindowSafely(_settingsWindow, "settings window");
+            CloseWindowSafely(_settingsWindow, windowName: "settings window");
             _settingsWindow = null;
         }
 
         if (_fanFlyout != null)
         {
             _fanFlyout.Closed -= OnFanFlyoutClosed;
-            CloseWindowSafely(_fanFlyout, "fan flyout");
+            CloseWindowSafely(_fanFlyout, windowName: "fan flyout");
             _fanFlyout = null;
         }
 
         if (_trayMenuWindow != null)
         {
             _trayMenuWindow.Closed -= OnTrayMenuClosed;
-            CloseWindowSafely(_trayMenuWindow, "tray menu");
+            CloseWindowSafely(_trayMenuWindow, windowName: "tray menu");
             _trayMenuWindow = null;
         }
 

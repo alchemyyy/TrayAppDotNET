@@ -73,17 +73,17 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
 
         _options = options;
         _items = new StackPanel();
-        _contentResources = new UIResourceScope($"{GetType().Name}.Content");
-        _entryResources = _contentResources.CreateChild($"{GetType().Name}.Entries");
+        _contentResources = new UIResourceScope($"{nameof(EditableContextMenuWindow)}.Content");
+        _entryResources = _contentResources.CreateChild($"{nameof(EditableContextMenuWindow)}.Entries");
         AddEntryControls(_items, BuildEntryControls(entries, _entryResources));
         InitializeMenuContent(_items, _contentResources);
         AddHandler(
-            InputElement.PointerPressedEvent,
+            PointerPressedEvent,
             OnWindowPointerPressed,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         AddHandler(
-            InputElement.PointerReleasedEvent,
+            PointerReleasedEvent,
             OnWindowPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
@@ -96,7 +96,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         if (_closed) return;
 
         UIResourceScope replacementResources =
-            _contentResources.CreateChild($"{GetType().Name}.Entries");
+            _contentResources.CreateChild($"{nameof(EditableContextMenuWindow)}.Entries");
         List<EditableMenuItemControl> replacementControls;
         try
         {
@@ -218,9 +218,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         if (_closed
             || _inlineEditingItem == null
             || !eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
             return;
-        }
 
         Visual? source = eventArgs.Source as Visual;
         if (_inlineEditingItem.ContainsInlineEditor(source)) return;
@@ -256,8 +254,8 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
     protected override void OnClosed(EventArgs eventArgs)
     {
         _closed = true;
-        RemoveHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed);
-        RemoveHandler(InputElement.PointerReleasedEvent, OnWindowPointerReleased);
+        RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
+        RemoveHandler(PointerReleasedEvent, OnWindowPointerReleased);
         _hoveredItem = null;
         _inlineEditingItem = null;
         base.OnClosed(eventArgs);
@@ -297,7 +295,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             Background = Brushes.Transparent;
             Cursor = entry.IsEnabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
             Focusable = entry.IsEnabled;
-            Opacity = entry.IsEnabled ? 1 : Math.Clamp(options.DisabledItemOpacity, 0, 1);
+            Opacity = entry.IsEnabled ? 1 : Math.Clamp(options.DisabledItemOpacity, min: 0, max: 1);
 
             (_primaryLabel, _leadingButton, _trailingButton, _inlineEditor, Control content) =
                 BuildContent(entry, options);
@@ -356,7 +354,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             secondaryLabel.FontWeight = entry.SecondaryTextFontWeight;
             secondaryLabel.VerticalAlignment = VerticalAlignment.Center;
             secondaryLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-            secondaryLabel.Opacity = Math.Clamp(entry.SecondaryTextOpacity, 0, 1);
+            secondaryLabel.Opacity = Math.Clamp(entry.SecondaryTextOpacity, min: 0, max: 1);
             secondaryLabel.IsVisible = !string.IsNullOrEmpty(entry.SecondaryText);
 
             TextBox? inlineEditor = CreateInlineEditor(entry, options);
@@ -375,9 +373,9 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                     new ColumnDefinition(GridLength.Star)
                 }
             };
-            Grid.SetColumn(primaryHost, 0);
+            Grid.SetColumn(primaryHost, value: 0);
             textContent.Children.Add(primaryHost);
-            Grid.SetColumn(secondaryLabel, 2);
+            Grid.SetColumn(secondaryLabel, value: 2);
             textContent.Children.Add(secondaryLabel);
 
             SettingsButton? leadingButton = CreateEntryButton(entry.LeadingButton, options);
@@ -396,15 +394,15 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
 
             if (leadingButton != null)
             {
-                Grid.SetColumn(leadingButton, 0);
+                Grid.SetColumn(leadingButton, value: 0);
                 content.Children.Add(leadingButton);
             }
 
-            Grid.SetColumn(textContent, 2);
+            Grid.SetColumn(textContent, value: 2);
             content.Children.Add(textContent);
             if (trailingButton != null)
             {
-                Grid.SetColumn(trailingButton, 3);
+                Grid.SetColumn(trailingButton, value: 3);
                 content.Children.Add(trailingButton);
             }
 
@@ -418,7 +416,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             if (entry.InlineTextEdit == null) return null;
 
             double editorWidth = double.IsFinite(entry.PrimaryTextMaximumWidth)
-                ? Math.Max(1, entry.PrimaryTextMaximumWidth)
+                ? Math.Max(val1: 1, entry.PrimaryTextMaximumWidth)
                 : double.NaN;
             TextBox editor = TrayAppDotNETSettingsUI.SearchTextBox(
                 options.Palette,
@@ -426,10 +424,10 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 entry.Text);
             editor.FontSize = options.FontSize;
             editor.FontWeight = options.FontWeight;
-            editor.MinWidth = Math.Min(80, double.IsFinite(editorWidth) ? editorWidth : 80);
+            editor.MinWidth = Math.Min(val1: 80, double.IsFinite(editorWidth) ? editorWidth : 80);
             editor.Height = double.NaN;
             editor.MinHeight = 0;
-            editor.Padding = new Thickness(3, 0);
+            editor.Padding = new Thickness(horizontal: 3, vertical: 0);
             editor.IsVisible = false;
             return editor;
         }
@@ -443,11 +441,11 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             SettingsButton button = definition.Glyph is { } glyph
                 ? new SettingsButton(glyph, options.Palette, transparentBase: true)
                 : new SettingsButton(definition.Text ?? string.Empty, options.Palette, transparentBase: true);
-            button.Width = Math.Max(0, definition.Size);
-            button.Height = Math.Max(0, definition.Size);
-            button.MinHeight = Math.Max(0, definition.Size);
+            button.Width = Math.Max(val1: 0, definition.Size);
+            button.Height = Math.Max(val1: 0, definition.Size);
+            button.MinHeight = Math.Max(val1: 0, definition.Size);
             button.Padding = definition.Padding;
-            button.Label.FontSize = Math.Max(0, definition.FontSize);
+            button.Label.FontSize = Math.Max(val1: 0, definition.FontSize);
             button.Opacity = 0;
             button.IsHitTestVisible = false;
             if (!string.IsNullOrWhiteSpace(definition.ToolTip))
@@ -462,7 +460,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
 
             _isPointerOver = false;
             UpdateVisual();
-            _itemHoverChanged(this, false);
+            _itemHoverChanged(this, arg2: false);
             _entry.HoverChanged?.Invoke(false);
         }
 
@@ -506,7 +504,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         {
             if (_disposed || _isInlineEditing || _inlineEditor == null) return;
 
-            _inlineEditStateChanged(this, true);
+            _inlineEditStateChanged(this, arg2: true);
             _isInlineEditing = true;
             _primaryLabel.IsVisible = false;
             _inlineEditor.Text = _primaryLabel.Text ?? string.Empty;
@@ -532,7 +530,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             _inlineEditor.IsVisible = false;
             _primaryLabel.IsVisible = true;
             SetActionButtonsVisible(_isPointerOver);
-            _inlineEditStateChanged(this, false);
+            _inlineEditStateChanged(this, arg2: false);
             Focus();
         }
 
@@ -565,7 +563,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
 
             _isPointerOver = true;
             UpdateVisual();
-            _itemHoverChanged(this, true);
+            _itemHoverChanged(this, arg2: true);
             _entry.HoverChanged?.Invoke(true);
         }
 
@@ -575,9 +573,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 || !_entry.IsEnabled
                 || !_isPointerOver
                 || TrayAppDotNETFlyoutUI.IsPointerInside(this, eventArgs))
-            {
                 return;
-            }
 
             ClearPointerHover();
         }
@@ -588,9 +584,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 || _isInlineEditing
                 || !_entry.IsEnabled
                 || !eventArgs.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            {
                 return;
-            }
 
             if (!_options.InvokeOnPointerReleased)
                 _invoke(this, _entry);
@@ -604,9 +598,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 || !_entry.IsEnabled
                 || !_options.InvokeOnPointerReleased
                 || eventArgs.InitialPressMouseButton != MouseButton.Left)
-            {
                 return;
-            }
 
             if (_isPointerOver)
                 _invoke(this, _entry);
@@ -669,11 +661,11 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             if (_disposed) return;
 
             if (_isInlineEditing)
-                _inlineEditStateChanged(this, false);
+                _inlineEditStateChanged(this, arg2: false);
             _disposed = true;
             if (_isPointerOver)
             {
-                _itemHoverChanged(this, false);
+                _itemHoverChanged(this, arg2: false);
                 _entry.HoverChanged?.Invoke(false);
             }
 
@@ -689,6 +681,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 _inlineEditor.KeyDown -= OnInlineEditorKeyDown;
                 _inlineEditor.LostFocus -= OnInlineEditorLostFocus;
             }
+
             if (_leadingButton != null)
                 _leadingButton.Click -= OnLeadingButtonClick;
             if (_trailingButton != null)

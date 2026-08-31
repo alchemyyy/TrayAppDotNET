@@ -42,8 +42,8 @@ internal sealed class NightLightBulbGlyphIcon : SkiaFlyoutGlyphIcon
         using SKPath raysMinusCircle = Op(rays, sunCircle, SKPathOp.Difference);
 
         double sunCenterY = center + translateY;
-        using SKPath squishedRays = TransformPath(raysMinusCircle, 1.0, RaySquishY, center, sunCenterY);
-        using SKPath topPortion = RectPath(0, 0, size, (float)(size * RayKeepTopFraction));
+        using SKPath squishedRays = TransformPath(raysMinusCircle, scaleX: 1.0, RaySquishY, center, sunCenterY);
+        using SKPath topPortion = RectPath(left: 0, top: 0, size, (float)(size * RayKeepTopFraction));
         using SKPath topRays = Op(squishedRays, topPortion, SKPathOp.Intersect);
 
         using SKPath bulb = BuildCenteredGlyphLinePath(
@@ -59,7 +59,7 @@ internal sealed class NightLightBulbGlyphIcon : SkiaFlyoutGlyphIcon
             GlyphScale,
             center,
             center,
-            0,
+            translateX: 0,
             globalTranslateY);
         using SKPath transformedBulb = TransformPath(
             bulb,
@@ -67,7 +67,7 @@ internal sealed class NightLightBulbGlyphIcon : SkiaFlyoutGlyphIcon
             GlyphScale,
             center,
             center,
-            0,
+            translateX: 0,
             globalTranslateY);
 
         DrawPath(canvas, transformedRays, color);

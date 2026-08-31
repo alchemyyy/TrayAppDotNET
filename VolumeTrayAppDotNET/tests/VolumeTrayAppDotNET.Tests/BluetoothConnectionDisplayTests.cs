@@ -10,23 +10,24 @@ namespace VolumeTrayAppDotNET.Tests;
 public sealed class BluetoothConnectionDisplayTests
 {
     [Fact]
-    public void ConfigurationManagerNotificationFilterMatchesNativeLayout()
-    {
-        Assert.Equal(416, Marshal.SizeOf<CfgMgr32.CMNotifyFilter>());
-    }
+    public void ConfigurationManagerNotificationFilterMatchesNativeLayout() =>
+        Assert.Equal(expected: 416, Marshal.SizeOf<CfgMgr32.CMNotifyFilter>());
 
     [Fact]
     public void ClassicBluetoothConnectionStructuresMatchNativeX64Layouts()
     {
-        Assert.Equal(40, Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_SEARCH_PARAMS>());
-        Assert.Equal(560, Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_INFO>());
+        Assert.Equal(expected: 40, Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_SEARCH_PARAMS>());
+        Assert.Equal(expected: 560, Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_INFO>());
     }
 
     [Fact]
     public void RememberedBluetoothDevnodeIsNotTreatedAsConnected()
     {
         Guid containerID = Guid.NewGuid();
-        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal) { { @"BTHENUM\DEV_8099E75CA52C\7&123456&0&BLUETOOTHDEVICE_8099E75CA52C", containerID } };
+        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal)
+        {
+            { @"BTHENUM\DEV_8099E75CA52C\7&123456&0&BLUETOOTHDEVICE_8099E75CA52C", containerID }
+        };
         HashSet<ulong> connectedAddresses = [];
 
         HashSet<Guid> connectedContainers = BluetoothBatteryMonitor.ResolveConnectedContainers(

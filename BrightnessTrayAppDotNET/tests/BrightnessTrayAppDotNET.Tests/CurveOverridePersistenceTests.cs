@@ -6,7 +6,8 @@ namespace BrightnessTrayAppDotNET.Tests;
 
 public sealed class CurveOverridePersistenceTests
 {
-    private static readonly DateTime TestUtcNow = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime TestUtcNow = new(year: 2026, month: 8, day: 20, hour: 12, minute: 0, second: 0,
+        DateTimeKind.Utc);
 
     [Fact]
     public void IndefiniteManualOverrideRestoresWithoutStopwatch()
@@ -21,11 +22,7 @@ public sealed class CurveOverridePersistenceTests
     [Fact]
     public void ActiveLegacyStopwatchRestoresManualOverride()
     {
-        CurveStopwatchEntry entry = new()
-        {
-            IsEnabled = true,
-            ReenableAtUtc = TestUtcNow.AddMinutes(1)
-        };
+        CurveStopwatchEntry entry = new() { IsEnabled = true, ReenableAtUtc = TestUtcNow.AddMinutes(1) };
 
         bool shouldRestore = BrightnessFlyoutWindow.ShouldRestorePersistedCurveRelease(entry, TestUtcNow);
 
@@ -35,12 +32,7 @@ public sealed class CurveOverridePersistenceTests
     [Fact]
     public void ExpiredStopwatchDoesNotRestoreManualOverride()
     {
-        CurveStopwatchEntry entry = new()
-        {
-            IsEnabled = true,
-            IsCurveReleased = true,
-            ReenableAtUtc = TestUtcNow
-        };
+        CurveStopwatchEntry entry = new() { IsEnabled = true, IsCurveReleased = true, ReenableAtUtc = TestUtcNow };
 
         bool shouldRestore = BrightnessFlyoutWindow.ShouldRestorePersistedCurveRelease(entry, TestUtcNow);
 
@@ -72,15 +64,14 @@ public sealed class CurveOverridePersistenceTests
             AppSettings settings = new();
             settings.CurveStopwatches.Add(new CurveStopwatchEntry
             {
-                SliderKey = "monitor:edid:test",
-                IsCurveReleased = true
+                SliderKey = "monitor:edid:test", IsCurveReleased = true
             });
             settings.Save(settingsPath);
 
             AppSettings restored = AppSettings.LoadOrDefault(settingsPath);
 
             CurveStopwatchEntry entry = Assert.Single(restored.CurveStopwatches);
-            Assert.Equal("monitor:edid:test", entry.SliderKey);
+            Assert.Equal(expected: "monitor:edid:test", entry.SliderKey);
             Assert.True(entry.IsCurveReleased);
             Assert.False(entry.IsEnabled);
         }

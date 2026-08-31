@@ -31,13 +31,14 @@ public class DisplayService : IDisplayService, IDisposable
     }
 
     private readonly bool _useHelperProcess;
+
     // One helper process per stable monitor identity. A blocked driver call can therefore time out and kill only
     // that monitor's helper instead of holding the single pipe lock in front of every other panel.
     private readonly Dictionary<string, DDCHelperClient>? _helperClients;
     private readonly Lock _helperClientsGate = new();
     private volatile bool _disposed;
 
-    public DisplayService() : this(useHelperProcess: true) { }
+    public DisplayService() : this(true) { }
 
     internal DisplayService(bool useHelperProcess)
     {
@@ -75,24 +76,18 @@ public class DisplayService : IDisplayService, IDisposable
             helperClient.Dispose();
     }
 
-    public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
-    {
-        return TryGetMonitorsCore(MonitorEnumerationPurpose.Full, out monitors, out error);
-    }
+    public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
+        TryGetMonitorsCore(MonitorEnumerationPurpose.Full, out monitors, out error);
 
     /// <inheritdoc />
-    public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
-    {
-        return TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error);
-    }
+    public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
+        TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error);
 
     /// <summary>
     /// Enumerates the Win32 identity needed by the DDC helper without parent-only WMI, CCD, and profile work.
     /// </summary>
-    internal static bool TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
-    {
-        return TryGetMonitorsCore(MonitorEnumerationPurpose.HelperResolution, out monitors, out error);
-    }
+    internal static bool TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
+        TryGetMonitorsCore(MonitorEnumerationPurpose.HelperResolution, out monitors, out error);
 
     private static bool TryGetMonitorsCore(
         MonitorEnumerationPurpose purpose,
@@ -121,7 +116,7 @@ public class DisplayService : IDisplayService, IDisposable
         foreach (DDCMonitor monitor in list)
         {
             User32Monitor.MonitorInfoEx monitorInfo = new();
-            if (User32Monitor.GetMonitorInfo(new HandleRef(null, monitor.Handle), monitorInfo))
+            if (User32Monitor.GetMonitorInfo(new HandleRef(wrapper: null, monitor.Handle), monitorInfo))
             {
                 monitor.Name = new string(monitorInfo.szDevice).TrimEnd('\0');
                 monitor.DeviceID = ResolveDeviceID(monitor.Name);
@@ -140,7 +135,7 @@ public class DisplayService : IDisplayService, IDisposable
                         ushort productCode = EDIDParser.ExtractProductCode(edid);
                         monitor.EDIDProductCode = productCode == 0
                             ? string.Empty
-                            : productCode.ToString("X4", CultureInfo.InvariantCulture);
+                            : productCode.ToString(format: "X4", CultureInfo.InvariantCulture);
                         // Populate per-monitor VCP profile fields (BrightnessCode, PowerOffCommands, ProfileQuirks)
                         // by EDID identity. Misses leave the VESA-standard defaults in place.
                         DDCMonitorDatabase.ApplyProfile(monitor);
@@ -156,10 +151,7 @@ public class DisplayService : IDisplayService, IDisposable
 
         bool Callback(IntPtr hMonitor, IntPtr hdc, ref User32Monitor.Rect rect, IntPtr data)
         {
-            list.Add(new DDCMonitor
-            {
-                Handle = hMonitor, HDC = hdc, X = rect.left, Y = rect.top
-            });
+            list.Add(new DDCMonitor { Handle = hMonitor, HDC = hdc, X = rect.left, Y = rect.top });
             return true;
         }
     }
@@ -199,7 +191,8 @@ public class DisplayService : IDisplayService, IDisposable
         if (string.IsNullOrEmpty(adapterName)) return string.Empty;
 
         User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
-        if (User32Monitor.EnumDisplayDevices(adapterName, 0, ref dd, 0) && !string.IsNullOrEmpty(dd.DeviceID))
+        if (User32Monitor.EnumDisplayDevices(adapterName, iDevNum: 0, ref dd, dwFlags: 0) &&
+            !string.IsNullOrEmpty(dd.DeviceID))
             return dd.DeviceID;
 
         return adapterName;
@@ -215,7 +208,7 @@ public class DisplayService : IDisplayService, IDisposable
 
         User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
         if (!User32Monitor.EnumDisplayDevices(
-                adapterName, 0, ref dd, User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME))
+                adapterName, iDevNum: 0, ref dd, User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME))
             return string.Empty;
 
         string interfacePath = dd.DeviceID;
@@ -230,7 +223,7 @@ public class DisplayService : IDisplayService, IDisposable
         int lastHash = body.LastIndexOf('#');
         if (lastHash <= 0) return string.Empty;
 
-        return body[..lastHash].Replace('#', '\\');
+        return body[..lastHash].Replace(oldChar: '#', newChar: '\\');
     }
 
     private static void AttachWindowsBrightnessTargets(List<DDCMonitor> monitors)
@@ -252,7 +245,8 @@ public class DisplayService : IDisplayService, IDisposable
 
             WindowsBrightnessTarget? target = targets.FirstOrDefault(t =>
                 !assignedInstances.Contains(t.InstanceName)
-                && string.Equals(t.DisplayInstancePath, monitor.DisplayInstancePath, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(t.DisplayInstancePath, monitor.DisplayInstancePath,
+                    StringComparison.OrdinalIgnoreCase));
             if (target == null) continue;
 
             ApplyWindowsBrightnessTarget(monitor, target);
@@ -312,9 +306,9 @@ public class DisplayService : IDisplayService, IDisposable
 
                 return DDCCallOutcome<string>.Ok(capabilitiesBuffer.ToString());
             }),
-            opLabel: $"GetCapabilities('{monitor.Name}')",
-            ct: ct,
-            helperOp: (helper, timeoutMs, helperCancellationToken) =>
+            $"GetCapabilities('{monitor.Name}')",
+            ct,
+            (helper, timeoutMs, helperCancellationToken) =>
                 helper.TryGetCapabilities(monitor, timeoutMs, helperCancellationToken));
 
         capabilities = outcome.Value;
@@ -332,10 +326,7 @@ public class DisplayService : IDisplayService, IDisposable
             [
                 new VCPCapability
                 {
-                    Name = "Windows brightness (0x10)",
-                    OptCode = VCPConstants.Brightness,
-                    Value = 0,
-                    MaxValue = 100
+                    Name = "Windows brightness (0x10)", OptCode = VCPConstants.Brightness, Value = 0, MaxValue = 100
                 }
             ];
             error = null;
@@ -358,7 +349,7 @@ public class DisplayService : IDisplayService, IDisposable
         IEnumerable<INode> rootChildren = root.Nodes ?? [];
         INode? vcpNode = rootChildren
             .RecursiveSelect(n => n.Nodes ?? [])
-            .FirstOrDefault(n => string.Equals(n.Value, "vcp", StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(n => string.Equals(n.Value, b: "vcp", StringComparison.OrdinalIgnoreCase));
 
         if (vcpNode?.Nodes == null)
         {
@@ -386,14 +377,14 @@ public class DisplayService : IDisplayService, IDisposable
                 {
                     int errorCode = Marshal.GetLastWin32Error();
                     return DDCCallOutcome<(uint, uint)>.Fail(
-                        DDCNativeError.Format("GetVCPFeatureAndVCPFeatureReply", errorCode));
+                        DDCNativeError.Format(operation: "GetVCPFeatureAndVCPFeatureReply", errorCode));
                 }
 
                 return DDCCallOutcome<(uint, uint)>.Ok((c, m));
             }),
-            opLabel: $"TryGetVCPFeature('{monitor.Name}', 0x{code:X2})",
-            ct: ct,
-            helperOp: (helper, timeoutMs, helperCancellationToken) =>
+            $"TryGetVCPFeature('{monitor.Name}', 0x{code:X2})",
+            ct,
+            (helper, timeoutMs, helperCancellationToken) =>
                 helper.TryGetVCPFeature(monitor, code, timeoutMs, helperCancellationToken));
 
         currentValue = outcome.Value.Cur;
@@ -416,14 +407,14 @@ public class DisplayService : IDisplayService, IDisposable
                 {
                     int errorCode = Marshal.GetLastWin32Error();
                     return DDCCallOutcome<bool>.Fail(
-                        DDCNativeError.Format("SetVCPFeature", errorCode));
+                        DDCNativeError.Format(operation: "SetVCPFeature", errorCode));
                 }
 
                 return DDCCallOutcome<bool>.Ok(true);
             }),
-            opLabel: $"TrySetVCPFeature('{monitor.Name}', 0x{code:X2}={value})",
-            ct: ct,
-            helperOp: (helper, timeoutMs, helperCancellationToken) => helper.TrySetVCPFeature(
+            $"TrySetVCPFeature('{monitor.Name}', 0x{code:X2}={value})",
+            ct,
+            (helper, timeoutMs, helperCancellationToken) => helper.TrySetVCPFeature(
                 monitor,
                 code,
                 value,
@@ -439,11 +430,12 @@ public class DisplayService : IDisplayService, IDisposable
     {
         lock (_helperClientsGate)
         {
-            if (!_useHelperProcess || _helperClients == null || _disposed) return;
+            if (!_useHelperProcess || _helperClients == null || _disposed)
+                return;
         }
 
         string helperClientKey = BuildHelperClientKey(monitor);
-        DDCHelperClient? helperClient = null;
+        DDCHelperClient? helperClient;
         lock (_helperClientsGate)
         {
             if (_disposed) return;
@@ -479,7 +471,7 @@ public class DisplayService : IDisplayService, IDisposable
                 out error))
             return false;
 
-        currentValue = (uint)Math.Clamp(brightness, 0, 100);
+        currentValue = (uint)Math.Clamp(brightness, min: 0, max: 100);
         return true;
     }
 
@@ -497,7 +489,7 @@ public class DisplayService : IDisplayService, IDisposable
             return false;
         }
 
-        int percent = (int)Math.Clamp(value, 0, 100);
+        int percent = (int)Math.Clamp(value, min: 0, max: 100);
         return WindowsBrightnessWmi.TrySetBrightness(monitor.WindowsBrightnessMethodPath, percent, out error);
     }
 
@@ -579,7 +571,7 @@ public class DisplayService : IDisplayService, IDisposable
         bool Callback(IntPtr hMonitor, IntPtr hdc, ref User32Monitor.Rect rect, IntPtr data)
         {
             User32Monitor.MonitorInfoEx info = new();
-            if (!User32Monitor.GetMonitorInfo(new HandleRef(null, hMonitor), info)) return true;
+            if (!User32Monitor.GetMonitorInfo(new HandleRef(wrapper: null, hMonitor), info)) return true;
 
             string adapterName = new string(info.szDevice).TrimEnd('\0');
             string deviceID = ResolveDeviceID(adapterName);
@@ -592,7 +584,9 @@ public class DisplayService : IDisplayService, IDisposable
             if (edid != null)
             {
                 ushort productCode = EDIDParser.ExtractProductCode(edid);
-                product = productCode == 0 ? string.Empty : productCode.ToString("X4", CultureInfo.InvariantCulture);
+                product = productCode == 0
+                    ? string.Empty
+                    : productCode.ToString(format: "X4", CultureInfo.InvariantCulture);
                 friendlyName = EDIDParser.ExtractMonitorName(edid);
             }
 
@@ -600,12 +594,12 @@ public class DisplayService : IDisplayService, IDisposable
                                      && HasStableDeviceID(deviceID)
                                      && string.Equals(deviceID, targetDeviceID, StringComparison.Ordinal);
             bool windowsDisplayInstanceMatch = targetControlKind == MonitorBrightnessControlKind.Windows
-                                              && !string.IsNullOrEmpty(targetDisplayInstancePath)
-                                              && !string.IsNullOrEmpty(displayInstancePath)
-                                              && string.Equals(
-                                                  displayInstancePath,
-                                                  targetDisplayInstancePath,
-                                                  StringComparison.OrdinalIgnoreCase);
+                                               && !string.IsNullOrEmpty(targetDisplayInstancePath)
+                                               && !string.IsNullOrEmpty(displayInstancePath)
+                                               && string.Equals(
+                                                   displayInstancePath,
+                                                   targetDisplayInstancePath,
+                                                   StringComparison.OrdinalIgnoreCase);
             bool EDIDMatch = !string.IsNullOrEmpty(targetSerial)
                              && string.Equals(serial, targetSerial, StringComparison.Ordinal)
                              && (string.IsNullOrEmpty(targetManufacturer)
@@ -672,7 +666,7 @@ public class DisplayService : IDisplayService, IDisposable
 
         static bool HasStableDeviceID(string deviceID) =>
             !string.IsNullOrEmpty(deviceID)
-            && !deviceID.StartsWith(@"\\.\", StringComparison.Ordinal);
+            && !deviceID.StartsWith(value: @"\\.\", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -693,7 +687,8 @@ public class DisplayService : IDisplayService, IDisposable
     {
         lock (_helperClientsGate)
         {
-            if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
+            if (_disposed)
+                return DDCCallOutcome<T>.WithError("Display service is disposed.");
         }
 
         // Pre-check the sequence-level token before launching or touching the helper process.
@@ -805,11 +800,11 @@ internal readonly struct DDCCallOutcome<T>
         Error = error;
     }
 
-    public static DDCCallOutcome<T> Ok(T value) => new(true, value, null);
-    public static DDCCallOutcome<T> Fail(string error) => new(false, default!, error);
+    public static DDCCallOutcome<T> Ok(T value) => new(success: true, value, error: null);
+    public static DDCCallOutcome<T> Fail(string error) => new(success: false, default!, error);
 
     /// <summary>
     /// Fail outcome with the supplied error string; used by timeout/cancellation paths to stamp op label and duration.
     /// </summary>
-    public static DDCCallOutcome<T> WithError(string error) => new(false, default!, error);
+    public static DDCCallOutcome<T> WithError(string error) => new(success: false, default!, error);
 }

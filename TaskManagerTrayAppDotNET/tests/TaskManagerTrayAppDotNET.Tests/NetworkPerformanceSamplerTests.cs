@@ -13,12 +13,12 @@ public sealed class NetworkPerformanceSamplerTests
     {
         Assert.True(NetworkPerformanceSampler.IsMeaningfulInterface(
             (uint)NetworkInterfaceType.Ethernet,
-            true,
-            false,
-            true,
-            false,
-            false,
-            true));
+            isHardwareInterface: true,
+            isFilterInterface: false,
+            isConnectorPresent: true,
+            isMediaDisconnected: false,
+            isEndPointInterface: false,
+            isOperational: true));
     }
 
     [Theory]
@@ -55,18 +55,18 @@ public sealed class NetworkPerformanceSamplerTests
         long elapsedTicks = checked(Stopwatch.Frequency * 2L);
 
         bool calculated = NetworkPerformanceSampler.TryCalculateThroughput(
-            10_000,
-            20_000,
-            100,
-            12_000,
-            26_000,
+            previousBytesReceived: 10_000,
+            previousBytesSent: 20_000,
+            previousTimestamp: 100,
+            currentBytesReceived: 12_000,
+            currentBytesSent: 26_000,
             100 + elapsedTicks,
             out double receiveBytesPerSecond,
             out double sendBytesPerSecond);
 
         Assert.True(calculated);
-        Assert.Equal(1_000, receiveBytesPerSecond);
-        Assert.Equal(3_000, sendBytesPerSecond);
+        Assert.Equal(expected: 1_000, receiveBytesPerSecond);
+        Assert.Equal(expected: 3_000, sendBytesPerSecond);
     }
 
     [Theory]
@@ -92,8 +92,8 @@ public sealed class NetworkPerformanceSamplerTests
             out double sendBytesPerSecond);
 
         Assert.False(calculated);
-        Assert.Equal(0, receiveBytesPerSecond);
-        Assert.Equal(0, sendBytesPerSecond);
+        Assert.Equal(expected: 0, receiveBytesPerSecond);
+        Assert.Equal(expected: 0, sendBytesPerSecond);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class NetworkPerformanceSamplerTests
         {
             Assert.True(snapshot.IsOperational);
             Assert.True(snapshot.HasThroughputSample);
-            Assert.StartsWith("network:", snapshot.DeviceID, StringComparison.Ordinal);
+            Assert.StartsWith(expectedStartString: "network:", snapshot.DeviceID, StringComparison.Ordinal);
         });
     }
 }

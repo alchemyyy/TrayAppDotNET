@@ -19,9 +19,9 @@ public class SettingsSidebar : Grid
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
         RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        Grid.SetRow(Navigation, 1);
+        SetRow(Navigation, value: 1);
         Children.Add(Navigation);
-        Grid.SetRow(Footer, 2);
+        SetRow(Footer, value: 2);
         Children.Add(Footer);
     }
 
@@ -34,7 +34,7 @@ public class SettingsSidebar : Grid
     {
         ArgumentNullException.ThrowIfNull(header);
         header.Margin = HeaderMargin;
-        Grid.SetRow(header, 0);
+        SetRow(header, value: 0);
         Children.Add(header);
     }
 }

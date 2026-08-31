@@ -41,7 +41,8 @@ internal sealed class ProcessSnapshotBuffer
         string?[] dynamicTextValues)
     {
         ProcessDataSchema schema = Schema
-            ?? throw new InvalidOperationException("The snapshot buffer has not been configured.");
+                                   ?? throw new InvalidOperationException(
+                                       "The snapshot buffer has not been configured.");
         if ((uint)rowIndex >= (uint)Capacity) throw new ArgumentOutOfRangeException(nameof(rowIndex));
 
         StaticRows[rowIndex] = staticData;
@@ -49,16 +50,17 @@ internal sealed class ProcessSnapshotBuffer
         {
             Array.Copy(
                 dynamicNumericValues,
-                0,
+                sourceIndex: 0,
                 DynamicNumericValues,
                 checked(rowIndex * schema.DynamicNumericCount),
                 schema.DynamicNumericCount);
         }
+
         if (schema.DynamicTextCount > 0)
         {
             Array.Copy(
                 dynamicTextValues,
-                0,
+                sourceIndex: 0,
                 DynamicTextValues,
                 checked(rowIndex * schema.DynamicTextCount),
                 schema.DynamicTextCount);
@@ -75,7 +77,7 @@ internal sealed class ProcessSnapshotBuffer
     {
         ArgumentNullException.ThrowIfNull(source);
         ProcessDataSchema schema = source.Schema
-            ?? throw new InvalidOperationException("The source snapshot has no schema.");
+                                   ?? throw new InvalidOperationException("The source snapshot has no schema.");
         BeginWrite(schema, source.Count);
         Array.Copy(source.StaticRows, StaticRows, source.Count);
         Array.Copy(
@@ -103,7 +105,7 @@ internal sealed class ProcessSnapshotBuffer
     public long GetDynamicNumeric(int rowIndex, ProcessTableColumnKind column)
     {
         ProcessDataSchema schema = Schema
-            ?? throw new InvalidOperationException("The snapshot buffer has no schema.");
+                                   ?? throw new InvalidOperationException("The snapshot buffer has no schema.");
         int slot = schema.GetDynamicNumericSlot(column);
         return DynamicNumericValues[checked(rowIndex * schema.DynamicNumericCount + slot)];
     }
@@ -111,7 +113,7 @@ internal sealed class ProcessSnapshotBuffer
     public string GetDynamicText(int rowIndex, ProcessTableColumnKind column)
     {
         ProcessDataSchema schema = Schema
-            ?? throw new InvalidOperationException("The snapshot buffer has no schema.");
+                                   ?? throw new InvalidOperationException("The snapshot buffer has no schema.");
         int slot = schema.GetDynamicTextSlot(column);
         return DynamicTextValues[checked(rowIndex * schema.DynamicTextCount + slot)] ?? string.Empty;
     }
@@ -120,9 +122,9 @@ internal sealed class ProcessSnapshotBuffer
     {
         if (Count <= 0 || Schema == null) return;
 
-        Array.Clear(StaticRows, 0, Count);
+        Array.Clear(StaticRows, index: 0, Count);
         if (Schema.DynamicTextCount > 0)
-            Array.Clear(DynamicTextValues, 0, checked(Count * Schema.DynamicTextCount));
+            Array.Clear(DynamicTextValues, index: 0, checked(Count * Schema.DynamicTextCount));
     }
 
     private int GetRequiredCapacity(int requiredCapacity)

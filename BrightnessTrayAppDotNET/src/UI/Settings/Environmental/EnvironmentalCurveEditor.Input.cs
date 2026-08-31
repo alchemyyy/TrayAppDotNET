@@ -110,7 +110,7 @@ public sealed partial class EnvironmentalCurveEditor
 
         if (_dragDisabledPin is { } draggedPin)
         {
-            double t = Math.Clamp(FromScreenX(pos.X, plot), 0.0, 1.0);
+            double t = Math.Clamp(FromScreenX(pos.X, plot), min: 0.0, max: 1.0);
             if (draggedPin == DisabledPin.Start)
                 _disabledPeriodStart = t;
             else
@@ -149,7 +149,7 @@ public sealed partial class EnvironmentalCurveEditor
 
         bool changed = _dragPoint != null || _draggingLimit;
         bool disabledPeriodChanged = _dragDisabledPin != null;
-        ClearDragState(raiseChanged: false);
+        ClearDragState(false);
         if (changed) CurveChanged?.Invoke();
         if (disabledPeriodChanged) DisabledPeriodChanged?.Invoke(_disabledPeriodStart, _disabledPeriodEnd);
         e.Handled = true;
@@ -162,7 +162,7 @@ public sealed partial class EnvironmentalCurveEditor
 
         bool changed = _dragPoint != null || _draggingLimit;
         bool disabledPeriodChanged = _dragDisabledPin != null;
-        ClearDragState(raiseChanged: false);
+        ClearDragState(false);
         if (changed) CurveChanged?.Invoke();
         if (disabledPeriodChanged) DisabledPeriodChanged?.Invoke(_disabledPeriodStart, _disabledPeriodEnd);
     }
@@ -232,19 +232,19 @@ public sealed partial class EnvironmentalCurveEditor
                 e.Handled = true;
                 break;
             case Key.Up:
-                AdjustSelected(0.0, yStep);
+                AdjustSelected(dx: 0.0, yStep);
                 e.Handled = true;
                 break;
             case Key.Down:
-                AdjustSelected(0.0, -yStep);
+                AdjustSelected(dx: 0.0, -yStep);
                 e.Handled = true;
                 break;
             case Key.Left:
-                AdjustSelected(-xStep, 0.0);
+                AdjustSelected(-xStep, dy: 0.0);
                 e.Handled = true;
                 break;
             case Key.Right:
-                AdjustSelected(xStep, 0.0);
+                AdjustSelected(xStep, dy: 0.0);
                 e.Handled = true;
                 break;
             case Key.Space:

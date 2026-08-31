@@ -46,7 +46,7 @@ internal sealed class ProbeNicknameResolver
             try
             {
                 Regex regex = new(rule.TargetRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-                compiled.Add(new CompiledProbeNicknameRule(regex, rule.ReplacementString ?? string.Empty));
+                compiled.Add(new CompiledProbeNicknameRule(regex, rule.ReplacementString));
             }
             catch (ArgumentException ex)
             {

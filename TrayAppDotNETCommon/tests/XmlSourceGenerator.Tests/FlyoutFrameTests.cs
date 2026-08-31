@@ -38,7 +38,7 @@ public sealed class FlyoutFrameTests
             Assert.Equal(new CornerRadius(expectedCornerRadius), frame.CornerRadius);
             Assert.Equal(framePadding, frame.Padding);
             Assert.False(frame.ClipToBounds);
-            Assert.Equal(0, frame.BoxShadow.Count);
+            Assert.Equal(expected: 0, frame.BoxShadow.Count);
 
             Border contentSurface = Assert.IsType<Border>(frame.Child);
             Assert.Equal(new CornerRadius(expectedInnerCornerRadius), contentSurface.CornerRadius);
@@ -64,7 +64,7 @@ public sealed class FlyoutFrameTests
                 Assert.True(window.Topmost);
                 Assert.Equal(SizeToContent.Height, window.SizeToContent);
                 Assert.Equal(WindowStartupLocation.Manual, window.WindowStartupLocation);
-                Assert.Equal(0, window.Opacity);
+                Assert.Equal(expected: 0, window.Opacity);
                 Assert.Equal(
                     new PixelPoint(
                         TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
@@ -81,19 +81,15 @@ public sealed class FlyoutFrameTests
     public void HiddenShowStagesAnOpaqueWindowOnTheTargetMonitorBeforeCreatingItsNativeSurface() =>
         AvaloniaTestHost.Run(() =>
         {
-            PixelPoint stagingPosition = new(2560, 120);
-            TestFlyoutWindow window = new()
-            {
-                Opacity = 1,
-                Position = new PixelPoint(0, 0)
-            };
+            PixelPoint stagingPosition = new(x: 2560, y: 120);
+            TestFlyoutWindow window = new() { Opacity = 1, Position = new PixelPoint(x: 0, y: 0) };
 
             try
             {
                 window.ShowHidden(stagingPosition);
 
                 Assert.True(window.IsVisible);
-                Assert.Equal(0, window.Opacity);
+                Assert.Equal(expected: 0, window.Opacity);
                 Assert.Equal(stagingPosition, window.Position);
             }
             finally
@@ -111,9 +107,9 @@ public sealed class FlyoutFrameTests
             {
                 window.SetLogicalWidth(350);
 
-                Assert.Equal(350, window.Width);
-                Assert.Equal(350, window.MinWidth);
-                Assert.Equal(350, window.MaxWidth);
+                Assert.Equal(expected: 350, window.Width);
+                Assert.Equal(expected: 350, window.MinWidth);
+                Assert.Equal(expected: 350, window.MaxWidth);
             }
             finally
             {
@@ -125,14 +121,11 @@ public sealed class FlyoutFrameTests
     public void ScalingChangeCorrectsNativeSizeWritebackAfterTheNotification() =>
         AvaloniaTestHost.RunAsync(async () =>
         {
-            TestFlyoutWindow window = new()
-            {
-                Content = new Border { Height = 180 }
-            };
+            TestFlyoutWindow window = new() { Content = new Border { Height = 180 } };
             try
             {
                 window.SetLogicalWidth(350);
-                window.ShowHidden(new PixelPoint(0, 0));
+                window.ShowHidden(new PixelPoint(x: 0, y: 0));
                 window.UpdateLayout();
 
                 window.ScalingChanged += (_, _) =>
@@ -144,10 +137,10 @@ public sealed class FlyoutFrameTests
                 window.SetRenderScaling(1.5);
                 await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
 
-                Assert.Equal(350, window.Width);
-                Assert.Equal(350, window.Bounds.Width);
-                Assert.Equal(180, window.Bounds.Height);
-                Assert.Equal(1, window.ScalingConstraintApplicationCount);
+                Assert.Equal(expected: 350, window.Width);
+                Assert.Equal(expected: 350, window.Bounds.Width);
+                Assert.Equal(expected: 180, window.Bounds.Height);
+                Assert.Equal(expected: 1, window.ScalingConstraintApplicationCount);
             }
             finally
             {
@@ -165,11 +158,7 @@ public sealed class FlyoutFrameTests
         bool shouldClearHeight) =>
         AvaloniaTestHost.Run(() =>
         {
-            TestFlyoutWindow window = new()
-            {
-                SizeToContent = sizeToContent,
-                Height = 240
-            };
+            TestFlyoutWindow window = new() { SizeToContent = sizeToContent, Height = 240 };
 
             try
             {
@@ -178,7 +167,7 @@ public sealed class FlyoutFrameTests
                 if (shouldClearHeight)
                     Assert.True(double.IsNaN(window.Height));
                 else
-                    Assert.Equal(240, window.Height);
+                    Assert.Equal(expected: 240, window.Height);
             }
             finally
             {

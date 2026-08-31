@@ -13,8 +13,10 @@ public sealed record TrayAppDotNETUpdatePromptOptions
     public required UpdateCheckService Service { get; init; }
     public required UpdateInfo UpdateInfo { get; init; }
     public required SettingsPalette Palette { get; init; }
+
     public Color OwnerBackdrop { get; init; } =
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
+
     public required bool EnableRoundedCorners { get; init; }
     public required Func<string, string> L { get; init; }
     public required Action Shutdown { get; init; }
@@ -52,6 +54,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
                 {
                     options.Log($"TrayAppDotNETUpdatePromptPresenter.SkipReleaseAsync: {ex.Message}");
                 }
+
                 return false;
             case TrayAppDotNETUpdatePromptResult.Confirmed:
                 break;
@@ -61,7 +64,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
 
         return await StageAndShutdownAsync(
             options,
-            "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
+            operationName: "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
             L(options, nameof(CommonStrings.UpdateDialog_FailedTitle)),
             L(options, nameof(CommonStrings.UpdateDialog_DownloadFailed)));
     }
@@ -101,7 +104,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
 
         return await StageAndShutdownAsync(
             options,
-            "TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync",
+            operationName: "TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync",
             L(options, nameof(CommonStrings.BackdateDialog_FailedTitle)),
             L(options, nameof(CommonStrings.BackdateDialog_DownloadFailed)));
     }
@@ -167,17 +170,14 @@ public static class TrayAppDotNETUpdatePromptPresenter
             options.EnableRoundedCorners,
             skipText,
             closeText,
-            modalDetails: new TrayAppDotNETUpdateModalDetails(
+            new TrayAppDotNETUpdateModalDetails(
                 newVersionText,
                 currentVersionText,
                 releasesLinkText,
                 options.Service.ReleasesPageUrl,
                 websiteLinkText),
-            modalFooterText: restartNotice,
-            useModalContentLayout: true)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+            restartNotice,
+            useModalContentLayout: true) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         return await ShowPromptAsync(options, dialog);
     }
 
@@ -197,10 +197,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             description,
             L(options, nameof(CommonStrings.BackdateDialog_Confirm)),
             options.Palette,
-            options.EnableRoundedCorners)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+            options.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         return await ShowPromptAsync(options, dialog);
     }
 
@@ -236,10 +233,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             message,
             okText,
             options.Palette,
-            options.EnableRoundedCorners)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+            options.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         _ = await ShowPromptAsync(options, dialog);
     }
 
@@ -341,7 +335,7 @@ internal sealed class UpdatePromptOwnerBackdrop : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
 
         _host.Children.Remove(_backdrop);
         if (!ReferenceEquals(_owner.Content, _host))

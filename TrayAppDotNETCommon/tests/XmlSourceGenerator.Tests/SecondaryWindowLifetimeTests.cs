@@ -36,19 +36,19 @@ public sealed class SecondaryWindowLifetimeTests
     public void ConfirmationCloseIsIdempotentAndSeversContent() => AvaloniaTestHost.Run(() =>
     {
         TrayAppDotNETUpdateConfirmationWindow prompt = new(
-            "Proceed with update?",
-            "App: TestApp",
-            "Install update",
+            title: "Proceed with update?",
+            description: "App: TestApp",
+            confirmText: "Install update",
             Palette(),
             rounded: true,
             alternateText: "Skip release",
             cancelText: "Close",
-            modalDetails: new TrayAppDotNETUpdateModalDetails(
-                "New version available: 236",
-                "Current running version: 235",
-                "view releases",
+            new TrayAppDotNETUpdateModalDetails(
+                NewVersionText: "New version available: 236",
+                CurrentVersionText: "Current running version: 235",
+                ReleasesLinkText: "view releases",
                 new Uri("https://github.com/test-owner/test-repository/releases"),
-                "trayapp.net"),
+                WebsiteLinkText: "trayapp.net"),
             modalFooterText: "Updating will cause app to restart.",
             useModalContentLayout: true);
 
@@ -70,31 +70,31 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(UpdateConfirmationLayout.ModalActionButtonSpacing, actionButtons.ColumnSpacing);
         Assert.Equal(UpdateConfirmationLayout.ModalActionButtonsMargin, actionButtons.Margin);
         Assert.Equal(
-            12d,
+            expected: 12d,
             UpdateConfirmationLayout.ModalBodyMargin.Left + actionButtons.Margin.Left);
-        Assert.Equal(12d, actionButtons.Margin.Right);
+        Assert.Equal(expected: 12d, actionButtons.Margin.Right);
         Assert.Equal(HorizontalAlignment.Left, alternateButton.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Left, confirmButton.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Stretch, closeButton.HorizontalAlignment);
         Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, alternateButton.Padding);
         Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, closeButton.Padding);
-        Assert.Equal(3, actionButtons.Children.Count);
-        Assert.Equal(3, actionButtons.ColumnDefinitions.Count);
+        Assert.Equal(expected: 3, actionButtons.Children.Count);
+        Assert.Equal(expected: 3, actionButtons.ColumnDefinitions.Count);
         Assert.Equal(GridLength.Auto, actionButtons.ColumnDefinitions[0].Width);
         Assert.Equal(GridLength.Auto, actionButtons.ColumnDefinitions[1].Width);
         Assert.Equal(GridLength.Star, actionButtons.ColumnDefinitions[2].Width);
-        Assert.Equal(0, Grid.GetColumn(alternateButton));
-        Assert.Equal(1, Grid.GetColumn(confirmButton));
-        Assert.Equal(2, Grid.GetColumn(closeButton));
+        Assert.Equal(expected: 0, Grid.GetColumn(alternateButton));
+        Assert.Equal(expected: 1, Grid.GetColumn(confirmButton));
+        Assert.Equal(expected: 2, Grid.GetColumn(closeButton));
         Grid modalBody = Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
-        Assert.Equal(4, modalBody.RowDefinitions.Count);
+        Assert.Equal(expected: 4, modalBody.RowDefinitions.Count);
         TextBlock descriptionText = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == "App: TestApp");
         Assert.Equal(SettingsUILayout.DescriptionFontSize, descriptionText.FontSize);
-        Assert.Equal(default(Thickness), descriptionText.Margin);
+        Assert.Equal(expected: default, descriptionText.Margin);
         Assert.Equal(
             SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
             descriptionText.LineHeight);
@@ -115,9 +115,9 @@ public sealed class SecondaryWindowLifetimeTests
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Children.Contains(newVersionText) && grid.Children.Contains(currentVersionText));
         Assert.Equal(UpdateConfirmationLayout.ModalDescriptionMargin, modalDescription.Margin);
-        Assert.Equal(3, modalDescription.Children.Count);
-        Assert.Equal(1, Grid.GetRow(newVersionText));
-        Assert.Equal(2, Grid.GetRow(currentVersionText));
+        Assert.Equal(expected: 3, modalDescription.Children.Count);
+        Assert.Equal(expected: 1, Grid.GetRow(newVersionText));
+        Assert.Equal(expected: 2, Grid.GetRow(currentVersionText));
         StackPanel modalLinks = Assert.Single(
             prompt.GetVisualDescendants().OfType<StackPanel>(),
             panel => panel.Children.Contains(releasesLink));
@@ -125,13 +125,13 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(HorizontalAlignment.Right, modalLinks.HorizontalAlignment);
         Assert.Equal(UpdateConfirmationLayout.ModalLinkSpacing, modalLinks.Spacing);
         Assert.Equal(UpdateConfirmationLayout.ModalLinksMargin, modalLinks.Margin);
-        Assert.Equal(0, Grid.GetRow(modalLinks));
-        Assert.Equal(2, modalLinks.Children.Count);
+        Assert.Equal(expected: 0, Grid.GetRow(modalLinks));
+        Assert.Equal(expected: 2, modalLinks.Children.Count);
         Assert.Same(websiteLink, modalLinks.Children[0]);
         Assert.Same(releasesLink, modalLinks.Children[1]);
         Assert.DoesNotContain(modalLinks, modalBody.Children);
-        Assert.Equal(default(Thickness), releasesLink.Margin);
-        Assert.Equal(default(Thickness), websiteLink.Margin);
+        Assert.Equal(expected: default, releasesLink.Margin);
+        Assert.Equal(expected: default, websiteLink.Margin);
         Assert.True(double.IsNaN(releasesLink.LineHeight));
         Assert.True(double.IsNaN(websiteLink.LineHeight));
         Assert.Equal(HorizontalAlignment.Right, releasesLink.HorizontalAlignment);
@@ -162,20 +162,11 @@ public sealed class SecondaryWindowLifetimeTests
     public void UpdateOwnerBackdropWrapsExactOwnerContentAndRestoresIt() => AvaloniaTestHost.Run(() =>
     {
         CornerRadius ownerCornerRadius = new(8);
-        Border originalContent = new()
-        {
-            Background = Brushes.Red,
-            CornerRadius = ownerCornerRadius
-        };
-        Window owner = new()
-        {
-            Width = 300,
-            Height = 200,
-            Content = originalContent
-        };
+        Border originalContent = new() { Background = Brushes.Red, CornerRadius = ownerCornerRadius };
+        Window owner = new() { Width = 300, Height = 200, Content = originalContent };
         owner.Show();
         owner.UpdateLayout();
-        Color backdropColor = Color.FromArgb(0xA0, 0x10, 0x20, 0x30);
+        Color backdropColor = Color.FromArgb(a: 0xA0, r: 0x10, g: 0x20, b: 0x30);
 
         UpdatePromptOwnerBackdrop ownerBackdrop = Assert.IsType<UpdatePromptOwnerBackdrop>(
             UpdatePromptOwnerBackdrop.Attach(owner, backdropColor));
@@ -206,18 +197,18 @@ public sealed class SecondaryWindowLifetimeTests
     public void FlyoutUpdatePromptUsesOwnerUpperThirdAndStaysInWorkArea() => AvaloniaTestHost.Run(() =>
     {
         PixelPoint upperThirdPosition = UpdateConfirmationPositioning.ResolveOwnerPosition(
-            new PixelRect(100, 120, 360, 600),
-            new PixelSize(320, 240),
-            new PixelRect(0, 0, 1_920, 1_080),
+            new PixelRect(x: 100, y: 120, width: 360, height: 600),
+            new PixelSize(width: 320, height: 240),
+            new PixelRect(x: 0, y: 0, width: 1_920, height: 1_080),
             UpdateConfirmationLayout.FlyoutVerticalAnchorRatio);
         PixelPoint bottomClampedPosition = UpdateConfirmationPositioning.ResolveOwnerPosition(
-            new PixelRect(-1_900, 850, 350, 300),
-            new PixelSize(320, 260),
-            new PixelRect(-1_920, 0, 1_920, 1_040),
+            new PixelRect(x: -1_900, y: 850, width: 350, height: 300),
+            new PixelSize(width: 320, height: 260),
+            new PixelRect(x: -1_920, y: 0, width: 1_920, height: 1_040),
             UpdateConfirmationLayout.FlyoutVerticalAnchorRatio);
 
-        Assert.Equal(new PixelPoint(120, 200), upperThirdPosition);
-        Assert.Equal(new PixelPoint(-1_885, 780), bottomClampedPosition);
+        Assert.Equal(new PixelPoint(x: 120, y: 200), upperThirdPosition);
+        Assert.Equal(new PixelPoint(x: -1_885, y: 780), bottomClampedPosition);
     });
 
 #if DEBUG
@@ -225,9 +216,9 @@ public sealed class SecondaryWindowLifetimeTests
     public void ConfirmationRebuildsAfterAXAMLResourceReload() => AvaloniaTestHost.Run(() =>
     {
         TrayAppDotNETUpdateConfirmationWindow prompt = new(
-            "Title",
-            "Description",
-            "Confirm",
+            title: "Title",
+            description: "Description",
+            confirmText: "Confirm",
             Palette(),
             rounded: true);
 
@@ -262,16 +253,16 @@ public sealed class SecondaryWindowLifetimeTests
     [Fact]
     public void InstallerReturnsSelectedLocationAndShortcutOptions() => AvaloniaTestHost.Run(() =>
     {
-        string localInstallDirectory = Path.Combine(Path.GetTempPath(), "TrayAppDotNET", "Local");
-        string systemInstallDirectory = Path.Combine(Path.GetTempPath(), "TrayAppDotNET", "System");
+        string localInstallDirectory = Path.Combine(Path.GetTempPath(), path2: "TrayAppDotNET", path3: "Local");
+        string systemInstallDirectory = Path.Combine(Path.GetTempPath(), path2: "TrayAppDotNET", path3: "System");
         TrayAppDotNETInstallerWindow window = new(new TrayAppDotNETInstallerWindowOptions
         {
             Layout = new TrayAppDotNETInstallLayout(
-                "Test",
-                "TrayAppDotNET",
+                ApplicationName: "Test",
+                SharedRootFolderName: "TrayAppDotNET",
                 localInstallDirectory,
                 systemInstallDirectory,
-                "Test.exe"),
+                InstalledExecutableFileName: "Test.exe"),
             Icon = null,
             Palette = Palette(),
             EnableRoundedCorners = true
@@ -296,11 +287,7 @@ public sealed class SecondaryWindowLifetimeTests
         SettingsButton systemButton = Assert.Single(
             window.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "System");
-        systemButton.RaiseEvent(new KeyEventArgs
-        {
-            RoutedEvent = InputElement.KeyDownEvent,
-            Key = Key.Enter
-        });
+        systemButton.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
         Assert.Equal(InstallScope.ProgramFiles, window.SelectedScope);
         Assert.Equal(systemInstallDirectory, window.SelectedInstallDirectory);
         Assert.Contains(
@@ -319,11 +306,7 @@ public sealed class SecondaryWindowLifetimeTests
         SettingsButton installButton = Assert.Single(
             window.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "Install");
-        installButton.RaiseEvent(new KeyEventArgs
-        {
-            RoutedEvent = InputElement.KeyDownEvent,
-            Key = Key.Enter
-        });
+        installButton.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
 
         TrayAppDotNETInstallerWindowResult result = Assert.IsType<TrayAppDotNETInstallerWindowResult>(window.Result);
         Assert.Equal(InstallScope.ProgramFiles, result.Scope);
@@ -341,11 +324,7 @@ public sealed class SecondaryWindowLifetimeTests
     public void WarmSlotDetachesAndDisposesAfterCloseFailure() => AvaloniaTestHost.Run(() =>
     {
         List<Exception> errors = [];
-        FakeWarmWindow window = new()
-        {
-            ThrowWhenClosing = true,
-            ThrowWhenDisposingResources = true
-        };
+        FakeWarmWindow window = new() { ThrowWhenClosing = true, ThrowWhenDisposingResources = true };
         TrayAppDotNETWarmWindowSlot<FakeWarmWindow> slot = new(() => false, errors.Add);
         slot.TakeOrCreate(() => window);
 
@@ -356,10 +335,10 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Null(slot.Cached);
         Assert.False(window.IsManagedByWarmSlot);
         Assert.False(window.IsWarmPriming);
-        Assert.Equal(0, window.WarmDismissedSubscriberCount);
-        Assert.Equal(1, window.CloseAttemptCount);
-        Assert.Equal(1, window.DisposeWarmResourcesCount);
-        Assert.Equal(2, errors.Count);
+        Assert.Equal(expected: 0, window.WarmDismissedSubscriberCount);
+        Assert.Equal(expected: 1, window.CloseAttemptCount);
+        Assert.Equal(expected: 1, window.DisposeWarmResourcesCount);
+        Assert.Equal(expected: 2, errors.Count);
     });
 
     [Fact]
@@ -370,7 +349,7 @@ public sealed class SecondaryWindowLifetimeTests
         Collect();
 
         Assert.False(slotReference.IsAlive);
-        Assert.Equal(0, window.WarmDismissedSubscriberCount);
+        Assert.Equal(expected: 0, window.WarmDismissedSubscriberCount);
         GC.KeepAlive(window);
     });
 
@@ -394,7 +373,7 @@ public sealed class SecondaryWindowLifetimeTests
         flyout.Show();
 
         Assert.True(flyout.IsVisible);
-        Assert.Equal(0, flyout.HideFromCoordinatorCount);
+        Assert.Equal(expected: 0, flyout.HideFromCoordinatorCount);
 
         flyout.Close();
         settingsWindow.Close();
@@ -419,7 +398,7 @@ public sealed class SecondaryWindowLifetimeTests
         flyout.Show();
 
         Assert.False(flyout.IsVisible);
-        Assert.Equal(1, flyout.HideFromCoordinatorCount);
+        Assert.Equal(expected: 1, flyout.HideFromCoordinatorCount);
 
         coordinator.Dispose();
         flyout.Close();
@@ -431,23 +410,23 @@ public sealed class SecondaryWindowLifetimeTests
     {
         ColorChangedListener listener = new();
         TrayAppDotNETColorPickerWindow picker = new(
-            "Color",
+            title: "Color",
             hasAlpha: true,
             Colors.Blue,
             Colors.Red,
             Palette(),
             new TrayAppDotNETColorPickerStrings(
-                "Color",
-                "Close",
-                "Hue",
-                "Alpha",
-                "Red",
-                "Green",
-                "Blue",
-                "RGBA",
-                "ARGB",
-                "Default",
-                "Reset"));
+                DefaultTitle: "Color",
+                CloseTooltip: "Close",
+                HueLabel: "Hue",
+                AlphaLabel: "Alpha",
+                RedLabel: "Red",
+                GreenLabel: "Green",
+                BlueLabel: "Blue",
+                RgbaHexLabel: "RGBA",
+                ArgbHexLabel: "ARGB",
+                DefaultButton: "Default",
+                ResetButton: "Reset"));
         picker.ColorChanged += listener.OnColorChanged;
         return (picker, new WeakReference(listener));
     }
@@ -521,10 +500,7 @@ public sealed class SecondaryWindowLifetimeTests
     {
         private Color _lastColor;
 
-        public void OnColorChanged(object? sender, Color color)
-        {
-            _lastColor = color;
-        }
+        public void OnColorChanged(object? sender, Color color) => _lastColor = color;
     }
 
     private sealed class UninstallerCallbackTarget

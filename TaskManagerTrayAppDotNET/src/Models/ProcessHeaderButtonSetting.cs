@@ -39,7 +39,8 @@ internal static class ProcessHeaderButtonSettings
 
         foreach (ProcessHeaderButtonKind button in DefaultOrder)
         {
-            if (used.Add(button)) normalized.Add(button);
+            if (used.Add(button))
+                normalized.Add(button);
         }
 
         return normalized;

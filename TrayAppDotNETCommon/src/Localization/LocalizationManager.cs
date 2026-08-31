@@ -45,7 +45,7 @@ public sealed class LocalizationManager : INotifyPropertyChanged
 
         // Application resources intentionally override shared defaults
         string? resolved = _applicationResourceManager?.GetString(key, _currentCulture)
-            ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
+                           ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
         return string.IsNullOrWhiteSpace(resolved) ? key : resolved;
     }
 
@@ -55,7 +55,7 @@ public sealed class LocalizationManager : INotifyPropertyChanged
         if (string.IsNullOrEmpty(key)) return false;
 
         string? resolved = _applicationResourceManager?.GetString(key, _currentCulture)
-            ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
+                           ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
         if (string.IsNullOrWhiteSpace(resolved)) return false;
 
         value = resolved;
