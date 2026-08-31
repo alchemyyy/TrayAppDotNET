@@ -42,6 +42,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new const string SEGOE_MDL2_ASSETS = TADNFontResolver.SegoeMDL2AssetsFamilyName;
 
     public new static Glyph CHROME_CLOSE => Glyph("ChromeClose");
+    public static Glyph CLOSE => CHROME_CLOSE;
     public new static Glyph CHEVRON_UP => Glyph("ChevronUp");
     public new static Glyph CHEVRON_DOWN => Glyph("ChevronDown");
     public new static Glyph CHEVRON_LEFT => Glyph("ChevronLeft");

@@ -449,6 +449,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected SettingsButton Button(string text, SettingsPalette palette) =>
         TrayAppDotNETSettingsCards.Button(text, palette, RadiusMedium);
 
+    protected SettingsButton Button(Glyph glyph, SettingsPalette palette) =>
+        TrayAppDotNETSettingsCards.Button(glyph, palette, RadiusMedium);
+
     protected Border BoolCard(
         string title,
         string description,

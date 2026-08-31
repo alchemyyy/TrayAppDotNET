@@ -21,6 +21,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new static Glyph SETTINGS => Glyph("Settings");
     public new static Glyph POWER => Glyph("Power");
     public new static Glyph EXIT => Glyph("Exit");
+    public static Glyph CLOSE => EXIT;
     public new static Glyph WARNING => Glyph("Warning");
     public new static Glyph UNDOCK => Glyph("Undock");
     public new static Glyph REDOCK => Glyph("Redock");

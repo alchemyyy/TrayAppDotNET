@@ -126,6 +126,7 @@ internal static class SettingsUILayout
     public static double CaptionButtonWidth => AXAMLResources.AxamlSettingsUI.CaptionButtonWidth;
     public static double CaptionButtonHeight => AXAMLResources.AxamlSettingsUI.CaptionButtonHeight;
     public static double CaptionButtonGlyphFontSize => AXAMLResources.AxamlSettingsUI.CaptionButtonGlyphFontSize;
+    public static double CloseGlyphFontSize => AXAMLResources.AxamlSettingsUI.CloseGlyphFontSize;
 }
 
 /// <summary>
@@ -3345,6 +3346,8 @@ public static class TrayAppDotNETSettingsUI
 
     public static readonly FontFamily IconFont =
         TADNFontResolver.ResolveFontFamily(TADNFont.SegoeFluentIconsThenMDL2Assets);
+
+    public static double CloseGlyphFontSize => SettingsUILayout.CloseGlyphFontSize;
 
     public static IBrush Brush(Color color) =>
         color == Colors.Transparent ? Brushes.Transparent : new SolidColorBrush(color);

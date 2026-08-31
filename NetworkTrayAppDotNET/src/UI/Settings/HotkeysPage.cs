@@ -240,12 +240,12 @@ public sealed partial class NetworkSettingsWindow
         }
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button("x", p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
         ControlNames.Assign(delete, $"{action}Delete");
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
-        delete.Label.FontSize = 20;
+        delete.Label.FontSize = TrayAppDotNETSettingsUI.CloseGlyphFontSize;
         TrayAppDotNETToolTip.SetTip(delete, Loc(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip)));
         delete.Click += (_, _) =>
         {

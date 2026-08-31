@@ -26,7 +26,7 @@
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchItemHeight">32</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchButtonSize">24</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchButtonGlyphFontSize">12</sys:Double>
-  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchDeleteButtonFontSize">20</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchDeleteButtonFontSize">10</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchNameMaximumWidth">145</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchColumnSpacing">5</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchLeadingButtonTextSpacing">1</sys:Double>

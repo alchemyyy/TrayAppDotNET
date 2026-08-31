@@ -122,4 +122,5 @@
     <sys:Double x:Key="SettingsUI.CaptionButtonWidth">46</sys:Double>
     <sys:Double x:Key="SettingsUI.CaptionButtonHeight">32</sys:Double>
     <sys:Double x:Key="SettingsUI.CaptionButtonGlyphFontSize">10</sys:Double>
+    <sys:Double x:Key="SettingsUI.CloseGlyphFontSize">10</sys:Double>
 </ResourceDictionary>

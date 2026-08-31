@@ -8,14 +8,14 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Info" Text="&#xE946;" Font="SegoeFluentIcons" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE653;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIcons" />
 
     <!-- Window caption buttons -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMinimize" Text="&#xE921;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMaximize" Text="&#xE922;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeRestore" Text="&#xE923;" Font="SegoeFluentIcons" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeClose" Text="&#xE8BB;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeClose" Text="&#xE653;" Font="SegoeFluentIcons" />
 
     <!-- Navigation controls -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUp" Text="&#xE70E;" Font="SegoeFluentIcons" />

@@ -8,7 +8,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Info" Text="&#xE946;" Font="SegoeFluentIconsThenMDL2Assets" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE653;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Undock" Text="&#xE75B;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Redock" Text="&#xE75A;" Font="SegoeFluentIconsThenMDL2Assets" />

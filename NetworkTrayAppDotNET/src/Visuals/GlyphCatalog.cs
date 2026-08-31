@@ -18,6 +18,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 #endif
 
     public new static Glyph WARNING => Glyph("Warning");
+    public static Glyph CLOSE => CHROME_CLOSE;
 
     public new const string SEGOE_FLUENT_ICONS = TADNFontResolver.SegoeFluentIconsFamilyName;
     public new const string SEGOE_MDL2_ASSETS = TADNFontResolver.SegoeMDL2AssetsFamilyName;

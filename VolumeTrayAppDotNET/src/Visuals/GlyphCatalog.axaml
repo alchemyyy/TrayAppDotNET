@@ -6,7 +6,7 @@
 
     <!-- Application commands -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE653;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
 
     <!-- Expansion controls -->

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -40,6 +41,15 @@ public static class TrayAppDotNETSettingsCards
     public static SettingsButton Button(string text, SettingsPalette palette, CornerRadius cornerRadius)
     {
         SettingsButton button = TrayAppDotNETSettingsUI.Button(text, palette);
+        button.CornerRadius = cornerRadius;
+        DebugUIProvenance.RecordBuilder(button);
+        return button;
+    }
+
+    /// <summary>Creates a settings card button whose label uses glyph metadata.</summary>
+    public static SettingsButton Button(Glyph glyph, SettingsPalette palette, CornerRadius cornerRadius)
+    {
+        SettingsButton button = TrayAppDotNETSettingsUI.Button(glyph, palette);
         button.CornerRadius = cornerRadius;
         DebugUIProvenance.RecordBuilder(button);
         return button;

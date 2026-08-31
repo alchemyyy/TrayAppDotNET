@@ -878,11 +878,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         }
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = ControlNames.Assign(Button("x", p), hotkeyParentName);
+        SettingsButton delete = ControlNames.Assign(Button(GlyphCatalog.CLOSE, p), hotkeyParentName);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
-        delete.Label.FontSize = 20;
+        delete.Label.FontSize = TrayAppDotNETSettingsUI.CloseGlyphFontSize;
         delete.Click += (_, _) =>
         {
             _settings.Hotkeys.RemoveAll(b => b.Matches(action, string.Empty, binding.BindingID));

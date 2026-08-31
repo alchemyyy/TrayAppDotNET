@@ -209,7 +209,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             };
             EditableContextMenuEntryButton deleteButton = new(() => RequestDeleteSavedSearch(capturedSearchIndex))
             {
-                Text = "x",
+                Glyph = TaskManagerGlyphCatalog.CLOSE,
                 ToolTip = "Delete saved search",
                 Size = resources.AxamlTaskManagerContextMenu.SavedSearchButtonSize,
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchDeleteButtonFontSize,

@@ -430,11 +430,11 @@ public sealed partial class BrightnessSettingsWindow
         else if (binding.IsBound)
             TrayAppDotNETToolTip.SetTip(status, L(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button("x", p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
-        delete.Label.FontSize = 20;
+        delete.Label.FontSize = TrayAppDotNETSettingsUI.CloseGlyphFontSize;
         TrayAppDotNETToolTip.SetTip(delete, L(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(delete);
         delete.Click += (_, _) =>
