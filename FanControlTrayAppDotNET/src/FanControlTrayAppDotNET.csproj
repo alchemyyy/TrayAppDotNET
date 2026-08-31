@@ -185,12 +185,12 @@
   </ItemGroup>
 
   <!-- Visual Studio consumes vendor DLL references, so clean builds need a real vendor
-       build pass before dependency generation and ResolveAssemblyReference. -->
+       restore and build pass before dependency generation and ResolveAssemblyReference. -->
   <Target Name="BuildVendoredProjectReferencesInVisualStudio"
           BeforeTargets="ResolveProjectReferences"
           Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(FanControlBuildVendoredProjectReferencesInVisualStudio)' != 'false'">
     <PropertyGroup>
-      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;$(TrayAppDotNETPrereleaseProjectProperties)</_VendoredReferenceBuildProperties>
+      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;ShouldUnsetParentConfigurationAndPlatform=false;$(TrayAppDotNETPrereleaseProjectProperties)</_VendoredReferenceBuildProperties>
       <_VendoredReferenceBuildProperties>$(_VendoredReferenceBuildProperties);SkipKillRunningInstance=$(SkipKillRunningInstance)</_VendoredReferenceBuildProperties>
       <_VendoredReferencePropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</_VendoredReferencePropertiesToRemove>
       <!-- Match the normal ProjectReference: VS-triggered prebuilds must not compile
@@ -199,6 +199,11 @@
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_NCalcAotBuildProperties>TargetFramework=net10.0;TreatWarningsAsErrors=false</_NCalcAotBuildProperties>
     </PropertyGroup>
+
+    <!-- Solution restore cannot see the hidden vendor projects. Restore out of process so
+         their first builds evaluate the package imports created by restore. -->
+    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj&quot; -p:Configuration=&quot;$(Configuration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:DisableIpmiWmi=true -p:DisableRamSpd=true" />
+    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj&quot; -p:Configuration=&quot;$(Configuration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:TreatWarningsAsErrors=false" />
 
     <MSBuild Projects="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
              Targets="Build"
