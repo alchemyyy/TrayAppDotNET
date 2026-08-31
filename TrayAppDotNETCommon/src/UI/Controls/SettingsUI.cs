@@ -1266,7 +1266,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
     }
 }
 
-/// <summary>Two-axis scroll viewport with reserved tracks and TADN-painted scrollbars.</summary>
+/// <summary>Two-axis scroll viewport with TADN-painted scrollbars.</summary>
 public sealed class SettingsScrollViewport : Grid, IDisposable
 {
     private readonly Border _contentHost;
@@ -1282,7 +1282,8 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         Color background,
         SettingsScrollBarStyle scrollBarStyle,
         ContextMenuWindowOptions contextMenuOptions,
-        Control? cornerContent = null)
+        Control? cornerContent = null,
+        bool overlayVerticalScrollBar = false)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
@@ -1310,6 +1311,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
         };
+        if (overlayVerticalScrollBar) Grid.SetColumnSpan(_scrollViewer, 2);
         Children.Add(_scrollViewer);
 
         _verticalScrollBar = new SettingsScrollBar(
@@ -1382,6 +1384,16 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         _verticalScrollBar.SetStyle(scrollBarStyle);
         _horizontalScrollBar.SetStyle(scrollBarStyle);
         _cornerHost.Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor);
+    }
+
+    /// <summary>Reserves space above the vertical scrollbar without moving the scroll viewport.</summary>
+    public void SetVerticalScrollBarTopInset(double topInset)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (!double.IsFinite(topInset) || topInset < 0)
+            throw new ArgumentOutOfRangeException(nameof(topInset), "Top inset must be finite and non-negative.");
+
+        _verticalScrollBar.Margin = new Thickness(0, topInset, 0, 0);
     }
 
     public void Dispose()

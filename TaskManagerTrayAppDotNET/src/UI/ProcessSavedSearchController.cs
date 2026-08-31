@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -86,7 +87,11 @@ internal sealed class ProcessSavedSearchController : IDisposable
         TrayAppDotNETToolTip.SuppressWhileEngaged(_saveButton);
 
         _textBox.TextChanged += OnTextChanged;
-        _textBox.PointerReleased += OnPointerReleased;
+        _textBox.AddHandler(
+            InputElement.PointerPressedEvent,
+            OnPointerPressed,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         _textBox.KeyDown += OnKeyDown;
         _textBox.LostFocus += OnTextBoxLostFocus;
     }
@@ -105,18 +110,19 @@ internal sealed class ProcessSavedSearchController : IDisposable
         if (hasQuery) Close();
     }
 
-    private void OnPointerReleased(object? sender, PointerReleasedEventArgs eventArgs)
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
         if (_disposed
-            || eventArgs.InitialPressMouseButton != MouseButton.Left
+            || !eventArgs.GetCurrentPoint(_textBox).Properties.IsLeftButtonPressed
             || HasQuery())
         {
             return;
         }
 
+        _textBox.Focus();
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_disposed && !HasQuery() && _textBox.IsKeyboardFocusWithin) Open();
+            if (!_disposed && !HasQuery()) Open();
         }, DispatcherPriority.Input);
     }
 
@@ -283,7 +289,29 @@ internal sealed class ProcessSavedSearchController : IDisposable
             return;
         }
 
+        bool pressedInsideSearchBox = IsInsideSearchBox(eventArgs.Source);
         Close();
+        if (pressedInsideSearchBox) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_disposed || !_textBox.IsKeyboardFocusWithin) return;
+
+            _textBox.ClearSelection();
+            TopLevel.GetTopLevel(_textBox)?.FocusManager?.Focus(null);
+        }, DispatcherPriority.Input);
+    }
+
+    private bool IsInsideSearchBox(object? source)
+    {
+        Visual? current = source as Visual;
+        while (current != null)
+        {
+            if (ReferenceEquals(current, _textBox)) return true;
+            current = current.GetVisualParent();
+        }
+
+        return false;
     }
 
     private void OnMenuOwnerDeactivated(object? sender, EventArgs eventArgs)
@@ -448,7 +476,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
         _disposed = true;
         _textBox.TextChanged -= OnTextChanged;
-        _textBox.PointerReleased -= OnPointerReleased;
+        _textBox.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
         _textBox.KeyDown -= OnKeyDown;
         _textBox.LostFocus -= OnTextBoxLostFocus;
         _clearButton.Click -= OnClearClick;

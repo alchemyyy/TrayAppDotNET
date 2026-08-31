@@ -251,10 +251,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             TaskManagerWindowResources.ProcessGridBackgroundColor,
             scrollBarStyle,
             scrollBarContextMenuOptions,
-            _resizeGrip)
+            _resizeGrip,
+            overlayVerticalScrollBar: true)
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
+        _tableScrollViewport.SetVerticalScrollBarTopInset(
+            GetProcessTableVerticalScrollBarTopInset(resources));
         Grid.SetRow(_tableScrollViewport, 1);
         MainContent.Children.Add(_tableScrollViewport);
 
@@ -409,6 +412,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         if (_disposed) return;
 
         _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(_resources));
+        _tableScrollViewport.SetVerticalScrollBarTopInset(
+            GetProcessTableVerticalScrollBarTopInset(_resources));
         _resizeGrip.ApplyResources(_resources);
         _selectionHighlight.BorderThickness = _resources.AxamlProcessTable.SelectionBorderThickness;
     }
@@ -427,6 +432,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
             TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
             ShowButtonsOnHover: true);
+
+    private static double GetProcessTableVerticalScrollBarTopInset(
+        TaskManagerWindowResources resources) =>
+        resources.AxamlProcessTable.HeaderHeight
+        + resources.AxamlProcessTable.GridLineThickness;
 
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
     {

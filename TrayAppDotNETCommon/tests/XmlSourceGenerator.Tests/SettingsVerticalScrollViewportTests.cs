@@ -103,3 +103,86 @@ public sealed class SettingsVerticalScrollViewportTests
         Colors.White);
 
 }
+
+public sealed class SettingsScrollViewportTests
+{
+    [Fact]
+    public void VerticalScrollbarTopInsetDoesNotMoveTheViewportOrHorizontalTrack() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+            using SettingsScrollViewport viewport = new(
+                new Border(),
+                default,
+                Colors.Black,
+                CreateStyle(),
+                contextMenuOptions);
+            SettingsScrollBar verticalScrollBar = viewport.Children
+                .OfType<SettingsScrollBar>()
+                .Single(scrollBar => Grid.GetColumn(scrollBar) == 1 && Grid.GetRow(scrollBar) == 0);
+            SettingsScrollBar horizontalScrollBar = viewport.Children
+                .OfType<SettingsScrollBar>()
+                .Single(scrollBar => Grid.GetColumn(scrollBar) == 0 && Grid.GetRow(scrollBar) == 1);
+            ScrollViewer scrollViewer = Assert.Single(viewport.Children.OfType<ScrollViewer>());
+
+            viewport.SetVerticalScrollBarTopInset(34);
+
+            Assert.Equal(new Thickness(0, 34, 0, 0), verticalScrollBar.Margin);
+            Assert.Equal(default, horizontalScrollBar.Margin);
+            Assert.Equal(default, scrollViewer.Margin);
+        });
+
+    [Fact]
+    public void OverlayVerticalScrollbarLetsTheViewportRenderThroughItsColumn() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+            using SettingsScrollViewport viewport = new(
+                new Border(),
+                default,
+                Colors.Black,
+                CreateStyle(),
+                contextMenuOptions,
+                overlayVerticalScrollBar: true);
+            ScrollViewer scrollViewer = Assert.Single(viewport.Children.OfType<ScrollViewer>());
+
+            Assert.Equal(2, Grid.GetColumnSpan(scrollViewer));
+        });
+
+    private static SettingsScrollBarStyle CreateStyle() =>
+        new(
+            TrackThickness: 16,
+            IdleThumbThickness: 4,
+            HoverThumbThickness: 9,
+            ThumbEndMargin: 3,
+            MinimumThumbLength: 28,
+            TrackColor: Colors.Black,
+            IdleThumbColor: Colors.Gray,
+            HoverThumbColor: Colors.LightGray,
+            DragThumbColor: Colors.White,
+            ArrowColor: Colors.White,
+            ShowButtonsOnHover: true);
+
+    private static SettingsPalette CreatePalette() => new(
+        Colors.Black,
+        Colors.White,
+        Colors.Gray,
+        Colors.DarkGray,
+        Colors.DimGray,
+        Colors.Black,
+        Colors.DarkGray,
+        Colors.LightGray,
+        Colors.Gray,
+        Colors.Blue,
+        Colors.Blue,
+        Colors.White,
+        Colors.DarkBlue,
+        Colors.Blue,
+        Colors.DarkBlue,
+        Colors.Blue,
+        Colors.Gray,
+        Colors.White,
+        Colors.Red,
+        Colors.DarkRed,
+        Colors.White);
+}
