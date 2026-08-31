@@ -46,7 +46,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         _primaryLabel = primaryLabel;
         _secondaryLabel = secondaryLabel;
         _metricFormatter = metricFormatter;
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Background);
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
+            resources.AxamlTaskManagerPerformance.GraphBackgroundColor);
         _borderPen = new Pen(
             TrayAppDotNETSettingsUI.Brush(palette.Border),
             resources.AxamlTaskManagerPerformance.GraphBorderThickness);

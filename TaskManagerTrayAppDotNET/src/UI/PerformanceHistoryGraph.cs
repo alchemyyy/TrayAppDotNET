@@ -50,7 +50,8 @@ internal sealed class PerformanceHistoryGraph : Control
     {
         _history = history;
         _accent = accent;
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Background);
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
+            resources.AxamlTaskManagerPerformance.GraphBackgroundColor);
         _borderPen = new Pen(
             TrayAppDotNETSettingsUI.Brush(palette.Border),
             resources.AxamlTaskManagerPerformance.GraphBorderThickness);

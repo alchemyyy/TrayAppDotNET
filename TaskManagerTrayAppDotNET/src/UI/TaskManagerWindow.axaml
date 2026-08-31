@@ -140,6 +140,7 @@
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">0.75</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineOpacity">0.3607843137254902</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
+  <Color x:Key="TaskManagerPerformance.GraphBackgroundColor">#191919</Color>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineOpacity">0.58</sys:Double>
   <Color x:Key="TaskManagerPerformance.GraphHoverLineColor">#FFFFFF</Color>
