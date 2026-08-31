@@ -10,7 +10,7 @@ using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
-internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
+internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSearchOverlayPage, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
     private const double GridRowSpacingStep = 1;
@@ -329,6 +329,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         leadingActionWidth = Math.Max(0, searchLeft - actionLeftX);
         return true;
     }
+
+    bool ITaskManagerSearchOverlayPage.TryGetSearchDragRegionPixelWidths(
+        out int searchWidth,
+        out int leadingActionWidth) =>
+        TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
 
     private void UpdateSearchControlsPosition()
     {

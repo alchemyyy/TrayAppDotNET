@@ -6,6 +6,12 @@ using Avalonia.VisualTree;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
+/// <summary>Exposes search-overlay geometry used by restored-window drag avoidance.</summary>
+internal interface ITaskManagerSearchOverlayPage
+{
+    bool TryGetSearchDragRegionPixelWidths(out int searchWidth, out int leadingActionWidth);
+}
+
 /// <summary>Provides the shared Task Manager page header and main-content frame.</summary>
 internal class TaskManagerPageLayout : Grid
 {

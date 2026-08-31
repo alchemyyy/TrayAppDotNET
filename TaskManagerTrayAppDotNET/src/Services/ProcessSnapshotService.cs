@@ -219,6 +219,30 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
+    /// <summary>Copies the latest snapshot when it contains every requested column.</summary>
+    public bool TryCopyLatestContaining(
+        ProcessSnapshotBuffer destination,
+        ulong requiredSchemaMask,
+        out int count,
+        out long version)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        lock (_publishGate)
+        {
+            version = _publishedVersion;
+            ProcessDataSchema? schema = _publishedBuffer.Schema;
+            if (schema == null || (schema.VisibleMask & requiredSchemaMask) != requiredSchemaMask)
+            {
+                count = 0;
+                return false;
+            }
+
+            destination.CopyFrom(_publishedBuffer);
+            count = destination.Count;
+            return true;
+        }
+    }
+
     /// <summary>Returns the system-performance sample published with the latest process snapshot.</summary>
     public SystemPerformanceSample GetLatestSystemPerformanceSample()
     {

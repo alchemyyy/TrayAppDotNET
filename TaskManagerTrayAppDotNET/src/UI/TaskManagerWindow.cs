@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -54,11 +55,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly PerformanceSnapshotService _performanceSnapshotService;
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
+    private readonly AppHistoryStore _appHistoryStore = new();
+    private readonly ProcessSnapshotBuffer _appHistorySnapshot = new();
+    private readonly WindowsUserSessionService _userSessionService = new(TADNLog.Log);
+    private readonly WindowsServiceManager _windowsServiceManager = new();
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private readonly Win32Properties.CustomWndProcHookCallback _windowDragWndProcHook;
     private TaskManagerPageLayout? _activePageLayout;
-    private ProcessDetailsPage? _processDetailsPage;
+    private ITaskManagerSearchOverlayPage? _searchOverlayPage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private string? _selectedPerformanceDeviceID;
     private bool _windowDragWndProcHookAttached;
@@ -70,6 +75,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool _initialElevationAttemptConsumed;
     private bool _manualElevationPromptPending;
     private bool _exitRequested;
+    private long _appHistorySnapshotVersion = -1;
 
     public TaskManagerWindow(
         AppSettings settings,
@@ -87,6 +93,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
+        _snapshotService.SnapshotAvailable += OnAppHistorySnapshotAvailable;
         _windowDragWndProcHook = WindowDragWndProcHook;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
@@ -117,11 +124,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) =>
-        pageKey is TaskManagerPage.Processes or TaskManagerPage.Performance;
+        pageKey != TaskManagerPage.Settings;
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
         pageRoot is TaskManagerPageLayout page ? page.PageOverlay : null;
     protected override bool PageOverlayAlignsToContentArea(Control pageRoot) =>
-        _settings.LeftAlignProcessSearchBar && pageRoot is ProcessDetailsPage;
+        _settings.LeftAlignProcessSearchBar && pageRoot is ITaskManagerSearchOverlayPage;
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
@@ -253,10 +260,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     [
         new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, ProcessesGlyph),
         new(TaskManagerPage.Performance, "Performance", BuildPerformancePage, PerformanceGlyph),
-        new(TaskManagerPage.AppHistory, "App history", () => BuildPlaceholderPage("App history"), AppHistoryGlyph),
-        new(TaskManagerPage.StartupApps, "Startup apps", () => BuildPlaceholderPage("Startup apps"), StartupAppsGlyph),
-        new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), UsersGlyph),
-        new(TaskManagerPage.Services, "Services", () => BuildPlaceholderPage("Services"), ServicesGlyph),
+        new(TaskManagerPage.AppHistory, "App history", BuildAppHistoryPage, AppHistoryGlyph),
+        new(TaskManagerPage.StartupApps, "Startup apps", BuildStartupAppsPage, StartupAppsGlyph),
+        new(TaskManagerPage.Users, "Users", BuildUsersPage, UsersGlyph),
+        new(TaskManagerPage.Services, "Services", BuildServicesPage, ServicesGlyph),
         new(TaskManagerPage.Settings, "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
     ];
 
@@ -264,10 +271,31 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override void OnSettingsWindowClosed()
     {
+        _snapshotService.SnapshotAvailable -= OnAppHistorySnapshotAvailable;
+        _appHistorySnapshot.Reset();
         Closing -= OnWindowClosing;
         PropertyChanged -= OnWindowPropertyChanged;
         RemoveHandler(PointerPressedEvent, OnHeaderBackgroundPointerPressed);
         base.OnSettingsWindowClosed();
+    }
+
+    private void OnAppHistorySnapshotAvailable()
+    {
+        if (!_snapshotService.TryCopyLatestContaining(
+                _appHistorySnapshot,
+                AppHistoryStore.RequiredColumnMask,
+                out int count,
+                out long version)
+            || version == _appHistorySnapshotVersion)
+        {
+            return;
+        }
+
+        _ = count;
+        _appHistorySnapshotVersion = version;
+        _ = _appHistoryStore.Consume(
+            _appHistorySnapshot,
+            Stopwatch.GetTimestamp());
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>
@@ -355,16 +383,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             RestartExplorerAsync,
             ReportMessage,
             StartProcess);
-        _processDetailsPage = page;
-        _activePageLayout = page;
-        AddPageCleanup(() =>
-        {
-            if (ReferenceEquals(_processDetailsPage, page))
-                _processDetailsPage = null;
-            if (ReferenceEquals(_activePageLayout, page))
-                _activePageLayout = null;
-        });
-        return OwnPageResource(page);
+        return RegisterPage(page);
     }
 
     private Control BuildPerformancePage()
@@ -375,11 +394,56 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _taskManagerResources,
             _performanceSnapshotService,
             _selectedPerformanceDeviceID);
+        return RegisterPage(page);
+    }
+
+    private Control BuildAppHistoryPage() => RegisterPage(new AppHistoryPage(
+        _snapshotService,
+        _processIconService,
+        _appHistoryStore,
+        _settings,
+        Palette,
+        _taskManagerResources,
+        StartProcess));
+
+    private Control BuildStartupAppsPage() => RegisterPage(new StartupAppsPage(
+        new StartupAppsService(),
+        _processIconService,
+        _settings,
+        Palette,
+        _taskManagerResources,
+        StartProcess,
+        ReportMessage));
+
+    private Control BuildUsersPage() => RegisterPage(new UsersPage(
+        _snapshotService,
+        _processIconService,
+        _userSessionService,
+        _settings,
+        Palette,
+        _taskManagerResources,
+        StartProcess,
+        ReportMessage));
+
+    private Control BuildServicesPage() => RegisterPage(new ServicesPage(
+        _windowsServiceManager,
+        _processIconService,
+        _settings,
+        Palette,
+        _taskManagerResources,
+        StartProcess,
+        ConfirmDisableServiceAsync,
+        ReportMessage));
+
+    private Control RegisterPage<TPage>(TPage page)
+        where TPage : TaskManagerPageLayout, IDisposable
+    {
         _activePageLayout = page;
+        _searchOverlayPage = page as ITaskManagerSearchOverlayPage;
         AddPageCleanup(() =>
         {
-            if (ReferenceEquals(_activePageLayout, page))
-                _activePageLayout = null;
+            if (ReferenceEquals(_activePageLayout, page)) _activePageLayout = null;
+            if (ReferenceEquals(_searchOverlayPage, page)) _searchOverlayPage = null;
         });
         return OwnPageResource(page);
     }
@@ -418,7 +482,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         ResetRestoredWindowDrag();
         _avoidSearchBoxDuringRestoreDrag = WindowState == WindowState.Maximized
-                                           && _processDetailsPage != null;
+                                           && _searchOverlayPage != null;
     }
 
     private IntPtr WindowDragWndProcHook(
@@ -454,9 +518,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         IntPtr windowHandle,
         IntPtr rectanglePointer)
     {
-        ProcessDetailsPage? processDetailsPage = _processDetailsPage;
+        ITaskManagerSearchOverlayPage? searchOverlayPage = _searchOverlayPage;
         if (!_avoidSearchBoxDuringRestoreDrag
-            || processDetailsPage == null
+            || searchOverlayPage == null
             || rectanglePointer == IntPtr.Zero)
         {
             return;
@@ -465,7 +529,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         RECT* proposedBounds = (RECT*)rectanglePointer;
         if (!_restoreDragSearchRangeResolved)
         {
-            if (!processDetailsPage.TryGetSearchDragRegionPixelWidths(
+            if (!searchOverlayPage.TryGetSearchDragRegionPixelWidths(
                     out int searchWidth,
                     out int leadingActionWidth))
             {
@@ -584,27 +648,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return stack;
     }
 
-    private TaskManagerPageLayout BuildPlaceholderPage(string pageName)
-    {
-        SettingsPalette palette = Palette;
-        TaskManagerPageLayout page = new(pageName, palette, _taskManagerResources);
-        _activePageLayout = page;
-        AddPageCleanup(() =>
-        {
-            if (ReferenceEquals(_activePageLayout, page))
-                _activePageLayout = null;
-        });
-
-        StackPanel stack = new();
-        stack.Margin = _taskManagerResources.AxamlTaskManagerDetails.PlaceholderMargin;
-        TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
-            "This page is intentionally a shell in the initial implementation.",
-            palette);
-        stack.Children.Add(RawCard(description, palette));
-        page.MainContent.Children.Add(stack);
-        return page;
-    }
-
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);
 
@@ -715,6 +758,20 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             "Restart Windows Explorer?",
             RestartExplorerConfirmationMessage,
             "Restart explorer",
+            "Cancel");
+    }
+
+    private Task<bool> ConfirmDisableServiceAsync(WindowsServiceSnapshot service)
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        string serviceLabel = string.IsNullOrWhiteSpace(service.DisplayName)
+            ? service.ServiceName
+            : service.DisplayName;
+        return ConfirmAsync(
+            "Disable service?",
+            $"Windows will not start {serviceLabel} again until its startup type is changed. "
+            + "Disabling a running service does not stop its current instance.",
+            "Disable",
             "Cancel");
     }
 
