@@ -48,6 +48,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private static readonly Glyph StartupAppsGlyph = Glyph.Fluent("\uE768");
     private static readonly Glyph UsersGlyph = Glyph.Fluent("\uE716");
     private static readonly Glyph ServicesGlyph = Glyph.Fluent("\uEA86");
+    private static readonly ProcessDataSchema IdleProcessSchema = ProcessDataSchema.Create(
+        Array.Empty<ProcessColumnSetting>());
+    private static readonly int[] NoWarmProcessIDs = [];
 
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
@@ -56,7 +59,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
     private readonly AppHistoryStore _appHistoryStore = new();
-    private readonly ProcessSnapshotBuffer _appHistorySnapshot = new();
     private readonly WindowsUserSessionService _userSessionService = new(TADNLog.Log);
     private readonly WindowsServiceManager _windowsServiceManager = new();
     private readonly Action _exitApplication;
@@ -67,6 +69,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private TaskManagerSettingsWindow? _settingsWindow;
     private string? _selectedPerformanceDeviceID;
     private bool _windowDragWndProcHookAttached;
+    private bool _activePageWorkEnabled;
     private bool _avoidSearchBoxDuringRestoreDrag;
     private bool _restoreDragSearchRangeResolved;
     private int _restoreDragSearchLeftWithinWindow;
@@ -75,7 +78,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool _initialElevationAttemptConsumed;
     private bool _manualElevationPromptPending;
     private bool _exitRequested;
-    private long _appHistorySnapshotVersion = -1;
 
     public TaskManagerWindow(
         AppSettings settings,
@@ -93,7 +95,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
-        _snapshotService.SnapshotAvailable += OnAppHistorySnapshotAvailable;
         _windowDragWndProcHook = WindowDragWndProcHook;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
@@ -189,6 +190,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         }
 
         base.OnOpened(eventArgs);
+        UpdateActivePageActivity();
     }
 
     protected override Control? BuildSidebarOverlay(SettingsPalette palette)
@@ -271,31 +273,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override void OnSettingsWindowClosed()
     {
-        _snapshotService.SnapshotAvailable -= OnAppHistorySnapshotAvailable;
-        _appHistorySnapshot.Reset();
+        _activePageLayout?.SetPageActive(false);
+        _activePageWorkEnabled = false;
+        ApplyIdleProcessSamplingPolicy();
         Closing -= OnWindowClosing;
         PropertyChanged -= OnWindowPropertyChanged;
         RemoveHandler(PointerPressedEvent, OnHeaderBackgroundPointerPressed);
         base.OnSettingsWindowClosed();
-    }
-
-    private void OnAppHistorySnapshotAvailable()
-    {
-        if (!_snapshotService.TryCopyLatestContaining(
-                _appHistorySnapshot,
-                AppHistoryStore.RequiredColumnMask,
-                out int count,
-                out long version)
-            || version == _appHistorySnapshotVersion)
-        {
-            return;
-        }
-
-        _ = count;
-        _appHistorySnapshotVersion = version;
-        _ = _appHistoryStore.Consume(
-            _appHistorySnapshot,
-            Stopwatch.GetTimestamp());
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>
@@ -438,14 +422,48 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private Control RegisterPage<TPage>(TPage page)
         where TPage : TaskManagerPageLayout, IDisposable
     {
+        _activePageLayout?.SetPageActive(false);
+        ApplyIdleProcessSamplingPolicy();
         _activePageLayout = page;
         _searchOverlayPage = page as ITaskManagerSearchOverlayPage;
+        _activePageWorkEnabled = ShouldEnableActivePageWork();
+        page.SetPageActive(_activePageWorkEnabled);
         AddPageCleanup(() =>
         {
             if (ReferenceEquals(_activePageLayout, page)) _activePageLayout = null;
             if (ReferenceEquals(_searchOverlayPage, page)) _searchOverlayPage = null;
         });
         return OwnPageResource(page);
+    }
+
+    private bool ShouldEnableActivePageWork() =>
+        !_allowClose && IsVisible && WindowState != WindowState.Minimized;
+
+    private void UpdateActivePageActivity()
+    {
+        bool shouldEnable = ShouldEnableActivePageWork();
+        if (_activePageWorkEnabled == shouldEnable) return;
+
+        _activePageWorkEnabled = shouldEnable;
+        if (!shouldEnable)
+        {
+            _activePageLayout?.SetPageActive(false);
+            ApplyIdleProcessSamplingPolicy();
+            return;
+        }
+
+        ApplyIdleProcessSamplingPolicy();
+        _activePageLayout?.SetPageActive(true);
+    }
+
+    private void ApplyIdleProcessSamplingPolicy()
+    {
+        _snapshotService.SetActiveSchema(IdleProcessSchema);
+        _snapshotService.SetWarmProcesses(
+            IdleProcessSchema.VisibleMask,
+            NoWarmProcessIDs,
+            0,
+            sampleEveryProcess: false);
     }
 
     private void OnHeaderBackgroundPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
@@ -797,6 +815,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
+        if (change.Property == IsVisibleProperty || change.Property == WindowStateProperty)
+            UpdateActivePageActivity();
+
         if (_allowClose
             || !_settings.MinimizeToTray
             || change.Property != WindowStateProperty

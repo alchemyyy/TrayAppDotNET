@@ -177,6 +177,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
     private ProcessSnapshotService? _snapshotService;
+    private bool _samplingActive;
 
     public ProcessDetailsCanvas(
         ProcessIconService processIconService,
@@ -387,6 +388,25 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateLayers(RenderLayerMask.All);
     }
 
+    /// <summary>Publishes this table's schema and viewport sampling policy.</summary>
+    public void ActivateSampling(ProcessSnapshotService snapshotService)
+    {
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ArgumentNullException.ThrowIfNull(snapshotService);
+        if (_snapshotService != null && !ReferenceEquals(_snapshotService, snapshotService))
+            throw new InvalidOperationException("The process table cannot change snapshot services.");
+
+        _snapshotService = snapshotService;
+        _samplingActive = true;
+        ProcessDataSchema schema = _pendingColumnLayout?.Schema ?? _schema;
+        snapshotService.SetActiveSchema(schema);
+        PublishWarmProcesses();
+        snapshotService.RequestRefresh();
+    }
+
+    /// <summary>Stops this table from changing the shared process sampling policy.</summary>
+    public void DeactivateSampling() => _samplingActive = false;
+
     public void SetFilter(string? filterText)
     {
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
@@ -408,7 +428,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 Schema = pendingSchema
             };
             _pendingColumnLayout = nextPendingColumnLayout;
-            _snapshotService?.SetActiveSchema(pendingSchema);
+            ApplySamplingSchemaIfActive(pendingSchema);
             if (pendingSchema.VisibleMask == _schema.VisibleMask)
             {
                 CommitPendingColumnLayout(
@@ -444,7 +464,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _snapshot.Reset();
         _snapshotVersion = -1;
 
-        _snapshotService?.SetActiveSchema(schema);
+        ApplySamplingSchemaIfActive(schema);
         PublishWarmProcesses();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
@@ -2579,7 +2599,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void PublishWarmProcesses()
     {
-        if (_snapshotService == null) return;
+        if (!_samplingActive || _snapshotService == null) return;
 
         bool sampleEveryProcess = ProcessTableColumnCatalog.Get(_sortColumn).Lifetime
                                   == ProcessTableColumnLifetime.Dynamic
@@ -2643,20 +2663,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessDataSchema schema = ProcessDataSchema.Create(
             normalized,
             filterQuery.RequiredColumnMask);
-        if (schema.VisibleMask != _schema.VisibleMask && _snapshotService != null)
+        if (schema.VisibleMask != _schema.VisibleMask && _samplingActive && _snapshotService != null)
         {
             _pendingColumnLayout = new PendingColumnLayout(
                 normalized,
                 columns,
                 filterQuery,
                 schema);
-            _snapshotService.SetActiveSchema(schema);
+            ApplySamplingSchemaIfActive(schema);
             ColumnLayoutChanged?.Invoke(normalized);
             return;
         }
 
         _pendingColumnLayout = null;
-        _snapshotService?.SetActiveSchema(schema);
+        ApplySamplingSchemaIfActive(schema);
         PrepareColumnLayout(columns);
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
@@ -2730,6 +2750,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateMeasure();
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
+    }
+
+    private void ApplySamplingSchemaIfActive(ProcessDataSchema schema)
+    {
+        if (_samplingActive) _snapshotService?.SetActiveSchema(schema);
     }
 
     private void SortFromHeader(double x)

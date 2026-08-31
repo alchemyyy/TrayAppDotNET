@@ -21,6 +21,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
     private readonly SettingsButton _moreButton;
     private bool _queryPending;
     private bool _operationPending;
+    private bool _isPageActive;
     private bool _disposed;
 
     public ServicesPage(
@@ -55,8 +56,6 @@ internal sealed class ServicesPage : TaskManagerTablePage
 
         _refreshTimer = new DispatcherTimer { Interval = RefreshInterval };
         _refreshTimer.Tick += OnRefreshTimerTick;
-        _refreshTimer.Start();
-        _ = RefreshAsync(reportFailure: true);
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -97,17 +96,33 @@ internal sealed class ServicesPage : TaskManagerTablePage
     }
 
     private void OnRefreshTimerTick(object? sender, EventArgs eventArgs) =>
-        _ = RefreshAsync(reportFailure: false);
+        _ = RefreshAsync(reportFailure: false, refreshConfiguration: false);
 
-    private async Task RefreshAsync(bool reportFailure)
+    internal override void SetPageActive(bool isActive)
     {
-        if (_disposed || _queryPending) return;
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive)
+        {
+            _refreshTimer.Start();
+            _ = RefreshAsync(reportFailure: true, refreshConfiguration: false);
+            return;
+        }
+
+        _refreshTimer.Stop();
+    }
+
+    private async Task RefreshAsync(bool reportFailure, bool refreshConfiguration)
+    {
+        if (_disposed || !_isPageActive || _queryPending) return;
 
         _queryPending = true;
         try
         {
-            WindowsServiceQueryResult result = await Task.Run(_serviceManager.QueryServices);
-            if (_disposed) return;
+            WindowsServiceQueryResult result = await Task.Run(
+                () => _serviceManager.QueryServices(refreshConfiguration));
+            if (_disposed || !_isPageActive) return;
             if (!result.Succeeded)
             {
                 if (reportFailure)
@@ -231,7 +246,9 @@ internal sealed class ServicesPage : TaskManagerTablePage
             if (!_disposed)
             {
                 UpdateActionButtons(SelectedRow?.Tag as WindowsServiceSnapshot);
-                await RefreshAsync(reportFailure: false);
+                await RefreshAsync(
+                    reportFailure: false,
+                    refreshConfiguration: action == WindowsServiceAction.Disable);
             }
         }
     }
@@ -271,7 +288,8 @@ internal sealed class ServicesPage : TaskManagerTablePage
                 entries.Add("Disable", () => _ = RunActionAsync(WindowsServiceAction.Disable, service));
             if (entries.Count > 0) entries.AddSeparator();
         }
-        entries.Add("Refresh", () => _ = RefreshAsync(reportFailure: true));
+        entries.Add("Refresh", () =>
+            _ = RefreshAsync(reportFailure: true, refreshConfiguration: true));
         entries.Add("Open Services", () => _ = _startProcess("services.msc"));
         ShowActionMenu(_moreButton, entries.ToList());
     }
@@ -280,8 +298,8 @@ internal sealed class ServicesPage : TaskManagerTablePage
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
-        _refreshTimer.Stop();
         _refreshTimer.Tick -= OnRefreshTimerTick;
         base.Dispose();
     }

@@ -59,6 +59,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private TaskManagerContextMenuWindow? _headerActionsMenuWindow;
     private bool _isEndTaskConfirmationPending;
     private bool _isRestartExplorerPending;
+    private bool _isPageActive;
     private bool _disposed;
 
     public ProcessDetailsPage(
@@ -95,7 +96,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         ProcessDataSchema schema = ProcessDataSchema.Create(
             settings.DetailsColumns,
             ProcessTableColumnKind.Name);
-        _snapshotService.SetActiveSchema(schema);
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
@@ -284,8 +284,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
-        _processCanvas.RefreshFrom(_snapshotService);
     }
 
     /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
@@ -430,8 +428,25 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnSnapshotAvailable()
     {
-        if (_disposed) return;
+        if (_disposed || !_isPageActive) return;
         _processCanvas.RefreshFrom(_snapshotService);
+    }
+
+    internal override void SetPageActive(bool isActive)
+    {
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive)
+        {
+            _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
+            _processCanvas.ActivateSampling(_snapshotService);
+            _processCanvas.RefreshFrom(_snapshotService);
+            return;
+        }
+
+        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
+        _processCanvas.DeactivateSampling();
     }
 
     private void OnAXAMLResourcesReloaded()
@@ -882,10 +897,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
         _armTerminationTarget(null);
         TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
-        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;

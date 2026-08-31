@@ -12,10 +12,16 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
 
     private readonly ProcessSnapshotService _snapshotService;
     private readonly AppHistoryStore _historyStore;
+    private readonly ProcessDataSchema _schema;
+    private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly TextBlock _historyDescription;
     private readonly SettingsButton _deleteHistoryButton;
     private readonly SettingsButton _moreButton;
+    private long _snapshotVersion = -1;
     private long _historyVersion = -1;
+    private bool _refreshPending;
+    private bool _refreshRequested;
+    private bool _isPageActive;
     private bool _disposed;
 
     public AppHistoryPage(
@@ -38,6 +44,9 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
     {
         _snapshotService = snapshotService;
         _historyStore = historyStore;
+        _schema = ProcessDataSchema.Create(
+            Array.Empty<ProcessColumnSetting>(),
+            AppHistoryStore.RequiredColumnMask);
 
         _deleteHistoryButton = new SettingsButton(
             "Delete usage history",
@@ -58,18 +67,6 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         UpdateHistoryDescription();
 
         _moreButton = AddMoreAction(OnMoreClick);
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
-        ProcessDataSchema schema = ProcessDataSchema.Create(
-            Array.Empty<ProcessColumnSetting>(),
-            AppHistoryStore.RequiredColumnMask);
-        _snapshotService.SetActiveSchema(schema);
-        _snapshotService.SetWarmProcesses(
-            schema.VisibleMask,
-            NoWarmProcessIDs,
-            0,
-            sampleEveryProcess: true);
-        _snapshotService.RequestRefresh();
-        RenderLatestHistory();
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -99,22 +96,87 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
                 SortDescendingByDefault: true)
         ]);
 
-    private void OnSnapshotAvailable()
+    internal override void SetPageActive(bool isActive)
     {
-        if (!_disposed) RenderLatestHistory();
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive)
+        {
+            _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
+            _snapshotService.SetActiveSchema(_schema);
+            _snapshotService.SetWarmProcesses(
+                _schema.VisibleMask,
+                NoWarmProcessIDs,
+                0,
+                sampleEveryProcess: true);
+            _snapshotService.RequestRefresh();
+            _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
+            return;
+        }
+
+        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
+        _refreshRequested = false;
     }
 
-    private void RenderLatestHistory()
+    private void OnSnapshotAvailable() =>
+        _ = RefreshHistoryAsync(consumeLatestSnapshot: true);
+
+    private async Task RefreshHistoryAsync(bool consumeLatestSnapshot)
     {
+        if (_disposed || !_isPageActive) return;
+        if (_refreshPending)
+        {
+            _refreshRequested = true;
+            return;
+        }
+
+        _refreshPending = true;
+        try
+        {
+            long renderedVersion = _historyVersion;
+            AppHistoryRenderData? renderData = await Task.Run(() =>
+                BuildRenderData(consumeLatestSnapshot, renderedVersion));
+            if (_disposed || !_isPageActive || renderData == null) return;
+
+            _historyVersion = renderData.Version;
+            SetRows(renderData.Rows);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"App history refresh failed: {exception}");
+        }
+        finally
+        {
+            _refreshPending = false;
+            if (_isPageActive && _refreshRequested)
+            {
+                _refreshRequested = false;
+                _ = RefreshHistoryAsync(consumeLatestSnapshot: true);
+            }
+        }
+    }
+
+    private AppHistoryRenderData? BuildRenderData(
+        bool consumeLatestSnapshot,
+        long renderedVersion)
+    {
+        if (consumeLatestSnapshot
+            && _snapshotService.TryCopyLatest(
+                _snapshot,
+                _schema.VisibleMask,
+                out int count,
+                out long snapshotVersion)
+            && snapshotVersion != _snapshotVersion)
+        {
+            _ = count;
+            _snapshotVersion = snapshotVersion;
+            _ = _historyStore.Consume(_snapshot);
+        }
+
         AppHistorySnapshot snapshot = _historyStore.GetSnapshot();
-        if (snapshot.Version == _historyVersion) return;
+        if (snapshot.Version == renderedVersion) return null;
 
-        _historyVersion = snapshot.Version;
-        RenderHistorySnapshot(snapshot);
-    }
-
-    private void RenderHistorySnapshot(AppHistorySnapshot snapshot)
-    {
         List<TaskManagerTableRow> rows = new(snapshot.Entries.Count);
         for (int entryIndex = 0; entryIndex < snapshot.Entries.Count; entryIndex++)
         {
@@ -143,14 +205,14 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             });
         }
 
-        SetRows(rows);
+        return new AppHistoryRenderData(snapshot.Version, rows);
     }
 
     private void OnDeleteHistoryClick(object? sender, EventArgs eventArgs)
     {
         _historyStore.DeleteHistory();
         UpdateHistoryDescription();
-        RenderLatestHistory();
+        _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
     }
 
     private void UpdateHistoryDescription()
@@ -169,7 +231,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         {
             _historyStore.DeleteHistory();
             UpdateHistoryDescription();
-            RenderLatestHistory();
+            _ = RefreshHistoryAsync(consumeLatestSnapshot: false);
         }));
         ShowActionMenu(_moreButton, entries.ToList());
     }
@@ -178,9 +240,13 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
-        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _deleteHistoryButton.Click -= OnDeleteHistoryClick;
         base.Dispose();
     }
+
+    private sealed record AppHistoryRenderData(
+        long Version,
+        IReadOnlyList<TaskManagerTableRow> Rows);
 }

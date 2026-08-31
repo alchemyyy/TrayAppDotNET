@@ -10,6 +10,7 @@ internal sealed class UsersPage : TaskManagerTablePage
 
     private readonly ProcessSnapshotService _snapshotService;
     private readonly WindowsUserSessionService _sessionService;
+    private readonly ProcessDataSchema _schema;
     private readonly Func<string, bool> _startProcess;
     private readonly Action<string, string> _reportMessage;
     private readonly ProcessSnapshotBuffer _snapshot = new();
@@ -18,6 +19,9 @@ internal sealed class UsersPage : TaskManagerTablePage
     private readonly SettingsButton _moreButton;
     private long _snapshotVersion = -1;
     private bool _disconnectPending;
+    private bool _refreshPending;
+    private bool _refreshRequested;
+    private bool _isPageActive;
     private bool _disposed;
 
     public UsersPage(
@@ -43,22 +47,13 @@ internal sealed class UsersPage : TaskManagerTablePage
         _sessionService = sessionService;
         _startProcess = startProcess;
         _reportMessage = reportMessage;
+        _schema = ProcessDataSchema.Create(
+            Array.Empty<ProcessColumnSetting>(),
+            UserSnapshotBuilder.RequiredColumnMask);
         _disconnectButton = AddHeaderAction("Disconnect", OnDisconnectClick, isEnabled: false);
         _manageUsersButton = AddHeaderAction("Manage user accounts", OnManageUsersClick);
         _moreButton = AddMoreAction(OnMoreClick);
 
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
-        ProcessDataSchema schema = ProcessDataSchema.Create(
-            Array.Empty<ProcessColumnSetting>(),
-            UserSnapshotBuilder.RequiredColumnMask);
-        _snapshotService.SetActiveSchema(schema);
-        _snapshotService.SetWarmProcesses(
-            schema.VisibleMask,
-            NoWarmProcessIDs,
-            0,
-            sampleEveryProcess: true);
-        _snapshotService.RequestRefresh();
-        RefreshFromSnapshotService();
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -101,31 +96,89 @@ internal sealed class UsersPage : TaskManagerTablePage
     protected override void HandleSelectedRowChanged(TaskManagerTableRow? row) =>
         UpdateDisconnectButton(row?.Tag as UserGroupSnapshot);
 
-    private void OnSnapshotAvailable()
+    internal override void SetPageActive(bool isActive)
     {
-        if (!_disposed) RefreshFromSnapshotService();
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive)
+        {
+            _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
+            _snapshotService.SetActiveSchema(_schema);
+            _snapshotService.SetWarmProcesses(
+                _schema.VisibleMask,
+                NoWarmProcessIDs,
+                0,
+                sampleEveryProcess: true);
+            _snapshotService.RequestRefresh();
+            _ = RefreshFromSnapshotServiceAsync();
+            return;
+        }
+
+        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
+        _refreshRequested = false;
     }
 
-    private void RefreshFromSnapshotService()
+    private void OnSnapshotAvailable() => _ = RefreshFromSnapshotServiceAsync();
+
+    private async Task RefreshFromSnapshotServiceAsync()
+    {
+        if (_disposed || !_isPageActive) return;
+        if (_refreshPending)
+        {
+            _refreshRequested = true;
+            return;
+        }
+
+        _refreshPending = true;
+        try
+        {
+            UserPageRenderData? renderData = await Task.Run(BuildRenderData);
+            if (_disposed || !_isPageActive || renderData == null) return;
+
+            ApplyRenderData(renderData);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Users refresh failed: {exception}");
+        }
+        finally
+        {
+            _refreshPending = false;
+            if (_isPageActive && _refreshRequested)
+            {
+                _refreshRequested = false;
+                _ = RefreshFromSnapshotServiceAsync();
+            }
+        }
+    }
+
+    private UserPageRenderData? BuildRenderData()
     {
         if (!_snapshotService.TryCopyLatest(
                 _snapshot,
-                UserSnapshotBuilder.RequiredColumnMask,
+                _schema.VisibleMask,
                 out int count,
                 out long version)
             || version == _snapshotVersion)
         {
-            return;
+            return null;
         }
 
         _snapshotVersion = version;
         _ = count;
         IReadOnlyList<UserSessionInfo> sessions = _sessionService.ReadSessions();
-        if (!UserSnapshotBuilder.TryBuild(_snapshot, sessions, out UserSnapshot userSnapshot)) return;
-        RenderSnapshot(userSnapshot);
+        if (!UserSnapshotBuilder.TryBuild(_snapshot, sessions, out UserSnapshot userSnapshot))
+            return null;
+
+        return CreateRenderData(
+            userSnapshot,
+            _snapshotService.GetLatestSystemPerformanceSample());
     }
 
-    private void RenderSnapshot(UserSnapshot snapshot)
+    private static UserPageRenderData CreateRenderData(
+        UserSnapshot snapshot,
+        SystemPerformanceSample systemSample)
     {
         int totalRowCount = snapshot.Groups.Count;
         for (int groupIndex = 0; groupIndex < snapshot.Groups.Count; groupIndex++)
@@ -156,20 +209,33 @@ internal sealed class UsersPage : TaskManagerTablePage
             }
         }
 
-        SystemPerformanceSample systemSample = _snapshotService.GetLatestSystemPerformanceSample();
-        SetColumnTitle(2, string.Concat(
+        string CPUHeader = string.Concat(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.CPUAveragePercent),
-            " CPU"));
-        SetColumnTitle(3, string.Concat(
+            " CPU");
+        string memoryHeader = string.Concat(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.MemoryPercent),
-            " Memory"));
-        SetColumnTitle(4, string.Concat(
+            " Memory");
+        string diskHeader = string.Concat(
             TaskManagerUsageFormatter.FormatDiskRate(hasDiskUsage, totalDiskBytesPerSecond),
-            " Disk"));
-        SetColumnTitle(5, string.Concat(
+            " Disk");
+        string networkHeader = string.Concat(
             TaskManagerUsageFormatter.FormatNetworkRate(hasNetworkUsage, totalNetworkBytesPerSecond),
-            " Network"));
-        SetRows(rows);
+            " Network");
+        return new UserPageRenderData(
+            rows,
+            CPUHeader,
+            memoryHeader,
+            diskHeader,
+            networkHeader);
+    }
+
+    private void ApplyRenderData(UserPageRenderData renderData)
+    {
+        SetColumnTitle(2, renderData.CPUHeader);
+        SetColumnTitle(3, renderData.MemoryHeader);
+        SetColumnTitle(4, renderData.DiskHeader);
+        SetColumnTitle(5, renderData.NetworkHeader);
+        SetRows(renderData.Rows);
         UpdateDisconnectButton(SelectedRow?.Tag as UserGroupSnapshot);
     }
 
@@ -316,9 +382,15 @@ internal sealed class UsersPage : TaskManagerTablePage
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
-        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
-        _snapshot.Reset();
         base.Dispose();
     }
+
+    private sealed record UserPageRenderData(
+        IReadOnlyList<TaskManagerTableRow> Rows,
+        string CPUHeader,
+        string MemoryHeader,
+        string DiskHeader,
+        string NetworkHeader);
 }

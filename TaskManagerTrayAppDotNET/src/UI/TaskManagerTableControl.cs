@@ -141,14 +141,6 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         ArgumentNullException.ThrowIfNull(rows);
 
-        _ = TaskManagerTableProjection.Build(
-            rows,
-            _schema.Columns.Length,
-            _sortColumnIndex,
-            _sortDescending,
-            _collapsedGroupKeys,
-            _filterText);
-
         _sourceRows.Clear();
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             _sourceRows.Add(rows[rowIndex]);

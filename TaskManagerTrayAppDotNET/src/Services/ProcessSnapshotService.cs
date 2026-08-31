@@ -282,6 +282,15 @@ internal sealed class ProcessSnapshotService : IDisposable
             ResetHistoryForSchema(schema.VisibleMask);
 
         ConfigureOptionalCollectors(schema);
+        if (schema.VisibleMask == 0)
+        {
+            // The tray graph needs the system sample, but hidden/non-process pages do not need a process walk
+            _stagingBuffer.BeginWrite(schema, 0);
+            _stagingBuffer.CompleteWrite(0);
+            Publish(systemPerformanceSample);
+            return;
+        }
+
         _enterpriseContextReader?.BeginSample();
         _acceleratorSamplesEveryProcess = schemaChanged || sampleEveryProcess;
         _acceleratorSampler?.Sample(

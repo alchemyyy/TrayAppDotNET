@@ -102,6 +102,11 @@ internal class TaskManagerPageLayout : Grid
     /// <summary>Gets the control rendered in the shell-level title-bar overlay.</summary>
     internal virtual Control? PageOverlay => null;
 
+    /// <summary>Starts or stops page-specific work as navigation and window visibility change.</summary>
+    internal virtual void SetPageActive(bool isActive)
+    {
+    }
+
     /// <summary>Gets the main-content top edge in another control's coordinate space.</summary>
     internal bool TryGetMainContentTop(Control relativeTo, out double contentTop)
     {

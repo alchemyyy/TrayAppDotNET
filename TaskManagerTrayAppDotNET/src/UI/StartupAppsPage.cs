@@ -6,17 +6,15 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Displays conventional Windows startup registrations and their approval state.</summary>
 internal sealed class StartupAppsPage : TaskManagerTablePage
 {
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(5);
-
     private readonly StartupAppsService _startupAppsService;
     private readonly Action<string, string> _reportMessage;
-    private readonly DispatcherTimer _refreshTimer;
     private readonly SettingsButton _enableButton;
     private readonly SettingsButton _disableButton;
     private readonly SettingsButton _propertiesButton;
     private readonly SettingsButton _moreButton;
     private bool _queryPending;
     private bool _operationPending;
+    private bool _isPageActive;
     private bool _disposed;
 
     public StartupAppsPage(
@@ -43,11 +41,6 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         _disableButton = AddHeaderAction("Disable", OnDisableClick, isEnabled: false);
         _propertiesButton = AddHeaderAction("Properties", OnPropertiesClick, isEnabled: false);
         _moreButton = AddMoreAction(OnMoreClick);
-
-        _refreshTimer = new DispatcherTimer { Interval = RefreshInterval };
-        _refreshTimer.Tick += OnRefreshTimerTick;
-        _refreshTimer.Start();
-        _ = RefreshAsync(reportFailure: true);
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -80,19 +73,24 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             ShowProperties(entry);
     }
 
-    private void OnRefreshTimerTick(object? sender, EventArgs eventArgs) =>
-        _ = RefreshAsync(reportFailure: false);
+    internal override void SetPageActive(bool isActive)
+    {
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive) _ = RefreshAsync(reportFailure: true);
+    }
 
     private async Task RefreshAsync(bool reportFailure)
     {
-        if (_disposed || _queryPending) return;
+        if (_disposed || !_isPageActive || _queryPending) return;
 
         _queryPending = true;
         try
         {
             IReadOnlyList<StartupAppEntry> entries = await Task.Run(
                 _startupAppsService.ReadEntries);
-            if (_disposed) return;
+            if (_disposed || !_isPageActive) return;
 
             List<TaskManagerTableRow> rows = new(entries.Count);
             for (int entryIndex = 0; entryIndex < entries.Count; entryIndex++)
@@ -250,9 +248,8 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
-        _refreshTimer.Stop();
-        _refreshTimer.Tick -= OnRefreshTimerTick;
         _startupAppsService.Dispose();
         base.Dispose();
     }

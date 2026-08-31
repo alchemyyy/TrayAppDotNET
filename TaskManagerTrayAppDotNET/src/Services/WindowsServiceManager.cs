@@ -40,8 +40,10 @@ internal sealed partial class WindowsServiceManager
     private const int MinimumStatusPollMilliseconds = 50;
     private const int MaximumStatusPollMilliseconds = 500;
 
-    /// <summary>Enumerates local Win32 services and their static configuration.</summary>
-    public WindowsServiceQueryResult QueryServices()
+    private readonly WindowsServiceConfigurationCache _configurationCache = new();
+
+    /// <summary>Enumerates services, optionally bypassing cached static configuration.</summary>
+    public WindowsServiceQueryResult QueryServices(bool refreshConfiguration = false)
     {
         if (!OperatingSystem.IsWindows())
             return WindowsServiceQueryResult.Failure(ErrorNotSupported, WindowsOnlyMessage());
@@ -54,11 +56,15 @@ internal sealed partial class WindowsServiceManager
             return QueryFailureFromLastError();
 
         Dictionary<string, WindowsServiceSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> serviceNames = new(StringComparer.OrdinalIgnoreCase);
         int bufferSize = ResolveInitialEnumerationBufferSize(managerHandle, out int initialError);
         if (bufferSize <= 0)
         {
             if (initialError == 0)
+            {
+                _configurationCache.RetainOnly(serviceNames);
                 return WindowsServiceQueryResult.Success(Array.Empty<WindowsServiceSnapshot>());
+            }
             return QueryFailure(initialError);
         }
 
@@ -79,9 +85,16 @@ internal sealed partial class WindowsServiceManager
                 null);
             int errorCode = completed ? 0 : Marshal.GetLastPInvokeError();
 
-            AppendServicePage(managerHandle, buffer.DangerousGetHandle(), servicesReturned, snapshots);
+            AppendServicePage(
+                managerHandle,
+                buffer.DangerousGetHandle(),
+                servicesReturned,
+                refreshConfiguration,
+                snapshots,
+                serviceNames);
             if (completed)
             {
+                _configurationCache.RetainOnly(serviceNames);
                 List<WindowsServiceSnapshot> ordered = new(snapshots.Values);
                 ordered.Sort(static (left, right) => StringComparer.OrdinalIgnoreCase.Compare(
                     left.ServiceName,
@@ -116,8 +129,15 @@ internal sealed partial class WindowsServiceManager
         RunAction(serviceName, WindowsServiceAction.Restart, RestartCore);
 
     /// <summary>Changes the service start type to Disabled without stopping a running service.</summary>
-    public WindowsServiceOperationResult Disable(string serviceName) =>
-        RunAction(serviceName, WindowsServiceAction.Disable, DisableCore);
+    public WindowsServiceOperationResult Disable(string serviceName)
+    {
+        WindowsServiceOperationResult result = RunAction(
+            serviceName,
+            WindowsServiceAction.Disable,
+            DisableCore);
+        if (result.Succeeded) _configurationCache.Invalidate(result.ServiceName);
+        return result;
+    }
 
     private static WindowsServiceOperationResult RunAction(
         string serviceName,
@@ -416,11 +436,13 @@ internal sealed partial class WindowsServiceManager
         return Math.Max(InitialEnumerationBufferSize, checked((int)bytesNeeded));
     }
 
-    private static void AppendServicePage(
+    private void AppendServicePage(
         SafeServiceHandle managerHandle,
         IntPtr pageAddress,
         uint serviceCount,
-        Dictionary<string, WindowsServiceSnapshot> destination)
+        bool refreshConfiguration,
+        Dictionary<string, WindowsServiceSnapshot> destination,
+        HashSet<string> serviceNames)
     {
         int entrySize = Marshal.SizeOf<NativeEnumServiceStatusProcess>();
         for (uint serviceIndex = 0; serviceIndex < serviceCount; serviceIndex++)
@@ -434,43 +456,56 @@ internal sealed partial class WindowsServiceManager
 
             WindowsServiceStatus status = WindowsServiceState.FromNativeStatus(
                 nativeService.Status.CurrentState);
-            ReadConfiguration(
+            WindowsServiceConfiguration configuration = GetConfiguration(
                 managerHandle,
                 serviceName,
-                out string description,
-                out string group,
-                out WindowsServiceStartType startType);
+                refreshConfiguration);
             WindowsServiceSnapshot snapshot = new(
                 serviceName,
                 WindowsServiceState.NormalizeDisplayName(
                     Marshal.PtrToStringUni(nativeService.DisplayName),
                     serviceName),
                 WindowsServiceState.NormalizePID(status, nativeService.Status.ProcessID),
-                description,
+                configuration.Description,
                 status,
-                group,
-                startType,
+                configuration.Group,
+                configuration.StartType,
                 (WindowsServiceAcceptedControls)nativeService.Status.ControlsAccepted);
             destination[serviceName] = snapshot;
+            serviceNames.Add(serviceName);
         }
     }
 
-    private static void ReadConfiguration(
+    private WindowsServiceConfiguration GetConfiguration(
         SafeServiceHandle managerHandle,
         string serviceName,
-        out string description,
-        out string group,
-        out WindowsServiceStartType startType)
+        bool refreshConfiguration)
     {
-        description = string.Empty;
-        group = string.Empty;
-        startType = WindowsServiceStartType.Unknown;
+        if (!refreshConfiguration
+            && _configurationCache.TryGet(serviceName, out WindowsServiceConfiguration cached))
+        {
+            return cached;
+        }
+
+        WindowsServiceConfiguration configuration = ReadConfiguration(managerHandle, serviceName);
+        _configurationCache.Store(serviceName, configuration);
+        return configuration;
+    }
+
+    private static WindowsServiceConfiguration ReadConfiguration(
+        SafeServiceHandle managerHandle,
+        string serviceName)
+    {
+        string description = string.Empty;
+        string group = string.Empty;
+        WindowsServiceStartType startType = WindowsServiceStartType.Unknown;
 
         using SafeServiceHandle serviceHandle = NativeMethods.OpenServiceW(
             managerHandle,
             serviceName,
             ServiceQueryConfig);
-        if (serviceHandle.IsInvalid) return;
+        if (serviceHandle.IsInvalid)
+            return new WindowsServiceConfiguration(description, group, startType);
 
         if (TryReadBaseConfiguration(
                 serviceHandle,
@@ -482,6 +517,7 @@ internal sealed partial class WindowsServiceManager
         }
 
         description = TryReadDescription(serviceHandle);
+        return new WindowsServiceConfiguration(description, group, startType);
     }
 
     private static bool TryReadBaseConfiguration(
@@ -817,5 +853,55 @@ internal sealed partial class WindowsServiceManager
 
         [LibraryImport("kernel32.dll", EntryPoint = "LocalFree")]
         public static partial IntPtr LocalFree(IntPtr memory);
+    }
+}
+
+/// <summary>Static service metadata that does not need to be queried with every status refresh.</summary>
+internal readonly record struct WindowsServiceConfiguration(
+    string Description,
+    string Group,
+    WindowsServiceStartType StartType);
+
+/// <summary>Thread-safe static service metadata cache shared by refreshes and mutations.</summary>
+internal sealed class WindowsServiceConfigurationCache
+{
+    private readonly Lock _gate = new();
+    private readonly Dictionary<string, WindowsServiceConfiguration> _configurations =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _staleServiceNames = [];
+
+    public bool TryGet(string serviceName, out WindowsServiceConfiguration configuration)
+    {
+        lock (_gate)
+            return _configurations.TryGetValue(serviceName, out configuration);
+    }
+
+    public void Store(string serviceName, WindowsServiceConfiguration configuration)
+    {
+        lock (_gate)
+            _configurations[serviceName] = configuration;
+    }
+
+    public void Invalidate(string serviceName)
+    {
+        lock (_gate)
+            _configurations.Remove(serviceName);
+    }
+
+    public void RetainOnly(IReadOnlySet<string> serviceNames)
+    {
+        ArgumentNullException.ThrowIfNull(serviceNames);
+        lock (_gate)
+        {
+            _staleServiceNames.Clear();
+            foreach (string serviceName in _configurations.Keys)
+            {
+                if (!serviceNames.Contains(serviceName)) _staleServiceNames.Add(serviceName);
+            }
+
+            for (int serviceIndex = 0; serviceIndex < _staleServiceNames.Count; serviceIndex++)
+                _configurations.Remove(_staleServiceNames[serviceIndex]);
+            _staleServiceNames.Clear();
+        }
     }
 }
