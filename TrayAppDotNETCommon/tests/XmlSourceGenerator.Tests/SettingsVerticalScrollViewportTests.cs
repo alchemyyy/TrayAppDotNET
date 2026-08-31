@@ -42,7 +42,7 @@ public sealed class SettingsVerticalScrollViewportTests
         SettingsScrollBar scrollBar = Assert.Single(viewport.Children.OfType<SettingsScrollBar>());
         Assert.Equal(1, Grid.GetColumn(scrollBar));
         Assert.Equal(0, Grid.GetRow(scrollBar));
-        Assert.Equal(11, scrollBar.Width);
+        Assert.Equal(12, scrollBar.Width);
     });
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class SettingsVerticalScrollViewportTests
 
         viewport.SetScrollBarStyle(CreateStyle(trackThickness: 20, hoverThumbThickness: 12));
 
-        Assert.Equal(12, scrollBar.Width);
+        Assert.Equal(15, scrollBar.Width);
         Assert.Equal(2, viewport.ColumnDefinitions.Count);
         Assert.Single(viewport.RowDefinitions);
         Assert.Equal(1, Grid.GetColumn(scrollBar));

@@ -58,6 +58,7 @@
     <sys:Double x:Key="SettingsUI.ScrollWheelStep">72</sys:Double>
     <sys:Double x:Key="SettingsUI.ScrollBarTotalWidth">22</sys:Double>
     <sys:Double x:Key="SettingsUI.ScrollBarCollapsedTrackWidth">12</sys:Double>
+    <sys:Double x:Key="SettingsUI.ScrollBarExpansionHitTestDepthRatio">0.75</sys:Double>
     <sys:Double x:Key="SettingsUI.ScrollBarThumbMargin">4</sys:Double>
     <sys:Double x:Key="SettingsUI.ScrollBarMinThumbHeight">24</sys:Double>
 

@@ -49,6 +49,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly StackPanel _groupProcessesHeaderControl;
     private readonly SettingsScrollViewport _tableScrollViewport;
     private readonly TaskManagerResizeGrip _resizeGrip;
+    private readonly Border _columnHeaderBorder;
     private readonly ProcessRowHoverVisual _hoverHighlight;
     private readonly Border _selectionHighlight;
     private readonly TranslateTransform _selectionTransform = new();
@@ -268,6 +269,16 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         };
         _tableScrollViewport.SetVerticalScrollBarTopInset(
             GetProcessTableVerticalScrollBarTopInset(resources));
+        _columnHeaderBorder = new Border
+        {
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false
+        };
+        ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
+        Grid.SetColumnSpan(_columnHeaderBorder, 2);
+        _tableScrollViewport.Children.Add(_columnHeaderBorder);
         Grid.SetRow(_tableScrollViewport, 1);
         MainContent.Children.Add(_tableScrollViewport);
 
@@ -425,6 +436,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(_resources));
         _tableScrollViewport.SetVerticalScrollBarTopInset(
             GetProcessTableVerticalScrollBarTopInset(_resources));
+        ApplyColumnHeaderBorderResources(_columnHeaderBorder, _resources);
         _resizeGrip.ApplyResources(_resources);
         _selectionHighlight.BorderThickness = _resources.AxamlProcessTable.SelectionBorderThickness;
     }
@@ -446,8 +458,16 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 
     private static double GetProcessTableVerticalScrollBarTopInset(
         TaskManagerWindowResources resources) =>
-        resources.AxamlProcessTable.HeaderHeight
-        + resources.AxamlProcessTable.GridLineThickness;
+        resources.AxamlProcessTable.HeaderHeight;
+
+    private static void ApplyColumnHeaderBorderResources(
+        Border columnHeaderBorder,
+        TaskManagerWindowResources resources)
+    {
+        double borderThickness = resources.AxamlProcessTable.GridLineThickness;
+        columnHeaderBorder.BorderThickness = new Thickness(0, 0, 0, borderThickness);
+        columnHeaderBorder.Height = resources.AxamlProcessTable.HeaderHeight + borderThickness / 2;
+    }
 
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
     {

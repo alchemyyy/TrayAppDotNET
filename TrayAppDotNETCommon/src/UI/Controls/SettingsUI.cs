@@ -66,6 +66,8 @@ internal static class SettingsUILayout
     public static double ScrollWheelStep => AXAMLResources.AxamlSettingsUI.ScrollWheelStep;
     public static double ScrollBarTotalWidth => AXAMLResources.AxamlSettingsUI.ScrollBarTotalWidth;
     public static double ScrollBarCollapsedTrackWidth => AXAMLResources.AxamlSettingsUI.ScrollBarCollapsedTrackWidth;
+    public static double ScrollBarExpansionHitTestDepthRatio =>
+        AXAMLResources.AxamlSettingsUI.ScrollBarExpansionHitTestDepthRatio;
     public static double ScrollBarThumbMargin => AXAMLResources.AxamlSettingsUI.ScrollBarThumbMargin;
     public static double ScrollBarMinThumbHeight => AXAMLResources.AxamlSettingsUI.ScrollBarMinThumbHeight;
     public static Thickness ComboItemPadding => AXAMLResources.AxamlSettingsUI.ComboItemPadding;
@@ -1667,8 +1669,13 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private double TrackThickness => IsExpanded
         ? _style.TrackThickness
         : Math.Max(
-            _style.IdleThumbThickness,
-            _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness);
+            _style.TrackThickness * Math.Clamp(
+                SettingsUILayout.ScrollBarExpansionHitTestDepthRatio,
+                0,
+                1),
+            Math.Max(
+                _style.IdleThumbThickness,
+                _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness));
 
     private double ThumbThickness => Math.Min(
         _style.TrackThickness,

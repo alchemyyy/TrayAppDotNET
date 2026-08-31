@@ -1667,10 +1667,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         Rect headerBounds = new(0, top, Bounds.Width, _metrics.HeaderHeight);
         context.FillRectangle(_backgroundBrush, headerBounds);
-        context.DrawLine(
-            _gridPen,
-            new Point(0, top + _metrics.HeaderHeight),
-            new Point(Bounds.Width, top + _metrics.HeaderHeight));
     }
 
     private void DrawHeaderContent(DrawingContext context, double top)
