@@ -107,12 +107,35 @@ internal abstract class DetailsGridControl : Control, IDisposable
         if (_disposed || eventArgs.Handled || eventArgs.Delta.Y == 0) return;
 
         int direction = eventArgs.Delta.Y > 0 ? 1 : -1;
+        bool resetRequested = eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt);
         if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
-            GridRowSpacingRequested?.Invoke(direction);
+        {
+            if (resetRequested)
+            {
+                if (!CanResetDetailsGridZoom) return;
+                GridRowSpacingResetRequested?.Invoke();
+            }
+            else
+            {
+                GridRowSpacingRequested?.Invoke(direction);
+            }
+        }
         else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-            GridZoomRequested?.Invoke(direction);
+        {
+            if (resetRequested)
+            {
+                if (!CanResetDetailsGridZoom) return;
+                GridZoomResetRequested?.Invoke();
+            }
+            else
+            {
+                GridZoomRequested?.Invoke(direction);
+            }
+        }
         else
+        {
             return;
+        }
         eventArgs.Handled = true;
     }
 
