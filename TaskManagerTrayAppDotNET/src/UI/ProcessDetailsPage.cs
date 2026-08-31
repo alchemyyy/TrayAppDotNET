@@ -29,8 +29,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly ProcessDetailsCanvas _processCanvas;
     private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
+    private readonly Grid _searchControls;
     private readonly Grid _searchOverlay;
     private readonly ProcessSearchAutocompleteController _searchAutocomplete;
+    private readonly ProcessSavedSearchController _savedSearches;
+    private readonly TranslateTransform _searchControlsTransform = new();
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
     private readonly SettingsButton _runTaskButton;
@@ -64,6 +67,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         Func<ElevatedHelperStatus> getElevatedHelperStatus,
         Action requestElevatedTermination,
         Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
+        Func<ProcessSavedSearch, Task<bool>> confirmDeleteSavedSearch,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
         : base("Processes", palette, resources)
@@ -147,11 +151,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
         _searchBox.PlaceholderText = "Search by name, PID, or enter an expression";
-        _searchBox.HorizontalAlignment = settings.LeftAlignProcessSearchBar
-            ? HorizontalAlignment.Left
-            : HorizontalAlignment.Center;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
-        _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
         TrayAppDotNETToolTip.SetTip(
             _searchBox,
@@ -163,8 +163,45 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             settings.DetailsColumns,
             palette,
             settings.EnableRoundedCorners);
+        _savedSearches = new ProcessSavedSearchController(
+            _searchBox,
+            settings.ProcessSavedSearches,
+            palette,
+            resources,
+            settings.EnableRoundedCorners,
+            settings,
+            settings.UpdateProcessSavedSearches,
+            confirmDeleteSavedSearch);
+        Thickness searchActionMargin = new(
+            0,
+            0,
+            resources.AxamlTaskManagerDetails.SearchActionSpacing,
+            0);
+        _savedSearches.ClearButton.Margin = searchActionMargin;
+        _savedSearches.SaveButton.Margin = searchActionMargin;
+        _searchControls = new Grid
+        {
+            HorizontalAlignment = settings.LeftAlignProcessSearchBar
+                ? HorizontalAlignment.Left
+                : HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = resources.AxamlTaskManagerDetails.SearchMargin,
+            RenderTransform = _searchControlsTransform,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        _searchControls.Children.Add(_savedSearches.ClearButton);
+        Grid.SetColumn(_savedSearches.SaveButton, 1);
+        _searchControls.Children.Add(_savedSearches.SaveButton);
+        Grid.SetColumn(_searchBox, 2);
+        _searchControls.Children.Add(_searchBox);
+        UpdateSearchControlsPosition();
         _searchOverlay = new Grid();
-        _searchOverlay.Children.Add(_searchBox);
+        _searchOverlay.Children.Add(_searchControls);
         _searchOverlay.Children.Add(_searchAutocomplete.Popup);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
@@ -230,22 +267,64 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
     internal override Control? PageOverlay => _searchOverlay;
 
-    /// <summary>Gets the search box's rendered width in screen pixels while it is rooted and visible.</summary>
-    internal bool TryGetSearchBoxPixelWidth(out int width)
+    /// <summary>Gets the search box and visible leading action widths for restored-window drag avoidance.</summary>
+    internal bool TryGetSearchDragRegionPixelWidths(
+        out int searchWidth,
+        out int leadingActionWidth)
     {
-        width = 0;
+        searchWidth = 0;
+        leadingActionWidth = 0;
+        TopLevel? topLevel = TopLevel.GetTopLevel(_searchBox);
         if (!_searchBox.IsEffectivelyVisible
             || _searchBox.Bounds.Width <= 0
-            || TopLevel.GetTopLevel(_searchBox) == null)
+            || topLevel == null)
         {
             return false;
         }
 
         PixelPoint screenLeft = _searchBox.PointToScreen(default);
         PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, 0));
-        width = Math.Abs(screenRight.X - screenLeft.X);
-        return width > 0;
+        int searchLeft = Math.Min(screenLeft.X, screenRight.X);
+        searchWidth = Math.Abs(screenRight.X - screenLeft.X);
+        if (searchWidth <= 0) return false;
+
+        Control leftmostActionButton = _savedSearches.ClearButton;
+        if (!leftmostActionButton.IsEffectivelyVisible) return true;
+        if (leftmostActionButton.Bounds.Width <= 0
+            || TopLevel.GetTopLevel(leftmostActionButton) == null)
+        {
+            leadingActionWidth = (int)Math.Ceiling(
+                GetLeadingSearchActionWidth() * topLevel.RenderScaling);
+            return true;
+        }
+
+        PixelPoint actionLeft = leftmostActionButton.PointToScreen(default);
+        PixelPoint actionRight = leftmostActionButton.PointToScreen(
+            new Point(leftmostActionButton.Bounds.Width, 0));
+        int actionLeftX = Math.Min(actionLeft.X, actionRight.X);
+        leadingActionWidth = Math.Max(0, searchLeft - actionLeftX);
+        return true;
     }
+
+    private void UpdateSearchControlsPosition()
+    {
+        bool hasLeadingAction = !string.IsNullOrWhiteSpace(_searchBox.Text);
+        if (!hasLeadingAction)
+        {
+            _searchControlsTransform.X = 0;
+            return;
+        }
+
+        double leadingActionWidth = GetLeadingSearchActionWidth();
+        _searchControlsTransform.X = _settings.LeftAlignProcessSearchBar
+            ? -leadingActionWidth
+            : -leadingActionWidth / 2;
+    }
+
+    private double GetLeadingSearchActionWidth() =>
+        _savedSearches.ClearButton.Width
+        + _savedSearches.SaveButton.Width
+        + (2 * _resources.AxamlTaskManagerDetails.SearchActionSpacing);
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
@@ -614,8 +693,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.ApplyColumnSettings(settings);
     }
 
-    private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs)
+    {
         _processCanvas.SetFilter(_searchBox.Text);
+        UpdateSearchControlsPosition();
+    }
 
     /// <summary>Gets the process-grid top edge in the requested control's coordinate space.</summary>
     internal bool TryGetTableTop(Control relativeTo, out double tableTop)
@@ -732,6 +814,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;
+        _savedSearches.Dispose();
         _searchAutocomplete.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;
         _runTaskButton.Click -= OnRunTaskClick;

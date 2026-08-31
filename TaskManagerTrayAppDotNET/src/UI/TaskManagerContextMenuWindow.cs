@@ -14,6 +14,43 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
     {
     }
 
+    /// <summary>Creates the anchored menu used to present saved process searches.</summary>
+    internal static TrayEditableMenuWindow CreateSavedSearchMenu(
+        IReadOnlyList<TrayEditableMenuEntry> entries,
+        SettingsPalette palette,
+        bool enableRoundedCorners,
+        ITrayAppDotNETTrayMenuSettings trayMenuSettings)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(palette);
+        ArgumentNullException.ThrowIfNull(trayMenuSettings);
+
+        TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
+        return new TrayEditableMenuWindow(
+            entries,
+            new TrayEditableMenuWindowOptions
+            {
+                Palette = palette,
+                Rounded = enableRoundedCorners,
+                FontSize = resources.AxamlTaskManagerContextMenu.FontSize,
+                FontWeight = (FontWeight)resources.AxamlTaskManagerContextMenu.FontWeight,
+                ItemHeight = resources.AxamlTaskManagerContextMenu.SavedSearchItemHeight,
+                ItemHoverColor = palette.SearchListItemHover,
+                TrayMenuSettings = trayMenuSettings,
+                InvokeOnPointerReleased = true,
+                ActivateOnShow = false,
+                KeepOpenWhenOwnerActivated = true,
+                RootBorderThickness = resources.AxamlTaskManagerContextMenu.AutocompleteBorderThickness,
+                RootCornerRadius = resources.AxamlTaskManagerContextMenu.AutocompleteCornerRadius,
+                RootPadding = resources.AxamlTaskManagerContextMenu.AutocompletePadding,
+                ItemCornerRadius = resources.AxamlTaskManagerContextMenu.AutocompleteItemCornerRadius,
+                ItemPadding = resources.AxamlTaskManagerContextMenu.SavedSearchItemPadding,
+                ItemMargin = default,
+                ItemMinWidth = 0,
+                RowSpacing = 0
+            });
+    }
+
     internal static TrayMenuWindowOptions CreateOptions(
         SettingsPalette palette,
         bool enableRoundedCorners,

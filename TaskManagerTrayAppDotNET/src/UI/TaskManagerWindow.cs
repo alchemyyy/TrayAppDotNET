@@ -286,6 +286,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _processTerminationService.GetElevatedHelperStatus,
             RequestManualElevatedTermination,
             ConfirmEndTaskAsync,
+            ConfirmDeleteSavedSearchAsync,
             ReportMessage,
             StartProcess);
         _processDetailsPage = page;
@@ -398,7 +399,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         RECT* proposedBounds = (RECT*)rectanglePointer;
         if (!_restoreDragSearchRangeResolved)
         {
-            if (!processDetailsPage.TryGetSearchBoxPixelWidth(out int searchWidth)) return;
+            if (!processDetailsPage.TryGetSearchDragRegionPixelWidths(
+                    out int searchWidth,
+                    out int leadingActionWidth))
+            {
+                return;
+            }
 
             int proposedWidth = proposedBounds->Right - proposedBounds->Left;
             if (proposedWidth <= searchWidth) return;
@@ -417,14 +423,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 pageContentLeft += ResolveClientLeftInset(windowHandle);
             }
 
-            _restoreDragSearchLeftWithinWindow =
-                RestoredWindowDragGeometry.CalculateSearchLeftWithinWindow(
+            RestoredWindowDragSearchRange searchRange =
+                RestoredWindowDragGeometry.CalculateSearchRangeWithinWindow(
                     proposedWidth,
                     searchWidth,
+                    leadingActionWidth,
                     _settings.LeftAlignProcessSearchBar,
                     pageContentLeft);
-            _restoreDragSearchRightWithinWindow =
-                _restoreDragSearchLeftWithinWindow + searchWidth;
+            _restoreDragSearchLeftWithinWindow = searchRange.Left;
+            _restoreDragSearchRightWithinWindow = searchRange.Right;
             _restoreDragSearchRangeResolved = true;
         }
 
@@ -484,7 +491,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Visual? current = visual;
         while (current != null)
         {
-            if (current is TextBox or SettingsButton or SettingsToggle or SettingsNavItem)
+            if (current is TextBox
+                or SettingsButton
+                or SettingsToggle
+                or SettingsNavItem
+                or ProcessSavedSearchController.InsetGlyphButton)
                 return true;
             current = current.GetVisualParent();
         }
@@ -617,6 +628,16 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             $"Do you want to end {processName}?",
             EndTaskConfirmationMessage,
             "End process",
+            "Cancel");
+    }
+
+    private Task<bool> ConfirmDeleteSavedSearchAsync(ProcessSavedSearch savedSearch)
+    {
+        ArgumentNullException.ThrowIfNull(savedSearch);
+        return ConfirmAsync(
+            "Delete saved search?",
+            $"\"{savedSearch.Name}\" uses a regular expression. Delete this saved search?",
+            "Delete",
             "Cancel");
     }
 

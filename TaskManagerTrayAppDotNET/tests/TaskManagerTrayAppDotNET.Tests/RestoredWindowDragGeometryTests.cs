@@ -24,6 +24,27 @@ public sealed class RestoredWindowDragGeometryTests
     }
 
     [Theory]
+    [InlineData(false, 250, 247, 715)]
+    [InlineData(true, 250, 212, 680)]
+    public void SearchRangeIncludesLeadingActionsWithoutMovingTheSearchBox(
+        bool alignToPageArea,
+        int pageContentLeft,
+        int expectedLeft,
+        int expectedRight)
+    {
+        RestoredWindowDragSearchRange range =
+            RestoredWindowDragGeometry.CalculateSearchRangeWithinWindow(
+                proposedWindowWidth: 1000,
+                searchWidth: 430,
+                leadingActionWidth: 38,
+                alignToPageArea,
+                pageContentLeft);
+
+        Assert.Equal(expectedLeft, range.Left);
+        Assert.Equal(expectedRight, range.Right);
+    }
+
+    [Theory]
     [InlineData(399)]
     [InlineData(800)]
     public void CursorOutsideSearchBoxDoesNotMoveWindow(int cursorScreenX)

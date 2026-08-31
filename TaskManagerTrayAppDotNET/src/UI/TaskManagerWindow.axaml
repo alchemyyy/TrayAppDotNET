@@ -29,6 +29,12 @@
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphFontSize">16</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchClearGlyphOpacity">0.6</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchActionVisualInset">3</sys:Double>
+  <CornerRadius x:Key="TaskManagerDetails.SearchActionVisualCornerRadius">4</CornerRadius>
+  <sys:Double x:Key="TaskManagerDetails.SearchActionSpacing">6</sys:Double>
+  <Thickness x:Key="TaskManagerDetails.SearchActionButtonPadding">0</Thickness>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.TitleFontSize">20</sys:Double>
   <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>

@@ -1,8 +1,31 @@
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Calculates the window offset that keeps a restored drag anchor outside the search box.</summary>
+internal readonly record struct RestoredWindowDragSearchRange(int Left, int Right);
+
+/// <summary>Calculates the window offset that keeps a restored drag anchor outside the search controls.</summary>
 internal static class RestoredWindowDragGeometry
 {
+    /// <summary>Resolves the search box plus its visible leading action without shifting the search box itself.</summary>
+    public static RestoredWindowDragSearchRange CalculateSearchRangeWithinWindow(
+        int proposedWindowWidth,
+        int searchWidth,
+        int leadingActionWidth,
+        bool alignToPageArea,
+        int pageContentLeft)
+    {
+        if (leadingActionWidth < 0)
+            throw new ArgumentOutOfRangeException(nameof(leadingActionWidth));
+
+        int left = CalculateSearchLeftWithinWindow(
+            proposedWindowWidth,
+            searchWidth,
+            alignToPageArea,
+            pageContentLeft);
+        return new RestoredWindowDragSearchRange(
+            Math.Max(0, left - leadingActionWidth),
+            checked(left + searchWidth));
+    }
+
     /// <summary>Resolves the search box's left edge for centered or page-aligned layout.</summary>
     public static int CalculateSearchLeftWithinWindow(
         int proposedWindowWidth,

@@ -209,6 +209,14 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, ProcessColumnSettings.Normalize(value));
     } = ProcessColumnSettings.CreateDefault();
 
+    [XmlArray("ProcessSavedSearches")]
+    [XmlArrayItem("Search")]
+    public List<ProcessSavedSearch> ProcessSavedSearches
+    {
+        get;
+        set => SetField(ref field, ProcessSavedSearchCollection.Normalize(value));
+    } = [];
+
     [XmlArray("PerformanceDevicePriority")]
     [XmlArrayItem("Kind")]
     public List<PerformanceDeviceKind> PerformanceDevicePriority
@@ -254,6 +262,7 @@ public sealed class AppSettings : AppSettingsCommon
                 PerformanceSampleIntervalMilliseconds);
         ProcessHeaderButtonOrder = ProcessHeaderButtonSettings.Normalize(ProcessHeaderButtonOrder);
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
+        ProcessSavedSearches = ProcessSavedSearchCollection.Normalize(ProcessSavedSearches);
         PerformanceDevicePriority = PerformanceDeviceOrdering.NormalizePriority(PerformanceDevicePriority);
         PerformanceDeviceOrder = PerformanceDeviceOrdering.NormalizeExplicitOrder(PerformanceDeviceOrder);
         PerformanceHardwareNameReplacementRules =
@@ -312,6 +321,27 @@ public sealed class AppSettings : AppSettingsCommon
         try
         {
             PerformanceDeviceOrder = deviceIDs;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists live saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateProcessSavedSearches(IReadOnlyList<ProcessSavedSearch> searches)
+    {
+        ArgumentNullException.ThrowIfNull(searches);
+        List<ProcessSavedSearch> normalized = ProcessSavedSearchCollection.Normalize(searches);
+        if (ProcessSavedSearchCollection.AreEquivalent(ProcessSavedSearches, normalized)) return;
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            ProcessSavedSearches = normalized;
         }
         finally
         {

@@ -59,7 +59,7 @@ public sealed class TrayMenuEntryBuilder
     public List<TrayMenuEntry> ToList() => [.. _entries];
 }
 
-public sealed class TrayMenuWindowOptions
+public class TrayMenuWindowOptions
 {
     public required SettingsPalette Palette { get; init; }
     public bool Rounded { get; init; } = true;
@@ -77,6 +77,9 @@ public sealed class TrayMenuWindowOptions
 
     /// <summary>Invokes the selected action before dismissing the menu.</summary>
     public bool InvokeBeforeClose { get; init; }
+
+    /// <summary>Controls whether showing the menu transfers keyboard focus into its window.</summary>
+    public bool ActivateOnShow { get; init; } = true;
 
     public double LeadingGlyphFontSize { get; init; } = 16;
     public double LeadingGlyphColumnWidth { get; init; } = 24;
@@ -135,7 +138,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     public event EventHandler? WarmDismissed;
 
     public TrayMenuWindow(IReadOnlyList<TrayMenuEntry> entries, TrayMenuWindowOptions options)
-        : this(entries, options, parentMenu: null)
+        : this(options, parentMenu: null)
+    {
+        InitializeStandardMenu(entries);
+    }
+
+    /// <summary>Initializes the common menu window shell for a derived menu control.</summary>
+    protected TrayMenuWindow(TrayMenuWindowOptions options)
+        : this(options, parentMenu: null)
     {
     }
 
@@ -143,8 +153,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         IReadOnlyList<TrayMenuEntry> entries,
         TrayMenuWindowOptions options,
         TrayMenuWindow? parentMenu)
+        : this(options, parentMenu)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        InitializeStandardMenu(entries);
+    }
+
+    private TrayMenuWindow(TrayMenuWindowOptions options, TrayMenuWindow? parentMenu)
+    {
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
@@ -157,9 +173,19 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         ShowInTaskbar = false;
         CanResize = false;
         Topmost = true;
+        ShowActivated = options.ActivateOnShow;
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
+        Deactivated += OnDeactivated;
+        KeyDown += OnKeyDown;
+        _windowResources.Add(() => KeyDown -= OnKeyDown);
+        _windowResources.Add(() => Deactivated -= OnDeactivated);
+    }
+
+    private void InitializeStandardMenu(IReadOnlyList<TrayMenuEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
         StackPanel items = new();
         bool hasSubmenus = false;
         UIResourceScope contentResources = new($"{GetType().Name}.Content");
@@ -173,6 +199,20 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 OnItemHoverChanged));
             items.Children.Add(item);
         }
+
+        InitializeMenuContent(items, contentResources, hasSubmenus);
+    }
+
+    /// <summary>Installs custom menu rows into the common tray-menu window shell.</summary>
+    protected void InitializeMenuContent(
+        Control itemsContent,
+        UIResourceScope contentResources,
+        bool hasSubmenus = false)
+    {
+        ArgumentNullException.ThrowIfNull(itemsContent);
+        ArgumentNullException.ThrowIfNull(contentResources);
+        if (_contentGeneration != null)
+            throw new InvalidOperationException("Tray menu content has already been initialized.");
 
         if (hasSubmenus)
         {
@@ -190,7 +230,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         _scrollViewer = new ScrollViewer
         {
-            Content = items,
+            Content = itemsContent,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Focusable = false
@@ -220,10 +260,6 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             contentResources);
         ControlNameScope.For(this).AssignLogicalSubtree(root, this);
         Content = _contentGeneration.Root;
-        Deactivated += OnDeactivated;
-        KeyDown += OnKeyDown;
-        _windowResources.Add(() => KeyDown -= OnKeyDown);
-        _windowResources.Add(() => Deactivated -= OnDeactivated);
     }
 
     public void ShowAt(
@@ -255,7 +291,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
-            Activate();
+            if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
     }
 
@@ -322,7 +358,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 new PixelSize(menuWidth, menuHeight));
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
-            Activate();
+            if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
     }
 
@@ -579,7 +615,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 _options.EdgePadding);
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
-            Activate();
+            if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
     }
 
@@ -695,7 +731,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         return false;
     }
 
-    private void InvokeAndClose(Action action)
+    /// <summary>Invokes an entry action using this menu's configured close ordering.</summary>
+    protected void InvokeAndClose(Action action)
     {
         TrayMenuWindow rootMenu = GetRootMenu();
         rootMenu._closedFromSelection = true;
@@ -800,11 +837,15 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             rootMenu._deactivationCheckPending = false;
             if (rootMenu._closed || rootMenu._closedFromSelection || rootMenu.IsAnyMenuActive()) return;
+            if (!rootMenu.ShouldDismissAfterDeactivation()) return;
 
             rootMenu._closedFromDeactivation = true;
             rootMenu.DismissForWarmCache();
         }, DispatcherPriority.Input);
     }
+
+    /// <summary>Lets derived menu controls retain ownership during a deferred deactivation check.</summary>
+    protected virtual bool ShouldDismissAfterDeactivation() => true;
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {

@@ -20,4 +20,17 @@
   <Thickness x:Key="TaskManagerContextMenu.AutocompleteBorderThickness">1</Thickness>
   <CornerRadius x:Key="TaskManagerContextMenu.AutocompleteCornerRadius">5</CornerRadius>
   <CornerRadius x:Key="TaskManagerContextMenu.AutocompleteItemCornerRadius">3</CornerRadius>
+
+  <!-- Process saved searches -->
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchMaximumHeight">320</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchItemHeight">32</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchButtonSize">24</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchButtonGlyphFontSize">12</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchDeleteButtonFontSize">20</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchNameMaximumWidth">145</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchColumnSpacing">5</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchLeadingButtonTextSpacing">1</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchQueryOpacity">0.68</sys:Double>
+  <Thickness x:Key="TaskManagerContextMenu.SavedSearchItemPadding">3,0,4,0</Thickness>
+  <Thickness x:Key="TaskManagerContextMenu.SavedSearchButtonPadding">0</Thickness>
 </ResourceDictionary>
