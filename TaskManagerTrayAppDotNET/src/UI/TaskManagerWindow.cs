@@ -78,6 +78,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool _allowClose;
     private bool _initialElevationAttemptConsumed;
     private bool _manualElevationPromptPending;
+    private bool _isConfirmationOverlayVisible;
     private bool _exitRequested;
 
     public TaskManagerWindow(
@@ -196,6 +197,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
     protected override Color ConfirmOverlayBackdrop =>
         _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
+
+    protected override void OnConfirmOverlayVisibilityChanged(bool isVisible)
+    {
+        _isConfirmationOverlayVisible = isVisible;
+        _processDetailsPage?.SetConfirmationOverlayVisible(isVisible);
+    }
 
     protected override SettingsSidebar BuildSidebar() => new TaskManagerSidebar(_taskManagerResources);
 
@@ -549,6 +556,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _activePageLayout = page;
             _searchOverlayPage = page as ITaskManagerSearchOverlayPage;
             _processDetailsPage = page as ProcessDetailsPage;
+            _processDetailsPage?.SetConfirmationOverlayVisible(_isConfirmationOverlayVisible);
             _activePageWorkEnabled = ShouldEnableActivePageWork();
             page.SetPageActive(_activePageWorkEnabled);
         }

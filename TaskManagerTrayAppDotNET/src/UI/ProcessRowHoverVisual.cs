@@ -171,6 +171,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
     private TopLevel? _topLevel;
     private ProcessRowHoverRenderState _lastSentState;
     private bool _hasLastSentState;
+    private bool _isSamplingEnabled = true;
     private bool _isHandlerRunning;
     private bool _disposed;
 
@@ -189,6 +190,15 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
 
         _geometry = geometry;
         SendRenderState();
+    }
+
+    /// <summary>Starts or stops cursor sampling for modal interaction boundaries.</summary>
+    public void SetSamplingEnabled(bool isEnabled)
+    {
+        if (_disposed || _isSamplingEnabled == isEnabled) return;
+
+        _isSamplingEnabled = isEnabled;
+        UpdateHandlerRunningState();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs eventArgs)
@@ -294,6 +304,7 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
     private void UpdateHandlerRunningState()
     {
         bool shouldRun = !_disposed
+                         && _isSamplingEnabled
                          && _compositionVisual != null
                          && _topLevel is { IsVisible: true }
                          && (_topLevel is not Window window || window.WindowState != WindowState.Minimized);

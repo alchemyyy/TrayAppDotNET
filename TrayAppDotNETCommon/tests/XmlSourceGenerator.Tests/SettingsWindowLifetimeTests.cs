@@ -369,6 +369,33 @@ public sealed class SettingsWindowLifetimeTests
     }
 
     [Fact]
+    public void ConfirmationVisibilityHookTracksOverlayLifetime() => AvaloniaTestHost.Run(() =>
+    {
+        TestSettingsWindow window = new();
+        window.Show();
+        try
+        {
+            Task<bool> confirmation = window.ConfirmAsync("Confirm", "Message", "Yes", "No");
+
+            Assert.Equal(new[] { true }, window.ConfirmOverlayVisibilityChanges);
+
+            window.RaiseEvent(new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = Key.Escape
+            });
+
+            Assert.True(confirmation.IsCompletedSuccessfully);
+            Assert.False(confirmation.Result);
+            Assert.Equal(new[] { true, false }, window.ConfirmOverlayVisibilityChanges);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void CtrlDragPersistsSidebarWidthAndCtrlRightClickResetsIt() => AvaloniaTestHost.Run(() =>
     {
         SidebarResizeSettingsWindow window = new();
@@ -690,6 +717,7 @@ public sealed class SettingsWindowLifetimeTests
         public TestPage SelectedPage => CurrentPageKey;
 
         public int FailedPageCleanupCount { get; private set; }
+        public List<bool> ConfirmOverlayVisibilityChanges { get; } = [];
 
         protected override SettingsPalette ResolvePalette() => _testPalette;
         protected override bool EnableRoundedCorners => false;
@@ -697,6 +725,9 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
+
+        protected override void OnConfirmOverlayVisibilityChanged(bool isVisible) =>
+            ConfirmOverlayVisibilityChanges.Add(isVisible);
 
         public void SelectFailingPage() => SelectPage(TestPage.Failing);
 

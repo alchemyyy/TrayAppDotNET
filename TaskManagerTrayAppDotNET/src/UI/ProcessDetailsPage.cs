@@ -454,6 +454,14 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.DeactivateSampling();
     }
 
+    /// <summary>Stops compositor-owned row hover while a same-window modal overlay owns input.</summary>
+    internal void SetConfirmationOverlayVisible(bool isVisible)
+    {
+        if (_disposed) return;
+
+        _hoverHighlight.SetSamplingEnabled(!isVisible);
+    }
+
 #if DEBUG
     /// <summary>Applies Task Manager AXAML values without replacing Processes runtime state.</summary>
     internal override void ApplyAXAMLResources(TaskManagerWindowResources resources)

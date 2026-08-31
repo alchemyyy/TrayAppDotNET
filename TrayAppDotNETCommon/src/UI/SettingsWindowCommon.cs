@@ -136,6 +136,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual bool UseProminentConfirmationDialog => false;
+
+    /// <summary>Notifies derived windows when the in-window confirmation overlay opens or closes.</summary>
+    protected virtual void OnConfirmOverlayVisibilityChanged(bool isVisible)
+    {
+    }
+
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
 
     /// <summary>Gets the retained navigation-rail width while the sidebar is collapsed.</summary>
@@ -298,8 +304,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmMessage!.Text = message;
         _confirmOk!.Text = confirmText;
         _confirmCancel!.Text = cancelText;
-        _confirmOverlay!.IsVisible = true;
         _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        SetConfirmOverlayVisible(true);
         _confirmOk.Focus();
         return _confirmTcs.Task;
     }
@@ -1593,20 +1599,29 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void CompleteConfirm(bool result)
     {
-        _confirmOverlay!.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
+        SetConfirmOverlayVisible(false);
         RestoreConfirmFocus();
         tcs?.TrySetResult(result);
     }
 
     private void CancelPendingConfirm()
     {
-        _confirmOverlay?.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
+        SetConfirmOverlayVisible(false);
         RestoreConfirmFocus();
         tcs?.TrySetResult(false);
+    }
+
+    private void SetConfirmOverlayVisible(bool isVisible)
+    {
+        Border? confirmOverlay = _confirmOverlay;
+        if (confirmOverlay == null || confirmOverlay.IsVisible == isVisible) return;
+
+        confirmOverlay.IsVisible = isVisible;
+        OnConfirmOverlayVisibilityChanged(isVisible);
     }
 
     private void RestoreConfirmFocus()
