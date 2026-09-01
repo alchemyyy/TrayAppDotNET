@@ -8,12 +8,6 @@ internal readonly record struct ProcessViewportAnchor(
 {
     private const double PositionEqualityTolerance = 0.01;
 
-    /// <summary>Gives selection priority over the transient hover fallback.</summary>
-    public static ProcessInstanceKey? ResolveProcessIdentity(
-        ProcessInstanceKey? selectedProcess,
-        ProcessInstanceKey? hoveredProcess) =>
-        selectedProcess ?? hoveredProcess;
-
     /// <summary>Creates the scroll correction needed to retain the original visual position.</summary>
     public ProcessViewportAnchorAdjustment? ResolveAdjustment(
         double nextRowTop,

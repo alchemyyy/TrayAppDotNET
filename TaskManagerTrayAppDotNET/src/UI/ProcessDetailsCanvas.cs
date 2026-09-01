@@ -186,7 +186,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessCopyPreviewMode _copyPreviewMode;
     private bool _sortDescending;
     private bool _isLiveColumnResizeActive;
-    private bool _isHoverAnchoringEnabled = true;
     private bool _hasVisibleLiveTotals;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
@@ -510,15 +509,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     /// <summary>Stops this table from changing the shared process sampling policy.</summary>
     public void DeactivateSampling() => _samplingActive = false;
-
-    /// <summary>Enables hover fallback anchoring only while process rows own pointer input.</summary>
-    public void SetHoverAnchoringEnabled(bool isEnabled)
-    {
-        if (IsDetailsGridDisposed || _isHoverAnchoringEnabled == isEnabled) return;
-
-        _isHoverAnchoringEnabled = isEnabled;
-        if (!isEnabled && !_selectedProcess.HasValue) _pendingViewportAnchor = null;
-    }
 
     public void SetFilter(string? filterText)
     {
@@ -1733,58 +1723,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private ProcessViewportAnchor? CaptureViewportAnchor()
     {
-        if (IsDetailsGridDisposed || _visibleRowCount <= 0) return null;
+        if (IsDetailsGridDisposed
+            || _visibleRowCount <= 0
+            || _selectedProcess is not { } selectedProcess)
+            return null;
 
         ProcessRowHoverGeometry geometry = CreateRowHoverGeometry();
-        int visibleIndex = -1;
-        ProcessInstanceKey? hoveredProcess = null;
-        if (_selectedProcess is { } selectedProcess)
-            visibleIndex = FindVisibleProcess(selectedProcess);
-        else if (_isHoverAnchoringEnabled)
-        {
-            visibleIndex = SampleHoveredVisibleIndex(geometry);
-            if ((uint)visibleIndex < (uint)_visibleRowCount)
-            {
-                ProcessStaticData? hoveredRow =
-                    _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
-                hoveredProcess = hoveredRow?.InstanceKey;
-            }
-        }
-
-        ProcessInstanceKey? process = ProcessViewportAnchor.ResolveProcessIdentity(
-            _selectedProcess,
-            hoveredProcess);
-        if (!process.HasValue || !geometry.IsRowVisible(visibleIndex)) return null;
+        int visibleIndex = FindVisibleProcess(selectedProcess);
+        if (!geometry.IsRowVisible(visibleIndex)) return null;
 
         return new ProcessViewportAnchor(
-            process.Value,
+            selectedProcess,
             _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight,
             DetailsGridLayout.GetContentHeight(
                 _visibleRowCount,
                 _metrics.HeaderHeight,
                 _metrics.RowHeight));
-    }
-
-    private int SampleHoveredVisibleIndex(ProcessRowHoverGeometry geometry)
-    {
-        if (!OperatingSystem.IsWindows()) return -1;
-
-        TopLevel? topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return -1;
-
-        IntPtr windowHandle = topLevel.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-        if (windowHandle == IntPtr.Zero
-            || !User32.GetCursorPos(out User32.POINT cursorPosition))
-            return -1;
-
-        IntPtr pointedWindow = User32.WindowFromPoint(cursorPosition);
-        if (pointedWindow == IntPtr.Zero
-            || User32.GetAncestor(pointedWindow, User32.GA_ROOT) != windowHandle)
-            return -1;
-
-        Point localPosition = this.PointToClient(
-            new PixelPoint(cursorPosition.X, cursorPosition.Y));
-        return geometry.HitTest(localPosition);
     }
 
     private void RestoreViewportAnchor(ProcessViewportAnchor? viewportAnchor)

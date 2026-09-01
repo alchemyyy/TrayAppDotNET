@@ -7,31 +7,6 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class ProcessViewportAnchoringTests
 {
     [Fact]
-    public void SelectedProcessTakesPriorityOverHoveredProcess()
-    {
-        ProcessInstanceKey selectedProcess = new(ProcessID: 10, CreationTimeTicks: 100);
-        ProcessInstanceKey hoveredProcess = new(ProcessID: 20, CreationTimeTicks: 200);
-
-        ProcessInstanceKey? anchorProcess = ProcessViewportAnchor.ResolveProcessIdentity(
-            selectedProcess,
-            hoveredProcess);
-
-        Assert.Equal(selectedProcess, anchorProcess);
-    }
-
-    [Fact]
-    public void HoveredProcessIsUsedWhenThereIsNoSelection()
-    {
-        ProcessInstanceKey hoveredProcess = new(ProcessID: 20, CreationTimeTicks: 200);
-
-        ProcessInstanceKey? anchorProcess = ProcessViewportAnchor.ResolveProcessIdentity(
-            selectedProcess: null,
-            hoveredProcess);
-
-        Assert.Equal(hoveredProcess, anchorProcess);
-    }
-
-    [Fact]
     public void ResolveAdjustmentCompensatesForChangedSortRank()
     {
         ProcessViewportAnchor anchor = new(

@@ -459,7 +459,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         if (_disposed) return;
 
         bool isProcessPointerInputEnabled = !isVisible;
-        _processCanvas.SetHoverAnchoringEnabled(isProcessPointerInputEnabled);
         _hoverHighlight.SetSamplingEnabled(isProcessPointerInputEnabled);
     }
 
