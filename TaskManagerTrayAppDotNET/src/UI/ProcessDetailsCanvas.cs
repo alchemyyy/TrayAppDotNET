@@ -75,6 +75,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const int TreeLayoutValueMask = 0x1FF;
     private const int SemanticSectionLayoutFlag = 1 << 9;
     private const int SemanticSectionHeaderLayoutFlag = 1 << 10;
+    private const int ProcessGroupingLayoutFlag = 1 << 11;
 
     private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
@@ -2589,7 +2590,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
 
         double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
-        double expanderInset = HasTreeExpanderSlot(treeLayoutKey)
+        double expanderInset = ReservesTreeExpanderSlot(treeLayoutKey)
             ? _visualMetrics.TreeExpanderWidth
             : 0;
         Rect iconBounds = new(
@@ -3101,9 +3102,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 ? _visualMetrics.SemanticSectionHeaderTextGap
                 : _metrics.ProcessIconSize + _metrics.ProcessIconGap;
             leftInset += GetHierarchyInset(treeLayoutKey)
-                         + (HasTreeExpanderSlot(treeLayoutKey)
-                             ? _visualMetrics.TreeExpanderWidth
-                             : 0)
+                         + (ReservesTreeExpanderSlot(treeLayoutKey)
+                              ? _visualMetrics.TreeExpanderWidth
+                              : 0)
                          + leadingContentWidth;
         }
         double availableWidth = Math.Max(val1: 0, column.Width - leftInset - _metrics.CellPadding);
@@ -4589,6 +4590,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             return 0;
 
         int treeLayoutKey = _rowDepths[rowIndex] * 2 + (_rowHasChildren[rowIndex] ? 1 : 0);
+        treeLayoutKey |= ProcessGroupingLayoutFlag;
         if (!_usesSemanticSections) return treeLayoutKey;
 
         treeLayoutKey |= SemanticSectionLayoutFlag;
@@ -4608,6 +4610,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     }
 
     private static bool HasTreeExpanderSlot(int treeLayoutKey) => (treeLayoutKey & 1) != 0;
+
+    private static bool ReservesTreeExpanderSlot(int treeLayoutKey) =>
+        (treeLayoutKey & ProcessGroupingLayoutFlag) != 0;
 
     private static bool IsSemanticSectionHeaderLayout(int treeLayoutKey) =>
         (treeLayoutKey & SemanticSectionHeaderLayoutFlag) != 0;
