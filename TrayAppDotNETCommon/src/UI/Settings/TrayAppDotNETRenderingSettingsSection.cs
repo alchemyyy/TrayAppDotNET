@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
@@ -190,21 +190,15 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
                 throw new FileNotFoundException(message: "Current executable was not found.", executablePath);
 
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = executablePath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-
             string? workingDirectory = Path.GetDirectoryName(executablePath);
-            if (!string.IsNullOrWhiteSpace(workingDirectory))
-                startInfo.WorkingDirectory = workingDirectory;
-
-            using Process? process = Process.Start(startInfo);
-            if (process == null)
-                throw new InvalidOperationException("Process.Start returned null.");
+            if (!ExplorerProcessLauncher.TryShellExecute(
+                    executablePath,
+                    arguments: null,
+                    workingDirectory,
+                    verb: null,
+                    out _,
+                    out string errorMessage))
+                throw new InvalidOperationException(errorMessage);
 
             ShutdownDesktopApp();
         }

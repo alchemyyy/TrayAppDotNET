@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -681,8 +680,14 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     {
         try
         {
-            using Process? process = Process.Start(
-                new ProcessStartInfo(pageURI.AbsoluteUri) { UseShellExecute = true });
+            if (!ExplorerProcessLauncher.TryShellExecute(
+                    pageURI.AbsoluteUri,
+                    arguments: null,
+                    workingDirectory: null,
+                    verb: null,
+                    out _,
+                    out string errorMessage))
+                throw new InvalidOperationException(errorMessage);
         }
         catch (Exception exception)
         {

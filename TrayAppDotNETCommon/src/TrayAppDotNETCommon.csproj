@@ -66,6 +66,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TrayAppDotNETCommon.XmlSourceGenerator.Tests" />
+    <InternalsVisibleTo Include="TaskManagerTrayAppDotNET.Tests" />
     <InternalsVisibleTo Include="VolumeTrayAppDotNET.Tests" />
   </ItemGroup>
 

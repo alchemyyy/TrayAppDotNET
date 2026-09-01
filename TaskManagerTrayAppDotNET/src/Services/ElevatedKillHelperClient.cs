@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 
@@ -26,7 +25,6 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
 
     private readonly Action<string>? _log;
     private readonly Lock _sync = new();
-    private Process? _helperProcess;
     private IntPtr _helperProcessHandle;
     private IntPtr _mappingHandle;
     private IntPtr _mappingView;
@@ -177,21 +175,6 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         }
     }
 
-    internal static ProcessStartInfo CreateStartInfo(
-        string helperPath,
-        string arguments,
-        IntPtr ownerWindowHandle) =>
-        new()
-        {
-            FileName = helperPath,
-            Arguments = arguments,
-            UseShellExecute = true,
-            Verb = "runas",
-            WindowStyle = ProcessWindowStyle.Normal,
-            ErrorDialog = true,
-            ErrorDialogParentHandle = ownerWindowHandle
-        };
-
     private ElevatedKillHelperStartOutcome TryInitialize(
         IntPtr ownerWindowHandle,
         out string errorMessage)
@@ -275,31 +258,22 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             _requestEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
             " ",
             _responseEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture));
-        ProcessStartInfo startInfo = CreateStartInfo(helperPath, arguments, ownerWindowHandle);
-
-        try
+        if (!ExplorerProcessLauncher.TryShellExecute(
+                helperPath,
+                arguments,
+                workingDirectory: AppContext.BaseDirectory,
+                verb: "runas",
+                out int launchError,
+                out string launchErrorMessage))
         {
-            _helperProcess = Process.Start(startInfo);
-            if (_helperProcess == null)
-            {
-                errorMessage = "Windows did not create the elevated kill helper process.";
-                _log?.Invoke(errorMessage);
-                return ElevatedKillHelperStartOutcome.Failed;
-            }
-
-            _helperProcessHandle = _helperProcess.Handle;
-        }
-        catch (Win32Exception exception) when (exception.NativeErrorCode == ErrorCancelled)
-        {
-            errorMessage = "Windows administrator approval was canceled.";
+            bool wasCancelled = launchError == ErrorCancelled;
+            errorMessage = wasCancelled
+                ? "Windows administrator approval was canceled."
+                : $"Elevated kill helper launch failed: {launchErrorMessage}";
             _log?.Invoke(errorMessage);
-            return ElevatedKillHelperStartOutcome.Declined;
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
-        {
-            errorMessage = $"Elevated kill helper launch failed: {exception.Message}";
-            _log?.Invoke(errorMessage);
-            return ElevatedKillHelperStartOutcome.Failed;
+            return wasCancelled
+                ? ElevatedKillHelperStartOutcome.Declined
+                : ElevatedKillHelperStartOutcome.Failed;
         }
 
         uint startupWait = Kernel32.WaitForSingleObject(
@@ -327,6 +301,22 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 _log?.Invoke(errorMessage);
                 return ElevatedKillHelperStartOutcome.Failed;
             }
+
+            uint helperProcessID = _mailbox->HelperProcessID;
+            _helperProcessHandle = Kernel32.OpenProcess(
+                Kernel32.SYNCHRONIZE | Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
+                bInheritHandle: false,
+                helperProcessID);
+            if (_helperProcessHandle == IntPtr.Zero)
+            {
+                errorMessage = helperProcessID == 0
+                    ? "Elevated kill helper did not publish its process ID."
+                    : $"Elevated kill helper PID {helperProcessID} could not be opened: " +
+                      new Win32Exception(Marshal.GetLastWin32Error()).Message;
+                _log?.Invoke(errorMessage);
+                return ElevatedKillHelperStartOutcome.Failed;
+            }
+
             LogHelperHardeningState(Volatile.Read(ref _mailbox->HelperFlags));
         }
         return ElevatedKillHelperStartOutcome.Ready;
@@ -383,9 +373,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                     _ = KillHelperNativeMethods.SetEvent(_requestEvent);
             }
 
-            _helperProcess?.Dispose();
-            _helperProcess = null;
-            _helperProcessHandle = IntPtr.Zero;
+            CloseNativeHandle(ref _helperProcessHandle);
 
             if (_mappingViewLocked)
             {

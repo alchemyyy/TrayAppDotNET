@@ -28,26 +28,6 @@ public sealed class ProcessTerminationServiceTests
     }
 
     [Fact]
-    public void ElevatedHelperStartInfoIsVisibleAndOwned()
-    {
-        const string helperPath = @"C:\App\TaskManagerTrayAppDotNET.KillHelper.exe";
-        const string helperArguments = "arguments";
-        IntPtr ownerWindowHandle = new(0x1234);
-        ProcessStartInfo startInfo = ElevatedKillHelperClient.CreateStartInfo(
-            helperPath,
-            helperArguments,
-            ownerWindowHandle);
-
-        Assert.Equal(helperPath, startInfo.FileName);
-        Assert.Equal(helperArguments, startInfo.Arguments);
-        Assert.True(startInfo.UseShellExecute);
-        Assert.Equal(expected: "runas", startInfo.Verb);
-        Assert.Equal(ProcessWindowStyle.Normal, startInfo.WindowStyle);
-        Assert.True(startInfo.ErrorDialog);
-        Assert.Equal(ownerWindowHandle, startInfo.ErrorDialogParentHandle);
-    }
-
-    [Fact]
     public void LowLevelLauncherRejectsAZeroOwnerHandle()
     {
         List<string> logMessages = [];

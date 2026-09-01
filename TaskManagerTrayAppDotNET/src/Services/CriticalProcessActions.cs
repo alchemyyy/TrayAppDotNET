@@ -166,26 +166,13 @@ internal static class CriticalProcessActions
             return false;
         }
 
-        try
-        {
-            using Process? process = Process.Start(new ProcessStartInfo
-            {
-                FileName = command.Trim(), UseShellExecute = true
-            });
-            if (process == null)
-            {
-                errorMessage = "Windows did not create a process for the requested target.";
-                return false;
-            }
-
-            errorMessage = string.Empty;
-            return true;
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
-        {
-            errorMessage = exception.Message;
-            return false;
-        }
+        return ExplorerProcessLauncher.TryShellExecute(
+            command.Trim(),
+            arguments: null,
+            workingDirectory: null,
+            verb: null,
+            out _,
+            out errorMessage);
     }
 
     /// <summary>Terminates every Explorer process captured at invocation, then starts a fresh shell.</summary>
@@ -206,6 +193,19 @@ internal static class CriticalProcessActions
                 Succeeded: false,
                 $"Windows Explorer processes could not be enumerated: {exception.Message}");
         }
+
+        if (!ExplorerProcessLauncher.TryOpenDesktopExplorerParent(
+                out ProcessParentHandle? explorerParent,
+                out string parentErrorMessage) || explorerParent == null)
+        {
+            foreach (Process process in explorerProcesses)
+                process.Dispose();
+            return new ExplorerRestartResult(
+                Succeeded: false,
+                $"Windows Explorer's parent handle could not be retained: {parentErrorMessage}");
+        }
+
+        using ProcessParentHandle explorerParentHandle = explorerParent;
 
         List<Process> terminatedProcesses = new(explorerProcesses.Length);
         List<string> failures = [];
@@ -265,7 +265,7 @@ internal static class CriticalProcessActions
                 process.Dispose();
         }
 
-        ExplorerRestartResult startResult = StartExplorer();
+        ExplorerRestartResult startResult = StartExplorer(explorerParentHandle);
         if (!startResult.Succeeded)
             failures.Add($"Starting {ExplorerExecutableName}: {startResult.ErrorMessage}");
         if (failures.Count > 0)
@@ -278,7 +278,7 @@ internal static class CriticalProcessActions
         return startResult;
     }
 
-    private static ExplorerRestartResult StartExplorer()
+    private static ExplorerRestartResult StartExplorer(ProcessParentHandle explorerParent)
     {
         string windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (string.IsNullOrWhiteSpace(windowsDirectory))
@@ -291,22 +291,12 @@ internal static class CriticalProcessActions
         }
 
         string explorerPath = Path.Combine(windowsDirectory, ExplorerExecutableName);
-        try
-        {
-            using Process? process = Process.Start(new ProcessStartInfo
-            {
-                FileName = explorerPath, WorkingDirectory = windowsDirectory, UseShellExecute = false
-            });
-            return process == null
-                ? new ExplorerRestartResult(
-                    Succeeded: false,
-                    ErrorMessage: "Windows did not create a new Explorer process.")
-                : new ExplorerRestartResult(Succeeded: true, string.Empty);
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
-        {
-            return new ExplorerRestartResult(Succeeded: false, exception.Message);
-        }
+        ProcessLaunchResult launchResult = ExplorerProcessLauncher.StartWithParent(
+            explorerParent,
+            explorerPath,
+            arguments: [],
+            windowsDirectory);
+        return new ExplorerRestartResult(launchResult.Succeeded, launchResult.ErrorMessage);
     }
 
     private static string FormatExplorerFailure(int processID, string errorMessage)

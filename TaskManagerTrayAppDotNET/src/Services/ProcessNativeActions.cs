@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -38,7 +37,6 @@ internal static class ProcessNativeActions
     private const int WindowExtendedStyle = -20;
     private const long WindowStyleToolWindow = 0x00000080L;
     private const uint DwmWindowAttributeCloaked = 14;
-    private const uint ShellExecuteInvokeIDList = 0x0000000C;
 
     private static readonly NativeMethods.EnumWindowsCallback EnumerateWindowCallback = OnEnumerateWindow;
     private static readonly object MiniDumpLock = new();
@@ -367,25 +365,17 @@ internal static class ProcessNativeActions
     {
         if (!TryResolveImagePath(target, out string imagePath, out errorMessage)) return false;
 
-        try
-        {
-            ProcessStartInfo startInfo = new() { FileName = "explorer.exe", UseShellExecute = true };
-            startInfo.ArgumentList.Add("/select," + imagePath);
-            using Process? process = Process.Start(startInfo);
-            if (process != null)
-            {
-                errorMessage = string.Empty;
-                return true;
-            }
-
-            errorMessage = "Windows Explorer did not start.";
-            return false;
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
-        {
-            errorMessage = exception.Message;
-            return false;
-        }
+        string explorerPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            path2: "explorer.exe");
+        string arguments = $"/select,\"{imagePath}\"";
+        return ExplorerProcessLauncher.TryShellExecute(
+            explorerPath,
+            arguments,
+            workingDirectory: Path.GetDirectoryName(imagePath),
+            verb: null,
+            out _,
+            out errorMessage);
     }
 
     public static bool TryOpenProperties(
@@ -394,22 +384,13 @@ internal static class ProcessNativeActions
     {
         if (!TryResolveImagePath(target, out string imagePath, out errorMessage)) return false;
 
-        NativeMethods.ShellExecuteInfo shellExecuteInfo = new()
-        {
-            Size = (uint)Marshal.SizeOf<NativeMethods.ShellExecuteInfo>(),
-            Mask = ShellExecuteInvokeIDList,
-            Verb = "properties",
-            File = imagePath,
-            Show = ShowNormal
-        };
-        if (NativeMethods.ShellExecuteEx(ref shellExecuteInfo))
-        {
-            errorMessage = string.Empty;
-            return true;
-        }
-
-        errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
-        return false;
+        return ExplorerProcessLauncher.TryShellExecute(
+            imagePath,
+            arguments: null,
+            workingDirectory: Path.GetDirectoryName(imagePath),
+            verb: "properties",
+            out _,
+            out errorMessage);
     }
 
     public static bool TrySwitchToWindow(ProcessTerminationTarget target, out string errorMessage) =>
@@ -817,38 +798,6 @@ internal static class ProcessNativeActions
             public string? ExecutableFile;
         }
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct ShellExecuteInfo
-        {
-            public uint Size;
-            public uint Mask;
-            public IntPtr Window;
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string? Verb;
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string? File;
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string? Parameters;
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string? Directory;
-
-            public int Show;
-            public IntPtr Instance;
-            public IntPtr IDList;
-
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string? Class;
-
-            public IntPtr ClassKey;
-            public uint HotKey;
-            public IntPtr IconOrMonitor;
-            public IntPtr Process;
-        }
-
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processID);
 
@@ -888,10 +837,6 @@ internal static class ProcessNativeActions
             IntPtr exceptionParameters,
             IntPtr userStreamParameters,
             IntPtr callbackParameters);
-
-        [DllImport("shell32.dll", EntryPoint = "ShellExecuteExW", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ShellExecuteEx(ref ShellExecuteInfo shellExecuteInfo);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

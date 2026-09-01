@@ -1,6 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
-
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Invokes Windows shell actions for file-system targets.</summary>
@@ -28,22 +25,12 @@ internal static class ShellFileActions
             return false;
         }
 
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = normalizedPath, Verb = "properties", UseShellExecute = true
-            };
-            using Process? process = Process.Start(startInfo);
-            errorMessage = string.Empty;
-            return true;
-        }
-        catch (Exception exception) when (exception is InvalidOperationException
-                                              or Win32Exception
-                                              or NotSupportedException)
-        {
-            errorMessage = exception.Message;
-            return false;
-        }
+        return ExplorerProcessLauncher.TryShellExecute(
+            normalizedPath,
+            arguments: null,
+            workingDirectory: Path.GetDirectoryName(normalizedPath),
+            verb: "properties",
+            out _,
+            out errorMessage);
     }
 }

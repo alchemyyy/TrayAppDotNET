@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -766,11 +765,18 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             valueBlock.TextDecorations = TextDecorations.Underline;
             valueBlock.Cursor = TrayAppDotNETCursors.Hand;
-            valueBlock.PointerPressed += (_, e) =>
+            valueBlock.PointerPressed += (sender, eventArgs) =>
             {
-                if (!e.GetCurrentPoint(valueBlock).Properties.IsLeftButtonPressed) return;
-                using Process? process = Process.Start(new ProcessStartInfo(openUrl) { UseShellExecute = true });
-                e.Handled = true;
+                if (!eventArgs.GetCurrentPoint(valueBlock).Properties.IsLeftButtonPressed) return;
+                if (!ExplorerProcessLauncher.TryShellExecute(
+                        openUrl,
+                        arguments: null,
+                        workingDirectory: null,
+                        verb: null,
+                        out _,
+                        out string errorMessage))
+                    TADNLog.Log($"About page failed to open a link: {errorMessage}");
+                eventArgs.Handled = true;
             };
         }
 
