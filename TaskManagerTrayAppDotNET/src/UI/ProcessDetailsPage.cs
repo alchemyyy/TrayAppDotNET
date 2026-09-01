@@ -33,7 +33,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
     private readonly Grid _searchControls;
-    private readonly Grid _searchOverlay;
+    private readonly TaskManagerSearchOverlay _searchOverlay;
     private readonly ProcessSearchAutocompleteController _searchAutocomplete;
     private readonly ProcessSavedSearchController _savedSearches;
     private readonly TranslateTransform _searchControlsTransform = new();
@@ -189,11 +189,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             bottom: 0);
         _searchControls = new Grid
         {
-            HorizontalAlignment = settings.LeftAlignProcessSearchBar
-                ? HorizontalAlignment.Left
-                : HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = resources.AxamlTaskManagerDetails.SearchMargin,
             RenderTransform = _searchControlsTransform,
             ColumnDefinitions =
             {
@@ -208,9 +204,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         SetColumn(_searchBox, value: 2);
         _searchControls.Children.Add(_searchBox);
         UpdateSearchControlsPosition();
-        _searchOverlay = new Grid();
-        _searchOverlay.Children.Add(_searchControls);
-        _searchOverlay.Children.Add(_searchAutocomplete.Popup);
+        _searchOverlay = new TaskManagerSearchOverlay(
+            _searchControls,
+            _searchBox,
+            settings.LeftAlignProcessSearchBar,
+            resources.AxamlTaskManagerDetails.SearchMargin,
+            resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
+        _searchOverlay.AddOverlay(_searchAutocomplete.Popup);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -322,6 +322,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         out int searchWidth,
         out int leadingActionWidth) =>
         TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
+
+    void ITaskManagerSearchOverlayPage.SetSearchCaptionButtonAreaWidth(double width) =>
+        _searchOverlay.SetCaptionButtonAreaWidth(width);
 
     private void UpdateSearchControlsPosition()
     {
@@ -498,7 +501,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             resources.AxamlTaskManagerDetails.SearchActionSpacing,
             bottom: 0);
         _savedSearches.ApplyAXAMLResources(resources);
-        _searchControls.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
+        _searchOverlay.ApplyAXAMLResources(
+            resources.AxamlTaskManagerDetails.SearchMargin,
+            resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
         UpdateSearchControlsPosition();
 
         Grid runActions = (Grid)_runPanel.Child!;
@@ -1050,6 +1055,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;
+        _searchOverlay.Dispose();
         _savedSearches.Dispose();
         _searchAutocomplete.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;

@@ -40,6 +40,7 @@
   <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
   <sys:Int32 x:Key="TaskManagerDetails.ToolbarFontWeight">400</sys:Int32>
   <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchCaptionSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchClearGlyphScale">0.7</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphOpacity">1</sys:Double>

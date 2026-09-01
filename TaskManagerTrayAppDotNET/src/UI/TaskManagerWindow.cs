@@ -545,6 +545,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private Control RegisterPage<TPage>(TPage page)
         where TPage : TaskManagerPageLayout, IDisposable
     {
+        if (page is ITaskManagerSearchOverlayPage searchOverlayPage)
+            searchOverlayPage.SetSearchCaptionButtonAreaWidth(TitleBarCaptionButtonAreaWidth);
+
         page.AttachedToVisualTree += OnPageAttached;
         page.DetachedFromVisualTree += OnPageDetached;
         AddPageCleanup(() =>
@@ -702,12 +705,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             int proposedWidth = proposedBounds->Right - proposedBounds->Left;
             if (proposedWidth <= searchWidth) return;
 
+            double renderScaling = RenderScaling;
+            if (!double.IsFinite(renderScaling) || renderScaling <= 0)
+                renderScaling = 1;
             int pageContentLeft = 0;
             if (_settings.LeftAlignProcessSearchBar)
             {
-                double renderScaling = RenderScaling;
-                if (!double.IsFinite(renderScaling) || renderScaling <= 0)
-                    renderScaling = 1;
                 double proposedWidthDips = proposedWidth / renderScaling;
                 double pageContentLeftDips = ResolvePageContentLeftInset(proposedWidthDips);
                 pageContentLeft = (int)Math.Round(
@@ -716,13 +719,20 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 pageContentLeft += ResolveClientLeftInset(windowHandle);
             }
 
+            int captionButtonAreaWidth = (int)Math.Ceiling(
+                TitleBarCaptionButtonAreaWidth * renderScaling);
+            int captionSpacing = (int)Math.Ceiling(
+                _taskManagerResources.AxamlTaskManagerDetails.SearchCaptionSpacing * renderScaling);
+
             RestoredWindowDragSearchRange searchRange =
                 RestoredWindowDragGeometry.CalculateSearchRangeWithinWindow(
                     proposedWidth,
                     searchWidth,
                     leadingActionWidth,
                     _settings.LeftAlignProcessSearchBar,
-                    pageContentLeft);
+                    pageContentLeft,
+                    captionButtonAreaWidth,
+                    captionSpacing);
             _restoreDragSearchLeftWithinWindow = searchRange.Left;
             _restoreDragSearchRightWithinWindow = searchRange.Right;
             _restoreDragSearchRangeResolved = true;

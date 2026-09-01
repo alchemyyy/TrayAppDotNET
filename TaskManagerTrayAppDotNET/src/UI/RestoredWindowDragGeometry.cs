@@ -11,16 +11,25 @@ internal static class RestoredWindowDragGeometry
         int searchWidth,
         int leadingActionWidth,
         bool alignToPageArea,
-        int pageContentLeft)
+        int pageContentLeft,
+        int captionButtonAreaWidth = 0,
+        int captionSpacing = 0)
     {
         if (leadingActionWidth < 0)
             throw new ArgumentOutOfRangeException(nameof(leadingActionWidth));
+        if (captionButtonAreaWidth < 0)
+            throw new ArgumentOutOfRangeException(nameof(captionButtonAreaWidth));
+        if (captionSpacing < 0)
+            throw new ArgumentOutOfRangeException(nameof(captionSpacing));
 
         int left = CalculateSearchLeftWithinWindow(
             proposedWindowWidth,
             searchWidth,
             alignToPageArea,
             pageContentLeft);
+        int unshiftedRight = checked(left + searchWidth);
+        int maximumRight = proposedWindowWidth - captionButtonAreaWidth - captionSpacing;
+        left = checked(left + Math.Min(val1: 0, maximumRight - unshiftedRight));
         return new RestoredWindowDragSearchRange(
             Math.Max(val1: 0, left - leadingActionWidth),
             checked(left + searchWidth));

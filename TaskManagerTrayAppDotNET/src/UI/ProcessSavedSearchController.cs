@@ -25,6 +25,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
     private List<ProcessSavedSearch> _savedSearches;
     private EditableContextMenuWindow? _menuWindow;
     private Window? _menuOwner;
+    private bool _menuRepositionPending;
     private bool _deleteConfirmationPending;
 #if DEBUG
     private bool _hotReloadAttached;
@@ -313,6 +314,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         owner.Deactivated += OnMenuOwnerDeactivated;
+        owner.PositionChanged += OnMenuOwnerGeometryChanged;
+        owner.Resized += OnMenuOwnerResized;
+        _textBox.LayoutUpdated += OnSearchBoxLayoutUpdated;
     }
 
     private void DetachMenuOwner()
@@ -323,6 +327,49 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _menuOwner = null;
         owner.RemoveHandler(InputElement.PointerPressedEvent, OnMenuOwnerPointerPressed);
         owner.Deactivated -= OnMenuOwnerDeactivated;
+        owner.PositionChanged -= OnMenuOwnerGeometryChanged;
+        owner.Resized -= OnMenuOwnerResized;
+        _textBox.LayoutUpdated -= OnSearchBoxLayoutUpdated;
+        _menuRepositionPending = false;
+    }
+
+    private void OnMenuOwnerGeometryChanged(object? sender, PixelPointEventArgs eventArgs) =>
+        ScheduleMenuReposition();
+
+    private void OnMenuOwnerResized(object? sender, WindowResizedEventArgs eventArgs) =>
+        ScheduleMenuReposition();
+
+    private void OnSearchBoxLayoutUpdated(object? sender, EventArgs eventArgs) =>
+        ScheduleMenuReposition();
+
+    private void ScheduleMenuReposition()
+    {
+        EditableContextMenuWindow? menuWindow = _menuWindow;
+        Window? owner = _menuOwner;
+        if (_disposed || _menuRepositionPending || menuWindow == null || owner == null) return;
+
+        _menuRepositionPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _menuRepositionPending = false;
+            if (_disposed
+                || !ReferenceEquals(_menuWindow, menuWindow)
+                || !ReferenceEquals(_menuOwner, owner)
+                || !menuWindow.IsVisible
+                || TopLevel.GetTopLevel(_textBox) is not Window currentOwner
+                || !ReferenceEquals(currentOwner, owner))
+                return;
+
+            double menuWidth = _textBox.Bounds.Width;
+            if (double.IsFinite(menuWidth) && menuWidth > 0)
+            {
+                menuWindow.Width = menuWidth;
+                menuWindow.MinWidth = menuWidth;
+                menuWindow.MaxWidth = menuWidth;
+            }
+
+            menuWindow.RepositionOver(_textBox, _textBox, owner);
+        }, DispatcherPriority.Render);
     }
 
     private void OnMenuOwnerPointerPressed(object? sender, PointerPressedEventArgs eventArgs)

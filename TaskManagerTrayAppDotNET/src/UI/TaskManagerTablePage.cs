@@ -25,7 +25,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private readonly Grid _informationHost;
     private readonly TextBlock _emptyMessage;
     private readonly TextBox _searchBox;
-    private readonly Grid _searchOverlay;
+    private readonly TaskManagerSearchOverlay _searchOverlay;
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
     private readonly SettingsButton _runTaskButton;
@@ -74,15 +74,12 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _searchBox.PlaceholderText = searchPlaceholder;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.TextChanged += OnSearchTextChanged;
-        _searchOverlay = new Grid
-        {
-            HorizontalAlignment = settings.LeftAlignProcessSearchBar
-                ? HorizontalAlignment.Left
-                : HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = resources.AxamlTaskManagerDetails.SearchMargin,
-            Children = { _searchBox }
-        };
+        _searchOverlay = new TaskManagerSearchOverlay(
+            _searchBox,
+            _searchBox,
+            settings.LeftAlignProcessSearchBar,
+            resources.AxamlTaskManagerDetails.SearchMargin,
+            resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -178,6 +175,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         searchWidth = Math.Abs(screenRight.X - screenLeft.X);
         return searchWidth > 0;
     }
+
+    /// <summary>Reserves the live caption-button width supplied by the owning shell.</summary>
+    public void SetSearchCaptionButtonAreaWidth(double width) =>
+        _searchOverlay.SetCaptionButtonAreaWidth(width);
 
     protected TaskManagerTableRow? SelectedRow => _table.SelectedRow;
     protected SettingsButton RunTaskButton => _runTaskButton;
@@ -504,6 +505,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
         DetachExternalSubscriptions();
         _searchBox.TextChanged -= OnSearchTextChanged;
+        _searchOverlay.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;
         _submitRunButton.Click -= OnSubmitRunClick;
         _cancelRunButton.Click -= OnCancelRunClick;

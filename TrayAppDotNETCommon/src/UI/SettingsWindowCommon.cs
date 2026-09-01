@@ -37,6 +37,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     // Keep the custom frame available for borderless windows. It stays disabled while BorderOnly supplies
     // native resizing because drawing both frames doubles the border and insets the caption buttons
     private readonly bool EnableCustomWindowBorder = false;
+    private const int CaptionButtonCount = 3;
     private const int WorkAreaEdgeTolerancePixels = 1;
 
     private ContentControl _content = new();
@@ -170,6 +171,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual bool UsePageContentTitleBarDragZone => true;
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
+
+    /// <summary>Gets the width reserved by the minimize, maximize, and close buttons.</summary>
+    protected double TitleBarCaptionButtonAreaWidth =>
+        CaptionButtonCount * _settingsResources.AxamlSettingsWindow.CaptionButtonWidth;
 
     /// <summary>Returns page content that must render in the shell overlay instead of its content column.</summary>
     protected virtual Control? ResolvePageOverlay(Control pageRoot) => null;

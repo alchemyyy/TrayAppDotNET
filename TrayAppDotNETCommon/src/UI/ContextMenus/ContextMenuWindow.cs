@@ -318,15 +318,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         ArgumentNullException.ThrowIfNull(containingWindow);
         if (_closed) return;
 
-        PixelRect alignmentBounds = ScreenBounds(alignmentAnchor);
-        PixelRect edgeBounds = ScreenBounds(edgeAnchor);
-        PixelRect anchorBounds = new(
-            alignmentBounds.X,
-            edgeBounds.Y,
-            alignmentBounds.Width,
-            edgeBounds.Height);
         PixelRect containingBounds = ScreenBounds(containingWindow);
-        int availableHeight = ResolveOverlayAvailableHeight(containingBounds, anchorBounds);
 
         _closedFromDeactivation = false;
         _closedFromSelection = false;
@@ -337,32 +329,52 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         Dispatcher.UIThread.Post(() =>
         {
             if (_windowResources.IsDisposed || !IsVisible) return;
-            ScrollViewer? scrollViewer = _scrollViewer;
-            if (scrollViewer == null) return;
-
-            double chromeHeight = _options.RootBorderThickness.Top
-                                  + _options.RootBorderThickness.Bottom
-                                  + _options.RootPadding.Top
-                                  + _options.RootPadding.Bottom;
-            scrollViewer.MaxHeight = Math.Max(
-                _options.PixelMinSize,
-                availableHeight / RenderScaling - chromeHeight);
-
-            UpdateLayout();
-            int menuWidth = Math.Max(
-                _options.PixelMinSize,
-                (int)Math.Ceiling(Bounds.Width * RenderScaling));
-            int menuHeight = Math.Max(
-                _options.PixelMinSize,
-                (int)Math.Ceiling(Bounds.Height * RenderScaling));
-            Position = ResolveOverlayPosition(
-                containingBounds,
-                anchorBounds,
-                new PixelSize(menuWidth, menuHeight));
+            RepositionOver(alignmentAnchor, edgeAnchor, containingWindow);
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
             if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Repositions a visible overlaid menu against its current controls and containing window.</summary>
+    public void RepositionOver(Control alignmentAnchor, Control edgeAnchor, Window containingWindow)
+    {
+        ArgumentNullException.ThrowIfNull(alignmentAnchor);
+        ArgumentNullException.ThrowIfNull(edgeAnchor);
+        ArgumentNullException.ThrowIfNull(containingWindow);
+        if (_closed || _windowResources.IsDisposed || !IsVisible) return;
+
+        ScrollViewer? scrollViewer = _scrollViewer;
+        if (scrollViewer == null) return;
+
+        PixelRect alignmentBounds = ScreenBounds(alignmentAnchor);
+        PixelRect edgeBounds = ScreenBounds(edgeAnchor);
+        PixelRect anchorBounds = new(
+            alignmentBounds.X,
+            edgeBounds.Y,
+            alignmentBounds.Width,
+            edgeBounds.Height);
+        PixelRect containingBounds = ScreenBounds(containingWindow);
+        int availableHeight = ResolveOverlayAvailableHeight(containingBounds, anchorBounds);
+        double chromeHeight = _options.RootBorderThickness.Top
+                              + _options.RootBorderThickness.Bottom
+                              + _options.RootPadding.Top
+                              + _options.RootPadding.Bottom;
+        scrollViewer.MaxHeight = Math.Max(
+            _options.PixelMinSize,
+            availableHeight / RenderScaling - chromeHeight);
+
+        UpdateLayout();
+        int menuWidth = Math.Max(
+            _options.PixelMinSize,
+            (int)Math.Ceiling(Bounds.Width * RenderScaling));
+        int menuHeight = Math.Max(
+            _options.PixelMinSize,
+            (int)Math.Ceiling(Bounds.Height * RenderScaling));
+        Position = ResolveOverlayPosition(
+            containingBounds,
+            anchorBounds,
+            new PixelSize(menuWidth, menuHeight));
     }
 
     private void OnItemInvoked(ContextMenuItemControl item, ContextMenuEntry entry)

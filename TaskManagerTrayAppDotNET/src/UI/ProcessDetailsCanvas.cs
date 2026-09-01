@@ -69,6 +69,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
     private const string ZeroCPUTimeText = "0:00:00";
+    private const string UnavailableText = ProcessTableValuePresentation.UnavailableText;
     private const double BytesPerMebibyte = 1_048_576;
     private const double BytesPerMegabit = 1_000_000.0 / 8;
 
@@ -165,7 +166,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
     private ProcessSearchQuery _filterQuery;
-    private string _unavailableText;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private readonly HashSet<ProcessInstanceKey> _selectedProcesses = [];
     private ProcessInstanceKey? _selectedProcess;
@@ -257,7 +257,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _sortCaretRightMargin = _visualMetrics.SortCaretRightMargin;
         _totalPhysicalMemoryBytes = NativeProcessInfo.ReadTotalPhysicalMemoryBytes();
         _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
-        _unavailableText = ResolveUnavailableText();
 
 #if DEBUG
         _backgroundColor = resources.AxamlProcessTable.GridBackgroundColor;
@@ -322,7 +321,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphResourcesReloaded;
 #endif
-        LocalizationManager.Instance.CultureChanged += OnCultureChanged;
         _externalSubscriptionsAttached = true;
     }
 
@@ -1312,23 +1310,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     }
 #endif
 
-    private void OnCultureChanged(object? sender, EventArgs eventArgs)
-    {
-        if (IsDetailsGridDisposed) return;
-
-        string unavailableText = ResolveUnavailableText();
-        if (string.Equals(_unavailableText, unavailableText, StringComparison.Ordinal)) return;
-
-        _unavailableText = unavailableText;
-        RefreshLiveTotalHeaders();
-        RebuildRetainedRowDrawings();
-        RebuildCopyPreview();
-        InvalidateLayers(
-            RenderLayerMask.Rows
-            | RenderLayerMask.CopyPreview
-            | RenderLayerMask.Header);
-    }
-
 #if DEBUG
     private void RecreatePens()
     {
@@ -1396,11 +1377,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private string LocalizeUnavailableText(string value) =>
         string.Equals(value, NativeProcessInfo.Unavailable, StringComparison.Ordinal)
-            ? _unavailableText
+            ? UnavailableText
             : value;
-
-    private static string ResolveUnavailableText() =>
-        LocalizationManager.Instance[nameof(CommonStrings.Common_Unavailable)];
 
 #if DEBUG
     private static bool RetainedRowGeometryChanged(
@@ -2749,7 +2727,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         return kind switch
         {
             ProcessTableColumnKind.ProcessID => value.ToString(TableCulture),
-            ProcessTableColumnKind.SessionID => value < 0 ? _unavailableText : value.ToString(TableCulture),
+            ProcessTableColumnKind.SessionID => value < 0 ? UnavailableText : value.ToString(TableCulture),
             _ => FormatDisplayCode(value)
         };
     }
@@ -2778,7 +2756,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessTableColumnKind.CPUSingle => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
             ProcessTableColumnKind.CPUTime => FormatCPUTime(value),
             ProcessTableColumnKind.Lifetime => value < 0
-                ? _unavailableText
+                ? UnavailableText
                 : ProcessLifetime.Format(value),
             ProcessTableColumnKind.Cycle => FormatUnsigned(value),
             ProcessTableColumnKind.WorkingSet => FormatMemory(value, setting, isDelta: false),
@@ -2894,7 +2872,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessLiveTotalValue total,
         ProcessColumnSetting setting)
     {
-        if (!total.HasValue) return _unavailableText;
+        if (!total.HasValue) return UnavailableText;
 
         long value = total.EncodedValue;
         return column switch
@@ -2947,13 +2925,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         ProcessDisplayCode code = (ProcessDisplayCode)value;
         return code == ProcessDisplayCode.Unavailable
-            ? _unavailableText
+            ? UnavailableText
             : ProcessDisplayCodeText.Get(code);
     }
 
     private string FormatJobObjectID(long value) => value switch
     {
-        < 0 => _unavailableText,
+        < 0 => UnavailableText,
         0 => string.Empty,
         _ => value.ToString(TableCulture)
     };
@@ -2961,7 +2939,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private string FormatPercent(double value, ProcessColumnSetting setting)
     {
         long quantized = QuantizePercent(value, setting.ShowDecimalUsage);
-        if (quantized < 0) return _unavailableText;
+        if (quantized < 0) return UnavailableText;
 
         string display = setting.ShowDecimalUsage
             ? (quantized / 10.0).ToString(format: "0.0", TableCulture)
@@ -2982,12 +2960,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private string FormatMemory(long bytes, ProcessColumnSetting setting, bool isDelta)
     {
-        if (!isDelta && bytes < 0) return _unavailableText;
+        if (!isDelta && bytes < 0) return UnavailableText;
 
         long quantized = QuantizeMemory(bytes, setting.MemoryUnit, isDelta);
         if (quantized == -1 && setting.MemoryUnit == ProcessMemoryUnit.PercentageOfSystem
                             && _totalPhysicalMemoryBytes <= 0)
-            return _unavailableText;
+            return UnavailableText;
 
         string display = setting.MemoryUnit == ProcessMemoryUnit.Kilobytes
             ? quantized.ToString(format: "N0", TableCulture)
@@ -3013,7 +2991,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         string suffix)
     {
         long quantized = QuantizeTransferRate(bytesPerSecond, bytesPerDisplayUnit);
-        if (quantized < 0) return _unavailableText;
+        if (quantized < 0) return UnavailableText;
         if (quantized == 0) return string.Concat(ZeroText, str1: " ", suffix);
         return string.Concat((quantized / 10.0).ToString(format: "N1", TableCulture), str1: " ", suffix);
     }
@@ -3995,7 +3973,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (value == ZeroText
             || value == ZeroMemoryText
             || value == ZeroCPUTimeText
-            || value == _unavailableText)
+            || value == UnavailableText)
             return true;
         if (ProcessRowIndexComparer.IsDisplayCodeColumn(column)) return true;
 
@@ -4220,7 +4198,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphResourcesReloaded;
 #endif
-        LocalizationManager.Instance.CultureChanged -= OnCultureChanged;
         _externalSubscriptionsAttached = false;
         SelectedProcessChanged = null;
         RowHoverGeometryChanged = null;
@@ -4576,8 +4553,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
             if (IsDoubleColumn(column))
             {
-                return BitConverter.Int64BitsToDouble(leftValue)
-                    .CompareTo(BitConverter.Int64BitsToDouble(rightValue));
+                return ProcessTableValuePresentation.CompareNonnegativeDouble(
+                    BitConverter.Int64BitsToDouble(leftValue),
+                    BitConverter.Int64BitsToDouble(rightValue));
             }
 
             if (IsUnsignedColumn(column))

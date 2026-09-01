@@ -9,6 +9,8 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal interface ITaskManagerSearchOverlayPage
 {
     bool TryGetSearchDragRegionPixelWidths(out int searchWidth, out int leadingActionWidth);
+
+    void SetSearchCaptionButtonAreaWidth(double width);
 }
 
 /// <summary>Provides the shared Task Manager page header and main-content frame.</summary>

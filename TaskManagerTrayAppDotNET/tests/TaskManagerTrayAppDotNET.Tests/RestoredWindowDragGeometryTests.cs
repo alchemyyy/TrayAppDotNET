@@ -44,6 +44,23 @@ public sealed class RestoredWindowDragGeometryTests
         Assert.Equal(expectedRight, range.Right);
     }
 
+    [Fact]
+    public void SearchRangeMovesLeftOfCaptionButtonsWhenRestoredNarrow()
+    {
+        RestoredWindowDragSearchRange range =
+            RestoredWindowDragGeometry.CalculateSearchRangeWithinWindow(
+                proposedWindowWidth: 600,
+                searchWidth: 430,
+                leadingActionWidth: 0,
+                alignToPageArea: false,
+                pageContentLeft: 0,
+                captionButtonAreaWidth: 138,
+                captionSpacing: 8);
+
+        Assert.Equal(expected: 24, range.Left);
+        Assert.Equal(expected: 454, range.Right);
+    }
+
     [Theory]
     [InlineData(399)]
     [InlineData(800)]
