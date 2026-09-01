@@ -29,6 +29,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 {
     private const uint WindowMessageMoving = 0x0216;
     private const uint WindowMessageExitSizeMove = 0x0232;
+    private const double SidebarCaretRotationDegrees = 90;
+    private const string CollapseNavigationText = "Collapse navigation";
+    private const string ExpandNavigationText = "Expand navigation";
 
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
@@ -238,6 +241,37 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         base.UpdateSidebarHeader(sidebarHeader, usesCompactRail);
     }
 
+    protected override IReadOnlyList<SettingsNavItem> CreateSidebarNavigationActions(SettingsPalette palette)
+    {
+        TaskManagerSidebarCaretIcon caretIcon = new(
+            TaskManagerGlyphCatalog.CARET_LEFT,
+            palette,
+            SettingsNavItem.NavigationGlyphFontSize,
+            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity);
+        SettingsNavItem sidebarCollapseButton = new(
+            CollapseNavigationText,
+            palette,
+            RadiusTiny,
+            RadiusMedium,
+            useWindows11Style: true,
+            customNavigationIcon: caretIcon,
+            navigationIconTransform: new RotateTransform(SidebarCaretRotationDegrees));
+        sidebarCollapseButton.Click += OnSidebarCaretButtonClick;
+        return [sidebarCollapseButton];
+    }
+
+    protected override void UpdateSidebarNavigationActions(
+        IReadOnlyList<SettingsNavItem> navigationActions,
+        bool isCollapsed)
+    {
+        SettingsNavItem sidebarCollapseButton = navigationActions[0];
+        sidebarCollapseButton.SetText(isCollapsed ? ExpandNavigationText : CollapseNavigationText);
+        sidebarCollapseButton.SetNavigationGlyph(
+            isCollapsed
+                ? TaskManagerGlyphCatalog.CARET_RIGHT
+                : TaskManagerGlyphCatalog.CARET_LEFT);
+    }
+
     protected override void OnOpened(EventArgs eventArgs)
     {
         // Register before the shared shell hook so its handled-message return value remains last
@@ -285,7 +319,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity);
         TrayAppDotNETToolTip.SetTip(
             sidebarCaretButton,
-            isCollapsed ? "Expand navigation" : "Collapse navigation");
+            isCollapsed ? ExpandNavigationText : CollapseNavigationText);
     }
 
     private void OnSidebarCaretButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
@@ -296,17 +330,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         double fontSize,
         double opacity)
     {
-        TextBlock caret = TrayAppDotNETSettingsUI.Text(string.Empty, palette, fontSize);
-        caret.HorizontalAlignment = HorizontalAlignment.Center;
-        caret.VerticalAlignment = VerticalAlignment.Center;
-        caret.Opacity = opacity;
-        GlyphApplicator.ApplyTo(caret, glyph);
+        TaskManagerSidebarCaretIcon caret = new(glyph, palette, fontSize, opacity);
 
         return new Grid
         {
             IsHitTestVisible = false,
             RenderTransformOrigin = RelativePoint.Center,
-            RenderTransform = new RotateTransform(90),
+            RenderTransform = new RotateTransform(SidebarCaretRotationDegrees),
             Children = { caret }
         };
     }
@@ -1013,6 +1043,46 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _title.Opacity = isCompact ? 0 : 1;
             _title.IsHitTestVisible = !isCompact;
             _icon.Opacity = isCompact ? 1 : 0;
+        }
+    }
+
+    private sealed class TaskManagerSidebarCaretIcon : Grid, ISettingsNavigationGlyphIcon
+    {
+        private readonly TextBlock _caret;
+        private Color _iconColor;
+
+        public TaskManagerSidebarCaretIcon(
+            Glyph glyph,
+            SettingsPalette palette,
+            double fontSize,
+            double opacity)
+        {
+            _iconColor = palette.Foreground;
+            RenderTransformOrigin = RelativePoint.Center;
+            _caret = TrayAppDotNETSettingsUI.Text(string.Empty, palette, fontSize);
+            _caret.HorizontalAlignment = HorizontalAlignment.Center;
+            _caret.VerticalAlignment = VerticalAlignment.Center;
+            _caret.Opacity = opacity;
+            Children.Add(_caret);
+            SetGlyph(glyph);
+        }
+
+        public Color IconColor
+        {
+            get => _iconColor;
+            set
+            {
+                if (_iconColor == value) return;
+
+                _iconColor = value;
+                _caret.Foreground = TrayAppDotNETSettingsUI.Brush(value);
+            }
+        }
+
+        public void SetGlyph(Glyph glyph)
+        {
+            _caret.RenderTransform = null;
+            GlyphApplicator.ApplyTo(_caret, glyph);
         }
     }
 

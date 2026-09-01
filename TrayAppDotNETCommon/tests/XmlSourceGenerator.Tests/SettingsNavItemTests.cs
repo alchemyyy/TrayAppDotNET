@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
@@ -10,6 +11,7 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 public sealed class SettingsNavItemTests
 {
     private const string GeneralGlyph = "\uE71D";
+    private const string AlternateGlyph = "\uE713";
 
     [Fact]
     public void ClassicStylePreservesOriginalIndicatorGutter() => AvaloniaTestHost.Run(() =>
@@ -85,9 +87,63 @@ public sealed class SettingsNavItemTests
         Assert.Equal(Colors.Lime, icon.IconColor);
     });
 
+    [Fact]
+    public void Windows11StyleUpdatesLabelAndBuiltInGlyphInPlace() => AvaloniaTestHost.Run(() =>
+    {
+        SettingsPalette palette = CreatePalette(Colors.Black, Colors.White);
+        SettingsNavItem item = new(
+            text: "Collapse navigation",
+            palette,
+            useWindows11Style: true,
+            navigationGlyph: Glyph.SegoeFluent(GeneralGlyph));
+        TextBlock originalLabel = Assert.Single(
+            item.GetVisualDescendants().OfType<TextBlock>(),
+            static textBlock => textBlock.Text == "Collapse navigation");
+        TextBlock originalIcon = Assert.Single(
+            item.GetVisualDescendants().OfType<TextBlock>(),
+            static textBlock => textBlock.Text == GeneralGlyph);
+
+        item.SetText("Expand navigation");
+        item.SetNavigationGlyph(Glyph.SegoeFluent(AlternateGlyph));
+
+        Assert.Equal("Expand navigation", item.Text);
+        Assert.Equal("Expand navigation", originalLabel.Text);
+        Assert.Equal(AlternateGlyph, originalIcon.Text);
+        Assert.Same(
+            originalIcon,
+            Assert.Single(
+                item.GetVisualDescendants().OfType<TextBlock>(),
+                static textBlock => textBlock.Text == AlternateGlyph));
+    });
+
+    [Fact]
+    public void MutableCustomNavigationIconReceivesGlyphUpdates() => AvaloniaTestHost.Run(() =>
+    {
+        SettingsPalette palette = CreatePalette(Colors.Black, Colors.White);
+        TestSettingsNavigationGlyphIcon icon = new() { IconColor = palette.Foreground };
+        SettingsNavItem item = new(
+            text: "Collapse navigation",
+            palette,
+            useWindows11Style: true,
+            customNavigationIcon: icon);
+        Glyph glyph = Glyph.SegoeFluent(AlternateGlyph);
+
+        item.SetNavigationGlyph(glyph);
+
+        Assert.Same(glyph, icon.Glyph);
+    });
+
     private sealed class TestSettingsNavigationIcon : Control, ISettingsNavigationIcon
     {
         public Color IconColor { get; set; }
+    }
+
+    private sealed class TestSettingsNavigationGlyphIcon : Control, ISettingsNavigationGlyphIcon
+    {
+        public Color IconColor { get; set; }
+        public Glyph? Glyph { get; private set; }
+
+        public void SetGlyph(Glyph glyph) => Glyph = glyph;
     }
 
     private static SettingsPalette CreatePalette(Color background, Color foreground) =>

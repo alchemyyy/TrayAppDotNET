@@ -302,6 +302,46 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Equal(expectedCollapsed ? 0 : window.ConfiguredSidebarWidth, body.ColumnDefinitions[0].Width.Value);
     });
 
+    [Fact]
+    public void SidebarActionFollowsPageLayoutAndTogglesCompactRail() => AvaloniaTestHost.Run(() =>
+    {
+        SidebarActionSettingsWindow window = new(width: 900);
+        Border root = Assert.IsType<Border>(window.Content);
+        Border contentSurface = Assert.IsType<Border>(root.Child);
+        Grid shell = Assert.IsType<Grid>(contentSurface.Child);
+        Grid body = Assert.Single(shell.Children.OfType<Grid>(), candidate => Grid.GetRow(candidate) == 1);
+        SettingsSidebar sidebar = Assert.Single(body.Children.OfType<SettingsSidebar>());
+        SettingsNavItem[] navigationItems = sidebar.Navigation.Children
+            .OfType<SettingsNavItem>()
+            .ToArray();
+
+        Assert.Equal(new[] { "Stable", "Collapse navigation" }, navigationItems.Select(item => item.Text));
+        Assert.Same(window.SidebarAction, navigationItems[1]);
+
+        window.SidebarAction.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Enter
+        });
+
+        Assert.True(sidebar.IsVisible);
+        Assert.Equal(expected: 52, body.ColumnDefinitions[0].Width.Value);
+        Assert.Equal(SettingsUILayout.Windows11CompactNavItemWidth, window.SidebarAction.Width);
+        Assert.Equal("Expand navigation", window.SidebarAction.Text);
+        Assert.Equal("Expand navigation", ToolTip.GetTip(window.SidebarAction));
+
+        window.SidebarAction.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Enter
+        });
+
+        Assert.Equal(window.ConfiguredSidebarWidth, body.ColumnDefinitions[0].Width.Value);
+        Assert.True(double.IsNaN(window.SidebarAction.Width));
+        Assert.Equal("Collapse navigation", window.SidebarAction.Text);
+        Assert.Null(ToolTip.GetTip(window.SidebarAction));
+    });
+
     [Theory]
     [InlineData(true, 900.0, false)]
     [InlineData(true, 749.0, true)]
@@ -925,6 +965,64 @@ public sealed class SettingsWindowLifetimeTests
         [
             new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
         ];
+
+        protected override void Save()
+        {
+        }
+    }
+
+    private sealed class SidebarActionSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private const string CollapseGlyph = "\uE76B";
+        private const string ExpandGlyph = "\uE76C";
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public SidebarActionSettingsWindow(double width)
+        {
+            ConfigureSettingsWindow(title: "Sidebar Action Test", icon: null);
+            MinWidth = 0;
+            Width = width;
+            ClientSize = new Size(width, height: 600);
+            InitializeSettingsShell();
+        }
+
+        public SettingsNavItem SidebarAction { get; private set; } = null!;
+        public double ConfiguredSidebarWidth => SidebarWidth;
+
+        protected override bool EnableRoundedCorners => false;
+        protected override bool UseWindows11SettingsNavigation => true;
+        protected override double CollapsedSidebarWidth => 52;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Sidebar Action Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
+        ];
+
+        protected override IReadOnlyList<SettingsNavItem> CreateSidebarNavigationActions(SettingsPalette palette)
+        {
+            SidebarAction = new SettingsNavItem(
+                "Collapse navigation",
+                palette,
+                useWindows11Style: true,
+                navigationGlyph: Glyph.SegoeFluent(CollapseGlyph));
+            SidebarAction.Click += (_, _) => ToggleSidebarCollapse();
+            return [SidebarAction];
+        }
+
+        protected override void UpdateSidebarNavigationActions(
+            IReadOnlyList<SettingsNavItem> navigationActions,
+            bool isCollapsed)
+        {
+            SettingsNavItem sidebarAction = navigationActions[0];
+            sidebarAction.SetText(isCollapsed ? "Expand navigation" : "Collapse navigation");
+            sidebarAction.SetNavigationGlyph(
+                Glyph.SegoeFluent(isCollapsed ? ExpandGlyph : CollapseGlyph));
+        }
 
         protected override void Save()
         {

@@ -352,19 +352,30 @@ public interface ISettingsNavigationIcon
     Color IconColor { get; set; }
 }
 
+/// <summary>Allows a custom settings-navigation icon to replace its glyph without rebuilding the row.</summary>
+public interface ISettingsNavigationGlyphIcon : ISettingsNavigationIcon
+{
+    void SetGlyph(Glyph glyph);
+}
+
 public sealed class SettingsNavItem : Border
 {
     private readonly SettingsPalette _palette;
-    private readonly string _text;
+    private string _text;
     private readonly Border _outer;
     private readonly Border _indicator;
     private readonly TextBlock _label;
     private readonly IBrush _selectedIndicatorBrush;
     private readonly ISettingsNavigationIcon? _customNavigationIcon;
+    private readonly TextBlock? _navigationGlyph;
+    private readonly ITransform? _navigationIconTransform;
     private readonly bool _useWindows11Style;
     private bool _isPointerOver;
     private bool _isSelected;
     private bool _isCompact;
+
+    /// <summary>Gets the glyph font size used by standard Windows 11 navigation rows.</summary>
+    public static double NavigationGlyphFontSize => SettingsUILayout.Windows11NavIconFontSize;
 
     public SettingsNavItem(
         string text,
@@ -379,6 +390,7 @@ public sealed class SettingsNavItem : Border
     {
         _palette = palette;
         _text = text;
+        _navigationIconTransform = navigationIconTransform;
         _useWindows11Style = useWindows11Style;
         Background = Brushes.Transparent;
         Margin = SettingsUILayout.NavItemMargin;
@@ -408,7 +420,10 @@ public sealed class SettingsNavItem : Border
         Thickness itemPadding;
         if (useWindows11Style)
         {
-            Control? navigationIcon = customNavigationIcon ?? CreateNavigationGlyph(navigationGlyph, palette);
+            _navigationGlyph = customNavigationIcon == null
+                ? CreateNavigationGlyph(navigationGlyph, palette)
+                : null;
+            Control? navigationIcon = customNavigationIcon ?? _navigationGlyph;
             _customNavigationIcon = navigationIcon as ISettingsNavigationIcon;
             row = CreateWindows11Content(
                 _label,
@@ -471,6 +486,8 @@ public sealed class SettingsNavItem : Border
 
     public event EventHandler? Click;
 
+    public string Text => _text;
+
     public bool IsSelected
     {
         get => _isSelected;
@@ -480,6 +497,37 @@ public sealed class SettingsNavItem : Border
             _isSelected = value;
             UpdateVisual();
         }
+    }
+
+    /// <summary>Updates the visible label and compact-mode tooltip without rebuilding the row.</summary>
+    public void SetText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (string.Equals(_text, text, StringComparison.Ordinal)) return;
+
+        _text = text;
+        _label.Text = text;
+        if (_isCompact)
+            TrayAppDotNETToolTip.SetTip(this, text);
+    }
+
+    /// <summary>Updates a built-in or mutable custom navigation glyph without rebuilding the row.</summary>
+    public void SetNavigationGlyph(Glyph glyph)
+    {
+        ArgumentNullException.ThrowIfNull(glyph);
+        if (_customNavigationIcon is ISettingsNavigationGlyphIcon customGlyphIcon)
+        {
+            customGlyphIcon.SetGlyph(glyph);
+            return;
+        }
+
+        if (_navigationGlyph == null)
+            throw new InvalidOperationException("This navigation item does not contain a mutable glyph icon.");
+
+        _navigationGlyph.RenderTransform = null;
+        GlyphApplicator.ApplyTo(_navigationGlyph, glyph);
+        if (_navigationIconTransform != null)
+            _navigationGlyph.RenderTransform = _navigationIconTransform;
     }
 
     /// <summary>Switches Windows 11 navigation between labeled rows and square glyph buttons.</summary>
