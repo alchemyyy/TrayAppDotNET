@@ -25,16 +25,19 @@ internal static class KillHelperProtocol
     public const int FlagStackLocked = 0x00000080;
     public const int FlagLockCapacityReserved = 0x00000100;
 
-    public const int RequiredHardeningFlags =
+    public const int RequiredReliabilityFlags =
         FlagMailboxLocked |
         FlagStateLocked |
         FlagHotCodeLocked |
         FlagKernelCodeLocked |
         FlagHighPriority |
-        FlagDebugPrivilege |
         FlagPowerThrottlingDisabled |
         FlagStackLocked |
         FlagLockCapacityReserved;
+
+    public const int RequiredHardeningFlags =
+        RequiredReliabilityFlags |
+        FlagDebugPrivilege;
 
     public const int ResultNone = 0;
     public const int ResultSuccess = 1;

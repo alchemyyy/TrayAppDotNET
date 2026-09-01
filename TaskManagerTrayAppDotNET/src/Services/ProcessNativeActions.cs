@@ -26,7 +26,6 @@ internal static class ProcessNativeActions
     private const uint MiniDumpWithFullMemory = 0x00000002;
     private const uint MiniDumpWithUnloadedModules = 0x00000020;
     private const uint MiniDumpWithThreadInfo = 0x00001000;
-    private const uint TerminationExitCode = 1;
     private const int MaximumPathCharacters = 32_768;
     private const int MaximumDumpNameAttempts = 100;
     private const int ShowNormal = 1;
@@ -44,11 +43,13 @@ internal static class ProcessNativeActions
     /// <summary>Returns whether the process currently owns a user-facing top-level window.</summary>
     public static bool HasTopLevelWindow(int processID) => TryResolveTopLevelWindow(processID, out _);
 
-    /// <summary>Terminates descendants deepest-first while leaving the root for the caller's elevated path.</summary>
+    /// <summary>Routes descendants deepest-first through the supplied termination path.</summary>
     public static bool TryTerminateDescendants(
         ProcessTerminationTarget target,
+        TryTerminateProcessAction terminateProcess,
         out string errorMessage)
     {
+        ArgumentNullException.ThrowIfNull(terminateProcess);
         if (!TryOpenValidatedProcess(
                 target,
                 Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
@@ -73,7 +74,7 @@ internal static class ProcessNativeActions
             return true;
         }
 
-        List<OpenedProcess> openedDescendants = new(descendantProcessIDs.Count);
+        List<ProcessTerminationTarget> descendantTargets = new(descendantProcessIDs.Count);
         List<string> failures = [];
         for (int descendantIndex = 0; descendantIndex < descendantProcessIDs.Count; descendantIndex++)
         {
@@ -85,7 +86,7 @@ internal static class ProcessNativeActions
             }
 
             IntPtr processHandle = Kernel32.OpenProcess(
-                Kernel32.PROCESS_TERMINATE | Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
+                Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
                 bInheritHandle: false,
                 (uint)processID);
             if (processHandle == IntPtr.Zero)
@@ -125,24 +126,17 @@ internal static class ProcessNativeActions
                 continue;
             }
 
-            openedDescendants.Add(new OpenedProcess(processID, processHandle));
+            descendantTargets.Add(new ProcessTerminationTarget(processID, creationTime));
+            _ = Kernel32.CloseHandle(processHandle);
         }
 
         // Breadth-first discovery means reversing the list terminates children before parents.
-        for (int openedIndex = openedDescendants.Count - 1; openedIndex >= 0; openedIndex--)
+        for (int targetIndex = descendantTargets.Count - 1; targetIndex >= 0; targetIndex--)
         {
-            OpenedProcess openedProcess = openedDescendants[openedIndex];
-            try
+            ProcessTerminationTarget descendantTarget = descendantTargets[targetIndex];
+            if (!terminateProcess(descendantTarget, out string terminationError))
             {
-                if (!Kernel32.TerminateProcess(openedProcess.Handle, TerminationExitCode))
-                {
-                    failures.Add(
-                        $"PID {openedProcess.ProcessID}: {DescribeWin32Error(Marshal.GetLastWin32Error())}");
-                }
-            }
-            finally
-            {
-                _ = Kernel32.CloseHandle(openedProcess.Handle);
+                failures.Add($"PID {descendantTarget.ProcessID}: {terminationError}");
             }
         }
 
@@ -756,8 +750,6 @@ internal static class ProcessNativeActions
     }
 
     private readonly record struct ProcessTreeEntry(int ProcessID, int ParentProcessID);
-
-    private readonly record struct OpenedProcess(int ProcessID, IntPtr Handle);
 
     private sealed class WindowEnumerationState(int processID)
     {

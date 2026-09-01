@@ -1,11 +1,24 @@
 namespace TaskManagerTrayAppDotNET.Services;
 
+internal delegate bool TryKillHelperRequestAction(
+    ProcessTerminationTarget target,
+    long generation,
+    out long requestSequence);
+
+internal delegate bool TryKillHelperResponseAction(
+    long requestSequence,
+    int timeoutMilliseconds,
+    out int result,
+    out int errorCode);
+
 /// <summary>Exposes one ready helper session while keeping its native transport replaceable in tests.</summary>
 internal sealed class ElevatedKillHelperSession : IDisposable
 {
     private readonly ElevatedKillHelperClient? _client;
     private readonly Func<bool>? _isReady;
     private readonly Func<ProcessTerminationTarget?, long, bool>? _tryArm;
+    private readonly TryKillHelperRequestAction? _tryRequestTermination;
+    private readonly TryKillHelperResponseAction? _tryWaitForResponse;
     private readonly Action? _dispose;
     private int _disposed;
 
@@ -18,13 +31,17 @@ internal sealed class ElevatedKillHelperSession : IDisposable
     internal ElevatedKillHelperSession(
         Func<bool> isReady,
         Func<ProcessTerminationTarget?, long, bool> tryArm,
-        Action dispose)
+        Action dispose,
+        TryKillHelperRequestAction? tryRequestTermination = null,
+        TryKillHelperResponseAction? tryWaitForResponse = null)
     {
         ArgumentNullException.ThrowIfNull(isReady);
         ArgumentNullException.ThrowIfNull(tryArm);
         ArgumentNullException.ThrowIfNull(dispose);
         _isReady = isReady;
         _tryArm = tryArm;
+        _tryRequestTermination = tryRequestTermination;
+        _tryWaitForResponse = tryWaitForResponse;
         _dispose = dispose;
     }
 
@@ -36,7 +53,7 @@ internal sealed class ElevatedKillHelperSession : IDisposable
         ? _client?.HardeningFlags ?? 0
         : 0;
 
-    /// <summary>Pre-opens the selected target in the elevated helper.</summary>
+    /// <summary>Pre-opens the selected target in the native helper.</summary>
     public bool TryArm(ProcessTerminationTarget? target, long generation)
     {
         if (Volatile.Read(ref _disposed) != 0) return false;
@@ -51,9 +68,10 @@ internal sealed class ElevatedKillHelperSession : IDisposable
         out long requestSequence)
     {
         requestSequence = 0;
-        return Volatile.Read(ref _disposed) == 0 &&
-               _client != null &&
-               _client.TryRequestTermination(target, generation, out requestSequence);
+        if (Volatile.Read(ref _disposed) != 0) return false;
+        if (_client != null)
+            return _client.TryRequestTermination(target, generation, out requestSequence);
+        return _tryRequestTermination?.Invoke(target, generation, out requestSequence) ?? false;
     }
 
     /// <summary>Waits for a matching helper response without depending on the thread pool.</summary>
@@ -65,13 +83,20 @@ internal sealed class ElevatedKillHelperSession : IDisposable
     {
         result = KillHelperProtocol.ResultNone;
         errorCode = 0;
-        return Volatile.Read(ref _disposed) == 0 &&
-               _client != null &&
-               _client.TryWaitForResponse(
+        if (Volatile.Read(ref _disposed) != 0) return false;
+        if (_client != null)
+        {
+            return _client.TryWaitForResponse(
+                requestSequence,
+                timeoutMilliseconds,
+                out result,
+                out errorCode);
+        }
+        return _tryWaitForResponse?.Invoke(
                    requestSequence,
                    timeoutMilliseconds,
                    out result,
-                   out errorCode);
+                   out errorCode) ?? false;
     }
 
     public void Dispose()

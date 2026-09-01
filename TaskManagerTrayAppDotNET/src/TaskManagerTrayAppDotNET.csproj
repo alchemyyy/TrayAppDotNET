@@ -25,8 +25,12 @@
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
     <NativeKillHelperFileName>TaskManagerTrayAppDotNET.KillHelper.exe</NativeKillHelperFileName>
     <NativeKillHelperSourceDirectory>$(MSBuildProjectDirectory)\..\native\KillHelper</NativeKillHelperSourceDirectory>
-    <NativeKillHelperBuildDirectory>$(TrayAppDotNETRoot).native\TaskManagerKillHelper\$(Configuration)</NativeKillHelperBuildDirectory>
+    <NativeKillHelperIntermediateDirectory>$(MSBuildProjectDirectory)\..\obj\$(Platform)\$(Configuration)</NativeKillHelperIntermediateDirectory>
+    <NativeKillHelperBuildDirectory>$(NativeKillHelperIntermediateDirectory)\kill-helper</NativeKillHelperBuildDirectory>
+    <NativeKillHelperBuildDirectory Condition="'$(RuntimeIdentifier)' != ''">$(NativeKillHelperIntermediateDirectory)\$(RuntimeIdentifier)\kill-helper</NativeKillHelperBuildDirectory>
     <NativeKillHelperExecutable>$(NativeKillHelperBuildDirectory)\out\$(NativeKillHelperFileName)</NativeKillHelperExecutable>
+    <NativeKillHelperLibraryFileName>TaskManagerTrayAppDotNET.KillHelper.NativeAOT.lib</NativeKillHelperLibraryFileName>
+    <NativeKillHelperLibrary>$(NativeKillHelperBuildDirectory)\out\$(NativeKillHelperLibraryFileName)</NativeKillHelperLibrary>
     <NativeKillHelperConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeKillHelperConfiguration>
     <NativeKillHelperConfiguration Condition="'$(NativeKillHelperConfiguration)' == ''">Release</NativeKillHelperConfiguration>
     <TrayAppDotNETAdditionalUnlockProcessNames>TaskManagerTrayAppDotNET.KillHelper</TrayAppDotNETAdditionalUnlockProcessNames>
@@ -40,10 +44,19 @@
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
     <OptimizationPreference>Speed</OptimizationPreference>
+    <CustomNativeMain>true</CustomNativeMain>
+    <ControlFlowGuard>Guard</ControlFlowGuard>
+    <IlcDefaultStackSize>1572864,131072</IlcDefaultStackSize>
+    <DefineConstants>$(DefineConstants);TASK_MANAGER_NATIVE_AOT</DefineConstants>
     <InvariantGlobalization>false</InvariantGlobalization>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NativeKillHelperBuildOutput Condition="'$(CustomNativeMain)' == 'true'">$(NativeKillHelperLibrary)</NativeKillHelperBuildOutput>
+    <NativeKillHelperBuildOutput Condition="'$(NativeKillHelperBuildOutput)' == ''">$(NativeKillHelperExecutable)</NativeKillHelperBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -97,26 +110,43 @@
     <InternalsVisibleTo Include="TaskManagerTrayAppDotNET.Tests" />
     <_NativeKillHelperSource Include="$(NativeKillHelperSourceDirectory)\**\*" />
     <Content Include="$(NativeKillHelperExecutable)"
+             Condition="'$(CustomNativeMain)' != 'true'"
              Link="$(NativeKillHelperFileName)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest"
              Visible="false" />
+    <NativeLibrary Include="$(NativeKillHelperLibrary)"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
   </ItemGroup>
 
   <Target Name="BuildNativeKillHelper"
           BeforeTargets="PrepareForBuild"
           Inputs="@(_NativeKillHelperSource)"
-          Outputs="$(NativeKillHelperExecutable)">
+          Outputs="$(NativeKillHelperBuildOutput)">
     <MakeDir Directories="$(NativeKillHelperBuildDirectory)" />
     <Exec Command="cmake -S &quot;$(NativeKillHelperSourceDirectory)&quot; -B &quot;$(NativeKillHelperBuildDirectory)&quot; -A x64" />
-    <Exec Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelper" />
-    <Error Condition="!Exists('$(NativeKillHelperExecutable)')"
-           Text="Native kill helper was not produced at $(NativeKillHelperExecutable)." />
+    <Exec Condition="'$(CustomNativeMain)' == 'true'"
+          Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelperNativeAOT" />
+    <Exec Condition="'$(CustomNativeMain)' != 'true'"
+          Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelper" />
+    <Error Condition="!Exists('$(NativeKillHelperBuildOutput)')"
+           Text="Native kill helper output was not produced at $(NativeKillHelperBuildOutput)." />
+  </Target>
+
+  <Target Name="RemoveNativeKillHelperSidecarFromAOTOutput"
+          BeforeTargets="PrepareForBuild;PrepareForPublish"
+          Condition="'$(CustomNativeMain)' == 'true'">
+    <ItemGroup>
+      <_NativeKillHelperStaleSidecar Include="$(TargetDir)$(NativeKillHelperFileName)" />
+      <_NativeKillHelperStaleSidecar Include="$(PublishDir)$(NativeKillHelperFileName)"
+                                     Condition="'$(PublishDir)' != ''" />
+    </ItemGroup>
+    <Delete Files="@(_NativeKillHelperStaleSidecar)" />
   </Target>
 
   <Target Name="CleanNativeKillHelper" AfterTargets="Clean">
-    <RemoveDir Directories="$(NativeKillHelperBuildDirectory)"
-               Condition="Exists('$(NativeKillHelperBuildDirectory)')" />
+    <RemoveDir Directories="$(NativeKillHelperIntermediateDirectory)\kill-helper;$(NativeKillHelperIntermediateDirectory)\win-x64\kill-helper"
+               Condition="Exists('$(NativeKillHelperIntermediateDirectory)\kill-helper') or Exists('$(NativeKillHelperIntermediateDirectory)\win-x64\kill-helper')" />
   </Target>
 
   <Target Name="CopyHotAvaloniaRuntimeAssemblies"
@@ -183,6 +213,8 @@
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
           ContinueOnError="WarnAndContinue"
           Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
+    <Delete Files="$(OutputPath)$(NativeKillHelperFileName)"
+            Condition="Exists('$(OutputPath)$(NativeKillHelperFileName)')" />
     <Message Importance="High" Text="Published to $(OutputPath)" />
   </Target>
 </Project>

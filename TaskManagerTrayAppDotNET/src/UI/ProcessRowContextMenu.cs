@@ -252,6 +252,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
                     if (ProcessNativeActions.TryTerminateDescendants(
                             process.Target,
+                            _terminateProcess,
                             out string errorMessage))
                     {
                         refreshNeeded = true;

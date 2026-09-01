@@ -16,11 +16,13 @@ internal readonly record struct ElevatedKillHelperStartResult(
     ElevatedKillHelperSession? Session,
     string ErrorMessage);
 
-/// <summary>Owns the fixed shared page and event-driven elevated helper session.</summary>
+/// <summary>Owns the fixed shared page and event-driven native helper session.</summary>
 internal sealed unsafe class ElevatedKillHelperClient : IDisposable
 {
     private const int ErrorCancelled = 1223;
     private const int HelperHandshakeTimeoutMilliseconds = 10_000;
+    private const uint HelperResponseWaitHandleCount = 2;
+    private const uint HelperProcessWaitOffset = 1;
     private const uint TerminationExitCode = 1;
 
     private readonly Action<string>? _log;
@@ -58,10 +60,13 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         }
     }
 
-    /// <summary>Creates all kernel objects before crossing the UAC elevation boundary.</summary>
-    public static ElevatedKillHelperStartResult TryStart(IntPtr ownerWindowHandle, Action<string>? log)
+    /// <summary>Creates all kernel objects before launching the requested helper integrity level.</summary>
+    public static ElevatedKillHelperStartResult TryStart(
+        IntPtr ownerWindowHandle,
+        bool elevate,
+        Action<string>? log)
     {
-        if (ownerWindowHandle == IntPtr.Zero)
+        if (elevate && ownerWindowHandle == IntPtr.Zero)
         {
             const string ownerErrorMessage =
                 "The Task Manager window is not ready to own the Windows approval prompt.";
@@ -77,12 +82,12 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         string errorMessage;
         try
         {
-            outcome = client.TryInitialize(ownerWindowHandle, out errorMessage);
+            outcome = client.TryInitialize(elevate, out errorMessage);
         }
         catch (Exception exception)
         {
             outcome = ElevatedKillHelperStartOutcome.Failed;
-            errorMessage = $"Elevated kill helper initialization failed: {exception.Message}";
+            errorMessage = $"Native kill helper initialization failed: {exception.Message}";
             log?.Invoke(errorMessage);
         }
 
@@ -98,7 +103,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         return new ElevatedKillHelperStartResult(outcome, Session: null, errorMessage);
     }
 
-    /// <summary>Pre-opens the selected target in the elevated helper.</summary>
+    /// <summary>Pre-opens the selected target in the native helper.</summary>
     public bool TryArm(ProcessTerminationTarget? target, long generation)
     {
         lock (_sync)
@@ -153,6 +158,9 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             errorCode = 0;
             if (_disposed || _mailbox == null || requestSequence <= 0) return false;
 
+            IntPtr* waitHandles = stackalloc IntPtr[(int)HelperResponseWaitHandleCount];
+            waitHandles[0] = _responseEvent;
+            waitHandles[1] = _helperProcessHandle;
             long deadline = Environment.TickCount64 + timeoutMilliseconds;
             for (;;)
             {
@@ -166,24 +174,39 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 long remaining = deadline - Environment.TickCount64;
                 if (remaining <= 0) return false;
 
-                uint waitResult = Kernel32.WaitForSingleObject(
-                    _responseEvent,
+                uint waitResult = KillHelperNativeMethods.WaitForMultipleObjects(
+                    HelperResponseWaitHandleCount,
+                    waitHandles,
+                    waitForAll: false,
                     (uint)Math.Min(remaining, int.MaxValue));
                 if (waitResult == Kernel32.WAIT_TIMEOUT) return false;
+                if (waitResult == Kernel32.WAIT_OBJECT_0 + HelperProcessWaitOffset) return false;
                 if (waitResult != Kernel32.WAIT_OBJECT_0) return false;
             }
         }
     }
 
-    private ElevatedKillHelperStartOutcome TryInitialize(
-        IntPtr ownerWindowHandle,
-        out string errorMessage)
+    private ElevatedKillHelperStartOutcome TryInitialize(bool elevate, out string errorMessage)
     {
         errorMessage = string.Empty;
+#if TASK_MANAGER_NATIVE_AOT
+        string? processPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(processPath))
+        {
+            errorMessage = "Task Manager could not determine its executable path for native termination.";
+            _log?.Invoke(errorMessage);
+            return ElevatedKillHelperStartOutcome.Failed;
+        }
+
+        string helperPath = processPath;
+        string argumentPrefix = Constants.KillHelperModeArgument + " ";
+#else
         string helperPath = Path.Combine(AppContext.BaseDirectory, Constants.KillHelperFileName);
+        const string argumentPrefix = "";
+#endif
         if (!File.Exists(helperPath))
         {
-            errorMessage = $"Elevated kill helper was not found: {helperPath}";
+            errorMessage = $"Native termination executable was not found: {helperPath}";
             _log?.Invoke(errorMessage);
             return ElevatedKillHelperStartOutcome.Failed;
         }
@@ -251,6 +274,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         }
 
         string arguments = string.Concat(
+            argumentPrefix,
             Environment.ProcessId.ToString(CultureInfo.InvariantCulture),
             " ",
             _mappingHandle.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
@@ -258,18 +282,19 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             _requestEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
             " ",
             _responseEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture));
+        string? launchVerb = elevate ? "runas" : null;
         if (!ExplorerProcessLauncher.TryShellExecute(
                 helperPath,
                 arguments,
                 workingDirectory: AppContext.BaseDirectory,
-                verb: "runas",
+                verb: launchVerb,
                 out int launchError,
                 out string launchErrorMessage))
         {
-            bool wasCancelled = launchError == ErrorCancelled;
+            bool wasCancelled = elevate && launchError == ErrorCancelled;
             errorMessage = wasCancelled
                 ? "Windows administrator approval was canceled."
-                : $"Elevated kill helper launch failed: {launchErrorMessage}";
+                : $"Native kill helper launch failed: {launchErrorMessage}";
             _log?.Invoke(errorMessage);
             return wasCancelled
                 ? ElevatedKillHelperStartOutcome.Declined
@@ -282,8 +307,8 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         if (startupWait != Kernel32.WAIT_OBJECT_0)
         {
             errorMessage = startupWait == Kernel32.WAIT_TIMEOUT
-                ? "The elevated kill helper did not complete its startup handshake within 10 seconds."
-                : $"Elevated kill helper startup wait failed: 0x{startupWait:X8}";
+                ? "The native kill helper did not complete its startup handshake within 10 seconds."
+                : $"Native kill helper startup wait failed: 0x{startupWait:X8}";
             _log?.Invoke(errorMessage);
             return ElevatedKillHelperStartOutcome.Failed;
         }
@@ -297,7 +322,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 string startupMessage = startupError == 0
                     ? $"helper state {helperState} did not become ready"
                     : new Win32Exception(startupError).Message;
-                errorMessage = $"Elevated kill helper startup failed: {startupMessage}";
+                errorMessage = $"Native kill helper startup failed: {startupMessage}";
                 _log?.Invoke(errorMessage);
                 return ElevatedKillHelperStartOutcome.Failed;
             }
@@ -310,14 +335,14 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             if (_helperProcessHandle == IntPtr.Zero)
             {
                 errorMessage = helperProcessID == 0
-                    ? "Elevated kill helper did not publish its process ID."
-                    : $"Elevated kill helper PID {helperProcessID} could not be opened: " +
+                    ? "Native kill helper did not publish its process ID."
+                    : $"Native kill helper PID {helperProcessID} could not be opened: " +
                       new Win32Exception(Marshal.GetLastWin32Error()).Message;
                 _log?.Invoke(errorMessage);
                 return ElevatedKillHelperStartOutcome.Failed;
             }
 
-            LogHelperHardeningState(Volatile.Read(ref _mailbox->HelperFlags));
+            LogHelperHardeningState(Volatile.Read(ref _mailbox->HelperFlags), elevate);
         }
         return ElevatedKillHelperStartOutcome.Ready;
     }
@@ -334,21 +359,27 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         return Kernel32.WaitForSingleObject(_helperProcessHandle, dwMilliseconds: 0) == Kernel32.WAIT_TIMEOUT;
     }
 
-    private void LogHelperHardeningState(int flags)
+    private void LogHelperHardeningState(int flags, bool elevated)
     {
-        const int requiredFlags = KillHelperProtocol.RequiredHardeningFlags;
+        int requiredFlags = elevated
+            ? KillHelperProtocol.RequiredHardeningFlags
+            : KillHelperProtocol.RequiredReliabilityFlags;
+        string integrityDescription = elevated ? "elevated" : "standard";
         if ((flags & requiredFlags) == requiredFlags)
         {
             lock (_sync)
             {
-                _log?.Invoke($"Elevated kill helper ready, PID {_mailbox->HelperProcessID}; hardening 0x{flags:X8}.");
+                _log?.Invoke(
+                    $"Native kill helper ready at {integrityDescription} integrity, " +
+                    $"PID {_mailbox->HelperProcessID}; hardening 0x{flags:X8}.");
             }
 
             return;
         }
 
         _log?.Invoke(
-            $"Elevated kill helper ready with partial hardening 0x{flags:X8}, expected 0x{requiredFlags:X8}.");
+            $"Native kill helper ready at {integrityDescription} integrity with partial hardening " +
+            $"0x{flags:X8}, expected 0x{requiredFlags:X8}.");
     }
 
     private string LogWin32Failure(string operation)

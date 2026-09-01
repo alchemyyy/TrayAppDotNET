@@ -94,6 +94,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         StartWatcherMonitor();
         _processIconService = new ProcessIconService();
         _processTerminationService = new ProcessTerminationService(TADNLog.Log);
+        _ = _processTerminationService.EnsureStandardHelperAsync();
         _snapshotService = new ProcessSnapshotService();
         _snapshotService.SnapshotAvailable += OnSystemPerformanceSampleAvailable;
         _performanceSnapshotService = new PerformanceSnapshotService(

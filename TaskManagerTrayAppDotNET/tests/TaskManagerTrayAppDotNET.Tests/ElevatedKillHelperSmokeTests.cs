@@ -12,6 +12,46 @@ public sealed class ElevatedKillHelperSmokeTests
     private const string SmokeTestEnvironmentVariable = "TASK_MANAGER_RUN_ELEVATED_KILL_HELPER_TEST";
 
     [Fact]
+    public void StandardHelperTerminatesThroughTheSharedMailbox()
+    {
+        List<string> logMessages = [];
+        ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
+            IntPtr.Zero,
+            elevate: false,
+            log: logMessages.Add);
+        Assert.Equal(ElevatedKillHelperStartOutcome.Ready, startResult.Outcome);
+        using ElevatedKillHelperSession helperSession = Assert.IsType<ElevatedKillHelperSession>(
+            startResult.Session);
+        Assert.Equal(
+            KillHelperProtocol.RequiredReliabilityFlags,
+            helperSession.HardeningFlags & KillHelperProtocol.RequiredReliabilityFlags);
+
+        using Process process = StartSleepingProcess();
+        try
+        {
+            ProcessTerminationTarget target = new(process.Id, process.StartTime.ToFileTimeUtc());
+            Assert.True(helperSession.TryArm(target, generation: 1));
+            Assert.True(helperSession.TryRequestTermination(
+                target,
+                generation: 1,
+                out long requestSequence));
+            Assert.True(helperSession.TryWaitForResponse(
+                requestSequence,
+                timeoutMilliseconds: 5_000,
+                out int result,
+                out int errorCode));
+            Assert.Equal(KillHelperProtocol.ResultSuccess, result);
+            Assert.Equal(expected: 0, errorCode);
+            Assert.True(process.WaitForExit(5_000));
+        }
+        finally
+        {
+            if (!process.HasExited)
+                process.Kill();
+        }
+    }
+
+    [Fact]
     public void ElevatedHelperTerminatesThroughTheSharedMailbox()
     {
         if (!string.Equals(
@@ -25,7 +65,8 @@ public sealed class ElevatedKillHelperSmokeTests
         Assert.NotEqual(IntPtr.Zero, ownerWindow.Handle);
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
             ownerWindow.Handle,
-            logMessages.Add);
+            elevate: true,
+            log: logMessages.Add);
         Assert.Equal(ElevatedKillHelperStartOutcome.Ready, startResult.Outcome);
         using ElevatedKillHelperSession helperSession = Assert.IsType<ElevatedKillHelperSession>(startResult.Session);
         Assert.Equal(

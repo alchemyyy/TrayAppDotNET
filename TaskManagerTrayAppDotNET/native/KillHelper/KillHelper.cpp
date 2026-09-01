@@ -7,6 +7,12 @@
 #define KILL_HELPER_MAX_PAYLOAD_READ_ATTEMPTS 1024U
 #define KILL_HELPER_MINIMUM_WORKING_SET_BYTES (512U * 1024U)
 #define KILL_HELPER_HOT_CODE __declspec(code_seg(".killhot")) __declspec(noinline)
+#define KILL_HELPER_MODE_ARGUMENT L"--kill-helper"
+#define KILL_HELPER_NATIVE_AOT_ARGUMENT_COUNT 6
+
+#if defined(KILL_HELPER_NATIVE_AOT_ENTRY)
+extern "C" int __managed__Main(int argumentCount, wchar_t* arguments[]);
+#endif
 
 namespace TaskManagerTrayAppDotNET
 {
@@ -429,7 +435,7 @@ namespace TaskManagerTrayAppDotNET
         return flags;
     }
 
-    /// Enables SeDebugPrivilege in the elevated process token.
+    /// Enables SeDebugPrivilege when the helper token contains it.
     static bool EnableDebugPrivilege() noexcept
     {
         HANDLE tokenHandle = nullptr;
@@ -567,6 +573,7 @@ namespace TaskManagerTrayAppDotNET
         return true;
     }
 
+#if !defined(KILL_HELPER_NATIVE_AOT_ENTRY)
     /// Advances past the fixed command protocol's ASCII whitespace.
     static const WCHAR* SkipWhitespace(const WCHAR* text) noexcept
     {
@@ -602,6 +609,63 @@ namespace TaskManagerTrayAppDotNET
             return false;
         return *SkipWhitespace(next) == L'\0';
     }
+#endif
+
+#if defined(KILL_HELPER_NATIVE_AOT_ENTRY)
+    /// Parses the marker and four numeric fields supplied to the combined NativeAOT executable.
+    static bool TryParseArguments(
+        int argumentCount,
+        wchar_t* commandArguments[],
+        HelperArguments* arguments) noexcept
+    {
+        if (argumentCount != KILL_HELPER_NATIVE_AOT_ARGUMENT_COUNT ||
+            commandArguments == nullptr ||
+            arguments == nullptr)
+        {
+            return false;
+        }
+
+        for (int argumentIndex = 1; argumentIndex < argumentCount; argumentIndex++)
+        {
+            if (commandArguments[argumentIndex] == nullptr)
+                return false;
+        }
+
+        if (wcscmp(commandArguments[1], KILL_HELPER_MODE_ARGUMENT) != 0)
+            return false;
+
+        WCHAR* endPointer = nullptr;
+        unsigned long parentProcessID = wcstoul(commandArguments[2], &endPointer, 10);
+        if (endPointer == commandArguments[2] ||
+            *endPointer != L'\0' ||
+            parentProcessID == 0 ||
+            parentProcessID > MAXDWORD)
+        {
+            return false;
+        }
+        arguments->ParentProcessID = static_cast<DWORD>(parentProcessID);
+
+        const WCHAR* next = nullptr;
+        if (!TryParseHandleValue(commandArguments[3], &arguments->MappingHandleValue, &next) ||
+            *next != L'\0')
+        {
+            return false;
+        }
+
+        if (!TryParseHandleValue(commandArguments[4], &arguments->RequestEventHandleValue, &next) ||
+            *next != L'\0')
+        {
+            return false;
+        }
+
+        if (!TryParseHandleValue(commandArguments[5], &arguments->ResponseEventHandleValue, &next) ||
+            *next != L'\0')
+        {
+            return false;
+        }
+        return true;
+    }
+#endif
 
     /// Opens the pre-created objects and services requests until shutdown.
     static int RunHelper(const HelperArguments& arguments, bool isDebugPrivilegeEnabled) noexcept
@@ -751,6 +815,25 @@ namespace TaskManagerTrayAppDotNET
     }
 }
 
+#if defined(KILL_HELPER_NATIVE_AOT_ENTRY)
+int __cdecl wmain(int argumentCount, wchar_t* arguments[])
+{
+    bool isHelperMode =
+        argumentCount > 1 &&
+        arguments != nullptr &&
+        arguments[1] != nullptr &&
+        wcscmp(arguments[1], KILL_HELPER_MODE_ARGUMENT) == 0;
+    if (!isHelperMode)
+        return __managed__Main(argumentCount, arguments);
+
+    TaskManagerTrayAppDotNET::HelperArguments helperArguments{};
+    if (!TaskManagerTrayAppDotNET::TryParseArguments(argumentCount, arguments, &helperArguments))
+        return ERROR_INVALID_PARAMETER;
+
+    bool isDebugPrivilegeEnabled = TaskManagerTrayAppDotNET::EnableDebugPrivilege();
+    return TaskManagerTrayAppDotNET::RunHelper(helperArguments, isDebugPrivilegeEnabled);
+}
+#else
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR commandLine, int)
 {
     TaskManagerTrayAppDotNET::HelperArguments arguments{};
@@ -760,3 +843,4 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR commandLine, int)
     bool isDebugPrivilegeEnabled = TaskManagerTrayAppDotNET::EnableDebugPrivilege();
     return TaskManagerTrayAppDotNET::RunHelper(arguments, isDebugPrivilegeEnabled);
 }
+#endif

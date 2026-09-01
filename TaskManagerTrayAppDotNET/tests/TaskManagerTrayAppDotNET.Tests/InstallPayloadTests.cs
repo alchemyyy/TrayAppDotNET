@@ -5,7 +5,7 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class InstallPayloadTests
 {
     [Fact]
-    public void NativeKillHelperIsARequiredInstallFile()
+    public void StandaloneKillHelperIsARequiredManagedBuildInstallFile()
     {
         Assert.Contains(
             AppServices.Installation.Payload.RequiredFiles,

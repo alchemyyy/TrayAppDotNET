@@ -48,9 +48,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         "Explorer windows, and then start a fresh explorer.exe process.";
 
     private const string ElevatedTerminationExplanation =
-        "Task Manager can start TaskManagerTrayAppDotNET.KillHelper.exe with administrator privileges so it can " +
-        "end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, Task " +
-        "Manager will continue running with standard process permissions.";
+        "Task Manager normally sends End task requests to a native helper running with standard permissions. " +
+        "Enabling elevated termination replaces it with a helper running with administrator privileges so it " +
+        "can end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, " +
+        "the standard native helper and managed fallback remain available.";
 
     private static readonly ProcessDataSchema IdleProcessSchema = ProcessDataSchema.Create(
         []);
@@ -941,8 +942,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 case ElevatedHelperState.Declined:
                     await ShowMessage(
                         title: "Elevated termination not enabled",
-                        "Windows administrator approval was canceled. Task Manager will continue with standard " +
-                        "process permissions.");
+                        "Windows administrator approval was canceled. Task Manager will continue using its " +
+                        "standard native helper and managed fallback.");
                     break;
                 case ElevatedHelperState.Failed:
                     await ShowMessage(

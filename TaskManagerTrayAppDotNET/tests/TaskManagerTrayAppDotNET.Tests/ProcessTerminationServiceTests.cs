@@ -15,7 +15,7 @@ public sealed class ProcessTerminationServiceTests
         int launchCount = 0;
         using ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, _, _) =>
             {
                 Interlocked.Increment(ref launchCount);
                 return FailedStart("Unexpected launch");
@@ -34,13 +34,161 @@ public sealed class ProcessTerminationServiceTests
 
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
             IntPtr.Zero,
-            logMessages.Add);
+            elevate: true,
+            log: logMessages.Add);
 
         Assert.Equal(ElevatedKillHelperStartOutcome.Failed, startResult.Outcome);
         Assert.Null(startResult.Session);
         Assert.Contains(expectedSubstring: "window is not ready", startResult.ErrorMessage,
             StringComparison.OrdinalIgnoreCase);
         Assert.Single(logMessages);
+    }
+
+    [Fact]
+    public async Task StandardHelperLaunchUsesStandardIntegrityWithoutAnOwner()
+    {
+        int launchCount = 0;
+        int disposeCount = 0;
+        IntPtr receivedOwnerWindowHandle = new(1);
+        bool? requestedElevation = null;
+        string? launcherThreadName = null;
+        ApartmentState launcherApartmentState = ApartmentState.Unknown;
+        bool isLauncherBackground = false;
+        ElevatedKillHelperSession readySession = new(
+            static () => true,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref disposeCount));
+        ProcessTerminationService service = new(
+            log: null,
+            (ownerWindowHandle, elevate, _) =>
+            {
+                Interlocked.Increment(ref launchCount);
+                receivedOwnerWindowHandle = ownerWindowHandle;
+                requestedElevation = elevate;
+                launcherThreadName = Thread.CurrentThread.Name;
+                launcherApartmentState = Thread.CurrentThread.GetApartmentState();
+                isLauncherBackground = Thread.CurrentThread.IsBackground;
+                return new ElevatedKillHelperStartResult(
+                    ElevatedKillHelperStartOutcome.Ready,
+                    readySession,
+                    string.Empty);
+            });
+        try
+        {
+            bool helperReady = await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout);
+
+            Assert.True(helperReady);
+            Assert.Equal(expected: 1, Volatile.Read(ref launchCount));
+            Assert.Equal(IntPtr.Zero, receivedOwnerWindowHandle);
+            Assert.False(requestedElevation);
+            Assert.Equal(expected: "Task Manager native helper launcher", launcherThreadName);
+            Assert.Equal(ApartmentState.STA, launcherApartmentState);
+            Assert.True(isLauncherBackground);
+            Assert.Equal(ElevatedHelperState.NotRequested, service.GetElevatedHelperStatus().State);
+        }
+        finally
+        {
+            service.Dispose();
+        }
+
+        Assert.Equal(expected: 1, Volatile.Read(ref disposeCount));
+    }
+
+    [Fact]
+    public async Task ElevatedHelperReplacesAReadyStandardHelper()
+    {
+        int standardDisposeCount = 0;
+        int elevatedDisposeCount = 0;
+        int standardLaunchCount = 0;
+        int elevatedLaunchCount = 0;
+        ElevatedKillHelperSession standardSession = new(
+            static () => true,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref standardDisposeCount));
+        ElevatedKillHelperSession elevatedSession = new(
+            static () => true,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref elevatedDisposeCount));
+        ProcessTerminationService service = new(
+            log: null,
+            (_, elevate, _) =>
+            {
+                ElevatedKillHelperSession session;
+                if (elevate)
+                {
+                    Interlocked.Increment(ref elevatedLaunchCount);
+                    session = elevatedSession;
+                }
+                else
+                {
+                    Interlocked.Increment(ref standardLaunchCount);
+                    session = standardSession;
+                }
+
+                return new ElevatedKillHelperStartResult(
+                    ElevatedKillHelperStartOutcome.Ready,
+                    session,
+                    string.Empty);
+            });
+        try
+        {
+            Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+
+            ElevatedHelperStatus status = await service
+                .EnableElevatedHelperAsync(new IntPtr(1))
+                .WaitAsync(TestTimeout);
+
+            Assert.Equal(ElevatedHelperState.Ready, status.State);
+            Assert.Equal(expected: 1, Volatile.Read(ref standardLaunchCount));
+            Assert.Equal(expected: 1, Volatile.Read(ref elevatedLaunchCount));
+            Assert.Equal(expected: 1, Volatile.Read(ref standardDisposeCount));
+            Assert.Equal(expected: 0, Volatile.Read(ref elevatedDisposeCount));
+        }
+        finally
+        {
+            service.Dispose();
+        }
+
+        Assert.Equal(expected: 1, Volatile.Read(ref elevatedDisposeCount));
+    }
+
+    [Fact]
+    public async Task DeclinedElevationRetainsTheReadyStandardHelper()
+    {
+        int standardDisposeCount = 0;
+        ElevatedKillHelperSession standardSession = new(
+            static () => true,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref standardDisposeCount));
+        ProcessTerminationService service = new(
+            log: null,
+            (_, elevate, _) => elevate
+                ? new ElevatedKillHelperStartResult(
+                    ElevatedKillHelperStartOutcome.Declined,
+                    Session: null,
+                    ErrorMessage: "Windows administrator approval was canceled.")
+                : new ElevatedKillHelperStartResult(
+                    ElevatedKillHelperStartOutcome.Ready,
+                    standardSession,
+                    string.Empty));
+        try
+        {
+            Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+
+            ElevatedHelperStatus status = await service
+                .EnableElevatedHelperAsync(new IntPtr(1))
+                .WaitAsync(TestTimeout);
+
+            Assert.Equal(ElevatedHelperState.Declined, status.State);
+            Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+            Assert.Equal(expected: 0, Volatile.Read(ref standardDisposeCount));
+        }
+        finally
+        {
+            service.Dispose();
+        }
+
+        Assert.Equal(expected: 1, Volatile.Read(ref standardDisposeCount));
     }
 
     [Fact]
@@ -55,8 +203,12 @@ public sealed class ProcessTerminationServiceTests
         bool isLauncherBackground = false;
         using ProcessTerminationService service = new(
             log: null,
-            (ownerWindowHandle, _) =>
+            (ownerWindowHandle, elevate, _) =>
             {
+                if (!elevate)
+                    return FailedStart("Expected standard helper failure");
+
+                Assert.True(elevate);
                 Interlocked.Increment(ref launchCount);
                 receivedOwnerWindowHandle = ownerWindowHandle;
                 launcherThreadName = Thread.CurrentThread.Name;
@@ -102,8 +254,11 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref disposeCount));
         using ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, elevate, _) =>
             {
+                if (!elevate)
+                    return FailedStart("Expected standard helper failure");
+
                 launcherEntered.Set();
                 if (!releaseLauncher.Wait(TestTimeout))
                     return FailedStart("The test launcher timed out.");
@@ -142,7 +297,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref disposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, _, _) =>
             {
                 Interlocked.Increment(ref launchCount);
                 return new ElevatedKillHelperStartResult(
@@ -175,16 +330,26 @@ public sealed class ProcessTerminationServiceTests
     [Fact]
     public async Task DeclinedInitialAttemptCanBeRetriedManually()
     {
-        int launchCount = 0;
+        int elevatedLaunchCount = 0;
+        int standardLaunchCount = 0;
         using ProcessTerminationService service = new(
             log: null,
-            (_, _) => Interlocked.Increment(ref launchCount) switch
+            (_, elevate, _) =>
             {
-                1 => new ElevatedKillHelperStartResult(
-                    ElevatedKillHelperStartOutcome.Declined,
-                    Session: null,
-                    ErrorMessage: "Windows administrator approval was canceled."),
-                _ => FailedStart("Second attempt failed")
+                if (!elevate)
+                {
+                    Interlocked.Increment(ref standardLaunchCount);
+                    return FailedStart("Expected standard helper failure");
+                }
+
+                return Interlocked.Increment(ref elevatedLaunchCount) switch
+                {
+                    1 => new ElevatedKillHelperStartResult(
+                        ElevatedKillHelperStartOutcome.Declined,
+                        Session: null,
+                        ErrorMessage: "Windows administrator approval was canceled."),
+                    _ => FailedStart("Second attempt failed")
+                };
             });
 
         ElevatedHelperStatus declinedStatus = await service
@@ -197,7 +362,8 @@ public sealed class ProcessTerminationServiceTests
         Assert.Equal(ElevatedHelperState.Declined, declinedStatus.State);
         Assert.Equal(ElevatedHelperState.Failed, failedStatus.State);
         Assert.Equal(expected: "Second attempt failed", failedStatus.ErrorMessage);
-        Assert.Equal(expected: 2, Volatile.Read(ref launchCount));
+        Assert.Equal(expected: 2, Volatile.Read(ref elevatedLaunchCount));
+        Assert.Equal(expected: 1, Volatile.Read(ref standardLaunchCount));
     }
 
     [Fact]
@@ -206,7 +372,7 @@ public sealed class ProcessTerminationServiceTests
         int launchCount = 0;
         using ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, _, _) =>
             {
                 Interlocked.Increment(ref launchCount);
                 return FailedStart("Unexpected launch");
@@ -237,7 +403,7 @@ public sealed class ProcessTerminationServiceTests
             });
         ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, _, _) =>
             {
                 launcherEntered.Set();
                 if (!releaseLauncher.Wait(TestTimeout))
@@ -275,8 +441,11 @@ public sealed class ProcessTerminationServiceTests
         using ManualResetEventSlim releaseLauncher = new(false);
         using ProcessTerminationService service = new(
             log: null,
-            (_, _) =>
+            (_, elevate, _) =>
             {
+                if (!elevate)
+                    return FailedStart("Expected standard helper failure");
+
                 launcherEntered.Set();
                 Assert.True(releaseLauncher.Wait(TestTimeout));
                 return FailedStart("Expected test failure");
@@ -301,6 +470,190 @@ public sealed class ProcessTerminationServiceTests
             if (!process.HasExited)
                 process.Kill();
         }
+    }
+
+    [Fact]
+    public async Task NativeHelperSuccessSkipsManagedTermination()
+    {
+        ElevatedKillHelperSession nativeSession = new(
+            static () => true,
+            static (_, _) => true,
+            static () => { },
+            RequestTermination,
+            SuccessfulResponse);
+        using ProcessTerminationService service = new(
+            log: null,
+            (_, elevate, _) =>
+            {
+                Assert.False(elevate);
+                return new ElevatedKillHelperStartResult(
+                    ElevatedKillHelperStartOutcome.Ready,
+                    nativeSession,
+                    string.Empty);
+            });
+        Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+        using Process process = StartSleepingProcess();
+        try
+        {
+            ProcessTerminationTarget target = new(process.Id, process.StartTime.ToFileTimeUtc());
+            service.Arm(target);
+
+            bool terminated = service.TryTerminate(target, out string errorMessage);
+
+            Assert.True(terminated, errorMessage);
+            Assert.False(process.HasExited);
+        }
+        finally
+        {
+            if (!process.HasExited)
+                process.Kill();
+        }
+
+        static bool RequestTermination(
+            ProcessTerminationTarget target,
+            long generation,
+            out long requestSequence)
+        {
+            requestSequence = 1;
+            return target.ProcessID > 0 && generation > 0;
+        }
+
+        static bool SuccessfulResponse(
+            long requestSequence,
+            int timeoutMilliseconds,
+            out int result,
+            out int errorCode)
+        {
+            result = KillHelperProtocol.ResultSuccess;
+            errorCode = 0;
+            return requestSequence == 1 && timeoutMilliseconds > 0;
+        }
+    }
+
+    [Fact]
+    public async Task NativeHelperFailureUsesManagedTerminationFallback()
+    {
+        ElevatedKillHelperSession nativeSession = new(
+            static () => true,
+            static (_, _) => true,
+            static () => { },
+            RequestTermination,
+            FailedResponse);
+        using ProcessTerminationService service = new(
+            log: null,
+            (_, _, _) => new ElevatedKillHelperStartResult(
+                ElevatedKillHelperStartOutcome.Ready,
+                nativeSession,
+                string.Empty));
+        Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+        using Process process = StartSleepingProcess();
+        try
+        {
+            ProcessTerminationTarget target = new(process.Id, process.StartTime.ToFileTimeUtc());
+            service.Arm(target);
+
+            bool terminated = service.TryTerminate(target, out string errorMessage);
+
+            Assert.True(terminated, errorMessage);
+            Assert.True(process.WaitForExit(5_000));
+        }
+        finally
+        {
+            if (!process.HasExited)
+                process.Kill();
+        }
+
+        static bool RequestTermination(
+            ProcessTerminationTarget target,
+            long generation,
+            out long requestSequence)
+        {
+            requestSequence = 1;
+            return target.ProcessID > 0 && generation > 0;
+        }
+
+        static bool FailedResponse(
+            long requestSequence,
+            int timeoutMilliseconds,
+            out int result,
+            out int errorCode)
+        {
+            result = KillHelperProtocol.ResultTerminateFailed;
+            errorCode = 5;
+            return requestSequence == 1 && timeoutMilliseconds > 0;
+        }
+    }
+
+    [Fact]
+    public async Task DeadElevatedHelperFallsBackAndStartsAStandardReplacement()
+    {
+        int firstSessionReady = 1;
+        int firstDisposeCount = 0;
+        int replacementDisposeCount = 0;
+        int launchCount = 0;
+        ElevatedKillHelperSession firstSession = new(
+            () => Volatile.Read(ref firstSessionReady) != 0,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref firstDisposeCount));
+        ElevatedKillHelperSession replacementSession = new(
+            static () => true,
+            static (_, _) => true,
+            () => Interlocked.Increment(ref replacementDisposeCount));
+        ProcessTerminationService service = new(
+            log: null,
+            (_, elevate, _) =>
+            {
+                int currentLaunch = Interlocked.Increment(ref launchCount);
+                Assert.Equal(expected: currentLaunch == 1, actual: elevate);
+                return currentLaunch switch
+                {
+                    1 => new ElevatedKillHelperStartResult(
+                        ElevatedKillHelperStartOutcome.Ready,
+                        firstSession,
+                        string.Empty),
+                    2 => new ElevatedKillHelperStartResult(
+                        ElevatedKillHelperStartOutcome.Ready,
+                        replacementSession,
+                        string.Empty),
+                    _ => FailedStart("Unexpected additional helper launch")
+                };
+            });
+        try
+        {
+            ElevatedHelperStatus elevatedStatus = await service
+                .EnableElevatedHelperAsync(new IntPtr(1))
+                .WaitAsync(TestTimeout);
+            Assert.Equal(ElevatedHelperState.Ready, elevatedStatus.State);
+            using Process process = StartSleepingProcess();
+            try
+            {
+                ProcessTerminationTarget target = new(process.Id, process.StartTime.ToFileTimeUtc());
+                service.Arm(target);
+                Volatile.Write(ref firstSessionReady, value: 0);
+
+                bool terminated = service.TryTerminate(target, out string errorMessage);
+
+                Assert.True(terminated, errorMessage);
+                Assert.True(process.WaitForExit(5_000));
+                Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
+                Assert.Equal(expected: 2, Volatile.Read(ref launchCount));
+                Assert.Equal(expected: 1, Volatile.Read(ref firstDisposeCount));
+                Assert.Equal(
+                    ElevatedHelperState.Failed,
+                    service.GetElevatedHelperStatus().State);
+            }
+            finally
+            {
+                if (!process.HasExited)
+                    process.Kill();
+            }
+        }
+        finally
+        {
+            service.Dispose();
+        }
+
+        Assert.Equal(expected: 1, Volatile.Read(ref replacementDisposeCount));
     }
 
     private static ElevatedKillHelperStartResult FailedStart(string errorMessage) =>

@@ -37,6 +37,13 @@ internal static class KillHelperNativeMethods
     public static extern bool SetEvent(IntPtr eventHandle);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern unsafe uint WaitForMultipleObjects(
+        uint handleCount,
+        IntPtr* handles,
+        [MarshalAs(UnmanagedType.Bool)] bool waitForAll,
+        uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool VirtualLock(IntPtr address, nuint size);
 

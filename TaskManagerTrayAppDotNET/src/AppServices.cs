@@ -49,11 +49,15 @@ internal static class AppServices
     private static TrayAppDotNETInstallPayload CreateInstallPayload()
     {
         TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName);
+#if TASK_MANAGER_NATIVE_AOT
+        return payload;
+#else
         TrayAppDotNETInstallFile[] requiredFiles =
         [
             .. payload.RequiredFiles,
             new(Constants.KillHelperFileName)
         ];
         return payload with { RequiredFiles = requiredFiles };
+#endif
     }
 }
