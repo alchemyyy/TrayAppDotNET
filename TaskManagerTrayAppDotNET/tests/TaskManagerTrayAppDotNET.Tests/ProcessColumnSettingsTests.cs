@@ -178,6 +178,7 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(ProcessMemoryUnit.Kilobytes, setting.MemoryUnit);
         Assert.Equal(expected: "K", setting.MemorySuffix);
         Assert.False(setting.ShowUserNamePrefix);
+        Assert.False(setting.ShowLiveTotal);
     }
 
     [Fact]
@@ -193,7 +194,8 @@ public sealed class ProcessColumnSettingsTests
             ShowDecimalUsage = false,
             MemoryUnit = ProcessMemoryUnit.Gigabytes,
             MemorySuffix = " GiB",
-            ShowUserNamePrefix = true
+            ShowUserNamePrefix = true,
+            ShowLiveTotal = true
         };
 
         ProcessColumnSetting normalized = ProcessColumnSettings.Normalize([source])[0];
@@ -205,6 +207,7 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(ProcessMemoryUnit.Gigabytes, normalized.MemoryUnit);
         Assert.Equal(expected: " GiB", normalized.MemorySuffix);
         Assert.True(normalized.ShowUserNamePrefix);
+        Assert.True(normalized.ShowLiveTotal);
     }
 
     [Fact]
@@ -251,7 +254,8 @@ public sealed class ProcessColumnSettingsTests
             Width = 999,
             Nickname = "Private",
             MemoryUnit = ProcessMemoryUnit.Megabytes,
-            MemorySuffix = " MB"
+            MemorySuffix = " MB",
+            ShowLiveTotal = true
         };
 
         List<ProcessColumnSetting> changed = ProcessColumnSettings.WithProperties(source, replacement);
@@ -263,6 +267,7 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(expected: "Private", memory.Nickname);
         Assert.Equal(ProcessMemoryUnit.Megabytes, memory.MemoryUnit);
         Assert.Equal(expected: " MB", memory.MemorySuffix);
+        Assert.True(memory.ShowLiveTotal);
     }
 
     [Theory]
@@ -283,6 +288,59 @@ public sealed class ProcessColumnSettingsTests
         Assert.True(ProcessColumnSettings.IsMemoryColumn(ProcessTableColumnKind.SharedNPUMemory));
         Assert.False(ProcessColumnSettings.IsMemoryColumn(ProcessTableColumnKind.IOReadBytes));
         Assert.False(ProcessColumnSettings.IsMemoryColumn(ProcessTableColumnKind.CPU));
+    }
+
+    [Fact]
+    public void LiveTotalsCoverResourceCountersButNotIdentifiersOrDisplayStates()
+    {
+        ProcessTableColumnKind[] supportedColumns =
+        [
+            ProcessTableColumnKind.CPU,
+            ProcessTableColumnKind.CPUTime,
+            ProcessTableColumnKind.PrivateMemory,
+            ProcessTableColumnKind.SharedWorkingSet,
+            ProcessTableColumnKind.Disk,
+            ProcessTableColumnKind.Network,
+            ProcessTableColumnKind.Handles,
+            ProcessTableColumnKind.Threads,
+            ProcessTableColumnKind.GDIObjects,
+            ProcessTableColumnKind.IOReads,
+            ProcessTableColumnKind.IOWriteBytes,
+            ProcessTableColumnKind.GPU,
+            ProcessTableColumnKind.DedicatedGPUMemory,
+            ProcessTableColumnKind.NPU,
+            ProcessTableColumnKind.SharedNPUMemory
+        ];
+        ProcessTableColumnKind[] unsupportedColumns =
+        [
+            ProcessTableColumnKind.Name,
+            ProcessTableColumnKind.ProcessID,
+            ProcessTableColumnKind.Status,
+            ProcessTableColumnKind.Lifetime,
+            ProcessTableColumnKind.BasePriority,
+            ProcessTableColumnKind.GPUEngine,
+            ProcessTableColumnKind.NPUEngine
+        ];
+
+        Assert.All(supportedColumns, static column =>
+            Assert.True(ProcessColumnSettings.SupportsLiveTotal(column)));
+        Assert.All(unsupportedColumns, static column =>
+            Assert.False(ProcessColumnSettings.SupportsLiveTotal(column)));
+    }
+
+    [Fact]
+    public void OnlyVisibleSupportedLiveTotalsRequireFullSampling()
+    {
+        ProcessColumnSetting hiddenCPU = Setting(ProcessTableColumnKind.CPU, visible: false, width: 68);
+        hiddenCPU.ShowLiveTotal = true;
+        ProcessColumnSetting visibleName = Setting(ProcessTableColumnKind.Name, visible: true, width: 280);
+        visibleName.ShowLiveTotal = true;
+
+        Assert.False(ProcessColumnSettings.HasVisibleLiveTotals([hiddenCPU, visibleName]));
+
+        hiddenCPU.Visible = true;
+
+        Assert.True(ProcessColumnSettings.HasVisibleLiveTotals([hiddenCPU, visibleName]));
     }
 
     [Fact]
@@ -357,6 +415,7 @@ public sealed class ProcessColumnSettingsTests
             memory.Nickname = "Private";
             memory.MemoryUnit = ProcessMemoryUnit.Gigabytes;
             memory.MemorySuffix = " GiB";
+            memory.ShowLiveTotal = true;
             ProcessColumnSetting cpu =
                 settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.CPU);
             cpu.ShowPercentSuffix = false;
@@ -377,6 +436,7 @@ public sealed class ProcessColumnSettingsTests
             Assert.Equal(expected: "Private", loadedMemory.Nickname);
             Assert.Equal(ProcessMemoryUnit.Gigabytes, loadedMemory.MemoryUnit);
             Assert.Equal(expected: " GiB", loadedMemory.MemorySuffix);
+            Assert.True(loadedMemory.ShowLiveTotal);
             Assert.False(loadedCPU.ShowPercentSuffix);
             Assert.False(loadedCPU.ShowDecimalUsage);
             Assert.True(loadedUserName.ShowUserNamePrefix);
@@ -415,6 +475,7 @@ public sealed class ProcessColumnSettingsTests
             Assert.Equal(ProcessMemoryUnit.Kilobytes, cpu.MemoryUnit);
             Assert.Equal(expected: "K", cpu.MemorySuffix);
             Assert.False(cpu.ShowUserNamePrefix);
+            Assert.False(cpu.ShowLiveTotal);
         }
         finally
         {

@@ -68,6 +68,23 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
             description: "Leave blank to use the original column name.",
             _nicknameTextBox);
 
+        if (ProcessColumnSettings.SupportsLiveTotal(Setting.Column))
+        {
+            SetFixedHeight(WindowResources.AxamlProcessColumnProperties.LiveTotalWindowHeight);
+            SettingsToggle liveTotalToggle = TrayAppDotNETSettingsUI.Toggle(
+                palette,
+                Setting.ShowLiveTotal,
+                (_, isChecked) =>
+                {
+                    Setting.ShowLiveTotal = isChecked;
+                    Publish();
+                });
+            AddCard(
+                title: "Show live total",
+                description: "Show the live aggregate for all processes before the column name.",
+                liveTotalToggle);
+        }
+
         _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
         _closeButton.Click += OnCloseClick;
         TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
@@ -194,6 +211,8 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
                 resources.AxamlProcessColumnProperties.UserNameWindowHeight,
             _ when ProcessColumnSettings.IsMemoryColumn(column) =>
                 resources.AxamlProcessColumnProperties.MemoryWindowHeight,
+            _ when ProcessColumnSettings.SupportsLiveTotal(column) =>
+                resources.AxamlProcessColumnProperties.LiveTotalWindowHeight,
             _ => resources.AxamlProcessColumnProperties.DefaultWindowHeight
         };
 #endif

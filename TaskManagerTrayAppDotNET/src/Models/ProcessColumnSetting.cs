@@ -50,6 +50,9 @@ public sealed class ProcessColumnSetting
 
     [XmlAttribute]
     public bool ShowUserNamePrefix { get; set; }
+
+    [XmlAttribute]
+    public bool ShowLiveTotal { get; set; }
 }
 
 internal static class ProcessColumnSettings
@@ -120,7 +123,8 @@ internal static class ProcessColumnSettings
             MemorySuffix = string.IsNullOrEmpty(setting.MemorySuffix)
                 ? GetDefaultMemorySuffix(memoryUnit)
                 : setting.MemorySuffix,
-            ShowUserNamePrefix = setting.ShowUserNamePrefix
+            ShowUserNamePrefix = setting.ShowUserNamePrefix,
+            ShowLiveTotal = SupportsLiveTotal(setting.Column) && setting.ShowLiveTotal
         };
     }
 
@@ -209,6 +213,7 @@ internal static class ProcessColumnSettings
             setting.MemoryUnit = replacementClone.MemoryUnit;
             setting.MemorySuffix = replacementClone.MemorySuffix;
             setting.ShowUserNamePrefix = replacementClone.ShowUserNamePrefix;
+            setting.ShowLiveTotal = replacementClone.ShowLiveTotal;
             break;
         }
 
@@ -243,6 +248,63 @@ internal static class ProcessColumnSettings
             or ProcessTableColumnKind.SharedNPUMemory => true,
         _ => false
     };
+
+    /// <summary>Returns whether summing the column produces a meaningful process-table aggregate.</summary>
+    public static bool SupportsLiveTotal(ProcessTableColumnKind column) => column switch
+    {
+        ProcessTableColumnKind.CPU
+            or ProcessTableColumnKind.CPUSingle
+            or ProcessTableColumnKind.CPUTime
+            or ProcessTableColumnKind.Cycle
+            or ProcessTableColumnKind.WorkingSet
+            or ProcessTableColumnKind.PeakWorkingSet
+            or ProcessTableColumnKind.WorkingSetDelta
+            or ProcessTableColumnKind.ActivePrivateWorkingSet
+            or ProcessTableColumnKind.PrivateMemory
+            or ProcessTableColumnKind.SharedWorkingSet
+            or ProcessTableColumnKind.Disk
+            or ProcessTableColumnKind.Network
+            or ProcessTableColumnKind.CommitSize
+            or ProcessTableColumnKind.PagedPool
+            or ProcessTableColumnKind.NonPagedPool
+            or ProcessTableColumnKind.PageFaults
+            or ProcessTableColumnKind.PageFaultDelta
+            or ProcessTableColumnKind.Handles
+            or ProcessTableColumnKind.Threads
+            or ProcessTableColumnKind.UserObjects
+            or ProcessTableColumnKind.GDIObjects
+            or ProcessTableColumnKind.IOReads
+            or ProcessTableColumnKind.IOWrites
+            or ProcessTableColumnKind.IOOther
+            or ProcessTableColumnKind.IOReadBytes
+            or ProcessTableColumnKind.IOWriteBytes
+            or ProcessTableColumnKind.IOOtherBytes
+            or ProcessTableColumnKind.GPU
+            or ProcessTableColumnKind.DedicatedGPUMemory
+            or ProcessTableColumnKind.SharedGPUMemory
+            or ProcessTableColumnKind.NPU
+            or ProcessTableColumnKind.DedicatedNPUMemory
+            or ProcessTableColumnKind.SharedNPUMemory
+            or ProcessTableColumnKind.CPUUtility => true,
+        _ => false
+    };
+
+    /// <summary>Returns whether the active layout contains a visible enabled live total.</summary>
+    public static bool HasVisibleLiveTotals(IReadOnlyList<ProcessColumnSetting> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        for (int settingIndex = 0; settingIndex < settings.Count; settingIndex++)
+        {
+            ProcessColumnSetting setting = settings[settingIndex];
+            if (setting.Visible
+                && setting.ShowLiveTotal
+                && SupportsLiveTotal(setting.Column))
+                return true;
+        }
+
+        return false;
+    }
 
     /// <summary>Returns the suffix selected by default for a memory unit.</summary>
     public static string GetDefaultMemorySuffix(ProcessMemoryUnit unit) => NormalizeMemoryUnit(unit) switch

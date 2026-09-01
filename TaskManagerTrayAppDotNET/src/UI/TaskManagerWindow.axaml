@@ -278,8 +278,9 @@
   <!-- Process column properties -->
   <sys:Double x:Key="ProcessColumnProperties.WindowWidth">460</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.DefaultWindowHeight">280</sys:Double>
-  <sys:Double x:Key="ProcessColumnProperties.CPUWindowHeight">410</sys:Double>
-  <sys:Double x:Key="ProcessColumnProperties.MemoryWindowHeight">410</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.LiveTotalWindowHeight">330</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.CPUWindowHeight">460</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.MemoryWindowHeight">460</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.UserNameWindowHeight">330</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.ControlWidth">190</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.TitleBarHeight">32</sys:Double>

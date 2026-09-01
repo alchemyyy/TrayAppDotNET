@@ -134,6 +134,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private TextUnderlineSegment[] _textUnderlineSegments;
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessColumnSetting[] _settingsByColumn;
+    private readonly string?[] _liveTotalTextsByColumn =
+        new string?[ProcessTableColumnCatalog.Definitions.Length];
     private ProcessTableColumn[] _columns;
     private HeaderTextLayouts[] _headerTexts = [];
     private int[] _visibleRowIndexes = [];
@@ -183,6 +185,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _sortDescending;
     private bool _isLiveColumnResizeActive;
     private bool _isHoverAnchoringEnabled = true;
+    private bool _hasVisibleLiveTotals;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
 #if DEBUG
@@ -236,6 +239,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
+        _hasVisibleLiveTotals = ProcessColumnSettings.HasVisibleLiveTotals(_columnSettings);
         _filterQuery = ProcessSearchQuery.Parse(filterText: null, _columnSettings);
         _resolveSearchValue = GetSearchColumnValue;
         _columns = CreateColumns(_columnSettings);
@@ -475,6 +479,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         SynchronizeRenderCacheMembership();
         RebuildVisibleRows();
         EnsureSelectedProcessesStillExist();
+        RefreshLiveTotalHeaders();
         InvalidateMeasure();
         RestoreViewportAnchor(viewportAnchor);
         _pendingViewportAnchor = null;
@@ -575,6 +580,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _rowComparer.SetSchema(schema);
         _snapshot.Reset();
         _snapshotVersion = -1;
+        ClearLiveTotalHeaders();
 
         ApplySamplingSchemaIfActive(schema);
         PublishWarmProcesses();
@@ -1301,11 +1307,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (string.Equals(_unavailableText, unavailableText, StringComparison.Ordinal)) return;
 
         _unavailableText = unavailableText;
+        RefreshLiveTotalHeaders();
         RebuildRetainedRowDrawings();
         RebuildCopyPreview();
         InvalidateLayers(
             RenderLayerMask.Rows
-            | RenderLayerMask.CopyPreview);
+            | RenderLayerMask.CopyPreview
+            | RenderLayerMask.Header);
     }
 
 #if DEBUG
@@ -2112,7 +2120,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 bool needsLiveResizeLayout = column.Alignment == ProcessTableColumnAlignment.Right
                                              && Math.Abs(column.Width - _columns[columnIndex].Width) >= 0.01;
                 using TextLayout? liveResizeText = needsLiveResizeLayout
-                    ? CreateHeaderText(column, headerTextWidth)
+                    ? CreateHeaderText(
+                        column,
+                        ResolveHeaderText(column),
+                        headerTextWidth)
                     : null;
                 TextLayout headerText = liveResizeText
                                         ?? _headerTexts[columnIndex].Get(
@@ -2807,6 +2818,123 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         };
     }
 
+    private void RefreshLiveTotalHeaders()
+    {
+        ulong changedColumns = UpdateLiveTotalTexts();
+        if (changedColumns == 0 || _headerTexts.Length != _columns.Length) return;
+
+        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+        {
+            ProcessTableColumn column = _columns[columnIndex];
+            if (!ProcessTableColumnCatalog.Contains(changedColumns, column.Kind)) continue;
+
+            HeaderTextLayouts replacement = CreateHeaderTextLayouts(column);
+            HeaderTextLayouts previous = _headerTexts[columnIndex];
+            _headerTexts[columnIndex] = replacement;
+            previous.Dispose();
+        }
+    }
+
+    private ulong UpdateLiveTotalTexts()
+    {
+        ulong changedColumns = 0;
+        for (int definitionIndex = 0;
+             definitionIndex < ProcessTableColumnCatalog.Definitions.Length;
+             definitionIndex++)
+        {
+            ProcessTableColumnKind column = (ProcessTableColumnKind)definitionIndex;
+            ProcessColumnSetting setting = _settingsByColumn[definitionIndex];
+            string nextText = string.Empty;
+            if (_hasVisibleLiveTotals
+                && setting.Visible
+                && setting.ShowLiveTotal
+                && ProcessColumnSettings.SupportsLiveTotal(column))
+            {
+                ProcessLiveTotalValue total = ProcessLiveTotalFunctions.Calculate(
+                    _snapshot,
+                    _rowCount,
+                    column);
+                nextText = FormatLiveTotal(column, total, setting);
+            }
+
+            string previousText = _liveTotalTextsByColumn[definitionIndex] ?? string.Empty;
+            if (string.Equals(previousText, nextText, StringComparison.Ordinal)) continue;
+
+            _liveTotalTextsByColumn[definitionIndex] = nextText;
+            changedColumns |= ProcessTableColumnCatalog.GetMask(column);
+        }
+
+        return changedColumns;
+    }
+
+    private void ClearLiveTotalHeaders()
+    {
+        bool changed = false;
+        for (int columnIndex = 0; columnIndex < _liveTotalTextsByColumn.Length; columnIndex++)
+        {
+            if (string.IsNullOrEmpty(_liveTotalTextsByColumn[columnIndex])) continue;
+            _liveTotalTextsByColumn[columnIndex] = string.Empty;
+            changed = true;
+        }
+
+        if (changed && _headerTexts.Length == _columns.Length)
+            ReplaceHeaderTexts(_columns);
+    }
+
+    private string FormatLiveTotal(
+        ProcessTableColumnKind column,
+        ProcessLiveTotalValue total,
+        ProcessColumnSetting setting)
+    {
+        if (!total.HasValue) return _unavailableText;
+
+        long value = total.EncodedValue;
+        return column switch
+        {
+            ProcessTableColumnKind.CPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            ProcessTableColumnKind.CPUSingle => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            ProcessTableColumnKind.CPUTime => FormatCPUTime(value),
+            ProcessTableColumnKind.Cycle => FormatUnsigned(value),
+            ProcessTableColumnKind.WorkingSet => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.PeakWorkingSet => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.WorkingSetDelta => FormatMemory(value, setting, isDelta: true),
+            ProcessTableColumnKind.ActivePrivateWorkingSet => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.PrivateMemory => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.SharedWorkingSet => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.Disk => FormatTransferRate(
+                BitConverter.Int64BitsToDouble(value),
+                BytesPerMebibyte,
+                suffix: "MB/s"),
+            ProcessTableColumnKind.Network => FormatTransferRate(
+                BitConverter.Int64BitsToDouble(value),
+                BytesPerMegabit,
+                suffix: "Mbps"),
+            ProcessTableColumnKind.CommitSize => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.PagedPool => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.NonPagedPool => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.PageFaults => FormatSigned(value),
+            ProcessTableColumnKind.PageFaultDelta => FormatSigned(value),
+            ProcessTableColumnKind.Handles => value.ToString(format: "N0", TableCulture),
+            ProcessTableColumnKind.Threads => value.ToString(format: "N0", TableCulture),
+            ProcessTableColumnKind.UserObjects => value.ToString(format: "N0", TableCulture),
+            ProcessTableColumnKind.GDIObjects => value.ToString(format: "N0", TableCulture),
+            ProcessTableColumnKind.IOReads => FormatUnsigned(value),
+            ProcessTableColumnKind.IOWrites => FormatUnsigned(value),
+            ProcessTableColumnKind.IOOther => FormatUnsigned(value),
+            ProcessTableColumnKind.IOReadBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.IOWriteBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.IOOtherBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.GPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            ProcessTableColumnKind.DedicatedGPUMemory => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.SharedGPUMemory => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.NPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            ProcessTableColumnKind.DedicatedNPUMemory => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.SharedNPUMemory => FormatMemory(value, setting, isDelta: false),
+            ProcessTableColumnKind.CPUUtility => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            _ => string.Empty
+        };
+    }
+
     private string FormatDisplayCode(long value)
     {
         ProcessDisplayCode code = (ProcessDisplayCode)value;
@@ -2917,19 +3045,24 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private static long QuantizeMemoryFraction(double numerator, double divisor) =>
         (long)Math.Round(numerator / divisor * 10, MidpointRounding.AwayFromZero);
 
-    private static long ToKibibytes(long bytes) => bytes switch
+    private static long ToKibibytes(long bytes)
     {
-        < 0 => -1,
-        0 => 0,
-        _ => (bytes + 1023) / 1024
-    };
+        if (bytes < 0) return -1;
+        long quotient = bytes / 1024;
+        return bytes % 1024 == 0 ? quotient : quotient + 1;
+    }
 
-    private static long ToSignedKibibytes(long bytes) => bytes switch
+    private static long ToSignedKibibytes(long bytes)
     {
-        > 0 => (bytes + 1023) / 1024,
-        < 0 => -((-bytes + 1023) / 1024),
-        _ => 0
-    };
+        long quotient = bytes / 1024;
+        long remainder = bytes % 1024;
+        return remainder switch
+        {
+            > 0 => quotient + 1,
+            < 0 => quotient - 1,
+            _ => quotient
+        };
+    }
 
     private void ScheduleWarmDynamicRefresh()
     {
@@ -2999,7 +3132,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         bool sampleEveryProcess = ProcessTableColumnCatalog.Get(_sortColumn).Lifetime
                                   == ProcessTableColumnLifetime.Dynamic
-                                  || _filterQuery.RequiresAllProcessSamples;
+                                  || _filterQuery.RequiresAllProcessSamples
+                                  || _hasVisibleLiveTotals;
         if (sampleEveryProcess)
         {
             _snapshotService.SetWarmProcesses(_schema.VisibleMask, _warmProcessIDs, count: 0, sampleEveryProcess: true);
@@ -3075,6 +3209,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         PrepareColumnLayout(columns);
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
+        _hasVisibleLiveTotals = ProcessColumnSettings.HasVisibleLiveTotals(normalized);
         _filterQuery = filterQuery;
         if (_schema.VisibleMask != schema.VisibleMask)
             ApplySearchSchema(schema, viewportAnchor);
@@ -3101,8 +3236,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _rowComparer.SetSchema(pendingColumnLayout.Schema);
         _columnSettings = pendingColumnLayout.Settings;
         _settingsByColumn = CreateColumnSettingsIndex(pendingColumnLayout.Settings);
+        _hasVisibleLiveTotals =
+            ProcessColumnSettings.HasVisibleLiveTotals(pendingColumnLayout.Settings);
         _filterQuery = pendingColumnLayout.FilterQuery;
         _columns = pendingColumnLayout.Columns;
+        UpdateLiveTotalTexts();
         ReplaceHeaderTexts(pendingColumnLayout.Columns);
         UpdateHeaderHoverVisual();
         RebuildFromCopiedSnapshot(count, version, viewportAnchor);
@@ -3132,6 +3270,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessViewportAnchor? viewportAnchor)
     {
         _columns = columns;
+        UpdateLiveTotalTexts();
         ReplaceHeaderTexts(columns);
         RebuildVisibleRows();
         InvalidateMeasure();
@@ -3765,6 +3904,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private HeaderTextLayouts CreateHeaderTextLayouts(ProcessTableColumn column)
     {
+        string headerText = ResolveHeaderText(column);
         double normalWidth = Math.Max(val1: 0, column.Width - _metrics.CellPadding * 2);
         double ascendingSortWidth = Math.Max(
             val1: 0,
@@ -3775,9 +3915,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         List<TextLayout> layouts = new(3);
         try
         {
-            layouts.Add(CreateHeaderText(column, normalWidth));
-            layouts.Add(CreateHeaderText(column, ascendingSortWidth));
-            layouts.Add(CreateHeaderText(column, descendingSortWidth));
+            layouts.Add(CreateHeaderText(column, headerText, normalWidth));
+            layouts.Add(CreateHeaderText(column, headerText, ascendingSortWidth));
+            layouts.Add(CreateHeaderText(column, headerText, descendingSortWidth));
             return new HeaderTextLayouts(layouts[0], layouts[1], layouts[2]);
         }
         catch
@@ -3855,9 +3995,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         };
     }
 
-    private TextLayout CreateHeaderText(ProcessTableColumn column, double maximumWidth) =>
+    private string ResolveHeaderText(ProcessTableColumn column)
+    {
+        string liveTotal = _liveTotalTextsByColumn[(int)column.Kind] ?? string.Empty;
+        return liveTotal.Length == 0
+            ? column.Title
+            : string.Concat(liveTotal, str1: " ", column.Title);
+    }
+
+    private TextLayout CreateHeaderText(
+        ProcessTableColumn column,
+        string text,
+        double maximumWidth) =>
         new(
-            LimitTextLayoutInput(column.Title),
+            LimitTextLayoutInput(text),
             _tableTypeface,
             _metrics.HeaderFontSize,
             _foregroundBrush,
