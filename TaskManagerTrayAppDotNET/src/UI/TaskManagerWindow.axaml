@@ -231,6 +231,10 @@
   <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
   <sys:Double x:Key="ProcessTable.FontSize">11.5</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.LiveTotalFontSize">13</sys:Double>
+  <sys:Int32 x:Key="ProcessTable.LiveTotalFontWeight">400</sys:Int32>
+  <sys:Double x:Key="ProcessTable.LiveTotalHorizontalScale">0.75</sys:Double>
+  <sys:Double x:Key="ProcessTable.LiveTotalTextGap">4</sys:Double>
   <sys:Double x:Key="ProcessTable.GridLineThickness">1</sys:Double>
   <sys:Double x:Key="ProcessTable.ColumnResizeHitRadius">4</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderDragThreshold">4</sys:Double>

@@ -81,6 +81,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly DetailsGridFontWeight _baseTableFontWeight;
     private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
+    private Typeface _liveTotalTypeface;
+    private LiveTotalTypography _liveTotalTypography;
     private int _tableFontWeight;
     private readonly ProcessTableRenderLayer _selectionLayer;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
@@ -223,6 +225,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _baseTableFontWeight = gridFontWeight;
         _tableFontWeight = CalculateTableFontWeight(gridFontSize);
         _tableTypeface = CreateTableTypeface(_tableFontWeight);
+        _liveTotalTypography = CreateLiveTotalTypography(resources);
+        _liveTotalTypeface = CreateLiveTotalTypeface(_liveTotalTypography);
         Typeface referenceTypeface = CreateTableTypeface((int)gridFontWeight);
         _rowTextHeightScale = MeasureRowTextHeightScale(referenceTypeface);
         double gridRowHeight = CalculateRowHeight(gridFontSize, gridRowSpacing);
@@ -1229,18 +1233,21 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _rowTextHeightScale);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
         ProcessTableAXAMLColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
+        LiveTotalTypography nextLiveTotalTypography = CreateLiveTotalTypography(_resources);
         Thickness nextSelectionBorderThickness =
             _resources.AxamlProcessTable.SelectionBorderThickness;
         Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
         bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
         bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
+        bool liveTotalTypographyChanged = nextLiveTotalTypography != _liveTotalTypography;
         _axamlFontSize = nextAXAMLFontSize;
         _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
             && nextVisualMetrics == _visualMetrics
             && nextColumnWidths == _axamlColumnWidths
             && !backgroundColorChanged
-            && !selectionBorderChanged)
+            && !selectionBorderChanged
+            && !liveTotalTypographyChanged)
             return null;
 
         bool rebuildRetainedRows = RetainedRowGeometryChanged(
@@ -1257,7 +1264,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                                  || _visualMetrics.SortCaretRightMargin
                                  != nextVisualMetrics.SortCaretRightMargin
                                  || rebuildCaretText
-                                 || rebuildTableTypeface;
+                                 || rebuildTableTypeface
+                                 || liveTotalTypographyChanged;
         bool gridMetricsChanged = _metrics.FontSize != nextMetrics.FontSize
                                   || _metrics.RowHeight != nextMetrics.RowHeight;
 
@@ -1267,6 +1275,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(nextBackgroundColor);
         _selectionBorderThickness = nextSelectionBorderThickness;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
+        if (liveTotalTypographyChanged)
+        {
+            _liveTotalTypography = nextLiveTotalTypography;
+            _liveTotalTypeface = CreateLiveTotalTypeface(nextLiveTotalTypography);
+        }
         if (rebuildTableTypeface)
         {
             _tableFontWeight = nextTableFontWeight;
@@ -2119,24 +2132,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             {
                 bool needsLiveResizeLayout = column.Alignment == ProcessTableColumnAlignment.Right
                                              && Math.Abs(column.Width - _columns[columnIndex].Width) >= 0.01;
-                using TextLayout? liveResizeText = needsLiveResizeLayout
-                    ? CreateHeaderText(
-                        column,
-                        ResolveHeaderText(column),
-                        headerTextWidth)
+                using HeaderContentLayout? liveResizeText = needsLiveResizeLayout
+                    ? CreateHeaderText(column, headerTextWidth)
                     : null;
-                TextLayout headerText = liveResizeText
-                                        ?? _headerTexts[columnIndex].Get(
-                                            isSortedColumn,
-                                            useDescendingCaret);
-                double textTop = top + Math.Max(val1: 0, (_metrics.HeaderHeight - headerText.Height) / 2);
+                HeaderContentLayout headerText = liveResizeText
+                                                 ?? _headerTexts[columnIndex].Get(
+                                                     isSortedColumn,
+                                                     useDescendingCaret);
                 Rect headerClip = new(
                     textLeft,
                     top,
                     headerTextWidth,
                     _metrics.HeaderHeight);
                 using (context.PushClip(headerClip))
-                    headerText.Draw(context, new Point(textLeft, textTop));
+                    headerText.Draw(context, textLeft, top, _metrics.HeaderHeight);
             }
 
             if (caret != null)
@@ -2210,7 +2219,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         context.FillRectangle(_backgroundBrush, bounds);
         context.DrawRectangle(brush: null, _columnInteractionPen, bounds);
 
-        TextLayout headerText = _headerTexts[_interactionColumnIndex].Normal;
+        HeaderContentLayout headerText = _headerTexts[_interactionColumnIndex].Normal;
         double textLeft = left + _metrics.CellPadding;
         double textWidth = Math.Max(val1: 0, column.Width - _metrics.CellPadding * 2);
         if (textWidth <= 0 || _metrics.HeaderHeight <= 0) return;
@@ -2219,9 +2228,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             headerTop,
             textWidth,
             _metrics.HeaderHeight);
-        double textTop = headerTop + Math.Max(val1: 0, (_metrics.HeaderHeight - headerText.Height) / 2);
         using (context.PushClip(textClip))
-            headerText.Draw(context, new Point(textLeft, textTop));
+            headerText.Draw(context, textLeft, headerTop, _metrics.HeaderHeight);
     }
 
     private void UpdateRetainedDrawings()
@@ -3804,6 +3812,23 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             FontStyle.Normal,
             (FontWeight)fontWeight);
 
+    private static LiveTotalTypography CreateLiveTotalTypography(
+        TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.LiveTotalFontSize,
+            resources.AxamlProcessTable.LiveTotalFontWeight,
+            Math.Clamp(
+                resources.AxamlProcessTable.LiveTotalHorizontalScale,
+                min: 0.25,
+                max: 1),
+            Math.Max(val1: 0, resources.AxamlProcessTable.LiveTotalTextGap));
+
+    private static Typeface CreateLiveTotalTypeface(LiveTotalTypography typography) =>
+        new(
+            DefaultTableTypeface.FontFamily,
+            FontStyle.Normal,
+            (FontWeight)typography.FontWeight);
+
     private static double MeasureRowTextHeightScale(Typeface typeface)
     {
         using TextLayout measurement = new(
@@ -3904,7 +3929,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private HeaderTextLayouts CreateHeaderTextLayouts(ProcessTableColumn column)
     {
-        string headerText = ResolveHeaderText(column);
         double normalWidth = Math.Max(val1: 0, column.Width - _metrics.CellPadding * 2);
         double ascendingSortWidth = Math.Max(
             val1: 0,
@@ -3912,12 +3936,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double descendingSortWidth = Math.Max(
             val1: 0,
             normalWidth - _sortCaretRightMargin - _descendingCaretText.Width);
-        List<TextLayout> layouts = new(3);
+        List<HeaderContentLayout> layouts = new(3);
         try
         {
-            layouts.Add(CreateHeaderText(column, headerText, normalWidth));
-            layouts.Add(CreateHeaderText(column, headerText, ascendingSortWidth));
-            layouts.Add(CreateHeaderText(column, headerText, descendingSortWidth));
+            layouts.Add(CreateHeaderText(column, normalWidth));
+            layouts.Add(CreateHeaderText(column, ascendingSortWidth));
+            layouts.Add(CreateHeaderText(column, descendingSortWidth));
             return new HeaderTextLayouts(layouts[0], layouts[1], layouts[2]);
         }
         catch
@@ -3995,33 +4019,130 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         };
     }
 
-    private string ResolveHeaderText(ProcessTableColumn column)
+    private HeaderContentLayout CreateHeaderText(
+        ProcessTableColumn column,
+        double maximumWidth)
     {
         string liveTotal = _liveTotalTextsByColumn[(int)column.Kind] ?? string.Empty;
-        return liveTotal.Length == 0
-            ? column.Title
-            : string.Concat(liveTotal, str1: " ", column.Title);
+        if (liveTotal.Length == 0)
+        {
+            bool rightAligned = column.Alignment == ProcessTableColumnAlignment.Right;
+            TextLayout title = CreateHeaderTitleText(
+                column.Title,
+                rightAligned ? maximumWidth : double.PositiveInfinity,
+                rightAligned ? TextAlignment.Right : TextAlignment.Left,
+                trim: rightAligned);
+            return new HeaderContentLayout(title);
+        }
+
+        double availableWidth = Math.Max(val1: 0, maximumWidth);
+        double horizontalScale = _liveTotalTypography.HorizontalScale;
+        TextLayout? totalLayout = CreateLiveTotalText(liveTotal, double.PositiveInfinity);
+        TextLayout? titleLayout = null;
+        try
+        {
+            double totalVisualWidth = totalLayout.Width * horizontalScale;
+            if (totalVisualWidth >= availableWidth)
+            {
+                totalLayout.Dispose();
+                totalLayout = null;
+                totalLayout = CreateLiveTotalText(liveTotal, availableWidth / horizontalScale);
+                totalVisualWidth = Math.Min(availableWidth, totalLayout.Width * horizontalScale);
+                double totalLeft = column.Alignment == ProcessTableColumnAlignment.Right
+                    ? availableWidth - totalVisualWidth
+                    : 0;
+                return new HeaderContentLayout(
+                    title: null,
+                    totalLayout,
+                    horizontalScale,
+                    totalLeft,
+                    titleLeft: 0);
+            }
+
+            double remainingWidth = availableWidth - totalVisualWidth;
+            double textGap = remainingWidth > _liveTotalTypography.TextGap
+                ? _liveTotalTypography.TextGap
+                : 0;
+            double titleAvailableWidth = Math.Max(val1: 0, remainingWidth - textGap);
+            if (titleAvailableWidth <= 0)
+            {
+                double totalLeft = column.Alignment == ProcessTableColumnAlignment.Right
+                    ? availableWidth - totalVisualWidth
+                    : 0;
+                return new HeaderContentLayout(
+                    title: null,
+                    totalLayout,
+                    horizontalScale,
+                    totalLeft,
+                    titleLeft: 0);
+            }
+
+            titleLayout = CreateHeaderTitleText(
+                column.Title,
+                double.PositiveInfinity,
+                TextAlignment.Left,
+                trim: false);
+            double titleWidth = Math.Min(titleLayout.Width, titleAvailableWidth);
+            if (titleLayout.Width - titleWidth >= 0.01)
+            {
+                titleLayout.Dispose();
+                titleLayout = null;
+                titleLayout = CreateHeaderTitleText(
+                    column.Title,
+                    titleWidth,
+                    TextAlignment.Left,
+                    trim: true);
+            }
+
+            double contentWidth = totalVisualWidth + textGap + titleWidth;
+            double contentLeft = column.Alignment == ProcessTableColumnAlignment.Right
+                ? availableWidth - contentWidth
+                : 0;
+            return new HeaderContentLayout(
+                titleLayout,
+                totalLayout,
+                horizontalScale,
+                totalLeft: contentLeft,
+                titleLeft: contentLeft + totalVisualWidth + textGap);
+        }
+        catch
+        {
+            titleLayout?.Dispose();
+            totalLayout?.Dispose();
+            throw;
+        }
     }
 
-    private TextLayout CreateHeaderText(
-        ProcessTableColumn column,
+    private TextLayout CreateHeaderTitleText(
         string text,
-        double maximumWidth) =>
+        double maximumWidth,
+        TextAlignment alignment,
+        bool trim) =>
         new(
             LimitTextLayoutInput(text),
             _tableTypeface,
             _metrics.HeaderFontSize,
             _foregroundBrush,
-            column.Alignment == ProcessTableColumnAlignment.Right
-                ? TextAlignment.Right
-                : TextAlignment.Left,
+            alignment,
             TextWrapping.NoWrap,
-            column.Alignment == ProcessTableColumnAlignment.Right
-                ? TextTrimming.CharacterEllipsis
-                : TextTrimming.None,
-            maxWidth: column.Alignment == ProcessTableColumnAlignment.Right
-                ? Math.Max(val1: 0, maximumWidth)
-                : double.PositiveInfinity,
+            trim ? TextTrimming.CharacterEllipsis : TextTrimming.None,
+            maxWidth: double.IsPositiveInfinity(maximumWidth)
+                ? maximumWidth
+                : Math.Max(val1: 0, maximumWidth),
+            maxLines: 1);
+
+    private TextLayout CreateLiveTotalText(string text, double maximumWidth) =>
+        new(
+            LimitTextLayoutInput(text),
+            _liveTotalTypeface,
+            _liveTotalTypography.FontSize,
+            _foregroundBrush,
+            TextAlignment.Left,
+            TextWrapping.NoWrap,
+            double.IsPositiveInfinity(maximumWidth)
+                ? TextTrimming.None
+                : TextTrimming.CharacterEllipsis,
+            maxWidth: maximumWidth,
             maxLines: 1);
 
     private TextLayout CreateBoundedText(string value, double maximumWidth) =>
@@ -4168,18 +4289,89 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         public void Dispose() => Text.Dispose();
     }
 
+    private sealed class HeaderContentLayout : IDisposable
+    {
+        private readonly TextLayout? _title;
+        private readonly TextLayout? _total;
+        private readonly double _horizontalScale;
+        private readonly double _totalLeft;
+        private readonly double _titleLeft;
+        private readonly double _baseline;
+        private readonly double _height;
+        private bool _disposed;
+
+        public HeaderContentLayout(TextLayout title)
+            : this(title, total: null, horizontalScale: 1, totalLeft: 0, titleLeft: 0)
+        {
+        }
+
+        public HeaderContentLayout(
+            TextLayout? title,
+            TextLayout? total,
+            double horizontalScale,
+            double totalLeft,
+            double titleLeft)
+        {
+            if (title == null && total == null)
+                throw new ArgumentException("A header content layout needs text.");
+
+            _title = title;
+            _total = total;
+            _horizontalScale = horizontalScale;
+            _totalLeft = totalLeft;
+            _titleLeft = titleLeft;
+
+            double titleBaseline = title?.Baseline ?? 0;
+            double totalBaseline = total?.Baseline ?? 0;
+            _baseline = Math.Max(titleBaseline, totalBaseline);
+            double titleBelowBaseline = title == null ? 0 : title.Height - titleBaseline;
+            double totalBelowBaseline = total == null ? 0 : total.Height - totalBaseline;
+            _height = _baseline + Math.Max(titleBelowBaseline, totalBelowBaseline);
+        }
+
+        public void Draw(DrawingContext context, double left, double top, double availableHeight)
+        {
+            double contentTop = top + Math.Max(val1: 0, (availableHeight - _height) / 2);
+            if (_total != null)
+            {
+                double totalTop = contentTop + _baseline - _total.Baseline;
+                using (context.PushTransform(Matrix.CreateScale(_horizontalScale, 1)))
+                {
+                    _total.Draw(
+                        context,
+                        new Point((left + _totalLeft) / _horizontalScale, totalTop));
+                }
+            }
+
+            if (_title != null)
+            {
+                double titleTop = contentTop + _baseline - _title.Baseline;
+                _title.Draw(context, new Point(left + _titleLeft, titleTop));
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+            _title?.Dispose();
+            _total?.Dispose();
+        }
+    }
+
     private sealed class HeaderTextLayouts(
-        TextLayout normal,
-        TextLayout ascendingSort,
-        TextLayout descendingSort) : IDisposable
+        HeaderContentLayout normal,
+        HeaderContentLayout ascendingSort,
+        HeaderContentLayout descendingSort) : IDisposable
     {
         private bool _disposed;
 
-        public TextLayout Normal { get; } = normal;
-        private TextLayout AscendingSort { get; } = ascendingSort;
-        private TextLayout DescendingSort { get; } = descendingSort;
+        public HeaderContentLayout Normal { get; } = normal;
+        private HeaderContentLayout AscendingSort { get; } = ascendingSort;
+        private HeaderContentLayout DescendingSort { get; } = descendingSort;
 
-        public TextLayout Get(bool isSorted, bool useDescendingCaret)
+        public HeaderContentLayout Get(bool isSorted, bool useDescendingCaret)
         {
             if (!isSorted) return Normal;
             return useDescendingCaret ? DescendingSort : AscendingSort;
@@ -4195,6 +4387,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             DescendingSort.Dispose();
         }
     }
+
+    private readonly record struct LiveTotalTypography(
+        double FontSize,
+        int FontWeight,
+        double HorizontalScale,
+        double TextGap);
 
     private readonly record struct ContextCopyRow(
         ProcessInstanceKey Process,
