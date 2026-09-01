@@ -18,6 +18,27 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
+    public void DefaultPayloadsInstallLegalMaterials()
+    {
+        TrayAppDotNETInstallPayload[] payloads =
+        [
+            TrayAppDotNETInstallPayload.ManagedApp("TestTrayAppDotNET"),
+            TrayAppDotNETInstallPayload.NativeAOTApp("TestTrayAppDotNET")
+        ];
+
+        foreach (TrayAppDotNETInstallPayload payload in payloads)
+        {
+            string[] requiredFileNames = payload.RequiredFiles.Select(file => file.Name).ToArray();
+            string[] requiredDirectoryNames = payload.RequiredDirectories.Select(directory => directory.Name).ToArray();
+
+            Assert.Contains("LICENSE.txt", requiredFileNames);
+            Assert.Contains("SOURCE_CODE.txt", requiredFileNames);
+            Assert.Contains("THIRD_PARTY_NOTICES.txt", requiredFileNames);
+            Assert.Contains("THIRD_PARTY_LICENSES", requiredDirectoryNames);
+        }
+    }
+
+    [Fact]
     public void ElevatedInstallArgumentsCarryExplicitShortcutOptions()
     {
         TrayAppDotNETInstallOptions installOptions = new(

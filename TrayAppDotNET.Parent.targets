@@ -126,6 +126,25 @@
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETIsVendoredProject)' != 'true'">
+    <Content Include="$(TrayAppDotNETRoot)LICENSE"
+             Link="LICENSE.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_NOTICES.txt"
+             Link="THIRD_PARTY_NOTICES.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(TrayAppDotNETRoot)SOURCE_CODE.txt"
+             Link="SOURCE_CODE.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_LICENSES\**\*"
+             Link="THIRD_PARTY_LICENSES\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <_TrayAppDotNETStronglyTypedResource
       Include="@(EmbeddedResource->WithMetadataValue('StronglyTypedLanguage', 'C#'))" />

@@ -47,6 +47,11 @@ public sealed record TrayAppDotNETInstallPayload(
     IReadOnlyList<TrayAppDotNETInstallDirectory> OptionalDirectories,
     bool CopySourceDirectoryRootFiles = false)
 {
+    private const string LicenseFileName = "LICENSE.txt";
+    private const string SourceCodeFileName = "SOURCE_CODE.txt";
+    private const string ThirdPartyLicensesDirectoryName = "THIRD_PARTY_LICENSES";
+    private const string ThirdPartyNoticesFileName = "THIRD_PARTY_NOTICES.txt";
+
     public IReadOnlyList<TrayAppDotNETInstallFile> InstalledFiles(string installedExecutableFileName) =>
     [
         new(installedExecutableFileName),
@@ -65,17 +70,23 @@ public sealed record TrayAppDotNETInstallPayload(
         IEnumerable<string>? requiredDirectories = null,
         IEnumerable<string>? optionalDirectories = null)
     {
-        string[] requiredFileNames =
+        TrayAppDotNETInstallFile[] requiredFiles =
         [
-            applicationName + ".dll",
-            applicationName + ".deps.json",
-            applicationName + ".runtimeconfig.json"
+            new(applicationName + ".dll"),
+            new(applicationName + ".deps.json"),
+            new(applicationName + ".runtimeconfig.json"),
+            .. CreateLegalFiles()
+        ];
+        TrayAppDotNETInstallDirectory[] resolvedRequiredDirectories =
+        [
+            new(ThirdPartyLicensesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
+            .. ToDirectories(requiredDirectories ?? ["runtime"])
         ];
 
         return new TrayAppDotNETInstallPayload(
-            ToFiles(requiredFileNames),
+            requiredFiles,
             [],
-            ToDirectories(requiredDirectories ?? ["runtime"]),
+            resolvedRequiredDirectories,
             ToDirectories(optionalDirectories ?? []));
     }
 
@@ -88,7 +99,8 @@ public sealed record TrayAppDotNETInstallPayload(
         [
             new(Name: "av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
+            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            .. CreateLegalFiles()
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
@@ -96,16 +108,25 @@ public sealed record TrayAppDotNETInstallPayload(
             new(Name: "libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];
+        TrayAppDotNETInstallDirectory[] resolvedRequiredDirectories =
+        [
+            new(ThirdPartyLicensesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
+            .. ToDirectories(requiredDirectories ?? [])
+        ];
 
         return new TrayAppDotNETInstallPayload(
             requiredFiles,
             optionalFiles,
-            ToDirectories(requiredDirectories ?? []),
+            resolvedRequiredDirectories,
             ToDirectories(optionalDirectories ?? []));
     }
 
-    private static TrayAppDotNETInstallFile[] ToFiles(IEnumerable<string> names) =>
-        names.Select(name => new TrayAppDotNETInstallFile(name)).ToArray();
+    private static TrayAppDotNETInstallFile[] CreateLegalFiles() =>
+    [
+        new(LicenseFileName, RemoveOnlyWhenInstallRootHasNoExe: true),
+        new(SourceCodeFileName, RemoveOnlyWhenInstallRootHasNoExe: true),
+        new(ThirdPartyNoticesFileName, RemoveOnlyWhenInstallRootHasNoExe: true)
+    ];
 
     private static TrayAppDotNETInstallDirectory[] ToDirectories(IEnumerable<string> names) =>
         names.Select(name => new TrayAppDotNETInstallDirectory(name)).ToArray();

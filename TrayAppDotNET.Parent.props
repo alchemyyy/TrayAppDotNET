@@ -3,6 +3,8 @@
     <TrayAppDotNETRoot>$(MSBuildThisFileDirectory)</TrayAppDotNETRoot>
     <TrayAppDotNETCommonRoot>$(MSBuildThisFileDirectory)TrayAppDotNETCommon</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <TrayAppDotNETIsVendoredProject Condition="'$(TrayAppDotNETIsVendoredProject)' == '' and $([System.String]::Copy('$(MSBuildProjectDirectory)').ToLowerInvariant().Contains('\vendor\'))">true</TrayAppDotNETIsVendoredProject>
+    <TrayAppDotNETIsVendoredProject Condition="'$(TrayAppDotNETIsVendoredProject)' == ''">false</TrayAppDotNETIsVendoredProject>
     <TrayAppDotNETIsRootSolutionBuild Condition="'$(SolutionDir)' == '$(TrayAppDotNETRoot)'">true</TrayAppDotNETIsRootSolutionBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == '' and '$(TrayAppDotNETIsRootSolutionBuild)' == 'true'">true</TrayAppDotNETAggregateBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
@@ -18,5 +20,14 @@
     <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</_TrayAppDotNETProjectExtensionsConfiguration>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TrayAppDotNETIsVendoredProject)' != 'true'">
+    <Authors Condition="'$(Authors)' == ''">alchemyyy</Authors>
+    <Copyright Condition="'$(Copyright)' == ''">Copyright (C) 2026 alchemyyy</Copyright>
+    <PackageLicenseExpression Condition="'$(PackageLicenseExpression)' == ''">GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageProjectUrl Condition="'$(PackageProjectUrl)' == ''">https://github.com/alchemyyy/TrayAppDotNET</PackageProjectUrl>
+    <RepositoryType Condition="'$(RepositoryType)' == ''">git</RepositoryType>
+    <RepositoryUrl Condition="'$(RepositoryUrl)' == ''">https://github.com/alchemyyy/TrayAppDotNET.git</RepositoryUrl>
   </PropertyGroup>
 </Project>

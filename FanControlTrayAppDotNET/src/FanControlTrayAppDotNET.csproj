@@ -164,7 +164,6 @@
     <AvaloniaResource Include="..\app.ico" Link="Assets/app.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')" />
     <AvaloniaResource Include="Visuals\FanFont.ttf" Link="Visuals/FanFont.ttf" />
     <AvaloniaResource Include="Visuals\FAN_GLYPH.png" Link="Visuals/FAN_GLYPH.png" />
-    <Content Include="Resources\PawnIO_setup.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -226,18 +225,6 @@
 
     <ItemGroup>
       <ResolvedFileToPublish Include="@(_LibreHardwareMonitorSidecar)" RelativePath="LibreHardwareMonitorLib.dll" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
-    </ItemGroup>
-  </Target>
-
-  <Target Name="IncludePawnIoSetupSidecar" AfterTargets="ComputeFilesToPublish" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''">
-    <PropertyGroup>
-      <_PawnIoSetupPath>$(MSBuildProjectDirectory)\Resources\PawnIO_setup.exe</_PawnIoSetupPath>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(_PawnIoSetupPath)')" Text="PawnIO_setup.exe sidecar was not found for Native AOT publish." />
-
-    <ItemGroup>
-      <ResolvedFileToPublish Include="$(_PawnIoSetupPath)" RelativePath="Resources\PawnIO_setup.exe" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     </ItemGroup>
   </Target>
 

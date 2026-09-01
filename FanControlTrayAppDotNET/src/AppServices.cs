@@ -15,8 +15,6 @@ namespace FanControlTrayAppDotNET;
 internal static class AppServices
 {
     public const string LibreHardwareMonitorFileName = "LibreHardwareMonitorLib.dll";
-    public const string PawnIoSetupFileName = "PawnIO_setup.exe";
-    public static readonly string PawnIoSetupRelativePath = Path.Combine(path1: "Resources", PawnIoSetupFileName);
 
     public static TrayAppDotNETInstallLayout InstallLayout { get; } =
         TrayAppDotNETInstallLayout.Create(
@@ -70,19 +68,11 @@ internal static class AppServices
     private static TrayAppDotNETInstallPayload CreateInstallPayload()
     {
         TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName);
-        return payload with
-        {
-            RequiredFiles =
-            [
-                .. payload.RequiredFiles,
-                new TrayAppDotNETInstallFile(LibreHardwareMonitorFileName),
-                new TrayAppDotNETInstallFile(PawnIoSetupRelativePath)
-            ],
-            RequiredDirectories =
-            [
-                .. payload.RequiredDirectories,
-                new TrayAppDotNETInstallDirectory(Name: "Resources", RemoveOnlyWhenInstallRootHasNoExe: false)
-            ]
-        };
+        TrayAppDotNETInstallFile[] requiredFiles =
+        [
+            .. payload.RequiredFiles,
+            new(LibreHardwareMonitorFileName)
+        ];
+        return payload with { RequiredFiles = requiredFiles };
     }
 }
