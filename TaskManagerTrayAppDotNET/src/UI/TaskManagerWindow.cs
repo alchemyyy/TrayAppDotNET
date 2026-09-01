@@ -38,6 +38,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
 
+    private const string EndTasksConfirmationMessage =
+        "Open programs associated with these processes will close and you may lose unsaved data. Ending system " +
+        "processes might result in system instability. Are you sure you want to continue?";
+
     private const string RestartExplorerConfirmationMessage =
         "This will close every running explorer.exe process, including the desktop, taskbar, and open File " +
         "Explorer windows, and then start a fresh explorer.exe process.";
@@ -885,9 +889,19 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private Task<bool> ConfirmEndTaskAsync(ProcessEndTaskRequest request)
     {
-        string processName = string.IsNullOrWhiteSpace(request.ProcessName)
-            ? $"PID {request.Target.ProcessID}"
-            : request.ProcessName;
+        if (request.Count > 1)
+        {
+            return ConfirmAsync(
+                $"Do you want to end {request.Count} selected processes?",
+                EndTasksConfirmationMessage,
+                confirmText: "End processes",
+                cancelText: "Cancel");
+        }
+
+        ProcessEndTaskItem process = request.Processes[0];
+        string processName = string.IsNullOrWhiteSpace(process.ProcessName)
+            ? $"PID {process.Target.ProcessID}"
+            : process.ProcessName;
         return ConfirmAsync(
             $"Do you want to end {processName}?",
             EndTaskConfirmationMessage,

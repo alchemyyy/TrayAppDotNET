@@ -52,8 +52,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private readonly TaskManagerResizeGrip _resizeGrip;
     private readonly Border _columnHeaderBorder;
     private readonly ProcessRowHoverVisual _hoverHighlight;
-    private readonly Border _selectionHighlight;
-    private readonly TranslateTransform _selectionTransform = new();
     private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
     private ProcessHeaderButtonArrangementWindow? _headerButtonArrangementWindow;
@@ -112,11 +110,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             resources);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged += OnRowHoverGeometryChanged;
-        _processCanvas.SelectionRowTopChanged += OnSelectionRowTopChanged;
         _processCanvas.ViewportAnchorAdjustmentRequested += OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested += OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
-        _processCanvas.GridMetricsChanged += OnGridMetricsChanged;
         _processCanvas.GridZoomRequested += OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested += OnGridZoomResetRequested;
         _processCanvas.GridRowSpacingRequested += OnGridRowSpacingRequested;
@@ -238,20 +234,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.EnableRoundedCorners,
             settings);
         _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, _processCanvas.RowHoverGeometry);
-        _selectionHighlight = new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent),
-            BorderThickness = resources.AxamlProcessTable.SelectionBorderThickness,
-            Height = _processCanvas.RowHeight,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            IsVisible = false,
-            RenderTransform = _selectionTransform
-        };
         Grid tableSurface = new();
         tableSurface.Children.Add(_hoverHighlight);
-        tableSurface.Children.Add(_selectionHighlight);
         foreach (Control renderLayer in _processCanvas.RenderLayers)
             tableSurface.Children.Add(renderLayer);
         tableSurface.Children.Add(_processCanvas);
@@ -533,7 +517,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             GetProcessTableVerticalScrollBarTopInset(resources));
         ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
         _resizeGrip.ApplyResources(resources);
-        _selectionHighlight.BorderThickness = resources.AxamlProcessTable.SelectionBorderThickness;
 
         foreach (ProcessColumnPropertiesWindow propertiesWindow in _columnPropertyWindows.Values)
             propertiesWindow.ApplyAXAMLResources(currentColumnSettings);
@@ -548,6 +531,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _searchBox.Text ?? string.Empty,
             _tableScrollViewport.HorizontalOffset,
             _tableScrollViewport.VerticalOffset,
+            _processCanvas.SelectedTerminationTargets,
             _processCanvas.SelectedTerminationTarget,
             _runPanel.IsVisible,
             _runInput.Text ?? string.Empty,
@@ -563,7 +547,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runInput.Text = state.RunInputText;
         _runPanel.IsVisible = state.IsRunPanelVisible;
         _processCanvas.SetGridTypography(state.GridFontSize, state.GridRowSpacing);
-        _processCanvas.RestoreSelectedProcess(state.SelectedProcess);
+        _processCanvas.RestoreSelectedProcesses(state.SelectedProcesses, state.ActiveProcess);
         UpdateLayout();
         _tableScrollViewport.UpdateLayout();
         _tableScrollViewport.SetOffsets(state.HorizontalOffset, state.VerticalOffset);
@@ -590,17 +574,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
     {
-        _endTaskButton.IsEnabled = target.HasValue;
+        int selectedCount = _processCanvas.SelectedProcessCount;
+        _endTaskButton.IsEnabled = selectedCount > 0;
+        _endTaskButton.Text = selectedCount > 1 ? "End tasks" : "End task";
         _armTerminationTarget(target);
     }
 
     private void OnRowHoverGeometryChanged(ProcessRowHoverGeometry geometry) => _hoverHighlight.SetGeometry(geometry);
-
-    private void OnSelectionRowTopChanged(double? rowTop)
-    {
-        _selectionHighlight.IsVisible = rowTop.HasValue;
-        if (rowTop.HasValue) _selectionTransform.Y = rowTop.Value;
-    }
 
     private void OnViewportAnchorAdjustmentRequested(ProcessViewportAnchorAdjustment adjustment)
     {
@@ -609,8 +589,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         if (adjustment.ContentHeightChanged) _tableScrollViewport.UpdateLayout();
         _tableScrollViewport.AdjustVerticalOffset(adjustment.VerticalOffsetDelta);
     }
-
-    private void OnGridMetricsChanged(double fontSize, double rowHeight) => _selectionHighlight.Height = rowHeight;
 
     private void OnGridZoomRequested(int direction)
     {
@@ -983,18 +961,30 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             bool confirmed = await _confirmEndTask(request);
             if (_disposed || !confirmed) return;
 
-            if (!_terminateProcess(request.Target, out string errorMessage))
+            ProcessTerminationBatchResult result = await Task.Run(() =>
+                ProcessTerminationBatchFunctions.Execute(
+                    request.Processes,
+                    _terminateProcess,
+                    CriticalProcessActions.IsTargetGone));
+            if (_disposed) return;
+            if (result.RefreshNeeded) _snapshotService.RequestRefresh();
+            if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
-                _reportMessage(arg1: "End task failed", errorMessage);
+                _reportMessage(
+                    request.Count > 1 ? "End tasks failed" : "End task failed",
+                    result.ErrorMessage);
                 return;
             }
-
-            _snapshotService.RequestRefresh();
         }
         catch (Exception exception)
         {
             TADNLog.Log($"End task confirmation failed: {exception}");
-            if (!_disposed) _reportMessage(arg1: "End task failed", exception.Message);
+            if (!_disposed)
+            {
+                _reportMessage(
+                    request.Count > 1 ? "End tasks failed" : "End task failed",
+                    exception.Message);
+            }
         }
         finally
         {
@@ -1049,11 +1039,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 #endif
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
-        _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;
         _processCanvas.ViewportAnchorAdjustmentRequested -= OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
-        _processCanvas.GridMetricsChanged -= OnGridMetricsChanged;
         _processCanvas.GridZoomRequested -= OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
         _processCanvas.GridRowSpacingRequested -= OnGridRowSpacingRequested;
@@ -1107,7 +1095,8 @@ internal readonly record struct ProcessDetailsHotReloadState(
     string SearchText,
     double HorizontalOffset,
     double VerticalOffset,
-    ProcessTerminationTarget? SelectedProcess,
+    ProcessTerminationTarget[] SelectedProcesses,
+    ProcessTerminationTarget? ActiveProcess,
     bool IsRunPanelVisible,
     string RunInputText,
     double GridFontSize,

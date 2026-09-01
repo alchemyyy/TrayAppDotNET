@@ -26,7 +26,9 @@ internal readonly record struct ProcessRowContextMenuRequest(
     string CellCopyText,
     string RowCopyText)
 {
-    public ProcessTerminationTarget Target => EndTaskRequest.Target;
+    public ProcessTerminationTarget Target => EndTaskRequest.Processes[0].Target;
+
+    public bool IsMultiple => EndTaskRequest.Count > 1;
 }
 
 /// <summary>Composites bounded viewport rows from shared visible-column text layouts.</summary>
@@ -43,12 +45,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Chrome = 1 << 4,
         Header = 1 << 5,
         HeaderInteraction = 1 << 6,
+        Selection = 1 << 7,
         Rows = StaticRows | DynamicRows,
-        All = StaticRows | DynamicRows | Icons | CopyPreview | Chrome | Header | HeaderInteraction
+        All = StaticRows | DynamicRows | Icons | CopyPreview | Chrome | Header | HeaderInteraction | Selection
     }
 
     private enum RenderLayerKind : byte
     {
+        Selection,
         StaticRows,
         DynamicRows,
         Icons,
@@ -78,6 +82,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
     private int _tableFontWeight;
+    private readonly ProcessTableRenderLayer _selectionLayer;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
     private readonly ProcessTableRenderLayer _dynamicRowsLayer;
     private readonly ProcessTableRenderLayer _iconsLayer;
@@ -113,19 +118,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
+    private readonly IBrush _selectionBackgroundBrush;
     private readonly IBrush _accentBrush;
     private readonly IBrush _borderBrush;
     private Pen _gridPen;
     private Pen _columnInteractionPen;
     private Pen _textUnderlinePen;
     private Pen _treeExpanderPen;
+    private Thickness _selectionBorderThickness;
     private double _sortCaretRightMargin;
     private readonly long _totalPhysicalMemoryBytes;
     private readonly Action _refreshWarmDynamicDrawings;
     private readonly ProcessSearchValueResolver _resolveSearchValue;
     private ProcessTableColumn[]? _liveResizeColumns;
     private TextUnderlineSegment[] _textUnderlineSegments;
-    private readonly string?[] _contextCopyValuesByColumn;
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessColumnSetting[] _settingsByColumn;
     private ProcessTableColumn[] _columns;
@@ -157,20 +163,21 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessSearchQuery _filterQuery;
     private string _unavailableText;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
+    private readonly HashSet<ProcessInstanceKey> _selectedProcesses = [];
     private ProcessInstanceKey? _selectedProcess;
+    private ProcessInstanceKey? _selectionAnchorProcess;
     private IPointer? _capturedHeaderPointer;
     private HeaderInteractionMode _headerInteraction;
     private Point _headerPressPosition;
     private int _interactionColumnIndex = -1;
     private int _reorderInsertionIndex = -1;
     private int _hoveredHeaderColumnIndex = -1;
-    private int _textPreviewVisibleIndex = -1;
     private int _textUnderlineSegmentCount;
     private double _resizeInitialWidth;
     private double _resizePreviewWidth;
     private double _headerDragX;
     private double _headerPointerOffsetX;
-    private ProcessInstanceKey? _contextCopyProcess;
+    private ContextCopyRow[] _contextCopyRows = [];
     private ProcessTableColumnKind? _contextCopyColumn;
     private ProcessCopyPreviewMode _copyPreviewMode;
     private bool _sortDescending;
@@ -238,7 +245,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ? new ProcessTableColumn[_columns.Length]
             : null;
         _textUnderlineSegments = new TextUnderlineSegment[_columns.Length];
-        _contextCopyValuesByColumn = new string?[ProcessTableColumnCatalog.Definitions.Length];
         _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
         _sortCaretRightMargin = _visualMetrics.SortCaretRightMargin;
         _totalPhysicalMemoryBytes = NativeProcessInfo.ReadTotalPhysicalMemoryBytes();
@@ -252,6 +258,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             resources.AxamlProcessTable.GridBackgroundColor);
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
+        _selectionBackgroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
         _borderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
         _gridPen = new Pen(_borderBrush, _visualMetrics.GridLineThickness);
@@ -264,12 +271,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _treeExpanderPen = new Pen(
             _secondaryForegroundBrush,
             _visualMetrics.TreeExpanderLineThickness);
+        _selectionBorderThickness = resources.AxamlProcessTable.SelectionBorderThickness;
 
         (_ascendingCaretText, _descendingCaretText) = CreateSortCaretTexts(
             _visualMetrics.SortCaretFontSize,
             _secondaryForegroundBrush);
         _headerTexts = CreateHeaderTexts(_columns);
 
+        _selectionLayer = new ProcessTableRenderLayer(this, RenderLayerKind.Selection);
         _staticRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.StaticRows);
         _dynamicRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.DynamicRows);
         _iconsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.Icons);
@@ -280,6 +289,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _headerHoverLayer = new ProcessHeaderHoverVisual(palette.Hover);
         _renderLayers =
         [
+            _selectionLayer,
             _staticRowsLayer,
             _dynamicRowsLayer,
             _iconsLayer,
@@ -310,7 +320,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
     public event Action<ProcessRowHoverGeometry>? RowHoverGeometryChanged;
-    public event Action<double?>? SelectionRowTopChanged;
     public event Action<ProcessViewportAnchorAdjustment>? ViewportAnchorAdjustmentRequested;
     public event Action<ProcessTableColumnKind>? ColumnPropertiesRequested;
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
@@ -354,6 +363,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
+    public int SelectedProcessCount => _selectedProcesses.Count;
+
     public ProcessTerminationTarget? SelectedTerminationTarget => _selectedProcess is { } process
         ? new ProcessTerminationTarget(process.ProcessID, process.CreationTimeTicks)
         : null;
@@ -362,45 +373,54 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         get
         {
-            if (_selectedProcess is not { } selectedProcess) return null;
-
-            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
-            {
-                ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-                if (row?.InstanceKey == selectedProcess)
-                    return CreateEndTaskRequest(row);
-            }
-
-            return null;
+            ProcessEndTaskItem[] selectedProcesses = CreateSelectedEndTaskItems();
+            return selectedProcesses.Length == 0
+                ? null
+                : new ProcessEndTaskRequest(selectedProcesses);
         }
     }
 
-    /// <summary>Clears the selected process and its keyboard-driven action target.</summary>
-    internal void ClearSelection() => SelectVisibleRow(visibleIndex: -1);
+#if DEBUG
+    public ProcessTerminationTarget[] SelectedTerminationTargets => CreateSelectedTerminationTargets();
+#endif
+
+    /// <summary>Clears every selected process and its keyboard-driven action target.</summary>
+    internal void ClearSelection() => ApplyPointerSelection(
+        visibleIndex: -1,
+        KeyModifiers.None);
 
 #if DEBUG
-    /// <summary>Restores one identity-checked selection after a shared shell rebuild.</summary>
-    internal void RestoreSelectedProcess(ProcessTerminationTarget? target)
+    /// <summary>Restores identity-checked selections after a shared shell rebuild.</summary>
+    internal void RestoreSelectedProcesses(
+        IReadOnlyList<ProcessTerminationTarget> targets,
+        ProcessTerminationTarget? activeTarget)
     {
         if (IsDetailsGridDisposed) return;
+        ArgumentNullException.ThrowIfNull(targets);
 
-        ProcessInstanceKey? selectedProcess = null;
-        if (target is { } selectedTarget)
+        HashSet<ProcessInstanceKey> availableProcesses = new(_rowCount);
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
-            ProcessInstanceKey candidate = new(
-                selectedTarget.ProcessID,
-                selectedTarget.CreationTimeFileTime);
-            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
-            {
-                if (_snapshot.StaticRows[rowIndex]?.InstanceKey != candidate) continue;
-
-                selectedProcess = candidate;
-                break;
-            }
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null) availableProcesses.Add(row.InstanceKey);
         }
 
-        _selectedProcess = selectedProcess;
-        SelectedProcessChanged?.Invoke(SelectedTerminationTarget);
+        _selectedProcesses.Clear();
+        for (int targetIndex = 0; targetIndex < targets.Count; targetIndex++)
+        {
+            ProcessTerminationTarget target = targets[targetIndex];
+            ProcessInstanceKey candidate = new(target.ProcessID, target.CreationTimeFileTime);
+            if (availableProcesses.Contains(candidate)) _selectedProcesses.Add(candidate);
+        }
+
+        ProcessInstanceKey? activeProcess = activeTarget is { } selectedTarget
+            ? new ProcessInstanceKey(selectedTarget.ProcessID, selectedTarget.CreationTimeFileTime)
+            : null;
+        _selectedProcess = activeProcess.HasValue && _selectedProcesses.Contains(activeProcess.Value)
+            ? activeProcess
+            : FindFirstSelectedProcess();
+        _selectionAnchorProcess = _selectedProcess;
+        NotifySelectionChanged();
         UpdateSelectionOverlay();
         InvalidateLayers(RenderLayerMask.All);
     }
@@ -454,7 +474,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         EnsureRowCapacity(count);
         SynchronizeRenderCacheMembership();
         RebuildVisibleRows();
-        EnsureSelectedProcessStillExists();
+        EnsureSelectedProcessesStillExist();
         InvalidateMeasure();
         RestoreViewportAnchor(viewportAnchor);
         _pendingViewportAnchor = null;
@@ -583,7 +603,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _warmRefreshCursor = 0;
         _warmRefreshEnd = 0;
         _rowIndexByProcessID.Clear();
-        Array.Clear(_contextCopyValuesByColumn);
+        _contextCopyRows = [];
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -624,6 +644,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         switch (layerKind)
         {
+            case RenderLayerKind.Selection:
+                DrawSelections(context);
+                return;
             case RenderLayerKind.StaticRows:
                 DrawRetainedRows(context, ProcessTableColumnLifetime.Static);
                 return;
@@ -658,6 +681,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void InvalidateLayers(RenderLayerMask layers)
     {
+        if ((layers & RenderLayerMask.Selection) != 0) _selectionLayer.InvalidateVisual();
         if ((layers & RenderLayerMask.StaticRows) != 0) _staticRowsLayer.InvalidateVisual();
         if ((layers & RenderLayerMask.DynamicRows) != 0) _dynamicRowsLayer.InvalidateVisual();
         if ((layers & RenderLayerMask.Icons) != 0) _iconsLayer.InvalidateVisual();
@@ -696,15 +720,26 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 _visibleRowCount,
                 _metrics.HeaderHeight,
                 _metrics.RowHeight);
-            SelectVisibleRow(contextVisibleIndex);
+            if (contextVisibleIndex >= 0)
+            {
+                ProcessStaticData? contextRow =
+                    _snapshot.StaticRows[_visibleRowIndexes[contextVisibleIndex]];
+                if (contextRow != null)
+                {
+                    if (_selectedProcesses.Contains(contextRow.InstanceKey))
+                        SetActiveSelectedProcess(contextRow.InstanceKey);
+                    else
+                        ApplyPointerSelection(contextVisibleIndex, KeyModifiers.None);
+                }
+            }
+            else
+                ApplyPointerSelection(contextVisibleIndex, KeyModifiers.None);
             Focus();
-            if (contextVisibleIndex >= 0 && SelectedTerminationTarget is { } target)
+            if (contextVisibleIndex >= 0 && _selectedProcesses.Count > 0)
             {
                 int contextColumnIndex = ProcessTableLayout.HitTestColumn(position.X, DisplayColumns);
                 ProcessRowContextMenuRequest request = CreateRowContextMenuRequest(
-                    target,
                     this.PointToScreen(position),
-                    contextVisibleIndex,
                     contextColumnIndex);
                 RowContextMenuRequested?.Invoke(request);
             }
@@ -758,7 +793,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             return;
         }
 
-        SelectVisibleRow(visibleIndex);
+        ApplyPointerSelection(visibleIndex, eventArgs.KeyModifiers);
         Focus();
         eventArgs.Handled = visibleIndex >= 0;
     }
@@ -1188,14 +1223,18 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _rowTextHeightScale);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
         ProcessTableAXAMLColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
+        Thickness nextSelectionBorderThickness =
+            _resources.AxamlProcessTable.SelectionBorderThickness;
         Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
         bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
+        bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
         _axamlFontSize = nextAXAMLFontSize;
         _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
             && nextVisualMetrics == _visualMetrics
             && nextColumnWidths == _axamlColumnWidths
-            && !backgroundColorChanged)
+            && !backgroundColorChanged
+            && !selectionBorderChanged)
             return null;
 
         bool rebuildRetainedRows = RetainedRowGeometryChanged(
@@ -1220,6 +1259,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _visualMetrics = nextVisualMetrics;
         _backgroundColor = nextBackgroundColor;
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(nextBackgroundColor);
+        _selectionBorderThickness = nextSelectionBorderThickness;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
         if (rebuildTableTypeface)
         {
@@ -1416,118 +1456,254 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
     }
 
+    private void DrawSelections(DrawingContext context)
+    {
+        if (_selectedProcesses.Count == 0) return;
+
+        Rect viewport = ResolveViewport();
+        DetailsGridLayout.GetVisibleRowRange(
+            viewport,
+            _visibleRowCount,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
+            out int firstRow,
+            out int lastRowExclusive);
+        for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row == null || !_selectedProcesses.Contains(row.InstanceKey)) continue;
+
+            double top = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
+            Rect bounds = new(x: 0, top, Bounds.Width, _metrics.RowHeight);
+            context.FillRectangle(_selectionBackgroundBrush, bounds);
+            DrawSelectionBorder(context, bounds);
+        }
+    }
+
+    private void DrawSelectionBorder(DrawingContext context, Rect bounds)
+    {
+        if (_selectionBorderThickness.Left > 0)
+        {
+            context.FillRectangle(
+                _accentBrush,
+                new Rect(bounds.Left, bounds.Top, _selectionBorderThickness.Left, bounds.Height));
+        }
+
+        if (_selectionBorderThickness.Top > 0)
+        {
+            context.FillRectangle(
+                _accentBrush,
+                new Rect(bounds.Left, bounds.Top, bounds.Width, _selectionBorderThickness.Top));
+        }
+
+        if (_selectionBorderThickness.Right > 0)
+        {
+            context.FillRectangle(
+                _accentBrush,
+                new Rect(
+                    bounds.Right - _selectionBorderThickness.Right,
+                    bounds.Top,
+                    _selectionBorderThickness.Right,
+                    bounds.Height));
+        }
+
+        if (_selectionBorderThickness.Bottom > 0)
+        {
+            context.FillRectangle(
+                _accentBrush,
+                new Rect(
+                    bounds.Left,
+                    bounds.Bottom - _selectionBorderThickness.Bottom,
+                    bounds.Width,
+                    _selectionBorderThickness.Bottom));
+        }
+    }
+
     private void DrawCopyPreviewUnderline(DrawingContext context)
     {
-        if (_textUnderlineSegmentCount == 0
-            || _textPreviewVisibleIndex < 0
-            || _textPreviewVisibleIndex >= _visibleRowCount)
-            return;
-
-        double top = _metrics.HeaderHeight + _textPreviewVisibleIndex * _metrics.RowHeight;
-        using (context.PushTransform(Matrix.CreateTranslation(xPosition: 0, top)))
+        for (int segmentIndex = 0; segmentIndex < _textUnderlineSegmentCount; segmentIndex++)
         {
-            for (int segmentIndex = 0; segmentIndex < _textUnderlineSegmentCount; segmentIndex++)
-            {
-                TextUnderlineSegment segment = _textUnderlineSegments[segmentIndex];
-                context.DrawLine(
-                    _textUnderlinePen,
-                    new Point(segment.Left, segment.Y),
-                    new Point(segment.Right, segment.Y));
-            }
+            TextUnderlineSegment segment = _textUnderlineSegments[segmentIndex];
+            context.DrawLine(
+                _textUnderlinePen,
+                new Point(segment.Left, segment.Y),
+                new Point(segment.Right, segment.Y));
         }
     }
 
     private ProcessRowContextMenuRequest CreateRowContextMenuRequest(
-        ProcessTerminationTarget target,
         PixelPoint screenPosition,
-        int visibleIndex,
         int columnIndex)
     {
-        int rowIndex = _visibleRowIndexes[visibleIndex];
-        ProcessStaticData row = _snapshot.StaticRows[rowIndex]
-                                ?? throw new InvalidOperationException(
-                                    "A published process row is missing static data.");
         ProcessTableColumn[] columns = DisplayColumns;
-        _contextCopyProcess = row.InstanceKey;
         _contextCopyColumn = (uint)columnIndex < (uint)columns.Length
             ? columns[columnIndex].Kind
             : null;
         _copyPreviewMode = ProcessCopyPreviewMode.None;
-        _textPreviewVisibleIndex = -1;
         _textUnderlineSegmentCount = 0;
-        EnsureDynamicDrawingCurrent(rowIndex, row);
+        int[] selectedRowIndexes = CreateSelectedRowIndexes();
+        ProcessEndTaskItem[] selectedProcesses = new ProcessEndTaskItem[selectedRowIndexes.Length];
+        ContextCopyRow[] contextCopyRows = new ContextCopyRow[selectedRowIndexes.Length];
+        StringBuilder cellCopyText = new();
+        StringBuilder rowCopyText = new();
+        for (int selectedIndex = 0; selectedIndex < selectedRowIndexes.Length; selectedIndex++)
+        {
+            int rowIndex = selectedRowIndexes[selectedIndex];
+            ProcessStaticData row = _snapshot.StaticRows[rowIndex]
+                                    ?? throw new InvalidOperationException(
+                                        "A published process row is missing static data.");
+            selectedProcesses[selectedIndex] = CreateEndTaskItem(row);
+            EnsureDynamicDrawingCurrent(rowIndex, row);
+
+            string?[] valuesByColumn = new string?[ProcessTableColumnCatalog.Definitions.Length];
+            for (int visibleColumnIndex = 0; visibleColumnIndex < columns.Length; visibleColumnIndex++)
+            {
+                ProcessTableColumnKind kind = columns[visibleColumnIndex].Kind;
+                valuesByColumn[(int)kind] = GetCellDisplayValue(rowIndex, kind);
+            }
+
+            contextCopyRows[selectedIndex] = new ContextCopyRow(row.InstanceKey, valuesByColumn);
+            if (selectedIndex > 0)
+            {
+                cellCopyText.AppendLine();
+                rowCopyText.AppendLine();
+            }
+
+            if (_contextCopyColumn.HasValue)
+                cellCopyText.Append(valuesByColumn[(int)_contextCopyColumn.Value] ?? string.Empty);
+            AppendRowCopyText(rowCopyText, valuesByColumn, columns);
+        }
+
+        _contextCopyRows = contextCopyRows;
         InvalidateLayers(
             RenderLayerMask.DynamicRows
             | RenderLayerMask.CopyPreview);
-
-        Array.Clear(_contextCopyValuesByColumn);
-        for (int visibleColumnIndex = 0; visibleColumnIndex < columns.Length; visibleColumnIndex++)
-        {
-            ProcessTableColumnKind kind = columns[visibleColumnIndex].Kind;
-            _contextCopyValuesByColumn[(int)kind] = GetCellDisplayValue(rowIndex, kind);
-        }
-
-        string cellCopyText = _contextCopyColumn.HasValue
-            ? _contextCopyValuesByColumn[(int)_contextCopyColumn.Value] ?? string.Empty
-            : string.Empty;
         return new ProcessRowContextMenuRequest(
-            new ProcessEndTaskRequest(target, row.Image.Name),
+            new ProcessEndTaskRequest(selectedProcesses),
             screenPosition,
-            cellCopyText,
-            CreateRowCopyText(columns));
+            cellCopyText.ToString(),
+            rowCopyText.ToString());
     }
 
-    private static ProcessEndTaskRequest CreateEndTaskRequest(ProcessStaticData row) =>
+    private static ProcessEndTaskItem CreateEndTaskItem(ProcessStaticData row) =>
         new(
             new ProcessTerminationTarget(row.ProcessID, row.InstanceKey.CreationTimeTicks),
             row.Image.Name);
 
-    private string CreateRowCopyText(ProcessTableColumn[] columns)
+    private ProcessEndTaskItem[] CreateSelectedEndTaskItems()
     {
-        StringBuilder copyText = new();
+        int[] selectedRowIndexes = CreateSelectedRowIndexes();
+        ProcessEndTaskItem[] selectedProcesses = new ProcessEndTaskItem[selectedRowIndexes.Length];
+        for (int selectedIndex = 0; selectedIndex < selectedRowIndexes.Length; selectedIndex++)
+        {
+            ProcessStaticData row = _snapshot.StaticRows[selectedRowIndexes[selectedIndex]]
+                                    ?? throw new InvalidOperationException(
+                                        "A published process row is missing static data.");
+            selectedProcesses[selectedIndex] = CreateEndTaskItem(row);
+        }
+
+        return selectedProcesses;
+    }
+
+    private int[] CreateSelectedRowIndexes()
+    {
+        if (_selectedProcesses.Count == 0) return [];
+
+        int[] selectedRowIndexes = new int[_selectedProcesses.Count];
+        HashSet<ProcessInstanceKey> addedProcesses = new(_selectedProcesses.Count);
+        int selectedCount = 0;
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null || !_selectedProcesses.Contains(row.InstanceKey)) continue;
+
+            selectedRowIndexes[selectedCount] = rowIndex;
+            selectedCount++;
+            addedProcesses.Add(row.InstanceKey);
+        }
+
+        if (selectedCount < selectedRowIndexes.Length)
+        {
+            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+            {
+                ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+                if (row == null
+                    || !_selectedProcesses.Contains(row.InstanceKey)
+                    || !addedProcesses.Add(row.InstanceKey))
+                    continue;
+
+                selectedRowIndexes[selectedCount] = rowIndex;
+                selectedCount++;
+            }
+        }
+
+        if (selectedCount != selectedRowIndexes.Length)
+            Array.Resize(ref selectedRowIndexes, selectedCount);
+        return selectedRowIndexes;
+    }
+
+#if DEBUG
+    private ProcessTerminationTarget[] CreateSelectedTerminationTargets()
+    {
+        ProcessEndTaskItem[] selectedProcesses = CreateSelectedEndTaskItems();
+        ProcessTerminationTarget[] targets = new ProcessTerminationTarget[selectedProcesses.Length];
+        for (int processIndex = 0; processIndex < selectedProcesses.Length; processIndex++)
+            targets[processIndex] = selectedProcesses[processIndex].Target;
+        return targets;
+    }
+#endif
+
+    private static void AppendRowCopyText(
+        StringBuilder copyText,
+        string?[] valuesByColumn,
+        ProcessTableColumn[] columns)
+    {
         for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
             if (columnIndex > 0) copyText.Append(',');
-            string display = _contextCopyValuesByColumn[(int)columns[columnIndex].Kind] ?? string.Empty;
+            string display = valuesByColumn[(int)columns[columnIndex].Kind] ?? string.Empty;
             AppendCSVField(copyText, display);
         }
-
-        return copyText.ToString();
     }
 
     private void RebuildCopyPreview()
     {
         _textUnderlineSegmentCount = 0;
-        _textPreviewVisibleIndex = -1;
-        if (_copyPreviewMode == ProcessCopyPreviewMode.None || !_contextCopyProcess.HasValue) return;
-
-        int visibleIndex = FindVisibleProcess(_contextCopyProcess.Value);
-        if (visibleIndex < 0) return;
-
-        int rowIndex = _visibleRowIndexes[visibleIndex];
-        ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-        if (row == null) return;
-        _textPreviewVisibleIndex = visibleIndex;
+        if (_copyPreviewMode == ProcessCopyPreviewMode.None || _contextCopyRows.Length == 0) return;
 
         ProcessTableColumn[] columns = DisplayColumns;
-        int treeLayoutKey = GetTreeLayoutKey(rowIndex);
-        if (_copyPreviewMode == ProcessCopyPreviewMode.Row)
+        EnsureTextUnderlineSegmentCapacity(checked(_contextCopyRows.Length * columns.Length));
+        for (int copyRowIndex = 0; copyRowIndex < _contextCopyRows.Length; copyRowIndex++)
         {
-            for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            ContextCopyRow copyRow = _contextCopyRows[copyRowIndex];
+            int visibleIndex = FindVisibleProcess(copyRow.Process);
+            if (visibleIndex < 0) continue;
+
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null) continue;
+            double rowTop = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
+            int treeLayoutKey = GetTreeLayoutKey(rowIndex);
+            if (_copyPreviewMode == ProcessCopyPreviewMode.Row)
             {
-                string display = _contextCopyValuesByColumn[(int)columns[columnIndex].Kind] ?? string.Empty;
-                AddTextUnderlineSegment(columns[columnIndex], display, treeLayoutKey);
+                for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+                {
+                    string display = copyRow.ValuesByColumn[(int)columns[columnIndex].Kind]
+                                     ?? string.Empty;
+                    AddTextUnderlineSegment(columns[columnIndex], display, treeLayoutKey, rowTop);
+                }
+
+                continue;
             }
 
-            return;
+            if (!_contextCopyColumn.HasValue) continue;
+            int previewColumnIndex = FindColumn(columns, _contextCopyColumn.Value);
+            if (previewColumnIndex < 0) continue;
+            ProcessTableColumn column = columns[previewColumnIndex];
+            string cellDisplay = copyRow.ValuesByColumn[(int)column.Kind] ?? string.Empty;
+            AddTextUnderlineSegment(column, cellDisplay, treeLayoutKey, rowTop);
         }
-
-        if (!_contextCopyColumn.HasValue) return;
-        int previewColumnIndex = FindColumn(columns, _contextCopyColumn.Value);
-        if (previewColumnIndex < 0) return;
-        ProcessTableColumn column = columns[previewColumnIndex];
-        string cellDisplay = _contextCopyValuesByColumn[(int)column.Kind] ?? string.Empty;
-        AddTextUnderlineSegment(column, cellDisplay, treeLayoutKey);
     }
 
     private void EnsureDynamicDrawingCurrent(int rowIndex, ProcessStaticData row)
@@ -1636,7 +1812,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private void AddTextUnderlineSegment(
         ProcessTableColumn column,
         string display,
-        int treeLayoutKey)
+        int treeLayoutKey,
+        double rowTop)
     {
         if (display.Length == 0 || _textUnderlineSegmentCount >= _textUnderlineSegments.Length) return;
 
@@ -1650,8 +1827,18 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _textUnderlineSegments[_textUnderlineSegmentCount] = new TextUnderlineSegment(
             layout.Left,
             layout.Left + width,
-            underlineY);
+            rowTop + underlineY);
         _textUnderlineSegmentCount++;
+    }
+
+    private void EnsureTextUnderlineSegmentCapacity(int count)
+    {
+        if (_textUnderlineSegments.Length >= count) return;
+
+        int capacity = Math.Max(val1: 1, Math.Max(_columns.Length, _textUnderlineSegments.Length));
+        while (capacity < count)
+            capacity = checked(capacity * 2);
+        Array.Resize(ref _textUnderlineSegments, capacity);
     }
 
     private static void AppendCSVField(StringBuilder destination, string value)
@@ -2932,7 +3119,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _textUnderlineSegments = new TextUnderlineSegment[columns.Length];
 
         _textUnderlineSegmentCount = 0;
-        _textPreviewVisibleIndex = -1;
+        _contextCopyRows = [];
         _hoveredHeaderColumnIndex = -1;
         if (FindColumn(columns, _sortColumn) >= 0) return;
 
@@ -2994,17 +3181,64 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             | RenderLayerMask.Header);
     }
 
-    private void SelectVisibleRow(int visibleIndex)
+    private void ApplyPointerSelection(int visibleIndex, KeyModifiers modifiers)
     {
-        ProcessStaticData? row = visibleIndex >= 0 && visibleIndex < _visibleRowCount
-            ? _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]]
-            : null;
-        ProcessInstanceKey? nextProcess = row?.InstanceKey;
-        if (_selectedProcess == nextProcess) return;
+        ProcessInstanceKey[] visibleProcesses = CreateVisibleProcessKeys();
+        ProcessSelectionResult result = ProcessSelectionFunctions.ApplyPointerSelection(
+            _selectedProcesses,
+            visibleProcesses,
+            visibleIndex,
+            _selectedProcess,
+            _selectionAnchorProcess,
+            isControlPressed: (modifiers & KeyModifiers.Control) != 0,
+            isShiftPressed: (modifiers & KeyModifiers.Shift) != 0);
+        if (!result.Changed) return;
 
-        _selectedProcess = nextProcess;
-        SelectedProcessChanged?.Invoke(SelectedTerminationTarget);
+        _selectedProcess = result.ActiveProcess;
+        _selectionAnchorProcess = result.AnchorProcess;
+        NotifySelectionChanged();
         UpdateSelectionOverlay();
+    }
+
+    private void SetActiveSelectedProcess(ProcessInstanceKey process)
+    {
+        if (!_selectedProcesses.Contains(process) || _selectedProcess == process) return;
+
+        _selectedProcess = process;
+        NotifySelectionChanged();
+    }
+
+    private ProcessInstanceKey[] CreateVisibleProcessKeys()
+    {
+        ProcessInstanceKey[] visibleProcesses = new ProcessInstanceKey[_visibleRowCount];
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row == null)
+                throw new InvalidOperationException("A published process row is missing static data.");
+            visibleProcesses[visibleIndex] = row.InstanceKey;
+        }
+
+        return visibleProcesses;
+    }
+
+    private ProcessInstanceKey? FindFirstSelectedProcess()
+    {
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row != null && _selectedProcesses.Contains(row.InstanceKey)) return row.InstanceKey;
+        }
+
+        foreach (ProcessInstanceKey process in _selectedProcesses)
+            return process;
+        return null;
+    }
+
+    private void NotifySelectionChanged()
+    {
+        SelectedProcessChanged?.Invoke(SelectedTerminationTarget);
+        InvalidateLayers(RenderLayerMask.Selection);
     }
 
     private bool TryToggleTreeExpander(Point position, int visibleIndex)
@@ -3029,7 +3263,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
         if (row == null) return false;
 
-        SelectVisibleRow(visibleIndex);
+        ApplyPointerSelection(visibleIndex, KeyModifiers.None);
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         if (!_collapsedProcesses.Add(row.InstanceKey))
             _collapsedProcesses.Remove(row.InstanceKey);
@@ -3070,21 +3304,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void UpdateSelectionOverlay()
     {
-        if (!_selectedProcess.HasValue)
-        {
-            SelectionRowTopChanged?.Invoke(null);
-            return;
-        }
-
-        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
-        {
-            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
-            if (row?.InstanceKey != _selectedProcess.Value) continue;
-            SelectionRowTopChanged?.Invoke(_metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
-            return;
-        }
-
-        SelectionRowTopChanged?.Invoke(null);
+        InvalidateLayers(RenderLayerMask.Selection);
     }
 
     private void RebuildVisibleRows()
@@ -3297,17 +3517,32 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ReleaseRowDrawing(dynamicDrawing);
     }
 
-    private void EnsureSelectedProcessStillExists()
+    private void EnsureSelectedProcessesStillExist()
     {
-        if (!_selectedProcess.HasValue) return;
-        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        if (_selectedProcesses.Count == 0) return;
+
+        _staleProcessKeys.Clear();
+        foreach (ProcessInstanceKey process in _selectedProcesses)
         {
-            if (_snapshot.StaticRows[rowIndex]?.InstanceKey == _selectedProcess.Value)
-                return;
+            if (!_renderCaches.ContainsKey(process)) _staleProcessKeys.Add(process);
         }
 
-        _selectedProcess = null;
-        SelectedProcessChanged?.Invoke(null);
+        if (_staleProcessKeys.Count == 0) return;
+        for (int staleIndex = 0; staleIndex < _staleProcessKeys.Count; staleIndex++)
+            _selectedProcesses.Remove(_staleProcessKeys[staleIndex]);
+
+        if (_selectedProcess.HasValue && !_selectedProcesses.Contains(_selectedProcess.Value))
+            _selectedProcess = FindFirstSelectedProcess();
+        if (_selectionAnchorProcess.HasValue
+            && !_renderCaches.ContainsKey(_selectionAnchorProcess.Value))
+            _selectionAnchorProcess = _selectedProcess;
+        if (_selectedProcesses.Count == 0)
+        {
+            _selectedProcess = null;
+            _selectionAnchorProcess = null;
+        }
+
+        NotifySelectionChanged();
     }
 
     private void EnsureRowCapacity(int count)
@@ -3717,7 +3952,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _externalSubscriptionsAttached = false;
         SelectedProcessChanged = null;
         RowHoverGeometryChanged = null;
-        SelectionRowTopChanged = null;
         ViewportAnchorAdjustmentRequested = null;
         ColumnPropertiesRequested = null;
         ColumnLayoutChanged = null;
@@ -3735,8 +3969,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _cellTextLayoutBuffer.Clear();
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
+        _selectedProcesses.Clear();
         _rowIndexByProcessID.Clear();
-        Array.Clear(_contextCopyValuesByColumn);
+        _contextCopyRows = [];
         DisposeHeaderTexts(_headerTexts);
         _headerTexts = [];
         _ascendingCaretText.Dispose();
@@ -3809,6 +4044,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             DescendingSort.Dispose();
         }
     }
+
+    private readonly record struct ContextCopyRow(
+        ProcessInstanceKey Process,
+        string?[] ValuesByColumn);
 
     private readonly record struct TextUnderlineSegment(double Left, double Right, double Y);
 

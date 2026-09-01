@@ -65,6 +65,50 @@ internal static class CriticalProcessActions
         }
     }
 
+    /// <summary>Returns whether the selected process instance has exited or its PID was reused.</summary>
+    internal static bool IsTargetGone(ProcessTerminationTarget target)
+    {
+        if (target.ProcessID <= 0) return true;
+        if (target.ProcessID == Environment.ProcessId) return false;
+
+        IntPtr processHandle = Kernel32.OpenProcess(
+            Kernel32.PROCESS_QUERY_LIMITED_INFORMATION | Kernel32.SYNCHRONIZE,
+            bInheritHandle: false,
+            (uint)target.ProcessID);
+        if (processHandle == IntPtr.Zero)
+        {
+            int openError = Marshal.GetLastWin32Error();
+            return openError is ErrorInvalidParameter or ErrorNotFound;
+        }
+
+        try
+        {
+            if (Kernel32.WaitForSingleObject(processHandle, dwMilliseconds: 0) == Kernel32.WAIT_OBJECT_0)
+                return true;
+            if (target.CreationTimeFileTime == 0) return false;
+
+            if (!Kernel32.GetProcessTimes(
+                    processHandle,
+                    out Kernel32.FILETIME creationTime,
+                    out _,
+                    out _,
+                    out _))
+            {
+                int timeError = Marshal.GetLastWin32Error();
+                return timeError is ErrorInvalidParameter or ErrorNotFound;
+            }
+
+            long actualCreationTime = unchecked((long)(
+                ((ulong)creationTime.HighDateTime << 32) |
+                creationTime.LowDateTime));
+            return actualCreationTime != target.CreationTimeFileTime;
+        }
+        finally
+        {
+            _ = Kernel32.CloseHandle(processHandle);
+        }
+    }
+
     /// <summary>Opens and validates a handle before the emergency termination path.</summary>
     internal static bool TryOpenTerminationHandle(
         ProcessTerminationTarget target,

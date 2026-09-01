@@ -9,6 +9,10 @@ using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
+internal readonly record struct ProcessAffinityTarget(
+    ProcessEndTaskItem Process,
+    ProcessAffinityInfo Affinity);
+
 /// <summary>Owns transient row menus and dispatches process actions away from the UI thread.</summary>
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
@@ -74,21 +78,33 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private List<ContextMenuEntry> BuildMainEntries(ProcessRowContextMenuRequest request)
     {
         ProcessTerminationTarget target = request.Target;
+        IReadOnlyList<ProcessEndTaskItem> processes = request.EndTaskRequest.Processes;
+        bool isMultiple = request.IsMultiple;
         ContextMenuEntryBuilder entries = new();
         entries.Add(new ContextMenuEntry(Text: "Copy", () => ExecuteCopy(request.CellCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered)
         });
-        entries.Add(new ContextMenuEntry(Text: "Copy row", () => ExecuteCopy(request.RowCopyText))
+        entries.Add(new ContextMenuEntry(
+            Text: isMultiple ? "Copy rows" : "Copy row",
+            () => ExecuteCopy(request.RowCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered)
         });
         entries.AddSeparator();
-        entries.Add(text: "End task", () => _requestEndTask(request.EndTaskRequest));
-        entries.Add(text: "End process tree", () => ExecuteEndProcessTree(target));
+        entries.Add(text: isMultiple ? "End tasks" : "End task", () => _requestEndTask(request.EndTaskRequest));
+        entries.Add(
+            text: isMultiple ? "End process trees" : "End process tree",
+            () => ExecuteEndProcessTrees(processes));
         entries.AddSeparator();
-        entries.AddSubmenu(text: "Set priority", () => BuildPriorityEntries(target));
-        entries.Add(text: "Set affinity", () => ShowAffinityWindow(target));
+        entries.AddSubmenu(
+            text: isMultiple ? "Set priorities" : "Set priority",
+            () => BuildPriorityEntries(processes));
+        entries.Add(
+            text: isMultiple ? "Set affinities" : "Set affinity",
+            () => ShowAffinityWindow(processes));
+        if (isMultiple) return entries.ToList();
+
         entries.AddSeparator();
         entries.Add(text: "Create memory dump file", () => ExecuteCreateMemoryDump(target));
         entries.Add(text: "Open file location", () => ExecuteBackground(
@@ -168,24 +184,31 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
     }
 
-    private IReadOnlyList<ContextMenuEntry> BuildPriorityEntries(ProcessTerminationTarget target)
+    private IReadOnlyList<ContextMenuEntry> BuildPriorityEntries(
+        IReadOnlyList<ProcessEndTaskItem> processes)
     {
-        if (!ProcessNativeActions.TryGetPriority(
-                target,
-                out ProcessPriorityLevel currentPriority,
-                out string errorMessage))
+        ProcessPriorityLevel? currentPriority = null;
+        if (processes.Count == 1)
         {
-            _reportError(arg1: "Set priority failed", errorMessage);
-            return [];
+            if (!ProcessNativeActions.TryGetPriority(
+                    processes[0].Target,
+                    out ProcessPriorityLevel selectedPriority,
+                    out string errorMessage))
+            {
+                _reportError(arg1: "Set priority failed", errorMessage);
+                return [];
+            }
+
+            currentPriority = selectedPriority;
         }
 
         ContextMenuEntryBuilder entries = new();
-        AddPriorityEntry(entries, label: "Realtime", ProcessPriorityLevel.Realtime, currentPriority, target);
-        AddPriorityEntry(entries, label: "High", ProcessPriorityLevel.High, currentPriority, target);
-        AddPriorityEntry(entries, label: "Above normal", ProcessPriorityLevel.AboveNormal, currentPriority, target);
-        AddPriorityEntry(entries, label: "Normal", ProcessPriorityLevel.Normal, currentPriority, target);
-        AddPriorityEntry(entries, label: "Below normal", ProcessPriorityLevel.BelowNormal, currentPriority, target);
-        AddPriorityEntry(entries, label: "Low", ProcessPriorityLevel.Idle, currentPriority, target);
+        AddPriorityEntry(entries, label: "Realtime", ProcessPriorityLevel.Realtime, currentPriority, processes);
+        AddPriorityEntry(entries, label: "High", ProcessPriorityLevel.High, currentPriority, processes);
+        AddPriorityEntry(entries, label: "Above normal", ProcessPriorityLevel.AboveNormal, currentPriority, processes);
+        AddPriorityEntry(entries, label: "Normal", ProcessPriorityLevel.Normal, currentPriority, processes);
+        AddPriorityEntry(entries, label: "Below normal", ProcessPriorityLevel.BelowNormal, currentPriority, processes);
+        AddPriorityEntry(entries, label: "Low", ProcessPriorityLevel.Idle, currentPriority, processes);
         return entries.ToList();
     }
 
@@ -193,12 +216,12 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         ContextMenuEntryBuilder entries,
         string label,
         ProcessPriorityLevel priority,
-        ProcessPriorityLevel currentPriority,
-        ProcessTerminationTarget target)
+        ProcessPriorityLevel? currentPriority,
+        IReadOnlyList<ProcessEndTaskItem> processes)
     {
         entries.Add(new ContextMenuEntry(
             label,
-            () => ExecuteSetPriority(target, priority))
+            () => ExecuteSetPriority(processes, priority))
         {
             TrailingGlyphMetadata = priority == currentPriority
                 ? TaskManagerGlyphCatalog.SELECTED
@@ -206,49 +229,95 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         });
     }
 
-    private void ExecuteEndProcessTree(ProcessTerminationTarget target) =>
-        _ = ExecuteEndProcessTreeAsync(target);
+    private void ExecuteEndProcessTrees(IReadOnlyList<ProcessEndTaskItem> processes) =>
+        _ = ExecuteEndProcessTreesAsync(processes);
 
-    private async Task ExecuteEndProcessTreeAsync(ProcessTerminationTarget target)
+    private async Task ExecuteEndProcessTreesAsync(IReadOnlyList<ProcessEndTaskItem> processes)
     {
-        ProcessActionResult descendantsResult;
+        BatchActionResult result;
         try
         {
-            descendantsResult = await Task.Run(() =>
+            result = await Task.Run(() =>
             {
-                bool succeeded = ProcessNativeActions.TryTerminateDescendants(target, out string errorMessage);
-                return new ProcessActionResult(succeeded, errorMessage);
+                List<string> failures = [];
+                bool refreshNeeded = false;
+                for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+                {
+                    ProcessEndTaskItem process = processes[processIndex];
+                    if (CriticalProcessActions.IsTargetGone(process.Target))
+                    {
+                        refreshNeeded = true;
+                        continue;
+                    }
+
+                    if (ProcessNativeActions.TryTerminateDescendants(
+                            process.Target,
+                            out string errorMessage))
+                    {
+                        refreshNeeded = true;
+                        continue;
+                    }
+
+                    // Descendant termination can partially succeed before reporting a failure
+                    refreshNeeded = true;
+                    if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
+
+                    failures.Add(processes.Count > 1
+                        ? FormatProcessFailure(process, errorMessage)
+                        : errorMessage);
+                }
+
+                ProcessTerminationBatchResult rootResult =
+                    ProcessTerminationBatchFunctions.Execute(
+                        processes,
+                        _terminateProcess,
+                        CriticalProcessActions.IsTargetGone);
+                if (!string.IsNullOrEmpty(rootResult.ErrorMessage))
+                    failures.Add(rootResult.ErrorMessage);
+                return new BatchActionResult(
+                    refreshNeeded || rootResult.RefreshNeeded,
+                    string.Join(separator: "\n", failures));
             }).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"End process tree failed: {exception}");
-            descendantsResult = new ProcessActionResult(Succeeded: false, exception.Message);
+            TADNLog.Log($"End process trees failed: {exception}");
+            result = new BatchActionResult(RefreshNeeded: true, exception.Message);
         }
 
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_disposed) return;
+            if (result.RefreshNeeded) _requestRefresh();
+            if (string.IsNullOrEmpty(result.ErrorMessage)) return;
 
-            // Keep the mutable pre-armed termination service serialized with row selection
-            bool rootSucceeded = _terminateProcess(target, out string rootError);
-            if (rootSucceeded) _requestRefresh();
-            if (descendantsResult.Succeeded && rootSucceeded) return;
-
-            string errorMessage = string.Join(
-                separator: "\n",
-                new[] { descendantsResult.Message, rootError }
-                    .Where(message => !string.IsNullOrWhiteSpace(message)));
-            _reportError(arg1: "End process tree failed", errorMessage);
+            _reportError(
+                processes.Count > 1 ? "End process trees failed" : "End process tree failed",
+                result.ErrorMessage);
         });
     }
 
-    private void ExecuteSetPriority(ProcessTerminationTarget target, ProcessPriorityLevel priority) =>
-        ExecuteBackground(
-            failureTitle: "Set priority failed",
-            target,
+    private void ExecuteSetPriority(
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        ProcessPriorityLevel priority)
+    {
+        if (processes.Count == 1)
+        {
+            ExecuteBackground(
+                failureTitle: "Set priority failed",
+                processes[0].Target,
+                (actionTarget, out errorMessage) =>
+                    ProcessNativeActions.TrySetPriority(actionTarget, priority, out errorMessage));
+            return;
+        }
+
+        ExecuteBatchBackground(
+            failureTitle: "Set priorities failed",
+            processes,
             (actionTarget, out errorMessage) =>
-                ProcessNativeActions.TrySetPriority(actionTarget, priority, out errorMessage));
+                ProcessNativeActions.TrySetPriority(actionTarget, priority, out errorMessage),
+            refreshOnSuccess: true);
+    }
 
     private void ExecuteCreateMemoryDump(ProcessTerminationTarget target) => ExecuteBackground(
         failureTitle: "Create memory dump failed",
@@ -322,14 +391,115 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         });
     }
 
-    private void ShowAffinityWindow(ProcessTerminationTarget target)
+    private void ExecuteBatchBackground(
+        string failureTitle,
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        TryProcessAction action,
+        bool refreshOnSuccess) =>
+        _ = ExecuteBatchBackgroundAsync(failureTitle, processes, action, refreshOnSuccess);
+
+    private async Task ExecuteBatchBackgroundAsync(
+        string failureTitle,
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        TryProcessAction action,
+        bool refreshOnSuccess)
     {
-        if (!ProcessNativeActions.TryGetAffinity(
-                target,
-                out ProcessAffinityInfo affinity,
-                out string errorMessage))
+        BatchActionResult result;
+        try
         {
-            _reportError(arg1: "Set affinity failed", errorMessage);
+            result = await Task.Run(() =>
+            {
+                List<string> failures = [];
+                bool refreshNeeded = false;
+                for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+                {
+                    ProcessEndTaskItem process = processes[processIndex];
+                    if (CriticalProcessActions.IsTargetGone(process.Target))
+                    {
+                        refreshNeeded = true;
+                        continue;
+                    }
+
+                    if (action(process.Target, out string errorMessage))
+                    {
+                        refreshNeeded = true;
+                        continue;
+                    }
+
+                    if (CriticalProcessActions.IsTargetGone(process.Target))
+                    {
+                        refreshNeeded = true;
+                        continue;
+                    }
+
+                    failures.Add(FormatProcessFailure(process, errorMessage));
+                }
+
+                return new BatchActionResult(refreshNeeded, string.Join(separator: "\n", failures));
+            }).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"{failureTitle}: {exception}");
+            result = new BatchActionResult(RefreshNeeded: false, exception.Message);
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (_disposed) return;
+            if (refreshOnSuccess && result.RefreshNeeded) _requestRefresh();
+            if (!string.IsNullOrEmpty(result.ErrorMessage))
+                _reportError(failureTitle, result.ErrorMessage);
+        });
+    }
+
+    private static string FormatProcessFailure(ProcessEndTaskItem process, string errorMessage)
+    {
+        string processName = string.IsNullOrWhiteSpace(process.ProcessName)
+            ? $"PID {process.Target.ProcessID}"
+            : $"{process.ProcessName} (PID {process.Target.ProcessID})";
+        string detail = string.IsNullOrWhiteSpace(errorMessage)
+            ? "The process action failed."
+            : errorMessage;
+        return $"{processName}: {detail}";
+    }
+
+    private void ShowAffinityWindow(IReadOnlyList<ProcessEndTaskItem> processes)
+    {
+        List<ProcessAffinityTarget> affinityTargets = new(processes.Count);
+        List<string> failures = [];
+        for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+        {
+            ProcessEndTaskItem process = processes[processIndex];
+            if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
+            if (ProcessNativeActions.TryGetAffinity(
+                    process.Target,
+                    out ProcessAffinityInfo affinity,
+                    out string errorMessage))
+            {
+                affinityTargets.Add(new ProcessAffinityTarget(process, affinity));
+                continue;
+            }
+
+            if (!CriticalProcessActions.IsTargetGone(process.Target))
+            {
+                failures.Add(processes.Count > 1
+                    ? FormatProcessFailure(process, errorMessage)
+                    : errorMessage);
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            _reportError(
+                processes.Count > 1 ? "Set affinities failed" : "Set affinity failed",
+                string.Join(separator: "\n", failures));
+            return;
+        }
+
+        if (affinityTargets.Count == 0)
+        {
+            _requestRefresh();
             return;
         }
 
@@ -337,8 +507,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (owner == null) return;
 
         ProcessAffinityWindow affinityWindow = new(
-            target,
-            affinity,
+            affinityTargets,
             _palette,
             _reportError);
         affinityWindow.Closed += OnActionWindowClosed;
@@ -427,22 +596,26 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     {
         public static ProcessActionResult Success { get; } = new(Succeeded: true, string.Empty);
     }
+
+    private readonly record struct BatchActionResult(
+        bool RefreshNeeded,
+        string ErrorMessage);
 }
 
-/// <summary>Nonmodal processor-affinity editor for one identity-checked process instance.</summary>
+/// <summary>Nonmodal processor-affinity editor for identity-checked process instances.</summary>
 internal sealed class ProcessAffinityWindow : Window
 {
-    private readonly ProcessTerminationTarget _target;
-    private readonly ProcessAffinityInfo _affinity;
+    private readonly ProcessAffinityTarget[] _targets;
     private readonly Action<string, string> _reportError;
     private readonly List<CheckBox> _processorChecks = [];
+    private readonly SettingsButton _applyButton;
+    private bool _isApplying;
 #if DEBUG
     private Grid? _root;
     private TextBlock? _explanation;
     private WrapPanel? _processorPanel;
     private Grid? _actions;
     private SettingsButton? _clearButton;
-    private SettingsButton? _applyButton;
     private double _axamlWidth;
     private double _axamlHeight;
     private double _axamlMinWidth;
@@ -450,19 +623,24 @@ internal sealed class ProcessAffinityWindow : Window
 #endif
 
     public ProcessAffinityWindow(
-        ProcessTerminationTarget target,
-        ProcessAffinityInfo affinity,
+        IReadOnlyList<ProcessAffinityTarget> targets,
         SettingsPalette palette,
         Action<string, string> reportError)
     {
+        ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(reportError);
+        if (targets.Count == 0)
+            throw new ArgumentException("At least one process is required.", nameof(targets));
 
-        _target = target;
-        _affinity = affinity;
+        _targets = new ProcessAffinityTarget[targets.Count];
+        for (int targetIndex = 0; targetIndex < targets.Count; targetIndex++)
+            _targets[targetIndex] = targets[targetIndex];
         _reportError = reportError;
         TaskManagerWindowResources resources = TaskManagerWindowResources.Current;
-        Title = $"Processor affinity - PID {target.ProcessID}";
+        Title = targets.Count == 1
+            ? $"Processor affinity - PID {targets[0].Process.Target.ProcessID}"
+            : $"Processor affinities - {targets.Count} processes";
         Width = resources.AxamlProcessAffinity.WindowWidth;
         Height = resources.AxamlProcessAffinity.WindowHeight;
         MinWidth = resources.AxamlProcessAffinity.WindowWidth;
@@ -476,12 +654,13 @@ internal sealed class ProcessAffinityWindow : Window
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
-        Content = BuildContent(palette, resources);
+        Content = BuildContent(palette, resources, out _applyButton);
     }
 
     private Control BuildContent(
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        out SettingsButton applyButton)
     {
         Grid root = new()
         {
@@ -498,7 +677,9 @@ internal sealed class ProcessAffinityWindow : Window
 #endif
 
         TextBlock explanation = TrayAppDotNETSettingsUI.Text(
-            text: "Select the processors on which this process may run.",
+            text: _targets.Length == 1
+                ? "Select the processors on which this process may run."
+                : "Select the processors on which the selected processes may run. Mixed values are preserved.",
             palette,
             resources.AxamlProcessAffinity.ExplanationFontSize);
         explanation.Margin = resources.AxamlProcessAffinity.ExplanationMargin;
@@ -516,15 +697,34 @@ internal sealed class ProcessAffinityWindow : Window
 #if DEBUG
         _processorPanel = processorPanel;
 #endif
+        ulong availableProcessorMask = 0;
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+            availableProcessorMask |= _targets[targetIndex].Affinity.SystemMask;
         for (int processorIndex = 0; processorIndex < 64; processorIndex++)
         {
             ulong processorBit = 1UL << processorIndex;
-            if ((_affinity.SystemMask & processorBit) == 0) continue;
+            if ((availableProcessorMask & processorBit) == 0) continue;
+
+            bool isSelectedByAny = false;
+            bool isSelectedByAll = true;
+            for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+            {
+                ProcessAffinityInfo affinity = _targets[targetIndex].Affinity;
+                if ((affinity.SystemMask & processorBit) == 0) continue;
+                bool isSelected = (affinity.ProcessMask & processorBit) != 0;
+                isSelectedByAny |= isSelected;
+                isSelectedByAll &= isSelected;
+            }
 
             CheckBox processorCheck = new()
             {
                 Content = $"CPU {processorIndex}",
-                IsChecked = (_affinity.ProcessMask & processorBit) != 0,
+                IsThreeState = _targets.Length > 1,
+                IsChecked = isSelectedByAll
+                    ? true
+                    : isSelectedByAny
+                        ? null
+                        : false,
                 Tag = processorIndex,
                 Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
                 VerticalAlignment = VerticalAlignment.Center
@@ -576,16 +776,13 @@ internal sealed class ProcessAffinityWindow : Window
         cancelButton.Click += OnCancelClick;
         Grid.SetColumn(cancelButton, value: 3);
         actions.Children.Add(cancelButton);
-        SettingsButton applyButton = TrayAppDotNETSettingsUI.Button(text: "Apply", palette);
+        applyButton = TrayAppDotNETSettingsUI.Button(text: "Apply", palette);
         applyButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
             top: 0,
             right: 0,
             bottom: 0);
         applyButton.Click += OnApplyClick;
-#if DEBUG
-        _applyButton = applyButton;
-#endif
         Grid.SetColumn(applyButton, value: 4);
         actions.Children.Add(applyButton);
         Grid.SetRow(actions, value: 2);
@@ -623,7 +820,7 @@ internal sealed class ProcessAffinityWindow : Window
             top: 0,
             right: 0,
             bottom: 0);
-        _applyButton!.Margin = new Thickness(
+        _applyButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
             top: 0,
             right: 0,
@@ -645,22 +842,103 @@ internal sealed class ProcessAffinityWindow : Window
 
     private void OnCancelClick(object? sender, EventArgs eventArgs) => Close();
 
-    private void OnApplyClick(object? sender, EventArgs eventArgs)
+    private void OnApplyClick(object? sender, EventArgs eventArgs) => _ = ApplyAsync();
+
+    private async Task ApplyAsync()
     {
-        ulong selectedMask = 0;
+        if (_isApplying) return;
+
+        ulong[] selectedMasks = new ulong[_targets.Length];
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+            selectedMasks[targetIndex] = _targets[targetIndex].Affinity.ProcessMask;
         for (int checkIndex = 0; checkIndex < _processorChecks.Count; checkIndex++)
         {
             CheckBox processorCheck = _processorChecks[checkIndex];
-            if (processorCheck is { IsChecked: true, Tag: int processorIndex })
-                selectedMask |= 1UL << processorIndex;
+            if (processorCheck is not { Tag: int processorIndex }
+                || !processorCheck.IsChecked.HasValue)
+                continue;
+
+            ulong processorBit = 1UL << processorIndex;
+            for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+            {
+                if ((_targets[targetIndex].Affinity.SystemMask & processorBit) == 0) continue;
+                if (processorCheck.IsChecked.Value)
+                    selectedMasks[targetIndex] |= processorBit;
+                else
+                    selectedMasks[targetIndex] &= ~processorBit;
+            }
         }
 
-        if (!ProcessNativeActions.TrySetAffinity(_target, selectedMask, out string errorMessage))
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
         {
-            _reportError(arg1: "Set affinity failed", errorMessage);
+            selectedMasks[targetIndex] &= _targets[targetIndex].Affinity.SystemMask;
+            if (selectedMasks[targetIndex] != 0) continue;
+
+            _reportError(
+                _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
+                "Select at least one processor for every selected process.");
             return;
         }
 
-        Close();
+        _isApplying = true;
+        _applyButton.IsEnabled = false;
+        try
+        {
+            string errorMessage = await Task.Run(() => ApplyAffinities(selectedMasks));
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                _reportError(
+                    _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
+                    errorMessage);
+                return;
+            }
+
+            Close();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Set affinities failed: {exception}");
+            _reportError(
+                _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
+                exception.Message);
+        }
+        finally
+        {
+            _isApplying = false;
+            if (IsVisible) _applyButton.IsEnabled = true;
+        }
+    }
+
+    private string ApplyAffinities(IReadOnlyList<ulong> selectedMasks)
+    {
+        List<string> failures = [];
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+        {
+            ProcessAffinityTarget target = _targets[targetIndex];
+            if (CriticalProcessActions.IsTargetGone(target.Process.Target)) continue;
+            if (ProcessNativeActions.TrySetAffinity(
+                    target.Process.Target,
+                    selectedMasks[targetIndex],
+                    out string errorMessage))
+                continue;
+            if (CriticalProcessActions.IsTargetGone(target.Process.Target)) continue;
+
+            failures.Add(_targets.Length > 1
+                ? FormatAffinityFailure(target.Process, errorMessage)
+                : errorMessage);
+        }
+
+        return string.Join(separator: "\n", failures);
+    }
+
+    private static string FormatAffinityFailure(ProcessEndTaskItem process, string errorMessage)
+    {
+        string processName = string.IsNullOrWhiteSpace(process.ProcessName)
+            ? $"PID {process.Target.ProcessID}"
+            : $"{process.ProcessName} (PID {process.Target.ProcessID})";
+        string detail = string.IsNullOrWhiteSpace(errorMessage)
+            ? "The process affinity could not be changed."
+            : errorMessage;
+        return $"{processName}: {detail}";
     }
 }
