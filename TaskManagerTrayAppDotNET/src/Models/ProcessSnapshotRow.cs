@@ -68,9 +68,15 @@ internal sealed class ProcessImageIdentity(
 internal sealed class ProcessStaticData
 {
     public required ProcessInstanceKey InstanceKey { get; init; }
+    public bool IsCreationTimeKnown { get; init; }
     public int ParentProcessID { get; init; } = -1;
     public required ProcessImageIdentity Image { get; init; }
     public required string UserName { get; init; }
+    public string? UserSID { get; init; }
+    public int SessionID { get; init; } = -1;
+    public string? PackageFullName { get; init; }
+    public string? ProcessApplicationUserModelID { get; init; }
+    public bool IsCriticalOrProtected { get; init; }
     public required long[] NumericValues { get; init; }
     public required string?[] TextValues { get; init; }
 

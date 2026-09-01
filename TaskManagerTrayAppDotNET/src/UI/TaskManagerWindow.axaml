@@ -249,6 +249,12 @@
   <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconCornerRadius">2</sys:Double>
   <sys:Double x:Key="ProcessTable.TreeIndentWidth">18</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionChildIndent">6</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionHeaderSizeOffset">6</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionCaretSizeOffset">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionHeaderUpwardShift">8</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionCaretUpwardShift">4</sys:Double>
+  <sys:Double x:Key="ProcessTable.SemanticSectionHeaderTextGap">5</sys:Double>
   <sys:Double x:Key="ProcessTable.TreeExpanderWidth">14</sys:Double>
   <sys:Double x:Key="ProcessTable.TreeExpanderChevronHalfWidth">2</sys:Double>
   <sys:Double x:Key="ProcessTable.TreeExpanderChevronHalfHeight">3</sys:Double>

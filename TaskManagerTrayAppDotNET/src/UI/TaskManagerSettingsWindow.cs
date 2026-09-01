@@ -142,6 +142,22 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             searchKeywords: ["Windows Task Manager hotkey shortcut control shift escape"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
+        stack.Children.Add(ComboCard(
+            title: "Process grouping style",
+            description:
+            "Choose how processes are organized when Group processes is enabled on the Processes page.",
+            [
+                (nameof(ProcessGroupingStyle.ParentProcess), "Parent process"),
+                (nameof(ProcessGroupingStyle.Semantic), "Semantic application")
+            ],
+            _settings.ProcessGroupingStyle.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out ProcessGroupingStyle value))
+                    _settings.ProcessGroupingStyle = value;
+            },
+            palette,
+            searchKeywords: ["process tree application semantic parent ancestry group"]));
         stack.Children.Add(BoolCard(
             title: "Skip Explorer restart confirmation",
             description:

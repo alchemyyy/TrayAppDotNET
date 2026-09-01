@@ -116,4 +116,31 @@ public sealed class ProcessRowHoverGeometryTests
 
         Assert.Equal(expectedVisible, geometry.IsRowVisible(visibleIndex));
     }
+
+    [Fact]
+    public void MergedRowsShareOneHitTargetAndHighlightBounds()
+    {
+        const double headerHeight = 32;
+        const double rowHeight = 20;
+        ProcessRowHoverGeometry geometry = new(
+            Viewport: new Rect(x: 0, y: 0, width: 500, height: 500),
+            VisibleRowCount: 8,
+            HeaderHeight: headerHeight,
+            RowHeight: rowHeight,
+            StickyHeaderTop: 0,
+            IsEnabled: true,
+            FirstMergedRowStart: 2);
+
+        Assert.Equal(expected: 2, geometry.HitTest(new Point(x: 20, y: 80)));
+        Assert.Equal(expected: 2, geometry.HitTest(new Point(x: 20, y: 100)));
+        Assert.Equal(
+            new Rect(x: 0, y: 72, width: 500, height: 40),
+            geometry.GetRowBounds(visibleIndex: 2, hostWidth: 500));
+        Assert.Equal(
+            geometry.GetRowBounds(visibleIndex: 2, hostWidth: 500),
+            geometry.GetRowBounds(visibleIndex: 3, hostWidth: 500));
+        Assert.Equal(
+            new Rect(x: 0, y: 112, width: 500, height: 20),
+            geometry.GetRowBounds(visibleIndex: 4, hostWidth: 500));
+    }
 }

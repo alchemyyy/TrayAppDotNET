@@ -72,6 +72,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const string UnavailableText = ProcessTableValuePresentation.UnavailableText;
     private const double BytesPerMebibyte = 1_048_576;
     private const double BytesPerMegabit = 1_000_000.0 / 8;
+    private const int TreeLayoutValueMask = 0x1FF;
+    private const int SemanticSectionLayoutFlag = 1 << 9;
+    private const int SemanticSectionHeaderLayoutFlag = 1 << 10;
 
     private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
@@ -102,6 +105,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
     private bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
+    private readonly ProcessSnapshotBuffer _sourceSnapshot = new();
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
     private readonly Dictionary<ProcessSharedCellKey, SharedCellLayout> _sharedCellLayouts = new();
@@ -110,6 +114,16 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
+    private readonly Dictionary<ProcessInstanceKey, int> _sourceRowIndexByInstance = new(1_024);
+    private readonly Dictionary<ProcessInstanceKey, int> _rowIndexByInstance = new(1_024);
+    private readonly Dictionary<SemanticProcessGroupKey, ProcessInstanceKey> _syntheticKeyByGroup = [];
+    private readonly Dictionary<ProcessInstanceKey, ProcessInstanceKey[]> _membersBySyntheticKey = [];
+    private readonly Dictionary<ProcessInstanceKey, ProcessInstanceKey?> _semanticParentByInstance = [];
+    private readonly Dictionary<ProcessInstanceKey, SemanticProcessGroupClassification>
+        _semanticClassificationByInstance = [];
+    private readonly HashSet<ProcessInstanceKey> _warmProcessKeySet = [];
+    private readonly HashSet<SemanticProcessGroupKey> _liveSemanticGroupKeys = [];
+    private readonly List<SemanticProcessGroupKey> _staleSemanticGroupKeys = [];
     private readonly ProcessRowIndexComparer _rowComparer;
     private TextLayout _ascendingCaretText;
     private TextLayout _descendingCaretText;
@@ -152,8 +166,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private byte[] _treeStackDepths = [];
     private bool[] _treeStackHidden = [];
     private byte[] _treeVisited = [];
+    private bool[] _filterIncludedRows = [];
     private byte[] _rowDepths = [];
     private bool[] _rowHasChildren = [];
+    private SemanticProcessSectionRowKind[] _semanticSectionRowKinds = [];
+    private byte[] _semanticRowClassifications = [];
+    private readonly int[] _semanticSectionSpacerRowIndexes = new int[SemanticProcessSections.Count];
+    private readonly int[] _semanticSectionHeaderRowIndexes = new int[SemanticProcessSections.Count];
+    private readonly int[] _semanticSectionEntryCounts = new int[SemanticProcessSections.Count];
+    private readonly int[] _semanticSectionVisibleStarts = new int[SemanticProcessSections.Count];
     private int[] _warmProcessIDs = [];
     private int _rowCount;
     private int _visibleRowCount;
@@ -188,7 +209,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _isLiveColumnResizeActive;
     private bool _hasVisibleLiveTotals;
     private bool _dynamicRefreshScheduled;
-    private bool _groupProcesses;
+    private bool _usesSemanticSections;
+    private ProcessGroupingStyle _processGroupingStyle;
 #if DEBUG
     private double _axamlFontSize;
     private double _axamlRowSpacing;
@@ -200,6 +222,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _externalSubscriptionsAttached;
     private ProcessSnapshotService? _snapshotService;
     private bool _samplingActive;
+    private SemanticProcessTreeState _semanticTreeState = new();
+    private int _nextSyntheticProcessID = SemanticProcessSections.FirstGroupSyntheticProcessID;
 
     public ProcessDetailsCanvas(
         ProcessIconService processIconService,
@@ -218,6 +242,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
 
+        Array.Fill(_semanticSectionVisibleStarts, value: -1);
         _processIconService = processIconService;
         _schema = schema;
         _resources = resources;
@@ -366,11 +391,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     /// <summary>Returns the structural state consumed by the render-thread row-hover sampler.</summary>
     public ProcessRowHoverGeometry RowHoverGeometry => CreateRowHoverGeometry();
 
-    public int? SelectedProcessID => _selectedProcess?.ProcessID;
+    public int? SelectedProcessID => _selectedProcess is { } process
+                                     && _sourceRowIndexByInstance.ContainsKey(process)
+        ? process.ProcessID
+        : null;
 
-    public int SelectedProcessCount => _selectedProcesses.Count;
+    public int SelectedProcessCount => CountSelectedProcessInstances();
 
     public ProcessTerminationTarget? SelectedTerminationTarget => _selectedProcess is { } process
+        && _sourceRowIndexByInstance.ContainsKey(process)
         ? new ProcessTerminationTarget(process.ProcessID, process.CreationTimeTicks)
         : null;
 
@@ -444,7 +473,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (_pendingColumnLayout is { } pendingColumnLayout)
         {
             if (!snapshotService.TryCopyLatest(
-                    _snapshot,
+                    _sourceSnapshot,
                     pendingColumnLayout.Schema.VisibleMask,
                     out int pendingCount,
                     out long pendingVersion))
@@ -459,7 +488,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
 
         if (!snapshotService.TryCopyLatest(
-                _snapshot,
+                _sourceSnapshot,
                 _schema.VisibleMask,
                 out int count,
                 out long version))
@@ -475,8 +504,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessViewportAnchor? viewportAnchor)
     {
         _snapshotVersion = version;
-        _rowCount = count;
-        EnsureRowCapacity(count);
+        BuildPresentationSnapshot(count);
+        EnsureRowCapacity(_rowCount);
+        BuildLogicalParentIndexes();
         SynchronizeRenderCacheMembership();
         RebuildVisibleRows();
         EnsureSelectedProcessesStillExist();
@@ -491,6 +521,497 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateLayers(RenderLayerMask.All);
     }
 
+    private void BuildPresentationSnapshot(int sourceCount)
+    {
+        if (sourceCount != _sourceSnapshot.Count)
+            throw new InvalidOperationException("The copied process count does not match its snapshot.");
+
+        RebuildSourceRowIndex();
+        ResetSemanticSectionPresentation();
+        if (_processGroupingStyle != ProcessGroupingStyle.Semantic)
+        {
+            _snapshot.CopyFrom(_sourceSnapshot);
+            _rowCount = sourceCount;
+            _membersBySyntheticKey.Clear();
+            _semanticParentByInstance.Clear();
+            _semanticClassificationByInstance.Clear();
+            return;
+        }
+
+        ProcessGroupingFacts[] groupingFacts = new ProcessGroupingFacts[sourceCount];
+        for (int rowIndex = 0; rowIndex < sourceCount; rowIndex++)
+        {
+            ProcessStaticData row = _sourceSnapshot.StaticRows[rowIndex]
+                                    ?? throw new InvalidOperationException(
+                                        "A source process row is missing static data.");
+            ProcessGroupingFacts facts = _sourceSnapshot.GroupingFacts[rowIndex];
+            groupingFacts[rowIndex] = facts.InstanceKey == row.InstanceKey
+                ? facts
+                : CreateFallbackGroupingFacts(row);
+        }
+
+        SemanticProcessForest forest = SemanticProcessTreeBuilder.Build(
+            groupingFacts,
+            _semanticTreeState);
+        _semanticTreeState = forest.RetainedState;
+
+        int syntheticCount = 0;
+        for (int groupIndex = 0; groupIndex < forest.Groups.Length; groupIndex++)
+        {
+            SemanticProcessGroup group = forest.Groups[groupIndex];
+            if (group.Nodes.Length > 1) syntheticCount++;
+            _semanticSectionEntryCounts[(int)group.Classification]++;
+        }
+
+        int sectionRowCount = 0;
+        for (int sectionIndex = 0; sectionIndex < SemanticProcessSections.Count; sectionIndex++)
+        {
+            SemanticProcessGroupClassification classification =
+                SemanticProcessSections.GetClassification(sectionIndex);
+            if (_semanticSectionEntryCounts[(int)classification] > 0)
+                sectionRowCount += SemanticProcessSections.RowsPerSection;
+        }
+
+        ProcessDataSchema schema = _sourceSnapshot.Schema
+                                   ?? throw new InvalidOperationException(
+                                       "The source process snapshot has no schema.");
+        _snapshot.BeginWrite(
+            schema,
+            checked(sourceCount + syntheticCount + sectionRowCount));
+        Array.Copy(_sourceSnapshot.StaticRows, _snapshot.StaticRows, sourceCount);
+        Array.Copy(_sourceSnapshot.GroupingFacts, _snapshot.GroupingFacts, sourceCount);
+        Array.Copy(
+            _sourceSnapshot.DynamicNumericValues,
+            _snapshot.DynamicNumericValues,
+            checked(sourceCount * schema.DynamicNumericCount));
+        Array.Copy(
+            _sourceSnapshot.DynamicTextValues,
+            _snapshot.DynamicTextValues,
+            checked(sourceCount * schema.DynamicTextCount));
+
+        _membersBySyntheticKey.Clear();
+        _semanticParentByInstance.Clear();
+        _semanticClassificationByInstance.Clear();
+        _liveSemanticGroupKeys.Clear();
+        int presentationRowIndex = sourceCount;
+        for (int groupIndex = 0; groupIndex < forest.Groups.Length; groupIndex++)
+        {
+            SemanticProcessGroup group = forest.Groups[groupIndex];
+            ProcessInstanceKey? syntheticInstanceKey = null;
+            if (group.Nodes.Length > 1)
+            {
+                ProcessInstanceKey groupInstanceKey = GetOrCreateSyntheticInstanceKey(group.Key);
+                syntheticInstanceKey = groupInstanceKey;
+                _liveSemanticGroupKeys.Add(group.Key);
+
+                int[] memberRowIndexes = new int[group.Nodes.Length];
+                ProcessInstanceKey[] memberInstanceKeys = new ProcessInstanceKey[group.Nodes.Length];
+                int memberWriteIndex = 0;
+                AddSemanticGroupMember(
+                    group.RepresentativeInstanceKey,
+                    memberRowIndexes,
+                    memberInstanceKeys,
+                    ref memberWriteIndex);
+                for (int memberIndex = 0; memberIndex < group.Nodes.Length; memberIndex++)
+                {
+                    ProcessInstanceKey memberInstanceKey = group.Nodes[memberIndex].Facts.InstanceKey;
+                    if (memberInstanceKey == group.RepresentativeInstanceKey) continue;
+                    AddSemanticGroupMember(
+                        memberInstanceKey,
+                        memberRowIndexes,
+                        memberInstanceKeys,
+                        ref memberWriteIndex);
+                }
+
+                if (!_sourceRowIndexByInstance.TryGetValue(
+                        group.RepresentativeInstanceKey,
+                        out int representativeRowIndex))
+                {
+                    throw new InvalidOperationException(
+                        "A semantic process group has no display representative.");
+                }
+
+                ProcessStaticData syntheticStaticData = CreateSyntheticStaticData(
+                    group,
+                    groupInstanceKey,
+                    representativeRowIndex,
+                    schema);
+                long[] dynamicNumericValues = CreateSyntheticDynamicNumericValues(
+                    memberRowIndexes,
+                    representativeRowIndex,
+                    schema);
+                string?[] dynamicTextValues = CreateSyntheticDynamicTextValues(
+                    representativeRowIndex,
+                    schema);
+                _snapshot.SetRow(
+                    presentationRowIndex,
+                    syntheticStaticData,
+                    dynamicNumericValues,
+                    dynamicTextValues);
+                _membersBySyntheticKey.Add(groupInstanceKey, memberInstanceKeys);
+                _semanticParentByInstance.Add(groupInstanceKey, value: null);
+                _semanticClassificationByInstance.Add(groupInstanceKey, group.Classification);
+                presentationRowIndex++;
+            }
+
+            for (int memberIndex = 0; memberIndex < group.Nodes.Length; memberIndex++)
+            {
+                SemanticProcessNode node = group.Nodes[memberIndex];
+                ProcessInstanceKey? parentInstanceKey = node.ParentInstanceKey;
+                if (!parentInstanceKey.HasValue && syntheticInstanceKey.HasValue)
+                    parentInstanceKey = syntheticInstanceKey;
+                _semanticParentByInstance[node.Facts.InstanceKey] = parentInstanceKey;
+                _semanticClassificationByInstance[node.Facts.InstanceKey] = group.Classification;
+            }
+        }
+
+        AppendSemanticSectionRows(schema, ref presentationRowIndex);
+
+        _snapshot.CompleteWrite(presentationRowIndex);
+        _rowCount = presentationRowIndex;
+        PruneSyntheticGroupKeys();
+    }
+
+    private void ResetSemanticSectionPresentation()
+    {
+        Array.Fill(_semanticSectionSpacerRowIndexes, value: -1);
+        Array.Fill(_semanticSectionHeaderRowIndexes, value: -1);
+        Array.Clear(_semanticSectionEntryCounts);
+    }
+
+    private void AppendSemanticSectionRows(
+        ProcessDataSchema schema,
+        ref int presentationRowIndex)
+    {
+        for (int sectionIndex = 0; sectionIndex < SemanticProcessSections.Count; sectionIndex++)
+        {
+            SemanticProcessGroupClassification classification =
+                SemanticProcessSections.GetClassification(sectionIndex);
+            int classificationIndex = (int)classification;
+            int entryCount = _semanticSectionEntryCounts[classificationIndex];
+            if (entryCount == 0) continue;
+
+            _semanticSectionSpacerRowIndexes[classificationIndex] = presentationRowIndex;
+            AppendSemanticSectionRow(
+                schema,
+                classification,
+                SemanticProcessSectionRowKind.Spacer,
+                entryCount,
+                ref presentationRowIndex);
+
+            _semanticSectionHeaderRowIndexes[classificationIndex] = presentationRowIndex;
+            AppendSemanticSectionRow(
+                schema,
+                classification,
+                SemanticProcessSectionRowKind.Header,
+                entryCount,
+                ref presentationRowIndex);
+        }
+    }
+
+    private void AppendSemanticSectionRow(
+        ProcessDataSchema schema,
+        SemanticProcessGroupClassification classification,
+        SemanticProcessSectionRowKind rowKind,
+        int entryCount,
+        ref int presentationRowIndex)
+    {
+        ProcessInstanceKey instanceKey = SemanticProcessSections.GetInstanceKey(
+            classification,
+            rowKind);
+        string title = rowKind == SemanticProcessSectionRowKind.Header
+            ? SemanticProcessSections.GetTitle(classification, entryCount)
+            : string.Empty;
+        ProcessImageIdentity image = new(
+            key: $"semantic-section:{instanceKey.ProcessID.ToString(TableCulture)}",
+            title,
+            imagePath: string.Empty,
+            description: string.Empty,
+            iconSource: default);
+        ProcessStaticData staticData = new()
+        {
+            InstanceKey = instanceKey,
+            IsCreationTimeKnown = true,
+            Image = image,
+            UserName = string.Empty,
+            NumericValues = new long[schema.StaticNumericCount],
+            TextValues = new string?[schema.StaticTextCount]
+        };
+        _snapshot.SetRow(
+            presentationRowIndex,
+            staticData,
+            new long[schema.DynamicNumericCount],
+            new string?[schema.DynamicTextCount]);
+        presentationRowIndex++;
+    }
+
+    private void AddSemanticGroupMember(
+        ProcessInstanceKey memberInstanceKey,
+        int[] memberRowIndexes,
+        ProcessInstanceKey[] memberInstanceKeys,
+        ref int memberWriteIndex)
+    {
+        if (!_sourceRowIndexByInstance.TryGetValue(
+                memberInstanceKey,
+                out int memberRowIndex))
+        {
+            throw new InvalidOperationException(
+                "A semantic process group references a missing source row.");
+        }
+
+        memberRowIndexes[memberWriteIndex] = memberRowIndex;
+        memberInstanceKeys[memberWriteIndex] = memberInstanceKey;
+        memberWriteIndex++;
+    }
+
+    private void RebuildSourceRowIndex()
+    {
+        _sourceRowIndexByInstance.Clear();
+        for (int rowIndex = 0; rowIndex < _sourceSnapshot.Count; rowIndex++)
+        {
+            ProcessStaticData? row = _sourceSnapshot.StaticRows[rowIndex];
+            if (row != null) _sourceRowIndexByInstance[row.InstanceKey] = rowIndex;
+        }
+    }
+
+    private static ProcessGroupingFacts CreateFallbackGroupingFacts(ProcessStaticData row)
+    {
+        string executablePath = row.Image.ImagePath;
+        string executableName = executablePath.Length > 0
+            ? Path.GetFileName(executablePath)
+            : row.Image.Name;
+        return new ProcessGroupingFacts(
+            row.InstanceKey,
+            row.IsCreationTimeKnown,
+            row.ParentProcessID,
+            executableName,
+            executablePath.Length > 0 ? executablePath : null,
+            row.UserSID,
+            row.SessionID,
+            row.PackageFullName,
+            row.ProcessApplicationUserModelID,
+            IsApplicationUserModelIDAmbiguous: false,
+            ProcessIndependentWindowState.Unknown,
+            row.IsCriticalOrProtected);
+    }
+
+    private ProcessInstanceKey GetOrCreateSyntheticInstanceKey(SemanticProcessGroupKey groupKey)
+    {
+        if (_syntheticKeyByGroup.TryGetValue(groupKey, out ProcessInstanceKey instanceKey))
+            return instanceKey;
+
+        if (_nextSyntheticProcessID == int.MinValue)
+            throw new InvalidOperationException("Semantic process group identity space is exhausted.");
+        instanceKey = new ProcessInstanceKey(_nextSyntheticProcessID, CreationTimeTicks: 0);
+        _nextSyntheticProcessID--;
+        _syntheticKeyByGroup.Add(groupKey, instanceKey);
+        return instanceKey;
+    }
+
+    private ProcessStaticData CreateSyntheticStaticData(
+        SemanticProcessGroup group,
+        ProcessInstanceKey instanceKey,
+        int representativeRowIndex,
+        ProcessDataSchema schema)
+    {
+        ProcessStaticData representative = _sourceSnapshot.StaticRows[representativeRowIndex]
+                                           ?? throw new InvalidOperationException(
+                                               "A semantic group representative row is missing.");
+        string representativeDescription = representative.Image.Description;
+        string displayName = representativeDescription.Length > 0
+                             && !string.Equals(
+                                 representativeDescription,
+                                 UnavailableText,
+                                 StringComparison.OrdinalIgnoreCase)
+            ? representativeDescription
+            : representative.Image.Name;
+        string aggregateName = $"{displayName} ({group.Nodes.Length.ToString(TableCulture)})";
+        ProcessImageIdentity aggregateImage = new(
+            key: $"semantic-group:{instanceKey.ProcessID.ToString(TableCulture)}",
+            aggregateName,
+            representative.Image.ImagePath,
+            displayName,
+            representative.Image.IconSource);
+
+        long[] numericValues = new long[schema.StaticNumericCount];
+        int sessionSlot = schema.GetStaticNumericSlot(ProcessTableColumnKind.SessionID);
+        if (sessionSlot >= 0) numericValues[sessionSlot] = representative.NumericValues[sessionSlot];
+
+        string?[] textValues = new string?[schema.StaticTextCount];
+        int packageSlot = schema.GetStaticTextSlot(ProcessTableColumnKind.PackageName);
+        if (packageSlot >= 0) textValues[packageSlot] = representative.TextValues[packageSlot];
+
+        return new ProcessStaticData
+        {
+            InstanceKey = instanceKey,
+            IsCreationTimeKnown = true,
+            ParentProcessID = -1,
+            Image = aggregateImage,
+            UserName = representative.UserName,
+            UserSID = representative.UserSID,
+            SessionID = representative.SessionID,
+            PackageFullName = representative.PackageFullName,
+            ProcessApplicationUserModelID = representative.ProcessApplicationUserModelID,
+            NumericValues = numericValues,
+            TextValues = textValues
+        };
+    }
+
+    private long[] CreateSyntheticDynamicNumericValues(
+        int[] memberRowIndexes,
+        int representativeRowIndex,
+        ProcessDataSchema schema)
+    {
+        long[] values = new long[schema.DynamicNumericCount];
+        for (int definitionIndex = 0;
+             definitionIndex < ProcessTableColumnCatalog.Definitions.Length;
+             definitionIndex++)
+        {
+            ProcessTableColumnKind column = (ProcessTableColumnKind)definitionIndex;
+            int slot = schema.GetDynamicNumericSlot(column);
+            if (slot < 0) continue;
+            values[slot] = SemanticProcessAggregation.AggregateDynamicNumeric(
+                _sourceSnapshot,
+                memberRowIndexes,
+                column,
+                representativeRowIndex);
+        }
+
+        return values;
+    }
+
+    private string?[] CreateSyntheticDynamicTextValues(
+        int representativeRowIndex,
+        ProcessDataSchema schema)
+    {
+        string?[] values = new string?[schema.DynamicTextCount];
+        if (schema.DynamicTextCount == 0) return values;
+
+        Array.Copy(
+            _sourceSnapshot.DynamicTextValues,
+            checked(representativeRowIndex * schema.DynamicTextCount),
+            values,
+            destinationIndex: 0,
+            schema.DynamicTextCount);
+        return values;
+    }
+
+    private void PruneSyntheticGroupKeys()
+    {
+        _staleSemanticGroupKeys.Clear();
+        foreach (KeyValuePair<SemanticProcessGroupKey, ProcessInstanceKey> pair in _syntheticKeyByGroup)
+        {
+            if (!_liveSemanticGroupKeys.Contains(pair.Key))
+                _staleSemanticGroupKeys.Add(pair.Key);
+        }
+
+        for (int staleIndex = 0; staleIndex < _staleSemanticGroupKeys.Count; staleIndex++)
+        {
+            SemanticProcessGroupKey groupKey = _staleSemanticGroupKeys[staleIndex];
+            if (!_syntheticKeyByGroup.Remove(groupKey, out ProcessInstanceKey instanceKey)) continue;
+            _collapsedProcesses.Remove(instanceKey);
+        }
+    }
+
+    private void BuildLogicalParentIndexes()
+    {
+        Array.Fill(_treeParentIndexes, value: -1, startIndex: 0, _rowCount);
+        Array.Clear(_semanticSectionRowKinds, index: 0, _rowCount);
+        Array.Clear(_semanticRowClassifications, index: 0, _rowCount);
+        _rowIndexByInstance.Clear();
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null) _rowIndexByInstance[row.InstanceKey] = rowIndex;
+        }
+
+        switch (_processGroupingStyle)
+        {
+            case ProcessGroupingStyle.None:
+                return;
+            case ProcessGroupingStyle.ParentProcess:
+                BuildParentProcessIndexes();
+                return;
+            case ProcessGroupingStyle.Semantic:
+                foreach (KeyValuePair<ProcessInstanceKey, ProcessInstanceKey?> pair in
+                         _semanticParentByInstance)
+                {
+                    if (!pair.Value.HasValue
+                        || !_rowIndexByInstance.TryGetValue(pair.Key, out int childRowIndex)
+                        || !_rowIndexByInstance.TryGetValue(pair.Value.Value, out int parentRowIndex))
+                        continue;
+                    _treeParentIndexes[childRowIndex] = parentRowIndex;
+                }
+
+                BuildSemanticPresentationIndexes();
+
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(_processGroupingStyle));
+        }
+    }
+
+    private void BuildSemanticPresentationIndexes()
+    {
+        foreach (KeyValuePair<ProcessInstanceKey, SemanticProcessGroupClassification> pair in
+                 _semanticClassificationByInstance)
+        {
+            if (!_rowIndexByInstance.TryGetValue(pair.Key, out int rowIndex)) continue;
+            _semanticRowClassifications[rowIndex] = checked((byte)((int)pair.Value + 1));
+        }
+
+        for (int sectionIndex = 0; sectionIndex < SemanticProcessSections.Count; sectionIndex++)
+        {
+            SemanticProcessGroupClassification classification =
+                SemanticProcessSections.GetClassification(sectionIndex);
+            int classificationIndex = (int)classification;
+            int spacerRowIndex = _semanticSectionSpacerRowIndexes[classificationIndex];
+            int headerRowIndex = _semanticSectionHeaderRowIndexes[classificationIndex];
+            if (spacerRowIndex >= 0)
+            {
+                _semanticSectionRowKinds[spacerRowIndex] =
+                    SemanticProcessSectionRowKind.Spacer;
+            }
+
+            if (headerRowIndex >= 0)
+            {
+                _semanticSectionRowKinds[headerRowIndex] =
+                    SemanticProcessSectionRowKind.Header;
+            }
+        }
+    }
+
+    private void BuildParentProcessIndexes()
+    {
+        _rowIndexByProcessID.Clear();
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null && row.ProcessID >= 0)
+                _rowIndexByProcessID[row.ProcessID] = rowIndex;
+        }
+
+        for (int childRowIndex = 0; childRowIndex < _rowCount; childRowIndex++)
+        {
+            ProcessStaticData? child = _snapshot.StaticRows[childRowIndex];
+            if (child == null
+                || !child.IsCreationTimeKnown
+                || child.ParentProcessID < 0
+                || child.ParentProcessID == child.ProcessID
+                || !_rowIndexByProcessID.TryGetValue(
+                    child.ParentProcessID,
+                    out int parentRowIndex))
+                continue;
+
+            ProcessStaticData? parent = _snapshot.StaticRows[parentRowIndex];
+            if (parent == null
+                || !parent.IsCreationTimeKnown
+                || parent.InstanceKey.CreationTimeTicks >= child.InstanceKey.CreationTimeTicks)
+                continue;
+            _treeParentIndexes[childRowIndex] = parentRowIndex;
+        }
+    }
+
     /// <summary>Publishes this table's schema and viewport sampling policy.</summary>
     public void ActivateSampling(ProcessSnapshotService snapshotService)
     {
@@ -501,6 +1022,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         _snapshotService = snapshotService;
         _samplingActive = true;
+        snapshotService.SetSemanticGroupingEnabled(
+            _processGroupingStyle == ProcessGroupingStyle.Semantic);
         ProcessDataSchema schema = _pendingColumnLayout?.Schema ?? _schema;
         snapshotService.SetActiveSchema(schema);
         PublishWarmProcesses();
@@ -508,7 +1031,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     }
 
     /// <summary>Stops this table from changing the shared process sampling policy.</summary>
-    public void DeactivateSampling() => _samplingActive = false;
+    public void DeactivateSampling()
+    {
+        _samplingActive = false;
+        _snapshotService?.SetSemanticGroupingEnabled(isEnabled: false);
+    }
 
     public void SetFilter(string? filterText)
     {
@@ -536,7 +1063,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             {
                 CommitPendingColumnLayout(
                     nextPendingColumnLayout,
-                    _snapshot.Count,
+                    _sourceSnapshot.Count,
                     _snapshotVersion,
                     viewportAnchor);
             }
@@ -570,6 +1097,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ClearSnapshotPresentationState();
         _schema = schema;
         _rowComparer.SetSchema(schema);
+        _sourceSnapshot.Reset();
         _snapshot.Reset();
         _snapshotVersion = -1;
         ClearLiveTotalHeaders();
@@ -601,6 +1129,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _warmRefreshCursor = 0;
         _warmRefreshEnd = 0;
         _rowIndexByProcessID.Clear();
+        _sourceRowIndexByInstance.Clear();
+        _rowIndexByInstance.Clear();
+        _membersBySyntheticKey.Clear();
+        _semanticParentByInstance.Clear();
+        _semanticClassificationByInstance.Clear();
+        ResetSemanticSectionPresentation();
+        Array.Fill(_semanticSectionVisibleStarts, value: -1);
+        _usesSemanticSections = false;
         _contextCopyRows = [];
     }
 
@@ -720,8 +1256,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 _metrics.RowHeight);
             if (contextVisibleIndex >= 0)
             {
-                ProcessStaticData? contextRow =
-                    _snapshot.StaticRows[_visibleRowIndexes[contextVisibleIndex]];
+                int contextRowIndex = _visibleRowIndexes[contextVisibleIndex];
+                if (IsSemanticSectionRow(contextRowIndex))
+                {
+                    Focus();
+                    eventArgs.Handled = true;
+                    return;
+                }
+
+                ProcessStaticData? contextRow = _snapshot.StaticRows[contextRowIndex];
                 if (contextRow != null)
                 {
                     if (_selectedProcesses.Contains(contextRow.InstanceKey))
@@ -868,14 +1411,31 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Cursor = TrayAppDotNETCursors.Arrow;
     }
 
-    /// <summary>Switches between a flat sorted list and an allocation-free parent-process tree.</summary>
-    public void SetGroupProcesses(bool groupProcesses)
+    /// <summary>Switches between flat, parent-process, and semantic application layouts.</summary>
+    public void SetProcessGroupingStyle(ProcessGroupingStyle groupingStyle)
     {
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
-        if (_groupProcesses == groupProcesses) return;
+        if (!Enum.IsDefined(groupingStyle)) groupingStyle = ProcessGroupingStyle.None;
+        if (_processGroupingStyle == groupingStyle) return;
 
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
-        _groupProcesses = groupProcesses;
+        _processGroupingStyle = groupingStyle;
+        if (_samplingActive && _snapshotService != null)
+        {
+            _snapshotService.SetSemanticGroupingEnabled(
+                groupingStyle == ProcessGroupingStyle.Semantic);
+            _snapshotService.RequestRefresh();
+        }
+
+        if (_sourceSnapshot.Schema != null)
+        {
+            BuildPresentationSnapshot(_sourceSnapshot.Count);
+            EnsureRowCapacity(_rowCount);
+            BuildLogicalParentIndexes();
+            SynchronizeRenderCacheMembership();
+            EnsureSelectedProcessesStillExist();
+            RefreshLiveTotalHeaders();
+        }
         RebuildVisibleRows();
         InvalidateMeasure();
         RestoreViewportAnchor(viewportAnchor);
@@ -1382,6 +1942,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         || currentMetrics.ProcessIconSize != nextMetrics.ProcessIconSize
         || currentMetrics.ProcessIconGap != nextMetrics.ProcessIconGap
         || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
+        || currentVisualMetrics.SemanticSectionChildIndent
+        != nextVisualMetrics.SemanticSectionChildIndent
+        || currentVisualMetrics.SemanticSectionHeaderSizeOffset
+        != nextVisualMetrics.SemanticSectionHeaderSizeOffset
+        || currentVisualMetrics.SemanticSectionHeaderUpwardShift
+        != nextVisualMetrics.SemanticSectionHeaderUpwardShift
+        || currentVisualMetrics.SemanticSectionHeaderTextGap
+        != nextVisualMetrics.SemanticSectionHeaderTextGap
         || currentVisualMetrics.TreeExpanderWidth != nextVisualMetrics.TreeExpanderWidth;
 #endif
 
@@ -1531,7 +2099,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _copyPreviewMode = ProcessCopyPreviewMode.None;
         _textUnderlineSegmentCount = 0;
         int[] selectedRowIndexes = CreateSelectedRowIndexes();
-        ProcessEndTaskItem[] selectedProcesses = new ProcessEndTaskItem[selectedRowIndexes.Length];
+        ProcessEndTaskItem[] selectedProcesses = CreateSelectedEndTaskItems();
         ContextCopyRow[] contextCopyRows = new ContextCopyRow[selectedRowIndexes.Length];
         StringBuilder cellCopyText = new();
         StringBuilder rowCopyText = new();
@@ -1541,7 +2109,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessStaticData row = _snapshot.StaticRows[rowIndex]
                                     ?? throw new InvalidOperationException(
                                         "A published process row is missing static data.");
-            selectedProcesses[selectedIndex] = CreateEndTaskItem(row);
             EnsureDynamicDrawingCurrent(rowIndex, row);
 
             string?[] valuesByColumn = new string?[ProcessTableColumnCatalog.Definitions.Length];
@@ -1582,16 +2149,61 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessEndTaskItem[] CreateSelectedEndTaskItems()
     {
         int[] selectedRowIndexes = CreateSelectedRowIndexes();
-        ProcessEndTaskItem[] selectedProcesses = new ProcessEndTaskItem[selectedRowIndexes.Length];
+        List<ProcessEndTaskItem> selectedProcesses = [];
+        HashSet<ProcessInstanceKey> addedProcesses = [];
         for (int selectedIndex = 0; selectedIndex < selectedRowIndexes.Length; selectedIndex++)
         {
             ProcessStaticData row = _snapshot.StaticRows[selectedRowIndexes[selectedIndex]]
                                     ?? throw new InvalidOperationException(
                                         "A published process row is missing static data.");
-            selectedProcesses[selectedIndex] = CreateEndTaskItem(row);
+            if (_membersBySyntheticKey.TryGetValue(
+                    row.InstanceKey,
+                    out ProcessInstanceKey[]? memberInstanceKeys))
+            {
+                for (int memberIndex = 0; memberIndex < memberInstanceKeys.Length; memberIndex++)
+                    AddEndTaskItem(memberInstanceKeys[memberIndex], addedProcesses, selectedProcesses);
+                continue;
+            }
+
+            AddEndTaskItem(row.InstanceKey, addedProcesses, selectedProcesses);
         }
 
-        return selectedProcesses;
+        return [.. selectedProcesses];
+    }
+
+    private void AddEndTaskItem(
+        ProcessInstanceKey instanceKey,
+        HashSet<ProcessInstanceKey> addedProcesses,
+        List<ProcessEndTaskItem> selectedProcesses)
+    {
+        if (!addedProcesses.Add(instanceKey)
+            || !_sourceRowIndexByInstance.TryGetValue(instanceKey, out int sourceRowIndex))
+            return;
+        ProcessStaticData? sourceRow = _sourceSnapshot.StaticRows[sourceRowIndex];
+        if (sourceRow != null) selectedProcesses.Add(CreateEndTaskItem(sourceRow));
+    }
+
+    private int CountSelectedProcessInstances()
+    {
+        if (_selectedProcesses.Count == 0) return 0;
+
+        HashSet<ProcessInstanceKey> selectedProcessInstances = [];
+        foreach (ProcessInstanceKey selectedRowKey in _selectedProcesses)
+        {
+            if (_membersBySyntheticKey.TryGetValue(
+                    selectedRowKey,
+                    out ProcessInstanceKey[]? memberInstanceKeys))
+            {
+                for (int memberIndex = 0; memberIndex < memberInstanceKeys.Length; memberIndex++)
+                    selectedProcessInstances.Add(memberInstanceKeys[memberIndex]);
+                continue;
+            }
+
+            if (_sourceRowIndexByInstance.ContainsKey(selectedRowKey))
+                selectedProcessInstances.Add(selectedRowKey);
+        }
+
+        return selectedProcessInstances.Count;
     }
 
     private int[] CreateSelectedRowIndexes()
@@ -1950,9 +2562,23 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessTableColumn nameColumn = columns[nameColumnIndex];
         if (nameColumn.Right <= viewport.Left || nameColumn.Left >= viewport.Right) return;
 
-        double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
         int treeLayoutKey = GetTreeLayoutKey(rowIndex);
         double hierarchyInset = GetHierarchyInset(treeLayoutKey);
+        if (IsSemanticSectionRow(rowIndex))
+        {
+            if (IsSemanticSectionHeaderLayout(treeLayoutKey)
+                && HasTreeExpanderSlot(treeLayoutKey))
+                DrawTreeExpander(
+                    context,
+                    nameColumn,
+                    row,
+                    top,
+                    hierarchyInset,
+                    isSemanticSectionHeader: true);
+            return;
+        }
+
+        double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
         double expanderInset = HasTreeExpanderSlot(treeLayoutKey)
             ? _visualMetrics.TreeExpanderWidth
             : 0;
@@ -1972,8 +2598,16 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 (float)_visualMetrics.ProcessIconCornerRadius);
         }
 
-        if ((treeLayoutKey & 1) != 0)
-            DrawTreeExpander(context, nameColumn, row, top, hierarchyInset);
+        if (HasTreeExpanderSlot(treeLayoutKey))
+        {
+            DrawTreeExpander(
+                context,
+                nameColumn,
+                row,
+                top,
+                hierarchyInset,
+                isSemanticSectionHeader: false);
+        }
     }
 
     private void DrawTreeExpander(
@@ -1981,42 +2615,52 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessTableColumn nameColumn,
         ProcessStaticData row,
         double top,
-        double hierarchyInset)
+        double hierarchyInset,
+        bool isSemanticSectionHeader)
     {
+        double caretSizeOffset = isSemanticSectionHeader
+            ? _visualMetrics.SemanticSectionCaretSizeOffset / 2
+            : 0;
+        double chevronHalfWidth = _visualMetrics.TreeExpanderChevronHalfWidth
+                                  + caretSizeOffset;
+        double chevronHalfHeight = _visualMetrics.TreeExpanderChevronHalfHeight
+                                   + caretSizeOffset;
         double centerX = nameColumn.Left
                          + _metrics.CellPadding
                          + hierarchyInset
                          + _visualMetrics.TreeExpanderWidth / 2;
         double centerY = top + _metrics.RowHeight / 2;
-        if (_collapsedProcesses.Contains(row.InstanceKey))
+        if (isSemanticSectionHeader)
+            centerY -= _visualMetrics.SemanticSectionCaretUpwardShift;
+        if (_filterQuery.IsEmpty && _collapsedProcesses.Contains(row.InstanceKey))
         {
             context.DrawLine(
                 _treeExpanderPen,
                 new Point(
-                    centerX - _visualMetrics.TreeExpanderChevronHalfWidth,
-                    centerY - _visualMetrics.TreeExpanderChevronHalfHeight),
-                new Point(centerX + _visualMetrics.TreeExpanderChevronHalfWidth, centerY));
+                    centerX - chevronHalfWidth,
+                    centerY - chevronHalfHeight),
+                new Point(centerX + chevronHalfWidth, centerY));
             context.DrawLine(
                 _treeExpanderPen,
-                new Point(centerX + _visualMetrics.TreeExpanderChevronHalfWidth, centerY),
+                new Point(centerX + chevronHalfWidth, centerY),
                 new Point(
-                    centerX - _visualMetrics.TreeExpanderChevronHalfWidth,
-                    centerY + _visualMetrics.TreeExpanderChevronHalfHeight));
+                    centerX - chevronHalfWidth,
+                    centerY + chevronHalfHeight));
             return;
         }
 
         context.DrawLine(
             _treeExpanderPen,
             new Point(
-                centerX - _visualMetrics.TreeExpanderChevronHalfHeight,
-                centerY - _visualMetrics.TreeExpanderChevronHalfWidth),
-            new Point(centerX, centerY + _visualMetrics.TreeExpanderChevronHalfWidth));
+                centerX - chevronHalfHeight,
+                centerY - chevronHalfWidth),
+            new Point(centerX, centerY + chevronHalfWidth));
         context.DrawLine(
             _treeExpanderPen,
-            new Point(centerX, centerY + _visualMetrics.TreeExpanderChevronHalfWidth),
+            new Point(centerX, centerY + chevronHalfWidth),
             new Point(
-                centerX + _visualMetrics.TreeExpanderChevronHalfHeight,
-                centerY - _visualMetrics.TreeExpanderChevronHalfWidth));
+                centerX + chevronHalfHeight,
+                centerY - chevronHalfWidth));
     }
 
     private void DrawColumnGrid(DrawingContext context, Rect viewport)
@@ -2439,18 +3083,28 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         string display,
         int treeLayoutKey)
     {
-        double textTop = Math.Max(
-            val1: 0,
-            (_metrics.RowHeight - _metrics.RowTextHeight) / 2);
-        double leftInset = column.Kind == ProcessTableColumnKind.Name
-            ? _metrics.CellPadding
-              + GetHierarchyInset(treeLayoutKey)
-              + (HasTreeExpanderSlot(treeLayoutKey) ? _visualMetrics.TreeExpanderWidth : 0)
-              + _metrics.ProcessIconSize
-              + _metrics.ProcessIconGap
-            : _metrics.CellPadding;
+        bool isSemanticSectionHeader = IsSemanticSectionHeaderLayout(treeLayoutKey);
+        double leftInset = _metrics.CellPadding;
+        if (column.Kind == ProcessTableColumnKind.Name)
+        {
+            double leadingContentWidth = isSemanticSectionHeader
+                ? _visualMetrics.SemanticSectionHeaderTextGap
+                : _metrics.ProcessIconSize + _metrics.ProcessIconGap;
+            leftInset += GetHierarchyInset(treeLayoutKey)
+                         + (HasTreeExpanderSlot(treeLayoutKey)
+                             ? _visualMetrics.TreeExpanderWidth
+                             : 0)
+                         + leadingContentWidth;
+        }
         double availableWidth = Math.Max(val1: 0, column.Width - leftInset - _metrics.CellPadding);
-        TextLayout text = CreateBoundedText(display, availableWidth);
+        double fontSize = isSemanticSectionHeader
+            ? _metrics.FontSize + _visualMetrics.SemanticSectionHeaderSizeOffset
+            : _metrics.FontSize;
+        TextLayout text = CreateBoundedText(display, availableWidth, fontSize);
+        double textHeight = isSemanticSectionHeader ? text.Height : _metrics.RowTextHeight;
+        double textTop = Math.Max(val1: 0, (_metrics.RowHeight - textHeight) / 2);
+        if (isSemanticSectionHeader)
+            textTop -= _visualMetrics.SemanticSectionHeaderUpwardShift;
         double textX = column.Alignment == ProcessTableColumnAlignment.Right
             ? column.Right - _metrics.CellPadding - text.Width
             : column.Left + leftInset;
@@ -2538,10 +3192,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         return hash.ToHashCode();
     }
 
-    private string GetCellDisplayValue(int rowIndex, ProcessTableColumnKind kind) =>
-        ProcessTableColumnCatalog.Get(kind).Lifetime == ProcessTableColumnLifetime.Static
+    private string GetCellDisplayValue(int rowIndex, ProcessTableColumnKind kind)
+    {
+        if (IsSemanticSectionRow(rowIndex) && kind != ProcessTableColumnKind.Name)
+            return string.Empty;
+
+        return ProcessTableColumnCatalog.Get(kind).Lifetime == ProcessTableColumnLifetime.Static
             ? GetStaticDisplayValue(rowIndex, kind)
             : GetDynamicDisplayValue(rowIndex, kind);
+    }
 
     private ProcessSearchColumnValue GetSearchColumnValue(
         int rowIndex,
@@ -2555,6 +3214,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                                         "A published process row is missing static data.");
             return kind switch
             {
+                ProcessTableColumnKind.ProcessID when
+                    _membersBySyntheticKey.ContainsKey(row.InstanceKey) =>
+                    ProcessSearchColumnValue.TextOnly(displayText),
                 ProcessTableColumnKind.ProcessID => ProcessSearchColumnValue.Numeric(displayText, row.ProcessID),
                 ProcessTableColumnKind.SessionID => CreateSignedSearchValue(
                     displayText,
@@ -2653,7 +3315,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                                 ?? throw new InvalidOperationException(
                                     "A published process row is missing static data.");
         if (kind == ProcessTableColumnKind.ProcessID)
-            return row.ProcessID.ToString(TableCulture);
+        {
+            return _membersBySyntheticKey.ContainsKey(row.InstanceKey)
+                ? string.Empty
+                : row.ProcessID.ToString(TableCulture);
+        }
 
         string? identityText = GetIdentityText(row, kind);
         if (kind == ProcessTableColumnKind.UserName
@@ -2791,8 +3457,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 && ProcessColumnSettings.SupportsLiveTotal(column))
             {
                 ProcessLiveTotalValue total = ProcessLiveTotalFunctions.Calculate(
-                    _snapshot,
-                    _rowCount,
+                    _sourceSnapshot,
+                    _sourceSnapshot.Count,
                     column);
                 nextText = FormatLiveTotal(column, total, setting);
             }
@@ -3081,13 +3747,35 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
 
         GetWarmVisibleRowRange(out int firstRow, out int lastRowExclusive);
-        int warmProcessCount = lastRowExclusive - firstRow;
-        EnsureWarmCapacity(warmProcessCount);
+        EnsureWarmCapacity(_sourceSnapshot.Count);
+        _warmProcessKeySet.Clear();
+        int warmProcessCount = 0;
         for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
         {
             int rowIndex = _visibleRowIndexes[visibleIndex];
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            _warmProcessIDs[visibleIndex - firstRow] = row?.ProcessID ?? -1;
+            if (row == null) continue;
+
+            if (_membersBySyntheticKey.TryGetValue(
+                    row.InstanceKey,
+                    out ProcessInstanceKey[]? memberInstanceKeys))
+            {
+                for (int memberIndex = 0; memberIndex < memberInstanceKeys.Length; memberIndex++)
+                {
+                    ProcessInstanceKey memberInstanceKey = memberInstanceKeys[memberIndex];
+                    if (!_warmProcessKeySet.Add(memberInstanceKey)) continue;
+                    _warmProcessIDs[warmProcessCount] = memberInstanceKey.ProcessID;
+                    warmProcessCount++;
+                }
+
+                continue;
+            }
+
+            if (!_sourceRowIndexByInstance.ContainsKey(row.InstanceKey)
+                || !_warmProcessKeySet.Add(row.InstanceKey))
+                continue;
+            _warmProcessIDs[warmProcessCount] = row.ProcessID;
+            warmProcessCount++;
         }
 
         _snapshotService.SetWarmProcesses(
@@ -3262,11 +3950,17 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void ApplyPointerSelection(int visibleIndex, KeyModifiers modifiers)
     {
-        ProcessInstanceKey[] visibleProcesses = CreateVisibleProcessKeys();
+        if ((uint)visibleIndex < (uint)_visibleRowCount
+            && IsSemanticSectionRow(_visibleRowIndexes[visibleIndex]))
+            return;
+
+        ProcessInstanceKey[] visibleProcesses = CreateVisibleProcessKeys(
+            visibleIndex,
+            out int selectableVisibleIndex);
         ProcessSelectionResult result = ProcessSelectionFunctions.ApplyPointerSelection(
             _selectedProcesses,
             visibleProcesses,
-            visibleIndex,
+            selectableVisibleIndex,
             _selectedProcess,
             _selectionAnchorProcess,
             isControlPressed: (modifiers & KeyModifiers.Control) != 0,
@@ -3287,17 +3981,28 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         NotifySelectionChanged();
     }
 
-    private ProcessInstanceKey[] CreateVisibleProcessKeys()
+    private ProcessInstanceKey[] CreateVisibleProcessKeys(
+        int requestedVisibleIndex,
+        out int selectableVisibleIndex)
     {
         ProcessInstanceKey[] visibleProcesses = new ProcessInstanceKey[_visibleRowCount];
+        selectableVisibleIndex = -1;
+        int writeIndex = 0;
         for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
         {
-            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            if (IsSemanticSectionRow(rowIndex)) continue;
+
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
             if (row == null)
                 throw new InvalidOperationException("A published process row is missing static data.");
-            visibleProcesses[visibleIndex] = row.InstanceKey;
+            if (visibleIndex == requestedVisibleIndex) selectableVisibleIndex = writeIndex;
+            visibleProcesses[writeIndex] = row.InstanceKey;
+            writeIndex++;
         }
 
+        if (writeIndex != visibleProcesses.Length)
+            Array.Resize(ref visibleProcesses, writeIndex);
         return visibleProcesses;
     }
 
@@ -3322,9 +4027,24 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private bool TryToggleTreeExpander(Point position, int visibleIndex)
     {
-        if (!_groupProcesses || visibleIndex < 0 || visibleIndex >= _visibleRowCount) return false;
+        if (_processGroupingStyle == ProcessGroupingStyle.None
+            || visibleIndex < 0
+            || visibleIndex >= _visibleRowCount)
+            return false;
 
         int rowIndex = _visibleRowIndexes[visibleIndex];
+        if (_semanticSectionRowKinds[rowIndex] == SemanticProcessSectionRowKind.Spacer)
+        {
+            int headerVisibleIndex = visibleIndex + 1;
+            if (headerVisibleIndex >= _visibleRowCount) return false;
+
+            int headerRowIndex = _visibleRowIndexes[headerVisibleIndex];
+            if (_semanticSectionRowKinds[headerRowIndex]
+                != SemanticProcessSectionRowKind.Header)
+                return false;
+            rowIndex = headerRowIndex;
+        }
+
         if (!_rowHasChildren[rowIndex]) return false;
 
         ProcessTableColumn[] columns = DisplayColumns;
@@ -3332,9 +4052,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (nameColumnIndex < 0) return false;
 
         ProcessTableColumn nameColumn = columns[nameColumnIndex];
+        int treeLayoutKey = GetTreeLayoutKey(rowIndex);
         double expanderLeft = nameColumn.Left
                               + _metrics.CellPadding
-                              + _rowDepths[rowIndex] * _visualMetrics.TreeIndentWidth;
+                              + GetHierarchyInset(treeLayoutKey);
         if (position.X < expanderLeft
             || position.X >= expanderLeft + _visualMetrics.TreeExpanderWidth)
             return false;
@@ -3366,7 +4087,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _metrics.HeaderHeight,
             _metrics.RowHeight,
             ResolveStickyHeaderTop(viewport),
-            _headerInteraction == HeaderInteractionMode.None && !IsDetailsGridDisposed);
+            _headerInteraction == HeaderInteractionMode.None && !IsDetailsGridDisposed,
+            _semanticSectionVisibleStarts[0],
+            _semanticSectionVisibleStarts[1],
+            _semanticSectionVisibleStarts[2]);
     }
 
     private void PublishRowHoverGeometry()
@@ -3388,18 +4112,43 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void RebuildVisibleRows()
     {
-        int writeIndex = 0;
+        Array.Fill(_semanticSectionVisibleStarts, value: -1);
+        _usesSemanticSections = SemanticProcessSections.IsEnabled(
+            _processGroupingStyle,
+            _sortColumn);
+        Array.Clear(_filterIncludedRows, index: 0, _rowCount);
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row == null || !MatchesFilter(rowIndex)) continue;
+            if (row == null
+                || IsSemanticSectionRow(rowIndex)
+                || !MatchesFilter(rowIndex))
+                continue;
+            _filterIncludedRows[rowIndex] = true;
+
+            if (_processGroupingStyle == ProcessGroupingStyle.None) continue;
+            int ancestorRowIndex = _treeParentIndexes[rowIndex];
+            int remainingEdges = _rowCount;
+            while (ancestorRowIndex >= 0 && remainingEdges > 0)
+            {
+                _filterIncludedRows[ancestorRowIndex] = true;
+                ancestorRowIndex = _treeParentIndexes[ancestorRowIndex];
+                remainingEdges--;
+            }
+        }
+
+        int writeIndex = 0;
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        {
+            if (!_filterIncludedRows[rowIndex]) continue;
             _visibleRowIndexes[writeIndex] = rowIndex;
             writeIndex++;
         }
-
         _visibleRowCount = writeIndex;
         SortVisibleRows();
-        if (_groupProcesses && _visibleRowCount > 1)
+        if (_usesSemanticSections && _visibleRowCount > 0)
+            BuildSemanticSectionedVisibleRows();
+        else if (_processGroupingStyle != ProcessGroupingStyle.None && _visibleRowCount > 1)
             BuildGroupedVisibleRows();
         else
             ClearTreeLayout();
@@ -3424,35 +4173,40 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     /// <summary>Builds a sorted parent/child traversal using reusable contiguous buffers.</summary>
     private void BuildGroupedVisibleRows()
     {
-        Array.Fill(_treeParentIndexes, value: -1, startIndex: 0, _rowCount);
+        BuildTreeChildIndexes();
+
+        int outputCount = 0;
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            if (_treeParentIndexes[rowIndex] >= 0 || _treeVisited[rowIndex] != 0) continue;
+            outputCount = AppendTree(rowIndex, outputCount, initialDepth: 0);
+        }
+
+        // PID reuse or malformed native data can form a cycle; retain those rows as an extra root tree
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            if (_treeVisited[rowIndex] != 0) continue;
+            outputCount = AppendTree(rowIndex, outputCount, initialDepth: 0);
+        }
+
+        Array.Copy(_treeOrderBuffer, _visibleRowIndexes, outputCount);
+        _visibleRowCount = outputCount;
+    }
+
+    private void BuildTreeChildIndexes()
+    {
         Array.Clear(_treeChildCounts, index: 0, _rowCount);
         Array.Clear(_rowDepths, index: 0, _rowCount);
         Array.Clear(_rowHasChildren, index: 0, _rowCount);
         Array.Clear(_treeVisited, index: 0, _rowCount);
-        _rowIndexByProcessID.Clear();
 
         for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
         {
             int rowIndex = _visibleRowIndexes[visibleIndex];
-            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row != null) _rowIndexByProcessID[row.ProcessID] = rowIndex;
-        }
-
-        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
-        {
-            int rowIndex = _visibleRowIndexes[visibleIndex];
-            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row == null
-                || row.ParentProcessID < 0
-                || row.ParentProcessID == row.ProcessID
-                || !_rowIndexByProcessID.TryGetValue(row.ParentProcessID, out int parentRowIndex))
-                continue;
-
-            ProcessStaticData? parent = _snapshot.StaticRows[parentRowIndex];
-            if (parent == null || parent.InstanceKey.CreationTimeTicks > row.InstanceKey.CreationTimeTicks)
-                continue;
-
-            _treeParentIndexes[rowIndex] = parentRowIndex;
+            int parentRowIndex = _treeParentIndexes[rowIndex];
+            if (parentRowIndex < 0 || !_filterIncludedRows[parentRowIndex]) continue;
             _treeChildCounts[parentRowIndex]++;
             _rowHasChildren[parentRowIndex] = true;
         }
@@ -3473,32 +4227,89 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             if (parentRowIndex < 0) continue;
             _treeChildren[_treeChildWriteOffsets[parentRowIndex]++] = rowIndex;
         }
+    }
 
+    /// <summary>Adds fixed two-row category blocks around name-sorted semantic trees.</summary>
+    private void BuildSemanticSectionedVisibleRows()
+    {
+        BuildTreeChildIndexes();
         int outputCount = 0;
-        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        for (int sectionIndex = 0; sectionIndex < SemanticProcessSections.Count; sectionIndex++)
         {
-            int rowIndex = _visibleRowIndexes[visibleIndex];
-            if (_treeParentIndexes[rowIndex] >= 0 || _treeVisited[rowIndex] != 0) continue;
-            outputCount = AppendTree(rowIndex, outputCount);
-        }
+            SemanticProcessGroupClassification classification =
+                SemanticProcessSections.GetClassification(sectionIndex);
+            bool hasIncludedRows = false;
+            for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+            {
+                int rowIndex = _visibleRowIndexes[visibleIndex];
+                if (IsSemanticClassification(rowIndex, classification))
+                {
+                    hasIncludedRows = true;
+                    break;
+                }
+            }
 
-        // PID reuse or malformed native data can form a cycle; retain those rows as an extra root tree
-        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
-        {
-            int rowIndex = _visibleRowIndexes[visibleIndex];
-            if (_treeVisited[rowIndex] != 0) continue;
-            outputCount = AppendTree(rowIndex, outputCount);
+            if (!hasIncludedRows) continue;
+
+            int classificationIndex = (int)classification;
+            int spacerRowIndex = _semanticSectionSpacerRowIndexes[classificationIndex];
+            int headerRowIndex = _semanticSectionHeaderRowIndexes[classificationIndex];
+            if (spacerRowIndex < 0 || headerRowIndex < 0)
+                throw new InvalidOperationException("A semantic process section is missing its row pair.");
+
+            _semanticSectionVisibleStarts[sectionIndex] = outputCount;
+            _treeOrderBuffer[outputCount] = spacerRowIndex;
+            outputCount++;
+            _treeOrderBuffer[outputCount] = headerRowIndex;
+            outputCount++;
+            _rowHasChildren[headerRowIndex] = true;
+
+            ProcessStaticData header = _snapshot.StaticRows[headerRowIndex]
+                                       ?? throw new InvalidOperationException(
+                                           "A semantic process section header is missing static data.");
+            bool hideSection = _filterQuery.IsEmpty
+                               && _collapsedProcesses.Contains(header.InstanceKey);
+            if (hideSection) continue;
+
+            for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+            {
+                int rowIndex = _visibleRowIndexes[visibleIndex];
+                if (!IsSemanticClassification(rowIndex, classification)
+                    || _treeParentIndexes[rowIndex] >= 0
+                    || _treeVisited[rowIndex] != 0)
+                    continue;
+                outputCount = AppendTree(rowIndex, outputCount, initialDepth: 1);
+            }
+
+            // Preserve malformed cyclic rows inside their classified section
+            for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+            {
+                int rowIndex = _visibleRowIndexes[visibleIndex];
+                if (!IsSemanticClassification(rowIndex, classification)
+                    || _treeVisited[rowIndex] != 0)
+                    continue;
+                outputCount = AppendTree(rowIndex, outputCount, initialDepth: 1);
+            }
         }
 
         Array.Copy(_treeOrderBuffer, _visibleRowIndexes, outputCount);
         _visibleRowCount = outputCount;
     }
 
-    private int AppendTree(int rootRowIndex, int outputCount)
+    private bool IsSemanticClassification(
+        int rowIndex,
+        SemanticProcessGroupClassification classification) =>
+        _semanticRowClassifications[rowIndex] == checked((byte)((int)classification + 1));
+
+    private bool IsSemanticSectionRow(int rowIndex) =>
+        (uint)rowIndex < (uint)_semanticSectionRowKinds.Length
+        && _semanticSectionRowKinds[rowIndex] != SemanticProcessSectionRowKind.None;
+
+    private int AppendTree(int rootRowIndex, int outputCount, byte initialDepth)
     {
         int stackCount = 1;
         _treeStackRows[0] = rootRowIndex;
-        _treeStackDepths[0] = 0;
+        _treeStackDepths[0] = initialDepth;
         _treeStackHidden[0] = false;
         while (stackCount > 0)
         {
@@ -3522,7 +4333,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             int childStart = _treeChildStarts[rowIndex];
             int childCount = _treeChildCounts[rowIndex];
             byte childDepth = depth == byte.MaxValue ? byte.MaxValue : (byte)(depth + 1);
-            bool hideChildren = hidden || _collapsedProcesses.Contains(row.InstanceKey);
+            bool hideChildren = hidden
+                                || (_filterQuery.IsEmpty
+                                    && _collapsedProcesses.Contains(row.InstanceKey));
             for (int childOffset = childCount - 1; childOffset >= 0; childOffset--)
             {
                 _treeStackRows[stackCount] = _treeChildren[childStart + childOffset];
@@ -3559,13 +4372,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             if (row == null) continue;
             if (_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
             {
+                if (!ReferenceEquals(cache.StaticData, row))
+                {
+                    ReleaseRenderCache(cache);
+                    cache.StaticData = row;
+                }
                 cache.LastSeenGeneration = generation;
                 continue;
             }
 
             _renderCaches.Add(
                 row.InstanceKey,
-                new ProcessRowRenderCache { LastSeenGeneration = generation });
+                new ProcessRowRenderCache
+                {
+                    LastSeenGeneration = generation,
+                    StaticData = row
+                });
         }
 
         _staleProcessKeys.Clear();
@@ -3628,7 +4450,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         if (_visibleRowIndexes.Length >= count
             && _treeOrderBuffer.Length >= count
-            && _treeParentIndexes.Length >= count)
+            && _treeParentIndexes.Length >= count
+            && _filterIncludedRows.Length >= count)
             return;
 
         int capacity = Math.Max(val1: 256, _visibleRowIndexes.Length);
@@ -3645,8 +4468,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Array.Resize(ref _treeStackDepths, capacity);
         Array.Resize(ref _treeStackHidden, capacity);
         Array.Resize(ref _treeVisited, capacity);
+        Array.Resize(ref _filterIncludedRows, capacity);
         Array.Resize(ref _rowDepths, capacity);
         Array.Resize(ref _rowHasChildren, capacity);
+        Array.Resize(ref _semanticSectionRowKinds, capacity);
+        Array.Resize(ref _semanticRowClassifications, capacity);
     }
 
     private void EnsureWarmCapacity(int count)
@@ -3672,14 +4498,33 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private int GetTreeLayoutKey(int rowIndex)
     {
-        if (!_groupProcesses || (uint)rowIndex >= (uint)_rowDepths.Length) return 0;
-        return _rowDepths[rowIndex] * 2 + (_rowHasChildren[rowIndex] ? 1 : 0);
+        if (_processGroupingStyle == ProcessGroupingStyle.None
+            || (uint)rowIndex >= (uint)_rowDepths.Length)
+            return 0;
+
+        int treeLayoutKey = _rowDepths[rowIndex] * 2 + (_rowHasChildren[rowIndex] ? 1 : 0);
+        if (!_usesSemanticSections) return treeLayoutKey;
+
+        treeLayoutKey |= SemanticSectionLayoutFlag;
+        if (_semanticSectionRowKinds[rowIndex] == SemanticProcessSectionRowKind.Header)
+            treeLayoutKey |= SemanticSectionHeaderLayoutFlag;
+        return treeLayoutKey;
     }
 
-    private double GetHierarchyInset(int treeLayoutKey) =>
-        (treeLayoutKey >> 1) * _visualMetrics.TreeIndentWidth;
+    private double GetHierarchyInset(int treeLayoutKey)
+    {
+        int depth = (treeLayoutKey & TreeLayoutValueMask) >> 1;
+        if ((treeLayoutKey & SemanticSectionLayoutFlag) == 0 || depth == 0)
+            return depth * _visualMetrics.TreeIndentWidth;
 
-    private static bool HasTreeExpanderSlot(int treeLayoutKey) => treeLayoutKey != 0;
+        return _visualMetrics.SemanticSectionChildIndent
+               + (depth - 1) * _visualMetrics.TreeIndentWidth;
+    }
+
+    private static bool HasTreeExpanderSlot(int treeLayoutKey) => (treeLayoutKey & 1) != 0;
+
+    private static bool IsSemanticSectionHeaderLayout(int treeLayoutKey) =>
+        (treeLayoutKey & SemanticSectionHeaderLayoutFlag) != 0;
 
     private double CalculateRowHeight(double fontSize, double rowSpacing) =>
         ProcessTableLayout.CalculateRowHeight(
@@ -3786,6 +4631,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             resources.AxamlProcessTable.SortCaretRightMargin,
             resources.AxamlProcessTable.ProcessIconCornerRadius,
             resources.AxamlProcessTable.TreeIndentWidth,
+            resources.AxamlProcessTable.SemanticSectionChildIndent,
+            Math.Max(
+                val1: 0,
+                resources.AxamlProcessTable.SemanticSectionHeaderSizeOffset),
+            Math.Max(
+                val1: 0,
+                resources.AxamlProcessTable.SemanticSectionCaretSizeOffset),
+            Math.Max(
+                val1: 0,
+                resources.AxamlProcessTable.SemanticSectionHeaderUpwardShift),
+            Math.Max(
+                val1: 0,
+                resources.AxamlProcessTable.SemanticSectionCaretUpwardShift),
+            resources.AxamlProcessTable.SemanticSectionHeaderTextGap,
             resources.AxamlProcessTable.TreeExpanderWidth,
             resources.AxamlProcessTable.TreeExpanderChevronHalfWidth,
             resources.AxamlProcessTable.TreeExpanderChevronHalfHeight,
@@ -4077,11 +4936,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             maxWidth: maximumWidth,
             maxLines: 1);
 
-    private TextLayout CreateBoundedText(string value, double maximumWidth) =>
+    private TextLayout CreateBoundedText(
+        string value,
+        double maximumWidth,
+        double fontSize) =>
         new(
             LimitTextLayoutInput(value),
             _tableTypeface,
-            _metrics.FontSize,
+            fontSize,
             _foregroundBrush,
             textWrapping: TextWrapping.NoWrap,
             textTrimming: TextTrimming.CharacterEllipsis,
@@ -4174,12 +5036,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _collapsedProcesses.Clear();
         _selectedProcesses.Clear();
         _rowIndexByProcessID.Clear();
+        _sourceRowIndexByInstance.Clear();
+        _rowIndexByInstance.Clear();
+        _syntheticKeyByGroup.Clear();
+        _membersBySyntheticKey.Clear();
+        _semanticParentByInstance.Clear();
+        _semanticClassificationByInstance.Clear();
+        _warmProcessKeySet.Clear();
+        _liveSemanticGroupKeys.Clear();
+        _staleSemanticGroupKeys.Clear();
         _contextCopyRows = [];
         DisposeHeaderTexts(_headerTexts);
         _headerTexts = [];
         _ascendingCaretText.Dispose();
         _descendingCaretText.Dispose();
         _headerHoverLayer.Dispose();
+        _sourceSnapshot.Reset();
         _snapshot.Reset();
     }
 
@@ -4342,6 +5214,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double SortCaretRightMargin,
         double ProcessIconCornerRadius,
         double TreeIndentWidth,
+        double SemanticSectionChildIndent,
+        double SemanticSectionHeaderSizeOffset,
+        double SemanticSectionCaretSizeOffset,
+        double SemanticSectionHeaderUpwardShift,
+        double SemanticSectionCaretUpwardShift,
+        double SemanticSectionHeaderTextGap,
         double TreeExpanderWidth,
         double TreeExpanderChevronHalfWidth,
         double TreeExpanderChevronHalfHeight,
@@ -4363,6 +5241,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private sealed class ProcessRowRenderCache
     {
+        public ProcessStaticData? StaticData;
         public int LastSeenGeneration;
         public int DynamicFingerprint;
         public int PendingDynamicFingerprint;

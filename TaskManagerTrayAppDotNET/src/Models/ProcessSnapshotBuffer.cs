@@ -9,6 +9,7 @@ internal sealed class ProcessSnapshotBuffer
 
     public ProcessDataSchema? Schema { get; private set; }
     public ProcessStaticData?[] StaticRows { get; private set; } = [];
+    public ProcessGroupingFacts[] GroupingFacts { get; private set; } = [];
     public long[] DynamicNumericValues { get; private set; } = [];
     public string?[] DynamicTextValues { get; private set; } = [];
     public int Count { get; private set; }
@@ -26,6 +27,7 @@ internal sealed class ProcessSnapshotBuffer
         {
             int nextCapacity = Math.Max(capacity, Capacity);
             StaticRows = new ProcessStaticData?[nextCapacity];
+            GroupingFacts = new ProcessGroupingFacts[nextCapacity];
             DynamicNumericValues = new long[checked(nextCapacity * schema.DynamicNumericCount)];
             DynamicTextValues = new string?[checked(nextCapacity * schema.DynamicTextCount)];
         }
@@ -38,7 +40,8 @@ internal sealed class ProcessSnapshotBuffer
         int rowIndex,
         ProcessStaticData staticData,
         long[] dynamicNumericValues,
-        string?[] dynamicTextValues)
+        string?[] dynamicTextValues,
+        ProcessGroupingFacts groupingFacts = default)
     {
         ProcessDataSchema schema = Schema
                                    ?? throw new InvalidOperationException(
@@ -46,6 +49,7 @@ internal sealed class ProcessSnapshotBuffer
         if ((uint)rowIndex >= (uint)Capacity) throw new ArgumentOutOfRangeException(nameof(rowIndex));
 
         StaticRows[rowIndex] = staticData;
+        GroupingFacts[rowIndex] = groupingFacts;
         if (schema.DynamicNumericCount > 0)
         {
             Array.Copy(
@@ -80,6 +84,7 @@ internal sealed class ProcessSnapshotBuffer
                                    ?? throw new InvalidOperationException("The source snapshot has no schema.");
         BeginWrite(schema, source.Count);
         Array.Copy(source.StaticRows, StaticRows, source.Count);
+        Array.Copy(source.GroupingFacts, GroupingFacts, source.Count);
         Array.Copy(
             source.DynamicNumericValues,
             DynamicNumericValues,
@@ -97,6 +102,7 @@ internal sealed class ProcessSnapshotBuffer
         ClearReferences();
         Schema = null;
         StaticRows = [];
+        GroupingFacts = [];
         DynamicNumericValues = [];
         DynamicTextValues = [];
         Count = 0;
@@ -123,6 +129,7 @@ internal sealed class ProcessSnapshotBuffer
         if (Count <= 0 || Schema == null) return;
 
         Array.Clear(StaticRows, index: 0, Count);
+        Array.Clear(GroupingFacts, index: 0, Count);
         if (Schema.DynamicTextCount > 0)
             Array.Clear(DynamicTextValues, index: 0, checked(Count * Schema.DynamicTextCount));
     }

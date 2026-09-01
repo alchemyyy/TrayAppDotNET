@@ -95,7 +95,10 @@ internal readonly record struct ProcessRowHoverGeometry(
     double HeaderHeight,
     double RowHeight,
     double StickyHeaderTop,
-    bool IsEnabled)
+    bool IsEnabled,
+    int FirstMergedRowStart = -1,
+    int SecondMergedRowStart = -1,
+    int ThirdMergedRowStart = -1)
 {
     /// <summary>Maps a table-local point to a visible row while excluding the sticky header.</summary>
     public int HitTest(Point position)
@@ -131,10 +134,13 @@ internal readonly record struct ProcessRowHoverGeometry(
         if (rowPosition < 0) return -1;
 
         int visibleIndex = (int)Math.Floor(rowPosition / RowHeight);
-        return visibleIndex >= 0 && visibleIndex < VisibleRowCount ? visibleIndex : -1;
+        if (visibleIndex < 0 || visibleIndex >= VisibleRowCount) return -1;
+
+        int mergedRowStart = ResolveMergedRowStart(visibleIndex);
+        return mergedRowStart >= 0 ? mergedRowStart : visibleIndex;
     }
 
-    /// <summary>Returns one full-width row rectangle in table-local coordinates.</summary>
+    /// <summary>Returns one full-width row or merged-row rectangle in table-local coordinates.</summary>
     public Rect GetRowBounds(int visibleIndex, double hostWidth)
     {
         if ((uint)visibleIndex >= (uint)VisibleRowCount
@@ -144,11 +150,14 @@ internal readonly record struct ProcessRowHoverGeometry(
             || hostWidth <= 0)
             return default;
 
+        int mergedRowStart = ResolveMergedRowStart(visibleIndex);
+        int firstVisibleIndex = mergedRowStart >= 0 ? mergedRowStart : visibleIndex;
+        int rowCount = mergedRowStart >= 0 ? 2 : 1;
         return new Rect(
             x: 0,
-            HeaderHeight + visibleIndex * RowHeight,
+            HeaderHeight + firstVisibleIndex * RowHeight,
             hostWidth,
-            RowHeight);
+            rowCount * RowHeight);
     }
 
     /// <summary>Reports whether any unobscured part of one row is inside the viewport.</summary>
@@ -172,6 +181,22 @@ internal readonly record struct ProcessRowHoverGeometry(
         double visibleTop = Math.Max(Viewport.Y, StickyHeaderTop + HeaderHeight);
         return rowTop + RowHeight > visibleTop && rowTop < Viewport.Bottom;
     }
+
+    private int ResolveMergedRowStart(int visibleIndex)
+    {
+        if (ContainsMergedRow(FirstMergedRowStart, visibleIndex))
+            return FirstMergedRowStart;
+        if (ContainsMergedRow(SecondMergedRowStart, visibleIndex))
+            return SecondMergedRowStart;
+        return ContainsMergedRow(ThirdMergedRowStart, visibleIndex)
+            ? ThirdMergedRowStart
+            : -1;
+    }
+
+    private bool ContainsMergedRow(int mergedRowStart, int visibleIndex) =>
+        mergedRowStart >= 0
+        && mergedRowStart + 1 < VisibleRowCount
+        && (visibleIndex == mergedRowStart || visibleIndex == mergedRowStart + 1);
 }
 
 /// <summary>Samples the Win32 cursor and paints the process-row hover on the render thread.</summary>

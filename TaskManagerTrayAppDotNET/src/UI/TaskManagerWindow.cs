@@ -809,6 +809,21 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         SettingsPalette palette = Palette;
         StackPanel stack = PageStack(title: "Settings", palette);
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
+        stack.Children.Add(ComboCard(
+            title: "Process grouping style",
+            description:
+            "Choose how processes are organized when Group processes is enabled on the Processes page.",
+            [
+                (nameof(ProcessGroupingStyle.ParentProcess), "Parent process"),
+                (nameof(ProcessGroupingStyle.Semantic), "Semantic application")
+            ],
+            _settings.ProcessGroupingStyle.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out ProcessGroupingStyle value))
+                    _settings.ProcessGroupingStyle = value;
+            },
+            palette));
         stack.Children.Add(BoolCard(
             title: "Live column resizing",
             description:

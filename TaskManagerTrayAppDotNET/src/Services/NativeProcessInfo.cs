@@ -15,6 +15,9 @@ internal static class NativeProcessInfo
 
     private const int ErrorInsufficientBuffer = 122;
     private const int ProcessCommandLineInformation = 60;
+    private const int ProcessBasicInformation = 0;
+    private const int ProcessBreakOnTermination = 29;
+    private const int ProcessProtectionInformation = 61;
     private const int ProcessIOPriority = 33;
     private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
     private const uint TokenQuery = 0x0008;
@@ -53,15 +56,53 @@ internal static class NativeProcessInfo
 
     public static long ReadCreationTimeTicks(IntPtr processHandle, long fallback)
     {
+        return TryReadCreationTimeTicks(processHandle, out long creationTimeTicks)
+            ? creationTimeTicks
+            : fallback;
+    }
+
+    /// <summary>Reads an exact kernel creation time without substituting a snapshot timestamp.</summary>
+    public static bool TryReadCreationTimeTicks(IntPtr processHandle, out long creationTimeTicks)
+    {
+        creationTimeTicks = 0;
         if (!GetProcessTimes(
                 processHandle,
                 out FILETIME creationTime,
-                out FILETIME exitTime,
-                out FILETIME kernelTime,
-                out FILETIME userTime))
-            return fallback;
+                out _,
+                out _,
+                out _))
+            return false;
 
-        return unchecked((long)(((ulong)creationTime.HighDateTime << 32) | creationTime.LowDateTime));
+        creationTimeTicks = unchecked(
+            (long)(((ulong)creationTime.HighDateTime << 32) | creationTime.LowDateTime));
+        return creationTimeTicks > 0;
+    }
+
+    /// <summary>Reads the kernel creator PID when the bulk system snapshot is unavailable.</summary>
+    public static int ReadParentProcessID(IntPtr processHandle)
+    {
+        int informationSize = Marshal.SizeOf<PROCESS_BASIC_INFORMATION>();
+        IntPtr informationBuffer = Marshal.AllocHGlobal(informationSize);
+        try
+        {
+            int returnLength = 0;
+            int status = NtQueryInformationProcess(
+                processHandle,
+                ProcessBasicInformation,
+                informationBuffer,
+                informationSize,
+                ref returnLength);
+            if (status < 0) return -1;
+
+            PROCESS_BASIC_INFORMATION information =
+                Marshal.PtrToStructure<PROCESS_BASIC_INFORMATION>(informationBuffer);
+            long parentProcessID = information.InheritedFromUniqueProcessID.ToInt64();
+            return parentProcessID is >= 0 and <= int.MaxValue ? (int)parentProcessID : -1;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(informationBuffer);
+        }
     }
 
     public static bool TryReadMemoryCounters(IntPtr processHandle, out ProcessMemoryCounters counters)
@@ -172,6 +213,54 @@ internal static class NativeProcessInfo
         }
     }
 
+    /// <summary>Reads a non-localized SID string for semantic security scoping.</summary>
+    public static string? ReadUserSID(IntPtr processHandle)
+    {
+        if (!OpenProcessToken(processHandle, TokenQuery, out IntPtr tokenHandle)) return null;
+
+        try
+        {
+            _ = GetTokenInformation(
+                tokenHandle,
+                TokenUser,
+                IntPtr.Zero,
+                tokenInformationLength: 0,
+                out int requiredLength);
+            if (requiredLength <= 0) return null;
+
+            IntPtr tokenBuffer = Marshal.AllocHGlobal(requiredLength);
+            try
+            {
+                if (!GetTokenInformation(
+                        tokenHandle,
+                        TokenUser,
+                        tokenBuffer,
+                        requiredLength,
+                        out requiredLength))
+                    return null;
+
+                TOKEN_USER tokenUser = Marshal.PtrToStructure<TOKEN_USER>(tokenBuffer);
+                if (!ConvertSidToStringSidW(tokenUser.User.Sid, out IntPtr sidString)) return null;
+                try
+                {
+                    return Marshal.PtrToStringUni(sidString);
+                }
+                finally
+                {
+                    _ = LocalFree(sidString);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(tokenBuffer);
+            }
+        }
+        finally
+        {
+            Kernel32.CloseHandle(tokenHandle);
+        }
+    }
+
     public static ProcessDisplayCode ReadElevation(IntPtr processHandle) =>
         TryReadTokenInteger(processHandle, TokenElevation, out int elevated)
             ? elevated != 0 ? ProcessDisplayCode.Yes : ProcessDisplayCode.No
@@ -206,6 +295,53 @@ internal static class NativeProcessInfo
             0 => packageName.ToString(),
             _ => string.Empty
         };
+    }
+
+    /// <summary>Returns null for a failed query and empty for a known unpackaged process.</summary>
+    public static string? ReadPackageFullNameForGrouping(IntPtr processHandle)
+    {
+        const int AppModelErrorNoPackage = 15700;
+        uint length = MaximumPackageNameLength;
+        StringBuilder packageName = new(MaximumPackageNameLength);
+        int result = GetPackageFullName(processHandle, ref length, packageName);
+        return result switch
+        {
+            0 => packageName.ToString(),
+            AppModelErrorNoPackage => string.Empty,
+            _ => null
+        };
+    }
+
+    /// <summary>Conservatively detects critical or protected process roles when native queries permit it.</summary>
+    public static bool ReadIsCriticalOrProtected(IntPtr processHandle)
+    {
+        int returnLength = 0;
+        int breakOnTermination = 0;
+        int status = NtQueryInformationProcess(
+            processHandle,
+            ProcessBreakOnTermination,
+            ref breakOnTermination,
+            sizeof(int),
+            ref returnLength);
+        if (status >= 0 && breakOnTermination != 0) return true;
+
+        IntPtr protectionBuffer = Marshal.AllocHGlobal(sizeof(byte));
+        try
+        {
+            Marshal.WriteByte(protectionBuffer, 0);
+            returnLength = 0;
+            status = NtQueryInformationProcess(
+                processHandle,
+                ProcessProtectionInformation,
+                protectionBuffer,
+                sizeof(byte),
+                ref returnLength);
+            return status >= 0 && Marshal.ReadByte(protectionBuffer) != 0;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(protectionBuffer);
+        }
     }
 
     public static ProcessDisplayCode ReadArchitecture(IntPtr processHandle)
@@ -509,6 +645,13 @@ internal static class NativeProcessInfo
         ref uint domainNameLength,
         out int use);
 
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ConvertSidToStringSidW(IntPtr sid, out IntPtr stringSid);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
+
     [DllImport("ntdll.dll")]
     private static extern int NtQueryInformationProcess(
         IntPtr process,
@@ -597,6 +740,17 @@ internal static class NativeProcessInfo
     private struct TOKEN_USER
     {
         public SID_AND_ATTRIBUTES User;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PROCESS_BASIC_INFORMATION
+    {
+        public IntPtr Reserved1;
+        public IntPtr PebBaseAddress;
+        public IntPtr Reserved2A;
+        public IntPtr Reserved2B;
+        public IntPtr UniqueProcessID;
+        public IntPtr InheritedFromUniqueProcessID;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -269,7 +269,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         SetRow(_tableScrollViewport, value: 1);
         MainContent.Children.Add(_tableScrollViewport);
 
-        _processCanvas.SetGroupProcesses(settings.GroupProcesses);
+        _processCanvas.SetProcessGroupingStyle(
+            settings.GroupProcesses
+                ? settings.ProcessGroupingStyle
+                : ProcessGroupingStyle.None);
         _processCanvas.AttachExternalSubscriptions();
 #if DEBUG
         _searchAutocomplete.AttachAXAMLHotReload();
@@ -664,7 +667,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnGroupProcessesChanged(object? sender, bool groupProcesses)
     {
-        _processCanvas.SetGroupProcesses(groupProcesses);
+        _processCanvas.SetProcessGroupingStyle(
+            groupProcesses
+                ? _settings.ProcessGroupingStyle
+                : ProcessGroupingStyle.None);
         _settings.UpdateGroupProcesses(groupProcesses);
     }
 

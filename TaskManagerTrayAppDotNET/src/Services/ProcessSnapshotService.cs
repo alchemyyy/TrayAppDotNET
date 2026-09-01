@@ -83,6 +83,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly Thread _samplingThread;
     private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
     private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
+    private readonly ProcessWindowGroupingFactsCollector _windowGroupingFactsCollector = new();
     private readonly Action _notifySnapshotAvailable;
     private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
 
@@ -120,6 +121,8 @@ internal sealed class ProcessSnapshotService : IDisposable
     private bool _acceleratorSamplesEveryProcess;
     private bool _networkUsageNeedsInitialFullSample;
     private bool _capacityWarningLogged;
+    private bool _semanticGroupingEnabled;
+    private bool _historySemanticGroupingEnabled;
 
     public ProcessSnapshotService()
     {
@@ -150,6 +153,20 @@ internal sealed class ProcessSnapshotService : IDisposable
                 _warmProcessCount = 0;
                 _sampleEveryProcess = false;
             }
+        }
+
+        if (changed) RequestRefresh();
+    }
+
+    /// <summary>Enables grouping metadata collection independently of visible Details columns.</summary>
+    public void SetSemanticGroupingEnabled(bool isEnabled)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        bool changed;
+        lock (_samplingPolicyGate)
+        {
+            changed = _semanticGroupingEnabled != isEnabled;
+            _semanticGroupingEnabled = isEnabled;
         }
 
         if (changed) RequestRefresh();
@@ -290,10 +307,15 @@ internal sealed class ProcessSnapshotService : IDisposable
         CopySamplingPolicy(
             out ProcessDataSchema schema,
             out int warmProcessCount,
-            out bool sampleEveryProcess);
-        bool schemaChanged = _historySchemaMask != schema.VisibleMask;
+            out bool sampleEveryProcess,
+            out bool semanticGroupingEnabled);
+        bool schemaChanged = _historySchemaMask != schema.VisibleMask
+                             || _historySemanticGroupingEnabled != semanticGroupingEnabled;
         if (schemaChanged)
+        {
             ResetHistoryForSchema(schema.VisibleMask);
+            _historySemanticGroupingEnabled = semanticGroupingEnabled;
+        }
 
         ConfigureOptionalCollectors(schema);
         if (schema.VisibleMask == 0)
@@ -320,6 +342,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool hasSystemSnapshot = _systemProcessSnapshot.TryCapture(
             _systemProcessData,
             schema.IsVisible(ProcessTableColumnKind.JobObjectID));
+        if (semanticGroupingEnabled) _windowGroupingFactsCollector.Capture();
         int generation = NextHistoryGeneration();
         int count = hasSystemSnapshot
             ? RefreshFromSystemSnapshot(
@@ -329,6 +352,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 initializeNetworkUsageForEveryProcess,
                 sampleTimestamp,
                 sampleTimeTicks,
+                semanticGroupingEnabled,
                 generation)
             : RefreshFromProcessObjects(
                 schema,
@@ -337,6 +361,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 initializeNetworkUsageForEveryProcess,
                 sampleTimestamp,
                 sampleTimeTicks,
+                semanticGroupingEnabled,
                 generation);
 
         _stagingBuffer.CompleteWrite(count);
@@ -354,6 +379,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
+        bool semanticGroupingEnabled,
         int generation)
     {
         int requestedCapacity = Math.Min(_systemProcessData.Count, MaximumProcessCount);
@@ -378,6 +404,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     sampleNetworkForEveryProcess,
                     sampleTimestamp,
                     sampleTimeTicks,
+                    semanticGroupingEnabled,
                     generation,
                     count))
                 count++;
@@ -393,6 +420,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
+        bool semanticGroupingEnabled,
         int generation)
     {
         Process[] processes = Process.GetProcesses();
@@ -425,6 +453,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                         sampleNetworkForEveryProcess,
                         sampleTimestamp,
                         sampleTimeTicks,
+                        semanticGroupingEnabled,
                         generation,
                         count))
                     count++;
@@ -450,6 +479,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
+        bool semanticGroupingEnabled,
         int generation,
         int rowIndex)
     {
@@ -462,11 +492,14 @@ internal sealed class ProcessSnapshotService : IDisposable
                           warmProcessCount,
                           processID) >= 0;
         bool historyMatches = _history.TryGetValue(processID, out ProcessHistoryEntry? existingHistory)
+                              && existingHistory.StaticData.IsCreationTimeKnown
                               && (!hasSystemProcessData
-                                  || existingHistory.StaticData.InstanceKey.CreationTimeTicks
+                                  || systemProcessData.CreationTimeTicks > 0
+                                  && existingHistory.StaticData.InstanceKey.CreationTimeTicks
                                   == systemProcessData.CreationTimeTicks);
         bool sampleDynamicValues = !historyMatches || isWarm;
         bool requiresProcessHandle = !hasSystemProcessData
+                                     || semanticGroupingEnabled && !historyMatches
                                      || (!historyMatches
                                          && HasAnyColumn(
                                              schema.VisibleMask,
@@ -486,6 +519,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 hasSystemProcessData,
                 systemProcessData,
                 schema,
+                semanticGroupingEnabled,
                 generation);
             _networkRateCache.MarkSeen(history.StaticData.InstanceKey, generation);
             if (!history.HasDynamicSample || isWarm)
@@ -509,7 +543,10 @@ internal sealed class ProcessSnapshotService : IDisposable
                 rowIndex,
                 history.StaticData,
                 history.DynamicNumericValues,
-                history.DynamicTextValues);
+                history.DynamicTextValues,
+                semanticGroupingEnabled
+                    ? CreateGroupingFacts(history.StaticData)
+                    : default);
             return true;
         }
         finally
@@ -521,13 +558,15 @@ internal sealed class ProcessSnapshotService : IDisposable
     private void CopySamplingPolicy(
         out ProcessDataSchema schema,
         out int warmProcessCount,
-        out bool sampleEveryProcess)
+        out bool sampleEveryProcess,
+        out bool semanticGroupingEnabled)
     {
         lock (_samplingPolicyGate)
         {
             schema = _activeSchema;
             warmProcessCount = _warmProcessCount;
             sampleEveryProcess = _sampleEveryProcess;
+            semanticGroupingEnabled = _semanticGroupingEnabled;
             EnsurePolicyCapacity(ref _sampleWarmProcessIDs, warmProcessCount);
             Array.Copy(_warmProcessIDs, _sampleWarmProcessIDs, warmProcessCount);
         }
@@ -603,18 +642,33 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool hasSystemProcessData,
         SystemProcessData systemProcessData,
         ProcessDataSchema schema,
+        bool semanticGroupingEnabled,
         int generation)
     {
         bool hadHistory = _history.TryGetValue(processID, out ProcessHistoryEntry? history);
-        long fallbackCreationTime = hadHistory
-            ? history!.StaticData.InstanceKey.CreationTimeTicks
-            : sampleTimeTicks;
-        long creationTime = hasSystemProcessData
-            ? systemProcessData.CreationTimeTicks
-            : processHandle == IntPtr.Zero
-                ? fallbackCreationTime
-                : NativeProcessInfo.ReadCreationTimeTicks(processHandle, fallbackCreationTime);
-        if (hadHistory && history!.StaticData.InstanceKey.CreationTimeTicks == creationTime)
+        bool isCreationTimeKnown;
+        long creationTime;
+        if (hasSystemProcessData && systemProcessData.CreationTimeTicks > 0)
+        {
+            creationTime = systemProcessData.CreationTimeTicks;
+            isCreationTimeKnown = true;
+        }
+        else if (processHandle != IntPtr.Zero
+                 && NativeProcessInfo.TryReadCreationTimeTicks(processHandle, out long nativeCreationTime))
+        {
+            creationTime = nativeCreationTime;
+            isCreationTimeKnown = true;
+        }
+        else
+        {
+            creationTime = sampleTimeTicks;
+            isCreationTimeKnown = false;
+        }
+
+        if (hadHistory
+            && isCreationTimeKnown
+            && history!.StaticData.IsCreationTimeKnown
+            && history.StaticData.InstanceKey.CreationTimeTicks == creationTime)
         {
             history.LastSeenGeneration = generation;
             return history;
@@ -632,9 +686,11 @@ internal sealed class ProcessSnapshotService : IDisposable
             processHandle,
             processID,
             creationTime,
+            isCreationTimeKnown,
             hasSystemProcessData,
             systemProcessData,
-            schema);
+            schema,
+            semanticGroupingEnabled);
         history = new ProcessHistoryEntry
         {
             StaticData = staticData,
@@ -655,12 +711,15 @@ internal sealed class ProcessSnapshotService : IDisposable
         IntPtr processHandle,
         int processID,
         long creationTime,
+        bool isCreationTimeKnown,
         bool hasSystemProcessData,
         SystemProcessData systemProcessData,
-        ProcessDataSchema schema)
+        ProcessDataSchema schema,
+        bool semanticGroupingEnabled)
     {
         bool needsIcon = schema.IsVisible(ProcessTableColumnKind.Name);
-        string processName = !needsIcon
+        bool needsProcessName = needsIcon || semanticGroupingEnabled;
+        string processName = !needsProcessName
             ? string.Empty
             : hasSystemProcessData
                 ? NormalizeProcessName(_systemProcessSnapshot.ReadImageName(systemProcessData), processID)
@@ -669,7 +728,8 @@ internal sealed class ProcessSnapshotService : IDisposable
                     : ReadProcessName(process, processID);
         bool needsImagePath = needsIcon
                               || schema.IsVisible(ProcessTableColumnKind.ImagePath)
-                              || schema.IsVisible(ProcessTableColumnKind.Description);
+                              || schema.IsVisible(ProcessTableColumnKind.Description)
+                              || semanticGroupingEnabled;
         string imagePath = processHandle == IntPtr.Zero || !needsImagePath
             ? string.Empty
             : ReadExecutablePath(processHandle);
@@ -685,6 +745,12 @@ internal sealed class ProcessSnapshotService : IDisposable
             : processHandle == IntPtr.Zero
                 ? NativeProcessInfo.Unavailable
                 : NativeProcessInfo.ReadUserName(processHandle);
+        string? userSID = semanticGroupingEnabled && processHandle != IntPtr.Zero
+            ? NativeProcessInfo.ReadUserSID(processHandle)
+            : null;
+        string? processApplicationUserModelID = semanticGroupingEnabled && processHandle != IntPtr.Zero
+            ? ReadApplicationUserModelID(processHandle)
+            : null;
         long[] numericValues = schema.StaticNumericCount == 0
             ? []
             : new long[schema.StaticNumericCount];
@@ -692,15 +758,13 @@ internal sealed class ProcessSnapshotService : IDisposable
             ? []
             : new string?[schema.StaticTextCount];
 
+        int sessionID = hasSystemProcessData
+            ? systemProcessData.SessionID
+            : process == null
+                ? -1
+                : ReadSessionID(process);
         if (schema.IsVisible(ProcessTableColumnKind.SessionID))
-        {
-            int sessionID = hasSystemProcessData
-                ? systemProcessData.SessionID
-                : process == null
-                    ? -1
-                    : ReadSessionID(process);
             SetStaticNumeric(schema, numericValues, ProcessTableColumnKind.SessionID, sessionID);
-        }
 
         if (schema.IsVisible(ProcessTableColumnKind.CommandLine))
         {
@@ -749,10 +813,12 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
 
         bool needsPackageName = schema.IsVisible(ProcessTableColumnKind.PackageName)
-                                || schema.IsVisible(ProcessTableColumnKind.Isolation);
-        string packageName = needsPackageName && processHandle != IntPtr.Zero
-            ? NativeProcessInfo.ReadPackageName(processHandle)
-            : string.Empty;
+                                || schema.IsVisible(ProcessTableColumnKind.Isolation)
+                                || semanticGroupingEnabled;
+        string? packageFullName = needsPackageName && processHandle != IntPtr.Zero
+            ? NativeProcessInfo.ReadPackageFullNameForGrouping(processHandle)
+            : null;
+        string packageName = packageFullName ?? string.Empty;
         SetStaticText(schema, textValues, ProcessTableColumnKind.PackageName, packageName);
         SetStaticCode(schema, numericValues, ProcessTableColumnKind.Architecture, architecture);
 
@@ -789,12 +855,26 @@ internal sealed class ProcessSnapshotService : IDisposable
                     : NativeProcessInfo.ReadIsolation(processHandle, packageName.Length > 0));
         }
 
+        int parentProcessID = hasSystemProcessData
+            ? systemProcessData.ParentProcessID
+            : semanticGroupingEnabled && processHandle != IntPtr.Zero
+                ? NativeProcessInfo.ReadParentProcessID(processHandle)
+                : -1;
+
         return new ProcessStaticData
         {
             InstanceKey = new ProcessInstanceKey(processID, creationTime),
-            ParentProcessID = hasSystemProcessData ? systemProcessData.ParentProcessID : -1,
+            IsCreationTimeKnown = isCreationTimeKnown,
+            ParentProcessID = parentProcessID,
             Image = image,
             UserName = needsUserName ? AcquireUserName(userName) : string.Empty,
+            UserSID = userSID,
+            SessionID = sessionID,
+            PackageFullName = semanticGroupingEnabled ? packageFullName : null,
+            ProcessApplicationUserModelID = processApplicationUserModelID,
+            IsCriticalOrProtected = semanticGroupingEnabled
+                                      && processHandle != IntPtr.Zero
+                                      && NativeProcessInfo.ReadIsCriticalOrProtected(processHandle),
             NumericValues = numericValues,
             TextValues = textValues
         };
@@ -1216,6 +1296,45 @@ internal sealed class ProcessSnapshotService : IDisposable
         ProcessImageIdentity identity = new(key, processName, imagePath, description, iconSource);
         _imageIdentities.Add(key, identity);
         return identity;
+    }
+
+    private ProcessGroupingFacts CreateGroupingFacts(ProcessStaticData staticData)
+    {
+        ProcessWindowGroupingFacts windowFacts = _windowGroupingFactsCollector.GetFacts(
+            staticData.ProcessID);
+        string? processApplicationID = staticData.ProcessApplicationUserModelID;
+        string? windowApplicationID = windowFacts.ApplicationUserModelID;
+        bool isApplicationIDAmbiguous = windowFacts.IsApplicationUserModelIDAmbiguous;
+        string? applicationID = processApplicationID;
+        if (windowApplicationID is { Length: > 0 })
+        {
+            if (processApplicationID is { Length: > 0 }
+                && !string.Equals(
+                    processApplicationID,
+                    windowApplicationID,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                isApplicationIDAmbiguous = true;
+                applicationID = null;
+            }
+            else
+                applicationID = windowApplicationID;
+        }
+
+        if (isApplicationIDAmbiguous) applicationID = null;
+        return new ProcessGroupingFacts(
+            staticData.InstanceKey,
+            staticData.IsCreationTimeKnown,
+            staticData.ParentProcessID,
+            staticData.Image.Name,
+            staticData.Image.ImagePath.Length > 0 ? staticData.Image.ImagePath : null,
+            staticData.UserSID,
+            staticData.SessionID,
+            staticData.PackageFullName,
+            applicationID,
+            isApplicationIDAmbiguous,
+            windowFacts.IndependentWindowState,
+            staticData.IsCriticalOrProtected);
     }
 
     private void ReleaseImageIdentity(ProcessImageIdentity identity)

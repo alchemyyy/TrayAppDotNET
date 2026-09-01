@@ -92,6 +92,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    public ProcessGroupingStyle ProcessGroupingStyle
+    {
+        get;
+        set => SetField(ref field, NormalizeProcessGroupingStyle(value));
+    } = ProcessGroupingStyle.ParentProcess;
+
     public bool SkipRestartExplorerConfirmation
     {
         get;
@@ -280,6 +286,7 @@ public sealed class AppSettings : AppSettingsCommon
         PerformanceHardwareNameReplacementRules =
             PerformanceHardwareNameReplacementRuleCollection.Normalize(
                 PerformanceHardwareNameReplacementRules);
+        ProcessGroupingStyle = NormalizeProcessGroupingStyle(ProcessGroupingStyle);
         base.OnTrayXmlDeserialized();
     }
 
@@ -520,4 +527,9 @@ public sealed class AppSettings : AppSettingsCommon
     private static CPUPerformanceGraphView NormalizeCPUPerformanceGraphView(
         CPUPerformanceGraphView value) =>
         Enum.IsDefined(value) ? value : CPUPerformanceGraphView.LogicalProcessors;
+
+    private static ProcessGroupingStyle NormalizeProcessGroupingStyle(ProcessGroupingStyle value) =>
+        value == ProcessGroupingStyle.Semantic
+            ? ProcessGroupingStyle.Semantic
+            : ProcessGroupingStyle.ParentProcess;
 }

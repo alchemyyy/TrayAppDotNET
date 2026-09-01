@@ -24,6 +24,88 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void ProcessGroupingDefaultsToDisabledParentStyleAndRoundTripsSemanticStyle()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(ProcessGroupingStyle.ParentProcess, settings.ProcessGroupingStyle);
+        Assert.False(settings.GroupProcesses);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.ProcessGroupingStyle = ProcessGroupingStyle.Semantic;
+            settings.GroupProcesses = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(ProcessGroupingStyle.Semantic, loaded.ProcessGroupingStyle);
+            Assert.True(loaded.GroupProcesses);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LegacyGroupProcessesSettingUsesParentProcessStyle()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                contents: "<AppSettings><GroupProcesses>true</GroupProcesses></AppSettings>");
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.GroupProcesses);
+            Assert.Equal(ProcessGroupingStyle.ParentProcess, loaded.ProcessGroupingStyle);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GroupingStyleAndHeaderToggleRoundTripIndependently()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                contents:
+                "<AppSettings><ProcessGroupingStyle>Semantic</ProcessGroupingStyle>"
+                + "<GroupProcesses>false</GroupProcesses></AppSettings>");
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(ProcessGroupingStyle.Semantic, loaded.ProcessGroupingStyle);
+            Assert.False(loaded.GroupProcesses);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LiveGroupProcessesUpdateAvoidsGlobalShellNotification()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int changedCount = 0;
+        settings.Changed += () => changedCount++;
+
+        settings.UpdateGroupProcesses(groupProcesses: true);
+
+        Assert.Equal(expected: 0, changedCount);
+        Assert.True(settings.GroupProcesses);
+    }
+
+    [Fact]
     public void ProcessHeaderButtonsDefaultToCurrentLeftToRightOrder()
     {
         AppSettings settings = new();
