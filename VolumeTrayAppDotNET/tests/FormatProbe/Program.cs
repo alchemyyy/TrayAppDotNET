@@ -192,7 +192,7 @@ internal static class Program
     // accepts and what known interface IIDs the returned object supports via QI.
     private static void ProbePrivateIIDs(IMMDevice device)
     {
-        // From the mmsys.cpl decompile: the IID used in CEndpointFormatChanger::Initialize
+        // From the mmsys.cpl analysis: the IID used in CEndpointFormatChanger::Initialize
         // and CPageFormat::PopulateHWAudioEngineFormatList.
         Guid iid2b07 = new Guid("2b0711de-dab7-4610-a16f-d3383749b220");
         TryActivate(device, iid2b07, "IID_2b0711de (mmsys private)");

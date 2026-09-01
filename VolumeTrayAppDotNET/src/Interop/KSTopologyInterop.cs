@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace VolumeTrayAppDotNET.Interop;
 
-// Per the mmsys.cpl decompile, the Default Format dropdown is populated by activating
+// Per the mmsys.cpl analysis, the Default Format dropdown is populated by activating
 // IID_AudioEnginePartFilter on the IMMDevice, walking the returned IPart enumeration, and
 // activating IID_IKsFormatSupport on each part. IKsFormatSupport::IsFormatSupported then
 // probes each candidate WAVEFORMATEX wrapped in a 104-byte KSDATAFORMAT_WAVEFORMATEX envelope.
@@ -12,7 +12,7 @@ internal static class KSConstants
 {
     // Microsoft-private IID handed to IMMDevice::Activate to reach the audio engine's internal
     // topology where IKsFormatSupport lives (the public IDeviceTopology never exposes it).
-    // Chain (per Hex-Rays decompile of mmsys.cpl):
+    // Chain (per analysis of mmsys.cpl):
     //   ifilter = IMMDevice::Activate(IID_AudioEnginePartFilter, CLSCTX_INPROC_SERVER, NULL)
     //   enum    = ifilter->vtable[3](&ksDataFormat=64B, 64, NULL)
     //   count   = enum->vtable[3]()
