@@ -7,17 +7,11 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class SemanticProcessSectionsTests
 {
     [Fact]
-    public void SectionsRequireSemanticGroupingAndNameSort()
+    public void SectionsRequireSemanticGrouping()
     {
-        Assert.True(SemanticProcessSections.IsEnabled(
-            ProcessGroupingStyle.Semantic,
-            ProcessTableColumnKind.Name));
-        Assert.False(SemanticProcessSections.IsEnabled(
-            ProcessGroupingStyle.ParentProcess,
-            ProcessTableColumnKind.Name));
-        Assert.False(SemanticProcessSections.IsEnabled(
-            ProcessGroupingStyle.Semantic,
-            ProcessTableColumnKind.CPU));
+        Assert.True(SemanticProcessSections.IsEnabled(ProcessGroupingStyle.Semantic));
+        Assert.False(SemanticProcessSections.IsEnabled(ProcessGroupingStyle.ParentProcess));
+        Assert.False(SemanticProcessSections.IsEnabled(ProcessGroupingStyle.None));
     }
 
     [Fact]

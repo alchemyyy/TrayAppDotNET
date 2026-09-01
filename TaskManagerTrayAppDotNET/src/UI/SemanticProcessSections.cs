@@ -23,11 +23,8 @@ internal static class SemanticProcessSections
     public const int RowsPerSection = 2;
     public const int FirstGroupSyntheticProcessID = -7;
 
-    public static bool IsEnabled(
-        ProcessGroupingStyle groupingStyle,
-        ProcessTableColumnKind sortColumn) =>
-        groupingStyle == ProcessGroupingStyle.Semantic
-        && sortColumn == ProcessTableColumnKind.Name;
+    public static bool IsEnabled(ProcessGroupingStyle groupingStyle) =>
+        groupingStyle == ProcessGroupingStyle.Semantic;
 
     public static SemanticProcessGroupClassification GetClassification(int sectionIndex) =>
         sectionIndex switch

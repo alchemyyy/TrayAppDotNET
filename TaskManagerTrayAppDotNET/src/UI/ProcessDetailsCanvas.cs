@@ -4177,9 +4177,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private void RebuildVisibleRows()
     {
         Array.Fill(_semanticSectionVisibleStarts, value: -1);
-        _usesSemanticSections = SemanticProcessSections.IsEnabled(
-            _processGroupingStyle,
-            _sortColumn);
+        _usesSemanticSections = SemanticProcessSections.IsEnabled(_processGroupingStyle);
         Array.Clear(_filterIncludedRows, index: 0, _rowCount);
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
@@ -4300,7 +4298,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
     }
 
-    /// <summary>Adds fixed two-row category blocks around name-sorted semantic trees.</summary>
+    /// <summary>Adds fixed two-row category blocks around sorted semantic trees.</summary>
     private void BuildSemanticSectionedVisibleRows()
     {
         BuildTreeChildIndexes();
