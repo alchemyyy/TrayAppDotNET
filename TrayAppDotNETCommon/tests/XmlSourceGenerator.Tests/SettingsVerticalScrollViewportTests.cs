@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -261,6 +262,54 @@ public sealed class SettingsScrollViewportTests
 
             Assert.Equal(expected: 2, Grid.GetColumnSpan(scrollViewer));
         });
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ScrollContentLayoutRoundingCanBeConfigured(bool isEnabled) =>
+        AvaloniaTestHost.Run(() =>
+        {
+            ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+            using SettingsScrollViewport viewport = new(
+                new Border(),
+                padding: default,
+                Colors.Black,
+                CreateStyle(),
+                contextMenuOptions);
+            ScrollViewer scrollViewer = Assert.Single(viewport.Children.OfType<ScrollViewer>());
+
+            viewport.SetScrollContentLayoutRounding(isEnabled);
+
+            Assert.Equal(isEnabled, scrollViewer.UseLayoutRounding);
+            Assert.True(viewport.UseLayoutRounding);
+        });
+
+    [Fact]
+    public void DisabledLayoutRoundingPreservesFractionalScrollOffset() => AvaloniaTestHost.Run(() =>
+    {
+        Border content = new() { Width = 200, Height = 600 };
+        ScrollContentPresenter presenter = new()
+        {
+            CanVerticallyScroll = true,
+            Content = content,
+            UseLayoutRounding = false
+        };
+        Window window = new() { Width = 120, Height = 100, Content = presenter };
+
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            presenter.Offset = new Vector(x: 0, y: 19.25);
+            window.UpdateLayout();
+
+            Assert.Equal(expected: -19.25, content.Bounds.Y, precision: 10);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 
     private static SettingsScrollBarStyle CreateStyle() =>
         new(

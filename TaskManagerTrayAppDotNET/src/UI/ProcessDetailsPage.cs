@@ -257,6 +257,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         tableSurface.Children.Add(_processCanvas);
 
         _resizeGrip = new TaskManagerResizeGrip(resources);
+        // Preserve the fractional anchor correction instead of pixel-rounding -Offset after each reorder
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             padding: default,
@@ -264,7 +265,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             scrollBarStyle,
             scrollBarContextMenuOptions,
             _resizeGrip,
-            overlayVerticalScrollBar: true) { Margin = resources.AxamlTaskManagerDetails.TableMargin };
+            overlayVerticalScrollBar: true)
+        {
+            Margin = resources.AxamlTaskManagerDetails.TableMargin
+        };
+        _tableScrollViewport.SetScrollContentLayoutRounding(isEnabled: false);
         _tableScrollViewport.SetVerticalScrollBarTopInset(
             GetProcessTableVerticalScrollBarTopInset(resources));
         _columnHeaderBorder = new Border

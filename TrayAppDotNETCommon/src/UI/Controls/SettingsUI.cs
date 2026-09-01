@@ -1466,6 +1466,13 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextVerticalOffset);
     }
 
+    /// <summary>Controls whether Avalonia pixel-rounds the scroll content offset during layout.</summary>
+    public void SetScrollContentLayoutRounding(bool isEnabled)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _scrollViewer.UseLayoutRounding = isEnabled;
+    }
+
     /// <summary>Reserves space above the vertical scrollbar without moving the scroll viewport.</summary>
     public void SetVerticalScrollBarTopInset(double topInset)
     {

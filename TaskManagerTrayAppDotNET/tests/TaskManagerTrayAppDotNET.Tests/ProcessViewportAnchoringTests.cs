@@ -50,6 +50,23 @@ public sealed class ProcessViewportAnchoringTests
     }
 
     [Fact]
+    public void ResolveAdjustmentPreservesFractionalRowPhase()
+    {
+        ProcessViewportAnchor anchor = new(
+            new ProcessInstanceKey(ProcessID: 10, CreationTimeTicks: 100),
+            RowTop: 112.125,
+            ContentHeight: 432);
+
+        ProcessViewportAnchorAdjustment? adjustment = anchor.ResolveAdjustment(
+            nextRowTop: 131.375,
+            nextContentHeight: 432);
+
+        ProcessViewportAnchorAdjustment resolved = Assert.IsType<ProcessViewportAnchorAdjustment>(
+            adjustment);
+        Assert.Equal(expected: 19.25, resolved.VerticalOffsetDelta);
+    }
+
+    [Fact]
     public void ResolveAdjustmentTracksMetricAndExtentChangesTogether()
     {
         ProcessViewportAnchor anchor = new(
