@@ -365,17 +365,7 @@ internal static class ProcessNativeActions
     {
         if (!TryResolveImagePath(target, out string imagePath, out errorMessage)) return false;
 
-        string explorerPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            path2: "explorer.exe");
-        string arguments = $"/select,\"{imagePath}\"";
-        return ExplorerProcessLauncher.TryShellExecute(
-            explorerPath,
-            arguments,
-            workingDirectory: Path.GetDirectoryName(imagePath),
-            verb: null,
-            out _,
-            out errorMessage);
+        return ShellFileActions.TryOpenContainingFolderAndSelect(imagePath, out errorMessage);
     }
 
     public static bool TryOpenProperties(
