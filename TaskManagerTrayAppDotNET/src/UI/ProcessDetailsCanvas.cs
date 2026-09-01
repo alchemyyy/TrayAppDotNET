@@ -4077,8 +4077,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         if ((modifiers & KeyModifiers.Alt) != 0)
             ExpandTreeDeep(rowIndex);
-        else if (!_collapsedProcesses.Add(row.InstanceKey))
+        else if (_collapsedProcesses.Contains(row.InstanceKey))
             _collapsedProcesses.Remove(row.InstanceKey);
+        else
+            CollapseTreeDeep(rowIndex);
         RebuildVisibleRows();
         InvalidateMeasure();
         RestoreViewportAnchor(viewportAnchor);
@@ -4088,6 +4090,44 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         RebuildCopyPreview();
         InvalidateLayers(RenderLayerMask.All);
         return true;
+    }
+
+    private void CollapseTreeDeep(int rootRowIndex)
+    {
+        if (TryGetSemanticSectionClassification(
+                rootRowIndex,
+                out SemanticProcessGroupClassification sectionClassification))
+        {
+            ProcessStaticData? sectionHeader = _snapshot.StaticRows[rootRowIndex];
+            if (sectionHeader != null)
+                _collapsedProcesses.Add(sectionHeader.InstanceKey);
+
+            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+            {
+                if (!_rowHasChildren[rowIndex]
+                    || !IsSemanticClassification(rowIndex, sectionClassification))
+                    continue;
+
+                ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+                if (row != null) _collapsedProcesses.Add(row.InstanceKey);
+            }
+
+            return;
+        }
+
+        ReadOnlySpan<int> parentRowIndexes = _treeParentIndexes.AsSpan(start: 0, _rowCount);
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        {
+            if (!_rowHasChildren[rowIndex]
+                || !ProcessTreeExpansionFunctions.IsDescendantOrSelf(
+                    parentRowIndexes,
+                    rowIndex,
+                    rootRowIndex))
+                continue;
+
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null) _collapsedProcesses.Add(row.InstanceKey);
+        }
     }
 
     private void ExpandTreeDeep(int rootRowIndex)
