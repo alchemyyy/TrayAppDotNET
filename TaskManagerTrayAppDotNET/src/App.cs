@@ -397,7 +397,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
                 _taskManagerWindow = null;
             }
 
-            SkiaFlyoutGlyphIcon.DisposeSharedResources();
 
             if (_snapshotService != null)
                 _snapshotService.SnapshotAvailable -= OnSystemPerformanceSampleAvailable;

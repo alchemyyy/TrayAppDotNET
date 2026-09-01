@@ -38,27 +38,34 @@ public sealed class NativeIcon : IDisposable
     }
 
     public static NativeIcon FromIco(byte[] icoBytes, int desiredSize)
+        => FromIconImage(ExtractICOImage(icoBytes, desiredSize), desiredSize);
+
+    /// <summary>Extracts the ICO image whose dimensions most closely match the requested size.</summary>
+    public static byte[] ExtractICOImage(byte[] ICOBytes, int desiredSize)
     {
-        if (icoBytes.Length < 22
-            || BitConverter.ToUInt16(icoBytes, startIndex: 0) != 0
-            || BitConverter.ToUInt16(icoBytes, startIndex: 2) != 1)
+        ArgumentNullException.ThrowIfNull(ICOBytes);
+        ArgumentOutOfRangeException.ThrowIfLessThan(desiredSize, other: 1);
+        if (ICOBytes.Length < 22
+            || BitConverter.ToUInt16(ICOBytes, startIndex: 0) != 0
+            || BitConverter.ToUInt16(ICOBytes, startIndex: 2) != 1)
             throw new InvalidOperationException("Invalid ICO data.");
 
-        int count = BitConverter.ToUInt16(icoBytes, startIndex: 4);
+        int imageCount = BitConverter.ToUInt16(ICOBytes, startIndex: 4);
         int bestOffset = 0;
         int bestLength = 0;
         int bestScore = int.MaxValue;
 
-        for (int i = 0; i < count; i++)
+        for (int imageIndex = 0; imageIndex < imageCount; imageIndex++)
         {
-            int entry = 6 + i * 16;
-            if (entry + 16 > icoBytes.Length) break;
+            int entryOffset = 6 + imageIndex * 16;
+            if (entryOffset + 16 > ICOBytes.Length) break;
 
-            int width = icoBytes[entry] == 0 ? 256 : icoBytes[entry];
-            int height = icoBytes[entry + 1] == 0 ? 256 : icoBytes[entry + 1];
-            int bytesInRes = BitConverter.ToInt32(icoBytes, entry + 8);
-            int imageOffset = BitConverter.ToInt32(icoBytes, entry + 12);
-            if (bytesInRes <= 0 || imageOffset < 0 || imageOffset + bytesInRes > icoBytes.Length)
+            int width = ICOBytes[entryOffset] == 0 ? 256 : ICOBytes[entryOffset];
+            int height = ICOBytes[entryOffset + 1] == 0 ? 256 : ICOBytes[entryOffset + 1];
+            int bytesInResource = BitConverter.ToInt32(ICOBytes, entryOffset + 8);
+            int imageOffset = BitConverter.ToInt32(ICOBytes, entryOffset + 12);
+            long imageEnd = (long)imageOffset + bytesInResource;
+            if (bytesInResource <= 0 || imageOffset < 0 || imageEnd > ICOBytes.Length)
                 continue;
 
             int score = Math.Abs(width - desiredSize) + Math.Abs(height - desiredSize);
@@ -66,13 +73,12 @@ public sealed class NativeIcon : IDisposable
 
             bestScore = score;
             bestOffset = imageOffset;
-            bestLength = bytesInRes;
+            bestLength = bytesInResource;
         }
 
         if (bestLength <= 0) throw new InvalidOperationException("ICO file did not contain a usable icon image.");
 
-        byte[] imageBytes = icoBytes.AsSpan(bestOffset, bestLength).ToArray();
-        return FromIconImage(imageBytes, desiredSize);
+        return ICOBytes.AsSpan(bestOffset, bestLength).ToArray();
     }
 
     public NativeIcon Clone()

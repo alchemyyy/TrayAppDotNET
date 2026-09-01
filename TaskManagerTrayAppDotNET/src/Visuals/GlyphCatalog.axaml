@@ -2,18 +2,7 @@
     x:Class="TaskManagerTrayAppDotNET.Visuals.GlyphCatalogResources"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
-
-    <!-- Application identity -->
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.PC1" Text="&#xE977;" Font="SegoeFluentIcons" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.TaskManagerApp" Text="&#xF120;" Font="SegoeFluentIcons" />
-    <sys:Int32 x:Key="GlyphCatalog.AppIconDesignCanvasSize">1024</sys:Int32>
-    <sys:Double x:Key="GlyphCatalog.AppIconOuterMarginFraction">0.055</sys:Double>
-    <sys:Double x:Key="GlyphCatalog.TaskManagerAppScaleX">0.625</sys:Double>
-    <sys:Double x:Key="GlyphCatalog.TaskManagerAppScaleY">0.6666666666666666</sys:Double>
-    <sys:Double x:Key="GlyphCatalog.TaskManagerAppTranslateX">384</sys:Double>
-    <sys:Double x:Key="GlyphCatalog.TaskManagerAppTranslateY">234.66666666666666</sys:Double>
 
     <!-- Task Manager commands -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.More" Text="&#xE712;" Font="SegoeFluentIcons" />

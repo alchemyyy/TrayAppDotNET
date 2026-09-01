@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
@@ -67,6 +68,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private readonly Win32Properties.CustomWndProcHookCallback _windowDragWndProcHook;
+    private readonly Bitmap? _applicationIconBitmap;
     private TaskManagerPageLayout? _activePageLayout;
     private ITaskManagerSearchOverlayPage? _searchOverlayPage;
     private ProcessDetailsPage? _processDetailsPage;
@@ -109,6 +111,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
         _windowDragWndProcHook = WindowDragWndProcHook;
+        _applicationIconBitmap = AppThemeStore.LoadAppBitmap();
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
         ApplyInitialAXAMLWindowDimensions();
         Topmost = settings.AlwaysOnTop;
@@ -222,16 +225,36 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         double iconSize =
             _taskManagerResources.AxamlTaskManagerWindow.CollapsedSidebarHeaderIconSize;
-        SkiaCompositeGlyphIcon icon = new(TaskManagerGlyphCatalog.TASK_MANAGER_APP_COMPOSITE)
+        Control icon;
+        if (_applicationIconBitmap != null)
         {
-            Width = iconSize,
-            Height = iconSize,
-            IconColor = palette.Foreground,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0,
-            IsHitTestVisible = false
-        };
+            icon = new Border
+            {
+                Background = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+                OpacityMask = new ImageBrush
+                {
+                    Source = _applicationIconBitmap,
+                    Stretch = Stretch.Uniform
+                }
+            };
+        }
+        else
+        {
+            TextBlock fallbackIcon = TrayAppDotNETSettingsUI.Text(
+                string.Empty,
+                palette,
+                iconSize);
+            GlyphApplicator.ApplyTo(fallbackIcon, TaskManagerGlyphCatalog.PROCESSES);
+            fallbackIcon.TextAlignment = TextAlignment.Center;
+            icon = fallbackIcon;
+        }
+
+        icon.Width = iconSize;
+        icon.Height = iconSize;
+        icon.HorizontalAlignment = HorizontalAlignment.Left;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        icon.Opacity = 0;
+        icon.IsHitTestVisible = false;
         return new TaskManagerSidebarHeader(title, icon);
     }
 
@@ -782,6 +805,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _windowDragWndProcHookAttached = false;
         }
 
+        _applicationIconBitmap?.Dispose();
         Closed -= OnWindowClosedForDragHook;
     }
 

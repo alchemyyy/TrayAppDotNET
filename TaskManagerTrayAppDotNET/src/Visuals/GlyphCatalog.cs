@@ -4,7 +4,7 @@ using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 namespace TaskManagerTrayAppDotNET.Visuals;
 
 /// <summary>
-/// Task Manager glyph objects and runtime composites shared by app renderers.
+/// Task Manager glyph objects shared by app renderers.
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
@@ -16,10 +16,6 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 #endif
-
-    public static Glyph PC1 => Glyph("PC1");
-
-    public static Glyph TASK_MANAGER_APP => Glyph("TaskManagerApp");
 
     public static Glyph MORE => Glyph("More");
 
@@ -52,29 +48,6 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph SORT_ASCENDING => Glyph("SortAscending");
 
     public static Glyph SORT_DESCENDING => Glyph("SortDescending");
-
-    /// <summary>
-    /// Returns the PC1 glyph with TaskManagerApp fitted to its monitor frame.
-    /// </summary>
-    public static CompositeGlyph TASK_MANAGER_APP_COMPOSITE
-    {
-        get
-        {
-            GlyphCatalogResources resources = CurrentResources;
-            CompositeGlyphLayer[] layers = new CompositeGlyphLayer[2];
-            layers[0] = new CompositeGlyphLayer(PC1);
-            layers[1] = new CompositeGlyphLayer(
-                TASK_MANAGER_APP,
-                resources.AxamlGlyphCatalog.TaskManagerAppScaleX,
-                resources.AxamlGlyphCatalog.TaskManagerAppScaleY,
-                resources.AxamlGlyphCatalog.TaskManagerAppTranslateX,
-                resources.AxamlGlyphCatalog.TaskManagerAppTranslateY);
-            return new CompositeGlyph(
-                resources.AxamlGlyphCatalog.AppIconDesignCanvasSize,
-                resources.AxamlGlyphCatalog.AppIconOuterMarginFraction,
-                layers);
-        }
-    }
 
     private static GlyphCatalogResources CurrentResources
     {
