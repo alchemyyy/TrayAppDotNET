@@ -158,6 +158,35 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             },
             palette,
             searchKeywords: ["process tree application semantic parent ancestry group"]));
+        Border semanticSectionExemptionCard = BoolCard(
+            title: "Keep semantic sections expanded",
+            description:
+            "Keep Apps, Background processes, and Windows processes expanded when other process trees start collapsed.",
+            _settings.ExpandSemanticSectionsByDefault,
+            value => _settings.ExpandSemanticSectionsByDefault = value,
+            palette,
+            searchKeywords: ["apps background Windows process section category expand collapse"]);
+        semanticSectionExemptionCard.IsVisible =
+            _settings.ProcessTreeDefaultState == ProcessTreeDefaultState.Collapsed;
+        stack.Children.Add(ComboCard(
+            title: "Default process tree state",
+            description: "Choose whether newly displayed process trees start collapsed or expanded.",
+            [
+                (nameof(ProcessTreeDefaultState.Collapsed), "Collapsed"),
+                (nameof(ProcessTreeDefaultState.Expanded), "Expanded")
+            ],
+            _settings.ProcessTreeDefaultState.ToString(),
+            tag =>
+            {
+                if (!Enum.TryParse(tag, out ProcessTreeDefaultState value)) return;
+
+                _settings.ProcessTreeDefaultState = value;
+                semanticSectionExemptionCard.IsVisible =
+                    value == ProcessTreeDefaultState.Collapsed;
+            },
+            palette,
+            searchKeywords: ["process tree default collapsed expanded start"]));
+        stack.Children.Add(semanticSectionExemptionCard);
         stack.Children.Add(BoolCard(
             title: "Skip Explorer restart confirmation",
             description:

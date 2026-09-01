@@ -103,6 +103,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             schema,
             settings.DetailsColumns,
             settings.EnableLiveDetailsColumnResizing,
+            settings.ProcessTreeDefaultState,
+            settings.ExpandSemanticSectionsByDefault,
             settings.GridFontSize,
             settings.GridFontWeight,
             settings.GridRowSpacing,

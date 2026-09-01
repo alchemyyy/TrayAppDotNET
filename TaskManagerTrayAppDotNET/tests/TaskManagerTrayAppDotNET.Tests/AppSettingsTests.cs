@@ -29,6 +29,8 @@ public sealed class AppSettingsTests
         AppSettings settings = new() { Autosave = false };
         Assert.Equal(ProcessGroupingStyle.ParentProcess, settings.ProcessGroupingStyle);
         Assert.False(settings.GroupProcesses);
+        Assert.Equal(ProcessTreeDefaultState.Collapsed, settings.ProcessTreeDefaultState);
+        Assert.True(settings.ExpandSemanticSectionsByDefault);
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
@@ -41,6 +43,33 @@ public sealed class AppSettingsTests
 
             Assert.Equal(ProcessGroupingStyle.Semantic, loaded.ProcessGroupingStyle);
             Assert.True(loaded.GroupProcesses);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ProcessTreeExpansionDefaultsRoundTripAndRejectInvalidState()
+    {
+        AppSettings settings = new() { Autosave = false };
+        settings.ProcessTreeDefaultState = (ProcessTreeDefaultState)int.MaxValue;
+        Assert.Equal(ProcessTreeDefaultState.Collapsed, settings.ProcessTreeDefaultState);
+
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.ProcessTreeDefaultState = ProcessTreeDefaultState.Expanded;
+            settings.ExpandSemanticSectionsByDefault = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(ProcessTreeDefaultState.Expanded, loaded.ProcessTreeDefaultState);
+            Assert.True(loaded.ExpandSemanticSectionsByDefault);
         }
         finally
         {

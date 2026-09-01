@@ -98,6 +98,18 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, NormalizeProcessGroupingStyle(value));
     } = ProcessGroupingStyle.ParentProcess;
 
+    public ProcessTreeDefaultState ProcessTreeDefaultState
+    {
+        get;
+        set => SetField(ref field, NormalizeProcessTreeDefaultState(value));
+    } = ProcessTreeDefaultState.Collapsed;
+
+    public bool ExpandSemanticSectionsByDefault
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
     public bool SkipRestartExplorerConfirmation
     {
         get;
@@ -287,6 +299,7 @@ public sealed class AppSettings : AppSettingsCommon
             PerformanceHardwareNameReplacementRuleCollection.Normalize(
                 PerformanceHardwareNameReplacementRules);
         ProcessGroupingStyle = NormalizeProcessGroupingStyle(ProcessGroupingStyle);
+        ProcessTreeDefaultState = NormalizeProcessTreeDefaultState(ProcessTreeDefaultState);
         base.OnTrayXmlDeserialized();
     }
 
@@ -532,4 +545,8 @@ public sealed class AppSettings : AppSettingsCommon
         value == ProcessGroupingStyle.Semantic
             ? ProcessGroupingStyle.Semantic
             : ProcessGroupingStyle.ParentProcess;
+
+    private static ProcessTreeDefaultState NormalizeProcessTreeDefaultState(
+        ProcessTreeDefaultState value) =>
+        Enum.IsDefined(value) ? value : ProcessTreeDefaultState.Collapsed;
 }

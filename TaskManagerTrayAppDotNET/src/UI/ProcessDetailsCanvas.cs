@@ -105,6 +105,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
     private bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
+    private readonly ProcessTreeDefaultState _processTreeDefaultState;
+    private readonly bool _expandSemanticSectionsByDefault;
     private readonly ProcessSnapshotBuffer _sourceSnapshot = new();
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
@@ -113,6 +115,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly List<CellTextLayout> _cellTextLayoutBuffer = new(8);
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
+    private readonly HashSet<ProcessInstanceKey> _initializedTreeExpansionStates = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
     private readonly Dictionary<ProcessInstanceKey, int> _sourceRowIndexByInstance = new(1_024);
     private readonly Dictionary<ProcessInstanceKey, int> _rowIndexByInstance = new(1_024);
@@ -230,6 +233,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessDataSchema schema,
         IReadOnlyList<ProcessColumnSetting> columnSettings,
         bool enableLiveColumnResizing,
+        ProcessTreeDefaultState processTreeDefaultState,
+        bool expandSemanticSectionsByDefault,
         double gridFontSize,
         DetailsGridFontWeight gridFontWeight,
         double gridRowSpacing,
@@ -273,6 +278,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _columns = CreateColumns(_columnSettings);
         _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
         _enableLiveColumnResizing = enableLiveColumnResizing;
+        _processTreeDefaultState = Enum.IsDefined(processTreeDefaultState)
+            ? processTreeDefaultState
+            : ProcessTreeDefaultState.Collapsed;
+        _expandSemanticSectionsByDefault = expandSemanticSectionsByDefault;
         _liveResizeColumns = enableLiveColumnResizing
             ? new ProcessTableColumn[_columns.Length]
             : null;
@@ -910,6 +919,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             SemanticProcessGroupKey groupKey = _staleSemanticGroupKeys[staleIndex];
             if (!_syntheticKeyByGroup.Remove(groupKey, out ProcessInstanceKey instanceKey)) continue;
             _collapsedProcesses.Remove(instanceKey);
+            _initializedTreeExpansionStates.Remove(instanceKey);
         }
     }
 
@@ -1328,7 +1338,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _metrics.HeaderHeight,
             _metrics.RowHeight);
         if (pointerPoint.Properties.IsLeftButtonPressed
-            && TryToggleTreeExpander(position, visibleIndex))
+            && TryHandleTreeNameClick(position, visibleIndex, eventArgs.KeyModifiers))
         {
             eventArgs.Handled = true;
             return;
@@ -4025,7 +4035,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateLayers(RenderLayerMask.Selection);
     }
 
-    private bool TryToggleTreeExpander(Point position, int visibleIndex)
+    private bool TryHandleTreeNameClick(
+        Point position,
+        int visibleIndex,
+        KeyModifiers modifiers)
     {
         if (_processGroupingStyle == ProcessGroupingStyle.None
             || visibleIndex < 0
@@ -4052,20 +4065,18 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (nameColumnIndex < 0) return false;
 
         ProcessTableColumn nameColumn = columns[nameColumnIndex];
-        int treeLayoutKey = GetTreeLayoutKey(rowIndex);
-        double expanderLeft = nameColumn.Left
-                              + _metrics.CellPadding
-                              + GetHierarchyInset(treeLayoutKey);
-        if (position.X < expanderLeft
-            || position.X >= expanderLeft + _visualMetrics.TreeExpanderWidth)
+        if (position.X < nameColumn.Left || position.X >= nameColumn.Right)
             return false;
 
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
         if (row == null) return false;
 
         ApplyPointerSelection(visibleIndex, KeyModifiers.None);
+        Focus();
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
-        if (!_collapsedProcesses.Add(row.InstanceKey))
+        if ((modifiers & KeyModifiers.Alt) != 0)
+            ExpandTreeDeep(rowIndex);
+        else if (!_collapsedProcesses.Add(row.InstanceKey))
             _collapsedProcesses.Remove(row.InstanceKey);
         RebuildVisibleRows();
         InvalidateMeasure();
@@ -4076,6 +4087,58 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         RebuildCopyPreview();
         InvalidateLayers(RenderLayerMask.All);
         return true;
+    }
+
+    private void ExpandTreeDeep(int rootRowIndex)
+    {
+        if (TryGetSemanticSectionClassification(
+                rootRowIndex,
+                out SemanticProcessGroupClassification sectionClassification))
+        {
+            ProcessStaticData? sectionHeader = _snapshot.StaticRows[rootRowIndex];
+            if (sectionHeader != null)
+                _collapsedProcesses.Remove(sectionHeader.InstanceKey);
+
+            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+            {
+                if (!IsSemanticClassification(rowIndex, sectionClassification)) continue;
+                ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+                if (row != null) _collapsedProcesses.Remove(row.InstanceKey);
+            }
+
+            return;
+        }
+
+        ReadOnlySpan<int> parentRowIndexes = _treeParentIndexes.AsSpan(start: 0, _rowCount);
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        {
+            if (!ProcessTreeExpansionFunctions.IsDescendantOrSelf(
+                    parentRowIndexes,
+                    rowIndex,
+                    rootRowIndex))
+                continue;
+
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null) _collapsedProcesses.Remove(row.InstanceKey);
+        }
+    }
+
+    private bool TryGetSemanticSectionClassification(
+        int rowIndex,
+        out SemanticProcessGroupClassification classification)
+    {
+        for (int sectionIndex = 0; sectionIndex < SemanticProcessSections.Count; sectionIndex++)
+        {
+            SemanticProcessGroupClassification candidate =
+                SemanticProcessSections.GetClassification(sectionIndex);
+            if (_semanticSectionHeaderRowIndexes[(int)candidate] != rowIndex) continue;
+
+            classification = candidate;
+            return true;
+        }
+
+        classification = default;
+        return false;
     }
 
     private ProcessRowHoverGeometry CreateRowHoverGeometry()
@@ -4227,6 +4290,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             if (parentRowIndex < 0) continue;
             _treeChildren[_treeChildWriteOffsets[parentRowIndex]++] = rowIndex;
         }
+
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            if (_rowHasChildren[rowIndex])
+                InitializeTreeExpansionState(rowIndex, isSemanticSection: false);
+        }
     }
 
     /// <summary>Adds fixed two-row category blocks around name-sorted semantic trees.</summary>
@@ -4263,6 +4333,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _treeOrderBuffer[outputCount] = headerRowIndex;
             outputCount++;
             _rowHasChildren[headerRowIndex] = true;
+            InitializeTreeExpansionState(headerRowIndex, isSemanticSection: true);
 
             ProcessStaticData header = _snapshot.StaticRows[headerRowIndex]
                                        ?? throw new InvalidOperationException(
@@ -4304,6 +4375,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool IsSemanticSectionRow(int rowIndex) =>
         (uint)rowIndex < (uint)_semanticSectionRowKinds.Length
         && _semanticSectionRowKinds[rowIndex] != SemanticProcessSectionRowKind.None;
+
+    private void InitializeTreeExpansionState(int rowIndex, bool isSemanticSection)
+    {
+        ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+        if (row == null || !_initializedTreeExpansionStates.Add(row.InstanceKey)) return;
+
+        if (ProcessTreeExpansionPolicy.StartsCollapsed(
+                _processTreeDefaultState,
+                isSemanticSection,
+                _expandSemanticSectionsByDefault))
+            _collapsedProcesses.Add(row.InstanceKey);
+        else
+            _collapsedProcesses.Remove(row.InstanceKey);
+    }
 
     private int AppendTree(int rootRowIndex, int outputCount, byte initialDepth)
     {
@@ -4402,6 +4487,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessInstanceKey key = _staleProcessKeys[staleIndex];
             if (!_renderCaches.Remove(key, out ProcessRowRenderCache? cache)) continue;
             _collapsedProcesses.Remove(key);
+            _initializedTreeExpansionStates.Remove(key);
             ReleaseRenderCache(cache);
         }
     }
@@ -5034,6 +5120,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _cellTextLayoutBuffer.Clear();
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
+        _initializedTreeExpansionStates.Clear();
         _selectedProcesses.Clear();
         _rowIndexByProcessID.Clear();
         _sourceRowIndexByInstance.Clear();
