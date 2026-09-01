@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
@@ -247,16 +248,17 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             TaskManagerGlyphCatalog.CARET_LEFT,
             palette,
             SettingsNavItem.NavigationGlyphFontSize,
-            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity);
+            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity,
+            _taskManagerResources);
         SettingsNavItem sidebarCollapseButton = new(
-            CollapseNavigationText,
+            string.Empty,
             palette,
             RadiusTiny,
             RadiusMedium,
             useWindows11Style: true,
             customNavigationIcon: caretIcon,
             navigationIconTransform: new RotateTransform(SidebarCaretRotationDegrees));
-        sidebarCollapseButton.Click += OnSidebarCaretButtonClick;
+        sidebarCollapseButton.Click += OnSidebarCollapseButtonClick;
         return [sidebarCollapseButton];
     }
 
@@ -265,11 +267,19 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         bool isCollapsed)
     {
         SettingsNavItem sidebarCollapseButton = navigationActions[0];
-        sidebarCollapseButton.SetText(isCollapsed ? ExpandNavigationText : CollapseNavigationText);
+        sidebarCollapseButton.Width = Math.Max(
+            val1: 0,
+            CollapsedSidebarWidth
+            - sidebarCollapseButton.Margin.Left
+            - sidebarCollapseButton.Margin.Right);
+        sidebarCollapseButton.HorizontalAlignment = HorizontalAlignment.Left;
         sidebarCollapseButton.SetNavigationGlyph(
             isCollapsed
                 ? TaskManagerGlyphCatalog.CARET_RIGHT
                 : TaskManagerGlyphCatalog.CARET_LEFT);
+        string navigationText = isCollapsed ? ExpandNavigationText : CollapseNavigationText;
+        TrayAppDotNETToolTip.SetTip(sidebarCollapseButton, navigationText);
+        AutomationProperties.SetName(sidebarCollapseButton, navigationText);
     }
 
     protected override void OnOpened(EventArgs eventArgs)
@@ -285,61 +295,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         UpdateActivePageActivity();
     }
 
-    protected override Control? BuildSidebarOverlay(SettingsPalette palette)
-    {
-        double buttonWidth = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonWidth;
-        double buttonHeight = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonHeight;
-        SettingsButton sidebarCaretButton = new(string.Empty, palette, transparentBase: true)
-        {
-            Width = buttonWidth,
-            Height = buttonHeight,
-            MinHeight = buttonHeight,
-            Padding = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonPadding,
-            CornerRadius = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonCornerRadius,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        sidebarCaretButton.Click += OnSidebarCaretButtonClick;
-        TrayAppDotNETToolTip.SuppressWhileEngaged(sidebarCaretButton);
-        return sidebarCaretButton;
-    }
-
-    protected override void UpdateSidebarOverlay(Control sidebarOverlay, bool isCollapsed)
-    {
-        if (sidebarOverlay is not SettingsButton sidebarCaretButton) return;
-
-        Glyph glyph = isCollapsed
-            ? TaskManagerGlyphCatalog.CARET_RIGHT
-            : TaskManagerGlyphCatalog.CARET_LEFT;
-        sidebarCaretButton.HorizontalAlignment = HorizontalAlignment.Right;
-        sidebarCaretButton.Child = BuildRotatedSidebarCaret(
-            glyph,
-            Palette,
-            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphFontSize,
-            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity);
-        TrayAppDotNETToolTip.SetTip(
-            sidebarCaretButton,
-            isCollapsed ? ExpandNavigationText : CollapseNavigationText);
-    }
-
-    private void OnSidebarCaretButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
-
-    private static Control BuildRotatedSidebarCaret(
-        Glyph glyph,
-        SettingsPalette palette,
-        double fontSize,
-        double opacity)
-    {
-        TaskManagerSidebarCaretIcon caret = new(glyph, palette, fontSize, opacity);
-
-        return new Grid
-        {
-            IsHitTestVisible = false,
-            RenderTransformOrigin = RelativePoint.Center,
-            RenderTransform = new RotateTransform(SidebarCaretRotationDegrees),
-            Children = { caret }
-        };
-    }
+    private void OnSidebarCollapseButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
 
     protected override SettingsPalette ResolvePalette() =>
         VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLight());
@@ -396,11 +352,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (IsClosing) return;
 
         ApplyHotReloadedAXAMLWindowDimensions();
+        RefreshSidebarCollapseControls();
         if (CurrentPageKey == TaskManagerPage.Processes && _processDetailsPage != null)
         {
             // AXAML hot-reload exception: compact-sidebar widths, margins, header icon, and
-            // caret controls are owned by private Common shell controls; rebuilding them here
-            // would discard live Processes editors and input
+            // other construction-time shell geometry cannot be replaced here without discarding
+            // live Processes editors and input; caret visuals are refreshed in place above
             _processDetailsPage.ApplyAXAMLResources(_taskManagerResources);
             return;
         }
@@ -1049,15 +1006,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private sealed class TaskManagerSidebarCaretIcon : Grid, ISettingsNavigationGlyphIcon
     {
         private readonly TextBlock _caret;
+        private readonly TaskManagerWindowResources _resources;
         private Color _iconColor;
 
         public TaskManagerSidebarCaretIcon(
             Glyph glyph,
             SettingsPalette palette,
             double fontSize,
-            double opacity)
+            double opacity,
+            TaskManagerWindowResources resources)
         {
             _iconColor = palette.Foreground;
+            _resources = resources;
             RenderTransformOrigin = RelativePoint.Center;
             _caret = TrayAppDotNETSettingsUI.Text(string.Empty, palette, fontSize);
             _caret.HorizontalAlignment = HorizontalAlignment.Center;
@@ -1083,6 +1043,26 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         {
             _caret.RenderTransform = null;
             GlyphApplicator.ApplyTo(_caret, glyph);
+
+            bool isLeftCaret = string.Equals(
+                glyph.Text,
+                TaskManagerGlyphCatalog.CARET_LEFT.Text,
+                StringComparison.Ordinal);
+            bool isRightCaret = string.Equals(
+                glyph.Text,
+                TaskManagerGlyphCatalog.CARET_RIGHT.Text,
+                StringComparison.Ordinal);
+            if (!isLeftCaret && !isRightCaret) return;
+
+            double translateY = isLeftCaret
+                ? _resources.AxamlTaskManagerWindow.SidebarNavigationCaretLeftTranslateY
+                : _resources.AxamlTaskManagerWindow.SidebarNavigationCaretRightTranslateY;
+            // The host rotates 90 degrees, so local X becomes screen-space Y
+            double translateX = _resources.AxamlTaskManagerWindow.SidebarNavigationCaretTranslateY;
+
+            _caret.RenderTransform = translateX == 0 && translateY == 0
+                ? null
+                : new TranslateTransform(translateX, translateY);
         }
     }
 

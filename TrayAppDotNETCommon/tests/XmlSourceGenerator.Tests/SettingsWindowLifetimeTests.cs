@@ -318,6 +318,10 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Equal(new[] { "Stable", "Collapse navigation" }, navigationItems.Select(item => item.Text));
         Assert.Same(window.SidebarAction, navigationItems[1]);
 
+        int initialActionUpdateCount = window.SidebarActionUpdateCount;
+        window.RefreshSidebarActions();
+        Assert.Equal(initialActionUpdateCount + 1, window.SidebarActionUpdateCount);
+
         window.SidebarAction.RaiseEvent(new KeyEventArgs
         {
             RoutedEvent = InputElement.KeyDownEvent,
@@ -987,7 +991,10 @@ public sealed class SettingsWindowLifetimeTests
         }
 
         public SettingsNavItem SidebarAction { get; private set; } = null!;
+        public int SidebarActionUpdateCount { get; private set; }
         public double ConfiguredSidebarWidth => SidebarWidth;
+
+        public void RefreshSidebarActions() => RefreshSidebarCollapseControls();
 
         protected override bool EnableRoundedCorners => false;
         protected override bool UseWindows11SettingsNavigation => true;
@@ -1018,6 +1025,7 @@ public sealed class SettingsWindowLifetimeTests
             IReadOnlyList<SettingsNavItem> navigationActions,
             bool isCollapsed)
         {
+            SidebarActionUpdateCount++;
             SettingsNavItem sidebarAction = navigationActions[0];
             sidebarAction.SetText(isCollapsed ? "Expand navigation" : "Collapse navigation");
             sidebarAction.SetNavigationGlyph(

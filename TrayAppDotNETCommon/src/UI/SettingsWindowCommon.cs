@@ -205,6 +205,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         UpdateSidebarLayout();
     }
 
+    /// <summary>Reapplies sidebar controls whose visuals depend on live resources.</summary>
+    protected void RefreshSidebarCollapseControls()
+    {
+        _sidebarControlsCollapsedState = null;
+        UpdateSidebarLayout();
+    }
+
     /// <summary>Returns true when a derived window handled navigation without replacing its content.</summary>
     protected virtual bool HandleNavigationRequest(TPageKey pageKey) => false;
 
