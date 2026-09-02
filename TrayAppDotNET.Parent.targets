@@ -131,8 +131,8 @@
              Link="LICENSE.txt"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_NOTICES"
-             Link="THIRD_PARTY_NOTICES"
+    <Content Include="$(TrayAppDotNETRoot)NOTICE"
+             Link="NOTICE"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(TrayAppDotNETRoot).notices\**\*"

@@ -49,7 +49,7 @@ public sealed record TrayAppDotNETInstallPayload(
 {
     private const string LicenseFileName = "LICENSE.txt";
     private const string ThirdPartyNoticesDirectoryName = ".notices";
-    private const string ThirdPartyNoticesFileName = "THIRD_PARTY_NOTICES";
+    private const string NoticeFileName = "NOTICE";
 
     public IReadOnlyList<TrayAppDotNETInstallFile> InstalledFiles(string installedExecutableFileName) =>
     [
@@ -123,7 +123,7 @@ public sealed record TrayAppDotNETInstallPayload(
     private static TrayAppDotNETInstallFile[] CreateLegalFiles() =>
     [
         new(LicenseFileName, RemoveOnlyWhenInstallRootHasNoExe: true),
-        new(ThirdPartyNoticesFileName, RemoveOnlyWhenInstallRootHasNoExe: true)
+        new(NoticeFileName, RemoveOnlyWhenInstallRootHasNoExe: true)
     ];
 
     private static TrayAppDotNETInstallDirectory[] ToDirectories(IEnumerable<string> names) =>

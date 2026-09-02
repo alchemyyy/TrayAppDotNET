@@ -32,7 +32,7 @@ public sealed class InstallationServiceTests
             string[] requiredDirectoryNames = payload.RequiredDirectories.Select(directory => directory.Name).ToArray();
 
             Assert.Contains("LICENSE.txt", requiredFileNames);
-            Assert.Contains("THIRD_PARTY_NOTICES", requiredFileNames);
+            Assert.Contains("NOTICE", requiredFileNames);
             Assert.Contains(".notices", requiredDirectoryNames);
         }
     }
