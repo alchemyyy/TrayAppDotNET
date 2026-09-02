@@ -83,9 +83,9 @@ public sealed class NightLightHelperTests
     [Fact]
     public void PingProtocolDoesNotEnterNativeBackend()
     {
-        string response = NightLightHelperServer.HandleCommand(NightLightHelperServer.PingCommand);
+        string response = NightLightHelperServer.HandleCommand(NightLightHelperProtocol.PingCommand);
 
-        Assert.Equal(NightLightHelperServer.PongResponse, response);
+        Assert.Equal(NightLightHelperProtocol.PongResponse, response);
     }
 
     [Theory]
@@ -97,7 +97,7 @@ public sealed class NightLightHelperTests
     {
         string response = NightLightHelperServer.HandleCommand(command);
 
-        Assert.Equal(NightLightHelperServer.FailureResponse, response);
+        Assert.Equal(NightLightHelperProtocol.FailureResponse, response);
     }
 
     [Theory]

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
-using System.Text;
 
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
@@ -11,9 +10,6 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 internal static class NightLightHelperClient
 {
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-
-    internal static readonly Encoding PipeEncoding =
-        new UTF8Encoding(false);
 
     private static readonly Lock StateGate = new();
     private static readonly NightLightLatestStrengthQueue PendingStrength = new();
@@ -781,10 +777,10 @@ internal static class NightLightHelperClient
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                startInfo.ArgumentList.Add(NightLightHelperServer.ServerArg);
-                startInfo.ArgumentList.Add(NightLightHelperServer.ParentProcessIDArg);
+                startInfo.ArgumentList.Add(NightLightHelperProtocol.ServerArg);
+                startInfo.ArgumentList.Add(NightLightHelperProtocol.ParentProcessIDArg);
                 startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-                startInfo.ArgumentList.Add(NightLightHelperServer.PipeNameArg);
+                startInfo.ArgumentList.Add(NightLightHelperProtocol.PipeNameArg);
                 startInfo.ArgumentList.Add(pipeName);
                 startInfo.Environment[NoWatcherEnvironmentVariable] = "1";
 
@@ -796,10 +792,14 @@ internal static class NightLightHelperClient
                 startupTokenSource.CancelAfter(TimeConstants.NightLightHelperStartTimeoutMs);
                 await pipe.WaitForConnectionAsync(startupTokenSource.Token).ConfigureAwait(false);
 
-                writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
+                writer = new StreamWriter(
+                    pipe,
+                    NightLightHelperProtocol.PipeEncoding,
+                    bufferSize: 1024,
+                    leaveOpen: true) { AutoFlush = true };
                 reader = new StreamReader(
                     pipe,
-                    PipeEncoding,
+                    NightLightHelperProtocol.PipeEncoding,
                     detectEncodingFromByteOrderMarks: false,
                     leaveOpen: true);
 
@@ -808,9 +808,9 @@ internal static class NightLightHelperClient
                     .ConfigureAwait(false);
                 return readyResponse switch
                 {
-                    NightLightHelperServer.ReadyResponse => new NightLightHelperConnection(process, pipe, writer,
+                    NightLightHelperProtocol.ReadyResponse => new NightLightHelperConnection(process, pipe, writer,
                         reader),
-                    NightLightHelperServer.UnsupportedResponse => throw new InvalidOperationException(
+                    NightLightHelperProtocol.UnsupportedResponse => throw new InvalidOperationException(
                         "Helper reported the native backend unsupported."),
                     null => throw new IOException("Helper exited before its readiness response."),
                     _ => throw new IOException($"Unknown helper readiness response '{readyResponse}'.")
@@ -837,9 +837,7 @@ internal static class NightLightHelperClient
 
         public async Task<bool> SetStrengthAsync(int percent, CancellationToken cancellationToken)
         {
-            string command =
-                NightLightHelperServer.SetStrengthCommand + "\t" +
-                percent.ToString(CultureInfo.InvariantCulture);
+            string command = NightLightHelperProtocol.SerializeSetStrength(percent);
             string? response = await SendCommandAsync(
                     command,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
@@ -849,8 +847,8 @@ internal static class NightLightHelperClient
 
             bool accepted = response switch
             {
-                NightLightHelperServer.SuccessResponse => true,
-                NightLightHelperServer.FailureResponse => false,
+                NightLightHelperProtocol.SuccessResponse => true,
+                NightLightHelperProtocol.FailureResponse => false,
                 null => throw new IOException("Helper exited without an operation response."),
                 _ => throw new IOException($"Unknown helper operation response '{response}'.")
             };
@@ -864,9 +862,7 @@ internal static class NightLightHelperClient
             int? enableStrength,
             CancellationToken cancellationToken)
         {
-            string command = NightLightHelperServer.SetEnabledCommand + "\t" +
-                             (enabled ? "1" : "0");
-            if (enableStrength.HasValue) command += "\t" + enableStrength.Value.ToString(CultureInfo.InvariantCulture);
+            string command = NightLightHelperProtocol.SerializeSetEnabled(enabled, enableStrength);
 
             string? response = await SendCommandAsync(
                     command,
@@ -876,8 +872,8 @@ internal static class NightLightHelperClient
                 .ConfigureAwait(false);
             return response switch
             {
-                NightLightHelperServer.SuccessResponse => true,
-                NightLightHelperServer.FailureResponse => false,
+                NightLightHelperProtocol.SuccessResponse => true,
+                NightLightHelperProtocol.FailureResponse => false,
                 null => throw new IOException("Helper exited without an active-state response."),
                 _ => throw new IOException($"Unknown helper active-state response '{response}'.")
             };
@@ -886,15 +882,15 @@ internal static class NightLightHelperClient
         public async Task<bool> PingAsync(CancellationToken cancellationToken)
         {
             string? response = await SendCommandAsync(
-                    NightLightHelperServer.PingCommand,
+                    NightLightHelperProtocol.PingCommand,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
                     operationName: "PING acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
             return response switch
             {
-                NightLightHelperServer.PongResponse => true,
-                NightLightHelperServer.FailureResponse => false,
+                NightLightHelperProtocol.PongResponse => true,
+                NightLightHelperProtocol.FailureResponse => false,
                 null => throw new IOException("Helper exited without a PING response."),
                 _ => throw new IOException($"Unknown helper PING response '{response}'.")
             };
@@ -903,15 +899,15 @@ internal static class NightLightHelperClient
         public async Task<bool> DrainAsync(CancellationToken cancellationToken)
         {
             string? response = await SendCommandAsync(
-                    NightLightHelperServer.DrainCommand,
+                    NightLightHelperProtocol.DrainCommand,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
                     operationName: "drain acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
             return response switch
             {
-                NightLightHelperServer.DrainedResponse => true,
-                NightLightHelperServer.FailureResponse => false,
+                NightLightHelperProtocol.DrainedResponse => true,
+                NightLightHelperProtocol.FailureResponse => false,
                 null => throw new IOException("Helper exited without a drain response."),
                 _ => throw new IOException($"Unknown helper drain response '{response}'.")
             };
@@ -971,7 +967,7 @@ internal static class NightLightHelperClient
                         if (!gateEntered)
                             throw new TimeoutException("Helper pipe remained busy during graceful exit.");
 
-                        _writer.WriteLine(NightLightHelperServer.ExitCommand);
+                        _writer.WriteLine(NightLightHelperProtocol.ExitCommand);
                         _writer.Flush();
                     }
                     catch (Exception ex)
@@ -1044,30 +1040,15 @@ internal static class NightLightHelperClient
 /// </summary>
 internal static class NightLightHelperServer
 {
-    public const string ServerArg = "--night-light-helper-server";
-    public const string ParentProcessIDArg = "--parent-pid";
-    public const string PipeNameArg = "--pipe-name";
-    public const string SetStrengthCommand = "SET";
-    public const string SetEnabledCommand = "ACTIVE";
-    public const string PingCommand = "PING";
-    public const string DrainCommand = "DRAIN";
-    public const string ExitCommand = "EXIT";
-    public const string ReadyResponse = "READY";
-    public const string UnsupportedResponse = "UNSUPPORTED";
-    public const string SuccessResponse = "OK";
-    public const string PongResponse = "PONG";
-    public const string DrainedResponse = "DRAINED";
-    public const string FailureResponse = "FAIL";
-
     private const int HelperPipeConnectTimeoutMs = 5_000;
 
     public static bool TryRun(string[] args, out int exitCode)
     {
         exitCode = 0;
-        if (!HasArg(args, ServerArg)) return false;
+        if (!HasArg(args, NightLightHelperProtocol.ServerArg)) return false;
 
         StartParentWatchdog(ParseParentProcessID(args));
-        string? pipeName = ParseArgValue(args, PipeNameArg);
+        string? pipeName = ParseArgValue(args, NightLightHelperProtocol.PipeNameArg);
         if (string.IsNullOrWhiteSpace(pipeName))
         {
             exitCode = 1;
@@ -1080,17 +1061,20 @@ internal static class NightLightHelperServer
             pipe.Connect(HelperPipeConnectTimeoutMs);
             using StreamReader reader = new(
                 pipe,
-                NightLightHelperClient.PipeEncoding,
+                NightLightHelperProtocol.PipeEncoding,
                 detectEncodingFromByteOrderMarks: false,
                 leaveOpen: true);
             using StreamWriter writer = new(
                 pipe,
-                NightLightHelperClient.PipeEncoding,
+                NightLightHelperProtocol.PipeEncoding,
                 bufferSize: 1024,
                 leaveOpen: true) { AutoFlush = true };
 
             bool supported = NightLightCloudStore.IsSupported();
-            writer.WriteLine(supported ? ReadyResponse : UnsupportedResponse);
+            writer.WriteLine(
+                supported
+                    ? NightLightHelperProtocol.ReadyResponse
+                    : NightLightHelperProtocol.UnsupportedResponse);
             writer.Flush();
             if (!supported)
             {
@@ -1119,7 +1103,7 @@ internal static class NightLightHelperServer
     {
         while (reader.ReadLine() is { } line)
         {
-            if (line.Equals(ExitCommand, StringComparison.Ordinal))
+            if (line.Equals(NightLightHelperProtocol.ExitCommand, StringComparison.Ordinal))
             {
                 _ = NightLightCloudStore.DrainStreamingAsync().GetAwaiter().GetResult();
                 return;
@@ -1133,7 +1117,7 @@ internal static class NightLightHelperServer
             catch (Exception ex)
             {
                 TADNLog.Log($"NightLightHelperServer command failed: {ex}");
-                response = FailureResponse;
+                response = NightLightHelperProtocol.FailureResponse;
             }
 
             writer.WriteLine(response);
@@ -1143,34 +1127,36 @@ internal static class NightLightHelperServer
 
     internal static string HandleCommand(string line)
     {
-        if (line.Equals(PingCommand, StringComparison.Ordinal))
-            return PongResponse;
+        if (line.Equals(NightLightHelperProtocol.PingCommand, StringComparison.Ordinal))
+            return NightLightHelperProtocol.PongResponse;
 
-        if (line.Equals(DrainCommand, StringComparison.Ordinal))
+        if (line.Equals(NightLightHelperProtocol.DrainCommand, StringComparison.Ordinal))
         {
             return NightLightCloudStore.DrainStreamingAsync().GetAwaiter().GetResult()
-                ? DrainedResponse
-                : FailureResponse;
+                ? NightLightHelperProtocol.DrainedResponse
+                : NightLightHelperProtocol.FailureResponse;
         }
 
         string[] fields = line.Split('\t');
-        if (fields.Length == 2 && fields[0].Equals(SetStrengthCommand, StringComparison.Ordinal))
+        if (fields.Length == 2
+            && fields[0].Equals(NightLightHelperProtocol.SetStrengthCommand, StringComparison.Ordinal))
         {
             if (!int.TryParse(
                     fields[1],
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
                     out int percent) || percent is < 0 or > 100)
-                return FailureResponse;
+                return NightLightHelperProtocol.FailureResponse;
 
             // Reject a late main-process queue item after an off transition. Pre-enable strength priming uses
             // the ACTIVE command's combined transaction and therefore does not need this path while disabled.
             return NightLightRegistry.IsEnabled() && NightLightCloudStore.TryQueueStreamingKelvin(percent)
-                ? SuccessResponse
-                : FailureResponse;
+                ? NightLightHelperProtocol.SuccessResponse
+                : NightLightHelperProtocol.FailureResponse;
         }
 
-        if (fields.Length is 2 or 3 && fields[0].Equals(SetEnabledCommand, StringComparison.Ordinal))
+        if (fields.Length is 2 or 3
+            && fields[0].Equals(NightLightHelperProtocol.SetEnabledCommand, StringComparison.Ordinal))
         {
             bool? parsedEnabled = fields[1] switch
             {
@@ -1178,7 +1164,7 @@ internal static class NightLightHelperServer
                 "1" => true,
                 _ => null
             };
-            if (!parsedEnabled.HasValue) return FailureResponse;
+            if (!parsedEnabled.HasValue) return NightLightHelperProtocol.FailureResponse;
 
             bool enabled = parsedEnabled.Value;
             int? enableStrength = null;
@@ -1189,17 +1175,17 @@ internal static class NightLightHelperServer
                         NumberStyles.Integer,
                         CultureInfo.InvariantCulture,
                         out int parsedStrength) || parsedStrength is < 0 or > 100)
-                    return FailureResponse;
+                    return NightLightHelperProtocol.FailureResponse;
 
                 enableStrength = parsedStrength;
             }
 
             return NightLightCloudStore.SetEnabledAsync(enabled, enableStrength).GetAwaiter().GetResult()
-                ? SuccessResponse
-                : FailureResponse;
+                ? NightLightHelperProtocol.SuccessResponse
+                : NightLightHelperProtocol.FailureResponse;
         }
 
-        return FailureResponse;
+        return NightLightHelperProtocol.FailureResponse;
     }
 
     private static bool HasArg(string[] args, string name)
@@ -1215,7 +1201,7 @@ internal static class NightLightHelperServer
 
     private static int? ParseParentProcessID(string[] args)
     {
-        string? value = ParseArgValue(args, ParentProcessIDArg);
+        string? value = ParseArgValue(args, NightLightHelperProtocol.ParentProcessIDArg);
         if (value != null &&
             int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
             return parentProcessID;

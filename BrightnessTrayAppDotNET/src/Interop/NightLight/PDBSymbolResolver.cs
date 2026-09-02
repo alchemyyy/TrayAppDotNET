@@ -1,8 +1,19 @@
 using System.Diagnostics;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
+
+/// <summary>PE and CodeView identity used to bind resolved RVAs to one exact native image.</summary>
+internal readonly record struct PDBImageIdentity(
+    string PDBName,
+    Guid PDBGuid,
+    uint PDBAge,
+    uint ImageSize,
+    ulong PreferredImageBase,
+    string FileVersion,
+    long FileSize);
 
 /// <summary>
 /// Resolves named symbols (mangled or namespace-qualified) to RVAs in a loaded native DLL
@@ -143,6 +154,138 @@ internal static class PDBSymbolResolver
                 // Cache write is best-effort: a future run will simply re-resolve.
                 TADNLog.Log($"PDBSymbolResolver: cache write failed: {ex.Message}");
             }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves symbols from the DLL and its PDB without loading the DLL or running any of its initialization code.
+    /// </summary>
+    public static bool TryResolveSymbolsFromImageFile(
+        string dllPath,
+        IReadOnlyList<string> symbolNames,
+        out PDBImageIdentity imageIdentity,
+        out Dictionary<string, int> rvas)
+    {
+        imageIdentity = default;
+        rvas = new Dictionary<string, int>(symbolNames.Count);
+        if (!TryReadImageIdentity(dllPath, out PDBImageIdentity parsedIdentity)) return false;
+
+        imageIdentity = parsedIdentity;
+        string PDBSignature = parsedIdentity.PDBGuid.ToString("N");
+        if (TryReadFromCache(
+                dllPath,
+                parsedIdentity.FileVersion,
+                parsedIdentity.FileSize,
+                PDBSignature,
+                parsedIdentity.PDBAge,
+                symbolNames,
+                rvas)) return ValidateResolvedRVAs(parsedIdentity, rvas);
+
+        lock (_gate)
+        {
+            if (TryReadFromCache(
+                    dllPath,
+                    parsedIdentity.FileVersion,
+                    parsedIdentity.FileSize,
+                    PDBSignature,
+                    parsedIdentity.PDBAge,
+                    symbolNames,
+                    rvas)) return ValidateResolvedRVAs(parsedIdentity, rvas);
+
+            if (!ResolveByDownloadingPDB(parsedIdentity, symbolNames, rvas)) return false;
+            if (!ValidateResolvedRVAs(parsedIdentity, rvas)) return false;
+
+            // Windows servicing can replace the file while a symbol download is in progress. Never cache or
+            // return RVAs if the image identity changed underneath this resolution attempt.
+            if (!TryReadImageIdentity(dllPath, out PDBImageIdentity currentIdentity)
+                || currentIdentity != parsedIdentity)
+            {
+                rvas.Clear();
+                TADNLog.Log($"PDBSymbolResolver: '{dllPath}' changed while its symbols were being resolved");
+                return false;
+            }
+
+            try
+            {
+                WriteToCache(
+                    dllPath,
+                    parsedIdentity.FileVersion,
+                    parsedIdentity.FileSize,
+                    PDBSignature,
+                    parsedIdentity.PDBAge,
+                    rvas);
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"PDBSymbolResolver: cache write failed: {ex.Message}");
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Reads PE image size and CodeView identity directly from a file without mapping it for execution.</summary>
+    public static bool TryReadImageIdentity(string dllPath, out PDBImageIdentity imageIdentity)
+    {
+        imageIdentity = default;
+
+        try
+        {
+            using FileStream stream = new(
+                dllPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using PEReader imageReader = new(stream, PEStreamOptions.LeaveOpen);
+            PEHeader? imageHeader = imageReader.PEHeaders.PEHeader;
+            if (imageHeader == null || imageHeader.SizeOfImage <= 0 || imageHeader.ImageBase == 0) return false;
+
+            foreach (DebugDirectoryEntry entry in imageReader.ReadDebugDirectory())
+            {
+                if (entry.Type != DebugDirectoryEntryType.CodeView) continue;
+
+                CodeViewDebugDirectoryData codeView = imageReader.ReadCodeViewDebugDirectoryData(entry);
+                string PDBName = Path.GetFileName(codeView.Path);
+                if (string.IsNullOrWhiteSpace(PDBName)
+                    || codeView.Guid == Guid.Empty
+                    || codeView.Age <= 0) continue;
+
+                FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(dllPath);
+                imageIdentity = new PDBImageIdentity(
+                    PDBName,
+                    codeView.Guid,
+                    checked((uint)codeView.Age),
+                    checked((uint)imageHeader.SizeOfImage),
+                    imageHeader.ImageBase,
+                    versionInfo.FileVersion ?? string.Empty,
+                    stream.Length);
+                return true;
+            }
+
+            TADNLog.Log($"PDBSymbolResolver: '{dllPath}' has no usable CodeView (RSDS) debug record");
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"PDBSymbolResolver: failed to read PE identity for '{dllPath}': {ex.Message}");
+        }
+
+        return false;
+    }
+
+    private static bool ValidateResolvedRVAs(
+        PDBImageIdentity imageIdentity,
+        IReadOnlyDictionary<string, int> rvas)
+    {
+        foreach (KeyValuePair<string, int> symbol in rvas)
+        {
+            if (symbol.Value > 0 && (uint)symbol.Value < imageIdentity.ImageSize) continue;
+
+            TADNLog.Log(
+                $"PDBSymbolResolver: RVA 0x{symbol.Value:X8} for '{symbol.Key}' is outside image size " +
+                $"0x{imageIdentity.ImageSize:X8}");
+            return false;
         }
 
         return true;
@@ -354,6 +497,34 @@ internal static class PDBSymbolResolver
             return false;
         }
 
+        return ResolveByDownloadingPDB(
+            pdbName,
+            pdbSig,
+            pdbAge,
+            (ulong)loadedModuleBase.ToInt64(),
+            symbolNames,
+            rvas);
+    }
+
+    private static bool ResolveByDownloadingPDB(
+        PDBImageIdentity imageIdentity,
+        IReadOnlyList<string> symbolNames,
+        Dictionary<string, int> rvas) => ResolveByDownloadingPDB(
+        imageIdentity.PDBName,
+        imageIdentity.PDBGuid,
+        imageIdentity.PDBAge,
+        imageIdentity.PreferredImageBase,
+        symbolNames,
+        rvas);
+
+    private static bool ResolveByDownloadingPDB(
+        string pdbName,
+        Guid pdbSig,
+        uint pdbAge,
+        ulong moduleBase,
+        IReadOnlyList<string> symbolNames,
+        Dictionary<string, int> rvas)
+    {
         // Symstore key: GUID with no dashes, then age in hex, both uppercase.
         // Microsoft's symbol server is case-sensitive on this segment for some files, so always emit uppercase.
         string symbolKey = $"{pdbSig:N}{pdbAge:X}".ToUpperInvariant();
@@ -377,7 +548,7 @@ internal static class PDBSymbolResolver
             TADNLog.Log($"PDBSymbolResolver: downloaded {pdbName} ({symbolKey}) -> {pdbPath}");
         }
 
-        return ResolveViaDbghelp(loadedModuleBase, pdbDir, pdbPath, symbolNames, rvas);
+        return ResolveViaDbghelp(moduleBase, pdbDir, pdbPath, symbolNames, rvas);
     }
 
     /// <summary>
@@ -546,7 +717,7 @@ internal static class PDBSymbolResolver
     /// Returns false if SymInitialize, SymLoadModule, or any SymFromName fails.
     /// </summary>
     private static bool ResolveViaDbghelp(
-        IntPtr loadedModuleBase, string pdbDir, string pdbPath,
+        ulong moduleBase, string pdbDir, string pdbPath,
         IReadOnlyList<string> symbolNames, Dictionary<string, int> rvas)
     {
         IntPtr hProc = GetCurrentProcess();
@@ -573,7 +744,7 @@ internal static class PDBSymbolResolver
             // that the caller can add back to LoadLibrary's return value.
             ulong modBase = SymLoadModuleExW(
                 hProc, IntPtr.Zero, pdbPath, ModuleName: null,
-                (ulong)loadedModuleBase.ToInt64(), DllSize: 0,
+                moduleBase, DllSize: 0,
                 IntPtr.Zero, Flags: 0);
 
             if (modBase == 0)
