@@ -133,6 +133,20 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
         }
     }
 
+    private void Reload()
+    {
+        try
+        {
+            ReloadCore();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.LogDebug($"{_resourceName} hot reload failed: {exception.Message}");
+        }
+    }
+
+    // Keep runtime-loader references outside Reload's JIT boundary so dependency failures are caught
+    [MethodImpl(MethodImplOptions.NoInlining)]
     [UnconditionalSuppressMessage(
         category: "Trimming",
         checkId: "IL2026",
@@ -142,41 +156,34 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
         checkId: "IL3050",
         Justification =
             "This Debug-only hot-reload path intentionally uses runtime XAML compilation and is excluded from AOT releases.")]
-    private void Reload()
+    private void ReloadCore()
     {
-        try
+        string xaml = File.ReadAllText(_sourcePath);
+        TResource candidateResources = _resourceFactory();
+        candidateResources.Clear();
+
+        object loadedResources = AvaloniaRuntimeXamlLoader.Load(
+            xaml,
+            typeof(TResource).Assembly,
+            candidateResources,
+            new Uri(_sourcePath, UriKind.Absolute),
+            designMode: false);
+        if (!ReferenceEquals(loadedResources, candidateResources))
         {
-            string xaml = File.ReadAllText(_sourcePath);
-            TResource candidateResources = _resourceFactory();
-            candidateResources.Clear();
-
-            object loadedResources = AvaloniaRuntimeXamlLoader.Load(
-                xaml,
-                typeof(TResource).Assembly,
-                candidateResources,
-                new Uri(_sourcePath, UriKind.Absolute),
-                designMode: false);
-            if (!ReferenceEquals(loadedResources, candidateResources))
-            {
-                throw new InvalidOperationException(
-                    $"Runtime XAML loader returned an unexpected {_resourceName} instance.");
-            }
-
-            TResource publishedResources = candidateResources;
-            if (_synchronizeReload != null)
-            {
-                publishedResources = Current;
-                _synchronizeReload(publishedResources, candidateResources);
-            }
-
-            Volatile.Write(ref _hotReloadedResources, publishedResources);
-            TADNLog.LogDebug($"{_resourceName} hot reloaded");
-            _resourcesReloaded();
+            throw new InvalidOperationException(
+                $"Runtime XAML loader returned an unexpected {_resourceName} instance.");
         }
-        catch (Exception exception)
+
+        TResource publishedResources = candidateResources;
+        if (_synchronizeReload != null)
         {
-            TADNLog.LogDebug($"{_resourceName} hot reload failed: {exception.Message}");
+            publishedResources = Current;
+            _synchronizeReload(publishedResources, candidateResources);
         }
+
+        Volatile.Write(ref _hotReloadedResources, publishedResources);
+        TADNLog.LogDebug($"{_resourceName} hot reloaded");
+        _resourcesReloaded();
     }
 }
 #endif

@@ -149,9 +149,10 @@
                Condition="Exists('$(NativeKillHelperIntermediateDirectory)\kill-helper') or Exists('$(NativeKillHelperIntermediateDirectory)\win-x64\kill-helper')" />
   </Target>
 
+  <!-- Standalone dictionaries use the runtime loader throughout Debug, independently of HotAvalonia injection. -->
   <Target Name="CopyHotAvaloniaRuntimeAssemblies"
           AfterTargets="Build"
-          Condition="'$(HotAvalonia)' == 'true' and '$(RuntimeIdentifier)' == ''">
+          Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <_HotAvaloniaCorePath>$(NuGetPackageRoot)hotavalonia.core\$(HotAvaloniaPackageVersion)\lib\netstandard2.1\HotAvalonia.Core.dll</_HotAvaloniaCorePath>
       <_HotAvaloniaXamlLoaderPath>$(NuGetPackageRoot)avalonia.markup.xaml.loader\$(AvaloniaVersion)\lib\net10.0\Avalonia.Markup.Xaml.Loader.dll</_HotAvaloniaXamlLoaderPath>
@@ -169,6 +170,22 @@
           SkipUnchangedFiles="true"
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
+  </Target>
+
+  <!-- Make Visual Studio reject an incomplete shared Debug output as up to date. -->
+  <Target Name="CollectHotAvaloniaRuntimeAssembliesForUpToDateCheck"
+          BeforeTargets="CollectUpToDateCheckBuiltDesignTime"
+          Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <_HotAvaloniaCorePath>$(NuGetPackageRoot)hotavalonia.core\$(HotAvaloniaPackageVersion)\lib\netstandard2.1\HotAvalonia.Core.dll</_HotAvaloniaCorePath>
+      <_HotAvaloniaXamlLoaderPath>$(NuGetPackageRoot)avalonia.markup.xaml.loader\$(AvaloniaVersion)\lib\net10.0\Avalonia.Markup.Xaml.Loader.dll</_HotAvaloniaXamlLoaderPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <UpToDateCheckBuilt Include="$(TargetDir)HotAvalonia.Core.dll"
+                          Original="$(_HotAvaloniaCorePath)" />
+      <UpToDateCheckBuilt Include="$(TargetDir)Avalonia.Markup.Xaml.Loader.dll"
+                          Original="$(_HotAvaloniaXamlLoaderPath)" />
+    </ItemGroup>
   </Target>
 
   <Target Name="CopyRuntimeReferencesToAggregateManagedOutput"
