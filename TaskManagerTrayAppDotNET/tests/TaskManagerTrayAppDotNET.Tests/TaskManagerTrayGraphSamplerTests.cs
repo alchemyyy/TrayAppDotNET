@@ -44,24 +44,4 @@ public sealed class TaskManagerTrayGraphSamplerTests
             return currentSampleIndex / (double)(numSamplesToDisplay - 1);
         }
     }
-
-    [Fact]
-    public void MarqueeSplineDoesNotOvershootAndEndsAtNewestValue()
-    {
-        double[] values = [10, 90, 20, 80];
-
-        double[] samples = TaskManagerTrayGraphSampler.SampleMarquee(values, sampleCount: 129);
-
-        Assert.Equal(expected: 10, samples[0], precision: 8);
-        Assert.Equal(expected: 80, samples[^1], precision: 8);
-        Assert.All(samples, value => Assert.InRange(value, low: 10, high: 90));
-    }
-
-    [Fact]
-    public void OneValueFillsTheMarqueeAtTheCurrentLevel()
-    {
-        double[] samples = TaskManagerTrayGraphSampler.SampleMarquee([42], sampleCount: 17);
-
-        Assert.All(samples, value => Assert.Equal(expected: 42, value, precision: 8));
-    }
 }

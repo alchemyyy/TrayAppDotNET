@@ -4,6 +4,7 @@ namespace TaskManagerTrayAppDotNET.UI.Tray;
 
 internal sealed record TaskManagerTrayIconRenderInput(
     TrayGraphStyle Style,
+    TrayGraphDataSource DataSource,
     double[] Values);
 
 /// <summary>Renders the official-style system utilization graph used by the tray icon.</summary>
@@ -12,13 +13,18 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     public const int HistoryCapacity = 16;
 
     // AXAML hot-reload exception: Tray icon rendering runs on the background render queue and
-    // cannot safely read mutable Avalonia resource dictionaries
-    private const int CurveSamplesPerPixel = 4;
-    private const float GridOpacity = 0.27f;
+    // cannot safely read mutable Avalonia resource dictionaries. Keep these values aligned with
+    // the Performance graph resources in TaskManagerWindow.axaml
+    private const float CornerRadiusScale = 3.0f / 16.0f;
+    private const float GraphLineThickness = 0.85f;
+    private const float GraphUnderfillOpacity = 0.12f;
+    private const int GraphUnderfillDarkenAmount = 20;
+    private const float GridLineThickness = 0.75f;
+    private const float GridOpacity = 92.0f / byte.MaxValue;
 
-    private static readonly SKColor BackgroundColor = new(red: 46, green: 48, blue: 47);
-    private static readonly SKColor GraphFillColor = new(red: 215, green: 216, blue: 212);
-    private static readonly SKColor GraphLineColor = new(red: 239, green: 239, blue: 235);
+    private static readonly SKColor BackgroundColor = new(red: 25, green: 25, blue: 25);
+    private static readonly SKColor CPUGraphLineColor = new(red: 50, green: 181, blue: 229);
+    private static readonly SKColor MemoryGraphLineColor = new(red: 88, green: 131, blue: 208);
 
     private static readonly SKColor GridColor = new(red: 177, green: 180, blue: 178,
         (byte)Math.Round(byte.MaxValue * GridOpacity));
@@ -59,7 +65,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             values[valueIndex] = _history[historyIndex].Select(dataSource);
         }
 
-        return new TaskManagerTrayIconRenderInput(style, values);
+        return new TaskManagerTrayIconRenderInput(style, dataSource, values);
     }
 
     /// <summary>Renders a caller-owned native icon for the shared background render queue.</summary>
@@ -92,99 +98,151 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         SKImageInfo imageInfo = new(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
         using SKBitmap bitmap = new(imageInfo);
         using SKCanvas canvas = new(bitmap);
-        canvas.Clear(BackgroundColor);
+        canvas.Clear(SKColors.Transparent);
 
         float borderWidth = Math.Max(val1: 1.0f, size / 24.0f);
+        float cornerRadius = Math.Max(val1: borderWidth * 2, size * CornerRadiusScale);
+        SKRect surfaceBounds = new(left: 0, top: 0, right: size, bottom: size);
+        using (SKPaint backgroundPaint = new()
+        {
+            Color = BackgroundColor,
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        })
+        {
+            canvas.DrawRoundRect(
+                surfaceBounds,
+                cornerRadius,
+                cornerRadius,
+                backgroundPaint);
+        }
+
         SKRect graphBounds = new(
             borderWidth,
             borderWidth,
             size - borderWidth,
             size - borderWidth);
+        float graphCornerRadius = Math.Max(val1: 0, cornerRadius - borderWidth);
 
         canvas.Save();
-        canvas.ClipRect(graphBounds, antialias: false);
-        switch (input.Style)
-        {
-            case TrayGraphStyle.Current:
-                DrawCurrentGraph(canvas, graphBounds, input.Values);
-                break;
-
-            case TrayGraphStyle.Marquee:
-            default:
-                DrawMarqueeGraph(canvas, graphBounds, input.Values);
-                break;
-        }
-
-        DrawGrid(canvas, graphBounds);
+        using SKPath graphClipPath = new();
+        graphClipPath.AddRoundRect(
+            graphBounds,
+            graphCornerRadius,
+            graphCornerRadius);
+        canvas.ClipPath(graphClipPath, SKClipOperation.Intersect, antialias: true);
+        DrawGraph(canvas, graphBounds, input);
         canvas.Restore();
-        DrawBorder(canvas, size, borderWidth);
+        DrawBorder(canvas, size, borderWidth, cornerRadius);
 
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         return data.ToArray();
     }
 
-    private static void DrawCurrentGraph(
+    private static void DrawGraph(
         SKCanvas canvas,
         SKRect graphBounds,
-        IReadOnlyList<double> values)
+        TaskManagerTrayIconRenderInput input)
+    {
+        using SKPath underfillPath = new();
+        using SKPath linePath = new();
+        switch (input.Style)
+        {
+            case TrayGraphStyle.Current:
+                BuildCurrentGraphPaths(
+                    graphBounds,
+                    input.Values,
+                    underfillPath,
+                    linePath);
+                break;
+
+            case TrayGraphStyle.Marquee:
+            default:
+                BuildMarqueeGraphPaths(
+                    graphBounds,
+                    input.Values,
+                    underfillPath,
+                    linePath);
+                break;
+        }
+
+        SKColor lineColor = GetGraphLineColor(input.DataSource);
+        using (SKPaint underfillPaint = new()
+        {
+            Color = CreateUnderfillColor(lineColor),
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        })
+        {
+            canvas.DrawPath(underfillPath, underfillPaint);
+        }
+
+        DrawGrid(canvas, graphBounds);
+        using SKPaint linePaint = CreateGraphLinePaint(lineColor);
+        canvas.DrawPath(linePath, linePaint);
+    }
+
+    private static void BuildCurrentGraphPaths(
+        SKRect graphBounds,
+        IReadOnlyList<double> values,
+        SKPath underfillPath,
+        SKPath linePath)
     {
         double currentPercent = values.Count > 0 ? NormalizePercent(values[^1]) : 0;
         float graphTop = PercentToY(graphBounds, currentPercent);
-        using SKPaint fillPaint = new() { Color = GraphFillColor, IsAntialias = false, Style = SKPaintStyle.Fill };
-        canvas.DrawRect(
-            new SKRect(graphBounds.Left, graphTop, graphBounds.Right, graphBounds.Bottom),
-            fillPaint);
-
-        if (currentPercent <= 0) return;
-        using SKPaint linePaint = CreateGraphLinePaint();
-        canvas.DrawLine(graphBounds.Left, graphTop, graphBounds.Right, graphTop, linePaint);
+        underfillPath.MoveTo(graphBounds.Left, graphBounds.Bottom);
+        underfillPath.LineTo(graphBounds.Left, graphTop);
+        underfillPath.LineTo(graphBounds.Right, graphTop);
+        underfillPath.LineTo(graphBounds.Right, graphBounds.Bottom);
+        underfillPath.Close();
+        linePath.MoveTo(graphBounds.Left, graphTop);
+        linePath.LineTo(graphBounds.Right, graphTop);
     }
 
-    private static void DrawMarqueeGraph(
-        SKCanvas canvas,
+    private static void BuildMarqueeGraphPaths(
         SKRect graphBounds,
-        IReadOnlyList<double> values)
+        IReadOnlyList<double> values,
+        SKPath underfillPath,
+        SKPath linePath)
     {
-        int curveSampleCount = Math.Max(
-            val1: 2,
-            (int)Math.Ceiling(graphBounds.Width * CurveSamplesPerPixel) + 1);
-        double[] curveSamples = TaskManagerTrayGraphSampler.SampleMarquee(values, curveSampleCount);
-
-        using SKPath areaPath = new();
-        using SKPath linePath = new();
-        areaPath.MoveTo(graphBounds.Left, graphBounds.Bottom);
-        for (int sampleIndex = 0; sampleIndex < curveSamples.Length; sampleIndex++)
+        if (values.Count == 0) return;
+        if (values.Count == 1)
         {
-            float normalizedX = sampleIndex / (float)(curveSamples.Length - 1);
-            float graphX = graphBounds.Left + normalizedX * graphBounds.Width;
-            float graphY = PercentToY(graphBounds, curveSamples[sampleIndex]);
+            BuildCurrentGraphPaths(graphBounds, values, underfillPath, linePath);
+            return;
+        }
+
+        double[] samplePositions = TaskManagerTrayGraphSampler.CreateSamplePositions(values.Count);
+        underfillPath.MoveTo(graphBounds.Left, graphBounds.Bottom);
+        for (int sampleIndex = 0; sampleIndex < values.Count; sampleIndex++)
+        {
+            float graphX = graphBounds.Left
+                           + (float)samplePositions[sampleIndex] * graphBounds.Width;
+            float graphY = PercentToY(graphBounds, values[sampleIndex]);
             if (sampleIndex == 0)
             {
-                areaPath.LineTo(graphX, graphY);
+                underfillPath.LineTo(graphX, graphY);
                 linePath.MoveTo(graphX, graphY);
                 continue;
             }
 
-            areaPath.LineTo(graphX, graphY);
+            underfillPath.LineTo(graphX, graphY);
             linePath.LineTo(graphX, graphY);
         }
 
-        areaPath.LineTo(graphBounds.Right, graphBounds.Bottom);
-        areaPath.Close();
-
-        using SKPaint fillPaint = new() { Color = GraphFillColor, IsAntialias = true, Style = SKPaintStyle.Fill };
-        canvas.DrawPath(areaPath, fillPaint);
-
-        using SKPaint linePaint = CreateGraphLinePaint();
-        canvas.DrawPath(linePath, linePaint);
+        underfillPath.LineTo(graphBounds.Right, graphBounds.Bottom);
+        underfillPath.Close();
     }
 
     private static void DrawGrid(SKCanvas canvas, SKRect graphBounds)
     {
         using SKPaint gridPaint = new()
         {
-            Color = GridColor, IsAntialias = false, StrokeWidth = 1, Style = SKPaintStyle.Stroke
+            Color = GridColor,
+            IsAntialias = true,
+            StrokeWidth = GridLineThickness,
+            Style = SKPaintStyle.Stroke
         };
         for (int gridIndex = 1; gridIndex < 4; gridIndex++)
         {
@@ -196,26 +254,63 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         }
     }
 
-    private static void DrawBorder(SKCanvas canvas, int size, float borderWidth)
+    private static void DrawBorder(
+        SKCanvas canvas,
+        int size,
+        float borderWidth,
+        float cornerRadius)
     {
         using SKPaint borderPaint = new()
         {
-            Color = BorderColor, IsAntialias = false, StrokeWidth = borderWidth, Style = SKPaintStyle.Stroke
+            Color = BorderColor,
+            IsAntialias = true,
+            StrokeWidth = borderWidth,
+            StrokeJoin = SKStrokeJoin.Round,
+            Style = SKPaintStyle.Stroke
         };
         float inset = borderWidth / 2.0f;
-        canvas.DrawRect(new SKRect(inset, inset, size - inset, size - inset), borderPaint);
+        float borderCornerRadius = Math.Max(val1: borderWidth, cornerRadius - inset);
+        canvas.DrawRoundRect(
+            new SKRect(inset, inset, size - inset, size - inset),
+            borderCornerRadius,
+            borderCornerRadius,
+            borderPaint);
     }
 
-    private static SKPaint CreateGraphLinePaint() =>
+    private static SKPaint CreateGraphLinePaint(SKColor lineColor) =>
         new()
         {
-            Color = GraphLineColor,
+            Color = lineColor,
             IsAntialias = true,
-            StrokeWidth = 1,
+            StrokeWidth = GraphLineThickness,
             StrokeCap = SKStrokeCap.Square,
             StrokeJoin = SKStrokeJoin.Round,
             Style = SKPaintStyle.Stroke
         };
+
+    private static SKColor GetGraphLineColor(TrayGraphDataSource dataSource) =>
+        dataSource switch
+        {
+            TrayGraphDataSource.Memory => MemoryGraphLineColor,
+            TrayGraphDataSource.CPUAverage or TrayGraphDataSource.CPUHighestCore =>
+                CPUGraphLineColor,
+            _ => CPUGraphLineColor
+        };
+
+    private static SKColor CreateUnderfillColor(SKColor lineColor)
+    {
+        byte alpha = (byte)Math.Round(
+            lineColor.Alpha * GraphUnderfillOpacity,
+            MidpointRounding.AwayFromZero);
+        return new SKColor(
+            Darken(lineColor.Red),
+            Darken(lineColor.Green),
+            Darken(lineColor.Blue),
+            alpha);
+    }
+
+    private static byte Darken(byte component) =>
+        (byte)Math.Max(val1: 0, component - GraphUnderfillDarkenAmount);
 
     private static float PercentToY(SKRect graphBounds, double percent) =>
         graphBounds.Bottom - (float)(NormalizePercent(percent) / 100.0) * graphBounds.Height;

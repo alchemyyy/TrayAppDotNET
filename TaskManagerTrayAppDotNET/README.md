@@ -16,7 +16,7 @@
 - Native-first and managed-fallback `TerminateProcess` paths for End task.
 - A preconstructed inline Run new task surface for executables, documents, and URIs.
 - A tray menu that keeps the main window warm when it is hidden.
-- A square dynamic tray graph with current and recency-weighted marquee styles for average CPU, highest-core CPU,
+- A rounded dynamic tray graph with current and recency-weighted marquee styles for average CPU, highest-core CPU,
   or physical-memory utilization.
 
 ## Efficiency baseline

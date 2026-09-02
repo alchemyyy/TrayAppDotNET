@@ -28,6 +28,8 @@ public sealed class TaskManagerTrayIconTests
             TrayGraphDataSource.CPUHighestCore);
 
         Assert.Equal(TaskManagerTrayIcon.HistoryCapacity, averageInput.Values.Length);
+        Assert.Equal(TrayGraphDataSource.CPUAverage, averageInput.DataSource);
+        Assert.Equal(TrayGraphDataSource.CPUHighestCore, highestCoreInput.DataSource);
         Assert.Equal(expected: 2, averageInput.Values[0]);
         Assert.Equal(totalSampleCount - 1, averageInput.Values[^1]);
         Assert.Equal(expected: 52, highestCoreInput.Values[0]);
@@ -37,10 +39,13 @@ public sealed class TaskManagerTrayIconTests
     [Theory]
     [InlineData(TrayGraphStyle.Current)]
     [InlineData(TrayGraphStyle.Marquee)]
-    public void RenderedPNGIsSquareOpaqueAndUsesTheFullCanvas(TrayGraphStyle style)
+    public void RenderedPNGHasRoundedCornersAndUsesTheInterior(TrayGraphStyle style)
     {
         const int iconSize = 16;
-        TaskManagerTrayIconRenderInput input = new(style, [10, 30, 20, 60]);
+        TaskManagerTrayIconRenderInput input = new(
+            style,
+            TrayGraphDataSource.CPUAverage,
+            [10, 30, 20, 60]);
 
         byte[] imageBytes = TaskManagerTrayIcon.RenderPng(iconSize, input);
         using SKBitmap bitmap = SKBitmap.Decode(imageBytes)
@@ -48,8 +53,9 @@ public sealed class TaskManagerTrayIconTests
 
         Assert.Equal(iconSize, bitmap.Width);
         Assert.Equal(iconSize, bitmap.Height);
-        Assert.Equal(byte.MaxValue, bitmap.GetPixel(x: 0, y: 0).Alpha);
-        Assert.Equal(byte.MaxValue, bitmap.GetPixel(iconSize - 1, iconSize - 1).Alpha);
+        Assert.True(bitmap.GetPixel(x: 0, y: 0).Alpha < byte.MaxValue);
+        Assert.True(bitmap.GetPixel(iconSize - 1, iconSize - 1).Alpha < byte.MaxValue);
+        Assert.Equal(byte.MaxValue, bitmap.GetPixel(x: 8, y: 8).Alpha);
         Assert.True(bitmap.GetPixel(x: 6, y: 13).Green > bitmap.GetPixel(x: 6, y: 2).Green);
     }
 
@@ -61,11 +67,39 @@ public sealed class TaskManagerTrayIconTests
 
         byte[] currentImageBytes = TaskManagerTrayIcon.RenderPng(
             iconSize,
-            new TaskManagerTrayIconRenderInput(TrayGraphStyle.Current, values));
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Current,
+                TrayGraphDataSource.CPUAverage,
+                values));
         byte[] marqueeImageBytes = TaskManagerTrayIcon.RenderPng(
             iconSize,
-            new TaskManagerTrayIconRenderInput(TrayGraphStyle.Marquee, values));
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Marquee,
+                TrayGraphDataSource.CPUAverage,
+                values));
 
         Assert.False(currentImageBytes.SequenceEqual(marqueeImageBytes));
+    }
+
+    [Fact]
+    public void DataSourceSelectsTheMatchingPerformanceGraphAccent()
+    {
+        const int iconSize = 32;
+        double[] values = [10, 80, 20, 60];
+
+        byte[] cpuImageBytes = TaskManagerTrayIcon.RenderPng(
+            iconSize,
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Marquee,
+                TrayGraphDataSource.CPUAverage,
+                values));
+        byte[] memoryImageBytes = TaskManagerTrayIcon.RenderPng(
+            iconSize,
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Marquee,
+                TrayGraphDataSource.Memory,
+                values));
+
+        Assert.False(cpuImageBytes.SequenceEqual(memoryImageBytes));
     }
 }

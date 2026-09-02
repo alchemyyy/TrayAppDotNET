@@ -1,12 +1,10 @@
-using TrayAppDotNETCommon.UI.Controls.Curves;
-
 namespace TaskManagerTrayAppDotNET.UI.Tray;
 
 internal delegate double MarqueeSamplePlacementFunction(
     int currentSampleIndex,
     int numSamplesToDisplay);
 
-/// <summary>Builds a recency-weighted, monotonic marquee curve for the tray graph.</summary>
+/// <summary>Builds recency-weighted horizontal sample positions for the tray graph.</summary>
 internal static class TaskManagerTrayGraphSampler
 {
     private const double EndpointTolerance = 0.000000001;
@@ -72,48 +70,4 @@ internal static class TaskManagerTrayGraphSampler
         samplePositions[^1] = 1;
         return samplePositions;
     }
-
-    /// <summary>Samples the marquee history through a monotonic cubic Hermite spline.</summary>
-    internal static double[] SampleMarquee(
-        IReadOnlyList<double> values,
-        int sampleCount,
-        MarqueeSamplePlacementFunction? placementFunction = null)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        if (sampleCount <= 0) throw new ArgumentOutOfRangeException(nameof(sampleCount));
-
-        double[] samples = new double[sampleCount];
-        if (values.Count == 0) return samples;
-
-        double currentPercent = NormalizePercent(values[^1]);
-        if (values.Count == 1 || sampleCount == 1)
-        {
-            Array.Fill(samples, currentPercent);
-            return samples;
-        }
-
-        double[] timePoints = CreateSamplePositions(values.Count, placementFunction);
-        double[] valuePoints = new double[values.Count];
-        for (int valueIndex = 0; valueIndex < values.Count; valueIndex++)
-            valuePoints[valueIndex] = NormalizePercent(values[valueIndex]);
-
-        double[] tangents = TimeCurveSampler.ComputeMonotonicTangents(timePoints, valuePoints);
-        for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
-        {
-            double samplePosition = sampleIndex / (double)(sampleCount - 1);
-            samples[sampleIndex] = Math.Clamp(
-                TimeCurveSampler.InterpolateMonotonicCubic(
-                    timePoints,
-                    valuePoints,
-                    tangents,
-                    samplePosition),
-                min: 0,
-                max: 100);
-        }
-
-        return samples;
-    }
-
-    private static double NormalizePercent(double value) =>
-        double.IsFinite(value) ? Math.Clamp(value, min: 0, max: 100) : 0;
 }
