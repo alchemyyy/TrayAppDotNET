@@ -131,16 +131,12 @@
              Link="LICENSE.txt"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_NOTICES.txt"
-             Link="THIRD_PARTY_NOTICES.txt"
+    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_NOTICES"
+             Link="THIRD_PARTY_NOTICES"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(TrayAppDotNETRoot)SOURCE_CODE.txt"
-             Link="SOURCE_CODE.txt"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(TrayAppDotNETRoot)THIRD_PARTY_LICENSES\**\*"
-             Link="THIRD_PARTY_LICENSES\%(RecursiveDir)%(Filename)%(Extension)"
+    <Content Include="$(TrayAppDotNETRoot).notices\**\*"
+             Link=".notices\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

@@ -48,9 +48,8 @@ public sealed record TrayAppDotNETInstallPayload(
     bool CopySourceDirectoryRootFiles = false)
 {
     private const string LicenseFileName = "LICENSE.txt";
-    private const string SourceCodeFileName = "SOURCE_CODE.txt";
-    private const string ThirdPartyLicensesDirectoryName = "THIRD_PARTY_LICENSES";
-    private const string ThirdPartyNoticesFileName = "THIRD_PARTY_NOTICES.txt";
+    private const string ThirdPartyNoticesDirectoryName = ".notices";
+    private const string ThirdPartyNoticesFileName = "THIRD_PARTY_NOTICES";
 
     public IReadOnlyList<TrayAppDotNETInstallFile> InstalledFiles(string installedExecutableFileName) =>
     [
@@ -79,7 +78,7 @@ public sealed record TrayAppDotNETInstallPayload(
         ];
         TrayAppDotNETInstallDirectory[] resolvedRequiredDirectories =
         [
-            new(ThirdPartyLicensesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(ThirdPartyNoticesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
             .. ToDirectories(requiredDirectories ?? ["runtime"])
         ];
 
@@ -110,7 +109,7 @@ public sealed record TrayAppDotNETInstallPayload(
         ];
         TrayAppDotNETInstallDirectory[] resolvedRequiredDirectories =
         [
-            new(ThirdPartyLicensesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(ThirdPartyNoticesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),
             .. ToDirectories(requiredDirectories ?? [])
         ];
 
@@ -124,7 +123,6 @@ public sealed record TrayAppDotNETInstallPayload(
     private static TrayAppDotNETInstallFile[] CreateLegalFiles() =>
     [
         new(LicenseFileName, RemoveOnlyWhenInstallRootHasNoExe: true),
-        new(SourceCodeFileName, RemoveOnlyWhenInstallRootHasNoExe: true),
         new(ThirdPartyNoticesFileName, RemoveOnlyWhenInstallRootHasNoExe: true)
     ];
 
