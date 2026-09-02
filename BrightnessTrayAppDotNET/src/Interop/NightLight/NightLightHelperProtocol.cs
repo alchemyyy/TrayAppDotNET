@@ -7,7 +7,7 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 internal static class NightLightHelperProtocol
 {
     public const int Version = 1;
-    public const int MaximumLineLength = 512;
+    public const int MaximumLineLength = 511;
 
     public const string ServerArg = "--night-light-helper-server";
     public const string ParentProcessIDArg = "--parent-pid";
@@ -22,11 +22,13 @@ internal static class NightLightHelperProtocol
 
     public const string ReadyResponse = "READY";
     public const string UnsupportedResponse = "UNSUPPORTED";
+    public const string UnsupportedResponsePrefix = UnsupportedResponse + "\t";
     public const string ImageMismatchResponse = "IMAGE_MISMATCH";
     public const string SuccessResponse = "OK";
     public const string PongResponse = "PONG";
     public const string DrainedResponse = "DRAINED";
     public const string FailureResponse = "FAIL";
+    public const string FatalResponse = "FATAL";
 
     internal static readonly Encoding PipeEncoding = new UTF8Encoding(
         encoderShouldEmitUTF8Identifier: false,
@@ -107,6 +109,21 @@ internal static class NightLightHelperProtocol
         return enableStrength.HasValue
             ? string.Create(CultureInfo.InvariantCulture, $"{command}\t{enableStrength.Value}")
             : command;
+    }
+
+    /// <summary>Parses the native helper's bounded unsupported response and reason token.</summary>
+    public static bool TryParseUnsupportedResponse(string? response, out string reason)
+    {
+        reason = string.Empty;
+        if (response == null
+            || response.Length > MaximumLineLength
+            || !response.StartsWith(UnsupportedResponsePrefix, StringComparison.Ordinal)) return false;
+
+        string parsedReason = response[UnsupportedResponsePrefix.Length..];
+        if (parsedReason.Length == 0 || parsedReason.Contains('\t') || !IsASCII(parsedReason)) return false;
+
+        reason = parsedReason;
+        return true;
     }
 
     private static bool TryParseHex(string field, out uint value)

@@ -17,10 +17,8 @@ internal static class NightLightHelperClient
     private static readonly CancellationTokenSource ShutdownTokenSource = new();
     private static readonly List<Task> RetirementTasks = [];
 
-    private static readonly Lazy<Task<bool>> InitializationTask =
-        new(InitializeAsync, LazyThreadSafetyMode.ExecutionAndPublication);
-
     private static NightLightHelperConnection? _activeHelper;
+    private static Task<bool>? _initializationTask;
     private static Task<NightLightHelperConnection?>? _warmingHelperTask;
     private static Task? _pumpTask;
     private static Timer? _recycleQuietTimer;
@@ -29,25 +27,52 @@ internal static class NightLightHelperClient
     private static bool _shutdownRequested;
     private static long _lastQueuedStrengthTick;
 
-    internal static bool HasStartedInitialization => InitializationTask.IsValueCreated;
+    internal static bool HasStartedInitialization
+    {
+        get
+        {
+            lock (StateGate)
+                return _initializationTask != null;
+        }
+    }
 
     /// <summary>
     /// Starts and primes one helper, then waits until the production IPC pump is blocked and ready for input.
     /// </summary>
     public static bool IsSupported()
     {
+        Task<bool> initializationTask;
         lock (StateGate)
         {
             if (_shutdownRequested)
                 return false;
+
+            _initializationTask ??= InitializeAsync();
+            initializationTask = _initializationTask;
         }
 
         try
         {
-            return InitializationTask.Value.GetAwaiter().GetResult();
+            bool supported = initializationTask.GetAwaiter().GetResult();
+            if (!supported)
+            {
+                lock (StateGate)
+                {
+                    if (ReferenceEquals(_initializationTask, initializationTask))
+                        _initializationTask = null;
+                }
+            }
+
+            return supported;
         }
         catch (Exception ex)
         {
+            lock (StateGate)
+            {
+                if (ReferenceEquals(_initializationTask, initializationTask))
+                    _initializationTask = null;
+            }
+
             TADNLog.Log($"NightLightHelperClient.IsSupported: initialization failed: {ex.Message}");
             return false;
         }
@@ -94,24 +119,58 @@ internal static class NightLightHelperClient
 
         if (!IsSupported()) return false;
 
-        NightLightHelperConnection? helper = GetActiveHelper();
-        if (helper == null) return false;
-
         int? clampedStrength = enableStrength.HasValue
             ? Math.Clamp(enableStrength.Value, min: 0, max: 100)
             : null;
-        try
+        NightLightHelperConnection? helper = GetActiveHelper();
+        if (helper == null)
         {
-            return helper.SetEnabledAsync(enabled, clampedStrength, ShutdownTokenSource.Token)
+            bool recovered = RecoverActiveHelperAsync(failedHelper: null, ShutdownTokenSource.Token)
                 .GetAwaiter().GetResult();
+            helper = recovered ? GetActiveHelper() : null;
         }
-        catch (Exception ex)
+
+        const int maximumAttempts = 2;
+        for (int attempt = 0; attempt < maximumAttempts && helper != null; attempt++)
         {
-            TADNLog.Log(
-                $"NightLightHelperClient: helper PID {helper.ProcessID} active-state operation failed: "
-                + ex.Message);
-            return false;
+            NightLightHelperConnection attemptedHelper = helper;
+            try
+            {
+                bool succeeded = attemptedHelper.SetEnabledAsync(
+                        enabled,
+                        clampedStrength,
+                        ShutdownTokenSource.Token)
+                    .GetAwaiter().GetResult();
+                if (succeeded) return true;
+
+                NightLightHelperConnection? currentHelper = GetActiveHelper();
+                if (ReferenceEquals(currentHelper, attemptedHelper)) return false;
+
+                helper = currentHelper;
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"NightLightHelperClient: helper PID {attemptedHelper.ProcessID} "
+                    + "active-state operation failed: "
+                    + ex.Message);
+
+                NightLightHelperConnection failedHelper = attemptedHelper;
+                NightLightHelperConnection? currentHelper = GetActiveHelper();
+                if (currentHelper != null && !ReferenceEquals(currentHelper, failedHelper))
+                {
+                    TrackRetirement(failedHelper.StopAsync(false));
+                    helper = currentHelper;
+                    continue;
+                }
+
+                bool recovered = RecoverActiveHelperAsync(failedHelper, ShutdownTokenSource.Token)
+                    .GetAwaiter().GetResult();
+                helper = recovered ? GetActiveHelper() : null;
+            }
         }
+
+        return false;
     }
 
     /// <summary>
@@ -161,7 +220,18 @@ internal static class NightLightHelperClient
             return false;
         }
 
-        await PrimeInitialHelperAsync(helper, ShutdownTokenSource.Token).ConfigureAwait(false);
+        bool primed = await PrimeInitialHelperAsync(helper, ShutdownTokenSource.Token).ConfigureAwait(false);
+        if (!primed)
+        {
+            lock (StateGate)
+            {
+                if (ReferenceEquals(_activeHelper, helper))
+                    _activeHelper = null;
+            }
+
+            await helper.StopAsync(false).ConfigureAwait(false);
+            return false;
+        }
 
         TaskCompletionSource<bool> pumpReadySource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -182,7 +252,7 @@ internal static class NightLightHelperClient
         return true;
     }
 
-    private static async Task PrimeInitialHelperAsync(
+    private static async Task<bool> PrimeInitialHelperAsync(
         NightLightHelperConnection helper,
         CancellationToken cancellationToken)
     {
@@ -193,27 +263,29 @@ internal static class NightLightHelperClient
             {
                 TADNLog.Log(
                     $"NightLightHelperClient: helper PID {helper.ProcessID} rejected startup PING");
-                return;
+                return false;
             }
 
             if (!NightLightRegistry.IsEnabled())
-                return;
+                return true;
 
             int currentPercent = NightLightRegistry.GetStrength();
-            bool processed = await ProcessPendingStrengthAsync(currentPercent, cancellationToken)
+            bool processed = await helper.SetStrengthAsync(currentPercent, cancellationToken)
                 .ConfigureAwait(false);
-            NightLightHelperConnection? activeHelper = GetActiveHelper();
-            bool drained = processed && activeHelper != null &&
-                           await activeHelper.DrainAsync(cancellationToken).ConfigureAwait(false);
+            bool drained = processed && await helper.DrainAsync(cancellationToken).ConfigureAwait(false);
             if (!drained) TADNLog.Log("NightLightHelperClient: startup native streaming prime did not drain");
+
+            return drained || !NightLightRegistry.IsEnabled();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Expected when app shutdown overlaps startup
+            return false;
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NightLightHelperClient: startup prime failed: {ex.Message}");
+            return false;
         }
     }
 
@@ -642,8 +714,7 @@ internal static class NightLightHelperClient
             recycleQuietTimer = _recycleQuietTimer;
             _recycleQuietTimer = null;
             pumpTask = _pumpTask;
-            if (InitializationTask.IsValueCreated)
-                initializationTask = InitializationTask.Value;
+            initializationTask = _initializationTask;
         }
 
         try { recycleQuietTimer?.Dispose(); }
@@ -726,6 +797,7 @@ internal static class NightLightHelperClient
         private readonly StreamWriter _writer;
         private readonly StreamReader _reader;
         private readonly SemaphoreSlim _operationGate = new(initialCount: 1, maxCount: 1);
+        private int _faulted;
         private int _stopped;
 
         private NightLightHelperConnection(
@@ -750,9 +822,38 @@ internal static class NightLightHelperClient
         public static async Task<NightLightHelperConnection> StartAsync(
             CancellationToken cancellationToken)
         {
-            string? executablePath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(executablePath))
-                throw new InvalidOperationException("Current executable path is unavailable.");
+            if (!NightLightNativeBootstrapResolver.TryResolve(
+                    out NightLightNativeBootstrapDescriptor descriptor))
+            {
+                throw new InvalidOperationException(
+                    "The SettingsHandlers_Display native bootstrap could not be resolved.");
+            }
+
+            try
+            {
+                return await StartWithDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+            }
+            catch (NightLightImageMismatchException)
+            {
+                if (!NightLightNativeBootstrapResolver.TryRefreshAfterImageMismatch(
+                        descriptor,
+                        out NightLightNativeBootstrapDescriptor refreshedDescriptor))
+                {
+                    throw new InvalidOperationException(
+                        "The Night Light helper rejected the Windows image and refresh failed.");
+                }
+
+                // A second mismatch is terminal. Never loop symbol downloads against a changing image.
+                return await StartWithDescriptorAsync(refreshedDescriptor, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private static async Task<NightLightHelperConnection> StartWithDescriptorAsync(
+            NightLightNativeBootstrapDescriptor descriptor,
+            CancellationToken cancellationToken)
+        {
+            string executablePath = ResolveHelperExecutablePath();
 
             string pipeName = "BrightnessTrayAppNightLight_"
                               + Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
@@ -803,18 +904,35 @@ internal static class NightLightHelperClient
                     detectEncodingFromByteOrderMarks: false,
                     leaveOpen: true);
 
+                await writer.WriteLineAsync(descriptor.ToInitializationCommand())
+                    .ConfigureAwait(false);
+                await writer.FlushAsync(startupTokenSource.Token).ConfigureAwait(false);
+
                 Task<string?> readyTask = reader.ReadLineAsync();
                 string? readyResponse = await readyTask.WaitAsync(startupTokenSource.Token)
                     .ConfigureAwait(false);
-                return readyResponse switch
+                if (readyResponse is { Length: > NightLightHelperProtocol.MaximumLineLength })
+                    throw new IOException("Helper startup response exceeded the protocol limit.");
+
+                if (readyResponse == NightLightHelperProtocol.ReadyResponse)
                 {
-                    NightLightHelperProtocol.ReadyResponse => new NightLightHelperConnection(process, pipe, writer,
-                        reader),
-                    NightLightHelperProtocol.UnsupportedResponse => throw new InvalidOperationException(
-                        "Helper reported the native backend unsupported."),
-                    null => throw new IOException("Helper exited before its readiness response."),
-                    _ => throw new IOException($"Unknown helper readiness response '{readyResponse}'.")
-                };
+                    return new NightLightHelperConnection(process, pipe, writer, reader);
+                }
+
+                if (readyResponse == NightLightHelperProtocol.ImageMismatchResponse)
+                    throw new NightLightImageMismatchException();
+
+                if (NightLightHelperProtocol.TryParseUnsupportedResponse(
+                        readyResponse,
+                        out string unsupportedReason))
+                {
+                    throw new InvalidOperationException(
+                        $"Helper reported the native backend unsupported: {unsupportedReason}.");
+                }
+
+                throw readyResponse == null
+                    ? new IOException("Helper exited before its readiness response.")
+                    : new IOException($"Unknown helper readiness response '{readyResponse}'.");
             }
             catch
             {
@@ -835,6 +953,25 @@ internal static class NightLightHelperClient
             }
         }
 
+        private static string ResolveHelperExecutablePath()
+        {
+#if BRIGHTNESS_NATIVE_AOT
+            string? executablePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executablePath))
+                throw new InvalidOperationException("Current executable path is unavailable.");
+#else
+            string executablePath = Path.Combine(AppContext.BaseDirectory, Constants.NativeHelpersFileName);
+            if (!File.Exists(executablePath))
+                throw new FileNotFoundException("The native Night Light helper is missing.", executablePath);
+#endif
+
+            return executablePath;
+        }
+
+        private sealed class NightLightImageMismatchException : Exception
+        {
+        }
+
         public async Task<bool> SetStrengthAsync(int percent, CancellationToken cancellationToken)
         {
             string command = NightLightHelperProtocol.SerializeSetStrength(percent);
@@ -849,8 +986,10 @@ internal static class NightLightHelperClient
             {
                 NightLightHelperProtocol.SuccessResponse => true,
                 NightLightHelperProtocol.FailureResponse => false,
-                null => throw new IOException("Helper exited without an operation response."),
-                _ => throw new IOException($"Unknown helper operation response '{response}'.")
+                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
+                    "Helper reported a fatal native backend failure."),
+                null => throw CreateProtocolException("Helper exited without an operation response."),
+                _ => throw CreateProtocolException($"Unknown helper operation response '{response}'.")
             };
             if (accepted)
                 LastAcceptedPercent = percent;
@@ -874,8 +1013,10 @@ internal static class NightLightHelperClient
             {
                 NightLightHelperProtocol.SuccessResponse => true,
                 NightLightHelperProtocol.FailureResponse => false,
-                null => throw new IOException("Helper exited without an active-state response."),
-                _ => throw new IOException($"Unknown helper active-state response '{response}'.")
+                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
+                    "Helper reported a fatal native backend failure."),
+                null => throw CreateProtocolException("Helper exited without an active-state response."),
+                _ => throw CreateProtocolException($"Unknown helper active-state response '{response}'.")
             };
         }
 
@@ -891,8 +1032,10 @@ internal static class NightLightHelperClient
             {
                 NightLightHelperProtocol.PongResponse => true,
                 NightLightHelperProtocol.FailureResponse => false,
-                null => throw new IOException("Helper exited without a PING response."),
-                _ => throw new IOException($"Unknown helper PING response '{response}'.")
+                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
+                    "Helper reported a fatal native backend failure."),
+                null => throw CreateProtocolException("Helper exited without a PING response."),
+                _ => throw CreateProtocolException($"Unknown helper PING response '{response}'.")
             };
         }
 
@@ -908,8 +1051,10 @@ internal static class NightLightHelperClient
             {
                 NightLightHelperProtocol.DrainedResponse => true,
                 NightLightHelperProtocol.FailureResponse => false,
-                null => throw new IOException("Helper exited without a drain response."),
-                _ => throw new IOException($"Unknown helper drain response '{response}'.")
+                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
+                    "Helper reported a fatal native backend failure."),
+                null => throw CreateProtocolException("Helper exited without a drain response."),
+                _ => throw CreateProtocolException($"Unknown helper drain response '{response}'.")
             };
         }
 
@@ -919,7 +1064,7 @@ internal static class NightLightHelperClient
             string operationName,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _stopped) != 0)
+            if (Volatile.Read(ref _stopped) != 0 || Volatile.Read(ref _faulted) != 0)
                 throw new ObjectDisposedException(nameof(NightLightHelperConnection));
 
             using CancellationTokenSource operationTokenSource =
@@ -927,27 +1072,52 @@ internal static class NightLightHelperClient
             operationTokenSource.CancelAfter(timeoutMs);
 
             bool gateEntered = false;
+            bool commandMayHaveBeenSent = false;
             try
             {
                 await _operationGate.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
                 gateEntered = true;
-                if (Volatile.Read(ref _stopped) != 0)
+                if (Volatile.Read(ref _stopped) != 0 || Volatile.Read(ref _faulted) != 0)
                     throw new ObjectDisposedException(nameof(NightLightHelperConnection));
 
+                commandMayHaveBeenSent = true;
                 _writer.WriteLine(command);
                 _writer.Flush();
                 Task<string?> responseTask = _reader.ReadLineAsync();
-                return await responseTask.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
+                string? response = await responseTask.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
+                if (response is { Length: > NightLightHelperProtocol.MaximumLineLength })
+                    throw new IOException("Helper response exceeded the protocol limit.");
+
+                return response;
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                if (commandMayHaveBeenSent) MarkFaulted();
                 throw new TimeoutException($"Helper {operationName} exceeded {timeoutMs}ms.");
+            }
+            catch
+            {
+                if (commandMayHaveBeenSent) MarkFaulted();
+                throw;
             }
             finally
             {
                 if (gateEntered)
                     _operationGate.Release();
             }
+        }
+
+        private IOException CreateProtocolException(string message)
+        {
+            MarkFaulted();
+            return new IOException(message);
+        }
+
+        private void MarkFaulted()
+        {
+            if (Interlocked.Exchange(ref _faulted, value: 1) != 0) return;
+
+            KillProcess(_process);
         }
 
         public async Task StopAsync(bool graceful)
@@ -1032,217 +1202,5 @@ internal static class NightLightHelperClient
                 TADNLog.Log($"NightLightHelperClient.KillProcess failed: {ex.Message}");
             }
         }
-    }
-}
-
-/// <summary>
-/// Helper-process entry point that owns every SettingsHandlers_Display and CDP allocation.
-/// </summary>
-internal static class NightLightHelperServer
-{
-    private const int HelperPipeConnectTimeoutMs = 5_000;
-
-    public static bool TryRun(string[] args, out int exitCode)
-    {
-        exitCode = 0;
-        if (!HasArg(args, NightLightHelperProtocol.ServerArg)) return false;
-
-        StartParentWatchdog(ParseParentProcessID(args));
-        string? pipeName = ParseArgValue(args, NightLightHelperProtocol.PipeNameArg);
-        if (string.IsNullOrWhiteSpace(pipeName))
-        {
-            exitCode = 1;
-            return true;
-        }
-
-        try
-        {
-            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
-            pipe.Connect(HelperPipeConnectTimeoutMs);
-            using StreamReader reader = new(
-                pipe,
-                NightLightHelperProtocol.PipeEncoding,
-                detectEncodingFromByteOrderMarks: false,
-                leaveOpen: true);
-            using StreamWriter writer = new(
-                pipe,
-                NightLightHelperProtocol.PipeEncoding,
-                bufferSize: 1024,
-                leaveOpen: true) { AutoFlush = true };
-
-            bool supported = NightLightCloudStore.IsSupported();
-            writer.WriteLine(
-                supported
-                    ? NightLightHelperProtocol.ReadyResponse
-                    : NightLightHelperProtocol.UnsupportedResponse);
-            writer.Flush();
-            if (!supported)
-            {
-                exitCode = 1;
-                return true;
-            }
-
-            TADNLog.Log($"NightLightHelperServer: PID {Environment.ProcessId} ready");
-            RunLoop(reader, writer);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NightLightHelperServer.TryRun failed: {ex}");
-            exitCode = 1;
-            return true;
-        }
-        finally
-        {
-            NightLightCloudStore.Shutdown();
-            TADNLog.Shutdown();
-        }
-    }
-
-    private static void RunLoop(StreamReader reader, StreamWriter writer)
-    {
-        while (reader.ReadLine() is { } line)
-        {
-            if (line.Equals(NightLightHelperProtocol.ExitCommand, StringComparison.Ordinal))
-            {
-                _ = NightLightCloudStore.DrainStreamingAsync().GetAwaiter().GetResult();
-                return;
-            }
-
-            string response;
-            try
-            {
-                response = HandleCommand(line);
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"NightLightHelperServer command failed: {ex}");
-                response = NightLightHelperProtocol.FailureResponse;
-            }
-
-            writer.WriteLine(response);
-            writer.Flush();
-        }
-    }
-
-    internal static string HandleCommand(string line)
-    {
-        if (line.Equals(NightLightHelperProtocol.PingCommand, StringComparison.Ordinal))
-            return NightLightHelperProtocol.PongResponse;
-
-        if (line.Equals(NightLightHelperProtocol.DrainCommand, StringComparison.Ordinal))
-        {
-            return NightLightCloudStore.DrainStreamingAsync().GetAwaiter().GetResult()
-                ? NightLightHelperProtocol.DrainedResponse
-                : NightLightHelperProtocol.FailureResponse;
-        }
-
-        string[] fields = line.Split('\t');
-        if (fields.Length == 2
-            && fields[0].Equals(NightLightHelperProtocol.SetStrengthCommand, StringComparison.Ordinal))
-        {
-            if (!int.TryParse(
-                    fields[1],
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out int percent) || percent is < 0 or > 100)
-                return NightLightHelperProtocol.FailureResponse;
-
-            // Reject a late main-process queue item after an off transition. Pre-enable strength priming uses
-            // the ACTIVE command's combined transaction and therefore does not need this path while disabled.
-            return NightLightRegistry.IsEnabled() && NightLightCloudStore.TryQueueStreamingKelvin(percent)
-                ? NightLightHelperProtocol.SuccessResponse
-                : NightLightHelperProtocol.FailureResponse;
-        }
-
-        if (fields.Length is 2 or 3
-            && fields[0].Equals(NightLightHelperProtocol.SetEnabledCommand, StringComparison.Ordinal))
-        {
-            bool? parsedEnabled = fields[1] switch
-            {
-                "0" => false,
-                "1" => true,
-                _ => null
-            };
-            if (!parsedEnabled.HasValue) return NightLightHelperProtocol.FailureResponse;
-
-            bool enabled = parsedEnabled.Value;
-            int? enableStrength = null;
-            if (fields.Length == 3)
-            {
-                if (!enabled || !int.TryParse(
-                        fields[2],
-                        NumberStyles.Integer,
-                        CultureInfo.InvariantCulture,
-                        out int parsedStrength) || parsedStrength is < 0 or > 100)
-                    return NightLightHelperProtocol.FailureResponse;
-
-                enableStrength = parsedStrength;
-            }
-
-            return NightLightCloudStore.SetEnabledAsync(enabled, enableStrength).GetAwaiter().GetResult()
-                ? NightLightHelperProtocol.SuccessResponse
-                : NightLightHelperProtocol.FailureResponse;
-        }
-
-        return NightLightHelperProtocol.FailureResponse;
-    }
-
-    private static bool HasArg(string[] args, string name)
-    {
-        foreach (string argument in args)
-        {
-            if (argument.Equals(name, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static int? ParseParentProcessID(string[] args)
-    {
-        string? value = ParseArgValue(args, NightLightHelperProtocol.ParentProcessIDArg);
-        if (value != null &&
-            int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
-            return parentProcessID;
-
-        return null;
-    }
-
-    private static string? ParseArgValue(string[] args, string name)
-    {
-        for (int index = 0; index < args.Length - 1; index++)
-        {
-            if (args[index].Equals(name, StringComparison.OrdinalIgnoreCase))
-                return args[index + 1];
-        }
-
-        return null;
-    }
-
-    private static void StartParentWatchdog(int? parentProcessID)
-    {
-        if (parentProcessID is not ({ } parentPID and > 0)) return;
-
-        Thread watchdog = new(() => WatchParent(parentPID))
-        {
-            IsBackground = true, Name = "BrightnessTrayApp.NightLightHelperParentWatchdog"
-        };
-        watchdog.Start();
-    }
-
-    private static void WatchParent(int parentProcessID)
-    {
-        try
-        {
-            using Process parent = Process.GetProcessById(parentProcessID);
-            parent.WaitForExit();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NightLightHelperServer parent watchdog ended: {ex.Message}");
-        }
-
-        Environment.Exit(0);
     }
 }

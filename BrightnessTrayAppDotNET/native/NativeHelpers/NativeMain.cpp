@@ -14,12 +14,22 @@ extern "C" int __managed__Main(int argumentCount, wchar_t* arguments[]);
 
 namespace
 {
+    constexpr wchar_t NIGHT_LIGHT_HELPER_MODE_ARGUMENT[] = L"--night-light-helper-server";
+
     bool IsDDCHelperMode(int argumentCount, wchar_t* arguments[]) noexcept
     {
         return argumentCount > 1 &&
                arguments != nullptr &&
                arguments[1] != nullptr &&
                wcscmp(arguments[1], DDC_HELPER_MODE_ARGUMENT) == 0;
+    }
+
+    bool IsNightLightHelperMode(int argumentCount, wchar_t* arguments[]) noexcept
+    {
+        return argumentCount > 1 &&
+               arguments != nullptr &&
+               arguments[1] != nullptr &&
+               wcscmp(arguments[1], NIGHT_LIGHT_HELPER_MODE_ARGUMENT) == 0;
     }
 }
 
@@ -28,8 +38,9 @@ int __cdecl wmain(int argumentCount, wchar_t* arguments[])
 {
     if (IsDDCHelperMode(argumentCount, arguments))
         return BrightnessTrayAppDotNET::NativeHelpers::RunDDCHelper(argumentCount, arguments);
+    if (IsNightLightHelperMode(argumentCount, arguments))
+        return BrightnessTrayAppDotNET::NativeHelpers::RunNightLightHelper(argumentCount, arguments);
 
-    // Night Light remains managed until its native backend is linked into this dispatcher.
     return __managed__Main(argumentCount, arguments);
 }
 #else
@@ -43,6 +54,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     int exitCode = ERROR_INVALID_PARAMETER;
     if (IsDDCHelperMode(argumentCount, arguments))
         exitCode = BrightnessTrayAppDotNET::NativeHelpers::RunDDCHelper(argumentCount, arguments);
+    else if (IsNightLightHelperMode(argumentCount, arguments))
+        exitCode = BrightnessTrayAppDotNET::NativeHelpers::RunNightLightHelper(argumentCount, arguments);
 
     LocalFree(arguments);
     return exitCode;

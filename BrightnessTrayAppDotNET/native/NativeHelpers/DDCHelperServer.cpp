@@ -63,8 +63,21 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
 
             ~PhysicalMonitorHandles() noexcept
             {
-                if (!_monitors.empty())
-                    DestroyPhysicalMonitors(static_cast<DWORD>(_monitors.size()), _monitors.data());
+                DWORD cleanupError = ERROR_SUCCESS;
+                for (PHYSICAL_MONITOR& monitor : _monitors)
+                {
+                    if (monitor.hPhysicalMonitor == nullptr)
+                        continue;
+
+                    if (!DestroyPhysicalMonitor(monitor.hPhysicalMonitor) && cleanupError == ERROR_SUCCESS)
+                        cleanupError = GetLastError();
+
+                    monitor.hPhysicalMonitor = nullptr;
+                }
+
+                // A replacement helper is safer than retaining an unknown driver handle for process lifetime.
+                if (cleanupError != ERROR_SUCCESS)
+                    (void)TerminateProcess(GetCurrentProcess(), cleanupError);
             }
 
             bool Open(HMONITOR monitorHandle, DWORD* error)
@@ -86,7 +99,6 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
                 if (!GetPhysicalMonitorsFromHMONITOR(monitorHandle, monitorCount, _monitors.data()))
                 {
                     *error = GetLastError();
-                    _monitors.clear();
                     return false;
                 }
 

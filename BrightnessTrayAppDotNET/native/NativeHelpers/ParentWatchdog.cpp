@@ -10,7 +10,8 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             DWORD waitResult = WaitForSingleObject(parentProcess, INFINITE);
             DWORD exitCode = waitResult == WAIT_OBJECT_0 ? ERROR_SUCCESS : GetLastError();
             CloseHandle(parentProcess);
-            ExitProcess(exitCode);
+            (void)TerminateProcess(GetCurrentProcess(), exitCode);
+            return exitCode;
         }
     }
 

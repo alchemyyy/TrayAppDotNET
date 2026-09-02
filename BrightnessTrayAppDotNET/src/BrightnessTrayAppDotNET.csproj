@@ -25,17 +25,24 @@
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
     <NativeHelpersFileName>BrightnessTrayAppDotNET.NativeHelpers.exe</NativeHelpersFileName>
     <NativeHelpersSourceDirectory>$(MSBuildProjectDirectory)\..\native\NativeHelpers</NativeHelpersSourceDirectory>
-    <NativeHelpersIntermediateDirectory>$(MSBuildProjectDirectory)\..\obj\native</NativeHelpersIntermediateDirectory>
+    <NativeHelpersIntermediateDirectory>$(MSBuildProjectDirectory)\..\obj\native\x64</NativeHelpersIntermediateDirectory>
     <NativeHelpersConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeHelpersConfiguration>
     <NativeHelpersConfiguration Condition="'$(NativeHelpersConfiguration)' == ''">Release</NativeHelpersConfiguration>
-    <NativeHelpersBuildDirectory>$(NativeHelpersIntermediateDirectory)\$(NativeHelpersConfiguration)</NativeHelpersBuildDirectory>
-    <NativeHelpersExecutable>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersFileName)</NativeHelpersExecutable>
     <NativeHelpersLibraryFileName>BrightnessTrayAppDotNET.NativeHelpers.NativeAOT.lib</NativeHelpersLibraryFileName>
-    <NativeHelpersLibrary>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersLibraryFileName)</NativeHelpersLibrary>
     <TrayAppDotNETAdditionalUnlockProcessNames>BrightnessTrayAppDotNET.NativeHelpers</TrayAppDotNETAdditionalUnlockProcessNames>
+    <BrightnessNativeHelpersEmbedded Condition="'$(RuntimeIdentifier)' != ''
+                                                and '$(PublishAot)' == 'true'
+                                                and '$(Configuration)' != 'Debug'
+                                                and '$(Configuration)' != 'Prerelease'">true</BrightnessNativeHelpersEmbedded>
+    <BrightnessNativeHelpersEmbedded Condition="'$(BrightnessNativeHelpersEmbedded)' == ''">false</BrightnessNativeHelpersEmbedded>
+    <NativeHelpersBuildFlavor Condition="'$(BrightnessNativeHelpersEmbedded)' == 'true'">AOT</NativeHelpersBuildFlavor>
+    <NativeHelpersBuildFlavor Condition="'$(NativeHelpersBuildFlavor)' == ''">Sidecar</NativeHelpersBuildFlavor>
+    <NativeHelpersBuildDirectory>$(NativeHelpersIntermediateDirectory)\$(NativeHelpersConfiguration)\$(NativeHelpersBuildFlavor)</NativeHelpersBuildDirectory>
+    <NativeHelpersExecutable>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersFileName)</NativeHelpersExecutable>
+    <NativeHelpersLibrary>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersLibraryFileName)</NativeHelpersLibrary>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+  <PropertyGroup Condition="'$(BrightnessNativeHelpersEmbedded)' == 'true'">
     <SelfContained>true</SelfContained>
     <PublishAot>true</PublishAot>
     <PublishSingleFile>false</PublishSingleFile>
@@ -121,6 +128,8 @@
     <NativeLibrary Include="Advapi32.lib"
                    Condition="'$(CustomNativeMain)' == 'true'" />
     <NativeLibrary Include="Dxva2.lib"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
+    <NativeLibrary Include="RuntimeObject.lib"
                    Condition="'$(CustomNativeMain)' == 'true'" />
     <NativeLibrary Include="Shell32.lib"
                    Condition="'$(CustomNativeMain)' == 'true'" />

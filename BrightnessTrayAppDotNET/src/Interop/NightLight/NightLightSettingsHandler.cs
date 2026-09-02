@@ -2,8 +2,8 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
 /// <summary>
 /// Drives the night-light kelvin slider through <see cref="NightLightHelperClient"/>. The recyclable helper
-/// process owns <see cref="NightLightCloudStore"/> and every native SettingsHandlers/CDP allocation.
-/// <c>NightLightCloudStore</c> calls <c>BlueLightSingleton::SetTargetColorTemperature</c> by RVA.
+/// process is entirely native and owns every SettingsHandlers/CDP allocation.
+/// It calls <c>BlueLightSingleton::SetTargetColorTemperature</c> by a validated RVA.
 /// That triggers <c>SaveSettingsAsync</c> on SHTaskPool,
 /// where the eventual <c>ICloudStore::Save</c> succeeds and bumps the CloudStore version
 /// - which is what the BlueLightReductionService watcher fires on,

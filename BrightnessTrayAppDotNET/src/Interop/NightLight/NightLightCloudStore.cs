@@ -8,8 +8,8 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
 /// <summary>
 /// Drives the night-light kelvin slider by calling <c>BlueLightSingleton::SetTargetColorTemperature</c> via
-/// RVA in <c>SettingsHandlers_Display.dll</c>. Production loads this type only inside the recyclable Night Light
-/// helper process so process exit reclaims CDP allocations retained by the Windows implementation. That path:
+/// RVA in <c>SettingsHandlers_Display.dll</c>. This managed implementation is retained only for direct diagnostic
+/// test runners; production uses the recyclable native helper. The diagnostic path:
 /// <list type="number">
 ///   <item>writes the new kelvin into the singleton's <c>cloud_store_data&lt;Settings&gt;</c>;</item>
 ///   <item>calls <c>BlueLightSingleton::SaveSettingsAsync</c>, which queues

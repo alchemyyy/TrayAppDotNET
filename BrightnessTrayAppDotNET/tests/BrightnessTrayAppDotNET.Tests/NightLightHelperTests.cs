@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.IO.Pipes;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 using BrightnessTrayAppDotNET.Models;
 using BrightnessTrayAppDotNET.Services;
@@ -80,24 +83,89 @@ public sealed class NightLightHelperTests
             Constants.NightLightHelperRecycleOperationCount));
     }
 
-    [Fact]
-    public void PingProtocolDoesNotEnterNativeBackend()
+    [Theory]
+    [InlineData("UNSUPPORTED\tinvalid-init", true, "invalid-init")]
+    [InlineData("UNSUPPORTED", false, "")]
+    [InlineData("UNSUPPORTED\t", false, "")]
+    [InlineData("UNSUPPORTED\treason\textra", false, "")]
+    [InlineData("FAIL", false, "")]
+    public void UnsupportedResponseRequiresOneReasonToken(
+        string response,
+        bool expected,
+        string expectedReason)
     {
-        string response = NightLightHelperServer.HandleCommand(NightLightHelperProtocol.PingCommand);
+        bool parsed = NightLightHelperProtocol.TryParseUnsupportedResponse(response, out string reason);
 
-        Assert.Equal(NightLightHelperProtocol.PongResponse, response);
+        Assert.Equal(expected, parsed);
+        Assert.Equal(expectedReason, reason);
     }
 
-    [Theory]
-    [InlineData("ACTIVE")]
-    [InlineData("ACTIVE\t2")]
-    [InlineData("ACTIVE\t0\t50")]
-    [InlineData("ACTIVE\t1\t101")]
-    public void InvalidActiveStateCommandsAreRejected(string command)
+    [Fact]
+    public void ActiveCommandSerializerRejectsInvalidCombinations()
     {
-        string response = NightLightHelperServer.HandleCommand(command);
+        Assert.Throws<ArgumentException>(
+            () => NightLightHelperProtocol.SerializeSetEnabled(enabled: false, enableStrength: 50));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => NightLightHelperProtocol.SerializeSetEnabled(enabled: true, enableStrength: 101));
+    }
 
-        Assert.Equal(NightLightHelperProtocol.FailureResponse, response);
+    [Fact]
+    public async Task NativeSidecarRejectsMalformedInitialization()
+    {
+        string helperPath = Path.Combine(AppContext.BaseDirectory, Constants.NativeHelpersFileName);
+        Assert.True(File.Exists(helperPath), $"Native helper is missing at '{helperPath}'.");
+
+        string pipeName = "BrightnessTrayAppNightLightTest_" + Guid.NewGuid().ToString("N");
+        await using NamedPipeServerStream pipe = new(
+            pipeName,
+            PipeDirection.InOut,
+            maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous);
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = helperPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        startInfo.ArgumentList.Add(NightLightHelperProtocol.ServerArg);
+        startInfo.ArgumentList.Add(NightLightHelperProtocol.ParentProcessIDArg);
+        startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add(NightLightHelperProtocol.PipeNameArg);
+        startInfo.ArgumentList.Add(pipeName);
+
+        using Process process = Process.Start(startInfo)
+                                ?? throw new InvalidOperationException("Native helper process did not start.");
+        try
+        {
+            await pipe.WaitForConnectionAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            using StreamReader reader = new(
+                pipe,
+                NightLightHelperProtocol.PipeEncoding,
+                detectEncodingFromByteOrderMarks: false,
+                leaveOpen: true);
+            using StreamWriter writer = new(
+                pipe,
+                NightLightHelperProtocol.PipeEncoding,
+                bufferSize: 1024,
+                leaveOpen: true)
+            {
+                AutoFlush = true
+            };
+
+            await writer.WriteLineAsync("INIT\tinvalid");
+            string? response = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal("UNSUPPORTED\tinvalid-init", response);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.NotEqual(0, process.ExitCode);
+        }
+        finally
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
     }
 
     [Theory]
