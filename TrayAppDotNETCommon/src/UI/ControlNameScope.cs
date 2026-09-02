@@ -308,6 +308,11 @@ public sealed class ControlNameScope
 
     private static bool TrySetName(StyledElement element, string name)
     {
+        // Avalonia freezes Name when styling reaches a rooted logical subtree
+        if (element is not TopLevel
+            && (element.IsInitialized || ((ILogical)element).IsAttachedToLogicalTree))
+            return false;
+
         try
         {
             element.Name = name;
