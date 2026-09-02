@@ -53,6 +53,9 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         /// Returns the startup failure recorded by the MTA thread.
         NightLightBackendStartError GetStartError() const noexcept;
 
+        /// Returns whether the MTA thread can still accept backend work.
+        bool IsHealthy() const noexcept;
+
         /// Queues one latest-wins strength update in the inclusive range 0 through 100.
         bool QueueStrengthPercent(int percent) noexcept;
 
@@ -66,6 +69,13 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         bool Shutdown() noexcept;
 
     private:
+        enum class NativeOperationResult : std::uint32_t
+        {
+            Succeeded,
+            Failed,
+            Fatal
+        };
+
         enum class SynchronousRequestKind : std::uint32_t
         {
             None,
@@ -99,8 +109,11 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         WorkItem TakeWork() noexcept;
         bool ProcessStreamingKelvin(int kelvin) noexcept;
         bool DrainStreamingOnMTAThread() noexcept;
-        bool SaveSettingsKelvinOnMTAThread(int kelvin) noexcept;
-        bool SetActiveOnMTAThread(bool enabled, bool hasEnableStrength, int enableStrength) noexcept;
+        NativeOperationResult SaveSettingsKelvinOnMTAThread(int kelvin) noexcept;
+        NativeOperationResult SetActiveOnMTAThread(
+            bool enabled,
+            bool hasEnableStrength,
+            int enableStrength) noexcept;
         bool SubmitSynchronousRequest(
             SynchronousRequestKind kind,
             bool enabled,

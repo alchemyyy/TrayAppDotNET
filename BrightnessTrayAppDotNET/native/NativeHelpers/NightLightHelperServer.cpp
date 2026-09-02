@@ -40,6 +40,7 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         constexpr std::string_view PONG_RESPONSE = "PONG";
         constexpr std::string_view DRAINED_RESPONSE = "DRAINED";
         constexpr std::string_view FAILURE_RESPONSE = "FAIL";
+        constexpr std::string_view FATAL_RESPONSE = "FATAL";
 
         struct HelperArguments
         {
@@ -686,6 +687,13 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             }
 
             *shouldExit = false;
+            if (!backend->IsHealthy())
+            {
+                *response = FATAL_RESPONSE;
+                *shouldExit = true;
+                return true;
+            }
+
             if (line == PING_COMMAND)
             {
                 *response = PONG_RESPONSE;
@@ -694,7 +702,21 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
 
             if (line == DRAIN_COMMAND)
             {
-                *response = backend->Drain() ? DRAINED_RESPONSE : FAILURE_RESPONSE;
+                bool drainSucceeded = backend->Drain();
+                if (drainSucceeded)
+                {
+                    *response = DRAINED_RESPONSE;
+                    return true;
+                }
+
+                if (!backend->IsHealthy())
+                {
+                    *response = FATAL_RESPONSE;
+                    *shouldExit = true;
+                    return true;
+                }
+
+                *response = FAILURE_RESPONSE;
                 return true;
             }
 
@@ -716,10 +738,22 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             if (fieldCount == 2U && fields[0] == SET_STRENGTH_COMMAND)
             {
                 int percent = 0;
-                *response = TryParsePercent(fields[1], &percent)
-                    && backend->QueueStrengthPercent(percent)
-                    ? SUCCESS_RESPONSE
-                    : FAILURE_RESPONSE;
+                bool setSucceeded = TryParsePercent(fields[1], &percent)
+                    && backend->QueueStrengthPercent(percent);
+                if (setSucceeded)
+                {
+                    *response = SUCCESS_RESPONSE;
+                    return true;
+                }
+
+                if (!backend->IsHealthy())
+                {
+                    *response = FATAL_RESPONSE;
+                    *shouldExit = true;
+                    return true;
+                }
+
+                *response = FAILURE_RESPONSE;
                 return true;
             }
 
@@ -745,9 +779,24 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
                     return true;
                 }
 
-                *response = backend->SetActive(enabled, hasEnableStrength, enableStrength)
-                    ? SUCCESS_RESPONSE
-                    : FAILURE_RESPONSE;
+                bool activeSucceeded = backend->SetActive(
+                    enabled,
+                    hasEnableStrength,
+                    enableStrength);
+                if (activeSucceeded)
+                {
+                    *response = SUCCESS_RESPONSE;
+                    return true;
+                }
+
+                if (!backend->IsHealthy())
+                {
+                    *response = FATAL_RESPONSE;
+                    *shouldExit = true;
+                    return true;
+                }
+
+                *response = FAILURE_RESPONSE;
                 return true;
             }
 
@@ -819,14 +868,14 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
                     return ERROR_INVALID_DATA;
                 }
 
+                if (!response.empty() && !channel.WriteLine(response))
+                {
+                    return ERROR_BROKEN_PIPE;
+                }
+
                 if (shouldExit)
                 {
                     return ERROR_SUCCESS;
-                }
-
-                if (!channel.WriteLine(response))
-                {
-                    return ERROR_BROKEN_PIPE;
                 }
             }
 
@@ -836,13 +885,19 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
 
     int RunNightLightHelper(int argumentCount, wchar_t* arguments[]) noexcept
     {
+        int exitCode = ERROR_UNHANDLED_EXCEPTION;
         try
         {
-            return RunNightLightHelperCore(argumentCount, arguments);
+            exitCode = RunNightLightHelperCore(argumentCount, arguments);
         }
         catch (...)
         {
-            return ERROR_UNHANDLED_EXCEPTION;
+            exitCode = ERROR_UNHANDLED_EXCEPTION;
         }
+
+        // SettingsHandlers loads Geolocation, whose process-detach path can block on outstanding async work.
+        // Run the local destructors above, then bypass DLL detach for this disposable helper process.
+        (void)TerminateProcess(GetCurrentProcess(), static_cast<UINT>(exitCode));
+        return exitCode;
     }
 }

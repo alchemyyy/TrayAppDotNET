@@ -784,6 +784,22 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         return _startError;
     }
 
+    bool NightLightBackend::IsHealthy() const noexcept
+    {
+        HANDLE thread = nullptr;
+        {
+            SRWExclusiveLockGuard lock(&_stateLock);
+            if (!_healthy || _stopRequested)
+            {
+                return false;
+            }
+
+            thread = _thread;
+        }
+
+        return thread != nullptr && WaitForSingleObject(thread, 0U) == WAIT_TIMEOUT;
+    }
+
     bool NightLightBackend::QueueStrengthPercent(int percent) noexcept
     {
         if (percent < 0 || percent > 100 || !IsNightLightEnabled())
@@ -803,7 +819,13 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             _lastStreamingRequestTick = GetTickCount64();
         }
 
-        return SetEvent(_workEvent) != FALSE;
+        if (SetEvent(_workEvent) == FALSE)
+        {
+            MarkUnhealthy();
+            return false;
+        }
+
+        return true;
     }
 
     bool NightLightBackend::Drain() noexcept
@@ -928,6 +950,8 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             case WorkKind::ReleasePreview:
                 if (_previewActive && !TryCallSetPreview(_setPreview, _singleton, 0U))
                 {
+                    // The undocumented call may have changed state before faulting.
+                    (void)TryCallSetPreview(_setPreview, _singleton, 0U);
                     MarkUnhealthy();
                     keepRunning = false;
                     break;
@@ -939,23 +963,38 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
             case WorkKind::Drain:
             {
                 bool drainResult = DrainStreamingOnMTAThread();
-                CompleteSynchronousRequest(drainResult);
                 if (!drainResult)
                 {
                     MarkUnhealthy();
                     keepRunning = false;
+                    break;
                 }
+
+                CompleteSynchronousRequest(true);
                 break;
             }
 
             case WorkKind::SetActive:
             {
-                bool activeResult = DrainStreamingOnMTAThread()
-                    && SetActiveOnMTAThread(
-                        work.Enabled,
-                        work.HasEnableStrength,
-                        work.EnableStrength);
-                CompleteSynchronousRequest(activeResult);
+                if (!DrainStreamingOnMTAThread())
+                {
+                    MarkUnhealthy();
+                    keepRunning = false;
+                    break;
+                }
+
+                NativeOperationResult activeResult = SetActiveOnMTAThread(
+                    work.Enabled,
+                    work.HasEnableStrength,
+                    work.EnableStrength);
+                if (activeResult == NativeOperationResult::Fatal)
+                {
+                    MarkUnhealthy();
+                    keepRunning = false;
+                    break;
+                }
+
+                CompleteSynchronousRequest(activeResult == NativeOperationResult::Succeeded);
                 break;
             }
 
@@ -1100,6 +1139,11 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
 
         if (!TryCallSetTemperature(_setTemperature, _singleton, kelvin))
         {
+            if (_previewActive)
+            {
+                (void)TryCallSetPreview(_setPreview, _singleton, 0U);
+            }
+
             return false;
         }
 
@@ -1107,6 +1151,8 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         {
             if (!TryCallSetPreview(_setPreview, _singleton, 1U))
             {
+                // The undocumented call may have enabled preview before faulting.
+                (void)TryCallSetPreview(_setPreview, _singleton, 0U);
                 return false;
             }
 
@@ -1142,6 +1188,8 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         {
             if (!TryCallSetPreview(_setPreview, _singleton, 0U))
             {
+                // Retry once so a partially completed call does not leave preview enabled.
+                (void)TryCallSetPreview(_setPreview, _singleton, 0U);
                 return false;
             }
 
@@ -1151,32 +1199,37 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         return true;
     }
 
-    bool NightLightBackend::SaveSettingsKelvinOnMTAThread(int kelvin) noexcept
+    NightLightBackend::NativeOperationResult NightLightBackend::SaveSettingsKelvinOnMTAThread(
+        int kelvin) noexcept
     {
         RegistryNotification temperatureNotification(SETTINGS_BLOB_KEY_PATH);
         if (!TryCallSetTemperature(_setTemperature, _singleton, kelvin))
         {
-            return false;
+            return NativeOperationResult::Fatal;
         }
         temperatureNotification.WaitForSave();
 
         RegistryNotification previewOnNotification(SETTINGS_BLOB_KEY_PATH);
         if (!TryCallSetPreview(_setPreview, _singleton, 1U))
         {
-            return false;
+            // The undocumented call may have enabled preview before faulting.
+            (void)TryCallSetPreview(_setPreview, _singleton, 0U);
+            return NativeOperationResult::Fatal;
         }
         previewOnNotification.WaitForSave();
 
         RegistryNotification previewOffNotification(SETTINGS_BLOB_KEY_PATH);
         if (!TryCallSetPreview(_setPreview, _singleton, 0U))
         {
-            return false;
+            // Retry once so a partially completed call does not leave preview enabled.
+            (void)TryCallSetPreview(_setPreview, _singleton, 0U);
+            return NativeOperationResult::Fatal;
         }
         previewOffNotification.WaitForSave();
-        return true;
+        return NativeOperationResult::Succeeded;
     }
 
-    bool NightLightBackend::SetActiveOnMTAThread(
+    NightLightBackend::NativeOperationResult NightLightBackend::SetActiveOnMTAThread(
         bool enabled,
         bool hasEnableStrength,
         int enableStrength) noexcept
@@ -1184,9 +1237,10 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         if (enabled && hasEnableStrength)
         {
             int kelvin = PercentToKelvin(enableStrength);
-            if (!SaveSettingsKelvinOnMTAThread(kelvin))
+            NativeOperationResult saveResult = SaveSettingsKelvinOnMTAThread(kelvin);
+            if (saveResult != NativeOperationResult::Succeeded)
             {
-                return false;
+                return saveResult;
             }
         }
 
@@ -1194,7 +1248,7 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
         RegistryNotification stateNotification(STATE_BLOB_KEY_PATH);
         if (!TryCallSetActive(_setActive, _singleton, enabled ? 1U : 0U))
         {
-            return false;
+            return NativeOperationResult::Fatal;
         }
         stateNotification.WaitForSave();
 
@@ -1205,16 +1259,19 @@ namespace BrightnessTrayAppDotNET::NativeHelpers
                 && status.IsInitialized
                 && status.IsEnabled == enabled)
             {
-                return true;
+                return NativeOperationResult::Succeeded;
             }
 
             Sleep(NIGHT_LIGHT_STATE_READBACK_POLL_MS);
         }
 
         NightLightStateStatus finalStatus{};
-        return ReadNightLightState(&finalStatus)
+        bool matchesRequestedState = ReadNightLightState(&finalStatus)
             && finalStatus.IsInitialized
             && finalStatus.IsEnabled == enabled;
+        return matchesRequestedState
+            ? NativeOperationResult::Succeeded
+            : NativeOperationResult::Failed;
     }
 
     bool NightLightBackend::SubmitSynchronousRequest(
