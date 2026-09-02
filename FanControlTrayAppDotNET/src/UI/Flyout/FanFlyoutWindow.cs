@@ -256,9 +256,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     protected override bool HasOpenChildWindow =>
         _addItemMenu?.IsVisible == true
-        || _fanPropertiesWindows.Values.Any(window => window.IsVisible)
-        || _fanCurveEditorWindows.Any(window => window.IsVisible)
-        || _probeSelectorWindows.Values.Any(window => window.IsVisible)
         || _isUpdateDialogOpen;
 
     protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
@@ -5078,7 +5075,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (sender is not FanCurveEditorWindow window) return;
         ReleaseChildWindowSubscription(window);
         _fanCurveEditorWindows.Remove(window);
-        NotifyChildWindowClosedFromDeactivation();
     }
 
     /// <summary>
@@ -5091,7 +5087,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ProbeCard? probeCard = _probeSelectorWindows.FirstOrDefault(kv => ReferenceEquals(kv.Value, window)).Key;
         if (probeCard != null)
             _probeSelectorWindows.Remove(probeCard);
-        NotifyChildWindowClosedFromDeactivation();
     }
 
     private static Curve CreateCurveForFan(Fan fan)
@@ -5171,7 +5166,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         PositionFanPropertiesWindows();
-        NotifyChildWindowClosedFromDeactivation();
     }
 
     private void PositionFanPropertiesWindows()

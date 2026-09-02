@@ -405,6 +405,36 @@ public sealed class SecondaryWindowLifetimeTests
         settingsWindow.Close();
     });
 
+    [Theory]
+    [InlineData(true, false, false, true, true)]
+    [InlineData(true, true, false, true, false)]
+    [InlineData(true, false, true, true, false)]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(false, false, false, true, false)]
+    public void FlyoutCompanionFocusGroupRequiresTheWholeGroupToBeInactive(
+        bool isFlyoutVisible,
+        bool isFlyoutActive,
+        bool hasActiveCompanionWindow,
+        bool canHideInactiveFocusGroup,
+        bool expected)
+    {
+        bool shouldHide = FlyoutWindowCommon.ShouldHideFocusGroup(
+            isFlyoutVisible,
+            isFlyoutActive,
+            hasActiveCompanionWindow,
+            canHideInactiveFocusGroup);
+
+        Assert.Equal(expected, shouldHide);
+    }
+
+    [Fact]
+    public void FlyoutCompanionWindowsAreResizableByDefault() => AvaloniaTestHost.Run(() =>
+    {
+        TestFlyoutCompanionWindow companionWindow = new();
+
+        Assert.True(companionWindow.CanResize);
+    });
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static (TrayAppDotNETColorPickerWindow Picker, WeakReference ListenerReference) CreateColorPicker()
     {
@@ -530,6 +560,8 @@ public sealed class SecondaryWindowLifetimeTests
             Hide();
         }
     }
+
+    private sealed class TestFlyoutCompanionWindow : FlyoutCompanionWindow;
 
     private sealed class FakeWarmWindow : Window, ITrayAppDotNETWarmWindow, ITrayAppDotNETWarmResourceOwner
     {

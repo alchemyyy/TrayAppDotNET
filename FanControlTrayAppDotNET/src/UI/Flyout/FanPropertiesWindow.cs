@@ -15,7 +15,7 @@ using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
-public sealed partial class FanPropertiesWindow : Window
+public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 {
     private const int DutyCycleMinimum = 0;
     private const int DutyCycleMaximum = 100;
@@ -224,10 +224,8 @@ public sealed partial class FanPropertiesWindow : Window
         _layout = AxamlFanProperties;
         Width = Layout.WindowWidth;
         Height = Layout.WindowHeight;
-        MinWidth = Layout.WindowWidth;
-        MinHeight = Layout.WindowHeight;
-        MaxWidth = Layout.WindowWidth;
-        MaxHeight = Layout.WindowHeight;
+        MinWidth = Layout.WindowMinWidth;
+        MinHeight = Layout.WindowMinHeight;
     }
 
 #if DEBUG

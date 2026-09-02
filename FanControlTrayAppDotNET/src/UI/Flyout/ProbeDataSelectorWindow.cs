@@ -19,7 +19,7 @@ namespace FanControlTrayAppDotNET.UI.Flyout;
 /// <summary>
 /// Window for selecting and transforming probe data shown by a probe card.
 /// </summary>
-public sealed partial class ProbeDataSelectorWindow : Window
+public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
 {
     private const string NicknameTargetControlAnchor = "NicknameTargetRegex";
     private const string NicknameReplacementControlAnchor = "NicknameReplacement";
@@ -144,10 +144,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _layout = AxamlProbeSelector;
         Width = Layout.WindowWidth;
         Height = Layout.WindowHeight;
-        MinWidth = Layout.WindowWidth;
-        MinHeight = Layout.WindowHeight;
-        MaxWidth = Layout.WindowWidth;
-        MaxHeight = Layout.WindowHeight;
+        MinWidth = Layout.WindowMinWidth;
+        MinHeight = Layout.WindowMinHeight;
     }
 
     /// <summary>

@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     Title="Probe Card Editor"
-    CanResize="False"
+    CanResize="True"
     Background="Transparent"
     ShowInTaskbar="False"
     Topmost="True"
@@ -14,6 +14,8 @@
         <!-- Window and tab geometry -->
         <sys:Double x:Key="ProbeSelector.WindowWidth">962</sys:Double>
         <sys:Double x:Key="ProbeSelector.WindowHeight">500</sys:Double>
+        <sys:Double x:Key="ProbeSelector.WindowMinWidth">962</sys:Double>
+        <sys:Double x:Key="ProbeSelector.WindowMinHeight">400</sys:Double>
         <sys:Double x:Key="ProbeSelector.TabRowHeight">28</sys:Double>
         <sys:Double x:Key="ProbeSelector.TabWidth">116</sys:Double>
         <sys:Double x:Key="ProbeSelector.TabFontSize">13</sys:Double>

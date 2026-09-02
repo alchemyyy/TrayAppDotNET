@@ -4,8 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     Title="Fan Properties"
-    WindowDecorations="None"
-    CanResize="False"
+    WindowDecorations="BorderOnly"
+    ExtendClientAreaToDecorationsHint="True"
+    CanResize="True"
     Background="Transparent"
     ShowInTaskbar="False"
     Topmost="True"
@@ -15,6 +16,8 @@
         <!-- Window geometry -->
         <sys:Double x:Key="FanProperties.WindowWidth">800</sys:Double>
         <sys:Double x:Key="FanProperties.WindowHeight">500</sys:Double>
+        <sys:Double x:Key="FanProperties.WindowMinWidth">640</sys:Double>
+        <sys:Double x:Key="FanProperties.WindowMinHeight">360</sys:Double>
         <sys:Double x:Key="FanProperties.TitleBarHeight">32</sys:Double>
         <sys:Double x:Key="FanProperties.FooterHeight">42</sys:Double>
         <sys:Double x:Key="FanProperties.BodyLeftColumnWidth">400</sys:Double>

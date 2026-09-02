@@ -15,8 +15,10 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         TrayAppDotNETWarmWindowDefaults.OffscreenPosition);
 
     private readonly UIResourceScope _windowResources;
+    private readonly HashSet<FlyoutCompanionWindow> _companionWindows = [];
     private UIContentGeneration? _activeContentGeneration;
     private double? _fixedLogicalWidth;
+    private bool _focusGroupEvaluationQueued;
     private bool _scalingLayoutCorrectionQueued;
 
     public bool KeepOpenForSettingsWindow { get; set; }
@@ -157,7 +159,10 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
             handledEventsToo: true);
     }
 
-    internal bool CanHideFromCoordinator => ShouldAutoHideWhenDeactivated && !HasOpenChildWindow;
+    internal bool CanHideFromCoordinator =>
+        ShouldAutoHideWhenDeactivated
+        && !HasOpenChildWindow
+        && !HasActiveCompanionWindow;
 
     internal void ClearNextAutoHideSuppression() => _suppressNextAutoHide = false;
 
@@ -194,30 +199,95 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
     protected void NotifyChildWindowClosedFromDeactivation()
     {
+        ClearNextAutoHideSuppression();
+        QueueFocusGroupEvaluation();
+    }
+
+    internal void AttachCompanionWindow(FlyoutCompanionWindow companionWindow)
+    {
+        if (_windowResources.IsDisposed) return;
+
+        _companionWindows.Add(companionWindow);
+    }
+
+    internal void DetachCompanionWindow(FlyoutCompanionWindow companionWindow)
+    {
+        if (!_companionWindows.Remove(companionWindow)) return;
+
+        QueueFocusGroupEvaluation();
+    }
+
+    internal void NotifyCompanionWindowActivated(FlyoutCompanionWindow companionWindow)
+    {
+        if (_windowResources.IsDisposed) return;
+
+        _companionWindows.Add(companionWindow);
+        ClearNextAutoHideSuppression();
+    }
+
+    internal void NotifyCompanionWindowDeactivated(FlyoutCompanionWindow companionWindow)
+    {
+        if (!_companionWindows.Contains(companionWindow)) return;
+
+        QueueFocusGroupEvaluation();
+    }
+
+    internal void NotifyCompanionWindowStateChanged(FlyoutCompanionWindow companionWindow)
+    {
+        if (!_companionWindows.Contains(companionWindow)) return;
+
+        QueueFocusGroupEvaluation();
+    }
+
+    private bool HasActiveCompanionWindow =>
+        _companionWindows.Any(window =>
+            window is { IsVisible: true, IsActive: true }
+            && window.WindowState != WindowState.Minimized);
+
+    private bool CanHideInactiveFocusGroup =>
+        !IsWarmPriming
+        && ShouldAutoHideWhenDeactivated
+        && !HasOpenChildWindow
+        && !KeepOpenForSettingsWindow;
+
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        QueueFocusGroupEvaluation();
+    }
+
+    private void QueueFocusGroupEvaluation()
+    {
+        if (_focusGroupEvaluationQueued || _windowResources.IsDisposed) return;
+
+        _focusGroupEvaluationQueued = true;
         CancellationToken cancellationToken = _windowResources.CancellationToken;
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (cancellationToken.IsCancellationRequested) return;
-                ClearNextAutoHideSuppression();
-                if (!IsVisible || IsActive) return;
-                if (!ShouldHideWhenInactive()) return;
+                _focusGroupEvaluationQueued = false;
+                if (cancellationToken.IsCancellationRequested || _windowResources.IsDisposed) return;
+                if (!ShouldHideFocusGroup(
+                        IsVisible,
+                        IsActive,
+                        HasActiveCompanionWindow,
+                        CanHideInactiveFocusGroup))
+                    return;
+                if (ConsumeNextAutoHideSuppression()) return;
+
                 HideFlyout();
             },
             DispatcherPriority.Input);
     }
 
-    private bool ShouldHideWhenInactive() =>
-        !IsWarmPriming
-        && CanHideFromCoordinator
-        && !KeepOpenForSettingsWindow;
-
-    private void OnDeactivated(object? sender, EventArgs e)
-    {
-        if (!ShouldHideWhenInactive()) return;
-        if (ConsumeNextAutoHideSuppression()) return;
-        HideFlyout();
-    }
+    internal static bool ShouldHideFocusGroup(
+        bool isFlyoutVisible,
+        bool isFlyoutActive,
+        bool hasActiveCompanionWindow,
+        bool canHideInactiveFocusGroup) =>
+        isFlyoutVisible
+        && !isFlyoutActive
+        && !hasActiveCompanionWindow
+        && canHideInactiveFocusGroup;
 
     private bool ConsumeNextAutoHideSuppression()
     {
@@ -272,6 +342,8 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         }
         finally
         {
+            _companionWindows.Clear();
+            _focusGroupEvaluationQueued = false;
             _windowResources.Dispose();
             WarmDismissed = null;
             base.OnClosed(e);

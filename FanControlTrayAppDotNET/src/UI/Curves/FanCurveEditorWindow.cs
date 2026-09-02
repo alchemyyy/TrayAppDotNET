@@ -7,7 +7,7 @@ using FanControlTrayAppDotNET.UI.Settings;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
-public sealed partial class FanCurveEditorWindow : Window
+public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
 {
     private const int SmoothnessMin = 0;
     private const int SmoothnessMax = 100;
