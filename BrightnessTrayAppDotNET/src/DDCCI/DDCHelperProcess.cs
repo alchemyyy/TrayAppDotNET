@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
-using System.Text;
 
 namespace BrightnessTrayAppDotNET.DDCCI;
 
@@ -12,8 +11,6 @@ internal sealed class DDCHelperClient : IDisposable
 {
     private const int CommandAttempts = 2;
     private const int HelperConnectTimeoutMs = 5000;
-    private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-    internal static readonly Encoding PipeEncoding = new UTF8Encoding(false);
 
     private readonly Lock _gate = new();
     private Process? _process;
@@ -27,7 +24,7 @@ internal sealed class DDCHelperClient : IDisposable
         int timeoutMs,
         CancellationToken cancellationToken)
     {
-        string command = BuildCommand(verb: "CAPS", monitor);
+        string command = DDCHelperProtocol.BuildCommand(verb: "CAPS", monitor);
         DDCCallOutcome<string[]> response = SendCommand(
             command,
             timeoutMs,
@@ -39,7 +36,7 @@ internal sealed class DDCHelperClient : IDisposable
 
         try
         {
-            return DDCCallOutcome<string>.Ok(DecodeField(response.Value[1]));
+            return DDCCallOutcome<string>.Ok(DDCHelperProtocol.DecodeField(response.Value[1]));
         }
         catch (Exception ex)
         {
@@ -53,7 +50,7 @@ internal sealed class DDCHelperClient : IDisposable
         int timeoutMs,
         CancellationToken cancellationToken)
     {
-        string command = BuildCommand(verb: "GETVCP", monitor,
+        string command = DDCHelperProtocol.BuildCommand(verb: "GETVCP", monitor,
             code.ToString(format: "X2", CultureInfo.InvariantCulture));
         DDCCallOutcome<string[]> response = SendCommand(
             command,
@@ -80,7 +77,7 @@ internal sealed class DDCHelperClient : IDisposable
         int timeoutMs,
         CancellationToken cancellationToken)
     {
-        string command = BuildCommand(
+        string command = DDCHelperProtocol.BuildCommand(
             verb: "SETVCP",
             monitor,
             code.ToString(format: "X2", CultureInfo.InvariantCulture),
@@ -239,13 +236,10 @@ internal sealed class DDCHelperClient : IDisposable
 
         StopHelperProcess(kill: false, sendExit: false);
 
-        string? executablePath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(executablePath))
-        {
-            error = "Current executable path is unavailable.";
-            return false;
-        }
+        string? executablePath = ResolveHelperExecutablePath(out error);
+        if (executablePath == null) return false;
 
+        long helperStartTimestamp = Stopwatch.GetTimestamp();
         string pipeName = "BrightnessTrayAppDDC_"
                           + Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
                           + "_"
@@ -263,12 +257,12 @@ internal sealed class DDCHelperClient : IDisposable
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden
         };
-        startInfo.ArgumentList.Add(DDCHelperServer.ServerArg);
-        startInfo.ArgumentList.Add(DDCHelperServer.ParentProcessIDArg);
+        startInfo.ArgumentList.Add(DDCHelperProtocol.ServerArgument);
+        startInfo.ArgumentList.Add(DDCHelperProtocol.ParentProcessIDArgument);
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-        startInfo.ArgumentList.Add(DDCHelperServer.PipeNameArg);
+        startInfo.ArgumentList.Add(DDCHelperProtocol.PipeNameArgument);
         startInfo.ArgumentList.Add(pipeName);
-        startInfo.Environment[NoWatcherEnvironmentVariable] = "1";
+        startInfo.Environment[Constants.NoWatcherEnvironmentVariable] = "1";
 
         try
         {
@@ -294,8 +288,39 @@ internal sealed class DDCHelperClient : IDisposable
                 return false;
             }
 
-            _writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
-            _reader = new StreamReader(pipe, PipeEncoding, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            StreamWriter writer = new(
+                pipe,
+                DDCHelperProtocol.PipeEncoding,
+                bufferSize: 1024,
+                leaveOpen: true)
+            {
+                AutoFlush = true
+            };
+            StreamReader reader = new(
+                pipe,
+                DDCHelperProtocol.PipeEncoding,
+                detectEncodingFromByteOrderMarks: false,
+                leaveOpen: true);
+            _writer = writer;
+            _reader = reader;
+
+            Task<string?> readyTask = reader.ReadLineAsync();
+            int handshakeTimeoutMs = GetRemainingTimeoutMs(timeoutMs, helperStartTimestamp);
+            if (handshakeTimeoutMs == 0 || !readyTask.Wait(handshakeTimeoutMs, cancellationToken))
+            {
+                error = "DDC helper did not complete its startup handshake.";
+                StopHelperProcess(kill: true, sendExit: false);
+                return false;
+            }
+
+            string? readyResponse = readyTask.GetAwaiter().GetResult();
+            if (!DDCHelperProtocol.IsReadyResponse(readyResponse))
+            {
+                error = "DDC helper returned an incompatible startup handshake.";
+                StopHelperProcess(kill: true, sendExit: false);
+                return false;
+            }
+
             return true;
         }
         catch (Exception ex)
@@ -310,6 +335,28 @@ internal sealed class DDCHelperClient : IDisposable
 
             return false;
         }
+    }
+
+    private static string? ResolveHelperExecutablePath(out string? error)
+    {
+#if BRIGHTNESS_NATIVE_AOT
+        string? executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            error = "Current executable path is unavailable.";
+            return null;
+        }
+#else
+        string executablePath = Path.Combine(AppContext.BaseDirectory, Constants.NativeHelpersFileName);
+        if (!File.Exists(executablePath))
+        {
+            error = $"Native DDC helper was not found at '{executablePath}'.";
+            return null;
+        }
+#endif
+
+        error = null;
+        return executablePath;
     }
 
     private static int GetRemainingTimeoutMs(int timeoutMs, long startTimestamp)
@@ -335,7 +382,7 @@ internal sealed class DDCHelperClient : IDisposable
         {
             try
             {
-                writer.WriteLine(DDCHelperServer.ExitCommand);
+                writer.WriteLine(DDCHelperProtocol.ExitCommand);
                 writer.Flush();
             }
             catch (Exception ex)
@@ -425,7 +472,7 @@ internal sealed class DDCHelperClient : IDisposable
                 return DDCCallOutcome<string[]>.Ok(fields);
             case "FAIL":
                 if (fields.Length < 2) return DDCCallOutcome<string[]>.Fail("DDC helper returned failure.");
-                try { return DDCCallOutcome<string[]>.Fail(DecodeField(fields[1])); }
+                try { return DDCCallOutcome<string[]>.Fail(DDCHelperProtocol.DecodeField(fields[1])); }
                 catch (Exception ex)
                 {
                     return DDCCallOutcome<string[]>.Fail($"DDC helper failure decode failed: {ex.Message}");
@@ -433,298 +480,5 @@ internal sealed class DDCHelperClient : IDisposable
             default:
                 return DDCCallOutcome<string[]>.Fail("DDC helper returned an unknown response.");
         }
-    }
-
-    private static string BuildCommand(string verb, DDCMonitor monitor, params string[] arguments)
-    {
-        StringBuilder builder = new(verb);
-        AppendEncodedField(builder, monitor.DeviceID);
-        AppendEncodedField(builder, monitor.EDIDSerial);
-        AppendEncodedField(builder, monitor.Name);
-        AppendEncodedField(builder, monitor.DisplayInstancePath);
-        foreach (string argument in arguments)
-        {
-            builder.Append('\t');
-            builder.Append(argument);
-        }
-
-        return builder.ToString();
-    }
-
-    private static void AppendEncodedField(StringBuilder builder, string value)
-    {
-        builder.Append('\t');
-        builder.Append(EncodeField(value));
-    }
-
-    internal static string EncodeField(string value) =>
-        Convert.ToBase64String(PipeEncoding.GetBytes(value));
-
-    internal static string DecodeField(string value) =>
-        PipeEncoding.GetString(Convert.FromBase64String(value));
-}
-
-/// <summary>
-/// Helper-process entry point used before the normal tray application startup path.
-/// </summary>
-internal static class DDCHelperServer
-{
-    public const string ServerArg = "--ddc-helper-server";
-    public const string ParentProcessIDArg = "--parent-pid";
-    public const string PipeNameArg = "--pipe-name";
-    public const string ExitCommand = "EXIT";
-    private const int HelperPipeConnectTimeoutMs = 5000;
-
-    public static bool TryRun(string[] args, out int exitCode)
-    {
-        exitCode = 0;
-        if (!HasArg(args, ServerArg)) return false;
-
-        StartParentWatchdog(ParseParentProcessID(args));
-        string? pipeName = ParseArgValue(args, PipeNameArg);
-        if (string.IsNullOrWhiteSpace(pipeName))
-        {
-            exitCode = 1;
-            return true;
-        }
-
-        try
-        {
-            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
-            pipe.Connect(HelperPipeConnectTimeoutMs);
-            using StreamReader reader = new(
-                pipe,
-                DDCHelperClient.PipeEncoding,
-                detectEncodingFromByteOrderMarks: false,
-                leaveOpen: true);
-            using StreamWriter writer = new(pipe, DDCHelperClient.PipeEncoding, bufferSize: 1024, leaveOpen: true);
-            writer.AutoFlush = true;
-            using DisplayService displayService = new(false);
-            displayService.OperationTimeoutMs = 0;
-            RunLoop(displayService, reader, writer);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"DDCHelperServer.TryRun failed: {ex.Message}");
-            exitCode = 1;
-            return true;
-        }
-    }
-
-    private static void RunLoop(DisplayService displayService, StreamReader reader, StreamWriter writer)
-    {
-        while (reader.ReadLine() is { } line)
-        {
-            if (line.Equals(ExitCommand, StringComparison.Ordinal))
-                return;
-
-            string response;
-            try
-            {
-                response = HandleCommand(displayService, line);
-            }
-            catch (Exception ex)
-            {
-                response = Fail($"DDC helper command failed: {ex.Message}");
-            }
-
-            writer.WriteLine(response);
-            writer.Flush();
-        }
-    }
-
-    private static string HandleCommand(DisplayService displayService, string line)
-    {
-        string[] fields = line.Split('\t');
-        if (fields.Length < 5) return Fail("Malformed DDC helper command.");
-
-        DDCHelperMonitorIdentity identity;
-        try
-        {
-            identity = new DDCHelperMonitorIdentity(
-                DDCHelperClient.DecodeField(fields[1]),
-                DDCHelperClient.DecodeField(fields[2]),
-                DDCHelperClient.DecodeField(fields[3]),
-                DDCHelperClient.DecodeField(fields[4]));
-        }
-        catch (Exception ex)
-        {
-            return Fail($"Malformed DDC helper identity: {ex.Message}");
-        }
-
-        if (!TryResolveMonitor(identity, out DDCMonitor monitor, out string? resolveError))
-            return Fail(resolveError ?? "Monitor not found.");
-
-        return fields[0] switch
-        {
-            "CAPS" => HandleCapabilities(displayService, monitor),
-            "GETVCP" => HandleGetVCP(displayService, monitor, fields),
-            "SETVCP" => HandleSetVCP(displayService, monitor, fields),
-            _ => Fail("Unknown DDC helper command.")
-        };
-    }
-
-    private static string HandleCapabilities(DisplayService displayService, DDCMonitor monitor)
-    {
-        if (!displayService.TryGetCapabilities(monitor, out string capabilities, out string? error))
-            return Fail(error ?? "Capabilities request failed.");
-
-        return "OK\t" + DDCHelperClient.EncodeField(capabilities);
-    }
-
-    private static string HandleGetVCP(DisplayService displayService, DDCMonitor monitor, string[] fields)
-    {
-        if (fields.Length < 6) return Fail("Malformed GETVCP command.");
-        if (!byte.TryParse(fields[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
-            return Fail("Malformed GETVCP code.");
-
-        if (!displayService.TryGetVCPFeature(
-                monitor,
-                code,
-                out uint current,
-                out uint maximum,
-                out string? error))
-            return Fail(error ?? "GetVCP request failed.");
-
-        return "OK\t"
-               + current.ToString(CultureInfo.InvariantCulture)
-               + "\t"
-               + maximum.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static string HandleSetVCP(DisplayService displayService, DDCMonitor monitor, string[] fields)
-    {
-        if (fields.Length < 7) return Fail("Malformed SETVCP command.");
-        if (!byte.TryParse(fields[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
-            return Fail("Malformed SETVCP code.");
-
-        if (!uint.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out uint value))
-            return Fail("Malformed SETVCP value.");
-
-        if (!displayService.TrySetVCPFeature(monitor, code, value, out string? error))
-            return Fail(error ?? "SetVCP request failed.");
-
-        return "OK";
-    }
-
-    private static bool TryResolveMonitor(
-        DDCHelperMonitorIdentity identity,
-        out DDCMonitor monitor,
-        out string? error)
-    {
-        monitor = null!;
-        error = null;
-
-        if (!DisplayService.TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? enumError))
-        {
-            error = "Monitor enumeration failed: " + enumError;
-            return false;
-        }
-
-        foreach (DDCMonitor candidate in monitors)
-        {
-            if (!Matches(candidate, identity)) continue;
-
-            monitor = candidate;
-            return true;
-        }
-
-        error = "No matching monitor was found in the DDC helper process.";
-        return false;
-    }
-
-    private static bool Matches(DDCMonitor monitor, DDCHelperMonitorIdentity identity)
-    {
-        if (!string.IsNullOrEmpty(identity.DeviceID)
-            && string.Equals(monitor.DeviceID, identity.DeviceID, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (!string.IsNullOrEmpty(identity.DisplayInstancePath)
-            && string.Equals(
-                monitor.DisplayInstancePath,
-                identity.DisplayInstancePath,
-                StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (!string.IsNullOrEmpty(identity.EDIDSerial)
-            && string.Equals(monitor.EDIDSerial, identity.EDIDSerial, StringComparison.Ordinal))
-            return true;
-
-        return !string.IsNullOrEmpty(identity.Name)
-               && string.Equals(monitor.Name, identity.Name, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string Fail(string error) =>
-        "FAIL\t" + DDCHelperClient.EncodeField(error);
-
-    private static bool HasArg(string[] args, string name)
-    {
-        foreach (string arg in args)
-        {
-            if (arg.Equals(name, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static int? ParseParentProcessID(string[] args)
-    {
-        string? value = ParseArgValue(args, ParentProcessIDArg);
-        if (value != null
-            && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
-            return parentProcessID;
-
-        return null;
-    }
-
-    private static string? ParseArgValue(string[] args, string name)
-    {
-        for (int index = 0; index < args.Length - 1; index++)
-        {
-            if (args[index].Equals(name, StringComparison.OrdinalIgnoreCase))
-                return args[index + 1];
-        }
-
-        return null;
-    }
-
-    private static void StartParentWatchdog(int? parentProcessID)
-    {
-        if (parentProcessID is not ({ } parentPID and > 0)) return;
-
-        Thread watchdog = new(() => WatchParent(parentPID))
-        {
-            IsBackground = true, Name = "BrightnessTrayApp.DDCHelperParentWatchdog"
-        };
-        watchdog.Start();
-    }
-
-    private static void WatchParent(int parentProcessID)
-    {
-        try
-        {
-            using Process parent = Process.GetProcessById(parentProcessID);
-            parent.WaitForExit();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"DDCHelperServer parent watchdog ended: {ex.Message}");
-        }
-
-        Environment.Exit(0);
-    }
-
-    private readonly struct DDCHelperMonitorIdentity(
-        string deviceID,
-        string edidSerial,
-        string name,
-        string displayInstancePath)
-    {
-        public readonly string DeviceID = deviceID;
-        public readonly string EDIDSerial = edidSerial;
-        public readonly string Name = name;
-        public readonly string DisplayInstancePath = displayInstancePath;
     }
 }

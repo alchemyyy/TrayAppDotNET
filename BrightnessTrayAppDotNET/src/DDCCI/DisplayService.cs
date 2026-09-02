@@ -26,8 +26,7 @@ public class DisplayService : IDisplayService, IDisposable
     private enum MonitorEnumerationPurpose
     {
         Full,
-        DDCRecovery,
-        HelperResolution
+        DDCRecovery
     }
 
     private readonly bool _useHelperProcess;
@@ -83,12 +82,6 @@ public class DisplayService : IDisplayService, IDisposable
     public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
         TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error);
 
-    /// <summary>
-    /// Enumerates the Win32 identity needed by the DDC helper without parent-only WMI, CCD, and profile work.
-    /// </summary>
-    internal static bool TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
-        TryGetMonitorsCore(MonitorEnumerationPurpose.HelperResolution, out monitors, out error);
-
     private static bool TryGetMonitorsCore(
         MonitorEnumerationPurpose purpose,
         out IReadOnlyList<DDCMonitor> monitors,
@@ -96,8 +89,6 @@ public class DisplayService : IDisplayService, IDisposable
     {
         error = null;
         List<DDCMonitor> list = [];
-        bool helperResolutionOnly = purpose == MonitorEnumerationPurpose.HelperResolution;
-
         if (!User32Monitor.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero))
         {
             error = $"EnumDisplayMonitors failed (Win32: {Marshal.GetLastWin32Error()})";
@@ -109,9 +100,7 @@ public class DisplayService : IDisplayService, IDisposable
         // The trailing-digit parse on \\.\DISPLAY{n} only matches Settings on a freshly-booted machine
         // - Windows bumps that index on every topology event, so after enough hot-plug churn it climbs into high 20s.
         // sourceInfo.id is bound to the GPU output port and stays stable across power-cycles.
-        Dictionary<string, int> friendlyByAdapter = helperResolutionOnly
-            ? new Dictionary<string, int>(StringComparer.Ordinal)
-            : CCD.BuildFriendlyDisplayNumberMap();
+        Dictionary<string, int> friendlyByAdapter = CCD.BuildFriendlyDisplayNumberMap();
 
         foreach (DDCMonitor monitor in list)
         {
@@ -121,25 +110,21 @@ public class DisplayService : IDisplayService, IDisposable
                 monitor.Name = new string(monitorInfo.szDevice).TrimEnd('\0');
                 monitor.DeviceID = ResolveDeviceID(monitor.Name);
                 monitor.DisplayInstancePath = ResolveDisplayInstancePath(monitor.Name);
-                if (!helperResolutionOnly)
-                    monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
+                monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
 
                 byte[]? edid = ReadEDID(monitor.DisplayInstancePath);
                 if (edid != null)
                 {
                     monitor.EDIDSerial = EDIDParser.ExtractSerial(edid);
-                    if (!helperResolutionOnly)
-                    {
-                        monitor.FriendlyName = EDIDParser.ExtractMonitorName(edid);
-                        monitor.EDIDManufacturerID = EDIDParser.ExtractManufacturerID(edid);
-                        ushort productCode = EDIDParser.ExtractProductCode(edid);
-                        monitor.EDIDProductCode = productCode == 0
-                            ? string.Empty
-                            : productCode.ToString(format: "X4", CultureInfo.InvariantCulture);
-                        // Populate per-monitor VCP profile fields (BrightnessCode, PowerOffCommands, ProfileQuirks)
-                        // by EDID identity. Misses leave the VESA-standard defaults in place.
-                        DDCMonitorDatabase.ApplyProfile(monitor);
-                    }
+                    monitor.FriendlyName = EDIDParser.ExtractMonitorName(edid);
+                    monitor.EDIDManufacturerID = EDIDParser.ExtractManufacturerID(edid);
+                    ushort productCode = EDIDParser.ExtractProductCode(edid);
+                    monitor.EDIDProductCode = productCode == 0
+                        ? string.Empty
+                        : productCode.ToString(format: "X4", CultureInfo.InvariantCulture);
+                    // Populate per-monitor VCP profile fields (BrightnessCode, PowerOffCommands, ProfileQuirks)
+                    // by EDID identity. Misses leave the VESA-standard defaults in place.
+                    DDCMonitorDatabase.ApplyProfile(monitor);
                 }
             }
         }

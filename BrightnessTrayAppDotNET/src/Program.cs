@@ -1,4 +1,3 @@
-using BrightnessTrayAppDotNET.DDCCI;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 using TrayAppDotNETCommon.Models;
 
@@ -29,9 +28,6 @@ internal static class Program
     {
         if (NightLightHelperServer.TryRun(args, out int nightLightHelperExitCode))
             return nightLightHelperExitCode;
-
-        if (DDCHelperServer.TryRun(args, out int helperExitCode))
-            return helperExitCode;
 
         return TrayAppDotNETProgram.Run(args, ApplicationName, Constants.AppGUID, CreateProgramOptions);
     }

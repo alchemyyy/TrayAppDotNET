@@ -23,6 +23,16 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <NativeHelpersFileName>BrightnessTrayAppDotNET.NativeHelpers.exe</NativeHelpersFileName>
+    <NativeHelpersSourceDirectory>$(MSBuildProjectDirectory)\..\native\NativeHelpers</NativeHelpersSourceDirectory>
+    <NativeHelpersIntermediateDirectory>$(MSBuildProjectDirectory)\..\obj\native</NativeHelpersIntermediateDirectory>
+    <NativeHelpersConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeHelpersConfiguration>
+    <NativeHelpersConfiguration Condition="'$(NativeHelpersConfiguration)' == ''">Release</NativeHelpersConfiguration>
+    <NativeHelpersBuildDirectory>$(NativeHelpersIntermediateDirectory)\$(NativeHelpersConfiguration)</NativeHelpersBuildDirectory>
+    <NativeHelpersExecutable>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersFileName)</NativeHelpersExecutable>
+    <NativeHelpersLibraryFileName>BrightnessTrayAppDotNET.NativeHelpers.NativeAOT.lib</NativeHelpersLibraryFileName>
+    <NativeHelpersLibrary>$(NativeHelpersBuildDirectory)\out\$(NativeHelpersLibraryFileName)</NativeHelpersLibrary>
+    <TrayAppDotNETAdditionalUnlockProcessNames>BrightnessTrayAppDotNET.NativeHelpers</TrayAppDotNETAdditionalUnlockProcessNames>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
@@ -33,10 +43,18 @@
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
     <OptimizationPreference>Speed</OptimizationPreference>
+    <CustomNativeMain>true</CustomNativeMain>
+    <ControlFlowGuard>Guard</ControlFlowGuard>
+    <DefineConstants>$(DefineConstants);BRIGHTNESS_NATIVE_AOT</DefineConstants>
     <InvariantGlobalization>false</InvariantGlobalization>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NativeHelpersBuildOutput Condition="'$(CustomNativeMain)' == 'true'">$(NativeHelpersLibrary)</NativeHelpersBuildOutput>
+    <NativeHelpersBuildOutput Condition="'$(NativeHelpersBuildOutput)' == ''">$(NativeHelpersExecutable)</NativeHelpersBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -91,6 +109,23 @@
 
   <ItemGroup>
     <AdditionalFiles Include="**\*.axaml" />
+    <_NativeHelpersSource Include="$(NativeHelpersSourceDirectory)\**\*" />
+    <Content Include="$(NativeHelpersExecutable)"
+             Condition="'$(CustomNativeMain)' != 'true'"
+             Link="$(NativeHelpersFileName)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             Visible="false" />
+    <NativeLibrary Include="$(NativeHelpersLibrary)"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
+    <NativeLibrary Include="Advapi32.lib"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
+    <NativeLibrary Include="Dxva2.lib"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
+    <NativeLibrary Include="Shell32.lib"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
+    <NativeLibrary Include="User32.lib"
+                   Condition="'$(CustomNativeMain)' == 'true'" />
   </ItemGroup>
 
   <ItemGroup>
@@ -103,6 +138,36 @@
     <InternalsVisibleTo Include="NightLightTester" />
     <InternalsVisibleTo Include="BrightnessTrayAppDotNET.Tests" />
   </ItemGroup>
+
+  <Target Name="BuildNativeHelpers"
+          BeforeTargets="PrepareForBuild"
+          Inputs="@(_NativeHelpersSource)"
+          Outputs="$(NativeHelpersBuildOutput)">
+    <MakeDir Directories="$(NativeHelpersBuildDirectory)" />
+    <Exec Command="cmake -S &quot;$(NativeHelpersSourceDirectory)&quot; -B &quot;$(NativeHelpersBuildDirectory)&quot; -A x64" />
+    <Exec Condition="'$(CustomNativeMain)' == 'true'"
+          Command="cmake --build &quot;$(NativeHelpersBuildDirectory)&quot; --config $(NativeHelpersConfiguration) --target BrightnessTrayAppDotNETNativeHelpersNativeAOT" />
+    <Exec Condition="'$(CustomNativeMain)' != 'true'"
+          Command="cmake --build &quot;$(NativeHelpersBuildDirectory)&quot; --config $(NativeHelpersConfiguration) --target BrightnessTrayAppDotNETNativeHelpers" />
+    <Error Condition="!Exists('$(NativeHelpersBuildOutput)')"
+           Text="Native helper output was not produced at $(NativeHelpersBuildOutput)." />
+  </Target>
+
+  <Target Name="RemoveNativeHelpersSidecarFromAOTOutput"
+          BeforeTargets="PrepareForBuild;PrepareForPublish"
+          Condition="'$(CustomNativeMain)' == 'true'">
+    <ItemGroup>
+      <_NativeHelpersStaleSidecar Include="$(TargetDir)$(NativeHelpersFileName)" />
+      <_NativeHelpersStaleSidecar Include="$(PublishDir)$(NativeHelpersFileName)"
+                                  Condition="'$(PublishDir)' != ''" />
+    </ItemGroup>
+    <Delete Files="@(_NativeHelpersStaleSidecar)" />
+  </Target>
+
+  <Target Name="CleanNativeHelpers" AfterTargets="Clean">
+    <RemoveDir Directories="$(NativeHelpersBuildDirectory)"
+               Condition="Exists('$(NativeHelpersBuildDirectory)')" />
+  </Target>
 
   <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
        Exclude source-tree custom-tool output to prevent duplicate classes. -->
@@ -159,6 +224,8 @@
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
           ContinueOnError="WarnAndContinue"
           Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
+    <Delete Files="$(OutputPath)$(NativeHelpersFileName)"
+            Condition="Exists('$(OutputPath)$(NativeHelpersFileName)')" />
     <Message Importance="High" Text="Published to $(OutputPath)" />
   </Target>
 </Project>
