@@ -18,7 +18,7 @@
   <sys:Double x:Key="TaskManagerWindow.SidebarNavigationCaretTranslateY">-1</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarNavigationCaretLeftTranslateY">1.0</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarNavigationCaretRightTranslateY">-1.0</sys:Double>
-  <Thickness x:Key="TaskManagerWindow.SidebarHeaderMargin">18,8,20,20</Thickness>
+  <Thickness x:Key="TaskManagerWindow.SidebarHeaderMargin">18,8,20,0</Thickness>
   <Thickness x:Key="TaskManagerWindow.SidebarNavigationMargin">0,0,8,0</Thickness>
   <Thickness x:Key="TaskManagerWindow.SidebarFooterMargin">0,0,8,12</Thickness>
 

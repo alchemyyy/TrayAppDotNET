@@ -303,7 +303,7 @@ public sealed class SettingsWindowLifetimeTests
     });
 
     [Fact]
-    public void SidebarActionFollowsPageLayoutAndTogglesCompactRail() => AvaloniaTestHost.Run(() =>
+    public void SidebarActionPrecedesPageLayoutAndTogglesCompactRail() => AvaloniaTestHost.Run(() =>
     {
         SidebarActionSettingsWindow window = new(width: 900);
         Border root = Assert.IsType<Border>(window.Content);
@@ -315,8 +315,8 @@ public sealed class SettingsWindowLifetimeTests
             .OfType<SettingsNavItem>()
             .ToArray();
 
-        Assert.Equal(new[] { "Stable", "Collapse navigation" }, navigationItems.Select(item => item.Text));
-        Assert.Same(window.SidebarAction, navigationItems[1]);
+        Assert.Equal(new[] { "Collapse navigation", "Stable" }, navigationItems.Select(item => item.Text));
+        Assert.Same(window.SidebarAction, navigationItems[0]);
 
         int initialActionUpdateCount = window.SidebarActionUpdateCount;
         window.RefreshSidebarActions();

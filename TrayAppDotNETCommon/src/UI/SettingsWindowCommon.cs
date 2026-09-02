@@ -135,7 +135,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
     }
 
-    /// <summary>Builds optional action rows placed after the sidebar's page-navigation rows.</summary>
+    /// <summary>Builds optional action rows placed before the sidebar's page-navigation rows.</summary>
     protected virtual IReadOnlyList<SettingsNavItem> CreateSidebarNavigationActions(SettingsPalette palette) => [];
 
     /// <summary>Updates optional sidebar actions after the effective collapse state changes.</summary>
@@ -847,15 +847,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         StackPanel nav = _sidebar.Navigation;
         StackPanel footer = _sidebar.Footer;
+        _sidebarNavigationActions = CreateSidebarNavigationActions(palette);
+        foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
+            nav.Children.Add(navigationAction);
+
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
             AddNavItem(IsFooterNavigationPage(page.Key) ? footer : nav, page, palette);
         }
-
-        _sidebarNavigationActions = CreateSidebarNavigationActions(palette);
-        foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
-            nav.Children.Add(navigationAction);
 
         if (ShowSettingsSearchBox)
         {
