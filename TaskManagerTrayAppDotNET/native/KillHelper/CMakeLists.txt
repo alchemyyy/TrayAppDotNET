@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 
+if(CMAKE_GENERATOR MATCHES "^Visual Studio")
+    set(CMAKE_VS_GLOBALS "TrackFileAccess=false")
+    list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CMAKE_VS_GLOBALS)
+endif()
+
 project(TaskManagerTrayAppDotNETKillHelper LANGUAGES CXX)
 
 set(KILL_HELPER_COMMON_SOURCES
