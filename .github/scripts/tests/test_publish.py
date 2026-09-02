@@ -146,6 +146,49 @@ class PublishScriptTests(unittest.TestCase):
         self.assertIsNotNone(release)
         self.assertEqual("TrayAppDotNET_100", release["tag_name"])
 
+    def test_default_tray_version_has_200_floor(self) -> None:
+        releases = (
+            None,
+            {"tag_name": "TrayAppDotNET_127"},
+            {"tag_name": "TrayAppDotNET_200"},
+        )
+        expected_versions = (200, 200, 201)
+
+        for release, expected_version in zip(releases, expected_versions, strict=True):
+            with (
+                self.subTest(release=release),
+                mock.patch.object(PUBLISH, "latest_release", return_value=release),
+            ):
+                self.assertEqual(expected_version, PUBLISH.default_tray_version("owner/repository"))
+
+    def test_latest_reachable_release_tag_uses_highest_numeric_version(self) -> None:
+        result = SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "TrayAppDotNET_9\n"
+                "TrayAppDotNET_127\n"
+                "TrayAppDotNET_invalid\n"
+                "TrayAppDotNET_126\n"
+            ),
+        )
+
+        with mock.patch.object(PUBLISH, "run", return_value=result) as run:
+            tag = PUBLISH.latest_reachable_release_tag("target")
+
+        self.assertEqual("TrayAppDotNET_127", tag)
+        run.assert_called_once_with(
+            [
+                "git",
+                "tag",
+                "--merged",
+                "target",
+                "--list",
+                "TrayAppDotNET_*",
+            ],
+            capture=True,
+            check=False,
+        )
+
     def test_change_detection_stops_after_one_commit_and_excludes_paths(self) -> None:
         result = SimpleNamespace(stdout="changed-commit\n")
         with mock.patch.object(PUBLISH, "run", return_value=result) as run:
@@ -169,6 +212,49 @@ class PublishScriptTests(unittest.TestCase):
             ],
             capture=True,
         )
+
+    def test_plan_starts_unpublished_apps_at_version_200(self) -> None:
+        app = PUBLISH.App(
+            "FirstTrayAppDotNET",
+            "first",
+            "First",
+            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
+            "FirstTrayAppDotNET/buildnumber.txt",
+        )
+        arguments = SimpleNamespace(
+            force_apps="",
+            skip_apps="",
+            target="HEAD",
+            repo="owner/repository",
+            force_rebuild=False,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            original_directory = Path.cwd()
+            os.chdir(temporary_directory)
+            try:
+                buildnumber_path = Path(app.buildnumber)
+                buildnumber_path.parent.mkdir(parents=True, exist_ok=True)
+                buildnumber_path.write_text("0", encoding="utf-8")
+                outputs: dict[str, str] = {}
+
+                with (
+                    mock.patch.object(PUBLISH, "APPS", [app]),
+                    mock.patch.object(PUBLISH, "published_releases", return_value=[]),
+                    mock.patch.object(PUBLISH, "resolve_git_commit", return_value="target"),
+                    mock.patch.object(
+                        PUBLISH,
+                        "set_github_output",
+                        side_effect=lambda name, value: outputs.__setitem__(name, value),
+                    ),
+                ):
+                    self.assertEqual(0, PUBLISH.plan_publish(arguments))
+
+                self.assertEqual("0", buildnumber_path.read_text(encoding="utf-8"))
+                self.assertEqual("build", outputs["first_action"])
+                self.assertEqual("200", outputs["first_version"])
+            finally:
+                os.chdir(original_directory)
 
     def test_plan_is_idempotent_and_supports_force_reuse_and_skip(self) -> None:
         first_app = PUBLISH.App(
@@ -593,6 +679,49 @@ class PublishScriptTests(unittest.TestCase):
             "- Fix release logic by author in https://github.com/owner/repository/pull/42",
             notes,
         )
+
+    def test_release_notes_are_truncated_below_github_limit(self) -> None:
+        rows = [
+            {
+                "profile": "Release",
+                "kind": "aggregate",
+                "appId": "TrayAppDotNET",
+                "version": 200,
+                "fileName": "TrayAppDotNET_200.zip",
+                "sha256": "abc123",
+                "source": "built-windows-native-aot",
+                "commitHash": "a" * 40,
+            }
+        ]
+        global_paths = tuple(
+            ["TrayAppDotNETCommon/src/Common.cs"]
+            + [f"{app.name}/src/App.cs" for app in PUBLISH.APPS]
+        )
+        commits = [
+            PUBLISH.CommitEntry(
+                f"{index:040x}",
+                f"{index:07x}",
+                f"Large commit {index} " + "x" * 500,
+                global_paths,
+            )
+            for index in range(500)
+        ]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            notes_path = Path(temporary_directory) / "release-notes.md"
+            PUBLISH.write_notes(
+                notes_path,
+                rows,
+                "owner/repository",
+                None,
+                commits,
+                [],
+            )
+            notes = notes_path.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(notes), PUBLISH.MAX_RELEASE_NOTES_CHARACTERS)
+        self.assertIn(PUBLISH.RELEASE_NOTES_TRUNCATION_NOTICE, notes)
+        self.assertIn("## Version Info", notes)
 
     def test_release_notes_group_commits_by_common_and_app(self) -> None:
         common_commit = PUBLISH.CommitEntry(

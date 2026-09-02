@@ -128,6 +128,11 @@ PROFILES = {
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PUBLISH_CONFIGURATION = "Release"
+INITIAL_RELEASE_VERSION = 200
+MAX_RELEASE_NOTES_CHARACTERS = 120_000
+RELEASE_NOTES_TRUNCATION_NOTICE = (
+    "> Release notes were truncated to fit GitHub's release body limit."
+)
 INSTALL_ALL_SCRIPT_PATH = REPO_ROOT / ".github" / "install-all.bat"
 INSTALL_ALL_ARCHIVE_NAME = "install-all.bat"
 APP_INSTALL_ARCHIVE_NAME = "install.bat"
@@ -225,7 +230,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tray-version",
         default="",
-        help="Aggregate TrayAppDotNET version. Defaults to latest published TrayAppDotNET release + 1, with a floor of 100.",
+        help=(
+            "Aggregate TrayAppDotNET version. Defaults to latest published "
+            f"TrayAppDotNET release + 1, with a floor of {INITIAL_RELEASE_VERSION}."
+        ),
     )
     parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>.")
     parser.add_argument("--target", default=os.environ.get("GITHUB_SHA", ""), help="Target commit for a new release.")
@@ -391,6 +399,36 @@ def release_display_ref(release: dict | None) -> str:
     return "last release"
 
 
+def latest_reachable_release_tag(target: str) -> str:
+    target_ref = target.strip() or "HEAD"
+    result = run(
+        [
+            "git",
+            "tag",
+            "--merged",
+            target_ref,
+            "--list",
+            "TrayAppDotNET_*",
+        ],
+        capture=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print(f"Warning: could not determine the latest release tag reachable from {target_ref}.")
+        return ""
+
+    candidates: list[tuple[int, str]] = []
+    for tag in result.stdout.splitlines():
+        normalized_tag = tag.strip()
+        match = re.fullmatch(r"TrayAppDotNET_(\d+)", normalized_tag)
+        if match:
+            candidates.append((int(match.group(1)), normalized_tag))
+
+    if not candidates:
+        return ""
+    return max(candidates)[1]
+
+
 def commits_since_release(previous_release: dict | None, target: str) -> list[CommitEntry]:
     target_ref = target.strip() or "HEAD"
     base_ref = release_target_ref(previous_release)
@@ -476,11 +514,17 @@ def pull_requests_for_commits(repo: str, commits: list[CommitEntry]) -> list[Pul
 
 
 def default_tray_version(repo: str) -> int:
-    latest = latest_release(repo, missing_message="No latest published release found; defaulting TrayAppDotNET version to 100.")
+    latest = latest_release(
+        repo,
+        missing_message=(
+            "No latest published release found; defaulting TrayAppDotNET version "
+            f"to {INITIAL_RELEASE_VERSION}."
+        ),
+    )
     latest_version = release_version(latest)
     if latest_version is None:
-        return 100
-    return max(latest_version + 1, 100)
+        return INITIAL_RELEASE_VERSION
+    return max(latest_version + 1, INITIAL_RELEASE_VERSION)
 
 
 def app_asset_name(app: App, version: int, profile: Profile) -> str:
@@ -1212,7 +1256,7 @@ def plan_publish(args: argparse.Namespace) -> int:
         previous_asset = latest_published_app_asset(releases, app, profile)
         if previous_asset is None:
             tracked_version = read_buildnumber(Path(app.buildnumber))
-            planned_version = max(tracked_version, 1)
+            planned_version = max(tracked_version, INITIAL_RELEASE_VERSION)
             print(
                 f"{app.name}: no prior app release exists; building version {planned_version}."
             )
@@ -1794,6 +1838,30 @@ def pull_request_list(pull_requests: list[PullRequestEntry]) -> list[str]:
     ]
 
 
+def truncate_release_notes(notes: str) -> str:
+    if len(notes) <= MAX_RELEASE_NOTES_CHARACTERS:
+        return notes
+
+    suffix = f"\n\n{RELEASE_NOTES_TRUNCATION_NOTICE}"
+    prefix = notes[: MAX_RELEASE_NOTES_CHARACTERS - len(suffix)]
+    newline_index = prefix.rfind("\n")
+    if newline_index > 0:
+        prefix = prefix[:newline_index]
+    prefix = prefix.rstrip()
+
+    while True:
+        unclosed_lists = max(0, prefix.count("<ul>") - prefix.count("</ul>"))
+        closing_tags = "" if unclosed_lists == 0 else "\n" + "\n".join("</ul>" for _ in range(unclosed_lists))
+        if len(prefix) + len(closing_tags) + len(suffix) <= MAX_RELEASE_NOTES_CHARACTERS:
+            return prefix + closing_tags + suffix
+
+        newline_index = prefix.rfind("\n")
+        if newline_index <= 0:
+            available_characters = MAX_RELEASE_NOTES_CHARACTERS - len(closing_tags) - len(suffix)
+            return prefix[:available_characters].rstrip() + closing_tags + suffix
+        prefix = prefix[:newline_index].rstrip()
+
+
 def write_notes(
     path: Path,
     rows: list[dict],
@@ -1817,7 +1885,7 @@ def write_notes(
         "",
         *commit_sections(repo, commits),
     ]
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text(truncate_release_notes("\n".join(lines)), encoding="utf-8")
 
 
 def write_summary(rows: list[dict]) -> None:
@@ -1882,13 +1950,20 @@ def publish_release(args: argparse.Namespace) -> int:
     groups = load_collected_profiles(input_root, profile_ids, selected_apps)
     previous_release = latest_release(
         args.repo,
-        missing_message="No latest published release found; defaulting TrayAppDotNET version to 100.",
+        missing_message=(
+            "No latest published release found; defaulting TrayAppDotNET version "
+            f"to {INITIAL_RELEASE_VERSION}."
+        ),
     )
     if args.tray_version.strip():
         tray_version = int(args.tray_version)
     else:
         latest_version = release_version(previous_release)
-        tray_version = max((latest_version or 99) + 1, 100)
+        tray_version = (
+            INITIAL_RELEASE_VERSION
+            if latest_version is None
+            else max(latest_version + 1, INITIAL_RELEASE_VERSION)
+        )
     release_tag = args.release_tag.strip() or f"TrayAppDotNET_{tray_version}"
     aggregate_commit_hash = try_resolve_git_commit(args.target.strip() or "HEAD")
 
@@ -1920,9 +1995,16 @@ def publish_release(args: argparse.Namespace) -> int:
 
     notes_path = final_dir / "release-notes.md"
     versions_path = final_dir / "versions.xml"
-    commits = commits_since_release(previous_release, args.target)
+    release_notes_base = previous_release
+    if release_notes_base is None:
+        previous_tag = latest_reachable_release_tag(args.target)
+        if previous_tag:
+            print(f"No published release exists; generating release notes since {previous_tag}.")
+            release_notes_base = {"tag_name": previous_tag}
+
+    commits = commits_since_release(release_notes_base, args.target)
     pull_requests = pull_requests_for_commits(args.repo, commits)
-    write_notes(notes_path, rows, args.repo, previous_release, commits, pull_requests)
+    write_notes(notes_path, rows, args.repo, release_notes_base, commits, pull_requests)
     write_versions_manifest(versions_path, rows, tray_version, args.repo, release_tag)
     write_summary(rows)
 
