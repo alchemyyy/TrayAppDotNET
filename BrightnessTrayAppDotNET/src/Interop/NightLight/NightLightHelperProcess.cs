@@ -975,22 +975,13 @@ internal static class NightLightHelperClient
         public async Task<bool> SetStrengthAsync(int percent, CancellationToken cancellationToken)
         {
             string command = NightLightHelperProtocol.SerializeSetStrength(percent);
-            string? response = await SendCommandAsync(
+            bool accepted = await SendCommandAsync(
                     command,
+                    NightLightHelperProtocol.SuccessResponse,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
                     operationName: "strength acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
-
-            bool accepted = response switch
-            {
-                NightLightHelperProtocol.SuccessResponse => true,
-                NightLightHelperProtocol.FailureResponse => false,
-                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
-                    "Helper reported a fatal native backend failure."),
-                null => throw CreateProtocolException("Helper exited without an operation response."),
-                _ => throw CreateProtocolException($"Unknown helper operation response '{response}'.")
-            };
             if (accepted)
                 LastAcceptedPercent = percent;
             return accepted;
@@ -1003,63 +994,40 @@ internal static class NightLightHelperClient
         {
             string command = NightLightHelperProtocol.SerializeSetEnabled(enabled, enableStrength);
 
-            string? response = await SendCommandAsync(
+            return await SendCommandAsync(
                     command,
+                    NightLightHelperProtocol.SuccessResponse,
                     TimeConstants.NightLightHelperStateChangeTimeoutMs,
                     operationName: "active-state acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
-            return response switch
-            {
-                NightLightHelperProtocol.SuccessResponse => true,
-                NightLightHelperProtocol.FailureResponse => false,
-                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
-                    "Helper reported a fatal native backend failure."),
-                null => throw CreateProtocolException("Helper exited without an active-state response."),
-                _ => throw CreateProtocolException($"Unknown helper active-state response '{response}'.")
-            };
         }
 
         public async Task<bool> PingAsync(CancellationToken cancellationToken)
         {
-            string? response = await SendCommandAsync(
+            return await SendCommandAsync(
                     NightLightHelperProtocol.PingCommand,
+                    NightLightHelperProtocol.PongResponse,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
                     operationName: "PING acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
-            return response switch
-            {
-                NightLightHelperProtocol.PongResponse => true,
-                NightLightHelperProtocol.FailureResponse => false,
-                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
-                    "Helper reported a fatal native backend failure."),
-                null => throw CreateProtocolException("Helper exited without a PING response."),
-                _ => throw CreateProtocolException($"Unknown helper PING response '{response}'.")
-            };
         }
 
         public async Task<bool> DrainAsync(CancellationToken cancellationToken)
         {
-            string? response = await SendCommandAsync(
+            return await SendCommandAsync(
                     NightLightHelperProtocol.DrainCommand,
+                    NightLightHelperProtocol.DrainedResponse,
                     TimeConstants.NightLightHelperHotPathTimeoutMs,
                     operationName: "drain acknowledgement",
                     cancellationToken)
                 .ConfigureAwait(false);
-            return response switch
-            {
-                NightLightHelperProtocol.DrainedResponse => true,
-                NightLightHelperProtocol.FailureResponse => false,
-                NightLightHelperProtocol.FatalResponse => throw CreateProtocolException(
-                    "Helper reported a fatal native backend failure."),
-                null => throw CreateProtocolException("Helper exited without a drain response."),
-                _ => throw CreateProtocolException($"Unknown helper drain response '{response}'.")
-            };
         }
 
-        private async Task<string?> SendCommandAsync(
+        private async Task<bool> SendCommandAsync(
             string command,
+            string successResponse,
             int timeoutMs,
             string operationName,
             CancellationToken cancellationToken)
@@ -1088,7 +1056,14 @@ internal static class NightLightHelperClient
                 if (response is { Length: > NightLightHelperProtocol.MaximumLineLength })
                     throw new IOException("Helper response exceeded the protocol limit.");
 
-                return response;
+                if (response == successResponse) return true;
+                if (response == NightLightHelperProtocol.FailureResponse) return false;
+                if (response == NightLightHelperProtocol.FatalResponse)
+                    throw new IOException("Helper reported a fatal native backend failure.");
+                if (response == null)
+                    throw new IOException($"Helper exited without its {operationName}.");
+
+                throw new IOException($"Unknown helper {operationName} '{response}'.");
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -1105,12 +1080,6 @@ internal static class NightLightHelperClient
                 if (gateEntered)
                     _operationGate.Release();
             }
-        }
-
-        private IOException CreateProtocolException(string message)
-        {
-            MarkFaulted();
-            return new IOException(message);
         }
 
         private void MarkFaulted()
