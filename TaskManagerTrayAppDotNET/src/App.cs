@@ -48,7 +48,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private TaskManagerTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private WatcherMonitor? _watcherMonitor;
-    private SystemPerformanceSample _latestSystemPerformanceSample = SystemPerformanceSample.Empty;
     private bool _shuttingDown;
 
     public override void Initialize() =>
@@ -232,7 +231,11 @@ internal sealed class TaskManagerAvaloniaApp : Application
                 _settings.TrayGraphStyle,
                 dataSource,
                 _settings.ShowTrayCPUHighestCoreTrace);
-            string tooltip = BuildTrayTooltip(_latestSystemPerformanceSample, dataSource);
+            PerformanceSnapshot performanceSnapshot =
+                _performanceSnapshotService?.GetLatestSnapshot() ?? PerformanceSnapshot.Empty;
+            string tooltip = TaskManagerTrayTooltipFormatter.Format(
+                performanceSnapshot,
+                _settings.PerformanceDeviceOrder);
             trayIcon.SetTooltip(tooltip);
             _trayIconRenderQueue.Request(
                 () => renderer.RenderIcon(input),
@@ -256,7 +259,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
         if (_snapshotService == null || _trayIconRenderer == null) return;
 
         SystemPerformanceSample sample = _snapshotService.GetLatestSystemPerformanceSample();
-        _latestSystemPerformanceSample = sample;
         _trayIconRenderer.AddSample(sample);
         RefreshTrayIcon();
     }
@@ -271,23 +273,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
 
         _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
-    }
-
-    private static string BuildTrayTooltip(
-        SystemPerformanceSample sample,
-        TrayGraphDataSource dataSource)
-    {
-        string label = dataSource switch
-        {
-            TrayGraphDataSource.CPUAverage => "CPU usage (average)",
-            TrayGraphDataSource.CPUHighestCore => "CPU usage (highest core)",
-            TrayGraphDataSource.Memory => "Memory (RAM)",
-            _ => "CPU usage (average)"
-        };
-        int percent = (int)Math.Round(
-            Math.Clamp(sample.Select(dataSource), min: 0, max: 100),
-            MidpointRounding.AwayFromZero);
-        return $"{Constants.DisplayName}\n{label}: {percent}%";
     }
 
     private void OnTrayLeftClick()

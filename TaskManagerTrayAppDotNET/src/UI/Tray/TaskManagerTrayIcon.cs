@@ -8,7 +8,6 @@ internal sealed record TaskManagerTrayIconRenderInput(
     double[] Values,
     double[]? CPUHighestCoreValues = null);
 
-/// <summary>Renders the official-style system utilization graph used by the tray icon.</summary>
 internal sealed class TaskManagerTrayIcon : IDisposable
 {
     public const int HistoryCapacity = 16;

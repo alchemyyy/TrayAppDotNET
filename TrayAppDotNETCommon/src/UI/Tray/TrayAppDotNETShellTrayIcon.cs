@@ -706,8 +706,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             case (short)Shell32.NotifyIconNotification.NIN_POPUPOPEN:
                 _tooltipKeepOpenRequested = true;
                 _isPointerOverIcon = true;
-                _tooltipShowRequested = true;
-                SyncTooltip(true);
+                _tooltipShowRequested = false;
+                _tooltipHoverSyncPending = false;
                 PostEvent(TooltipPopup, nameof(TooltipPopup));
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPCLOSE:
@@ -1206,11 +1206,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     /// </summary>
     private void RequestTooltipUpdateAfterIconChange(bool forceShow)
     {
-        if (forceShow || _tooltipKeepOpenRequested)
-            _tooltipShowRequested = true;
+        bool shouldShow = forceShow || _tooltipKeepOpenRequested || _isPointerOverIcon;
+        if (!shouldShow) return;
 
-        if (forceShow || _tooltipKeepOpenRequested || _isPointerOverIcon)
-            RequestTooltipUpdate();
+        _tooltipShowRequested = true;
+        RequestTooltipUpdate();
     }
 
     /// <summary>
