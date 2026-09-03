@@ -22,18 +22,31 @@ public sealed class TaskManagerTrayIconTests
 
         TaskManagerTrayIconRenderInput averageInput = renderer.CreateRenderInput(
             TrayGraphStyle.Marquee,
-            TrayGraphDataSource.CPUAverage);
+            TrayGraphDataSource.CPUAverage,
+            showCPUHighestCoreTrace: true);
         TaskManagerTrayIconRenderInput highestCoreInput = renderer.CreateRenderInput(
             TrayGraphStyle.Marquee,
-            TrayGraphDataSource.CPUHighestCore);
+            TrayGraphDataSource.CPUHighestCore,
+            showCPUHighestCoreTrace: true);
+        TaskManagerTrayIconRenderInput secondaryTraceDisabledInput = renderer.CreateRenderInput(
+            TrayGraphStyle.Marquee,
+            TrayGraphDataSource.CPUAverage,
+            showCPUHighestCoreTrace: false);
 
         Assert.Equal(TaskManagerTrayIcon.HistoryCapacity, averageInput.Values.Length);
         Assert.Equal(TrayGraphDataSource.CPUAverage, averageInput.DataSource);
         Assert.Equal(TrayGraphDataSource.CPUHighestCore, highestCoreInput.DataSource);
         Assert.Equal(expected: 2, averageInput.Values[0]);
         Assert.Equal(totalSampleCount - 1, averageInput.Values[^1]);
+        Assert.NotNull(averageInput.CPUHighestCoreValues);
+        Assert.Equal(expected: 52, averageInput.CPUHighestCoreValues[0]);
+        Assert.Equal(
+            50 + totalSampleCount - 1,
+            averageInput.CPUHighestCoreValues[^1]);
         Assert.Equal(expected: 52, highestCoreInput.Values[0]);
         Assert.Equal(50 + totalSampleCount - 1, highestCoreInput.Values[^1]);
+        Assert.Null(highestCoreInput.CPUHighestCoreValues);
+        Assert.Null(secondaryTraceDisabledInput.CPUHighestCoreValues);
     }
 
     [Theory]
@@ -82,7 +95,7 @@ public sealed class TaskManagerTrayIconTests
     }
 
     [Fact]
-    public void DataSourceSelectsTheMatchingPerformanceGraphAccent()
+    public void CPUDataSourceSelectsItsGraphLineColor()
     {
         const int iconSize = 32;
         double[] values = [10, 80, 20, 60];
@@ -93,13 +106,36 @@ public sealed class TaskManagerTrayIconTests
                 TrayGraphStyle.Marquee,
                 TrayGraphDataSource.CPUAverage,
                 values));
-        byte[] memoryImageBytes = TaskManagerTrayIcon.RenderPng(
+        byte[] highestCoreImageBytes = TaskManagerTrayIcon.RenderPng(
             iconSize,
             new TaskManagerTrayIconRenderInput(
                 TrayGraphStyle.Marquee,
-                TrayGraphDataSource.Memory,
+                TrayGraphDataSource.CPUHighestCore,
                 values));
 
-        Assert.False(cpuImageBytes.SequenceEqual(memoryImageBytes));
+        Assert.False(cpuImageBytes.SequenceEqual(highestCoreImageBytes));
+    }
+
+    [Fact]
+    public void CPUAverageMarqueeIncludesHighestCoreTrace()
+    {
+        const int iconSize = 32;
+        double[] averageValues = [10, 20, 15, 25];
+
+        byte[] averageOnlyImageBytes = TaskManagerTrayIcon.RenderPng(
+            iconSize,
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Marquee,
+                TrayGraphDataSource.CPUAverage,
+                averageValues));
+        byte[] combinedImageBytes = TaskManagerTrayIcon.RenderPng(
+            iconSize,
+            new TaskManagerTrayIconRenderInput(
+                TrayGraphStyle.Marquee,
+                TrayGraphDataSource.CPUAverage,
+                averageValues,
+                CPUHighestCoreValues: [50, 70, 60, 80]));
+
+        Assert.False(averageOnlyImageBytes.SequenceEqual(combinedImageBytes));
     }
 }

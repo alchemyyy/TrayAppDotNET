@@ -152,6 +152,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, NormalizeTrayGraphDataSource(value));
     } = TrayGraphDataSource.CPUAverage;
 
+    public bool ShowTrayCPUHighestCoreTrace
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public double GridFontSize
     {
         get;

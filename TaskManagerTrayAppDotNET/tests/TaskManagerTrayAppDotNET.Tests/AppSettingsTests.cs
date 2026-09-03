@@ -21,6 +21,7 @@ public sealed class AppSettingsTests
 
         Assert.Equal(TrayGraphStyle.Marquee, settings.TrayGraphStyle);
         Assert.Equal(TrayGraphDataSource.CPUAverage, settings.TrayGraphDataSource);
+        Assert.False(settings.ShowTrayCPUHighestCoreTrace);
     }
 
     [Fact]
@@ -720,12 +721,14 @@ public sealed class AppSettingsTests
         {
             settings.TrayGraphStyle = TrayGraphStyle.Current;
             settings.TrayGraphDataSource = TrayGraphDataSource.Memory;
+            settings.ShowTrayCPUHighestCoreTrace = true;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             Assert.Equal(TrayGraphStyle.Current, loaded.TrayGraphStyle);
             Assert.Equal(TrayGraphDataSource.Memory, loaded.TrayGraphDataSource);
+            Assert.True(loaded.ShowTrayCPUHighestCoreTrace);
         }
         finally
         {

@@ -230,7 +230,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             TrayGraphDataSource dataSource = _settings.TrayGraphDataSource;
             TaskManagerTrayIconRenderInput input = renderer.CreateRenderInput(
                 _settings.TrayGraphStyle,
-                dataSource);
+                dataSource,
+                _settings.ShowTrayCPUHighestCoreTrace);
             string tooltip = BuildTrayTooltip(_latestSystemPerformanceSample, dataSource);
             trayIcon.SetTooltip(tooltip);
             _trayIconRenderQueue.Request(

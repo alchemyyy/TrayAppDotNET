@@ -5,7 +5,8 @@ namespace TaskManagerTrayAppDotNET.UI.Tray;
 internal sealed record TaskManagerTrayIconRenderInput(
     TrayGraphStyle Style,
     TrayGraphDataSource DataSource,
-    double[] Values);
+    double[] Values,
+    double[]? CPUHighestCoreValues = null);
 
 /// <summary>Renders the official-style system utilization graph used by the tray icon.</summary>
 internal sealed class TaskManagerTrayIcon : IDisposable
@@ -15,21 +16,27 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     // AXAML hot-reload exception: Tray icon rendering runs on the background render queue and
     // cannot safely read mutable Avalonia resource dictionaries. Keep these values aligned with
     // the Performance graph resources in TaskManagerWindow.axaml
-    private const float CornerRadiusScale = 3.0f / 16.0f;
-    private const float GraphLineThickness = 0.85f;
-    private const float GraphUnderfillOpacity = 0.12f;
+    private const float CornerRadiusScale = 0.1f;
+    // Scales the complete icon inside the Windows-provided canvas while keeping it centered
+    private const float RenderedIconScale = 0.9f;
+    // Applies an additional horizontal-only scale after the complete icon scale
+    private const float RenderedIconWidthScale = 0.96f;
+    private const int BorderSupersamplingScale = 4;
+    private const float GraphLineThickness = 2f;
+    private const float GraphUnderfillOpacity = 1f;
     private const int GraphUnderfillDarkenAmount = 20;
     private const float GridLineThickness = 0.75f;
     private const float GridOpacity = 92.0f / byte.MaxValue;
 
-    private static readonly SKColor BackgroundColor = new(red: 25, green: 25, blue: 25);
-    private static readonly SKColor CPUGraphLineColor = new(red: 50, green: 181, blue: 229);
-    private static readonly SKColor MemoryGraphLineColor = new(red: 88, green: 131, blue: 208);
+    private static readonly SKColor BackgroundColor = new(red: 28, green: 28, blue: 28, alpha: 255);
+    private static readonly SKColor CPUGraphLineColor = new(red: 87, green: 192, blue: 255);
+    private static readonly SKColor CPUHighestCoreGraphLineColor = new(red: 87, green: 192, blue: 255, alpha: 100);
 
     private static readonly SKColor GridColor = new(red: 177, green: 180, blue: 178,
         (byte)Math.Round(byte.MaxValue * GridOpacity));
 
-    private static readonly SKColor BorderColor = new(red: 137, green: 140, blue: 138);
+    private static readonly SKColor TopAndLeftBorderColor = new(red: 100, green: 100, blue: 100);
+    private static readonly SKColor RightAndBottomBorderColor = new(red: 185, green: 185, blue: 185);
 
     private readonly Lock _gate = new();
     private readonly SystemPerformanceSample[] _history = new SystemPerformanceSample[HistoryCapacity];
@@ -55,17 +62,31 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     /// <summary>Creates an immutable background-render input from the selected metric.</summary>
     public TaskManagerTrayIconRenderInput CreateRenderInput(
         TrayGraphStyle style,
-        TrayGraphDataSource dataSource)
+        TrayGraphDataSource dataSource,
+        bool showCPUHighestCoreTrace)
     {
         int valueCount = Math.Max(val1: 1, _historyCount);
         double[] values = new double[valueCount];
+        bool includeCPUHighestCoreValues = showCPUHighestCoreTrace
+                                           && style == TrayGraphStyle.Marquee
+                                           && dataSource == TrayGraphDataSource.CPUAverage;
+        double[]? cpuHighestCoreValues = includeCPUHighestCoreValues
+            ? new double[valueCount]
+            : null;
         for (int valueIndex = 0; valueIndex < _historyCount; valueIndex++)
         {
             int historyIndex = (_historyStart + valueIndex) % _history.Length;
-            values[valueIndex] = _history[historyIndex].Select(dataSource);
+            SystemPerformanceSample sample = _history[historyIndex];
+            values[valueIndex] = sample.Select(dataSource);
+            if (cpuHighestCoreValues != null)
+                cpuHighestCoreValues[valueIndex] = sample.CPUHighestCorePercent;
         }
 
-        return new TaskManagerTrayIconRenderInput(style, dataSource, values);
+        return new TaskManagerTrayIconRenderInput(
+            style,
+            dataSource,
+            values,
+            cpuHighestCoreValues);
     }
 
     /// <summary>Renders a caller-owned native icon for the shared background render queue.</summary>
@@ -100,7 +121,14 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         using SKCanvas canvas = new(bitmap);
         canvas.Clear(SKColors.Transparent);
 
-        float borderWidth = Math.Max(val1: 1.0f, size / 24.0f);
+        float renderedIconScaleX = RenderedIconScale * RenderedIconWidthScale;
+        float renderedIconInsetX = size * (1.0f - renderedIconScaleX) / 2.0f;
+        float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f;
+        canvas.Save();
+        canvas.Translate(renderedIconInsetX, renderedIconInsetY);
+        canvas.Scale(renderedIconScaleX, RenderedIconScale);
+
+        float borderWidth = Math.Max(val1: 1.0f, size / 14.0f);
         float cornerRadius = Math.Max(val1: borderWidth * 2, size * CornerRadiusScale);
         SKRect surfaceBounds = new(left: 0, top: 0, right: size, bottom: size);
         using (SKPaint backgroundPaint = new()
@@ -132,6 +160,7 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             graphCornerRadius);
         canvas.ClipPath(graphClipPath, SKClipOperation.Intersect, antialias: true);
         DrawGraph(canvas, graphBounds, input);
+        canvas.Restore();
         canvas.Restore();
         DrawBorder(canvas, size, borderWidth, cornerRadius);
 
@@ -179,7 +208,29 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         }
 
         DrawGrid(canvas, graphBounds);
+        DrawCPUHighestCoreMarqueeLine(canvas, graphBounds, input);
         using SKPaint linePaint = CreateGraphLinePaint(lineColor);
+        canvas.DrawPath(linePath, linePaint);
+    }
+
+    /// <summary>Draws highest-core utilization behind the overall CPU marquee trace.</summary>
+    private static void DrawCPUHighestCoreMarqueeLine(
+        SKCanvas canvas,
+        SKRect graphBounds,
+        TaskManagerTrayIconRenderInput input)
+    {
+        if (input.Style != TrayGraphStyle.Marquee
+            || input.CPUHighestCoreValues is not { Length: > 0 } cpuHighestCoreValues)
+            return;
+
+        using SKPath unusedUnderfillPath = new();
+        using SKPath linePath = new();
+        BuildMarqueeGraphPaths(
+            graphBounds,
+            cpuHighestCoreValues,
+            unusedUnderfillPath,
+            linePath);
+        using SKPaint linePaint = CreateGraphLinePaint(CPUHighestCoreGraphLineColor);
         canvas.DrawPath(linePath, linePaint);
     }
 
@@ -260,21 +311,77 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         float borderWidth,
         float cornerRadius)
     {
-        using SKPaint borderPaint = new()
+        int supersampledSize = checked(size * BorderSupersamplingScale);
+        SKImageInfo imageInfo = new(
+            supersampledSize,
+            supersampledSize,
+            SKColorType.Bgra8888,
+            SKAlphaType.Premul);
+        using SKBitmap bitmap = new(imageInfo);
+        using (SKCanvas borderCanvas = new(bitmap))
         {
-            Color = BorderColor,
-            IsAntialias = true,
-            StrokeWidth = borderWidth,
-            StrokeJoin = SKStrokeJoin.Round,
-            Style = SKPaintStyle.Stroke
-        };
-        float inset = borderWidth / 2.0f;
-        float borderCornerRadius = Math.Max(val1: borderWidth, cornerRadius - inset);
-        canvas.DrawRoundRect(
-            new SKRect(inset, inset, size - inset, size - inset),
-            borderCornerRadius,
-            borderCornerRadius,
-            borderPaint);
+            borderCanvas.Clear(SKColors.Transparent);
+            borderCanvas.Scale(BorderSupersamplingScale);
+            float renderedIconScaleX = RenderedIconScale * RenderedIconWidthScale;
+            float renderedIconInsetX = size * (1.0f - renderedIconScaleX) / 2.0f;
+            float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f;
+            borderCanvas.Translate(renderedIconInsetX, renderedIconInsetY);
+            borderCanvas.Scale(renderedIconScaleX, RenderedIconScale);
+
+            SKRect outerBounds = new(left: 0, top: 0, right: size, bottom: size);
+            // Counter the horizontal icon scaling so every border edge has equal device thickness
+            float borderWidthX = borderWidth / RenderedIconWidthScale;
+            float borderWidthY = borderWidth;
+            SKRect innerBounds = new(
+                borderWidthX,
+                borderWidthY,
+                size - borderWidthX,
+                size - borderWidthY);
+            float innerCornerRadiusX = Math.Max(val1: 0, cornerRadius - borderWidthX);
+            float innerCornerRadiusY = Math.Max(val1: 0, cornerRadius - borderWidthY);
+            using SKPath borderPath = new() { FillType = SKPathFillType.EvenOdd };
+            borderPath.AddRoundRect(outerBounds, cornerRadius, cornerRadius);
+            borderPath.AddRoundRect(innerBounds, innerCornerRadiusX, innerCornerRadiusY);
+            using (SKPaint topAndLeftBorderPaint = new()
+            {
+                Color = TopAndLeftBorderColor,
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill
+            })
+            {
+                borderCanvas.DrawPath(borderPath, topAndLeftBorderPaint);
+            }
+
+            // Keep the right and bottom edges plus their adjoining corner arcs
+            using SKPath visibleBorderPath = new();
+            visibleBorderPath.AddRect(new SKRect(
+                left: size - cornerRadius,
+                top: 0,
+                right: size,
+                bottom: size));
+            visibleBorderPath.AddRect(new SKRect(
+                left: 0,
+                top: size - cornerRadius,
+                right: size,
+                bottom: size));
+            borderCanvas.ClipPath(
+                visibleBorderPath,
+                SKClipOperation.Intersect,
+                antialias: false);
+            using SKPaint borderPaint = new()
+            {
+                Color = RightAndBottomBorderColor,
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill
+            };
+            borderCanvas.DrawPath(borderPath, borderPaint);
+        }
+
+        using SKImage borderImage = SKImage.FromBitmap(bitmap);
+        canvas.DrawImage(
+            borderImage,
+            new SKRect(left: 0, top: 0, right: size, bottom: size),
+            new SKSamplingOptions(SKCubicResampler.Mitchell));
     }
 
     private static SKPaint CreateGraphLinePaint(SKColor lineColor) =>
@@ -291,9 +398,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     private static SKColor GetGraphLineColor(TrayGraphDataSource dataSource) =>
         dataSource switch
         {
-            TrayGraphDataSource.Memory => MemoryGraphLineColor,
-            TrayGraphDataSource.CPUAverage or TrayGraphDataSource.CPUHighestCore =>
-                CPUGraphLineColor,
+            TrayGraphDataSource.CPUHighestCore => CPUHighestCoreGraphLineColor,
+            TrayGraphDataSource.CPUAverage => CPUGraphLineColor,
             _ => CPUGraphLineColor
         };
 

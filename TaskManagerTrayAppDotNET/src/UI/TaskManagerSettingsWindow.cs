@@ -270,6 +270,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             },
             palette,
             searchKeywords: ["CPU processor core memory RAM metric"]));
+        stack.Children.Add(BoolCard(
+            title: "Show highest core trace",
+            description: "Overlay highest-logical-processor utilization on the average CPU marquee graph.",
+            _settings.ShowTrayCPUHighestCoreTrace,
+            value => _settings.ShowTrayCPUHighestCoreTrace = value,
+            palette,
+            searchKeywords: ["CPU highest core logical processor secondary trace line overlay"]));
         return stack;
     }
 
