@@ -18,9 +18,15 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     // the Performance graph resources in TaskManagerWindow.axaml
     private const float CornerRadiusScale = 0.1f;
     // Scales the complete icon inside the Windows-provided canvas while keeping it centered
-    private const float RenderedIconScale = 0.9f;
+    private const float RenderedIconScale = 0.88f;
     // Applies an additional horizontal-only scale after the complete icon scale
     private const float RenderedIconWidthScale = 0.96f;
+    // Applies an optical vertical adjustment in output pixels
+    // this seems to be what Windows does to the official Task Manager icon.
+    // The reasoning for it is the more intense bottom border makes the icon overall bottom-heavy
+    // So the icon appears to be lower than it actually is.
+    // Setting this to fractional values can possibly ruin blending
+    private const float RenderedIconVerticalOffset = -0.0f;
     private const int BorderSupersamplingScale = 4;
     private const float GraphLineThickness = 2f;
     private const float GraphUnderfillOpacity = 1f;
@@ -29,8 +35,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     private const float GridOpacity = 92.0f / byte.MaxValue;
 
     private static readonly SKColor BackgroundColor = new(red: 28, green: 28, blue: 28, alpha: 255);
-    private static readonly SKColor CPUGraphLineColor = new(red: 87, green: 192, blue: 255);
-    private static readonly SKColor CPUHighestCoreGraphLineColor = new(red: 87, green: 192, blue: 255, alpha: 100);
+    private static readonly SKColor CPUGraphLineColor = new(red: 87, green: 192, blue: 255, alpha: 220);
+    private static readonly SKColor CPUHighestCoreGraphLineColor = new(red: 87, green: 192, blue: 255, alpha: 200);
 
     private static readonly SKColor GridColor = new(red: 177, green: 180, blue: 178,
         (byte)Math.Round(byte.MaxValue * GridOpacity));
@@ -123,7 +129,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
 
         float renderedIconScaleX = RenderedIconScale * RenderedIconWidthScale;
         float renderedIconInsetX = size * (1.0f - renderedIconScaleX) / 2.0f;
-        float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f;
+        float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f
+                                   + RenderedIconVerticalOffset;
         canvas.Save();
         canvas.Translate(renderedIconInsetX, renderedIconInsetY);
         canvas.Scale(renderedIconScaleX, RenderedIconScale);
@@ -324,7 +331,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             borderCanvas.Scale(BorderSupersamplingScale);
             float renderedIconScaleX = RenderedIconScale * RenderedIconWidthScale;
             float renderedIconInsetX = size * (1.0f - renderedIconScaleX) / 2.0f;
-            float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f;
+            float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f
+                                       + RenderedIconVerticalOffset;
             borderCanvas.Translate(renderedIconInsetX, renderedIconInsetY);
             borderCanvas.Scale(renderedIconScaleX, RenderedIconScale);
 
@@ -364,17 +372,37 @@ internal sealed class TaskManagerTrayIcon : IDisposable
                 top: size - cornerRadius,
                 right: size,
                 bottom: size));
+            borderCanvas.Save();
             borderCanvas.ClipPath(
                 visibleBorderPath,
                 SKClipOperation.Intersect,
                 antialias: false);
-            using SKPaint borderPaint = new()
+            using SKPaint rightAndBottomBorderPaint = new()
             {
+                BlendMode = SKBlendMode.SrcATop,
                 Color = RightAndBottomBorderColor,
                 IsAntialias = true,
                 Style = SKPaintStyle.Fill
             };
-            borderCanvas.DrawPath(borderPath, borderPaint);
+            borderCanvas.DrawPaint(rightAndBottomBorderPaint);
+            borderCanvas.Restore();
+
+            DrawBorderCornerBlend(
+                borderCanvas,
+                new SKRect(size - cornerRadius, 0, size, cornerRadius),
+                new SKPoint(size - cornerRadius, cornerRadius),
+                startAngle: 270,
+                endAngle: 360,
+                TopAndLeftBorderColor,
+                RightAndBottomBorderColor);
+            DrawBorderCornerBlend(
+                borderCanvas,
+                new SKRect(0, size - cornerRadius, cornerRadius, size),
+                new SKPoint(cornerRadius, size - cornerRadius),
+                startAngle: 90,
+                endAngle: 180,
+                RightAndBottomBorderColor,
+                TopAndLeftBorderColor);
         }
 
         using SKImage borderImage = SKImage.FromBitmap(bitmap);
@@ -382,6 +410,36 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             borderImage,
             new SKRect(left: 0, top: 0, right: size, bottom: size),
             new SKSamplingOptions(SKCubicResampler.Mitchell));
+    }
+
+    /// <summary>Blends border colors around a corner without changing the border's alpha coverage.</summary>
+    private static void DrawBorderCornerBlend(
+        SKCanvas canvas,
+        SKRect cornerBounds,
+        SKPoint cornerCenter,
+        float startAngle,
+        float endAngle,
+        SKColor startColor,
+        SKColor endColor)
+    {
+        canvas.Save();
+        canvas.ClipRect(cornerBounds, SKClipOperation.Intersect, antialias: false);
+        using SKShader cornerShader = SKShader.CreateSweepGradient(
+            cornerCenter,
+            [startColor, endColor],
+            SKShaderTileMode.Clamp,
+            startAngle,
+            endAngle);
+        using SKPaint cornerPaint = new()
+        {
+            BlendMode = SKBlendMode.SrcATop,
+            IsAntialias = true,
+            IsDither = true,
+            Shader = cornerShader,
+            Style = SKPaintStyle.Fill
+        };
+        canvas.DrawPaint(cornerPaint);
+        canvas.Restore();
     }
 
     private static SKPaint CreateGraphLinePaint(SKColor lineColor) =>
