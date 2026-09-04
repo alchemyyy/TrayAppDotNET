@@ -1,5 +1,5 @@
-<h1><span>TrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/tadnlogo.png" alt="TrayAppDotNET logo" width="48" align="middle"></sup></h1>
-<p><em>A suite of Windows 11 apps focused around one of the most under-loved pieces of UX ever.</em></p>
+<h1 align="center"><span>TrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/tadnlogo.png" alt="TrayAppDotNET logo" width="48" align="middle"></sup></h1>
+<p align="center"><em>A suite of Windows 11 apps focused around one of the most under-loved pieces of UX ever.</em></p>
 
 
 
