@@ -97,13 +97,14 @@ public sealed record TrayAppDotNETInstallPayload(
         TrayAppDotNETInstallFile[] requiredFiles =
         [
             new(Name: "av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             .. CreateLegalFiles()
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
         [
+            // Accept legacy copies and remove them only after the shared install root becomes empty
+            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];

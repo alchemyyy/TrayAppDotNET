@@ -33,8 +33,11 @@ public static class TrayAppDotNETAvalonia
         Func<AppBuilder, AppBuilder>? configureAfterPlatformDetect = null)
         where TApp : Application, new() =>
         RunOnStaThreadIfNeeded(() =>
-            Configure<TApp>(configureAfterPlatformDetect)
-                .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown));
+        {
+            NativeDependencyBundle.EnsureLoaded();
+            return Configure<TApp>(configureAfterPlatformDetect)
+                .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+        });
 
     private static int RunOnStaThreadIfNeeded(Func<int> run)
     {

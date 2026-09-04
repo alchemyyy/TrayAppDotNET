@@ -38,6 +38,20 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
+    public void NativeAOTPayloadRequiresAngleButTreatsEmbeddedLibrariesAsLegacyFiles()
+    {
+        TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp("TestTrayAppDotNET");
+        string[] requiredFileNames = [.. payload.RequiredFiles.Select(file => file.Name)];
+        string[] optionalFileNames = [.. payload.OptionalFiles.Select(file => file.Name)];
+
+        Assert.Contains("av_libglesv2.dll", requiredFileNames);
+        Assert.DoesNotContain("libHarfBuzzSharp.dll", requiredFileNames);
+        Assert.DoesNotContain("libSkiaSharp.dll", requiredFileNames);
+        Assert.Contains("libHarfBuzzSharp.dll", optionalFileNames);
+        Assert.Contains("libSkiaSharp.dll", optionalFileNames);
+    }
+
+    [Fact]
     public void ElevatedInstallArgumentsCarryExplicitShortcutOptions()
     {
         TrayAppDotNETInstallOptions installOptions = new(

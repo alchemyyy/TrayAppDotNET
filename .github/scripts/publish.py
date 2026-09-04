@@ -162,6 +162,11 @@ GENERATOR_PROJECTS = [
     "TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj",
     "TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj",
 ]
+EMBEDDED_NATIVE_AOT_DLL_NAMES = (
+    "libHarfBuzzSharp.dll",
+    "libSkiaSharp.dll",
+)
+REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES = ("av_libglesv2.dll",)
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -851,6 +856,29 @@ def validate_publish_dir(app: App, publish_dir: Path, profile: Profile) -> None:
                 f"{app.name} Native AOT publish produced {app_dll.name}. "
                 "Refusing to package a managed publish as Native AOT."
             )
+
+        unexpected_loose_dlls = [
+            name
+            for name in EMBEDDED_NATIVE_AOT_DLL_NAMES
+            if (publish_dir / name).exists()
+        ]
+        if unexpected_loose_dlls:
+            raise SystemExit(
+                f"{app.name} Native AOT publish contains native DLLs that must be "
+                f"embedded: {', '.join(unexpected_loose_dlls)}."
+            )
+
+        missing_loose_dlls = [
+            name
+            for name in REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES
+            if not (publish_dir / name).exists()
+        ]
+        if missing_loose_dlls:
+            raise SystemExit(
+                f"{app.name} Native AOT publish is missing required loose native DLLs: "
+                f"{', '.join(missing_loose_dlls)}."
+            )
+
         return
 
     if not app_dll.exists():

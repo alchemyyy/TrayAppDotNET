@@ -141,6 +141,25 @@
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Release Native AOT embeds these two libraries in the managed resource blob. Keep ANGLE
+       loose because Windows loads it as Avalonia's rendering backend before application code. -->
+  <Target Name="RemoveEmbeddedNativeDependenciesFromPublish"
+          AfterTargets="ComputeFilesToPublish"
+          BeforeTargets="CopyFilesToPublishDirectory"
+          Condition="'$(OutputType)' == 'WinExe' and '$(PublishAot)' == 'true' and '$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Filename)%(Extension)' == 'libHarfBuzzSharp.dll' or '%(Filename)%(Extension)' == 'libSkiaSharp.dll'" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RemoveEmbeddedNativeDependenciesFromReleaseBuildOutput"
+          AfterTargets="PublishAfterBuild"
+          Condition="'$(OutputType)' == 'WinExe' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == '' and '$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
+    <Delete Files="$(OutputPath)libHarfBuzzSharp.dll;$(OutputPath)libSkiaSharp.dll"
+            ContinueOnError="WarnAndContinue" />
+  </Target>
+
   <ItemGroup>
     <_TrayAppDotNETStronglyTypedResource
       Include="@(EmbeddedResource->WithMetadataValue('StronglyTypedLanguage', 'C#'))" />

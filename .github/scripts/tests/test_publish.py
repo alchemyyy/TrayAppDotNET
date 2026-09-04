@@ -76,6 +76,25 @@ class PublishScriptTests(unittest.TestCase):
         self.assertIn("-p:BuildNumber=321", command)
         self.assertIn(f"-p:TrayAppDotNETCommitHash={commit_hash}", command)
 
+    def test_native_aot_publish_validation_requires_embedded_dlls(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            publish_directory = Path(temporary_directory)
+            executable_path = publish_directory / f"{app.name}.exe"
+            executable_path.write_bytes(b"native executable")
+            (publish_directory / "av_libglesv2.dll").write_bytes(b"ANGLE")
+
+            with mock.patch.object(PUBLISH, "validate_legal_directory"):
+                PUBLISH.validate_publish_dir(app, publish_directory, profile)
+
+            (publish_directory / "libSkiaSharp.dll").write_bytes(b"legacy")
+            with (
+                mock.patch.object(PUBLISH, "validate_legal_directory"),
+                self.assertRaisesRegex(SystemExit, "must be embedded"),
+            ):
+                PUBLISH.validate_publish_dir(app, publish_directory, profile)
+
     def test_versions_manifest_supplies_reused_app_commit_hash(self) -> None:
         app = PUBLISH.APPS[0]
         commit_hash = "b" * 40

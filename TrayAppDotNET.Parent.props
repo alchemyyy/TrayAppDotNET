@@ -13,6 +13,14 @@
          publish flows can explicitly disable shared project builds. -->
     <TrayAppDotNETBuildSharedProjectReferences Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == ''">true</TrayAppDotNETBuildSharedProjectReferences>
     <TrayAppDotNETSharedProjectReferenceTargets Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == 'false'">GetTargetPath</TrayAppDotNETSharedProjectReferenceTargets>
+    <TrayAppDotNETSkiaSharpVersion Condition="'$(TrayAppDotNETSkiaSharpVersion)' == ''">3.119.4</TrayAppDotNETSkiaSharpVersion>
+    <TrayAppDotNETHarfBuzzSharpNativeAssetsVersion Condition="'$(TrayAppDotNETHarfBuzzSharpNativeAssetsVersion)' == ''">8.3.1.3</TrayAppDotNETHarfBuzzSharpNativeAssetsVersion>
+    <TrayAppDotNETSkiaSharpNativeDLLLength Condition="'$(TrayAppDotNETSkiaSharpNativeDLLLength)' == ''">11628896</TrayAppDotNETSkiaSharpNativeDLLLength>
+    <TrayAppDotNETSkiaSharpNativeDLLSHA256 Condition="'$(TrayAppDotNETSkiaSharpNativeDLLSHA256)' == ''">7DEC3BA900AB353491E6446F0083739924C6F8DD668832E2F09D38EBFFDBBE1C</TrayAppDotNETSkiaSharpNativeDLLSHA256>
+    <TrayAppDotNETHarfBuzzSharpNativeDLLLength Condition="'$(TrayAppDotNETHarfBuzzSharpNativeDLLLength)' == ''">1816088</TrayAppDotNETHarfBuzzSharpNativeDLLLength>
+    <TrayAppDotNETHarfBuzzSharpNativeDLLSHA256 Condition="'$(TrayAppDotNETHarfBuzzSharpNativeDLLSHA256)' == ''">145ADE963EBA427027D5E1381DB5D51A0EF9E98E9FEF9EFBFA6074CA20DA246F</TrayAppDotNETHarfBuzzSharpNativeDLLSHA256>
+    <TrayAppDotNETEmbedNativeDependencies Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">true</TrayAppDotNETEmbedNativeDependencies>
+    <TrayAppDotNETEmbedNativeDependencies Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == ''">false</TrayAppDotNETEmbedNativeDependencies>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETPrereleaseProjectProperties Condition="'$(Configuration)' == 'Prerelease'">Optimize=true;DebugSymbols=false;DebugType=none;CheckForOverflowUnderflow=false</TrayAppDotNETPrereleaseProjectProperties>

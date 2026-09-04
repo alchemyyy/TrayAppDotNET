@@ -13,6 +13,7 @@
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <DefineConstants Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">$(DefineConstants);TRAYAPPDOTNET_EMBEDDED_NATIVE_DEPENDENCIES</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaXaml Remove="Theming\**" />
@@ -28,7 +29,9 @@
                       Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.9" />
-    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp" Version="$(TrayAppDotNETSkiaSharpVersion)" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="$(TrayAppDotNETSkiaSharpVersion)" PrivateAssets="all" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" Version="$(TrayAppDotNETHarfBuzzSharpNativeAssetsVersion)" PrivateAssets="all" />
     <ProjectReference Include="..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
                       Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
                       Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
@@ -50,6 +53,59 @@
   <ItemGroup>
     <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
+    <_TrayAppDotNETSkiaSharpNativeDLL>$(NuGetPackageRoot)skiasharp.nativeassets.win32\$(TrayAppDotNETSkiaSharpVersion)\runtimes\win-x64\native\libSkiaSharp.dll</_TrayAppDotNETSkiaSharpNativeDLL>
+    <_TrayAppDotNETHarfBuzzSharpNativeDLL>$(NuGetPackageRoot)harfbuzzsharp.nativeassets.win32\$(TrayAppDotNETHarfBuzzSharpNativeAssetsVersion)\runtimes\win-x64\native\libHarfBuzzSharp.dll</_TrayAppDotNETHarfBuzzSharpNativeDLL>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
+    <_TrayAppDotNETEmbeddedNativeDependency Include="$(_TrayAppDotNETHarfBuzzSharpNativeDLL)"
+                                              ExpectedSHA256="$(TrayAppDotNETHarfBuzzSharpNativeDLLSHA256)" />
+    <_TrayAppDotNETEmbeddedNativeDependency Include="$(_TrayAppDotNETSkiaSharpNativeDLL)"
+                                              ExpectedSHA256="$(TrayAppDotNETSkiaSharpNativeDLLSHA256)" />
+    <EmbeddedResource Include="$(_TrayAppDotNETHarfBuzzSharpNativeDLL)"
+                      LogicalName="TrayAppDotNETCommon.NativeDependencies.libHarfBuzzSharp.dll" />
+    <EmbeddedResource Include="$(_TrayAppDotNETSkiaSharpNativeDLL)"
+                      LogicalName="TrayAppDotNETCommon.NativeDependencies.libSkiaSharp.dll" />
+  </ItemGroup>
+
+  <Target Name="GenerateEmbeddedNativeDependencyMetadata"
+          BeforeTargets="CoreCompile"
+          Condition="'$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
+    <Error Condition="!Exists('$(_TrayAppDotNETHarfBuzzSharpNativeDLL)')"
+           Text="HarfBuzzSharp native dependency was not found at $(_TrayAppDotNETHarfBuzzSharpNativeDLL). Restore packages before building." />
+    <Error Condition="!Exists('$(_TrayAppDotNETSkiaSharpNativeDLL)')"
+           Text="SkiaSharp native dependency was not found at $(_TrayAppDotNETSkiaSharpNativeDLL). Restore packages before building." />
+    <GetFileHash Files="@(_TrayAppDotNETEmbeddedNativeDependency)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Items" ItemName="_TrayAppDotNETHashedEmbeddedNativeDependency" />
+    </GetFileHash>
+    <Error Condition="'%(_TrayAppDotNETHashedEmbeddedNativeDependency.FileHash)' != '%(_TrayAppDotNETHashedEmbeddedNativeDependency.ExpectedSHA256)'"
+           Text="Native dependency hash mismatch for %(_TrayAppDotNETHashedEmbeddedNativeDependency.Identity). Expected %(_TrayAppDotNETHashedEmbeddedNativeDependency.ExpectedSHA256), got %(_TrayAppDotNETHashedEmbeddedNativeDependency.FileHash)." />
+    <PropertyGroup>
+      <_TrayAppDotNETNativeDependencyMetadataFile>$(IntermediateOutputPath)EmbeddedNativeDependencyMetadata.g.cs</_TrayAppDotNETNativeDependencyMetadataFile>
+    </PropertyGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ItemGroup>
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="// &lt;auto-generated/&gt;" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="namespace TrayAppDotNETCommon.Services%3B" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="internal static class EmbeddedNativeDependencyMetadata" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="{" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="    public const long HarfBuzzSharpLength = $(TrayAppDotNETHarfBuzzSharpNativeDLLLength)%3B" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="    public const string HarfBuzzSharpSHA256 = &quot;$(TrayAppDotNETHarfBuzzSharpNativeDLLSHA256)&quot;%3B" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="    public const long SkiaSharpLength = $(TrayAppDotNETSkiaSharpNativeDLLLength)%3B" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="    public const string SkiaSharpSHA256 = &quot;$(TrayAppDotNETSkiaSharpNativeDLLSHA256)&quot;%3B" />
+      <_TrayAppDotNETNativeDependencyMetadataLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_TrayAppDotNETNativeDependencyMetadataFile)"
+                      Lines="@(_TrayAppDotNETNativeDependencyMetadataLine)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_TrayAppDotNETNativeDependencyMetadataFile)" />
+      <FileWrites Include="$(_TrayAppDotNETNativeDependencyMetadataFile)" />
+    </ItemGroup>
+  </Target>
 
   <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
        Exclude source-tree custom-tool output to prevent duplicate classes. -->
