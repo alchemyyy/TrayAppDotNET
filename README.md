@@ -1,9 +1,4 @@
-<h1 style="display: flex; align-items: center; gap: 12px;">
-  <span>TrayAppDotNET</span>
-  <img src="./documentation/readme_images/tadnlogo.png" alt="Preview" width="48">
-</h1>
-
-*A suite of Windows 11 apps focused around one of the most under-loved pieces of UX ever.*
+<h1><span>TrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/tadnlogo.png" alt="TrayAppDotNET logo" width="48" align="middle"></sup><br><sub><em>A suite of Windows 11 apps focused around one of the most under-loved pieces of UX ever.</em></sub></h1>
 
 
 
@@ -33,17 +28,11 @@ Without further ado, here is what currently exists:
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>BatteryTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_batadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>BatteryTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_batadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>BrightnessTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_btadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>BrightnessTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_btadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 This app lets you control the *actual* brightness of external displays, as well as Windows brightness (laptops) and Windows Night Light.
 
@@ -81,19 +70,13 @@ I kept running into DDC failures with Twinkle Tray, and I'm not a fan of how muc
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>FanControlTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_fctadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>FanControlTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_fctadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 Not to be confused with the very popular "Fan Control" project. The former to me is a bit cumbersome to use, and I find it odd its not open source. As the author of Fan Control states, that project and this one are both essentially UX wrappers around LibreHardwareMonitor, and nothing more.
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>NetworkTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_ntadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>NetworkTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_ntadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 This is as simple as it gets. I've been fine with the old Windows Network flyout, so this little app just invokes that and keeps track of its tray icon status. One feature I did add is a quick access tray menu entry that lets you open an explorer shell (dark theme supported) directly to the classic network adapters panel.
 
@@ -103,10 +86,7 @@ This is as simple as it gets. I've been fine with the old Windows Network flyout
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>TaskManagerTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_tmtadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>TaskManagerTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_tmtadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 A "reimplementation" of the Windows 11 Task Manager. The official Task Manager has become far too stuttery for me. While "fixing that", some extra bells and whistles were added.
 
@@ -138,10 +118,7 @@ A "reimplementation" of the Windows 11 Task Manager. The official Task Manager h
 
 ---
 
-<h3 style="display: flex; align-items: center; gap: 12px;">
-  <span>VolumeTrayAppDotNET</span>
-  <img src="./documentation/readme_images/app_btadn.ico" alt="Preview" width="32">
-</h3>
+<h3><span>VolumeTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_vtadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
 
 EarTrumpet users might find this familiar. I took inspiration from it in this design. I had originally modified EarTrumpet to show devices and app mixing from the bottom-up, to minimize mouse movement distance. Since that project seems to have been abandoned, I took a crack at the whole thing.
 
