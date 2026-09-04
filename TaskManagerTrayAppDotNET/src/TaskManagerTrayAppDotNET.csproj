@@ -25,6 +25,8 @@
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
     <NativeKillHelperFileName>TaskManagerTrayAppDotNET.KillHelper.exe</NativeKillHelperFileName>
     <NativeKillHelperSourceDirectory>$(MSBuildProjectDirectory)\..\native\KillHelper</NativeKillHelperSourceDirectory>
+    <NativeKillHelperProject>$(NativeKillHelperSourceDirectory)\TaskManagerTrayAppDotNET.KillHelper.vcxproj</NativeKillHelperProject>
+    <NativeKillHelperBuildScript>$(NativeKillHelperSourceDirectory)\BuildKillHelper.ps1</NativeKillHelperBuildScript>
     <NativeKillHelperIntermediateDirectory>$(MSBuildProjectDirectory)\..\obj\$(Platform)\$(Configuration)</NativeKillHelperIntermediateDirectory>
     <NativeKillHelperBuildDirectory>$(NativeKillHelperIntermediateDirectory)\kill-helper</NativeKillHelperBuildDirectory>
     <NativeKillHelperBuildDirectory Condition="'$(RuntimeIdentifier)' != ''">$(NativeKillHelperIntermediateDirectory)\$(RuntimeIdentifier)\kill-helper</NativeKillHelperBuildDirectory>
@@ -55,6 +57,8 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <NativeKillHelperBuildKind Condition="'$(CustomNativeMain)' == 'true'">NativeAOT</NativeKillHelperBuildKind>
+    <NativeKillHelperBuildKind Condition="'$(NativeKillHelperBuildKind)' == ''">Sidecar</NativeKillHelperBuildKind>
     <NativeKillHelperBuildOutput Condition="'$(CustomNativeMain)' == 'true'">$(NativeKillHelperLibrary)</NativeKillHelperBuildOutput>
     <NativeKillHelperBuildOutput Condition="'$(NativeKillHelperBuildOutput)' == ''">$(NativeKillHelperExecutable)</NativeKillHelperBuildOutput>
   </PropertyGroup>
@@ -124,11 +128,7 @@
           Inputs="@(_NativeKillHelperSource)"
           Outputs="$(NativeKillHelperBuildOutput)">
     <MakeDir Directories="$(NativeKillHelperBuildDirectory)" />
-    <Exec Command="cmake -S &quot;$(NativeKillHelperSourceDirectory)&quot; -B &quot;$(NativeKillHelperBuildDirectory)&quot; -A x64" />
-    <Exec Condition="'$(CustomNativeMain)' == 'true'"
-          Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelperNativeAOT" />
-    <Exec Condition="'$(CustomNativeMain)' != 'true'"
-          Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelper" />
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(NativeKillHelperBuildScript)&quot; -ProjectPath &quot;$(NativeKillHelperProject)&quot; -OutputDirectory &quot;$(NativeKillHelperBuildDirectory)\out&quot; -Configuration &quot;$(NativeKillHelperConfiguration)&quot; -BuildKind &quot;$(NativeKillHelperBuildKind)&quot;" />
     <Error Condition="!Exists('$(NativeKillHelperBuildOutput)')"
            Text="Native kill helper output was not produced at $(NativeKillHelperBuildOutput)." />
   </Target>

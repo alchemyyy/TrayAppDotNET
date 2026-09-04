@@ -43,8 +43,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          command -v cmake
           command -v dotnet
+          vswhere_path='/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe'
+          test -x "$vswhere_path"
+          visual_studio_path="$("$vswhere_path" -latest -products '*' \
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+            -property installationPath)"
+          test -n "$visual_studio_path"
           dotnet --info
           dotnet --list-sdks | grep -E '^10\.'
 

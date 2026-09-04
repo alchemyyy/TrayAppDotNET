@@ -428,9 +428,9 @@ function Write-PrerequisiteReport {
     }
 
     if ($NativeAotToolchain.Found) {
-        Write-Host ("- Native AOT C++ toolchain: Found ({0}) at {1}" -f $NativeAotToolchain.Kind, $NativeAotToolchain.Path)
+        Write-Host ("- C++ toolchain: Found ({0}) at {1}" -f $NativeAotToolchain.Kind, $NativeAotToolchain.Path)
     } else {
-        Write-Host '- Native AOT C++ toolchain: Missing (required only for Native AOT builds)'
+        Write-Host '- C++ toolchain: Missing (required for Native AOT builds and TaskManagerTrayAppDotNET)'
     }
 
     Write-Host ("- Build tools folder: {0}" -f $BuildToolsRoot)
@@ -947,7 +947,8 @@ function Build-AppsInParallel {
     $commandJobs = @()
     foreach ($buildCommand in $buildCommands) {
         $toolchainForBuild = $null
-        if ($BuildType -eq $BuildTypeNativeAot) {
+        if (($BuildType -eq $BuildTypeNativeAot) -or
+            ($buildCommand.Name -eq 'TaskManagerTrayAppDotNET')) {
             $toolchainForBuild = $NativeAotToolchain
         }
 
@@ -1009,11 +1010,19 @@ try {
     $selectedApps = @(Read-AppSelection)
     [string]$buildType = Read-BuildType
 
-    if ($buildType -eq $BuildTypeNativeAot) {
+    [bool]$taskManagerSelected = $false
+    foreach ($selectedApp in $selectedApps) {
+        if ($selectedApp.Name -eq 'TaskManagerTrayAppDotNET') {
+            $taskManagerSelected = $true
+            break
+        }
+    }
+
+    if (($buildType -eq $BuildTypeNativeAot) -or $taskManagerSelected) {
         $nativeAotToolchain = Get-NativeAotToolchain
         if (-not $nativeAotToolchain.Found) {
             Write-Host ''
-            Write-Host 'Native AOT on Windows requires Microsoft C++ Build Tools and the Windows SDK.'
+            Write-Host 'This build requires Microsoft C++ Build Tools and the Windows SDK.'
             if (-not (Read-Confirmation 'Download the Build Tools bootstrapper and install the required C++ components now?')) {
                 exit 1
             }

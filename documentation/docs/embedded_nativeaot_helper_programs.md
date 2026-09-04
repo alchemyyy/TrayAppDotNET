@@ -46,15 +46,22 @@ pre-CRT.
 
 ## Build wiring
 
-Compile the helper sources as a static library for NativeAOT:
+Compile the helper sources as a static library for NativeAOT. A Visual C++
+project can select the output type without a separate build-system generator:
 
-```cmake
-add_library(ApplicationNativeHelper STATIC
-    NativeHelper.cpp
-    NativeHelperProtocol.h)
+```xml
+<PropertyGroup Label="Configuration">
+  <ConfigurationType>Application</ConfigurationType>
+  <ConfigurationType Condition="'$(HelperBuildKind)' == 'NativeAOT'">StaticLibrary</ConfigurationType>
+</PropertyGroup>
 
-target_compile_definitions(ApplicationNativeHelper PRIVATE
-    EMBEDDED_NATIVE_HELPER)
+<ItemDefinitionGroup>
+  <ClCompile>
+    <PreprocessorDefinitions Condition="'$(HelperBuildKind)' == 'NativeAOT'">
+      EMBEDDED_NATIVE_HELPER;%(PreprocessorDefinitions)
+    </PreprocessorDefinitions>
+  </ClCompile>
+</ItemDefinitionGroup>
 ```
 
 Link that library into the final NativeAOT image:
@@ -116,16 +123,20 @@ should avoid allocation and polling.
 ## Non-AOT builds
 
 `CustomNativeMain` applies to NativeAOT linking, not the normal .NET apphost.
-The least disruptive development arrangement is to compile the same native
-sources twice:
+The least disruptive development arrangement is to build the same native
+source as an executable or static library from one Visual C++ project:
 
-```cmake
-add_executable(ApplicationNativeHelperSidecar WIN32
-    ${NATIVE_HELPER_SOURCES}
-    NativeHelper.rc)
+```xml
+<PropertyGroup>
+  <TargetName Condition="'$(HelperBuildKind)' == 'Sidecar'">ApplicationNativeHelper</TargetName>
+  <TargetName Condition="'$(HelperBuildKind)' == 'NativeAOT'">ApplicationNativeHelper.NativeAOT</TargetName>
+</PropertyGroup>
 
-add_library(ApplicationNativeHelper STATIC
-    ${NATIVE_HELPER_SOURCES})
+<ItemGroup>
+  <ClCompile Include="NativeHelper.cpp" />
+  <ResourceCompile Include="NativeHelper.rc"
+                   Condition="'$(HelperBuildKind)' == 'Sidecar'" />
+</ItemGroup>
 ```
 
 Published NativeAOT builds self-launch the combined executable. Debug and other
@@ -202,7 +213,8 @@ start a replacement helper if the process dies.
 The Task Manager implementation is split across:
 
 - `TaskManagerTrayAppDotNET/native/KillHelper/KillHelper.cpp`
-- `TaskManagerTrayAppDotNET/native/KillHelper/CMakeLists.txt`
+- `TaskManagerTrayAppDotNET/native/KillHelper/TaskManagerTrayAppDotNET.KillHelper.vcxproj`
+- `TaskManagerTrayAppDotNET/native/KillHelper/BuildKillHelper.ps1`
 - `TaskManagerTrayAppDotNET/src/TaskManagerTrayAppDotNET.csproj`
 - `TaskManagerTrayAppDotNET/src/Services/ElevatedKillHelperClient.cs`
 - `TaskManagerTrayAppDotNET/src/Services/ProcessTerminationService.cs`

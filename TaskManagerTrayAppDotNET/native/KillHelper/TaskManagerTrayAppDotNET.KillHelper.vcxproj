@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4E427684-849E-4731-8D5D-5E3D0D6FEAA2}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectName>TaskManagerTrayAppDotNET.KillHelper</ProjectName>
+    <RootNamespace>TaskManagerTrayAppDotNET</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <TrackFileAccess>false</TrackFileAccess>
+    <KillHelperBuildKind Condition="'$(KillHelperBuildKind)' == ''">Sidecar</KillHelperBuildKind>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType Condition="'$(KillHelperBuildKind)' == 'NativeAOT'">StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType Condition="'$(KillHelperBuildKind)' == 'NativeAOT'">StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="Exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <KillHelperOutputDirectory Condition="'$(KillHelperOutputDirectory)' == ''">$(ProjectDir)bin\$(Platform)\$(Configuration)\$(KillHelperBuildKind)</KillHelperOutputDirectory>
+    <OutDir>$(KillHelperOutputDirectory)\</OutDir>
+    <IntDir>$(OutDir)intermediate\</IntDir>
+    <TargetName Condition="'$(KillHelperBuildKind)' == 'Sidecar'">TaskManagerTrayAppDotNET.KillHelper</TargetName>
+    <TargetName Condition="'$(KillHelperBuildKind)' == 'NativeAOT'">TaskManagerTrayAppDotNET.KillHelper.NativeAOT</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+    <LinkIncremental Condition="'$(Configuration)' == 'Debug'">true</LinkIncremental>
+    <LinkIncremental Condition="'$(Configuration)' != 'Debug'">false</LinkIncremental>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ConformanceMode>true</ConformanceMode>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <GuardEHContMetadata>true</GuardEHContMetadata>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Debug'">MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)' != 'Debug'">MultiThreaded</RuntimeLibrary>
+      <SDLCheck>true</SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization Condition="'$(Configuration)' == 'Debug'">Disabled</Optimization>
+      <Optimization Condition="'$(Configuration)' != 'Debug'">MaxSpeed</Optimization>
+      <InlineFunctionExpansion Condition="'$(Configuration)' == 'Debug'">Disabled</InlineFunctionExpansion>
+      <InlineFunctionExpansion Condition="'$(Configuration)' != 'Debug'">AnySuitable</InlineFunctionExpansion>
+      <BasicRuntimeChecks Condition="'$(Configuration)' == 'Debug'">EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat Condition="'$(Configuration)' == 'Debug'">ProgramDatabase</DebugInformationFormat>
+      <DebugInformationFormat Condition="'$(Configuration)' != 'Debug'">None</DebugInformationFormat>
+      <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
+      <SupportJustMyCode>false</SupportJustMyCode>
+      <PreprocessorDefinitions>NOMINMAX;STRICT;UNICODE;WIN32;WIN32_LEAN_AND_MEAN;_UNICODE;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)' != 'Debug'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(KillHelperBuildKind)' == 'NativeAOT'">KILL_HELPER_NATIVE_AOT_ENTRY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NOMINMAX;STRICT;UNICODE;WIN32;WIN32_LEAN_AND_MEAN;_UNICODE;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>advapi32.lib;comdlg32.lib;gdi32.lib;kernel32.lib;ole32.lib;oleaut32.lib;shell32.lib;user32.lib;uuid.lib;winspool.lib</AdditionalDependencies>
+      <AdditionalOptions>/GUARD:CF /GUARD:EHCONT /HIGHENTROPYVA %(AdditionalOptions)</AdditionalOptions>
+      <CETCompat>true</CETCompat>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <GenerateDebugInformation Condition="'$(Configuration)' == 'Debug'">true</GenerateDebugInformation>
+      <GenerateDebugInformation Condition="'$(Configuration)' != 'Debug'">false</GenerateDebugInformation>
+      <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <ProgramDataBaseFile>$(OutDir)$(TargetName).pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <StackReserveSize>131072,131072</StackReserveSize>
+      <SubSystem>Windows</SubSystem>
+      <TargetMachine>MachineX64</TargetMachine>
+    </Link>
+    <Lib>
+      <TargetMachine>MachineX64</TargetMachine>
+    </Lib>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="KillHelper.cpp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(KillHelperBuildKind)' == 'Sidecar'">
+    <ResourceCompile Include="KillHelper.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="KillHelperProtocol.h" />
+    <None Include="BuildKillHelper.ps1" />
+    <None Include="KillHelper.manifest" />
+  </ItemGroup>
+
+  <Target Name="ValidateKillHelperBuild" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Platform)' != 'x64'"
+           Text="The Task Manager kill helper supports only the x64 platform." />
+    <Error Condition="'$(KillHelperBuildKind)' != 'Sidecar' and '$(KillHelperBuildKind)' != 'NativeAOT'"
+           Text="KillHelperBuildKind must be Sidecar or NativeAOT." />
+  </Target>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
