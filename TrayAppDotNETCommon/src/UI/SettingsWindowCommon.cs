@@ -47,6 +47,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Dictionary<TPageKey, Func<Control>> _pages = [];
     private Dictionary<TPageKey, SettingsNavItem> _navItems = [];
     private IReadOnlyList<SettingsNavItem> _sidebarNavigationActions = [];
+    private IReadOnlyList<SettingsNavItem> _sidebarFooterActions = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
     private readonly HashSet<TrayAppDotNETColorPickerWindow> _openColorPickers = [];
     private readonly UIResourceScope _windowResources;
@@ -102,6 +103,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected ControlNameScope ControlNames { get; }
 
     protected SettingsPalette Palette => _palette ??= ResolvePalette();
+
+    /// <summary>Gets the footer actions owned by the currently committed or building shell.</summary>
+    protected IReadOnlyList<SettingsNavItem> SidebarFooterActions => _sidebarFooterActions;
     protected abstract bool EnableRoundedCorners { get; }
     protected abstract TPageKey DefaultPageKey { get; }
     protected abstract string HeaderText { get; }
@@ -137,6 +141,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     /// <summary>Builds optional action rows placed before the sidebar's page-navigation rows.</summary>
     protected virtual IReadOnlyList<SettingsNavItem> CreateSidebarNavigationActions(SettingsPalette palette) => [];
+
+    /// <summary>Builds optional action rows placed before the sidebar's footer page-navigation rows.</summary>
+    protected virtual IReadOnlyList<SettingsNavItem> CreateSidebarFooterActions(SettingsPalette palette) => [];
 
     /// <summary>Updates optional sidebar actions after the effective collapse state changes.</summary>
     protected virtual void UpdateSidebarNavigationActions(
@@ -640,6 +647,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             navigationItem.RefreshPalette();
         foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
             navigationAction.RefreshPalette();
+        foreach (SettingsNavItem footerAction in _sidebarFooterActions)
+            footerAction.RefreshPalette();
     }
 
     /// <summary>Adds cleanup owned by the settings page currently being constructed.</summary>
@@ -850,6 +859,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebarNavigationActions = CreateSidebarNavigationActions(palette);
         foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
             nav.Children.Add(navigationAction);
+        _sidebarFooterActions = CreateSidebarFooterActions(palette);
+        foreach (SettingsNavItem footerAction in _sidebarFooterActions)
+            footer.Children.Add(footerAction);
 
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
@@ -1235,6 +1247,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Control? previousSidebarOverlay = _sidebarOverlay;
         bool? previousSidebarControlsCollapsedState = _sidebarControlsCollapsedState;
         IReadOnlyList<SettingsNavItem> previousSidebarNavigationActions = _sidebarNavigationActions;
+        IReadOnlyList<SettingsNavItem> previousSidebarFooterActions = _sidebarFooterActions;
         Grid? previousPageOverlayHost = _pageOverlayHost;
         bool previousPageOverlayAlignsToContentArea = _pageOverlayAlignsToContentArea;
         Border? previousTitleBarDragZone = _titleBarDragZone;
@@ -1263,6 +1276,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _pages = replacementPages;
             _navItems = replacementNavItems;
             _sidebarNavigationActions = [];
+            _sidebarFooterActions = [];
             _scrollHost = null;
             _sidebar = null;
             _sidebarHeader = null;
@@ -1342,6 +1356,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebarOverlay = previousSidebarOverlay;
             _sidebarControlsCollapsedState = previousSidebarControlsCollapsedState;
             _sidebarNavigationActions = previousSidebarNavigationActions;
+            _sidebarFooterActions = previousSidebarFooterActions;
             _pageOverlayHost = previousPageOverlayHost;
             _pageOverlayAlignsToContentArea = previousPageOverlayAlignsToContentArea;
             _titleBarDragZone = previousTitleBarDragZone;
@@ -1765,6 +1780,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _pages.Clear();
         _navItems.Clear();
         _sidebarNavigationActions = [];
+        _sidebarFooterActions = [];
         _pageDescriptors = [];
         _pageScrollOffsets.Clear();
         _scrollHost = null;
@@ -1806,6 +1822,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             navigationItem.SetCompact(usesCompactRail);
         foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
             navigationAction.SetCompact(usesCompactRail);
+        foreach (SettingsNavItem footerAction in _sidebarFooterActions)
+            footerAction.SetCompact(usesCompactRail);
         _settingsSearchBox?.IsVisible = !usesCompactRail;
         _sidebarResizeHandle?.IsVisible = !isCollapsed;
         sidebarColumn.Width = new GridLength(pageContentLeftInset);

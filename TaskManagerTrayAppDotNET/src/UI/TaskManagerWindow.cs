@@ -93,6 +93,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool _initialElevationAttemptConsumed;
     private bool _manualElevationPromptPending;
     private bool _isConfirmationOverlayVisible;
+    private bool _isUpdateDialogOpen;
+    private bool _isUpdateDownloadInFlight;
     private bool _exitRequested;
 
     public TaskManagerWindow(
@@ -290,6 +292,22 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return [sidebarCollapseButton];
     }
 
+    protected override IReadOnlyList<SettingsNavItem> CreateSidebarFooterActions(SettingsPalette palette)
+    {
+        SettingsNavItem updateButton = new(
+            L(nameof(CommonStrings.Flyout_Update_ButtonText)),
+            palette,
+            RadiusTiny,
+            RadiusMedium,
+            useWindows11Style: true,
+            navigationGlyph: TaskManagerGlyphCatalog.UPDATE)
+        {
+            IsVisible = AppServices.UpdateCheckService?.AvailableUpdate != null
+        };
+        updateButton.Click += OnUpdateSidebarButtonClick;
+        return [updateButton];
+    }
+
     protected override void UpdateSidebarNavigationActions(
         IReadOnlyList<SettingsNavItem> navigationActions,
         bool isCollapsed)
@@ -325,6 +343,55 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private void OnSidebarCollapseButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
 
+    private async void OnUpdateSidebarButtonClick(object? sender, EventArgs eventArgs)
+    {
+        try
+        {
+            await ShowUpdateConfirmationAsync();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"TaskManagerWindow.ShowUpdateConfirmationAsync: {exception}");
+            _isUpdateDialogOpen = false;
+            _isUpdateDownloadInFlight = false;
+            RefreshUpdateSidebarButton();
+        }
+    }
+
+    private async Task ShowUpdateConfirmationAsync()
+    {
+        if (_isUpdateDialogOpen || _isUpdateDownloadInFlight) return;
+
+        UpdateCheckService? service = AppServices.UpdateCheckService;
+        UpdateInfo? info = service?.AvailableUpdate;
+        if (service == null || info == null) return;
+
+        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(
+            new TrayAppDotNETUpdatePromptOptions
+            {
+                Owner = this,
+                Service = service,
+                UpdateInfo = info,
+                Palette = Palette,
+                OwnerBackdrop = ConfirmOverlayBackdrop,
+                EnableRoundedCorners = _settings.EnableRoundedCorners,
+                L = L,
+                Log = TADNLog.Log,
+                FlushLog = TADNLog.Flush,
+                Shutdown = _exitApplication,
+                SetPromptOpen = isOpen =>
+                {
+                    _isUpdateDialogOpen = isOpen;
+                    RefreshUpdateSidebarButton();
+                },
+                SetDownloadInFlight = isInFlight =>
+                {
+                    _isUpdateDownloadInFlight = isInFlight;
+                    RefreshUpdateSidebarButton();
+                }
+            });
+    }
+
     protected override SettingsPalette ResolvePalette() =>
         VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLight());
 
@@ -357,6 +424,19 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         PropertyChanged -= OnWindowPropertyChanged;
         RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
         base.OnSettingsWindowClosed();
+    }
+
+    /// <summary>Synchronizes the update action without rebuilding the active Task Manager page.</summary>
+    internal void NotifyUpdateStateChanged() => RefreshUpdateSidebarButton();
+
+    private void RefreshUpdateSidebarButton()
+    {
+        if (SidebarFooterActions.Count == 0) return;
+
+        SettingsNavItem updateButton = SidebarFooterActions[0];
+        bool isUpdateAvailable = AppServices.UpdateCheckService?.AvailableUpdate != null;
+        updateButton.IsVisible = isUpdateAvailable;
+        updateButton.IsEnabled = isUpdateAvailable && !_isUpdateDialogOpen && !_isUpdateDownloadInFlight;
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>

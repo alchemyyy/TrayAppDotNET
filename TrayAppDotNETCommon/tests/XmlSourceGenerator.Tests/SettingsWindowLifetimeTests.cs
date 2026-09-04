@@ -346,6 +346,31 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Null(ToolTip.GetTip(window.SidebarAction));
     });
 
+    [Fact]
+    public void SidebarFooterActionPrecedesFooterPageAndTogglesCompactRail() => AvaloniaTestHost.Run(() =>
+    {
+        SidebarFooterActionSettingsWindow window = new(width: 900);
+        Border root = Assert.IsType<Border>(window.Content);
+        Border contentSurface = Assert.IsType<Border>(root.Child);
+        Grid shell = Assert.IsType<Grid>(contentSurface.Child);
+        Grid body = Assert.Single(shell.Children.OfType<Grid>(), candidate => Grid.GetRow(candidate) == 1);
+        SettingsSidebar sidebar = Assert.Single(body.Children.OfType<SettingsSidebar>());
+        SettingsNavItem[] footerItems = sidebar.Footer.Children
+            .OfType<SettingsNavItem>()
+            .ToArray();
+        string[] expectedFooterItemLabels = ["Update available", "Stable"];
+
+        Assert.Equal(expectedFooterItemLabels, footerItems.Select(item => item.Text));
+        Assert.Same(window.FooterAction, footerItems[0]);
+
+        window.ToggleSidebar();
+
+        Assert.True(sidebar.IsVisible);
+        Assert.Equal(expected: 52, body.ColumnDefinitions[0].Width.Value);
+        Assert.Equal(SettingsUILayout.Windows11CompactNavItemWidth, window.FooterAction.Width);
+        Assert.Equal("Update available", ToolTip.GetTip(window.FooterAction));
+    });
+
     [Theory]
     [InlineData(true, 900.0, false)]
     [InlineData(true, 749.0, true)]
@@ -1030,6 +1055,53 @@ public sealed class SettingsWindowLifetimeTests
             sidebarAction.SetText(isCollapsed ? "Expand navigation" : "Collapse navigation");
             sidebarAction.SetNavigationGlyph(
                 Glyph.SegoeFluent(isCollapsed ? ExpandGlyph : CollapseGlyph));
+        }
+
+        protected override void Save()
+        {
+        }
+    }
+
+    private sealed class SidebarFooterActionSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public SidebarFooterActionSettingsWindow(double width)
+        {
+            ConfigureSettingsWindow(title: "Sidebar Footer Action Test", icon: null);
+            MinWidth = 0;
+            Width = width;
+            ClientSize = new Size(width, height: 600);
+            InitializeSettingsShell();
+        }
+
+        public SettingsNavItem FooterAction { get; private set; } = null!;
+
+        public void ToggleSidebar() => ToggleSidebarCollapse();
+
+        protected override bool EnableRoundedCorners => false;
+        protected override bool UseWindows11SettingsNavigation => true;
+        protected override double CollapsedSidebarWidth => 52;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Sidebar Footer Action Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool IsFooterNavigationPage(TestPage pageKey) => pageKey == TestPage.Stable;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new(TestPage.Stable, Label: "Stable", static () => new TextBlock())
+        ];
+
+        protected override IReadOnlyList<SettingsNavItem> CreateSidebarFooterActions(SettingsPalette palette)
+        {
+            FooterAction = new SettingsNavItem(
+                "Update available",
+                palette,
+                useWindows11Style: true,
+                navigationGlyph: Glyph.SegoeFluent("\uE896"));
+            return [FooterAction];
         }
 
         protected override void Save()

@@ -925,10 +925,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 HelpLink = Constants.HelpLink,
                 OpenSettingsFolderText = OpenSettingsFolderText,
                 SettingsFolderPath = SettingsFolderPath,
+                UpdateSettings = _settings,
+                UpdateService = static () => AppServices.UpdateCheckService,
                 ConfirmAsync = ConfirmAsync,
                 PromptOwner = () => this,
                 Log = TADNLog.Log,
-                SupportsFlyoutUpdateButton = false
+                SupportsFlyoutUpdateButton = false,
+                RebuildAboutPage = () => RebuildShell(TaskManagerSettingsPage.About)
             }));
         return aboutPage.Build();
     }

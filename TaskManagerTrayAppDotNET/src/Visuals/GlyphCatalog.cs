@@ -43,6 +43,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph SERVICES => Glyph("Services");
 
+    public static Glyph UPDATE => Glyph("Update");
+
     public static Glyph SELECTED => Glyph("Selected");
 
     public static Glyph SORT_ASCENDING => Glyph("SortAscending");

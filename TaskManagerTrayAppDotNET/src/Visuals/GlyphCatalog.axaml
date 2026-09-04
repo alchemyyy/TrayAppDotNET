@@ -19,6 +19,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.StartupApps" Text="&#xE768;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Users" Text="&#xE716;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Services" Text="&#xEA86;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Update" Text="&#xE896;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Selected" Text="&#xE73E;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SortAscending" Text="&#xE96E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SortDescending" Text="&#xE96D;" Font="SegoeFluentIcons" />

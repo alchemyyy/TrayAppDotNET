@@ -48,6 +48,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private TaskManagerTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private WatcherMonitor? _watcherMonitor;
+    private UpdateCheckService? _updateCheckService;
+    private int _lastNotifiedUpdateVersion;
     private bool _shuttingDown;
 
     public override void Initialize() =>
@@ -111,6 +113,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _snapshotService.Start();
         _performanceSnapshotService.Start();
         CreateTrayIcon();
+        StartUpdateCheckService(settings);
         TaskManagerWindow taskManagerWindow = _taskManagerWindow!;
         Task firstFrameReveal = taskManagerWindow.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
         base.OnFrameworkInitializationCompleted();
@@ -185,6 +188,27 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
     }
 
+    private void StartUpdateCheckService(AppSettings settings)
+    {
+        try
+        {
+            _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
+                settings,
+                repositoryName: "TrayAppDotNET",
+                Program.ApplicationName,
+                BuildInfo.BuildNumber,
+                settings.Save,
+                Program.LocalAppDataRoot);
+            _updateCheckService.StateChanged += OnUpdateStateChanged;
+            _updateCheckService.Start();
+            AppServices.UpdateCheckService = _updateCheckService;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"TaskManagerAvaloniaApp update service init failed: {exception}");
+        }
+    }
+
     private void CreateTaskManagerWindow()
     {
         if (_settings == null ||
@@ -214,6 +238,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _trayIcon.LeftDoubleClick += ShowTaskManager;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RefreshTrayIcon;
+        _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
         RefreshTrayIcon();
         _trayIcon.IsVisible = true;
     }
@@ -316,6 +341,27 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _trayMenuWindow = null;
     }
 
+    private void OnUpdateStateChanged()
+    {
+        _taskManagerWindow?.NotifyUpdateStateChanged();
+
+        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
+        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
+        if (info.Version <= _lastNotifiedUpdateVersion) return;
+
+        _lastNotifiedUpdateVersion = info.Version;
+        _trayIcon?.ShowBalloon(
+            L(nameof(CommonStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+    }
+
+    private void OnUpdateBalloonClicked()
+    {
+        if (_updateCheckService?.AvailableUpdate == null) return;
+
+        ShowTaskManager();
+    }
+
     private void OnThemeChanged(bool isLightTheme) =>
         Dispatcher.UIThread.Post(() =>
         {
@@ -371,6 +417,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
             Safe.Dispose(_windowsTaskManagerHotkeyOverride);
             _windowsTaskManagerHotkeyOverride = null;
 
+            if (_updateCheckService != null)
+            {
+                _updateCheckService.StateChanged -= OnUpdateStateChanged;
+                Safe.Dispose(_updateCheckService);
+                _updateCheckService = null;
+                AppServices.UpdateCheckService = null;
+            }
+
             if (_trayMenuWindow != null)
             {
                 _trayMenuWindow.Closed -= OnTrayMenuClosed;
@@ -402,6 +456,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= ShowTaskManager;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RefreshTrayIcon;
+                _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
             Safe.Dispose(_trayIcon);
@@ -442,4 +497,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.Shutdown();
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 }
