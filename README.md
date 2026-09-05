@@ -1,10 +1,28 @@
 <h1 align="center"><span>TrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/tadnlogo.png" alt="TrayAppDotNET logo" width="48" align="middle"></sup></h1>
 <p align="center"><em>A suite of Windows 11 apps focused around one of the most under-loved pieces of UX ever.</em></p>
 
-
+<p align="center">
+  <a href="https://github.com/alchemyyy/TrayAppDotNET/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/alchemyyy/TrayAppDotNET?style=for-the-badge" alt="License">
+  </a>
+  <a href="https://github.com/alchemyyy/TrayAppDotNET/releases/latest">
+    <img
+      src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fapi.github.com%2Frepos%2Falchemyyy%2FTrayAppDotNET%2Freleases%2Flatest&amp;search=%22tag_name%22%3A%5Cs%2A%22TrayAppDotNET_%28%5B%5E%22%5D%2B%29%22&amp;replace=%241&amp;label=release&amp;style=for-the-badge"
+      alt="Latest release">
+  </a>
+  <a href="https://github.com/alchemyyy/TrayAppDotNET/stargazers">
+    <img src="https://img.shields.io/github/stars/alchemyyy/TrayAppDotNET?style=for-the-badge&amp;logo=github" alt="GitHub stars">
+  </a>
+  <a href="https://discord.gg/nzg7jm8yKC">
+    <img src="https://img.shields.io/discord/1501706636535009390?style=for-the-badge&amp;logo=discord&amp;logoColor=white&amp;label=Discord&amp;cacheSeconds=300" alt="Discord members">
+  </a>
+  <a href="https://trayapp.net">
+    <img src="https://img.shields.io/badge/Website-trayapp.net-0078D4?style=for-the-badge&amp;logo=windows11&amp;logoColor=white" alt="Website">
+  </a>
+</p>
 
 ## Overview
-These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, it's recommended to pair those apps which replace an existing Windows 11 counterpart, with [Windhawk's Taskbar Tray System Icon Tweaks Mod](https://windhawk.net/mods/taskbar-tray-system-icon-tweaks) in order to hide the stock OS tray icon(s).
+These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, it's recommended to pair those apps which replace an existing Windows 11 counterpart, with [Windhawk's Taskbar Tray System Icon Tweaks Mod](https://windhawk.net/mods/taskbar-tray-system-icon-tweaks) in order to hide the stock OS tray icons.
 
 <p align="center">
   <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="80%" align="center">
