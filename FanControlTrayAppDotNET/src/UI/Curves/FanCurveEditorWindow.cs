@@ -257,9 +257,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         return new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
-            BorderThickness = Layout.RootBorderThickness,
-            CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
+            BorderThickness = Layout.ZeroThickness,
+            CornerRadius = Layout.ZeroCornerRadius,
             Child = shell
         };
     }

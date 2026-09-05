@@ -428,10 +428,12 @@ public sealed class SecondaryWindowLifetimeTests
     }
 
     [Fact]
-    public void FlyoutCompanionWindowsAreResizableByDefault() => AvaloniaTestHost.Run(() =>
+    public void FlyoutCompanionWindowsUseTransparentResizableDefaults() => AvaloniaTestHost.Run(() =>
     {
         TestFlyoutCompanionWindow companionWindow = new();
 
+        Assert.Same(Brushes.Transparent, companionWindow.Background);
+        Assert.Contains(WindowTransparencyLevel.Transparent, companionWindow.TransparencyLevelHint);
         Assert.True(companionWindow.CanResize);
     });
 

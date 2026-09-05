@@ -250,11 +250,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
                 {
                     Focusable = true,
                     Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-                    BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
-                    BorderThickness = Layout.RootBorderThickness,
-                    CornerRadius = _settings.EnableRoundedCorners
-                        ? Layout.RootCornerRadius
-                        : Layout.ZeroCornerRadius,
+                    BorderThickness = Layout.ZeroThickness,
+                    CornerRadius = Layout.ZeroCornerRadius,
                     Child = shell
                 },
                 nameof(ProbeDataSelectorWindow));

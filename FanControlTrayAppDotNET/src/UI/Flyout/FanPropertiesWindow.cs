@@ -194,6 +194,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
                     BorderThickness = Layout.RootBorderThickness,
                     CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
+                    ClipToBounds = rounded,
                     Child = chrome
                 },
                 nameof(FanPropertiesWindow));
@@ -755,7 +756,10 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 
         _palette.UpdateFrom(Palette());
         if (Content is Border root)
+        {
             root.CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius;
+            root.ClipToBounds = _settings.EnableRoundedCorners;
+        }
     }
 
     private void UpdateTitle()

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -12,6 +13,8 @@ public abstract class FlyoutCompanionWindow : Window
 
     protected FlyoutCompanionWindow()
     {
+        Background = Brushes.Transparent;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         CanResize = true;
         Activated += OnCompanionActivated;
         Deactivated += OnCompanionDeactivated;
