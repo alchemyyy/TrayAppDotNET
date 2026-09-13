@@ -10,6 +10,230 @@ namespace BrightnessTrayAppDotNET.Tests;
 public sealed class MonitorRecoveryTests
 {
     [Fact]
+    public async Task DisconnectedExternalMonitorLeavesLiveCollectionAndRecoveryCandidates()
+    {
+        const string InternalDeviceID = "DISPLAY\\INTERNAL-DISCONNECT";
+        const string ExternalDeviceID = "DISPLAY\\EXTERNAL-DISCONNECT";
+        DDCMonitor internalDisplay = CreateMonitor(
+            InternalDeviceID, displayNumber: 1, serial: "INTERNAL-DISCONNECT");
+        internalDisplay.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        internalDisplay.WindowsBrightnessInstanceName = InternalDeviceID + "_0";
+        internalDisplay.WindowsBrightnessMethodPath =
+            """
+            \\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName="DISPLAY\\INTERNAL-DISCONNECT_0"
+            """;
+
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            internalDisplay,
+            CreateMonitor(ExternalDeviceID, displayNumber: 2, serial: "EXTERNAL-DISCONNECT"));
+        display.SetRead(InternalDeviceID, ok: true, current: 45, max: 100);
+        display.SetRead(ExternalDeviceID, ok: true, current: 60, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is
+            [{ IsHardwareFunctional: true }, { IsHardwareFunctional: true }]);
+
+        MonitorInfo internalMonitor = service.Monitors.Single(m => m.EDIDKey == "edid:INTERNAL-DISCONNECT");
+        MonitorInfo externalMonitor = service.Monitors.Single(m => m.EDIDKey == "edid:EXTERNAL-DISCONNECT");
+        Assert.True(externalMonitor.WasEverDDCCapable);
+
+        display.SetMonitors(internalDisplay);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 1);
+
+        Assert.Same(internalMonitor, Assert.Single(service.Monitors));
+        Assert.True(internalMonitor.IsHardwareFunctional);
+        Assert.DoesNotContain(externalMonitor, service.Monitors);
+        Assert.DoesNotContain(externalMonitor.ID, service.GetStuckRecoveryCandidateIDs());
+        Assert.False(service.TryRecoverMonitor(externalMonitor.ID));
+    }
+
+    [Theory]
+    [InlineData(SliderState.Disabled)]
+    [InlineData(SliderState.CurveReleased)]
+    public async Task ReconnectedMonitorRestoresManualStateAfterDisplayNumberDrifts(SliderState sliderState)
+    {
+        const string DeviceID = "DISPLAY\\RECONNECT-STATE";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 3, serial: "RECONNECT-STATE"));
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.DisplayNumber,
+            brightnessCurveEnabled: true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        string originalID = monitor.ID;
+        monitor.SliderState = sliderState;
+        monitor.Offset = 13;
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 42);
+
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+        Assert.DoesNotContain(originalID, service.GetStuckRecoveryCandidateIDs());
+
+        // A fresh hardware baseline must not replace the user's slider value when the same panel returns.
+        display.SetMonitors(CreateMonitor(
+            DeviceID, displayNumber: 7, serial: "RECONNECT-STATE", name: @"\\.\DISPLAY7"));
+        display.SetRead(DeviceID, ok: true, current: 100, max: 100);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true, DisplayNumber: 7 }]);
+
+        Assert.Same(monitor, Assert.Single(service.Monitors));
+        Assert.Equal(originalID, monitor.ID);
+        Assert.Equal("edid:RECONNECT-STATE", monitor.EDIDKey);
+        Assert.Equal(sliderState, monitor.SliderState);
+        Assert.Equal(expected: 42, monitor.RoundedBrightness);
+        Assert.Equal(expected: 42, monitor.LastUserBrightness);
+        Assert.Equal(expected: 13, monitor.Offset);
+        Assert.DoesNotContain(originalID, service.GetStuckRecoveryCandidateIDs());
+    }
+
+    [Fact]
+    public async Task ReconnectedMonitorKeepsPhysicalIdentityWhenDisplayNumbersSwap()
+    {
+        const string InternalDeviceID = "DISPLAY\\INTERNAL-SWAP";
+        const string ExternalDeviceID = "DISPLAY\\EXTERNAL-SWAP";
+        DDCMonitor internalDisplay = CreateMonitor(
+            InternalDeviceID, displayNumber: 1, serial: "INTERNAL-SWAP");
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            internalDisplay,
+            CreateMonitor(ExternalDeviceID, displayNumber: 2, serial: "EXTERNAL-SWAP"));
+        display.SetRead(InternalDeviceID, ok: true, current: 45, max: 100);
+        display.SetRead(ExternalDeviceID, ok: true, current: 60, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
+        await WaitUntil(() => service.Monitors is
+            [{ IsHardwareFunctional: true }, { IsHardwareFunctional: true }]);
+        MonitorInfo internalMonitor = service.Monitors.Single(m => m.EDIDKey == "edid:INTERNAL-SWAP");
+        MonitorInfo externalMonitor = service.Monitors.Single(m => m.EDIDKey == "edid:EXTERNAL-SWAP");
+
+        display.SetMonitors(internalDisplay);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 1);
+
+        // The returning panel's new number matches the surviving panel's stable runtime ID.
+        display.SetMonitors(
+            CreateMonitor(InternalDeviceID, displayNumber: 2, serial: "INTERNAL-SWAP"),
+            CreateMonitor(ExternalDeviceID, displayNumber: 1, serial: "EXTERNAL-SWAP"));
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 2);
+
+        Assert.Same(internalMonitor, service.Monitors.Single(m => m.EDIDKey == "edid:INTERNAL-SWAP"));
+        Assert.Same(externalMonitor, service.Monitors.Single(m => m.EDIDKey == "edid:EXTERNAL-SWAP"));
+        Assert.Equal("num:1", internalMonitor.ID);
+        Assert.Equal("num:2", externalMonitor.ID);
+        Assert.Equal(expected: 2, internalMonitor.DisplayNumber);
+        Assert.Equal(expected: 1, externalMonitor.DisplayNumber);
+        Assert.Equal(expected: 45, internalMonitor.RoundedBrightness);
+        Assert.Equal(expected: 60, externalMonitor.RoundedBrightness);
+    }
+
+    [Fact]
+    public async Task ReconnectedMonitorRekeysWhenAnotherDisplayUsesItsPreviousNumericID()
+    {
+        const string OriginalDeviceID = "DISPLAY\\ORIGINAL-NUMERIC-ID";
+        const string OtherDeviceID = "DISPLAY\\OTHER-NUMERIC-ID";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(OriginalDeviceID, displayNumber: 2, serial: "ORIGINAL-NUMERIC-ID"));
+        display.SetRead(OriginalDeviceID, ok: true, current: 50, max: 100);
+        display.SetRead(OtherDeviceID, ok: true, current: 70, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo originalMonitor = service.Monitors[0];
+        originalMonitor.Brightness = 41;
+        await WaitUntil(() => display.GetCurrentValue(OriginalDeviceID) == 41);
+
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+
+        DDCMonitor otherDisplay = CreateMonitor(OtherDeviceID, displayNumber: 2, serial: "OTHER-NUMERIC-ID");
+        display.SetMonitors(otherDisplay);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo otherMonitor = service.Monitors[0];
+        Assert.NotSame(originalMonitor, otherMonitor);
+        Assert.Equal("num:2", otherMonitor.ID);
+
+        display.SetMonitors(
+            otherDisplay,
+            CreateMonitor(OriginalDeviceID, displayNumber: 3, serial: "ORIGINAL-NUMERIC-ID"));
+        display.SetRead(OriginalDeviceID, ok: true, current: 85, max: 100);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors is
+            [{ IsHardwareFunctional: true }, { IsHardwareFunctional: true }]);
+
+        Assert.Same(originalMonitor, service.Monitors.Single(m => m.EDIDKey == "edid:ORIGINAL-NUMERIC-ID"));
+        Assert.Same(otherMonitor, service.Monitors.Single(m => m.EDIDKey == "edid:OTHER-NUMERIC-ID"));
+        Assert.Equal("num:3", originalMonitor.ID);
+        Assert.Equal("num:2", otherMonitor.ID);
+        Assert.Equal(expected: 41, originalMonitor.RoundedBrightness);
+        Assert.Equal(expected: 70, otherMonitor.RoundedBrightness);
+
+        // Rekeying the returning row must not steal the other display's transport entry.
+        originalMonitor.Brightness = 37;
+        await WaitUntil(() => display.GetCurrentValue(OriginalDeviceID) == 37);
+        Assert.Equal(expected: 70u, display.GetCurrentValue(OtherDeviceID));
+        otherMonitor.Brightness = 65;
+        await WaitUntil(() => display.GetCurrentValue(OtherDeviceID) == 65);
+        Assert.Equal(expected: 37u, display.GetCurrentValue(OriginalDeviceID));
+    }
+
+    [Fact]
+    public async Task DiscardedDisconnectedIntentRequestsCurrentProfileForSameMonitorAfterReconnect()
+    {
+        const string DeviceID = "DISPLAY\\RECONNECT-PROFILE";
+        FakeDisplayService display = new();
+        DDCMonitor ddc = CreateMonitor(DeviceID, displayNumber: 2, serial: "RECONNECT-PROFILE");
+        display.SetMonitors(ddc);
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo previousMonitor = service.Monitors[0];
+        using (service.SuspendHardwareWrites())
+            previousMonitor.Brightness = 42;
+        previousMonitor.SliderState = SliderState.Disabled;
+
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+
+        bool preservedIntentDuringAdd = true;
+        bool requestedCurrentProfileDuringAdd = false;
+        int addObserved = 0;
+        service.Monitors.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems?.Contains(previousMonitor) != true) return;
+            preservedIntentDuringAdd = service.IsRestoringDisconnectedMonitor(previousMonitor);
+            requestedCurrentProfileDuringAdd = service.ShouldRestoreDisconnectedMonitorProfile(previousMonitor);
+            Interlocked.Exchange(ref addObserved, value: 1);
+        };
+
+        // A profile change supersedes the cached slider intent without discarding physical identity.
+        service.DiscardDisconnectedMonitorIntent();
+        display.SetRead(DeviceID, ok: true, current: 80, max: 100);
+        display.SetMonitors(ddc);
+        service.Refresh();
+        await WaitUntil(() => Volatile.Read(ref addObserved) == 1);
+
+        MonitorInfo enrolledMonitor = Assert.Single(service.Monitors);
+        Assert.Same(previousMonitor, enrolledMonitor);
+        Assert.False(preservedIntentDuringAdd);
+        Assert.True(requestedCurrentProfileDuringAdd);
+    }
+
+    [Fact]
     public async Task TargetedRecoveryMatchesPortFormWhenDisplayNumberDriftsAndSerialIsMissing()
     {
         FakeDisplayService display = new();

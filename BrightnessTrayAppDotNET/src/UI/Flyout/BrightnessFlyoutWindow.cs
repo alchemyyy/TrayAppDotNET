@@ -2080,8 +2080,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _suppressPropagation = true;
         try
         {
-            bool restoreBrightnessProfile = _isBrightnessCurveEnabled || _settings?.ApplyBrightnessOnStartup == true;
-            if (restoreBrightnessProfile)
+            bool restoringDisconnected = _monitorService.IsRestoringDisconnectedMonitor(monitor);
+            bool restoreBrightnessProfile = _isBrightnessCurveEnabled || _settings?.ApplyBrightnessOnStartup == true
+                || _monitorService.ShouldRestoreDisconnectedMonitorProfile(monitor);
+            if (restoreBrightnessProfile && !restoringDisconnected)
             {
                 IDisposable? hardwareWriteSuspension = _isBrightnessCurveEnabled
                     ? _monitorService.SuspendHardwareWrites()
@@ -2103,7 +2105,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             }
             else
             {
-                InitializeOffsetFromMaster(monitor);
+                if (!restoringDisconnected)
+                    InitializeOffsetFromMaster(monitor);
                 UpdateMasterFromEnabledIndividuals();
             }
         }
@@ -2150,6 +2153,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void OnSelectedProfileChanged(int newIndex)
     {
         if (!IsWindowAlive) return;
+        _monitorService.DiscardDisconnectedMonitorIntent();
         foreach (ProfileButtonItem item in ProfileButtons)
             item.IsSelected = item.Index == newIndex;
         ClearPreviewDateCurve();
@@ -2162,6 +2166,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void OnProfilesListChanged()
     {
         if (!IsWindowAlive) return;
+        _monitorService.DiscardDisconnectedMonitorIntent();
         ClearPreviewDateCurve();
         BuildProfileButtonItems();
         QueueRebuildVisual();
