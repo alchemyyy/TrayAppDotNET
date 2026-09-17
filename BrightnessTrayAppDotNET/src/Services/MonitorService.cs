@@ -49,6 +49,11 @@ public sealed class MonitorService : IDisposable
 
     private readonly ConcurrentDictionary<string, MonitorEntry> _entries = new(StringComparer.Ordinal);
 
+    // Keep reconnect intent without publishing absent displays to the flyout or DDC recovery worker.
+    // Dispatcher-owned; entries contain UI state only, never live handles or queued hardware work.
+    private readonly Dictionary<MonitorInfo, (MonitorIdentityStrategy Strategy, bool PreserveIntent)>
+        _disconnectedMonitors = [];
+
     // Failed rows retain only immutable matching data, not handles or transport state. This lets targeted recovery
     // find an HDMI display whose display number or DeviceID drifted while the link was renegotiating.
     private readonly ConcurrentDictionary<string, DDCRecoveryIdentity>
@@ -593,6 +598,22 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     public ObservableCollection<MonitorInfo> Monitors { get; } = [];
 
+    // During CollectionChanged.Add, lets the flyout reuse the retained slider intent instead of
+    // treating a reconnect as first enrollment and overwriting it with the saved profile.
+    internal bool IsRestoringDisconnectedMonitor(MonitorInfo monitor) =>
+        _disconnectedMonitors.TryGetValue(monitor, out var retained) && retained.PreserveIntent;
+
+    internal bool ShouldRestoreDisconnectedMonitorProfile(MonitorInfo monitor) =>
+        _disconnectedMonitors.TryGetValue(monitor, out var retained) && !retained.PreserveIntent;
+
+    // A profile selection or reorder replaces the retained intent. Reconnecting displays must then
+    // enroll from the current profile, including when a reconnect probe is already in flight.
+    internal void DiscardDisconnectedMonitorIntent()
+    {
+        foreach (MonitorInfo monitor in _disconnectedMonitors.Keys.ToArray())
+            _disconnectedMonitors[monitor] = (_disconnectedMonitors[monitor].Strategy, false);
+    }
+
     /// <summary>
     /// Minimum interval between successive DDC/CI writes to any single monitor.
     /// Updates mid-session are honored by the next iteration of the write loop.
@@ -763,16 +784,9 @@ public sealed class MonitorService : IDisposable
         //    destroying the existing MonitorInfo and any UI state bound to it.
         //    Falls back to ID match for the rare monitor that doesn't expose an EDID.
         //
-        //    Two cases for a missing monitor:
-        //    a) Known DDC-capable panel (the user has driven it before). Treat the drop as transient -
-        //       LG / DisplayPort panels with DP power-saving fully drop from Windows enumeration when the
-        //       user hits the power button, and a forced removal + re-add would lose Brightness,
-        //       LastUserBrightness, Offset, and the curve baseline, so the panel returns at whatever
-        //       hardware default the EEPROM happens to report (often 100). Keep the MonitorInfo, mark
-        //       Failed, drop the bus entry; the DDC fallback worker / next Refresh re-promotes the panel in
-        //       place when it returns to enumeration, and the curve-driven gate on Brightness sync
-        //       preserves the slider value through the cycle.
-        //    b) Never DDC-capable (or no EDID at all). Genuinely gone, or never useful - drop normally.
+        //    Missing panels leave the active collection immediately, whether unplugged or powered off.
+        //    Keep previously capable panels' intent separately so a later enumeration can restore their
+        //    brightness, offset, and curve state without leaving a stale slider or retrying an absent device.
         for (int i = Monitors.Count - 1; i >= 0; i--)
         {
             MonitorInfo existing = Monitors[i];
@@ -791,37 +805,33 @@ public sealed class MonitorService : IDisposable
                 stillPresent = true;
             if (stillPresent) continue;
 
-            bool wasEverCapable = !string.IsNullOrEmpty(existing.EDIDKey)
-                                  && (_knownDisplays.Find(existing.EDIDKey)?.WasEverDDCCapable ?? false);
+            bool wasEverCapable = existing.WasEverDDCCapable
+                                  || (!string.IsNullOrEmpty(existing.EDIDKey)
+                                      && (_knownDisplays.Find(existing.EDIDKey)?.WasEverDDCCapable ?? false));
+
+            if (_entries.TryGetValue(existing.ID, out MonitorEntry? droppedEntry))
+                existing.LastKnownBrightnessMax = NormalizeBrightnessMax(droppedEntry.Max);
+
+            // Unbind the row before marking it failed: a disconnect is not a user edit to autosave,
+            // and must not clear the flyout's curve-release stopwatch through PropertyChanged.
+            DetachMonitor(existing);
+            Monitors.RemoveAt(i);
 
             if (wasEverCapable)
             {
-                // Park the row in Failed without losing it.
+                // Preserve the recovery transition without keeping the row active.
                 // SliderState's setter stashes _preFailureSliderState on the first transition into Failed,
                 // so a CurveActive panel power-cycled now still recovers as curve-driven and skips the
                 // hardware-sync of Brightness on the rebound.
                 existing.SliderState = SliderStateMachine.OnHardwareFailed();
                 existing.LastDDCError = "Monitor not currently enumerated.";
-                if (_entries.TryRemove(existing.ID, out MonitorEntry? droppedEntry))
-                {
-                    RememberRecoveryIdentity(existing.ID, Volatile.Read(ref droppedEntry.DDC));
-                    InvalidateBrightnessTarget(droppedEntry);
-                    existing.LastKnownBrightnessMax = NormalizeBrightnessMax(droppedEntry.Max);
-                    // In-flight write payload owns the (now-stale) DDC handle and will release cleanly;
-                    // queued writes can't usefully target a missing panel, drop them.
-                    DropQueuedBrightnessWrites(existing.ID);
-                }
 
+                _disconnectedMonitors[existing] = (previousStrategy, true);
                 TADNLog.Log(
-                    $"MonitorService: '{existing.Name}' dropped from enumeration; parking as Failed "
+                    $"MonitorService: '{existing.Name}' disconnected; retaining state outside active monitors "
                     + $"(EDIDKey={existing.EDIDKey})");
                 RecordDDCCapableObservation(existing);
-                DDCRecoveryRequested?.Invoke(existing.ID);
-                continue;
             }
-
-            DetachMonitor(existing);
-            Monitors.RemoveAt(i);
         }
 
         // 2. Refresh handles on surviving monitors; add new ones.
@@ -924,7 +934,9 @@ public sealed class MonitorService : IDisposable
             // panel with a real EDID and would otherwise treat it as new. See M-16 / audit_08 F-06.
             MonitorInfo? existingInfo = null;
             if (!string.IsNullOrEmpty(EDIDKey)) existingInfo = Monitors.FirstOrDefault(m => m.EDIDKey == EDIDKey);
-            existingInfo ??= Monitors.FirstOrDefault(m => m.ID == id);
+            // A stable runtime ID may contain a display number that Windows has since assigned to
+            // another panel. Never let that fallback override a different known physical identity.
+            existingInfo ??= Monitors.FirstOrDefault(m => string.IsNullOrEmpty(m.EDIDKey) && m.ID == id);
             bool reKeyingFromPortForm = false;
             if (existingInfo == null && !string.IsNullOrEmpty(portForm))
             {
@@ -939,14 +951,42 @@ public sealed class MonitorService : IDisposable
                 }
             }
 
+            bool restoringDisconnected = false;
+            bool disconnectedStrategyChanged = false;
+            if (existingInfo == null)
+            {
+                existingInfo = _disconnectedMonitors.Keys.FirstOrDefault(m =>
+                    !string.IsNullOrEmpty(EDIDKey) && m.EDIDKey == EDIDKey);
+                existingInfo ??= _disconnectedMonitors.Keys.FirstOrDefault(m =>
+                    !string.IsNullOrEmpty(portForm) && m.EDIDKey == portForm);
+                existingInfo ??= _disconnectedMonitors.Keys.FirstOrDefault(m =>
+                    string.IsNullOrEmpty(m.EDIDKey) && m.ID == id);
+                if (existingInfo != null)
+                {
+                    restoringDisconnected = true;
+                    disconnectedStrategyChanged = _disconnectedMonitors[existingInfo].Strategy != _activeStrategy;
+                    reKeyingFromPortForm = existingInfo.EDIDKey.StartsWith("port:", StringComparison.Ordinal)
+                                          && existingInfo.EDIDKey != EDIDKey;
+                }
+            }
+
             if (existingInfo != null)
             {
+                if (restoringDisconnected
+                    && (strategyChanged || disconnectedStrategyChanged || reKeyingFromPortForm
+                        || Monitors.Any(m => m.ID == existingInfo.ID)))
+                {
+                    // Another display can take the old number while this panel is absent. Its live bus
+                    // entry belongs to that other display; restore this panel under an unused identity.
+                    existingInfo.ID = Monitors.Any(m => m.ID == id) ? EDIDKey : id;
+                }
+
                 // Re-key when the user explicitly changed identity strategy, OR when a port-form
                 // EDIDKey is being promoted to its proper edid: identity now that EDID is readable.
                 // Both cases mutate ID/EDIDKey in place rather than destroy+recreate, so SliderState,
                 // Offset, LastUserBrightness, PropertyChanged subscriptions, and the throttler's
                 // queued payload all survive.
-                if ((strategyChanged && existingInfo.ID != id) || reKeyingFromPortForm)
+                if (!restoringDisconnected && ((strategyChanged && existingInfo.ID != id) || reKeyingFromPortForm))
                 {
                     string oldID = existingInfo.ID;
                     if (oldID != id && _entries.TryRemove(oldID, out MonitorEntry? movingEntry))
@@ -1111,9 +1151,18 @@ public sealed class MonitorService : IDisposable
                     {
                         RememberRecoveryIdentity(existingInfo.ID, ddc);
                         existingInfo.LastDDCError = promote.Error;
-                        if (existingInfo.WasEverDDCCapable)
+                        if (existingInfo.WasEverDDCCapable && !restoringDisconnected)
                             DDCRecoveryRequested?.Invoke(existingInfo.ID);
                     }
+                }
+
+                if (restoringDisconnected)
+                {
+                    existingInfo.PropertyChanged += OnMonitorPropertyChanged;
+                    Monitors.Add(existingInfo);
+                    _disconnectedMonitors.Remove(existingInfo);
+                    if (existingInfo.IsFailed && existingInfo.WasEverDDCCapable)
+                        DDCRecoveryRequested?.Invoke(existingInfo.ID);
                 }
 
                 continue;
@@ -3494,6 +3543,7 @@ public sealed class MonitorService : IDisposable
             m.PropertyChanged -= OnMonitorPropertyChanged;
 
         _recoveryIdentities.Clear();
+        _disconnectedMonitors.Clear();
 
         // Flush any pending debounced brightness / offset stamps so a last-moment slider drag
         // doesn't get lost on shutdown, and dispose the timer (H-15). Dispose internally flushes
