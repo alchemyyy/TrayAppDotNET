@@ -135,9 +135,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 StateChanged = OnDockStateChanged
             });
 
+            _settings.EnsureFanProfileLayouts();
             LoadGroupCatalog();
             LoadProbeCards();
-            _settings.EnsureFanProfileCount(3);
             _settings.Changed += OnSettingsChanged;
             WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
             if (_lhmService != null)
@@ -541,7 +541,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             parentName: "FlyoutHeader");
 
         const int primaryButtonColumnCount = 4;
-        const int profileButtonCount = 3;
+        const int profileButtonCount = FanProfile.SlotCount;
         for (int columnIndex = 0; columnIndex < primaryButtonColumnCount; columnIndex++)
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
 
@@ -693,7 +693,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         empty.HorizontalAlignment = HorizontalAlignment.Center;
         empty.VerticalAlignment = VerticalAlignment.Center;
         ControlNames.Assign(empty, parentName: "EmptyState");
-        empty.IsVisible = generation.Cells.Count == 0 && _probeCards.Count == 0 && !generation.HasUpdateCard;
+        empty.IsVisible = generation.Cells.Count == 0
+                          && !_probeCards.Any(card => card.IsVisibleOnProfile(_settings.SelectedFanProfileIndex))
+                          && !generation.HasUpdateCard;
         holder.Children.Add(empty);
         return holder;
     }
@@ -720,6 +722,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         foreach (ProbeCard probeCard in _probeCards)
         {
+            if (!probeCard.IsVisibleOnProfile(_settings.SelectedFanProfileIndex)) continue;
             slots.Add(new FlyoutVisualSlot(
                 NormalizeDisplayOrder(probeCard.DisplayOrder),
                 sequence++,
@@ -2367,7 +2370,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Layout.ProfileButtonWidth,
                 Layout.ProfileButtonHeight,
                 fontSize: 0,
-                tooltip: $"Profile {profileNumber}"),
+                tooltip: _settings.FanProfiles[profileNumber - 1].DisplayName(profileNumber - 1)),
             $"ProfileButton{profileNumber}");
         button.Child = content;
         Grid.SetColumn(button, column);
@@ -2658,6 +2661,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         string name = CreateUniqueProbeCardName();
         OffsetTopLevelDisplayOrders(1);
         ProbeCard probeCard = new() { Name = name, DisplayOrder = 0 };
+        probeCard.EnsureProfileVisibility(_settings.SelectedFanProfileIndex);
         _probeCards.Insert(index: 0, probeCard);
         SaveProbeCardChanges();
         RebuildVisual();
@@ -2702,29 +2706,22 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_lhmService == null) return;
         _lastRequestedProfile = targetIndex + 1;
-        _settings.EnsureFanProfileCount(3);
-        if (targetIndex < 0 || targetIndex >= _settings.FanProfiles.Count) return;
-        int currentIndex = Math.Clamp(_settings.SelectedFanProfileIndex, min: 0, _settings.FanProfiles.Count - 1);
-        if (_settings.Autosave) SaveFanProfileSlot(currentIndex);
-        FanProfile target = _settings.FanProfiles[targetIndex];
-        if (target.Fans.Count > 0) target.ApplyTo(_lhmService.Fans);
-        else SaveFanProfileSlot(targetIndex);
-        _settings.SelectedFanProfileIndex = targetIndex;
+        _suppressFanRebuild = true;
+        try
+        {
+            if (!_settings.SelectFanProfile(targetIndex, _lhmService.Fans)) return;
+            LoadGroupCatalog();
+        }
+        finally
+        {
+            _suppressFanRebuild = false;
+        }
+
         _lhmService.PersistLiveState(false);
         _settings.Save();
         _settings.RaiseChanged();
         ExecuteFanRebuild(false);
         _ = _lastRequestedProfile;
-    }
-
-    private void SaveFanProfileSlot(int index)
-    {
-        if (_lhmService == null) return;
-        if (index < 0 || index >= _settings.FanProfiles.Count) return;
-        string name = string.IsNullOrWhiteSpace(_settings.FanProfiles[index].Name)
-            ? $"Profile {index + 1}"
-            : _settings.FanProfiles[index].Name;
-        _settings.FanProfiles[index] = FanProfile.FromFans(name, _lhmService.Fans);
     }
 
     private bool IsFanVisibleInFlyout(Fan fan) =>
@@ -4536,14 +4533,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         try
         {
             _groupNames.Clear();
-            _probeCards.Clear();
             int index = 0;
             foreach (FlyoutTopLevelItem item in orderedItems)
             {
                 if (item.ProbeCard != null)
                 {
                     item.ProbeCard.DisplayOrder = index++;
-                    _probeCards.Add(item.ProbeCard);
                     continue;
                 }
 
@@ -4585,6 +4580,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         foreach (ProbeCard probeCard in _probeCards)
         {
+            if (!probeCard.IsVisibleOnProfile(_settings.SelectedFanProfileIndex)) continue;
             slots.Add((FlyoutTopLevelItem.Probe(probeCard), NormalizeDisplayOrder(probeCard.DisplayOrder),
                 sequence++, probeCard.DisplayName));
         }
@@ -5395,6 +5391,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         _showNonFunctioningFans = _settings.ShowNonFunctioningFans;
+        LoadGroupCatalog();
         UpdateNonFunctioningFansButtonVisual();
         RequestFanRebuild();
     });
@@ -5648,6 +5645,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             foreach (ProbeCard probeCard in _probeCards)
             {
+                if (!probeCard.IsVisibleOnProfile(_settings.SelectedFanProfileIndex)) continue;
                 if (probeCard.DisplayOrder >= 0)
                     probeCard.DisplayOrder += offset;
             }

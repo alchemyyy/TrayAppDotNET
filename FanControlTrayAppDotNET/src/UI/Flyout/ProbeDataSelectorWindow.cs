@@ -103,6 +103,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         _probeCard = probeCard;
         _settings = settings;
         _changed = changed;
+        _settings.EnsureFanProfileLayouts();
+        _probeCard.EnsureProfileVisibility(_settings.SelectedFanProfileIndex);
         _palette = FanSettingsWindow.CreatePalette(
             AppServices.Theme,
             settings,
@@ -776,18 +778,26 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         Grid home = ControlNames.Assign(
             new Grid { UseLayoutRounding = true },
             parentName: "Home");
+        home.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        home.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         home.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
         home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(NicknameColumnWidth())));
+
+        Grid profileVisibility = BuildProfileVisibilityRow(generation);
+        Grid.SetColumnSpan(profileVisibility, value: 3);
+        home.Children.Add(profileVisibility);
 
         Border selectedProbeHost = new()
         {
             Padding = Layout.HomeNicknameColumnPadding, Child = BuildSelectedProbesSection(generation)
         };
+        Grid.SetRow(selectedProbeHost, value: 1);
         Grid.SetColumn(selectedProbeHost, value: 0);
         home.Children.Add(selectedProbeHost);
 
         Border columnSeparator = BuildHomeColumnSeparator();
+        Grid.SetRow(columnSeparator, value: 1);
         Grid.SetColumn(columnSeparator, value: 1);
         home.Children.Add(columnSeparator);
 
@@ -814,9 +824,73 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         Grid.SetRow(probeNicknameHost, value: 2);
         nicknames.Children.Add(probeNicknameHost);
 
+        Grid.SetRow(nicknames, value: 1);
         Grid.SetColumn(nicknames, value: 2);
         home.Children.Add(nicknames);
         return home;
+    }
+
+    /// <summary>Builds one profile-visibility row above the selected probes and nickname editors.</summary>
+    private Grid BuildProfileVisibilityRow(ProbeSelectorVisualGeneration generation)
+    {
+        Grid row = ControlNames.Assign(
+            new Grid { Margin = Layout.ProfileVisibilityRowMargin },
+            parentName: "ProfileVisibility");
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        TextBlock label = TrayAppDotNETSettingsUI.Text(
+            "Profiles to display probe card on: ", _palette, Layout.SectionTitleFontSize);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(label);
+
+        for (int profileIndex = 0; profileIndex < FanProfile.SlotCount; profileIndex++)
+        {
+            int selectedProfileIndex = profileIndex;
+            FanProfile profile = _settings.FanProfiles[profileIndex];
+            string profileName = profile.DisplayName(profileIndex);
+            row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
+            TextBlock profileLabel = TrayAppDotNETSettingsUI.Text(
+                profileName, _palette, Layout.SectionTitleFontSize);
+            profileLabel.TextTrimming = TextTrimming.CharacterEllipsis;
+            CheckBox checkBox = ControlNames.Assign(
+                new CheckBox
+                {
+                    Content = profileLabel,
+                    IsChecked = _probeCard.IsVisibleOnProfile(profileIndex),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    Foreground = TrayAppDotNETSettingsUI.Brush(_palette.Foreground)
+                },
+                parentName: "ProfileVisibility");
+            TrayAppDotNETToolTip.SetTip(checkBox, $"{profileName}: At least one profile must remain checked.");
+            checkBox.IsCheckedChanged += (_, _) =>
+            {
+                if (_windowResources.IsDisposed || !ReferenceEquals(generation, _activeVisualGeneration)) return;
+                bool wasVisible = _probeCard.IsVisibleOnProfile(selectedProfileIndex);
+                bool visible = checkBox.IsChecked == true;
+                if (wasVisible == visible) return;
+                if (!_probeCard.TrySetProfileVisibility(selectedProfileIndex, visible))
+                {
+                    checkBox.IsChecked = wasVisible;
+                    return;
+                }
+
+                _changed(_probeCard);
+            };
+
+            Border host = new() { Margin = Layout.ProfileVisibilityCheckBoxMargin, Child = checkBox };
+            Action toggleVisibility = () => checkBox.IsChecked = checkBox.IsChecked != true;
+            RegisterBorderKeyboardTarget(
+                generation,
+                host,
+                new ProbeKeyboardNavigationIdentity(profile, ProbeKeyboardNavigationRole.ProfileVisibility),
+                toggleVisibility,
+                toggleVisibility);
+            Grid.SetColumn(host, profileIndex + 1);
+            row.Children.Add(host);
+        }
+
+        return row;
     }
 
     /// <summary>
@@ -3054,6 +3128,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
 
     private enum ProbeKeyboardNavigationRole
     {
+        ProfileVisibility,
         Card,
         Enable,
         Truncate,

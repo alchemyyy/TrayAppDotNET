@@ -265,6 +265,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     public int SelectedFanProfileIndex { get; set; }
 
+    public bool FanProfileLayoutsInitialized { get; set; }
+
     // Raised when any setting is changed through the settings window.
     public event Action? Changed;
 
@@ -374,8 +376,9 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     {
         try
         {
-            EnsureFanProfileCount(3);
+            EnsureFanProfileLayouts();
             SyncFanControlRegistriesForSave();
+            FanProfiles[SelectedFanProfileIndex].Capture(Fans, FanGroups, includeControlState: false);
             TrayXmlSerializer.WriteFile(path, this);
         }
         catch
@@ -399,15 +402,9 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
                 // so an explicit removal isn't undone on the next launch.
                 bool changed = loaded.DedupeHotkeysByIdentity();
                 changed |= loaded.EnsureDefaultHotkeys();
-                changed |= loaded.EnsureFanProfileCount(3);
+                changed |= loaded.EnsureFanProfileLayouts();
                 changed |= loaded.EnsureDefaultDeviceNicknameRules();
                 changed |= loaded.EnsureDefaultProbeNicknameRules();
-                if (loaded.SelectedFanProfileIndex < 0 || loaded.SelectedFanProfileIndex >= loaded.FanProfiles.Count)
-                {
-                    loaded.SelectedFanProfileIndex = 0;
-                    changed = true;
-                }
-
                 if (changed) loaded.Save(path);
                 return loaded;
             }
@@ -420,7 +417,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         AppSettings defaults = new();
         defaults.InitializeFanControlRegistries();
         defaults.EnsureDefaultHotkeys();
-        defaults.EnsureFanProfileCount(3);
+        defaults.EnsureFanProfileLayouts();
         defaults.EnsureDefaultDeviceNicknameRules();
         defaults.EnsureDefaultProbeNicknameRules();
         defaults.Save(path);
@@ -660,6 +657,71 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         }
 
         return added;
+    }
+
+    /// <summary>Migrates previously global layout into only the active profile and repairs card visibility.</summary>
+    public bool EnsureFanProfileLayouts()
+    {
+        bool changed = EnsureFanProfileCount(FanProfile.SlotCount);
+        int selectedIndex = SelectedFanProfileIndex >= 0 && SelectedFanProfileIndex < FanProfile.SlotCount
+            ? SelectedFanProfileIndex
+            : 0;
+        if (SelectedFanProfileIndex != selectedIndex)
+        {
+            SelectedFanProfileIndex = selectedIndex;
+            changed = true;
+        }
+
+        if (!FanProfileLayoutsInitialized)
+        {
+            FanProfiles[selectedIndex].Capture(Fans, FanGroups, includeControlState: false);
+            FanProfileLayoutsInitialized = true;
+            changed = true;
+        }
+
+        foreach (ProbeCard probeCard in ProbeCards)
+            changed |= probeCard.EnsureProfileVisibility(selectedIndex);
+        return changed;
+    }
+
+    /// <summary>Switches fan layout and control snapshots without borrowing names or groups from another slot.</summary>
+    public bool SelectFanProfile(int targetIndex, IEnumerable<Fan> liveFans)
+    {
+        if (targetIndex < 0 || targetIndex >= FanProfile.SlotCount) return false;
+        EnsureFanProfileLayouts();
+        if (targetIndex == SelectedFanProfileIndex) return false;
+
+        // Include disconnected fans so their names and membership also follow profile selection
+        Dictionary<string, Fan> knownFans = new(StringComparer.OrdinalIgnoreCase);
+        foreach (Fan fan in Fans)
+        {
+            if (!string.IsNullOrWhiteSpace(fan.DataSourceKey)) knownFans[fan.DataSourceKey] = fan;
+        }
+        foreach (Fan fan in liveFans)
+        {
+            if (!string.IsNullOrWhiteSpace(fan.DataSourceKey)) knownFans[fan.DataSourceKey] = fan;
+        }
+
+        FanProfiles[SelectedFanProfileIndex].Capture(knownFans.Values, FanGroups, Autosave);
+        FanProfile target = FanProfiles[targetIndex];
+        target.ApplyTo(knownFans.Values);
+        SelectedFanProfileIndex = targetIndex;
+
+        Fans = [];
+        foreach (Fan fan in knownFans.Values)
+            Fans.Add(fan.CloneForPersistence());
+
+        FanGroups = [];
+        foreach (FanProfileGroup group in target.Groups)
+            FanGroups.Add(group.ToGroup());
+        FanGroup.FanGroups.Clear();
+        SyncFanGroupsFromFans();
+        foreach (FanGroup group in FanGroups)
+            FanGroup.Register(group);
+
+        // Seed unseen fan controls only after clearing the previous profile's layout
+        target.Capture(knownFans.Values, FanGroups, includeControlState: false);
+        return true;
     }
 
     public void InitializeFanControlRegistries()

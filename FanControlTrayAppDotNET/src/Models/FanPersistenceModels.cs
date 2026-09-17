@@ -163,6 +163,8 @@ public class FanGroup : INotifyPropertyChanged
 /// </summary>
 public class ProbeCard
 {
+    private const int ValidProfileMask = (1 << FanProfile.SlotCount) - 1;
+
     [XmlAttribute]
     public string Name { get; set; } = string.Empty;
 
@@ -172,6 +174,9 @@ public class ProbeCard
     [XmlAttribute]
     public bool IsCollapsed { get; set; }
 
+    [XmlAttribute]
+    public int DisplayProfileMask { get; set; }
+
     [XmlArray("Probes")]
     [XmlArrayItem("Probe")]
     public List<ProbeCardProbe> Probes { get; set; } = [];
@@ -179,6 +184,37 @@ public class ProbeCard
     [XmlIgnore]
     public string DisplayName =>
         string.IsNullOrWhiteSpace(Name) ? "Probe Card" : Name;
+
+    /// <summary>Repairs missing or invalid visibility without assigning a card to every profile.</summary>
+    public bool EnsureProfileVisibility(int selectedProfileIndex)
+    {
+        int normalized = DisplayProfileMask & ValidProfileMask;
+        if (normalized == 0)
+            normalized = 1 << Math.Clamp(selectedProfileIndex, 0, FanProfile.SlotCount - 1);
+        if (normalized == DisplayProfileMask) return false;
+
+        DisplayProfileMask = normalized;
+        return true;
+    }
+
+    /// <summary>Checks whether the card belongs on the specified profile's flyout.</summary>
+    public bool IsVisibleOnProfile(int profileIndex) =>
+        profileIndex >= 0 && profileIndex < FanProfile.SlotCount
+        && (DisplayProfileMask & (1 << profileIndex)) != 0;
+
+    /// <summary>Changes visibility while refusing to remove the last valid profile.</summary>
+    public bool TrySetProfileVisibility(int profileIndex, bool visible)
+    {
+        if (profileIndex < 0 || profileIndex >= FanProfile.SlotCount) return false;
+
+        int profileBit = 1 << profileIndex;
+        int validMask = DisplayProfileMask & ValidProfileMask;
+        int updatedMask = visible ? validMask | profileBit : validMask & ~profileBit;
+        if (updatedMask == 0) return false;
+
+        DisplayProfileMask = updatedMask;
+        return true;
+    }
 
     /// <summary>
     /// Finds stored probe settings by their data-source key.
@@ -330,16 +366,26 @@ public class FanUserSettings
     public List<Trigger> Triggers { get; set; } = [];
 }
 
-// Profile data is deliberately narrower than full FanUserSettings. It captures the flyout-facing
-// control state only: curve assignment, lock flag, manual target, and active mode.
+// Profiles own fan names, group membership, and layout as well as flyout control state.
+// Hardware calibration and safety limits remain on the fan, outside profile snapshots.
 public class FanProfile
 {
+    public const int SlotCount = 3;
+
     [XmlAttribute]
     public string Name { get; set; } = string.Empty;
 
     [XmlArray("Fans")]
     [XmlArrayItem("Fan")]
     public List<FanProfileEntry> Fans { get; set; } = [];
+
+    [XmlArray("Groups")]
+    [XmlArrayItem("Group")]
+    public List<FanProfileGroup> Groups { get; set; } = [];
+
+    /// <summary>Resolves a custom profile name or its numbered fallback.</summary>
+    public string DisplayName(int profileIndex) =>
+        string.IsNullOrWhiteSpace(Name) ? $"Profile {profileIndex + 1}" : Name;
 
     public static FanProfile FromFans(string name, IEnumerable<Fan> fans)
     {
@@ -353,19 +399,52 @@ public class FanProfile
         return profile;
     }
 
-    public void ApplyTo(IEnumerable<Fan> fans)
+    /// <summary>Saves layout independently of control autosave and retains disconnected fan entries.</summary>
+    public void Capture(IEnumerable<Fan> fans, IEnumerable<FanGroup> groups, bool includeControlState)
     {
-        Dictionary<string, FanProfileEntry> entries = Fans
-            .Where(f => !string.IsNullOrEmpty(f.DataSourceKey))
-            .GroupBy(f => f.DataSourceKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
-
+        Dictionary<string, FanProfileEntry> entries = EntriesByKey();
         foreach (Fan fan in fans)
         {
-            if (!entries.TryGetValue(fan.DataSourceKey, out FanProfileEntry? entry)) continue;
-            entry.ApplyTo(fan);
+            if (string.IsNullOrWhiteSpace(fan.DataSourceKey)) continue;
+            if (includeControlState || !entries.TryGetValue(fan.DataSourceKey, out FanProfileEntry? entry))
+            {
+                entries[fan.DataSourceKey] = FanProfileEntry.FromFan(fan);
+                continue;
+            }
+
+            entry.UserDefinedName = fan.UserDefinedName;
+            entry.Group = fan.Group;
+            entry.FlyoutDisplayOrder = fan.FlyoutDisplayOrder;
+        }
+
+        Fans = [.. entries.Values];
+        Groups = [];
+        foreach (FanGroup group in groups)
+            Groups.Add(FanProfileGroup.FromGroup(group));
+    }
+
+    /// <summary>Restores saved fans and clears layout inherited by fans absent from this profile.</summary>
+    public void ApplyTo(IEnumerable<Fan> fans)
+    {
+        Dictionary<string, FanProfileEntry> entries = EntriesByKey();
+        foreach (Fan fan in fans)
+        {
+            if (entries.TryGetValue(fan.DataSourceKey, out FanProfileEntry? entry))
+            {
+                entry.ApplyTo(fan);
+                continue;
+            }
+
+            fan.UserDefinedName = string.Empty;
+            fan.Group = null;
+            fan.FlyoutDisplayOrder = -1;
         }
     }
+
+    private Dictionary<string, FanProfileEntry> EntriesByKey() => Fans
+        .Where(entry => !string.IsNullOrWhiteSpace(entry.DataSourceKey))
+        .GroupBy(entry => entry.DataSourceKey, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
 }
 
 public class FanProfileEntry
@@ -385,13 +464,25 @@ public class FanProfileEntry
     [XmlAttribute]
     public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
 
+    [XmlAttribute]
+    public string UserDefinedName { get; set; } = string.Empty;
+
+    [XmlAttribute]
+    public string? Group { get; set; }
+
+    [XmlAttribute]
+    public int FlyoutDisplayOrder { get; set; } = -1;
+
     public static FanProfileEntry FromFan(Fan fan) => new()
     {
         DataSourceKey = fan.DataSourceKey,
         AssignedCurveName = fan.AssignedCurveName,
         ModeLocked = fan.ModeLocked,
         FanDisplayedValue = fan.FanDisplayedValue,
-        CurrentControlMode = fan.CurrentControlMode
+        CurrentControlMode = fan.CurrentControlMode,
+        UserDefinedName = fan.UserDefinedName,
+        Group = fan.Group,
+        FlyoutDisplayOrder = fan.FlyoutDisplayOrder
     };
 
     public void ApplyTo(Fan fan)
@@ -400,5 +491,57 @@ public class FanProfileEntry
         fan.ModeLocked = ModeLocked;
         fan.FanDisplayedValue = FanDisplayedValue;
         fan.CurrentControlMode = CurrentControlMode;
+        fan.UserDefinedName = UserDefinedName;
+        fan.Group = Group;
+        fan.FlyoutDisplayOrder = FlyoutDisplayOrder;
+    }
+}
+
+/// <summary>Detached group state that cannot publish inactive profiles into the live group registry.</summary>
+public class FanProfileGroup
+{
+    [XmlAttribute]
+    public string Name { get; set; } = string.Empty;
+
+    [XmlAttribute]
+    public int DisplayOrder { get; set; }
+
+    [XmlAttribute]
+    public bool IsCollapsed { get; set; }
+
+    [XmlAttribute]
+    public bool RPMMode { get; set; }
+
+    [XmlAttribute]
+    public int FanDisplayedValue { get; set; } = 50;
+
+    [XmlAttribute]
+    public FanControlMode CurrentControlMode { get; set; } = FanControlMode.Curve;
+
+    [XmlAttribute]
+    public string AssignedCurveName { get; set; } = string.Empty;
+
+    public static FanProfileGroup FromGroup(FanGroup group) => new()
+    {
+        Name = group.Name ?? string.Empty,
+        DisplayOrder = group.DisplayOrder,
+        IsCollapsed = group.IsCollapsed,
+        RPMMode = group.RPMMode,
+        FanDisplayedValue = group.FanDisplayedValue,
+        CurrentControlMode = group.CurrentControlMode,
+        AssignedCurveName = group.AssignedCurveName
+    };
+
+    /// <summary>Creates fresh mutable state for the active profile without sharing the snapshot.</summary>
+    public FanGroup ToGroup()
+    {
+        FanGroup group = FanGroup.CreateUnregistered(Name);
+        group.DisplayOrder = DisplayOrder;
+        group.IsCollapsed = IsCollapsed;
+        group.RPMMode = RPMMode;
+        group.FanDisplayedValue = FanDisplayedValue;
+        group.CurrentControlMode = CurrentControlMode;
+        group.AssignedCurveName = AssignedCurveName;
+        return group;
     }
 }

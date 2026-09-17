@@ -21,20 +21,15 @@
         <sys:Double x:Key="FanProperties.TitleBarHeight">32</sys:Double>
         <sys:Double x:Key="FanProperties.FooterHeight">42</sys:Double>
         <sys:Double x:Key="FanProperties.BodyLeftColumnWidth">400</sys:Double>
-        <sys:Double x:Key="FanProperties.RightPreviewHeight">112</sys:Double>
-        <sys:Double x:Key="FanProperties.TextBoxWidth">130</sys:Double>
-        <sys:Double x:Key="FanProperties.CurveComboBoxWidth">112</sys:Double>
-        <sys:Double x:Key="FanProperties.NumberBoxWidth">82</sys:Double>
-        <sys:Double x:Key="FanProperties.RowLabelColumnWidth">82</sys:Double>
+        <sys:Double x:Key="FanProperties.RightPreviewMinHeight">220</sys:Double>
+        <sys:Double x:Key="FanProperties.TextBoxWidth">230</sys:Double>
+        <sys:Double x:Key="FanProperties.CurveComboBoxWidth">200</sys:Double>
+        <sys:Double x:Key="FanProperties.NumberBoxWidth">140</sys:Double>
+        <sys:Double x:Key="FanProperties.RowLabelColumnWidth">74</sys:Double>
 
         <!-- RPM mode toggle -->
-        <sys:Double x:Key="FanProperties.RPMModeToggleColumnWidth">48</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleGapWidth">4</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleTrackWidth">30</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleTrackHeight">14</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleThumbSize">7</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleThumbHoverSize">9</sys:Double>
-        <sys:Double x:Key="FanProperties.RPMModeToggleThumbCheckedSize">10</sys:Double>
+        <sys:Double x:Key="FanProperties.RPMModeToggleColumnWidth">40</sys:Double>
+        <sys:Double x:Key="FanProperties.RPMModeRightInset">8</sys:Double>
 
         <!-- Typography and enabled states -->
         <sys:Double x:Key="FanProperties.TitleFontSize">13</sys:Double>
@@ -47,21 +42,16 @@
         <CornerRadius x:Key="FanProperties.RootCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="FanProperties.InnerCornerRadius">4</CornerRadius>
         <CornerRadius x:Key="FanProperties.ZeroCornerRadius">0</CornerRadius>
-        <CornerRadius x:Key="FanProperties.RPMModeToggleTrackCornerRadius">7</CornerRadius>
-        <CornerRadius x:Key="FanProperties.RPMModeToggleThumbCornerRadius">5</CornerRadius>
         <Thickness x:Key="FanProperties.TitleMargin">12,0,8,0</Thickness>
         <Thickness x:Key="FanProperties.BodyMargin">10,8,10,0</Thickness>
-        <Thickness x:Key="FanProperties.LeftMargin">0,0,6,0</Thickness>
+        <Thickness x:Key="FanProperties.LeftMargin">0</Thickness>
         <Thickness x:Key="FanProperties.RightMargin">10,0,0,0</Thickness>
-        <Thickness x:Key="FanProperties.CurveComboBoxMargin">0,8,0,0</Thickness>
-        <Thickness x:Key="FanProperties.EditCurveButtonMargin">0,8,0,0</Thickness>
+        <Thickness x:Key="FanProperties.CurveControlsMargin">0,8,0,0</Thickness>
         <Thickness x:Key="FanProperties.FooterMargin">10,6,10,10</Thickness>
+        <Thickness x:Key="FanProperties.FooterButtonsMargin">74,0,0,0</Thickness>
         <Thickness x:Key="FanProperties.ResetButtonMargin">0,0,8,0</Thickness>
         <Thickness x:Key="FanProperties.RadioButtonMargin">0,0,6,0</Thickness>
         <Thickness x:Key="FanProperties.ZeroThickness">0</Thickness>
-        <Thickness x:Key="FanProperties.RPMModeToggleBorderThickness">1</Thickness>
-        <Thickness x:Key="FanProperties.RPMModeToggleThumbUncheckedMargin">4,0,0,0</Thickness>
-        <Thickness x:Key="FanProperties.RPMModeToggleThumbCheckedMargin">0,0,3,0</Thickness>
 
         <!-- Property rows -->
         <sys:Double x:Key="FanProperties.ValueFontSize">11</sys:Double>

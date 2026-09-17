@@ -22,18 +22,20 @@
 </p>
 
 ## Overview
+
 These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, it's recommended to pair those apps which replace an existing Windows 11 counterpart, with [Windhawk's Taskbar Tray System Icon Tweaks Mod](https://windhawk.net/mods/taskbar-tray-system-icon-tweaks) in order to hide the stock OS tray icons.
 
-<p align="center">
-  <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="80%" align="center">
-</p>
+<figure align="center">
+  <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="80%">
+  <figcaption><em>This is an incomplete example. Stock tray icons were removed with Windhawk.</em></figcaption>
+</figure>
 
 
 
 
 ### Installation
 
-These projects are all portable executables, and they serve as their own installers. You can manage an app's installation by opening Settings -> About. 
+These apps are all portable executables, and they serve as their own installers. You can manage an app's installation by opening Settings -> About. 
 
 All app settings are saved to `%LocalAppData%\TrayAppDotNET`.
 
@@ -41,9 +43,9 @@ Running an app in portable mode will extract a couple Skia rendering library fil
 
 #### Project status
 
-These projects should all be considered to be in alpha. I personally use all of them without major issues, but there is still a lot that needs to be done. Also, some apps are much further along than others.
+These apps should all be considered to be in alpha. I personally use all of them without major issues, but there is still a lot that needs to be done. Also, some apps are much further along than others.
 
-Without further ado, here is what currently exists:
+## Gallery
 
 ---
 
@@ -144,7 +146,7 @@ EarTrumpet users might find this familiar. I took inspiration from it in this de
 <details>
 <summary><strong>Features</strong></summary>
 
-* Dynamic flyout structure
+* Configurable flyout structure
 * Recording device support
 * Bluetooth management
 * Device management
@@ -173,7 +175,7 @@ All apps come with the following features:
 * Crash recovery
 * Customizable tray menus (where applicable)
 
-## Dev Environment
+## Development
 
 I use Visual Studio 2026 with this project. Here are the necessary tools to compile it yourself.
 
@@ -221,7 +223,7 @@ There is a small set of embedded libraries which amount to the Skia rendering ba
 
 I use frontier LLM's *heavily* in this project. Disclaimer: I am actually a software engineer; I do actually read and review what gets written, as well as use my fingers to write code myself sometimes, not just prompts. What I am not about to do is spend 6 months doing grunt work on a thousand Windows API's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. With that said, all the architecture and design is mine. I allow LLMs complete reign over spam generating test code since any broken tests will inevitably be cleaned by an LLM, and the more coverage the merrier. Beyond this, I'm fairly loose with scrutinizing code comments unless its something I *really* care about. I generally keep a defined stylesheet to minimize the amount of garbage.
 
-If you look around the codebase you'll see some markdown files for LLM agents to assist them with context, mechanisms, etc. If you want to try and work on something in here with AI, I'd recommend reading at least the AGENTS.md file yourself. There are some acronyms in there, among other things, that make it a bit easier to communicate with your LLM of choice.
+If you look around the codebase you'll see some markdown files for LLM agents to assist them with context, mechanisms, etc. If you want to try and work on something in here with AI, I'd recommend reading at least the AGENTS.md file yourself. There are some acronyms in there (among other things), that make it a bit easier to communicate with your LLM of choice.
 
 #### Versions
 

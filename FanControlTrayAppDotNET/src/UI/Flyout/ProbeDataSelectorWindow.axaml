@@ -97,6 +97,8 @@
         <Thickness x:Key="ProbeSelector.TransformBoxPadding">4,0</Thickness>
 
         <!-- Home layout -->
+        <Thickness x:Key="ProbeSelector.ProfileVisibilityRowMargin">8,8,8,0</Thickness>
+        <Thickness x:Key="ProbeSelector.ProfileVisibilityCheckBoxMargin">8,0,0,0</Thickness>
         <Thickness x:Key="ProbeSelector.HomeActionButtonMargin">0,0,6,0</Thickness>
         <Thickness x:Key="ProbeSelector.HomeActionButtonTrailingMargin">0,0,4,0</Thickness>
         <Thickness x:Key="ProbeSelector.HomeActionButtonPadding">6,0</Thickness>

@@ -55,6 +55,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private readonly UIResourceScope _windowResources = new(nameof(FanPropertiesWindow));
     private bool _forceClose;
     private bool _isUpdatingPropertyUnitControls;
+    private int _loadedProfileIndex;
 
     public FanPropertiesWindow()
     {
@@ -116,19 +117,21 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             _nameBox = ControlNames.Assign(
                 TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth),
                 parentName: "FanName");
+            _nameBox.HorizontalAlignment = HorizontalAlignment.Left;
             _groupCombo = _windowResources.Own(
                 ControlNames.Assign(
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.TextBoxWidth,
-                        autoSizeToText: true),
+                        autoSizeToText: false),
                     parentName: "FanGroup"));
+            _groupCombo.HorizontalAlignment = HorizontalAlignment.Left;
             _curveCombo = _windowResources.Own(
                 ControlNames.Assign(
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.CurveComboBoxWidth,
-                        autoSizeToText: true),
+                        autoSizeToText: false),
                     parentName: "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
             _curveModeRadio = ControlNames.Assign(CompactRadio(text: "Curve", palette), parentName: "FanMode");
@@ -356,9 +359,11 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         body.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.BodyLeftColumnWidth)));
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        StackPanel left = new() { Margin = Layout.LeftMargin };
-        left.Children.Add(Row(label: "ID", _fanIDText, p));
-        left.Children.Add(Row(label: "Sensor", _sensorControllerText, p, bottomMargin: 6));
+        StackPanel left = new()
+        {
+            Margin = Layout.LeftMargin,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
         left.Children.Add(Row(label: "Name", _nameBox, p));
         left.Children.Add(Row(label: "Group", _groupCombo, p));
         left.Children.Add(Row(label: "Mode",
@@ -367,6 +372,8 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                 Orientation = Orientation.Horizontal,
                 Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
             }, p));
+        left.Children.Add(Row(label: "ID", _fanIDText, p));
+        left.Children.Add(Row(label: "Sensor", _sensorControllerText, p, bottomMargin: 6));
         left.Children.Add(RPMModeHeaderRow(p));
         left.Children.Add(NumberRow(label: "Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed, p));
         left.Children.Add(NumberRow(label: "Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh, p));
@@ -380,15 +387,18 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         ScrollViewer scroll = new()
         {
             Content = left,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         body.Children.Add(scroll);
 
         Grid right = new() { Margin = Layout.RightMargin };
-        right.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.RightPreviewHeight)));
+        right.RowDefinitions.Add(new RowDefinition(GridLength.Star)
+        {
+            MinHeight = Layout.RightPreviewMinHeight
+        });
         right.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        right.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         right.Children.Add(new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
@@ -396,14 +406,25 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.InnerCornerRadius : Layout.ZeroCornerRadius
         });
-        _curveCombo.Margin = Layout.CurveComboBoxMargin;
-        Grid.SetRow(_curveCombo, value: 1);
-        right.Children.Add(_curveCombo);
-        _editCurveButton.Margin = Layout.EditCurveButtonMargin;
-        _editCurveButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        Grid curveControls = new()
+        {
+            Margin = Layout.CurveControlsMargin,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        curveControls.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        curveControls.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeRightInset)));
+        curveControls.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        _curveCombo.HorizontalAlignment = HorizontalAlignment.Left;
+        _curveCombo.VerticalAlignment = VerticalAlignment.Center;
+        curveControls.Children.Add(_curveCombo);
+        _editCurveButton.HorizontalAlignment = HorizontalAlignment.Left;
+        _editCurveButton.VerticalAlignment = VerticalAlignment.Center;
         _editCurveButton.Click += (_, _) => OpenCurveEditor();
-        Grid.SetRow(_editCurveButton, value: 2);
-        right.Children.Add(_editCurveButton);
+        Grid.SetColumn(_editCurveButton, value: 2);
+        curveControls.Children.Add(_editCurveButton);
+        Grid.SetRow(curveControls, value: 1);
+        right.Children.Add(curveControls);
         Grid.SetColumn(right, value: 1);
         body.Children.Add(right);
         return body;
@@ -412,6 +433,8 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private Grid BuildFooter(SettingsPalette p)
     {
         Grid footer = new() { Margin = Layout.FooterMargin };
+        footer.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.BodyLeftColumnWidth)));
+        footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         SettingsButton reset = TrayAppDotNETSettingsUI.Button(text: "Reset to defaults", p);
         SettingsButton save = TrayAppDotNETSettingsUI.Button(text: "Save", p);
         reset.Margin = Layout.ResetButtonMargin;
@@ -421,8 +444,9 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         StackPanel buttons = new()
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = Layout.FooterButtonsMargin,
             Children = { reset, save }
         };
         footer.Children.Add(buttons);
@@ -431,6 +455,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 
     private void LoadFromFan()
     {
+        _loadedProfileIndex = _settings.SelectedFanProfileIndex;
         UpdateTitle();
         _fanIDText.Text = string.IsNullOrWhiteSpace(_fan.DataSourceKey) ? _fan.FansName : _fan.DataSourceKey;
         _sensorControllerText.Text = _fan.ControllerDisplayLabel;
@@ -754,6 +779,8 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     {
         if (_windowResources.IsDisposed) return;
 
+        if (_loadedProfileIndex != _settings.SelectedFanProfileIndex)
+            LoadFromFan();
         _palette.UpdateFrom(Palette());
         if (Content is Border root)
         {
@@ -805,7 +832,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         double? bottomMargin = null)
     {
         TextBlock labelBlock = RowLabel(label, p);
-        SettingsMiniToggle rpmModeToggle = BuildRPMModeToggle(p);
+        SettingsToggle rpmModeToggle = BuildRPMModeToggle(p);
         FanPropertyUnitBinding binding = new(unitKind, value, rpmModeToggle);
         rpmModeToggle.CheckedChanged += (_, isChecked) => OnRPMModeToggleChanged(binding, isChecked);
         _propertyUnitBindings.Add(binding);
@@ -824,40 +851,23 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         Grid grid = new() { Margin = RowMargin(bottomMargin) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.NumberBoxWidth)));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeToggleGapWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeToggleColumnWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeRightInset)));
         return grid;
     }
 
-    private SettingsMiniToggle BuildRPMModeToggle(SettingsPalette p)
+    private static SettingsToggle BuildRPMModeToggle(SettingsPalette p)
     {
-        SettingsMiniToggle toggle = new(p, BuildRPMModeToggleLayout())
+        SettingsToggle toggle = new(p)
         {
             IsChecked = false,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
         TrayAppDotNETToolTip.SetTip(toggle, tip: "Use RPM units for this property");
         return toggle;
     }
-
-    private SettingsMiniToggleLayout BuildRPMModeToggleLayout() =>
-        new()
-        {
-            Width = Layout.RPMModeToggleTrackWidth,
-            TrackWidth = Layout.RPMModeToggleTrackWidth,
-            TrackHeight = Layout.RPMModeToggleTrackHeight,
-            ThumbSize = Layout.RPMModeToggleThumbSize,
-            ThumbHoverSize = Layout.RPMModeToggleThumbHoverSize,
-            ThumbCheckedSize = Layout.RPMModeToggleThumbCheckedSize,
-            TrackCornerRadius = Layout.RPMModeToggleTrackCornerRadius,
-            ThumbCornerRadius = Layout.RPMModeToggleThumbCornerRadius,
-            BorderThickness = Layout.RPMModeToggleBorderThickness,
-            ThumbUncheckedMargin = Layout.RPMModeToggleThumbUncheckedMargin,
-            ThumbCheckedMargin = Layout.RPMModeToggleThumbCheckedMargin,
-            EnabledOpacity = Layout.EnabledOpacity,
-            DisabledOpacity = Layout.DisabledOpacity
-        };
 
     private void OnRPMModeToggleChanged(FanPropertyUnitBinding binding, bool rpmMode)
     {
@@ -1066,13 +1076,13 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private sealed class FanPropertyUnitBinding(
         FanPropertyUnitKind kind,
         SettingsNumberBox numberBox,
-        SettingsMiniToggle toggle)
+        SettingsToggle toggle)
     {
         public FanPropertyUnitKind Kind { get; } = kind;
 
         public SettingsNumberBox NumberBox { get; } = numberBox;
 
-        public SettingsMiniToggle Toggle { get; } = toggle;
+        public SettingsToggle Toggle { get; } = toggle;
 
         public bool RPMMode { get; set; }
     }
