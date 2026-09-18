@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -26,6 +27,143 @@ def load_publish_module() -> ModuleType:
 
 
 PUBLISH = load_publish_module()
+
+
+def command_output_path(command: list[str]) -> Path:
+    return Path(command[command.index("--output") + 1])
+
+
+FACTORY_BYTES = b"factory"
+# A stamped installer has to clear PUBLISH.INSTALLER_MINIMUM_SIZE_BYTES, so the fake image is padded
+# past that floor.
+STAMPED_INSTALLER_BYTES = b"installer-with-payload".ljust(
+    PUBLISH.INSTALLER_MINIMUM_SIZE_BYTES + 1, b"\0"
+)
+VERIFY_INSTALLER_STDOUT = "verified 1 payload(s)\n"
+VERIFY_INSTALLER_STDERR = "payload directory hash mismatch\n"
+# The installer factory is a .NET Framework 4.8 build, so none of these .NET publishing
+# properties may appear on its restore or publish command line.
+INSTALLER_REMOVED_PROPERTY_PREFIXES = (
+    "-p:PublishAot=",
+    "-p:SelfContained=",
+    "-p:UseAppHost=",
+    "-p:EnableWindowsTargeting=",
+    "-p:PublishSingleFile=",
+    "-p:RuntimeIdentifier=",
+)
+
+
+def command_payload_paths(command: list[str]) -> list[str]:
+    return [
+        command[index + 1]
+        for index, argument in enumerate(command)
+        if argument == "--payload"
+    ]
+
+
+def installer_verify_command(factory_path: Path, output_path: Path) -> list[str]:
+    return [
+        str(factory_path.resolve()),
+        "--verify-installer",
+        "--image",
+        str(output_path.resolve()),
+    ]
+
+
+def write_fake_installer_factory_publish(
+    command: list[str], extra_file_names: tuple[str, ...]
+) -> None:
+    publish_dir = command_output_path(command)
+    publish_dir.mkdir(parents=True, exist_ok=True)
+    (publish_dir / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME).write_bytes(FACTORY_BYTES)
+    for extra_file_name in extra_file_names:
+        extra_path = publish_dir / extra_file_name
+        extra_path.parent.mkdir(parents=True, exist_ok=True)
+        extra_path.write_bytes(b"extra")
+
+
+def write_fake_stamped_installer(command: list[str], installer_bytes: bytes) -> None:
+    output_path = command_output_path(command)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(installer_bytes)
+
+
+def fake_installer_run(
+    extra_file_names: tuple[str, ...] = (),
+    installer_bytes: bytes = STAMPED_INSTALLER_BYTES,
+    verify_returncode: int = 0,
+) -> tuple[list[list[str]], object]:
+    """Fakes the factory publish, every factory stamp and every factory verification."""
+    commands: list[list[str]] = []
+
+    def run(cmd: list[str], **_keyword_arguments) -> SimpleNamespace:
+        commands.append(cmd)
+        if cmd[0] == "dotnet" and cmd[1] == "publish":
+            write_fake_installer_factory_publish(cmd, extra_file_names)
+        elif "--make-installer" in cmd:
+            write_fake_stamped_installer(cmd, installer_bytes)
+        elif "--verify-installer" in cmd and verify_returncode != 0:
+            return SimpleNamespace(
+                returncode=verify_returncode,
+                stdout="",
+                stderr=VERIFY_INSTALLER_STDERR,
+            )
+        elif "--verify-installer" in cmd:
+            return SimpleNamespace(
+                returncode=0, stdout=VERIFY_INSTALLER_STDOUT, stderr=""
+            )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    return commands, run
+
+
+def write_fake_native_aot_publish(publish_dir: Path, app: PUBLISH.App) -> None:
+    legal_names = [
+        *PUBLISH.REQUIRED_LEGAL_ARCHIVE_FILES,
+        *PUBLISH.REQUIRED_THIRD_PARTY_LICENSE_ARCHIVE_FILES,
+    ]
+    for legal_name in legal_names:
+        legal_path = publish_dir / legal_name
+        legal_path.parent.mkdir(parents=True, exist_ok=True)
+        legal_path.write_bytes(b"legal")
+    (publish_dir / f"{app.name}.exe").write_bytes(b"exe")
+    for dll_name in PUBLISH.REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES:
+        (publish_dir / dll_name).write_bytes(b"dll")
+
+
+def write_collected_app_manifest(
+    app_root: Path,
+    app: PUBLISH.App,
+    version: int,
+    *,
+    write_installer: bool = True,
+    include_installer_fields: bool = True,
+) -> Path:
+    app_root.mkdir(parents=True, exist_ok=True)
+    zip_name = f"{app.name}_{version}.zip"
+    with ZipFile(app_root / zip_name, "w"):
+        pass
+    installer_name = PUBLISH.installer_asset_name(app.name)
+    if write_installer:
+        (app_root / installer_name).write_bytes(b"installer")
+
+    app_data = {
+        "appId": app.name,
+        "version": version,
+        "fileName": zip_name,
+        "sha256": "test",
+        "size": 0,
+        "source": "test",
+    }
+    if include_installer_fields:
+        app_data["installerFileName"] = installer_name
+        app_data["installerSha256"] = "installer-test"
+        app_data["installerSize"] = len(b"installer")
+
+    manifest = {"profile": "release", "displayName": "Release", "app": app_data}
+    manifest_path = app_root / f"app-release-{app.name}.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path
 
 
 class PublishScriptTests(unittest.TestCase):
@@ -75,25 +213,6 @@ class PublishScriptTests(unittest.TestCase):
 
         self.assertIn("-p:BuildNumber=321", command)
         self.assertIn(f"-p:TrayAppDotNETCommitHash={commit_hash}", command)
-
-    def test_native_aot_publish_validation_requires_embedded_dlls(self) -> None:
-        app = PUBLISH.APPS[0]
-        profile = PUBLISH.PROFILES["release"]
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            publish_directory = Path(temporary_directory)
-            executable_path = publish_directory / f"{app.name}.exe"
-            executable_path.write_bytes(b"native executable")
-            (publish_directory / "av_libglesv2.dll").write_bytes(b"ANGLE")
-
-            with mock.patch.object(PUBLISH, "validate_legal_directory"):
-                PUBLISH.validate_publish_dir(app, publish_directory, profile)
-
-            (publish_directory / "libSkiaSharp.dll").write_bytes(b"legacy")
-            with (
-                mock.patch.object(PUBLISH, "validate_legal_directory"),
-                self.assertRaisesRegex(SystemExit, "must be embedded"),
-            ):
-                PUBLISH.validate_publish_dir(app, publish_directory, profile)
 
     def test_versions_manifest_supplies_reused_app_commit_hash(self) -> None:
         app = PUBLISH.APPS[0]
@@ -591,27 +710,7 @@ class PublishScriptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             input_root = Path(temporary_directory)
             for app, version in ((selected_app, 10), (unselected_app, 20)):
-                app_root = input_root / app.name
-                app_root.mkdir(parents=True, exist_ok=True)
-                zip_name = f"{app.name}_{version}.zip"
-                with ZipFile(app_root / zip_name, "w"):
-                    pass
-                manifest = {
-                    "profile": "release",
-                    "displayName": "Release",
-                    "app": {
-                        "appId": app.name,
-                        "version": version,
-                        "fileName": zip_name,
-                        "sha256": "test",
-                        "size": 0,
-                        "source": "test",
-                    },
-                }
-                (app_root / f"app-release-{app.name}.json").write_text(
-                    json.dumps(manifest),
-                    encoding="utf-8",
-                )
+                write_collected_app_manifest(input_root / app.name, app, version)
 
             groups = PUBLISH.load_collected_profiles(
                 input_root,
@@ -622,6 +721,54 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual(
             [selected_app.name],
             [app["appId"] for app in groups["release"]["apps"]],
+        )
+        self.assertEqual(
+            input_root
+            / selected_app.name
+            / PUBLISH.installer_asset_name(selected_app.name),
+            groups["release"]["apps"][0]["installerPath"],
+        )
+
+    def test_selected_app_collection_requires_installer_fields_and_exe(self) -> None:
+        app = PUBLISH.APPS[0]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_root = Path(temporary_directory)
+            write_collected_app_manifest(
+                input_root / app.name, app, 10, write_installer=False
+            )
+            with self.assertRaisesRegex(SystemExit, r"Missing built installer"):
+                PUBLISH.load_collected_profiles(input_root, ["release"], [app])
+
+            write_collected_app_manifest(
+                input_root / app.name, app, 10, include_installer_fields=False
+            )
+            with self.assertRaisesRegex(
+                SystemExit, r"installerFileName, installerSha256, installerSize"
+            ):
+                PUBLISH.load_collected_profiles(input_root, ["release"], [app])
+
+    def test_staged_app_manifest_requires_installer_exe(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            package_dir = Path(temporary_directory)
+            manifest_path = write_collected_app_manifest(
+                package_dir, app, 10, write_installer=False
+            )
+            with self.assertRaisesRegex(SystemExit, r"Missing staged app installer"):
+                PUBLISH.app_manifest_files(package_dir, profile, app)
+
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            installer_path.write_bytes(b"installer")
+            _manifest_path, _manifest, files = PUBLISH.app_manifest_files(
+                package_dir, profile, app
+            )
+
+        self.assertEqual(
+            [manifest_path, package_dir / f"{app.name}_10.zip", installer_path],
+            files,
         )
 
     def test_legal_archive_validation_requires_license_notices_and_license_texts(self) -> None:
@@ -832,6 +979,850 @@ class PublishScriptTests(unittest.TestCase):
             commits[0].paths,
         )
         self.assertEqual(("TrayAppDotNETCommon/src/Common.cs",), commits[1].paths)
+
+    def test_every_app_has_an_installer_icon(self) -> None:
+        # The factory picks the icon itself, but it can only do so while every app ships one.
+        for app in PUBLISH.APPS:
+            icon_path = PUBLISH.REPO_ROOT / app.name / "app.ico"
+            self.assertTrue(
+                icon_path.is_file(),
+                f"{app.name} is missing app.ico for its installer.",
+            )
+
+    def test_installer_asset_names_use_installer_prefix(self) -> None:
+        self.assertEqual(
+            "Installer_BatteryTrayAppDotNET.exe",
+            PUBLISH.installer_asset_name("BatteryTrayAppDotNET"),
+        )
+        self.assertEqual(
+            "Installer_TrayAppDotNET.exe",
+            PUBLISH.installer_asset_name(PUBLISH.BUNDLE_INSTALLER_NAME),
+        )
+
+    def test_installer_restore_command_matches_publish_properties(self) -> None:
+        command = PUBLISH.installer_restore_command()
+
+        self.assertEqual(["dotnet", "restore", PUBLISH.INSTALLER_PROJECT], command[:3])
+        self.assertIn("-p:Configuration=Release", command)
+        # The installer targets .NET Framework 4.8, so the restore graph has no runtime identifier
+        # and none of the .NET publishing properties the applications restore with.
+        self.assertNotIn("--runtime", command)
+        self.assertNotIn("win-x64", command)
+        for removed_prefix in INSTALLER_REMOVED_PROPERTY_PREFIXES:
+            self.assertFalse(
+                any(argument.startswith(removed_prefix) for argument in command),
+                f"The installer restore must not pass {removed_prefix}.",
+            )
+
+    def test_installer_project_references_no_generator(self) -> None:
+        # The generator restores belong to the application path only while this holds.
+        project_root: ET.Element = ET.parse(
+            PUBLISH.REPO_ROOT / PUBLISH.INSTALLER_PROJECT
+        ).getroot()
+        referenced_projects: list[str] = [
+            project_reference.attrib.get("Include", "").replace("\\", "/")
+            for project_reference in project_root.findall(".//ProjectReference")
+        ]
+
+        for generator_project in PUBLISH.GENERATOR_PROJECTS:
+            generator_file_name = Path(generator_project).name
+            self.assertFalse(
+                any(
+                    referenced_project.endswith(generator_file_name)
+                    for referenced_project in referenced_projects
+                ),
+                f"The installer must not reference {generator_file_name}.",
+            )
+
+    def test_installer_factory_publish_command_carries_no_payload_or_icon(self) -> None:
+        publish_dir = Path("installer") / "factory" / "publish"
+        commit_hash = "c" * 40
+
+        command = PUBLISH.installer_factory_publish_command(publish_dir, commit_hash)
+
+        self.assertEqual(
+            ["dotnet", "publish", PUBLISH.INSTALLER_PROJECT, "--no-restore"],
+            command[:4],
+        )
+        self.assertEqual(str(publish_dir), command[command.index("--output") + 1])
+        self.assertIn("-p:DebugType=none", command)
+        self.assertIn("-p:DebugSymbols=false", command)
+        self.assertIn("-p:ContinuousIntegrationBuild=true", command)
+        self.assertIn(f"-p:TrayAppDotNETCommitHash={commit_hash}", command)
+        for removed_prefix in (
+            "-p:AssemblyName=",
+            "-p:TrayAppDotNETInstallerPayloads=",
+            "-p:TrayAppDotNETInstallerIcon=",
+        ):
+            self.assertFalse(
+                any(argument.startswith(removed_prefix) for argument in command),
+                f"The installer factory publish must not pass {removed_prefix}.",
+            )
+
+    def test_installer_factory_publish_command_has_no_runtime_or_aot_properties(
+        self,
+    ) -> None:
+        command = PUBLISH.installer_factory_publish_command(Path("publish"), "d" * 40)
+
+        # A plain .NET Framework 4.8 publish: no runtime identifier, no self-contained runtime
+        # and no ahead-of-time compilation.
+        for removed_argument in ("--runtime", "--self-contained", "win-x64"):
+            self.assertNotIn(removed_argument, command)
+        for removed_prefix in INSTALLER_REMOVED_PROPERTY_PREFIXES:
+            self.assertFalse(
+                any(argument.startswith(removed_prefix) for argument in command),
+                f"The installer factory publish must not pass {removed_prefix}.",
+            )
+
+    def test_installer_factory_publish_command_omits_unknown_commit_hash(self) -> None:
+        command = PUBLISH.installer_factory_publish_command(Path("publish"), "")
+
+        self.assertFalse(
+            any(
+                argument.startswith("-p:TrayAppDotNETCommitHash=")
+                for argument in command
+            )
+        )
+
+    def test_build_installer_factory_publishes_a_single_file_exe(self) -> None:
+        profile = PUBLISH.PROFILES["release"]
+        commit_hash = "d" * 40
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_root = Path(temporary_directory) / "output"
+            commands, run = fake_installer_run(("TrayAppDotNETInstaller.pdb",))
+
+            with mock.patch.object(PUBLISH, "run", side_effect=run):
+                factory_path = PUBLISH.build_installer_factory(
+                    output_root, profile, commit_hash
+                )
+
+            expected_publish_dir = (
+                output_root / "release" / "installer" / "factory" / "publish"
+            )
+            self.assertEqual(
+                expected_publish_dir / "TrayAppDotNETInstaller.exe", factory_path
+            )
+            self.assertEqual(FACTORY_BYTES, factory_path.read_bytes())
+            self.assertFalse(
+                (expected_publish_dir / "TrayAppDotNETInstaller.pdb").exists()
+            )
+
+        # The installer references no generator, so its own restore is the only one that runs.
+        self.assertEqual(
+            [
+                PUBLISH.installer_restore_command(),
+                PUBLISH.installer_factory_publish_command(
+                    expected_publish_dir, commit_hash
+                ),
+            ],
+            commands,
+        )
+        for generator_restore_command in PUBLISH.generator_restore_commands():
+            self.assertNotIn(generator_restore_command, commands)
+
+    def test_build_installer_factory_rejects_publish_with_leftover_dll(self) -> None:
+        profile = PUBLISH.PROFILES["release"]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_root = Path(temporary_directory) / "output"
+            _commands, run = fake_installer_run(
+                ("TrayAppDotNETInstaller.resources.dll",)
+            )
+
+            with (
+                mock.patch.object(PUBLISH, "run", side_effect=run),
+                self.assertRaisesRegex(
+                    SystemExit, r"TrayAppDotNETInstaller\.resources\.dll"
+                ),
+            ):
+                PUBLISH.build_installer_factory(output_root, profile, "")
+
+    def test_stamp_installer_runs_the_factory_with_one_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            payload_path.write_bytes(b"zip")
+            output_path = root / "packages" / "Installer_BatteryTrayAppDotNET.exe"
+            commands, run = fake_installer_run()
+
+            with mock.patch.object(PUBLISH, "run", side_effect=run):
+                installer_path = PUBLISH.stamp_installer(
+                    factory_path,
+                    "BatteryTrayAppDotNET",
+                    [payload_path],
+                    output_path,
+                )
+
+            self.assertEqual(output_path, installer_path)
+            self.assertEqual(STAMPED_INSTALLER_BYTES, installer_path.read_bytes())
+            self.assertEqual(
+                [
+                    [
+                        str(factory_path.resolve()),
+                        "--make-installer",
+                        "--output",
+                        str(output_path.resolve()),
+                        "--payload",
+                        str(payload_path.resolve()),
+                    ],
+                    installer_verify_command(factory_path, output_path),
+                ],
+                commands,
+            )
+
+    def test_stamp_installer_passes_every_payload_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_paths = []
+            for file_name in (
+                "BatteryTrayAppDotNET_10.zip",
+                "BrightnessTrayAppDotNET_7.zip",
+                "VolumeTrayAppDotNET_3.zip",
+            ):
+                payload_path = root / file_name
+                payload_path.write_bytes(b"zip")
+                payload_paths.append(payload_path)
+            output_path = root / "_release" / "Installer_TrayAppDotNET.exe"
+            commands, run = fake_installer_run()
+
+            with mock.patch.object(PUBLISH, "run", side_effect=run):
+                PUBLISH.stamp_installer(
+                    factory_path,
+                    PUBLISH.BUNDLE_INSTALLER_NAME,
+                    payload_paths,
+                    output_path,
+                )
+
+            self.assertEqual(2, len(commands))
+            self.assertEqual(
+                [str(payload_path.resolve()) for payload_path in payload_paths],
+                command_payload_paths(commands[0]),
+            )
+            self.assertEqual(
+                installer_verify_command(factory_path, output_path), commands[1]
+            )
+            self.assertTrue(output_path.is_file())
+
+    def test_stamp_installer_requires_the_factory_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            payload_path.write_bytes(b"zip")
+
+            with (
+                mock.patch.object(PUBLISH, "run") as run,
+                self.assertRaisesRegex(SystemExit, r"installer factory not found"),
+            ):
+                PUBLISH.stamp_installer(
+                    root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME,
+                    "BatteryTrayAppDotNET",
+                    [payload_path],
+                    root / "Installer_BatteryTrayAppDotNET.exe",
+                )
+
+        run.assert_not_called()
+
+    def test_stamp_installer_requires_every_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            present_payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            present_payload_path.write_bytes(b"zip")
+            missing_payload_path = root / "VolumeTrayAppDotNET_7.zip"
+            output_path = root / "Installer_TrayAppDotNET.exe"
+
+            with mock.patch.object(PUBLISH, "run") as run:
+                with self.assertRaisesRegex(SystemExit, r"at least one payload zip"):
+                    PUBLISH.stamp_installer(
+                        factory_path,
+                        PUBLISH.BUNDLE_INSTALLER_NAME,
+                        [],
+                        output_path,
+                    )
+                with self.assertRaisesRegex(SystemExit, r"VolumeTrayAppDotNET_7\.zip"):
+                    PUBLISH.stamp_installer(
+                        factory_path,
+                        PUBLISH.BUNDLE_INSTALLER_NAME,
+                        [present_payload_path, missing_payload_path],
+                        output_path,
+                    )
+
+            self.assertFalse(output_path.exists())
+
+        run.assert_not_called()
+
+    def test_stamp_installer_rejects_a_failed_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            payload_path.write_bytes(b"zip")
+            output_path = root / "Installer_BatteryTrayAppDotNET.exe"
+            commands, run = fake_installer_run(verify_returncode=3)
+
+            with (
+                mock.patch.object(PUBLISH, "run", side_effect=run),
+                self.assertRaisesRegex(
+                    SystemExit, r"failed payload verification \(exit code 3\)"
+                ),
+            ):
+                PUBLISH.stamp_installer(
+                    factory_path,
+                    "BatteryTrayAppDotNET",
+                    [payload_path],
+                    output_path,
+                )
+
+            self.assertEqual(
+                installer_verify_command(factory_path, output_path), commands[-1]
+            )
+
+    def test_stamp_installer_accepts_an_installer_smaller_than_its_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            # The payloads are LZMA-recompressed while stamping, so a correct installer is routinely
+            # smaller than the zips it was built from.
+            payload_path.write_bytes(b"z" * (len(STAMPED_INSTALLER_BYTES) * 4))
+            output_path = root / "Installer_BatteryTrayAppDotNET.exe"
+            commands, run = fake_installer_run()
+
+            with mock.patch.object(PUBLISH, "run", side_effect=run):
+                installer_path = PUBLISH.stamp_installer(
+                    factory_path,
+                    "BatteryTrayAppDotNET",
+                    [payload_path],
+                    output_path,
+                )
+
+            self.assertEqual(output_path, installer_path)
+            self.assertLess(
+                installer_path.stat().st_size, payload_path.stat().st_size
+            )
+            self.assertEqual(
+                installer_verify_command(factory_path, output_path), commands[-1]
+            )
+
+    def test_stamp_installer_rejects_an_undersized_installer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_path = root / "BatteryTrayAppDotNET_10.zip"
+            payload_path.write_bytes(b"zip")
+            commands, run = fake_installer_run(
+                installer_bytes=b"t" * PUBLISH.INSTALLER_MINIMUM_SIZE_BYTES
+            )
+
+            with (
+                mock.patch.object(PUBLISH, "run", side_effect=run),
+                self.assertRaisesRegex(
+                    SystemExit, r"Refusing to publish a truncated installer"
+                ),
+            ):
+                PUBLISH.stamp_installer(
+                    factory_path,
+                    "BatteryTrayAppDotNET",
+                    [payload_path],
+                    root / "Installer_BatteryTrayAppDotNET.exe",
+                )
+
+            # The floor is cheap, so it runs before the factory is asked to verify anything.
+            self.assertNotIn("--verify-installer", commands[-1])
+
+    def test_build_bundle_installer_stamps_every_app_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            payload_paths = []
+            for file_name in (
+                "BatteryTrayAppDotNET_10.zip",
+                "VolumeTrayAppDotNET_7.zip",
+            ):
+                payload_path = root / file_name
+                payload_path.write_bytes(b"zip")
+                payload_paths.append(payload_path)
+            final_dir = root / "_release"
+            commands, run = fake_installer_run()
+
+            with mock.patch.object(PUBLISH, "run", side_effect=run):
+                bundle_installer_path = PUBLISH.build_bundle_installer(
+                    factory_path, payload_paths, final_dir
+                )
+
+            self.assertEqual(
+                final_dir / "Installer_TrayAppDotNET.exe", bundle_installer_path
+            )
+            self.assertEqual(
+                [str(payload_path.resolve()) for payload_path in payload_paths],
+                command_payload_paths(commands[0]),
+            )
+
+    def test_resolve_installer_factory_prefers_a_supplied_factory(self) -> None:
+        profile = PUBLISH.PROFILES["release"]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            factory_path = root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            built_factory_path = root / "built" / "TrayAppDotNETInstaller.exe"
+
+            with mock.patch.object(
+                PUBLISH, "build_installer_factory", return_value=built_factory_path
+            ) as build_installer_factory:
+                self.assertEqual(
+                    factory_path,
+                    PUBLISH.resolve_installer_factory(
+                        str(factory_path), root, profile, "a" * 40
+                    ),
+                )
+                build_installer_factory.assert_not_called()
+
+                for requested_factory in ("", str(root / "missing.exe")):
+                    self.assertEqual(
+                        built_factory_path,
+                        PUBLISH.resolve_installer_factory(
+                            requested_factory, root, profile, "a" * 40
+                        ),
+                    )
+
+                self.assertEqual(
+                    [mock.call(root, profile, "a" * 40)] * 2,
+                    build_installer_factory.call_args_list,
+                )
+
+    def test_build_app_profile_stamps_installer_with_a_supplied_factory(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+        commit_hash = "e" * 40
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_root = Path(temporary_directory)
+            package_dir = output_root / "release" / "packages"
+            package_dir.mkdir(parents=True)
+            zip_path = package_dir / f"{app.name}_5.zip"
+            zip_path.write_bytes(b"zip")
+            package = PUBLISH.AppPackage(
+                app, profile, 5, zip_path, profile.build_source, commit_hash
+            )
+            factory_path = output_root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            factory_path.write_bytes(FACTORY_BYTES)
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            arguments = SimpleNamespace(
+                app_name=app.name,
+                profile="release",
+                output_root=str(output_root),
+                installer_factory=str(factory_path),
+                app_version="5",
+                repo="owner/repository",
+                force_rebuild=False,
+                reuse_latest=False,
+            )
+            commands, run = fake_installer_run()
+
+            with (
+                mock.patch.object(
+                    PUBLISH, "try_resolve_git_commit", return_value=commit_hash
+                ),
+                mock.patch.object(
+                    PUBLISH, "build_app", return_value=package
+                ) as build_app,
+                mock.patch.object(
+                    PUBLISH, "build_installer_factory"
+                ) as build_installer_factory,
+                mock.patch.object(PUBLISH, "run", side_effect=run),
+            ):
+                self.assertEqual(0, PUBLISH.build_app_profile(arguments))
+
+            manifest = json.loads(
+                (package_dir / f"app-release-{app.name}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            build_app.assert_called_once_with(app, 5, output_root, profile, commit_hash)
+            build_installer_factory.assert_not_called()
+            self.assertEqual(
+                [
+                    [
+                        str(factory_path.resolve()),
+                        "--make-installer",
+                        "--output",
+                        str(installer_path.resolve()),
+                        "--payload",
+                        str(zip_path.resolve()),
+                    ],
+                    installer_verify_command(factory_path, installer_path),
+                ],
+                commands,
+            )
+            self.assertEqual(zip_path.name, manifest["app"]["fileName"])
+            self.assertEqual(installer_path.name, manifest["app"]["installerFileName"])
+            self.assertEqual(
+                hashlib.sha256(STAMPED_INSTALLER_BYTES).hexdigest(),
+                manifest["app"]["installerSha256"],
+            )
+            self.assertEqual(
+                len(STAMPED_INSTALLER_BYTES), manifest["app"]["installerSize"]
+            )
+
+    def test_build_app_profile_builds_a_factory_for_a_reused_package(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+        head_commit_hash = "e" * 40
+        reused_commit_hash = "f" * 40
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_root = Path(temporary_directory)
+            package_dir = output_root / "release" / "packages"
+            package_dir.mkdir(parents=True)
+            zip_path = package_dir / f"{app.name}_5.zip"
+            zip_path.write_bytes(b"zip")
+            package = PUBLISH.AppPackage(
+                app,
+                profile,
+                5,
+                zip_path,
+                "reused-TrayAppDotNET_100",
+                reused_commit_hash,
+            )
+            factory_path = output_root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            arguments = SimpleNamespace(
+                app_name=app.name,
+                profile="release",
+                output_root=str(output_root),
+                installer_factory="",
+                app_version="",
+                repo="owner/repository",
+                force_rebuild=False,
+                reuse_latest=True,
+            )
+            commands, run = fake_installer_run()
+
+            def fake_build_installer_factory(*_positional_arguments) -> Path:
+                factory_path.write_bytes(FACTORY_BYTES)
+                return factory_path
+
+            with (
+                mock.patch.object(
+                    PUBLISH, "try_resolve_git_commit", return_value=head_commit_hash
+                ),
+                mock.patch.object(
+                    PUBLISH, "download_published_app", return_value=package
+                ) as download,
+                mock.patch.object(PUBLISH, "build_app") as build_app,
+                mock.patch.object(
+                    PUBLISH,
+                    "build_installer_factory",
+                    side_effect=fake_build_installer_factory,
+                ) as build_installer_factory,
+                mock.patch.object(PUBLISH, "run", side_effect=run),
+            ):
+                self.assertEqual(0, PUBLISH.build_app_profile(arguments))
+
+            manifest = json.loads(
+                (package_dir / f"app-release-{app.name}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            download.assert_called_once_with(
+                "owner/repository", output_root, profile, app
+            )
+            build_app.assert_not_called()
+            build_installer_factory.assert_called_once_with(
+                output_root, profile, head_commit_hash
+            )
+            self.assertEqual(
+                [
+                    [
+                        str(factory_path.resolve()),
+                        "--make-installer",
+                        "--output",
+                        str(installer_path.resolve()),
+                        "--payload",
+                        str(zip_path.resolve()),
+                    ],
+                    installer_verify_command(factory_path, installer_path),
+                ],
+                commands,
+            )
+            self.assertEqual("reused-TrayAppDotNET_100", manifest["app"]["source"])
+            self.assertEqual(reused_commit_hash, manifest["app"]["commitHash"])
+            self.assertEqual(installer_path.name, manifest["app"]["installerFileName"])
+
+    def test_profile_manifest_from_group_carries_installer_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            final_dir = Path(temporary_directory)
+            aggregate_zip = final_dir / "TrayAppDotNET_200.zip"
+            aggregate_zip.write_bytes(b"aggregate")
+            bundle_installer_path = final_dir / "Installer_TrayAppDotNET.exe"
+            bundle_installer_path.write_bytes(b"bundle")
+            zip_path = final_dir / "BatteryTrayAppDotNET_10.zip"
+            zip_path.write_bytes(b"zip")
+            installer_path = final_dir / "Installer_BatteryTrayAppDotNET.exe"
+            installer_path.write_bytes(b"installer")
+            group = {
+                "profile": "release",
+                "displayName": "Release",
+                "runtime": "win-x64",
+                "apps": [
+                    {
+                        "appId": "BatteryTrayAppDotNET",
+                        "version": 10,
+                        "fileName": zip_path.name,
+                        "sha256": "app-sha",
+                        "size": 3,
+                        "source": "built-windows-native-aot",
+                        "commitHash": "b" * 40,
+                        "installerFileName": installer_path.name,
+                        "installerSha256": "installer-sha",
+                        "installerSize": 9,
+                        "zipPath": zip_path,
+                        "installerPath": installer_path,
+                    }
+                ],
+            }
+
+            manifest = PUBLISH.profile_manifest_from_group(
+                group,
+                aggregate_zip,
+                "aggregate-sha",
+                200,
+                "a" * 40,
+                bundle_installer_path,
+            )
+
+        self.assertEqual(
+            {
+                "fileName": "Installer_TrayAppDotNET.exe",
+                "sha256": hashlib.sha256(b"bundle").hexdigest(),
+                "size": len(b"bundle"),
+            },
+            manifest["bundleInstaller"],
+        )
+        self.assertEqual(
+            "Installer_BatteryTrayAppDotNET.exe",
+            manifest["apps"][0]["installerFileName"],
+        )
+        self.assertEqual("installer-sha", manifest["apps"][0]["installerSha256"])
+        self.assertEqual(9, manifest["apps"][0]["installerSize"])
+
+    def test_artifact_rows_include_installer_rows_after_package_rows(self) -> None:
+        manifest = {
+            "profile": "release",
+            "displayName": "Release",
+            "version": 200,
+            "aggregate": {
+                "fileName": "TrayAppDotNET_200.zip",
+                "sha256": "aggregate-sha",
+                "size": 1,
+                "source": "built-windows-native-aot",
+                "commitHash": "a" * 40,
+            },
+            "bundleInstaller": {
+                "fileName": "Installer_TrayAppDotNET.exe",
+                "sha256": "bundle-sha",
+                "size": 2,
+            },
+            "apps": [
+                {
+                    "appId": "BatteryTrayAppDotNET",
+                    "version": 10,
+                    "fileName": "BatteryTrayAppDotNET_10.zip",
+                    "sha256": "app-sha",
+                    "size": 3,
+                    "source": "reused-TrayAppDotNET_100",
+                    "commitHash": "b" * 40,
+                    "installerFileName": "Installer_BatteryTrayAppDotNET.exe",
+                    "installerSha256": "installer-sha",
+                    "installerSize": 4,
+                }
+            ],
+        }
+
+        rows = PUBLISH.artifact_rows([manifest])
+
+        self.assertEqual(
+            ["aggregate", "app", "installer", "installer"],
+            [row["kind"] for row in rows],
+        )
+        app_installer_row = rows[2]
+        self.assertEqual("BatteryTrayAppDotNET", app_installer_row["appId"])
+        self.assertEqual(10, app_installer_row["version"])
+        self.assertEqual(
+            "Installer_BatteryTrayAppDotNET.exe", app_installer_row["fileName"]
+        )
+        self.assertEqual("installer-sha", app_installer_row["sha256"])
+        self.assertEqual(4, app_installer_row["size"])
+        self.assertEqual("built-windows-native-aot", app_installer_row["source"])
+        self.assertEqual("a" * 40, app_installer_row["commitHash"])
+        bundle_installer_row = rows[3]
+        self.assertEqual("TrayAppDotNET", bundle_installer_row["appId"])
+        self.assertEqual(200, bundle_installer_row["version"])
+        self.assertEqual(
+            "Installer_TrayAppDotNET.exe", bundle_installer_row["fileName"]
+        )
+        self.assertEqual("bundle-sha", bundle_installer_row["sha256"])
+        self.assertEqual(2, bundle_installer_row["size"])
+        self.assertEqual("a" * 40, bundle_installer_row["commitHash"])
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            versions_path = Path(temporary_directory) / "versions.xml"
+            PUBLISH.write_versions_manifest(
+                versions_path, rows, 200, "owner/repository", "TrayAppDotNET_200"
+            )
+            artifacts = (
+                ET.parse(versions_path).getroot().findall("./artifacts/artifact")
+            )
+
+        self.assertEqual(
+            ["aggregate", "app", "installer", "installer"],
+            [artifact.get("kind") for artifact in artifacts],
+        )
+        self.assertEqual(
+            ["Installer_BatteryTrayAppDotNET.exe", "Installer_TrayAppDotNET.exe"],
+            [
+                artifact.get("fileName")
+                for artifact in artifacts
+                if artifact.get("kind") == "installer"
+            ],
+        )
+
+    def test_publish_release_uploads_app_and_bundle_installers(self) -> None:
+        # Deliberately reversed so the bundle payload order proves the appId sort.
+        first_app = PUBLISH.APPS[1]
+        second_app = PUBLISH.APPS[0]
+        arguments = SimpleNamespace(
+            input_root="",
+            output_root="",
+            installer_factory="",
+            profiles="release",
+            apps=f"{first_app.name},{second_app.name}",
+            repo="owner/repository",
+            tray_version="200",
+            release_tag="",
+            target="HEAD",
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_root = Path(temporary_directory) / "collected"
+            package_root = input_root / "release"
+            for app, version in ((first_app, 10), (second_app, 7)):
+                write_collected_app_manifest(package_root, app, version)
+            arguments.input_root = str(input_root)
+            output_root = Path(temporary_directory) / "publish"
+            arguments.output_root = str(output_root)
+            factory_path = (
+                Path(temporary_directory) / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
+            )
+            factory_path.write_bytes(FACTORY_BYTES)
+            arguments.installer_factory = str(factory_path)
+            final_dir = input_root / "_release"
+            bundle_installer_path = final_dir / "Installer_TrayAppDotNET.exe"
+
+            def fake_build_bundle_installer(*_positional_arguments) -> Path:
+                bundle_installer_path.write_bytes(b"bundle")
+                return bundle_installer_path
+
+            with (
+                mock.patch.object(PUBLISH, "latest_release", return_value=None),
+                mock.patch.object(
+                    PUBLISH, "try_resolve_git_commit", return_value="a" * 40
+                ),
+                mock.patch.object(
+                    PUBLISH, "latest_reachable_release_tag", return_value=""
+                ),
+                mock.patch.object(PUBLISH, "commits_since_release", return_value=[]),
+                mock.patch.object(
+                    PUBLISH, "pull_requests_for_commits", return_value=[]
+                ),
+                mock.patch.object(
+                    PUBLISH,
+                    "build_bundle_installer",
+                    side_effect=fake_build_bundle_installer,
+                ) as build_bundle_installer,
+                mock.patch.object(
+                    PUBLISH, "build_installer_factory"
+                ) as build_installer_factory,
+                mock.patch.object(PUBLISH, "ensure_release"),
+                mock.patch.object(
+                    PUBLISH, "prune_release_assets"
+                ) as prune_release_assets,
+                mock.patch.object(PUBLISH, "run") as run,
+            ):
+                self.assertEqual(0, PUBLISH.publish_release(arguments))
+
+            artifacts = (
+                ET.parse(final_dir / "versions.xml")
+                .getroot()
+                .findall("./artifacts/artifact")
+            )
+
+        build_installer_factory.assert_not_called()
+        build_bundle_installer.assert_called_once_with(
+            factory_path,
+            [
+                package_root / f"{second_app.name}_7.zip",
+                package_root / f"{first_app.name}_10.zip",
+            ],
+            final_dir,
+        )
+        keep_names = prune_release_assets.call_args.args[2]
+        self.assertIn("Installer_TrayAppDotNET.exe", keep_names)
+        self.assertIn(f"Installer_{first_app.name}.exe", keep_names)
+        self.assertIn(f"Installer_{second_app.name}.exe", keep_names)
+        upload_command = run.call_args.args[0]
+        self.assertEqual(
+            ["gh", "release", "upload", "TrayAppDotNET_200"], upload_command[:4]
+        )
+        self.assertIn(str(bundle_installer_path), upload_command)
+        self.assertIn(
+            str(package_root / f"Installer_{first_app.name}.exe"), upload_command
+        )
+        self.assertIn(
+            str(package_root / f"Installer_{second_app.name}.exe"), upload_command
+        )
+        self.assertEqual(
+            [
+                "Installer_BatteryTrayAppDotNET.exe",
+                "Installer_BrightnessTrayAppDotNET.exe",
+                "Installer_TrayAppDotNET.exe",
+            ],
+            [
+                artifact.get("fileName")
+                for artifact in artifacts
+                if artifact.get("kind") == "installer"
+            ],
+        )
+
+    def test_native_aot_publish_requires_loose_native_dlls(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            publish_dir = Path(temporary_directory)
+            write_fake_native_aot_publish(publish_dir, app)
+            PUBLISH.validate_publish_dir(app, publish_dir, profile)
+
+            (publish_dir / "libSkiaSharp.dll").unlink()
+            with self.assertRaisesRegex(SystemExit, r"libSkiaSharp\.dll") as context:
+                PUBLISH.validate_publish_dir(app, publish_dir, profile)
+
+        self.assertNotIn("libHarfBuzzSharp.dll", str(context.exception))
+        self.assertNotIn("av_libglesv2.dll", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

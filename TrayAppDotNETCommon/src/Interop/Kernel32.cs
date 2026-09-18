@@ -20,6 +20,19 @@ public static class Kernel32
     public const uint WAIT_TIMEOUT = 0x00000102;
     public const uint INFINITE = 0xFFFFFFFF;
 
+    // Standard device handles for GetStdHandle. WinExe processes only get valid ones when the parent
+    // redirected them (installer app, shell pipe) or after AttachConsole succeeds.
+    public const int STD_OUTPUT_HANDLE = -11;
+    public const int STD_ERROR_HANDLE = -12;
+
+    // GetFileType result for a handle that is not backed by a file, pipe, or character device
+    public const uint FILE_TYPE_UNKNOWN = 0;
+
+    // AttachConsole pseudo PID that selects the console of the parent process
+    public const int ATTACH_PARENT_PROCESS = -1;
+
+    public static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct FILETIME
     {
@@ -70,4 +83,14 @@ public static class Kernel32
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint GetFileType(IntPtr hFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AttachConsole(int dwProcessId);
 }

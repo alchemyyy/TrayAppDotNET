@@ -35,6 +35,7 @@ internal static class IconTargetCatalog
     private const string TaskManagerDesktopTowerSVG = "ic_fluent_desktop_tower_20_regular.svg";
     private const string TaskManagerPulseSVG = "ic_fluent_pulse_20_regular.svg";
     private const string VolumeSVG = "ic_fluent_speaker_2_24_regular.svg";
+    private const string SuiteLogoSVG = "tadnlogo.svg";
 
     // Fits the pulse inside the Desktop Tower SVG's monitor content rectangle
     private static readonly NormalizedRectangle TaskManagerPulseDestination = new(
@@ -46,7 +47,7 @@ internal static class IconTargetCatalog
     /// <summary>Creates the complete target catalog in stable output order.</summary>
     public static IReadOnlyList<IconTarget> Create()
     {
-        List<IconTarget> targets = new(capacity: 6);
+        List<IconTarget> targets = new(capacity: 7);
         targets.Add(SingleLayerTarget("BATADN", "BatteryTrayAppDotNET", BatterySVG));
         targets.Add(SingleLayerTarget("BTADN", "BrightnessTrayAppDotNET", BrightnessSVG));
         targets.Add(SingleLayerTarget("FCTADN", "FanControlTrayAppDotNET", FanControlSVG));
@@ -59,6 +60,7 @@ internal static class IconTargetCatalog
                 new SVGIconLayer(TaskManagerPulseSVG, TaskManagerPulseDestination)
             ]));
         targets.Add(SingleLayerTarget("VTADN", "VolumeTrayAppDotNET", VolumeSVG));
+        targets.Add(SingleLayerTarget("TADN", "TrayAppDotNETInstaller", SuiteLogoSVG));
         return targets;
     }
 

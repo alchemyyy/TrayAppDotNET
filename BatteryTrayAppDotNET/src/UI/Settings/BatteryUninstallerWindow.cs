@@ -3,15 +3,21 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
 
-public sealed class BatteryUninstallerWindow(string installDir, BatteryInstallScope scope)
-    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
+public sealed class BatteryUninstallerWindow(
+    string installDir,
+    BatteryInstallScope scope,
+    IProgress<TrayAppDotNETInstallProgress>? progress = null)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope, progress))
 {
     public BatteryUninstallerWindow()
         : this(string.Empty, BatteryInstallScope.LocalAppData)
     {
     }
 
-    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(string installDir, BatteryInstallScope scope)
+    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(
+        string installDir,
+        BatteryInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
         SettingsPalette palette =
             BatterySettingsPalette.Create(AppServices.Theme, AppServices.Settings, ResolveEffectiveIsLight());
@@ -25,8 +31,9 @@ public sealed class BatteryUninstallerWindow(string installDir, BatteryInstallSc
             Palette = palette,
             EnableRoundedCorners = AppServices.Settings?.EnableRoundedCorners == true,
             L = L,
-            RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
+            Progress = progress,
+            RunUninstall = static (uninstallScope, deleteSettings, uninstallProgress) =>
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings, progress: uninstallProgress)
         };
     }
 

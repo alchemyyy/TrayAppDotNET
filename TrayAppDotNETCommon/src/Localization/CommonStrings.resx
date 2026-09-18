@@ -652,4 +652,64 @@ Restart from the installed copy now?</value>
   <data name="UpdateNotification_Title" xml:space="preserve">
     <value>Update available</value>
   </data>
+  <data name="Install_Progress_StoppingInstances" xml:space="preserve">
+    <value>Stopping running instances</value>
+  </data>
+  <data name="Install_Progress_CheckingFiles" xml:space="preserve">
+    <value>Checking installation files</value>
+  </data>
+  <data name="Install_Progress_CopyingFiles_Format" xml:space="preserve">
+    <value>Copying files ({0} of {1})</value>
+  </data>
+  <data name="Install_Progress_RegisteringUninstall" xml:space="preserve">
+    <value>Registering the uninstall entry</value>
+  </data>
+  <data name="Install_Progress_UpdatingShortcuts" xml:space="preserve">
+    <value>Updating shortcuts</value>
+  </data>
+  <data name="Install_Progress_Complete" xml:space="preserve">
+    <value>Installation complete</value>
+  </data>
+  <data name="Install_Progress_RequestingElevation" xml:space="preserve">
+    <value>Waiting for administrator approval</value>
+  </data>
+  <data name="Install_Progress_Cancelled" xml:space="preserve">
+    <value>Installation cancelled</value>
+  </data>
+  <data name="Install_Progress_Failed_Format" xml:space="preserve">
+    <value>Installation failed: {0}</value>
+  </data>
+  <data name="Uninstall_Progress_StartupShortcut" xml:space="preserve">
+    <value>Updating the startup shortcut</value>
+  </data>
+  <data name="Uninstall_Progress_StartMenu" xml:space="preserve">
+    <value>Removing Start Menu entries</value>
+  </data>
+  <data name="Uninstall_Progress_DesktopShortcut" xml:space="preserve">
+    <value>Removing the desktop shortcut</value>
+  </data>
+  <data name="Uninstall_Progress_Registry" xml:space="preserve">
+    <value>Removing the uninstall entry</value>
+  </data>
+  <data name="Uninstall_Progress_StoppingInstances" xml:space="preserve">
+    <value>Stopping running instances</value>
+  </data>
+  <data name="Uninstall_Progress_DeletingSettings" xml:space="preserve">
+    <value>Deleting settings</value>
+  </data>
+  <data name="Uninstall_Progress_RemovingFiles" xml:space="preserve">
+    <value>Removing files</value>
+  </data>
+  <data name="Uninstall_Progress_Complete" xml:space="preserve">
+    <value>Uninstall complete</value>
+  </data>
+  <data name="Uninstall_Progress_Failed_Format" xml:space="preserve">
+    <value>Uninstall failed (exit code {0})</value>
+  </data>
+  <data name="Uninstall_Progress_Cancelled" xml:space="preserve">
+    <value>Uninstall cancelled</value>
+  </data>
+  <data name="Uninstall_Progress_NotStarted" xml:space="preserve">
+    <value>The uninstall process did not start</value>
+  </data>
 </root>

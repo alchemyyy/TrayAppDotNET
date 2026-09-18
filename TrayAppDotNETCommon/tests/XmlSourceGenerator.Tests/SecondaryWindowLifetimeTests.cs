@@ -545,10 +545,13 @@ public sealed class SecondaryWindowLifetimeTests
             return key;
         }
 
-        public Process? RunUninstall(InstallScope installScope, bool deleteSettings)
+        public TrayAppDotNETUninstallRun RunUninstall(
+            InstallScope installScope,
+            bool deleteSettings,
+            IProgress<TrayAppDotNETInstallProgress>? progress)
         {
             _callCount++;
-            return null;
+            return TrayAppDotNETUninstallRun.WithoutProcess;
         }
     }
 

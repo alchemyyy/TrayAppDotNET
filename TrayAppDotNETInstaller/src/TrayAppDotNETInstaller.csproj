@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- The .NET Framework is part of Windows, so the installer ships as one small managed executable
+         instead of carrying a runtime and a renderer. WPF draws through the in-box compositor. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>TrayAppDotNETInstaller</RootNamespace>
+    <!-- One factory binary is built per release and then stamped into Installer_<Name>.exe files. Pack
+         URIs embed this name, so it must never be overridden on the command line. -->
+    <AssemblyName>TrayAppDotNETInstaller</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- The SDK only supplies implicit usings for .NET 6 and newer, so GlobalUsings.cs supplies the set. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>TrayAppDotNETInstaller.Program</StartupObject>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <!-- Keeps LICENSE/NOTICE/.notices out of the output; the payload zips carry their own copies. -->
+    <TrayAppDotNETSingleFileExecutable>true</TrayAppDotNETSingleFileExecutable>
+    <!-- Stops the shared stamping target from trying to make an installer out of the factory itself. -->
+    <TrayAppDotNETIsInstallerFactory>true</TrayAppDotNETIsInstallerFactory>
+    <!-- Without this the SDK writes a TrayAppDotNETInstaller.exe.config beside the executable, which the
+         app does not need and which would stop the output from being a single file. -->
+    <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
+    <ApplicationIcon>$(MSBuildProjectDirectory)\..\app.ico</ApplicationIcon>
+    <!-- Manifest resource prefix read by the runtime; keep in sync with the C# constant. -->
+    <TrayAppDotNETInstallerIconResourcePrefix>TrayAppDotNETInstaller.Icons.</TrayAppDotNETInstallerIconResourcePrefix>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'Prerelease'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Supplies the 4.8 reference assemblies so the build does not depend on a targeting pack install. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <InternalsVisibleTo Include="TrayAppDotNETInstaller.Tests" />
+  </ItemGroup>
+
+  <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
+       Exclude source-tree custom-tool output to prevent duplicate classes. -->
+  <ItemGroup>
+    <EmbeddedResource Update="Localization\Strings.resx">
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>C#</StronglyTypedLanguage>
+      <StronglyTypedNamespace>$(RootNamespace).Localization</StronglyTypedNamespace>
+      <PublicClass>true</PublicClass>
+    </EmbeddedResource>
+    <Compile Remove="Localization\Strings.Designer.cs" />
+  </ItemGroup>
+
+  <!-- Every app icon plus the suite icon travels in the factory. A stamped installer picks its window icon
+       from these by application name, so only the shell icon needs resource surgery. Each icon is a few
+       kilobytes, which is negligible next to the payload. -->
+  <ItemGroup>
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\app.ico" IconName="TrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\BatteryTrayAppDotNET\app.ico" IconName="BatteryTrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\BrightnessTrayAppDotNET\app.ico" IconName="BrightnessTrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\FanControlTrayAppDotNET\app.ico" IconName="FanControlTrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\NetworkTrayAppDotNET\app.ico" IconName="NetworkTrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\TaskManagerTrayAppDotNET\app.ico" IconName="TaskManagerTrayAppDotNET" />
+    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\VolumeTrayAppDotNET\app.ico" IconName="VolumeTrayAppDotNET" />
+    <EmbeddedResource Include="@(TrayAppDotNETInstallerIcon)"
+                      LogicalName="$(TrayAppDotNETInstallerIconResourcePrefix)%(IconName).ico"
+                      Link="Icons\%(IconName).ico"
+                      WithCulture="false" />
+  </ItemGroup>
+
+  <Target Name="ValidateTrayAppDotNETInstallerIcons" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('%(TrayAppDotNETInstallerIcon.FullPath)')"
+           Text="Installer icon not found: %(TrayAppDotNETInstallerIcon.FullPath). Run tools/AppIconGenerator first." />
+  </Target>
+</Project>

@@ -38,17 +38,27 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
-    public void NativeAOTPayloadRequiresAngleButTreatsEmbeddedLibrariesAsLegacyFiles()
+    public void LayoutPlacesLocalInstallsInTheAppsFolderBesideTheSettingsDirectories()
     {
-        TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp("TestTrayAppDotNET");
-        string[] requiredFileNames = [.. payload.RequiredFiles.Select(file => file.Name)];
-        string[] optionalFileNames = [.. payload.OptionalFiles.Select(file => file.Name)];
+        string localAppDataRoot = Path.Combine(Path.GetTempPath(), path2: "TrayAppDotNET");
 
-        Assert.Contains("av_libglesv2.dll", requiredFileNames);
-        Assert.DoesNotContain("libHarfBuzzSharp.dll", requiredFileNames);
-        Assert.DoesNotContain("libSkiaSharp.dll", requiredFileNames);
-        Assert.Contains("libHarfBuzzSharp.dll", optionalFileNames);
-        Assert.Contains("libSkiaSharp.dll", optionalFileNames);
+        TrayAppDotNETInstallLayout layout = TrayAppDotNETInstallLayout.Create(
+            applicationName: "TestTrayAppDotNET",
+            sharedRootFolderName: "TrayAppDotNET",
+            localAppDataRoot);
+
+        Assert.Equal(Path.Combine(localAppDataRoot, path2: "apps"), layout.LocalAppDataInstallDirectory);
+        Assert.Equal(
+            Path.Combine(localAppDataRoot, path2: "apps", path3: "TestTrayAppDotNET.exe"),
+            layout.LocalAppDataInstallExecutable);
+        // Other user profiles are probed through this relative path, so it must carry the same folder
+        Assert.Equal(
+            Path.Combine("AppData", "Local", "TrayAppDotNET", "apps", "TestTrayAppDotNET.exe"),
+            layout.LocalAppDataExecutableProfileRelativePath);
+        // The system scope keeps its flat directory; only LocalAppData is shared with settings
+        Assert.Equal(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), path2: "TrayAppDotNET"),
+            layout.ProgramFilesInstallDirectory);
     }
 
     [Fact]
@@ -67,6 +77,23 @@ public sealed class InstallationServiceTests
             "--install-system --source \"C:\\staging folder\\TestTrayAppDotNET.exe\" --build 42 "
             + "--desktop-shortcut true --start-menu-shortcut false",
             arguments);
+    }
+
+    [Fact]
+    public void ElevatedInstallArgumentsAppendProgressPipeOnlyWhenRequested()
+    {
+        string withoutPipe = TrayAppDotNETInstallationService.BuildElevatedInstallArguments(
+            sourceExecutable: @"C:\staging\TestTrayAppDotNET.exe",
+            buildNumber: 7,
+            installOptions: null);
+        string withPipe = TrayAppDotNETInstallationService.BuildElevatedInstallArguments(
+            sourceExecutable: @"C:\staging\TestTrayAppDotNET.exe",
+            buildNumber: 7,
+            installOptions: null,
+            progressPipeName: "TrayAppDotNET.Progress.Test.1.abc");
+
+        Assert.Equal("--install-system --source \"C:\\staging\\TestTrayAppDotNET.exe\" --build 7", withoutPipe);
+        Assert.Equal(withoutPipe + " --progress-pipe TrayAppDotNET.Progress.Test.1.abc", withPipe);
     }
 
     [Fact]

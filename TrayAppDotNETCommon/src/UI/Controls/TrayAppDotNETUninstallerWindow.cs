@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services.Install;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -19,7 +20,10 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
     public required SettingsPalette Palette { get; init; }
     public required bool EnableRoundedCorners { get; init; }
     public required Func<string, string> L { get; init; }
-    public required Func<InstallScope, bool, Process?> RunUninstall { get; init; }
+    public required Func<InstallScope, bool, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETUninstallRun> RunUninstall { get; init; }
+
+    /// <summary>Optional sink that receives the uninstall stage reports, typically the settings card.</summary>
+    public IProgress<TrayAppDotNETInstallProgress>? Progress { get; init; }
 }
 
 /// <summary>
@@ -313,7 +317,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         _cancelButton?.IsEnabled = false;
 
         ConfirmedUninstall = true;
-        TrackUninstallProcess(options.RunUninstall(options.InstallScope, deleteSettings));
+        TrayAppDotNETUninstallRun run = options.RunUninstall(options.InstallScope, deleteSettings, options.Progress);
+        TrackUninstallProcess(run.Process);
         Close();
     }
 

@@ -85,13 +85,15 @@ jobs:
   prepare:
     name: Plan Publish Versions
     runs-on: windows-latest
-    timeout-minutes: 10
+    # This job also publishes the single shared installer factory, so it is not a plain planning job.
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
     outputs:
       source_sha: ${{ steps.plan.outputs.source_sha }}
       included_apps: ${{ steps.plan.outputs.included_apps }}
+      installer_factory_artifact: installer-factory-${{ github.run_id }}
       battery_action: ${{ steps.plan.outputs.battery_action }}
       battery_version: ${{ steps.plan.outputs.battery_version }}
       brightness_action: ${{ steps.plan.outputs.brightness_action }}
@@ -128,6 +130,10 @@ jobs:
             echo "python3 or python is required." >&2
             exit 1
           fi
+          # This job builds the shared installer factory and no application. The factory targets
+          # .NET Framework 4.8, so any installed SDK can build it and no .NET 10 gate belongs here.
+          command -v dotnet
+          dotnet --info
 
       - name: Plan App Actions
         id: plan
@@ -208,6 +214,33 @@ jobs:
 
           "$python_bin" "${args_list[@]}"
 
+      - name: Build Installer Factory
+        run: |
+          set -euo pipefail
+
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
+
+          args_list=(
+            ".github/scripts/publish.py"
+            "--phase" "build-installer-factory"
+            "--profile" "release"
+            "--output-root" ".artifacts/installer-factory"
+          )
+
+          "$python_bin" "${args_list[@]}"
+
+      - name: Upload Installer Factory Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-factory-${{ github.run_id }}
+          # Upload the stable copy only; the publish tree beneath it is a second copy.
+          path: .artifacts/installer-factory/TrayAppDotNETInstaller.exe
+          if-no-files-found: error
+          retention-days: 14
+
   release_battery:
     name: Battery Release
     needs: prepare
@@ -220,6 +253,7 @@ jobs:
       force_rebuild: ${{ inputs.force_battery }}
       reuse_previous_release: ${{ needs.prepare.outputs.battery_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   release_brightness:
     name: Brightness Release
@@ -233,6 +267,7 @@ jobs:
       force_rebuild: ${{ inputs.force_brightness }}
       reuse_previous_release: ${{ needs.prepare.outputs.brightness_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   release_fan_control:
     name: Fan Control Release
@@ -246,6 +281,7 @@ jobs:
       force_rebuild: ${{ inputs.force_fan_control }}
       reuse_previous_release: ${{ needs.prepare.outputs.fan_control_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   release_network:
     name: Network Release
@@ -259,6 +295,7 @@ jobs:
       force_rebuild: ${{ inputs.force_network }}
       reuse_previous_release: ${{ needs.prepare.outputs.network_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   release_task_manager:
     name: Task Manager Release
@@ -272,6 +309,7 @@ jobs:
       force_rebuild: ${{ inputs.force_task_manager }}
       reuse_previous_release: ${{ needs.prepare.outputs.task_manager_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   release_volume:
     name: Volume Release
@@ -285,6 +323,7 @@ jobs:
       force_rebuild: ${{ inputs.force_volume }}
       reuse_previous_release: ${{ needs.prepare.outputs.volume_action == 'reuse' }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
+      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
   publish:
     name: Publish Draft Release
@@ -335,6 +374,12 @@ jobs:
           path: .artifacts/publish/collected/release
           merge-multiple: true
 
+      - name: Download Installer Factory
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare.outputs.installer_factory_artifact }}
+          path: .artifacts/installer-factory
+
       - name: Verify Release Toolchain
         run: |
           set -euo pipefail
@@ -344,6 +389,10 @@ jobs:
             echo "python3 or python is required." >&2
             exit 1
           fi
+          # This job builds no application. It only needs dotnet to rebuild the .NET Framework 4.8
+          # installer factory when the prepared artifact is missing, so no .NET 10 gate belongs here.
+          command -v dotnet
+          dotnet --info
 
       - name: Publish Draft Release
         env:
@@ -366,6 +415,7 @@ jobs:
             "--apps" "$INCLUDED_APPS"
             "--target" "$SOURCE_SHA"
             "--input-root" ".artifacts/publish/collected"
+            "--installer-factory" ".artifacts/installer-factory/TrayAppDotNETInstaller.exe"
           )
 
           if [ "${{ inputs.tray_app_dot_net_version }}" != "" ]; then
@@ -382,7 +432,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: tray-app-dot-net-conglomerate-builds-${{ github.run_id }}
-          path: .artifacts/publish/collected/_release/TrayAppDotNET_*.zip
+          path: |
+            .artifacts/publish/collected/_release/TrayAppDotNET_*.zip
+            .artifacts/publish/collected/_release/Installer_*.exe
           if-no-files-found: error
 
       - name: Remove Intermediate Package Artifacts

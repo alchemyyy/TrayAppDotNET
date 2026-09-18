@@ -569,9 +569,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settingsWindow = null;
     }
 
-    private void ShowUninstallerWindow(string installDirectory, InstallScope scope)
+    private void ShowUninstallerWindow(
+        string installDirectory,
+        InstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        TaskManagerUninstallerWindow uninstaller = new(installDirectory, scope);
+        TaskManagerUninstallerWindow uninstaller = new(installDirectory, scope, progress);
         Window owner = _settingsWindow != null ? _settingsWindow : this;
         uninstaller.Show(owner);
     }

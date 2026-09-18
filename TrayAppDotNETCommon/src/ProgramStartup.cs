@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
-using System.Runtime.InteropServices;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
+using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon;
 
@@ -20,12 +20,12 @@ public sealed record TrayAppDotNETProgramOptions(
     string SharedRootFolderName,
     string AppGuid,
     Func<string[], int> RunApplication,
-    Func<string, int, TrayAppDotNETInstallOptions?, TrayAppDotNETProgramInstallResult> RunAdminInstallSystem,
+    Func<string, int, TrayAppDotNETInstallOptions?, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETProgramInstallResult> RunAdminInstallSystem,
     Action<InstallScope?, bool> SyncStartMenu,
-    Func<InstallScope, TrayAppDotNETProgramInstallResult> PrepareUninstall,
-    Func<InstallScope, bool, Process?> RunHeadlessUninstall,
-    Func<TrayAppDotNETInstallOptions?, TrayAppDotNETProgramInstallResult> InstallToLocalAppData,
-    Func<TrayAppDotNETInstallOptions?, TrayAppDotNETProgramInstallResult> InstallSystemWide,
+    Func<InstallScope, bool, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETProgramInstallResult> PrepareUninstall,
+    Func<InstallScope, bool, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETUninstallRun> RunHeadlessUninstall,
+    Func<TrayAppDotNETInstallOptions?, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETProgramInstallResult> InstallToLocalAppData,
+    Func<TrayAppDotNETInstallOptions?, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETProgramInstallResult> InstallSystemWide,
     Func<string> LocalAppDataInstallExecutable,
     Func<string> ProgramFilesInstallExecutable,
     Action<string>? Log = null,
@@ -34,6 +34,8 @@ public sealed record TrayAppDotNETProgramOptions(
 public static class TrayAppDotNETProgram
 {
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
+    private const int ProgressPipeConnectTimeoutMs = 5000;
+    private const int ProgressCompletionTimeoutMs = 5000;
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
     private static ApplicationInstanceCoordinator? _applicationInstanceCoordinator;
@@ -137,13 +139,13 @@ public static class TrayAppDotNETProgram
         if (HasArg(args, flag: "--installlocal"))
         {
             return RunOnStaThreadIfNeeded(() =>
-                RunInstall(scope: "local", options, log, startInstalled: true, installOptions));
+                RunInstall(scope: "local", options, log, startInstalled: true, installOptions, TrayAppDotNETConsoleProgress.Instance));
         }
 
         if (HasArg(args, flag: "--installsystem"))
         {
             return RunOnStaThreadIfNeeded(() =>
-                RunInstall(scope: "system", options, log, startInstalled: true, installOptions));
+                RunInstall(scope: "system", options, log, startInstalled: true, installOptions, TrayAppDotNETConsoleProgress.Instance));
         }
 
         if (HasArg(args, flag: "--install-headless"))
@@ -154,7 +156,8 @@ public static class TrayAppDotNETProgram
                     options,
                     log,
                     startInstalled: false,
-                    installOptions));
+                    installOptions,
+                    TrayAppDotNETConsoleProgress.Instance));
         }
 
         if (HasArg(args, flag: "--install"))
@@ -165,7 +168,8 @@ public static class TrayAppDotNETProgram
                     options,
                     log,
                     startInstalled: false,
-                    installOptions));
+                    installOptions,
+                    TrayAppDotNETConsoleProgress.Instance));
         }
 
         string? installDir = TryGetArgValue(args, flag: "--uninstall")
@@ -424,10 +428,12 @@ public static class TrayAppDotNETProgram
         }
 
         TrayAppDotNETInstallOptions? installOptions = ParseInstallOptions(args, useDefaults: false);
+        using TrayAppDotNETProgressPipeClient? progressClient = ConnectProgressPipe(args, log);
         TrayAppDotNETProgramInstallResult result = options.RunAdminInstallSystem(
             sourceExecutable,
             buildNumber,
-            installOptions);
+            installOptions,
+            progressClient);
         if (!result.Success)
             log($"TrayAppDotNETProgram.RunElevatedSystemInstall: install failed: {result.ErrorMessage}");
         return result.Success ? 0 : 1;
@@ -452,7 +458,12 @@ public static class TrayAppDotNETProgram
             return 2;
         }
 
-        TrayAppDotNETProgramInstallResult result = options.PrepareUninstall(scope.Value);
+        bool deleteSettings = ParseDeleteSettingsArgument(args);
+        using TrayAppDotNETProgressPipeClient? progressClient = ConnectProgressPipe(args, log);
+        TrayAppDotNETProgramInstallResult result = options.PrepareUninstall(
+            scope.Value,
+            deleteSettings,
+            progressClient);
         if (!result.Success)
             log($"TrayAppDotNETProgram.RunUninstallPreparation: failed: {result.ErrorMessage}");
         return result.Success ? 0 : 1;
@@ -487,20 +498,27 @@ public static class TrayAppDotNETProgram
             return 2;
         }
 
-        string? deleteSettingsValue = TryGetArgValue(args, flag: "--delete-settings");
-        if (HasArg(args, flag: "--delete-settings") && deleteSettingsValue == null)
-            throw new ArgumentException("--delete-settings must be followed by true or false.");
-        bool deleteSettings = deleteSettingsValue != null
-                              && ParseBooleanArgument(name: "--delete-settings", deleteSettingsValue);
+        bool deleteSettings = ParseDeleteSettingsArgument(args);
 
-        using Process? process = options.RunHeadlessUninstall(scope.Value, deleteSettings);
-        if (process == null)
+        TrayAppDotNETUninstallRun run = options.RunHeadlessUninstall(
+            scope.Value,
+            deleteSettings,
+            TrayAppDotNETConsoleProgress.Instance);
+        if (run.UserCancelled)
+        {
+            WriteInstallMessage(text: "System uninstall cancelled (UAC prompt declined)", error: true, log);
+            return 1;
+        }
+
+        if (run.Process == null)
         {
             log("TrayAppDotNETProgram.RunHeadlessUninstall: uninstall process did not start.");
             return 1;
         }
 
+        using Process process = run.Process;
         process.WaitForExit();
+        WaitForProgressCompletion(run.Completion);
         return process.ExitCode;
     }
 
@@ -534,7 +552,8 @@ public static class TrayAppDotNETProgram
         TrayAppDotNETProgramOptions options,
         Action<string> log,
         bool startInstalled,
-        TrayAppDotNETInstallOptions? installOptions = null)
+        TrayAppDotNETInstallOptions? installOptions = null,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         if (scope is null) return PrintInstallUsage(reason: "Missing scope argument after --install", log);
         string normalizedScope = scope.ToLowerInvariant();
@@ -547,12 +566,12 @@ public static class TrayAppDotNETProgram
         switch (normalizedScope)
         {
             case "local":
-                result = options.InstallToLocalAppData(installOptions);
+                result = options.InstallToLocalAppData(installOptions, progress);
                 installExecutable = options.LocalAppDataInstallExecutable();
                 failureMessage = $"Local install failed: {result.ErrorMessage}";
                 break;
             case "system":
-                result = options.InstallSystemWide(installOptions);
+                result = options.InstallSystemWide(installOptions, progress);
                 installExecutable = options.ProgramFilesInstallExecutable();
                 failureMessage = result.UserCancelled
                     ? "System install cancelled (UAC prompt declined)"
@@ -642,7 +661,7 @@ public static class TrayAppDotNETProgram
             "  --installlocal" + Environment.NewLine +
             "Scopes:" + Environment.NewLine +
             "  system  Install to %ProgramFiles%\\TrayAppDotNET (triggers UAC)" + Environment.NewLine +
-            "  local   Install to %LOCALAPPDATA%\\TrayAppDotNET (no UAC)" + Environment.NewLine +
+            "  local   Install to %LOCALAPPDATA%\\TrayAppDotNET\\apps (no UAC)" + Environment.NewLine +
             "Options:" + Environment.NewLine +
             "  --desktop-shortcut <true|false>" + Environment.NewLine +
             "  --start-menu-shortcut <true|false>";
@@ -654,24 +673,42 @@ public static class TrayAppDotNETProgram
     private static void WriteInstallMessage(string text, bool error, Action<string> log)
     {
         log($"TrayAppDotNETProgram.RunInstall: {text}");
-        try
-        {
-            if (AttachConsole(ATTACH_PARENT_PROCESS))
-            {
-                Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
-                Console.SetError(new StreamWriter(Console.OpenStandardError()) { AutoFlush = true });
-                (error ? Console.Error : Console.Out).WriteLine(text);
-            }
-        }
-        catch
-        {
-            // best effort; the file log already has the message.
-        }
+        // Best effort; the file log already has the message
+        _ = TrayAppDotNETConsoleOutput.TryWriteLine(text, error);
     }
 
-    private const int ATTACH_PARENT_PROCESS = -1;
+    /// <summary>Connects to the launcher's progress pipe when a helper process was given one.</summary>
+    private static TrayAppDotNETProgressPipeClient? ConnectProgressPipe(string[] args, Action<string> log)
+    {
+        string? pipeName = TryGetArgValue(args, TrayAppDotNETInstallOptions.ProgressPipeArgument);
+        if (string.IsNullOrWhiteSpace(pipeName)) return null;
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool AttachConsole(int dwProcessId);
+        return TrayAppDotNETProgressPipeClient.TryConnect(pipeName, ProgressPipeConnectTimeoutMs, log);
+    }
+
+    private static bool ParseDeleteSettingsArgument(string[] args)
+    {
+        string? deleteSettingsValue = TryGetArgValue(args, TrayAppDotNETInstallOptions.DeleteSettingsArgument);
+        if (HasArg(args, TrayAppDotNETInstallOptions.DeleteSettingsArgument) && deleteSettingsValue == null)
+        {
+            throw new ArgumentException(
+                $"{TrayAppDotNETInstallOptions.DeleteSettingsArgument} must be followed by true or false.");
+        }
+
+        return deleteSettingsValue != null
+               && ParseBooleanArgument(TrayAppDotNETInstallOptions.DeleteSettingsArgument, deleteSettingsValue);
+    }
+
+    /// <summary>Lets the final uninstall progress line reach standard output before the process exits.</summary>
+    private static void WaitForProgressCompletion(Task completion)
+    {
+        try
+        {
+            _ = completion.Wait(ProgressCompletionTimeoutMs);
+        }
+        catch (AggregateException exception)
+        {
+            TADNLog.Log($"TrayAppDotNETProgram.WaitForProgressCompletion: {exception.InnerException?.Message}");
+        }
+    }
 }

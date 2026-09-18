@@ -19,6 +19,7 @@ public static class UninstallScript
         TrayAppDotNETInstallIdentity identity,
         string installedExecutableFileName,
         TrayAppDotNETInstallPayload payload,
+        string? progressPipeName,
         out bool userCancelled)
     {
         userCancelled = false;
@@ -37,7 +38,8 @@ public static class UninstallScript
                 deleteSettings,
                 identity,
                 installedExecutableFileName,
-                payload);
+                payload,
+                progressPipeName);
             File.WriteAllText(batchPath, content, Encoding.ASCII);
 
             ProcessStartInfo startInfo = new()
@@ -84,7 +86,8 @@ public static class UninstallScript
         bool deleteSettings,
         TrayAppDotNETInstallIdentity identity,
         string installedExecutableFileName,
-        TrayAppDotNETInstallPayload payload)
+        TrayAppDotNETInstallPayload payload,
+        string? progressPipeName = null)
     {
         string installExecutable = Path.Combine(installDirectory, installedExecutableFileName);
         string registryPath = (scope == InstallScope.ProgramFiles ? "HKLM\\" : "HKCU\\")
@@ -129,6 +132,7 @@ public static class UninstallScript
         string settingsCommands = deleteSettings
             ? DeleteDirectoryCommands(identity.SettingsDirectory)
             : string.Empty;
+        string helperArguments = BuildHelperArguments(deleteSettings, progressPipeName);
 
         return $"""
                  @echo off
@@ -136,7 +140,7 @@ public static class UninstallScript
                  set "ERR=0"
 
                  rem Reconcile shortcuts, registry state, and exact installed processes in C#.
-                 start "" /wait "{Escape(helperExecutable)}" {TrayAppDotNETInstallOptions.PrepareUninstallArgument} --scope {InstallScopeExtensions.ToArg(scope)}
+                 start "" /wait "{Escape(helperExecutable)}" {TrayAppDotNETInstallOptions.PrepareUninstallArgument} --scope {InstallScopeExtensions.ToArg(scope)}{helperArguments}
                  if errorlevel 1 set "ERR=1"
 
                  rem The helper can itself be the installed exe, so retry until its image is unmapped.
@@ -174,6 +178,17 @@ public static class UninstallScript
                  {settingsCommands}
                  (goto) 2>nul & del /f /q "%~f0" & exit /b %ERR%
                  """;
+    }
+
+    /// <summary>Forwards the explicit settings choice and the launcher's progress pipe to the helper stage.</summary>
+    private static string BuildHelperArguments(bool deleteSettings, string? progressPipeName)
+    {
+        string arguments = deleteSettings
+            ? $" {TrayAppDotNETInstallOptions.DeleteSettingsArgument} true"
+            : string.Empty;
+        if (!string.IsNullOrWhiteSpace(progressPipeName))
+            arguments += $" {TrayAppDotNETInstallOptions.ProgressPipeArgument} \"{Escape(progressPipeName)}\"";
+        return arguments;
     }
 
     private static string DeleteFileCommands(string path, string indent = "") =>

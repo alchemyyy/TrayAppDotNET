@@ -50,4 +50,10 @@
   <Project Path="VolumeTrayAppDotNET/tests/VolumeTrayAppDotNET.Tests/VolumeTrayAppDotNET.Tests.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="TrayAppDotNETInstaller/src/TrayAppDotNETInstaller.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="TrayAppDotNETInstaller/tests/TrayAppDotNETInstaller.Tests/TrayAppDotNETInstaller.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

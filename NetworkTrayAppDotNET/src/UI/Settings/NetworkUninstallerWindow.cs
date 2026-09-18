@@ -3,15 +3,15 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 
-public sealed class NetworkUninstallerWindow(string installDir, InstallScope scope)
-    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
+public sealed class NetworkUninstallerWindow(string installDir, InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress = null)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope, progress))
 {
     public NetworkUninstallerWindow()
         : this(string.Empty, InstallScope.LocalAppData)
     {
     }
 
-    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(string installDir, InstallScope scope)
+    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(string installDir, InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress)
     {
         AppSettings settings = AppServices.Settings ?? new AppSettings();
         SettingsPalette palette = NetworkSettingsWindow.CreatePalette(
@@ -28,8 +28,9 @@ public sealed class NetworkUninstallerWindow(string installDir, InstallScope sco
             Palette = palette,
             EnableRoundedCorners = settings.EnableRoundedCorners,
             L = L,
-            RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
+            Progress = progress,
+            RunUninstall = static (uninstallScope, deleteSettings, uninstallProgress) =>
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings, progress: uninstallProgress)
         };
     }
 

@@ -18,6 +18,47 @@
   - `NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj`
   - `TaskManagerTrayAppDotNET/src/TaskManagerTrayAppDotNET.csproj`
   - `VolumeTrayAppDotNET/src/VolumeTrayAppDotNET.csproj`
+- Installer factory (single-file .NET Framework 4.8 WPF app; deliberately does not reference TrayAppDotNETCommon):
+  - `TrayAppDotNETInstaller/src/TrayAppDotNETInstaller.csproj`
+  - `TrayAppDotNETInstaller/src/Services/SolidPayloadArchive.cs`
+  - `TrayAppDotNETInstaller/src/Compression/LzmaConstants.cs`
+  - `TrayAppDotNETInstaller/src/Compression/LzmaEncoder.cs`
+  - `TrayAppDotNETInstaller/src/Compression/LzmaDecoder.cs`
+  - `TrayAppDotNETInstaller/tests/TrayAppDotNETInstaller.Tests`
+  - `TrayAppDotNETInstaller/tests/TrayAppDotNETInstaller.Tests/LzmaRoundTripTests.cs`
+  - `TrayAppDotNETInstaller/tests/TrayAppDotNETInstaller.Tests/LzmaConformanceTests.cs`
+  - Built once per release with no payload. Running that binary with `--make-installer` copies itself,
+    replaces the shell icon through the Win32 resource APIs, repacks each app package zip into a solid
+    payload, and appends those, producing `Installer_<App>.exe`. Payloads live after the PE image behind a
+    trailer, so only one Native AOT compilation is needed no matter how many installers a release ships.
+  - A solid payload is a 72 byte header (magic `TADNSLD1`), an uncompressed entry table, then one LZMA1
+    stream over the concatenated file data of every entry. A zip compresses each entry separately through a
+    32 KB DEFLATE window; the single stream uses a dictionary of up to 32 MB, so matches reach across the
+    whole package. Appended entries are named `<App>_<Version>.tadn` rather than `<App>_<Version>.zip`.
+  - The LZMA encoder and decoder under `src/Compression` are hand written and conformant LZMA1: liblzma
+    decodes what the encoder writes, and the decoder reads liblzma streams. `LzmaRoundTripTests` and
+    `LzmaConformanceTests` cover both directions.
+  - `--verify-installer --image <path>` opens the payload archive appended to an image, decompresses every
+    payload in full, and checks each against the SHA-256 recorded in its header. `--make-installer` runs the
+    same check before publishing its output, so no installer is written without one proven decode pass.
+    `.github/scripts/publish.py` calls `--verify-installer` after stamping.
+  - Measured on the VolumeTrayAppDotNET release package: 50,329,628 raw bytes, 20,222,033 as a DEFLATE zip,
+    16,899,152 as a solid payload. The stamped installer went from 21,207,583 to 17,202,910 bytes, an 18.9
+    percent reduction. Extracting the payload at install time takes about 1.1 seconds.
+  - A package too large to hold resident while packing, over 512 MB uncompressed, is appended as its original
+    zip instead, and the installer still reads it.
+  - Targets `net48` on purpose. The framework and its renderer ship with Windows, so the installer is a few
+    hundred kilobytes instead of the 28 MB an Avalonia Native AOT build cost, which embedded Skia.
+  - `src/GlobalUsings.cs` supplies the usings the SDK only provides implicitly on .NET 6 and newer, and
+    `src/Compatibility` holds the compiler attribute polyfills and stand-ins for missing .NET APIs.
+  - Every app icon plus the suite icon is embedded in the factory, so the window icon needs no surgery.
+  - `dotnet run` with no payload falls back to a `Payloads` folder beside the executable, which still holds
+    plain `.zip` files. `ExtractArchive` in `src/Services/InstallEngine.cs` tells a solid payload from a zip
+    by the leading bytes, not the file name.
+  - A Release build of an app stamps that app's installer beside it through the shared
+    `StampAppInstallerAfterBuild` target in `TrayAppDotNET.Parent.targets`. The LZMA pass puts that at about
+    11 seconds per installer. Pass `-p:TrayAppDotNETStampAppInstaller=false` to skip it during iterative
+    Release work.
 - Tests:
   - `BrightnessTrayAppDotNET/tests/BrightnessTrayAppDotNET.Tests`
   - `FanControlTrayAppDotNET/tests/FanControlTrayAppDotNET.Tests`
@@ -51,6 +92,8 @@
   - `TrayAppDotNETCommon/src/Services/AsyncThrottler.cs`
 - Install/update/startup:
   - `TrayAppDotNETCommon/src/ProgramStartup.cs`
+  - Progress wire protocol shared with the installer app: `TrayAppDotNETCommon/src/Services/Install/InstallProgress.cs`
+  - Elevated helper progress pipe: `TrayAppDotNETCommon/src/Services/Install/ProgressPipe.cs`
   - `TrayAppDotNETCommon/src/Services/UpdateCheckService.cs`
   - `TrayAppDotNETCommon/src/Services/Install`
   - `TrayAppDotNETCommon/src/Services/WatcherMonitor.cs`
@@ -117,6 +160,10 @@
   - `.github/workflows/*-debug.yml`
   - `.github/workflows/*-release.yml`
   - `.github/workflows/publish.yml`
+- Release packaging script (app zips, then stamping per-app `Installer_<App>.exe` and the suite
+  `Installer_TrayAppDotNET.exe` from one factory build, then `--verify-installer` on each stamped image):
+  `.github/scripts/publish.py`
+- App icons and the installer icon are generated by `tools/AppIconGenerator` (target `TADN` writes `TrayAppDotNETInstaller/app.ico`)
 - Release mode currently uses Native AOT in app project files when `RuntimeIdentifier` is set:
   - `SelfContained=true`
   - `PublishAot=true`

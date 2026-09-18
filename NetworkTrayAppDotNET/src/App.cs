@@ -97,7 +97,7 @@ internal sealed class NetworkAvaloniaApp : Application
         {
             LoadSettingsAndTheme();
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope);
+            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -668,9 +668,9 @@ internal sealed class NetworkAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, InstallScope scope)
+    private void ShowUninstallerWindow(string installDir, InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        NetworkUninstallerWindow window = new(installDir, scope);
+        NetworkUninstallerWindow window = new(installDir, scope, progress);
         if (_settingsWindow != null) window.Show(_settingsWindow);
         else window.Show();
     }

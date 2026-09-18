@@ -37,9 +37,11 @@ These are my projects for replacing, and adding to, the Windows 11 tray system a
 
 These apps are all portable executables, and they serve as their own installers. You can manage an app's installation by opening Settings -> About. 
 
+Every release also ships a single-file installer per app, named `Installer_<AppName>.exe`, plus `Installer_TrayAppDotNET.exe` for the whole suite. The installers need nothing installed first, since they run on the .NET Framework that ships with Windows. They offer three installation types: Local (current user, no administrator rights), System (all users, one UAC prompt), and Portable (extract to a folder of your choice). Desktop and Start Menu shortcuts and launching the app when finished are optional. The suite installer lets you choose which apps to install and unselects BatteryTrayAppDotNET automatically when no battery is present. All installers show a notice with a link to Windhawk when it is not detected.
+
 All app settings are saved to `%LocalAppData%\TrayAppDotNET`.
 
-Running an app in portable mode will extract a couple Skia rendering library files to the aforementioned user config folder. All other libraries and files are baked into the apps during compilation, including the .NET runtime.
+Each app is a Native AOT executable with the .NET runtime compiled in. The only loose files next to it are the ANGLE, Skia, and HarfBuzz rendering libraries plus the license notices.
 
 #### Project status
 
@@ -192,7 +194,7 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 | --- | --- | --- |
 | No arguments | User | Start the app normally under the crash watcher. |
 | `--installer` or `--install-gui` | User | Open the one-page installer. Local installation is selected by default. Selecting system installation causes Windows to display a UAC prompt after Install is clicked. |
-| `--install-headless <scope>` | User/script | Install without opening a window, print the result to the parent console when attached, then exit. System scope causes Windows to display a UAC prompt. |
+| `--install-headless <scope>` | User/script | Install without opening a window, print progress lines (`[NN%] stage`) and the result to the parent console or redirected standard output, then exit. System scope causes Windows to display a UAC prompt. |
 | `--install <scope>` | User/script | Compatibility alias for `--install-headless <scope>`. |
 | `--installlocal` | User/script | Install locally without opening a window, then start the installed instance. |
 | `--installsystem` | User/script | Install system-wide without opening a window, display the Windows UAC prompt, then start the installed instance. |
@@ -200,7 +202,7 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 | `--start-menu-shortcut <true|false>` | User/script | Choose whether a headless install creates a Start Menu entry. The default is `true`. |
 | `--uninstall <installDir> --scope <scope>` | App/Windows uninstall entry | Open the uninstaller for the supplied installation. Confirming a system uninstall causes Windows to display a UAC prompt. |
 | `--uninstall-gui <installDir> --scope <scope>` | App/Windows uninstall entry | Alias for `--uninstall`. |
-| `--uninstall-headless <scope>` | User/script | Uninstall without opening a window. System scope causes Windows to display a UAC prompt. |
+| `--uninstall-headless <scope>` | User/script | Uninstall without opening a window, printing progress lines (`[NN%] stage`) to the parent console or redirected standard output. System scope causes Windows to display a UAC prompt. |
 | `--delete-settings <true|false>` | User/script | Choose whether `--uninstall-headless` also removes the application's settings. The default is `false`. |
 | `--scope <scope>` | App helper | Select an installation for uninstall operations. Accepted values are `user`, `local`, `localappdata`, `system`, `programfiles`, `store`, and `windowsstore`. |
 | `--watcher` | App helper | Run the crash watcher process. |
@@ -208,7 +210,8 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 | `--watcher-pid <pid>` | App helper | Supplies the watcher PID to a monitored app instance. |
 | `--install-system --source <sourceExe> --build <buildNumber>` | App helper | Continue a system installation after Windows has displayed the UAC prompt, then write system uninstall and shortcut metadata. |
 | `--sync-start-menu [--remove-scope <scope>]` | App helper | Reconcile all-user Start Menu shortcuts from a process started through the Windows UAC prompt. |
-| `--uninstall-prepare --scope <scope>` | App helper | Remove shell integration and stop the installed process before the batch cleanup stage. For system scope, the owning batch is started through the Windows UAC prompt. |
+| `--uninstall-prepare --scope <scope> [--delete-settings <true|false>]` | App helper | Remove shell integration, stop the installed process, and optionally delete settings before the batch cleanup stage. For system scope, the owning batch is started through the Windows UAC prompt. |
+| `--progress-pipe <name>` | App helper | Named pipe through which an elevated install or uninstall helper reports its progress stages to the process that started it. |
 | `--remove-scope <scope>` | App helper | Scope value consumed by `--sync-start-menu` when removing shortcuts for an uninstalling scope. |
 | `--update-apply` | App helper | Apply a staged update after the running app exits. Windows displays a UAC prompt only when the installation directory requires elevation. |
 | `--update-restart` | App helper | Restart the installed app after update commit or rollback, then clean the staging directory. This process is deliberately not elevated. |
@@ -217,7 +220,13 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 
 Each app is written in .NET 10 with Avalonia 12 and compiled with Native AOT. While the apps do share a common framework, they are totally independent from each other. This makes it much simpler to distribute them and manage privileges, and keeps each app isolated from one another in case of instability or performance issues. Memory overhead of this and these apps has been taken into account, especially given they are background applications, and care has been taken to make sure they are memory efficient. The entire suite uses roughly the same amount of RAM as one medium-sized electron app.
 
-There is a small set of embedded libraries which amount to the Skia rendering backend Avalonia uses. These are embedded instead of compiled from source straight in because they're large enough in my opinion to warrant Windows re-using them via shared working set memory, to lower the overall memory footprint from running multiple of these tray apps together. 
+A small set of native libraries next to each executable makes up the Skia rendering backend Avalonia uses. These ship as shared DLLs instead of being compiled straight in because they're large enough in my opinion to warrant Windows re-using them via shared working set memory, to lower the overall memory footprint from running multiple of these tray apps together. 
+
+The installers are produced by a factory. A single installer binary is built per release, carrying no app inside it. Stamping an installer then means copying that binary, swapping its icon, and appending the app's package to the end of the file, which takes seconds instead of a whole compilation. The installer finds its payload at startup by reading a trailer at the end of its own executable.
+
+The appended package is not a zip. The factory repacks it into a solid payload, which is one LZMA stream over the concatenated file data of every entry with a dictionary of up to 32 MB, rather than a zip's separate DEFLATE stream per entry with a 32 KB window, so matches reach across the whole package. VolumeTrayAppDotNET measures 50,329,628 bytes raw, 20,222,033 as a zip, and 16,899,152 as a solid payload, which took its stamped installer from 21,207,583 to 17,202,910 bytes, an 18.9 percent reduction. Stamping one installer costs about 11 seconds and unpacking the payload at install time about 1.1 seconds. The LZMA encoder and decoder are written by hand and are conformant LZMA1, checked both directions against liblzma. Every stamp decompresses its own output and compares it to the SHA-256 recorded in the payload header, so no installer is written without one proven decode pass.
+
+The installers themselves are WPF apps on .NET Framework 4.8 rather than Native AOT. That framework and its renderer are already part of Windows, so an installer is a few hundred kilobytes rather than the 28 MB an Avalonia build cost, where over half the weight was an embedded copy of Skia. The apps stay on .NET 10 with Native AOT; only the installers use the in-box framework.
 
 #### AI Usage
 

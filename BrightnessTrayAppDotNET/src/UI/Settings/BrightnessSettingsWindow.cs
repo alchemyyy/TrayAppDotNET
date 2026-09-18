@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
@@ -24,7 +25,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 {
     private readonly BrightnessSettingsUIResources _brightnessSettingsUIResources = [];
     private readonly AppSettings _settings;
-    private readonly Action<string, BrightnessInstallScope> _showUninstaller;
+    private readonly Action<string, BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
     private readonly ProfileManager? _profileManager;
     private readonly MonitorService? _monitorService;
     private readonly MonitorBrightnessRangeProvider? _brightnessRangeProvider;
@@ -33,16 +34,18 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         _brightnessSettingsUIResources.AxamlBrightnessSettingsUI;
 
     public BrightnessSettingsWindow()
-        : this(new AppSettings(), static (_, _) => { })
+        : this(new AppSettings(), static (_, _, _) => { })
     {
     }
 
     public BrightnessSettingsWindow(AppSettings settings)
-        : this(settings, static (_, _) => { })
+        : this(settings, static (_, _, _) => { })
     {
     }
 
-    public BrightnessSettingsWindow(AppSettings settings, Action<string, BrightnessInstallScope> showUninstaller)
+    public BrightnessSettingsWindow(
+        AppSettings settings,
+        Action<string, BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         _settings = settings;
         _showUninstaller = showUninstaller;

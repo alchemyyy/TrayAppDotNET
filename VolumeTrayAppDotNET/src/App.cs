@@ -102,7 +102,7 @@ internal sealed class VolumeAvaloniaApp : Application
         {
             LoadSettingsAndTheme();
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope);
+            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -814,9 +814,12 @@ internal sealed class VolumeAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, VolumeInstallScope scope)
+    private void ShowUninstallerWindow(
+        string installDir,
+        VolumeInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        VolumeUninstallerWindow window = new(installDir, scope);
+        VolumeUninstallerWindow window = new(installDir, scope, progress);
         if (_settingsWindow != null) window.Show(_settingsWindow);
         else window.Show();
     }

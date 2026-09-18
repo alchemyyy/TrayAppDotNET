@@ -44,5 +44,36 @@ public sealed class UninstallScriptTests
         Assert.Contains(expectedSubstring: "shared-assets", script, StringComparison.Ordinal);
         Assert.Contains(expectedSubstring: "50%%off", script, StringComparison.Ordinal);
         Assert.DoesNotContain(expectedSubstring: "powershell", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(expectedSubstring: "--progress-pipe", script, StringComparison.Ordinal);
+        Assert.Contains(expectedSubstring: "--uninstall-prepare --scope user --delete-settings true", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScriptForwardsExplicitSettingsChoiceAndProgressPipeToHelper()
+    {
+        string root = Path.Combine(Path.GetTempPath(), path2: "TrayAppDotNET", path3: "progress");
+        TrayAppDotNETInstallIdentity identity = new(
+            ApplicationName: "TestTrayAppDotNET",
+            Publisher: "Test Publisher",
+            HelpLink: null,
+            Path.Combine(root, path2: "settings"),
+            Path.Combine(root, path2: "startup.lnk"),
+            LegacyRunKeyRegistryPath: @"Software\TrayAppDotNETTests");
+        TrayAppDotNETInstallPayload payload = new([], [], [], []);
+
+        string script = UninstallScript.BuildScript(
+            Path.Combine(root, path2: "TestTrayAppDotNET.exe"),
+            Path.Combine(root, path2: "installed"),
+            InstallScope.ProgramFiles,
+            deleteSettings: true,
+            identity,
+            installedExecutableFileName: "TestTrayAppDotNET.exe",
+            payload,
+            progressPipeName: "TrayAppDotNET.Progress.Test.1.abc");
+
+        Assert.Contains(
+            expectedSubstring: "--uninstall-prepare --scope system --delete-settings true --progress-pipe \"TrayAppDotNET.Progress.Test.1.abc\"",
+            script,
+            StringComparison.Ordinal);
     }
 }

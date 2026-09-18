@@ -28,7 +28,7 @@ public enum BatterySettingsPage
 public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettingsPage>
 {
     private readonly AppSettings _settings;
-    private readonly Action<string, BatteryInstallScope> _showUninstaller;
+    private readonly Action<string, BatteryInstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
     private readonly List<StackPanel> _triggerPagePanels = [];
     private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
     private StackPanel? _triggerPanel;
@@ -43,11 +43,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     private TrayAppDotNETAboutPage? _aboutPage;
 
     public BatterySettingsWindow()
-        : this(new AppSettings(), static (_, _) => { })
+        : this(new AppSettings(), static (_, _, _) => { })
     {
     }
 
-    public BatterySettingsWindow(AppSettings settings, Action<string, BatteryInstallScope> showUninstaller)
+    public BatterySettingsWindow(
+        AppSettings settings,
+        Action<string, BatteryInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
@@ -155,12 +157,14 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
                         ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                         Elevated = false,
-                        Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                        UninstallAsync = _ =>
+                        Install = static progress =>
+                            AppServices.Installation.InstallToLocalAppData(progress: progress),
+                        UninstallAsync = (_, progress) =>
                         {
                             _showUninstaller(
                                 AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                                BatteryInstallScope.LocalAppData);
+                                BatteryInstallScope.LocalAppData,
+                                progress);
                             return Task.CompletedTask;
                         }
                     },
@@ -170,12 +174,14 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
                         ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                         Elevated = true,
-                        Install = static () => AppServices.Installation.InstallSystemWide(),
-                        UninstallAsync = _ =>
+                        Install = static progress =>
+                            AppServices.Installation.InstallSystemWide(progress: progress),
+                        UninstallAsync = (_, progress) =>
                         {
                             _showUninstaller(
                                 AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                                BatteryInstallScope.ProgramFiles);
+                                BatteryInstallScope.ProgramFiles,
+                                progress);
                             return Task.CompletedTask;
                         }
                     }

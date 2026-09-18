@@ -3,15 +3,21 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
-public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScope scope)
-    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
+public sealed class VolumeUninstallerWindow(
+    string installDir,
+    VolumeInstallScope scope,
+    IProgress<TrayAppDotNETInstallProgress>? progress = null)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope, progress))
 {
     public VolumeUninstallerWindow()
         : this(string.Empty, VolumeInstallScope.LocalAppData)
     {
     }
 
-    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(string installDir, VolumeInstallScope scope)
+    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(
+        string installDir,
+        VolumeInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
         SettingsPalette palette =
             VolumeSettingsPalette.Create(AppServices.Theme, AppServices.Settings, ResolveEffectiveIsLight());
@@ -25,8 +31,9 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
             Palette = palette,
             EnableRoundedCorners = AppServices.Settings?.EnableRoundedCorners == true,
             L = L,
-            RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
+            Progress = progress,
+            RunUninstall = static (uninstallScope, deleteSettings, uninstallProgress) =>
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings, progress: uninstallProgress)
         };
     }
 

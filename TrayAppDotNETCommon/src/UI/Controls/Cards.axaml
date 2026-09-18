@@ -10,4 +10,9 @@
     <Thickness x:Key="SettingsCards.CardPadding">16,12</Thickness>
     <Thickness x:Key="SettingsCards.CardMargin">0,0,0,6</Thickness>
     <sys:Double x:Key="SettingsCards.ControlDisabledOpacity">0.45</sys:Double>
+
+    <!-- Install card progress row -->
+    <sys:Double x:Key="SettingsCards.ProgressBarHeight">4</sys:Double>
+    <Thickness x:Key="SettingsCards.ProgressRowMargin">0,8,8,0</Thickness>
+    <Thickness x:Key="SettingsCards.ProgressStatusMargin">0,4,0,0</Thickness>
 </ResourceDictionary>

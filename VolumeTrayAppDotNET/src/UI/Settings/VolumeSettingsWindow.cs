@@ -24,11 +24,13 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     private bool _uninstallMonitoringDisposed;
 
     public VolumeSettingsWindow()
-        : this(new AppSettings(), static (_, _) => { })
+        : this(new AppSettings(), static (_, _, _) => { })
     {
     }
 
-    public VolumeSettingsWindow(AppSettings settings, Action<string, VolumeInstallScope> showUninstaller)
+    public VolumeSettingsWindow(
+        AppSettings settings,
+        Action<string, VolumeInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         _settings = settings;
         ConfigureSettingsWindow(Loc(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());

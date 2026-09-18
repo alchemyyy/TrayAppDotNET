@@ -65,11 +65,11 @@ public sealed partial class NetworkSettingsWindow
                     Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
-                    Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                    UninstallAsync = refresh =>
+                    Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
+                    UninstallAsync = (refresh, progress) =>
                     {
                         _showUninstaller(AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                            InstallScope.LocalAppData);
+                            InstallScope.LocalAppData, progress);
                         return Task.CompletedTask;
                     }
                 },
@@ -79,11 +79,11 @@ public sealed partial class NetworkSettingsWindow
                     Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
-                    Install = static () => AppServices.Installation.InstallSystemWide(),
-                    UninstallAsync = refresh =>
+                    Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
+                    UninstallAsync = (refresh, progress) =>
                     {
                         _showUninstaller(AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                            InstallScope.ProgramFiles);
+                            InstallScope.ProgramFiles, progress);
                         return Task.CompletedTask;
                     }
                 }

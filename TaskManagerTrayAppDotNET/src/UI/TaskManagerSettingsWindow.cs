@@ -24,13 +24,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private const int ToolTipDelayMaximumMilliseconds = 10_000;
 
     private readonly AppSettings _settings;
-    private readonly Action<string, InstallScope> _showUninstaller;
+    private readonly Action<string, InstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private SettingsButton? _resetPerformanceDeviceOrderButton;
 
     public TaskManagerSettingsWindow(
         AppSettings settings,
-        Action<string, InstallScope> showUninstaller)
+        Action<string, InstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(showUninstaller);
@@ -205,12 +205,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                     Title = "Install for current user",
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
-                    Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                    UninstallAsync = _ =>
+                    Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
+                    UninstallAsync = (_, progress) =>
                     {
                         _showUninstaller(
                             AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                            InstallScope.LocalAppData);
+                            InstallScope.LocalAppData,
+                            progress);
                         return Task.CompletedTask;
                     }
                 },
@@ -220,12 +221,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                     Title = "Install system-wide",
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
-                    Install = static () => AppServices.Installation.InstallSystemWide(),
-                    UninstallAsync = _ =>
+                    Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
+                    UninstallAsync = (_, progress) =>
                     {
                         _showUninstaller(
                             AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                            InstallScope.ProgramFiles);
+                            InstallScope.ProgramFiles,
+                            progress);
                         return Task.CompletedTask;
                     }
                 }

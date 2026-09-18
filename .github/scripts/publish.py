@@ -162,11 +162,25 @@ GENERATOR_PROJECTS = [
     "TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj",
     "TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj",
 ]
-EMBEDDED_NATIVE_AOT_DLL_NAMES = (
+INSTALLER_PROJECT = "TrayAppDotNETInstaller/src/TrayAppDotNETInstaller.csproj"
+INSTALLER_ASSET_PREFIX = "Installer_"
+# The installer project publishes once as a payload-free factory that stamps every installer.
+INSTALLER_FACTORY_ASSEMBLY_NAME = "TrayAppDotNETInstaller"
+INSTALLER_FACTORY_EXECUTABLE_NAME = INSTALLER_FACTORY_ASSEMBLY_NAME + ".exe"
+# Cheap floor that only catches an empty or truncated write. The factory's --verify-installer mode
+# is what actually proves the payload archive is intact.
+INSTALLER_MINIMUM_SIZE_BYTES = 64 * 1024
+BUNDLE_INSTALLER_NAME = "TrayAppDotNET"
+REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES = (
+    "av_libglesv2.dll",
     "libHarfBuzzSharp.dll",
     "libSkiaSharp.dll",
 )
-REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES = ("av_libglesv2.dll",)
+REQUIRED_APP_INSTALLER_MANIFEST_KEYS = (
+    "installerFileName",
+    "installerSha256",
+    "installerSize",
+)
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -195,6 +209,7 @@ def parse_args() -> argparse.Namespace:
         choices=[
             "build-profile",
             "build-app-profile",
+            "build-installer-factory",
             "stage-app-profile",
             "collect-staged-profiles",
             "clean-staged-profiles",
@@ -243,6 +258,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>.")
     parser.add_argument("--target", default=os.environ.get("GITHUB_SHA", ""), help="Target commit for a new release.")
     parser.add_argument("--output-root", default=".artifacts/publish")
+    parser.add_argument(
+        "--installer-factory",
+        default="",
+        help=(
+            "Path to a prebuilt installer factory executable. "
+            "Defaults to building the factory in this job."
+        ),
+    )
     parser.add_argument("--input-root", default=".artifacts/publish/collected")
     parser.add_argument("--stage-root", default=os.environ.get("TRAYAPP_PUBLISH_STAGE_ROOT", ""))
     parser.add_argument("--run-id", default=os.environ.get("GITHUB_RUN_ID", "local"))
@@ -799,6 +822,50 @@ def restore_command(app: App, profile: Profile) -> list[str]:
     return cmd
 
 
+def installer_assembly_name(name: str) -> str:
+    return f"{INSTALLER_ASSET_PREFIX}{name}"
+
+
+def installer_asset_name(name: str) -> str:
+    return f"{installer_assembly_name(name)}.exe"
+
+
+def installer_restore_command() -> list[str]:
+    # The installer targets .NET Framework 4.8, which has no runtime identifier to restore for.
+    return [
+        "dotnet",
+        "restore",
+        INSTALLER_PROJECT,
+        f"-p:Configuration={PUBLISH_CONFIGURATION}",
+    ]
+
+
+def installer_factory_publish_command(publish_dir: Path, commit_hash: str) -> list[str]:
+    # The factory carries no payload and no icon override, so one publish serves every installer.
+    # Payloads are supplied later, per stamp, on the factory command line. The .NET Framework and
+    # its renderer ship inside Windows, so a plain publish produces the single factory executable
+    # without a runtime identifier, a self-contained runtime or ahead-of-time compilation.
+    cmd = [
+        "dotnet",
+        "publish",
+        INSTALLER_PROJECT,
+        "--no-restore",
+        "--configuration",
+        PUBLISH_CONFIGURATION,
+        "--output",
+        str(publish_dir),
+        "-m:1",
+        "-p:DebugType=none",
+        "-p:DebugSymbols=false",
+        "-p:SkipKillRunningInstance=true",
+        "-p:ContinuousIntegrationBuild=true",
+    ]
+    if commit_hash:
+        cmd.append(f"-p:TrayAppDotNETCommitHash={commit_hash}")
+
+    return cmd
+
+
 def validate_legal_archive_entries(entry_names: list[str], archive_description: str) -> None:
     normalized_names = {name.replace("\\", "/") for name in entry_names}
     missing_names = [
@@ -838,6 +905,19 @@ def validate_legal_directory(publish_dir: Path) -> None:
     validate_legal_archive_entries(entry_names, f"Publish directory {publish_dir}")
 
 
+def validate_loose_native_aot_dlls(app: App, publish_dir: Path) -> None:
+    missing_names = [
+        name
+        for name in REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES
+        if not (publish_dir / name).is_file()
+    ]
+    if missing_names:
+        raise SystemExit(
+            f"{app.name} Native AOT publish is missing required loose native DLL(s): "
+            f"{', '.join(missing_names)}. Refusing to package an incomplete publish."
+        )
+
+
 def validate_publish_dir(app: App, publish_dir: Path, profile: Profile) -> None:
     expected_exe = publish_dir / f"{app.name}.exe"
     app_dll = publish_dir / f"{app.name}.dll"
@@ -856,29 +936,7 @@ def validate_publish_dir(app: App, publish_dir: Path, profile: Profile) -> None:
                 f"{app.name} Native AOT publish produced {app_dll.name}. "
                 "Refusing to package a managed publish as Native AOT."
             )
-
-        unexpected_loose_dlls = [
-            name
-            for name in EMBEDDED_NATIVE_AOT_DLL_NAMES
-            if (publish_dir / name).exists()
-        ]
-        if unexpected_loose_dlls:
-            raise SystemExit(
-                f"{app.name} Native AOT publish contains native DLLs that must be "
-                f"embedded: {', '.join(unexpected_loose_dlls)}."
-            )
-
-        missing_loose_dlls = [
-            name
-            for name in REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES
-            if not (publish_dir / name).exists()
-        ]
-        if missing_loose_dlls:
-            raise SystemExit(
-                f"{app.name} Native AOT publish is missing required loose native DLLs: "
-                f"{', '.join(missing_loose_dlls)}."
-            )
-
+        validate_loose_native_aot_dlls(app, publish_dir)
         return
 
     if not app_dll.exists():
@@ -938,6 +996,155 @@ def build_app(
     if zip_directory(publish_dir, zip_path, extra_entries=app_install_entries(app.name)) is None:
         raise SystemExit(f"{app.name} {profile.display_name} publish produced no runtime files.")
     return AppPackage(app, profile, version, zip_path, profile.build_source, commit_hash)
+
+
+def validate_installer_publish_dir(
+    name: str, publish_dir: Path, assembly_name: str
+) -> Path:
+    expected_exe = publish_dir / f"{assembly_name}.exe"
+    if not expected_exe.is_file():
+        raise SystemExit(
+            f"{name} installer publish did not produce {expected_exe.name}. "
+            "Refusing to package a failed installer publish."
+        )
+
+    leftover_dll_names = sorted(
+        path.relative_to(publish_dir).as_posix()
+        for path in publish_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() == ".dll"
+    )
+    if leftover_dll_names:
+        raise SystemExit(
+            f"{name} installer publish left DLL file(s) next to {expected_exe.name}: "
+            f"{', '.join(leftover_dll_names)}. Refusing to package a multi-file installer."
+        )
+    return expected_exe
+
+
+def build_installer_factory(
+    output_root: Path, profile: Profile, commit_hash: str
+) -> Path:
+    """Publishes the payload-free installer factory once and returns its executable."""
+    publish_dir = output_root / profile.id / "installer" / "factory" / "publish"
+    if publish_dir.exists():
+        shutil.rmtree(publish_dir)
+    publish_dir.mkdir(parents=True, exist_ok=True)
+
+    # The installer project references no generator, so its own restore is all the --no-restore
+    # publish needs. Only the application path still restores the generators.
+    run(installer_restore_command())
+    run(installer_factory_publish_command(publish_dir, commit_hash))
+    removed_pdbs = remove_pdb_files(publish_dir)
+    if removed_pdbs:
+        print(f"Installer factory: removed {removed_pdbs} PDB file(s).")
+    return validate_installer_publish_dir(
+        INSTALLER_FACTORY_ASSEMBLY_NAME,
+        publish_dir,
+        INSTALLER_FACTORY_ASSEMBLY_NAME,
+    )
+
+
+def stamp_installer(
+    factory_path: Path,
+    name: str,
+    payload_zip_paths: list[Path],
+    output_path: Path,
+) -> Path:
+    """Runs the installer factory once to stamp one finished installer executable."""
+    if not factory_path.is_file():
+        raise SystemExit(f"{name} installer factory not found: {factory_path}")
+    if not payload_zip_paths:
+        raise SystemExit(f"{name} installer requires at least one payload zip.")
+    missing_payloads = [str(path) for path in payload_zip_paths if not path.is_file()]
+    if missing_payloads:
+        raise SystemExit(
+            f"{name} installer payload zip(s) not found: {', '.join(missing_payloads)}"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # A stale installer left by an earlier run would defeat the checks below.
+    if output_path.exists():
+        output_path.unlink()
+    # The factory derives each app name, the version and the icon from the
+    # "<AppName>_<version>.zip" payload file names, so payload paths are passed unchanged.
+    command = [
+        str(factory_path.resolve()),
+        "--make-installer",
+        "--output",
+        str(output_path.resolve()),
+    ]
+    for payload_zip_path in payload_zip_paths:
+        command.extend(["--payload", str(payload_zip_path.resolve())])
+    run(command)
+
+    if not output_path.is_file():
+        raise SystemExit(
+            f"{name} installer factory reported success but did not write {output_path}."
+        )
+    # No size comparison can prove the payload is there any more: the payloads are LZMA-recompressed,
+    # so the stamped installer is routinely smaller than the input zips, and stamping rewrites the icon
+    # resource group, so the factory image is not a lower bound either. Only the floor below and the
+    # structural verification that follows it are sound.
+    payload_size = sum(path.stat().st_size for path in payload_zip_paths)
+    installer_size = output_path.stat().st_size
+    if installer_size <= INSTALLER_MINIMUM_SIZE_BYTES:
+        raise SystemExit(
+            f"{name} installer is only {installer_size} bytes "
+            f"(minimum {INSTALLER_MINIMUM_SIZE_BYTES} bytes). "
+            "Refusing to publish a truncated installer."
+        )
+
+    # The factory reopens the image it just wrote and checks the payload directory hash, that every
+    # payload decompresses and that every recorded SHA-256 matches.
+    verify_result = run(
+        [
+            str(factory_path.resolve()),
+            "--verify-installer",
+            "--image",
+            str(output_path.resolve()),
+        ],
+        capture=True,
+        check=False,
+    )
+    if verify_result.stdout:
+        print(verify_result.stdout, end="" if verify_result.stdout.endswith("\n") else "\n")
+    if verify_result.returncode != 0:
+        if verify_result.stderr:
+            print(verify_result.stderr, file=sys.stderr, end="" if verify_result.stderr.endswith("\n") else "\n")
+        raise SystemExit(
+            f"{name} installer failed payload verification "
+            f"(exit code {verify_result.returncode}). "
+            "Refusing to publish an installer without a verified payload."
+        )
+
+    compressed_percent = installer_size * 100 / payload_size if payload_size else 0.0
+    print(
+        f"{name} installer: {payload_size} payload byte(s) stamped into "
+        f"{installer_size} installer byte(s) ({compressed_percent:.1f}%)."
+    )
+    return output_path
+
+
+def resolve_installer_factory(
+    installer_factory: str,
+    output_root: Path,
+    profile: Profile,
+    commit_hash: str,
+) -> Path:
+    """Uses the supplied installer factory when it exists, otherwise builds one."""
+    requested_path = installer_factory.strip()
+    if requested_path:
+        factory_path = Path(requested_path)
+        if factory_path.is_file():
+            print(f"Using the supplied installer factory: {factory_path}")
+            return factory_path
+        print(
+            f"Supplied installer factory not found: {factory_path}; "
+            "building the installer factory in this job."
+        )
+    else:
+        print("No installer factory was supplied; building one in this job.")
+    return build_installer_factory(output_root, profile, commit_hash)
 
 
 def published_app_commit_hash(
@@ -1084,7 +1291,7 @@ def selected_app_package(
     return build_app(app, current_version, output_root, profile, commit_hash)
 
 
-def app_manifest_data(package: AppPackage) -> dict:
+def app_manifest_data(package: AppPackage, installer_path: Path) -> dict:
     app_data = {
         "appId": package.app.name,
         "version": package.version,
@@ -1093,6 +1300,9 @@ def app_manifest_data(package: AppPackage) -> dict:
         "size": package.zip_path.stat().st_size,
         "source": package.source,
         "commitHash": package.commit_hash,
+        "installerFileName": installer_path.name,
+        "installerSha256": sha256_file(installer_path),
+        "installerSize": installer_path.stat().st_size,
     }
 
     return {
@@ -1125,12 +1335,47 @@ def build_app_profile(args: argparse.Namespace) -> int:
         app_version,
         commit_hash,
     )
+    # The installer is always stamped from the package zip at the current commit, even when the
+    # zip itself was reused from a published release.
+    factory_path = resolve_installer_factory(
+        args.installer_factory,
+        output_root,
+        profile,
+        commit_hash,
+    )
+    installer_path = stamp_installer(
+        factory_path,
+        app.name,
+        [package.zip_path],
+        package_dir / installer_asset_name(app.name),
+    )
     manifest_path = package_dir / f"app-{profile.id}-{app.name}.json"
-    manifest_path.write_text(json.dumps(app_manifest_data(package), indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(app_manifest_data(package, installer_path), indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     print(f"Built {profile.display_name} package:")
     print(f"- {package.zip_path}")
+    print(f"- {installer_path}")
     print(f"- {manifest_path}")
+    return 0
+
+
+def build_installer_factory_profile(args: argparse.Namespace) -> int:
+    profile = PROFILES[args.profile]
+    output_root = Path(args.output_root)
+    commit_hash = try_resolve_git_commit("HEAD")
+
+    published_factory_path = build_installer_factory(output_root, profile, commit_hash)
+    # The workflow uploads the factory from the output root, so keep a stable copy there.
+    factory_path = output_root / INSTALLER_FACTORY_EXECUTABLE_NAME
+    if factory_path.resolve() != published_factory_path.resolve():
+        shutil.copy2(published_factory_path, factory_path)
+
+    print("Built installer factory:")
+    print(f"- {published_factory_path}")
+    print(f"- {factory_path}")
     return 0
 
 
@@ -1349,6 +1594,15 @@ def validate_manifest_file_name(file_name: str, manifest_path: Path) -> str:
     return file_name
 
 
+def required_manifest_file_name(app_data: dict, key: str, manifest_path: Path) -> str:
+    file_name = str(app_data.get(key, ""))
+    if not file_name:
+        raise SystemExit(
+            f"Manifest {manifest_path} is missing required file name: {key}"
+        )
+    return validate_manifest_file_name(file_name, manifest_path)
+
+
 def app_manifest_files(package_dir: Path, profile: Profile, app: App) -> tuple[Path, dict, list[Path]]:
     manifest_path = package_dir / f"app-{profile.id}-{app.name}.json"
     if not manifest_path.exists():
@@ -1363,11 +1617,21 @@ def app_manifest_files(package_dir: Path, profile: Profile, app: App) -> tuple[P
         raise SystemExit(f"Expected app {app.name} in {manifest_path}, got {app_data.get('appId')!r}")
 
     files = [manifest_path]
-    file_name = validate_manifest_file_name(str(app_data.get("fileName", "")), manifest_path)
-    zip_path = package_dir / file_name
+    zip_path = package_dir / required_manifest_file_name(
+        app_data, "fileName", manifest_path
+    )
     if not zip_path.exists():
         raise SystemExit(f"Missing staged app zip referenced by {manifest_path}: {zip_path}")
     files.append(zip_path)
+
+    installer_path = package_dir / required_manifest_file_name(
+        app_data, "installerFileName", manifest_path
+    )
+    if not installer_path.exists():
+        raise SystemExit(
+            f"Missing staged app installer referenced by {manifest_path}: {installer_path}"
+        )
+    files.append(installer_path)
 
     return manifest_path, manifest, files
 
@@ -1611,6 +1875,27 @@ def create_flat_aggregate_from_zips(app_zips: list[tuple[str, Path]], aggregate_
     return sha256_file(aggregate_zip)
 
 
+def build_bundle_installer(
+    factory_path: Path, payload_zip_paths: list[Path], final_dir: Path
+) -> Path:
+    return stamp_installer(
+        factory_path,
+        BUNDLE_INSTALLER_NAME,
+        payload_zip_paths,
+        final_dir / installer_asset_name(BUNDLE_INSTALLER_NAME),
+    )
+
+
+def require_manifest_keys(
+    app_data: dict, keys: tuple[str, ...], description: str
+) -> None:
+    missing_keys = [key for key in keys if key not in app_data]
+    if missing_keys:
+        raise SystemExit(
+            f"{description} is missing required field(s): {', '.join(missing_keys)}"
+        )
+
+
 def load_collected_profiles(
     input_root: Path,
     profile_ids: list[str],
@@ -1632,6 +1917,17 @@ def load_collected_profiles(
         if not zip_path.exists():
             raise SystemExit(f"Missing built asset for {app_data['appId']}: {zip_path}")
 
+        require_manifest_keys(
+            app_data,
+            REQUIRED_APP_INSTALLER_MANIFEST_KEYS,
+            f"Collected manifest for {app_data['appId']} under {root}",
+        )
+        installer_path = root / str(app_data["installerFileName"])
+        if not installer_path.is_file():
+            raise SystemExit(
+                f"Missing built installer for {app_data['appId']}: {installer_path}"
+            )
+
         group = groups.setdefault(
             profile_id,
             {
@@ -1643,6 +1939,7 @@ def load_collected_profiles(
         )
         app_copy = dict(app_data)
         app_copy["zipPath"] = zip_path
+        app_copy["installerPath"] = installer_path
         group["apps"].append(app_copy)
 
     app_manifests = sorted(input_root.rglob("app-*.json"))
@@ -1683,6 +1980,7 @@ def profile_manifest_from_group(
     aggregate_sha: str,
     tray_version: int,
     commit_hash: str,
+    bundle_installer_path: Path,
 ) -> dict:
     profile = PROFILES[group["profile"]]
     apps = []
@@ -1696,6 +1994,9 @@ def profile_manifest_from_group(
         app_entry["fileName"] = app_data["fileName"]
         app_entry["sha256"] = app_data["sha256"]
         app_entry["size"] = app_data.get("size", app_data["zipPath"].stat().st_size)
+        app_entry["installerFileName"] = app_data["installerFileName"]
+        app_entry["installerSha256"] = app_data["installerSha256"]
+        app_entry["installerSize"] = app_data["installerSize"]
         apps.append(app_entry)
 
     manifest = {
@@ -1709,6 +2010,11 @@ def profile_manifest_from_group(
             "size": aggregate_zip.stat().st_size,
             "source": profile.build_source,
             "commitHash": commit_hash,
+        },
+        "bundleInstaller": {
+            "fileName": bundle_installer_path.name,
+            "sha256": sha256_file(bundle_installer_path),
+            "size": bundle_installer_path.stat().st_size,
         },
         "apps": apps,
     }
@@ -1747,7 +2053,41 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
                     "kind": "app",
                 }
             )
+        # Installers are always stamped at the release commit, so their rows carry the
+        # aggregate build source and commit hash while the version identifies the payload.
+        installer_source = manifest["aggregate"]["source"]
+        installer_commit_hash = manifest["aggregate"].get("commitHash", "")
+        for app in manifest["apps"]:
+            rows.append(
+                {
+                    "profileId": manifest["profile"],
+                    "profile": manifest["displayName"],
+                    "appId": app["appId"],
+                    "version": app["version"],
+                    "fileName": app["installerFileName"],
+                    "sha256": app["installerSha256"],
+                    "size": app["installerSize"],
+                    "source": installer_source,
+                    "commitHash": installer_commit_hash,
+                    "kind": "installer",
+                }
+            )
+        rows.append(
+            {
+                "profileId": manifest["profile"],
+                "profile": manifest["displayName"],
+                "appId": BUNDLE_INSTALLER_NAME,
+                "version": manifest["version"],
+                "fileName": manifest["bundleInstaller"]["fileName"],
+                "sha256": manifest["bundleInstaller"]["sha256"],
+                "size": manifest["bundleInstaller"]["size"],
+                "source": installer_source,
+                "commitHash": installer_commit_hash,
+                "kind": "installer",
+            }
+        )
     return rows
+
 
 def artifact_table(rows: list[dict]) -> list[str]:
     lines = [
@@ -2004,9 +2344,20 @@ def publish_release(args: argparse.Namespace) -> int:
         group = groups[profile_id]
         profile = PROFILES[profile_id]
         aggregate_zip = final_dir / aggregate_asset_name(tray_version, profile)
+        # Group apps are sorted by appId, so the bundle payload order is deterministic.
         app_zip_paths = [app_data["zipPath"] for app_data in group["apps"]]
+        app_installer_paths = [app_data["installerPath"] for app_data in group["apps"]]
         app_zips = [(app_data["appId"], app_data["zipPath"]) for app_data in group["apps"]]
         aggregate_sha = create_flat_aggregate_from_zips(app_zips, aggregate_zip)
+        factory_path = resolve_installer_factory(
+            args.installer_factory,
+            Path(args.output_root),
+            profile,
+            aggregate_commit_hash,
+        )
+        bundle_installer_path = build_bundle_installer(
+            factory_path, app_zip_paths, final_dir
+        )
         manifests.append(
             profile_manifest_from_group(
                 group,
@@ -2014,10 +2365,13 @@ def publish_release(args: argparse.Namespace) -> int:
                 aggregate_sha,
                 tray_version,
                 aggregate_commit_hash,
+                bundle_installer_path,
             )
         )
         upload_assets.append(aggregate_zip)
+        upload_assets.append(bundle_installer_path)
         upload_assets.extend(app_zip_paths)
+        upload_assets.extend(app_installer_paths)
 
     rows = artifact_rows(manifests)
 
@@ -2063,6 +2417,8 @@ def main() -> int:
         return build_profile(args)
     if args.phase == "build-app-profile":
         return build_app_profile(args)
+    if args.phase == "build-installer-factory":
+        return build_installer_factory_profile(args)
     if args.phase == "stage-app-profile":
         return stage_app_profile(args)
     if args.phase == "collect-staged-profiles":

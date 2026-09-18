@@ -126,7 +126,8 @@
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETIsVendoredProject)' != 'true'">
+  <!-- Single-file executables such as the installer carry their legal files inside their payloads. -->
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETIsVendoredProject)' != 'true' and '$(TrayAppDotNETSingleFileExecutable)' != 'true'">
     <Content Include="$(TrayAppDotNETRoot)LICENSE"
              Link="LICENSE.txt"
              CopyToOutputDirectory="PreserveNewest"
@@ -141,23 +142,78 @@
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Release Native AOT embeds these two libraries in the managed resource blob. Keep ANGLE
-       loose because Windows loads it as Avalonia's rendering backend before application code. -->
-  <Target Name="RemoveEmbeddedNativeDependenciesFromPublish"
-          AfterTargets="ComputeFilesToPublish"
-          BeforeTargets="CopyFilesToPublishDirectory"
-          Condition="'$(OutputType)' == 'WinExe' and '$(PublishAot)' == 'true' and '$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
-    <ItemGroup>
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
-                             Condition="'%(Filename)%(Extension)' == 'libHarfBuzzSharp.dll' or '%(Filename)%(Extension)' == 'libSkiaSharp.dll'" />
-    </ItemGroup>
-  </Target>
+  <!-- A Release build of an app also stamps that app's own installer beside it. The payload is the app's
+       Native AOT publish output, zipped under the release asset name the factory parses. One factory serves
+       every app: MSBuild builds it once per session and the other app projects reuse that result.
+       Set TrayAppDotNETStampAppInstaller=false to skip stamping during iterative Release work. -->
+  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+    <TrayAppDotNETInstallerProject Condition="'$(TrayAppDotNETInstallerProject)' == ''">$(TrayAppDotNETRoot)TrayAppDotNETInstaller\src\TrayAppDotNETInstaller.csproj</TrayAppDotNETInstallerProject>
+    <TrayAppDotNETInstallerFactoryFileName Condition="'$(TrayAppDotNETInstallerFactoryFileName)' == ''">TrayAppDotNETInstaller.exe</TrayAppDotNETInstallerFactoryFileName>
+    <TrayAppDotNETInstallerAssetPrefix Condition="'$(TrayAppDotNETInstallerAssetPrefix)' == ''">Installer_</TrayAppDotNETInstallerAssetPrefix>
+    <!-- The inner publish carries a RuntimeIdentifier and SkipPublishAfterBuild, so only the outer
+         Release build reaches this. The factory never stamps an installer for itself. -->
+    <TrayAppDotNETStampAppInstaller
+      Condition="'$(TrayAppDotNETStampAppInstaller)' == ''
+                 and '$(Configuration)' == 'Release'
+                 and '$(RuntimeIdentifier)' == ''
+                 and '$(SkipPublishAfterBuild)' != 'true'
+                 and '$(TrayAppDotNETIsVendoredProject)' != 'true'
+                 and '$(TrayAppDotNETIsInstallerFactory)' != 'true'
+                 and Exists('$(TrayAppDotNETInstallerProject)')">true</TrayAppDotNETStampAppInstaller>
+    <TrayAppDotNETStampAppInstaller Condition="'$(TrayAppDotNETStampAppInstaller)' == ''">false</TrayAppDotNETStampAppInstaller>
+  </PropertyGroup>
 
-  <Target Name="RemoveEmbeddedNativeDependenciesFromReleaseBuildOutput"
+  <Target Name="StampAppInstallerAfterBuild"
           AfterTargets="PublishAfterBuild"
-          Condition="'$(OutputType)' == 'WinExe' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == '' and '$(TrayAppDotNETEmbedNativeDependencies)' == 'true'">
-    <Delete Files="$(OutputPath)libHarfBuzzSharp.dll;$(OutputPath)libSkiaSharp.dll"
-            ContinueOnError="WarnAndContinue" />
+          Condition="'$(TrayAppDotNETStampAppInstaller)' == 'true'">
+    <PropertyGroup>
+      <_TrayAppDotNETAppPublishDirectory>$(IntermediateOutputPath)native-publish\</_TrayAppDotNETAppPublishDirectory>
+      <_TrayAppDotNETInstallerPayloadDirectory>$(IntermediateOutputPath)installer-payload\</_TrayAppDotNETInstallerPayloadDirectory>
+      <_TrayAppDotNETInstallerPayloadZip>$(_TrayAppDotNETInstallerPayloadDirectory)$(MSBuildProjectName)_$(BuildNumber).zip</_TrayAppDotNETInstallerPayloadZip>
+      <_TrayAppDotNETStampedInstaller>$(OutputPath)$(TrayAppDotNETInstallerAssetPrefix)$(MSBuildProjectName).exe</_TrayAppDotNETStampedInstaller>
+      <!-- The factory follows the same output rules as this project, so an aggregate build finds it in the
+           shared root and a single-project build finds it in the installer's own bin. The installer project
+           pins its own OutputPath and sets AppendTargetFrameworkToOutputPath false, so .NET Framework 4.8
+           adds no framework folder beneath either directory. -->
+      <_TrayAppDotNETInstallerFactoryDirectory Condition="'$(TrayAppDotNETUseRootOutput)' == 'true'">$(TrayAppDotNETOutputRoot)$(Configuration)\</_TrayAppDotNETInstallerFactoryDirectory>
+      <_TrayAppDotNETInstallerFactoryDirectory Condition="'$(_TrayAppDotNETInstallerFactoryDirectory)' == ''">$(TrayAppDotNETRoot)TrayAppDotNETInstaller\bin\$(Configuration)\</_TrayAppDotNETInstallerFactoryDirectory>
+      <_TrayAppDotNETInstallerFactory>$(_TrayAppDotNETInstallerFactoryDirectory)$(TrayAppDotNETInstallerFactoryFileName)</_TrayAppDotNETInstallerFactory>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_TrayAppDotNETAppPublishDirectory)')"
+           Text="The Native AOT publish output was not found at $(_TrayAppDotNETAppPublishDirectory); the installer payload is built from it." />
+
+    <!-- Symbols would more than double the installer. The build output keeps its own copies, so removing
+         them here only trims the payload. -->
+    <ItemGroup>
+      <_TrayAppDotNETInstallerPayloadSymbol Include="$(_TrayAppDotNETAppPublishDirectory)**\*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_TrayAppDotNETInstallerPayloadSymbol)" ContinueOnError="WarnAndContinue" />
+    <!-- Mirrors the publish copy above, which never carries the compiler's native intermediates -->
+    <RemoveDir Directories="$(_TrayAppDotNETAppPublishDirectory)native"
+               Condition="Exists('$(_TrayAppDotNETAppPublishDirectory)native')"
+               ContinueOnError="WarnAndContinue" />
+
+    <RemoveDir Directories="$(_TrayAppDotNETInstallerPayloadDirectory)" ContinueOnError="WarnAndContinue" />
+    <MakeDir Directories="$(_TrayAppDotNETInstallerPayloadDirectory)" />
+    <Message Importance="High" Text="Packing the $(MSBuildProjectName) installer payload..." />
+    <ZipDirectory SourceDirectory="$(_TrayAppDotNETAppPublishDirectory)"
+                  DestinationFile="$(_TrayAppDotNETInstallerPayloadZip)"
+                  Overwrite="true" />
+
+    <!-- The factory is a .NET Framework 4.8 project, so the .NET publishing properties this app carries
+         must not reach it. An inherited RuntimeIdentifier in particular would append a win-x64 folder to
+         the factory's OutputPath and move the executable out of the directory resolved above. -->
+    <MSBuild Projects="$(TrayAppDotNETInstallerProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=x64"
+             RemoveProperties="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir" />
+
+    <Error Condition="!Exists('$(_TrayAppDotNETInstallerFactory)')"
+           Text="The installer factory was not found at $(_TrayAppDotNETInstallerFactory). A Release build of TrayAppDotNETInstaller produces it." />
+
+    <Exec Command="&quot;$(_TrayAppDotNETInstallerFactory)&quot; --make-installer --output &quot;$(_TrayAppDotNETStampedInstaller)&quot; --payload &quot;$(_TrayAppDotNETInstallerPayloadZip)&quot;" />
+    <Message Importance="High" Text="Stamped $(_TrayAppDotNETStampedInstaller)" />
   </Target>
 
   <ItemGroup>

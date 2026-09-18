@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Installer_Title_Bundle" xml:space="preserve">
+    <value>Install TrayAppDotNET</value>
+  </data>
+  <data name="Installer_Title_Format" xml:space="preserve">
+    <value>Install {0}</value>
+  </data>
+  <data name="Installer_Title_Empty" xml:space="preserve">
+    <value>TrayAppDotNET Installer</value>
+  </data>
+  <data name="Installer_Subtitle_Version_Format" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="Installer_Subtitle_Apps_Format" xml:space="preserve">
+    <value>{0} apps</value>
+  </data>
+  <data name="Installer_Subtitle_NoApps" xml:space="preserve">
+    <value>No application packages are embedded in this installer.</value>
+  </data>
+  <data name="Installer_Windhawk_Notice" xml:space="preserve">
+    <value>Windhawk was not detected. TrayAppDotNET apps work best together with Windhawk's Taskbar Tray System Icon Tweaks mod, which hides the stock Windows tray icons.</value>
+  </data>
+  <data name="Installer_Windhawk_GetLink" xml:space="preserve">
+    <value>Get Windhawk</value>
+  </data>
+  <data name="Installer_Windhawk_ModLink" xml:space="preserve">
+    <value>View the mod</value>
+  </data>
+  <data name="Installer_Apps_Header" xml:space="preserve">
+    <value>Apps to install</value>
+  </data>
+  <data name="Installer_Apps_NoBatteryHint" xml:space="preserve">
+    <value>No battery detected</value>
+  </data>
+  <data name="Installer_Type_Header" xml:space="preserve">
+    <value>Installation type</value>
+  </data>
+  <data name="Installer_Type_Local_Title" xml:space="preserve">
+    <value>Local</value>
+  </data>
+  <data name="Installer_Type_Local_Description" xml:space="preserve">
+    <value>Installs for the current user. No administrator rights needed.</value>
+  </data>
+  <data name="Installer_Type_System_Title" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Installer_Type_System_Description" xml:space="preserve">
+    <value>Installs for all users. Windows will ask for administrator approval.</value>
+  </data>
+  <data name="Installer_Type_Portable_Title" xml:space="preserve">
+    <value>Portable</value>
+  </data>
+  <data name="Installer_Type_Portable_Description" xml:space="preserve">
+    <value>Extracts the app to a folder of your choice without installing it.</value>
+  </data>
+  <data name="Installer_Location_Header" xml:space="preserve">
+    <value>Install location</value>
+  </data>
+  <data name="Installer_Location_Browse" xml:space="preserve">
+    <value>Browse...</value>
+  </data>
+  <data name="Installer_Location_PickerTitle" xml:space="preserve">
+    <value>Select the install folder</value>
+  </data>
+  <data name="Installer_Options_Header" xml:space="preserve">
+    <value>Options</value>
+  </data>
+  <data name="Installer_Options_DesktopShortcut" xml:space="preserve">
+    <value>Create a desktop shortcut</value>
+  </data>
+  <data name="Installer_Options_StartMenuShortcut" xml:space="preserve">
+    <value>Add a Start Menu entry</value>
+  </data>
+  <data name="Installer_Options_Launch" xml:space="preserve">
+    <value>Launch when finished</value>
+  </data>
+  <data name="Installer_Button_Install" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Installer_Button_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Installer_Button_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Installer_Status_Starting" xml:space="preserve">
+    <value>Preparing...</value>
+  </data>
+  <data name="Installer_Status_Complete_Format" xml:space="preserve">
+    <value>Installation complete. Installed to {0}</value>
+  </data>
+  <data name="Installer_Status_Failed" xml:space="preserve">
+    <value>Installation failed.</value>
+  </data>
+  <data name="Installer_Error_NoApps" xml:space="preserve">
+    <value>Select at least one app to install.</value>
+  </data>
+  <data name="Installer_Error_PortableDirectory" xml:space="preserve">
+    <value>Enter a full folder path for the portable copy.</value>
+  </data>
+  <data name="Installer_Error_BrowseFailed_Format" xml:space="preserve">
+    <value>Could not open the folder picker: {0}</value>
+  </data>
+  <data name="Installer_Progress_Extracting_Format" xml:space="preserve">
+    <value>Extracting {0}: {1}</value>
+  </data>
+  <data name="Installer_Progress_Extracted_Format" xml:space="preserve">
+    <value>Extracted {0}</value>
+  </data>
+  <data name="Installer_Progress_Installing_Format" xml:space="preserve">
+    <value>Installing {0}</value>
+  </data>
+  <data name="Installer_Progress_Complete" xml:space="preserve">
+    <value>Installation complete</value>
+  </data>
+  <data name="Installer_Progress_Cancelled" xml:space="preserve">
+    <value>Installation was cancelled.</value>
+  </data>
+  <data name="Installer_Progress_NoPayloads" xml:space="preserve">
+    <value>No applications were selected.</value>
+  </data>
+  <data name="Installer_Progress_UacDeclined" xml:space="preserve">
+    <value>Installation was cancelled because administrator approval was declined.</value>
+  </data>
+  <data name="Installer_Error_PayloadMissing_Format" xml:space="preserve">
+    <value>The installer does not contain {0}.</value>
+  </data>
+  <data name="Installer_Error_AppStartFailed_Format" xml:space="preserve">
+    <value>Could not start {0}.</value>
+  </data>
+  <data name="Installer_Error_WorkerPathUnknown" xml:space="preserve">
+    <value>The installer executable path is unknown.</value>
+  </data>
+  <data name="Installer_Error_WorkerStartFailed" xml:space="preserve">
+    <value>The elevated installer could not be started.</value>
+  </data>
+  <data name="Installer_Error_WorkerExitedEarly_Format" xml:space="preserve">
+    <value>The elevated installer exited with code {0} before reporting progress.</value>
+  </data>
+  <data name="Installer_Error_WorkerNotConnected" xml:space="preserve">
+    <value>The elevated installer did not connect.</value>
+  </data>
+  <data name="Installer_Error_WorkerExitCode_Format" xml:space="preserve">
+    <value>The elevated installer exited with code {0}.</value>
+  </data>
+  <data name="Installer_Error_PackageMissingExecutable_Format" xml:space="preserve">
+    <value>The {0} package does not contain {1}.</value>
+  </data>
+  <data name="Installer_Error_AppInstallerExitCode_Format" xml:space="preserve">
+    <value>The {0} installer exited with code {1}.</value>
+  </data>
+</root>

@@ -101,7 +101,7 @@ internal sealed class FanAvaloniaApp : Application
         {
             LoadSettingsAndTheme();
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope);
+            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -675,9 +675,12 @@ internal sealed class FanAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, FanInstallScope scope)
+    private void ShowUninstallerWindow(
+        string installDir,
+        FanInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        FanUninstallerWindow window = new(installDir, scope);
+        FanUninstallerWindow window = new(installDir, scope, progress);
         if (_settingsWindow != null) window.Show(_settingsWindow);
         else window.Show();
     }

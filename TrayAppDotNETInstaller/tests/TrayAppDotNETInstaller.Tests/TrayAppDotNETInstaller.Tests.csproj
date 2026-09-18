@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Matches the installer, which targets the in-box .NET Framework so the stamped executable stays small -->
+    <TargetFramework>net48</TargetFramework>
+    <!-- The SDK defaults .NET Framework targets to C# 7.3, which has neither nullable nor collection expressions -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- The SDK only supplies implicit usings for .NET 6 and newer, so GlobalUsings.cs supplies the set. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- The stamping test reads Win32 resources back through P/Invoke callbacks -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Supplies the 4.8 reference assemblies so the build does not depend on a targeting pack install. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- The extraction and payload tests build zips; the framework assembly is not referenced by default -->
+    <Reference Include="System.IO.Compression" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TrayAppDotNETInstaller.csproj" />
+  </ItemGroup>
+</Project>

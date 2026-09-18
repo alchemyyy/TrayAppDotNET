@@ -24,12 +24,13 @@ public sealed partial class VolumeSettingsWindow
                     Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
-                    Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                    UninstallAsync = async _ =>
+                    Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
+                    UninstallAsync = async (_, progress) =>
                     {
                         VolumeUninstallerWindow uninstallerDialog = new(
                             AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                            VolumeInstallScope.LocalAppData);
+                            VolumeInstallScope.LocalAppData,
+                            progress);
                         await uninstallerDialog.ShowDialog(this);
                         HookPostUninstallRefresh(uninstallerDialog);
                     }
@@ -40,12 +41,13 @@ public sealed partial class VolumeSettingsWindow
                     Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
-                    Install = static () => AppServices.Installation.InstallSystemWide(),
-                    UninstallAsync = async _ =>
+                    Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
+                    UninstallAsync = async (_, progress) =>
                     {
                         VolumeUninstallerWindow uninstallerDialog = new(
                             AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                            VolumeInstallScope.ProgramFiles);
+                            VolumeInstallScope.ProgramFiles,
+                            progress);
                         await uninstallerDialog.ShowDialog(this);
                         HookPostUninstallRefresh(uninstallerDialog);
                     }

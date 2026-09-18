@@ -16,6 +16,9 @@ internal static class SettingsCardsLayout
     public static Thickness CardPadding => AXAMLResources.AxamlSettingsCards.CardPadding;
     public static Thickness CardMargin => AXAMLResources.AxamlSettingsCards.CardMargin;
     public static double ControlDisabledOpacity => AXAMLResources.AxamlSettingsCards.ControlDisabledOpacity;
+    public static double ProgressBarHeight => AXAMLResources.AxamlSettingsCards.ProgressBarHeight;
+    public static Thickness ProgressRowMargin => AXAMLResources.AxamlSettingsCards.ProgressRowMargin;
+    public static Thickness ProgressStatusMargin => AXAMLResources.AxamlSettingsCards.ProgressStatusMargin;
 }
 
 public static class TrayAppDotNETSettingsCards
@@ -223,6 +226,10 @@ public static class TrayAppDotNETSettingsCards
         return SettingsSearchMetadata.AddSearchKeywords(card, searchKeywords);
     }
 
+    /// <summary>
+    /// Builds a card whose description text can be updated later.
+    /// An optional control is stacked under the description inside the text column.
+    /// </summary>
     public static Border MutableCard(
         string title,
         string description,
@@ -230,7 +237,8 @@ public static class TrayAppDotNETSettingsCards
         SettingsPalette palette,
         CornerRadius cardRadius,
         out TextBlock descriptionText,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        Control? belowDescription = null)
     {
         StackPanel text = new()
         {
@@ -243,6 +251,12 @@ public static class TrayAppDotNETSettingsCards
         descriptionText.IsVisible = !string.IsNullOrEmpty(description);
         DebugUIProvenance.RecordBuilder(descriptionText);
         text.Children.Add(descriptionText);
+        if (belowDescription != null)
+        {
+            DebugUIProvenance.RecordBuilder(belowDescription);
+            text.Children.Add(belowDescription);
+        }
+
         DebugUIProvenance.RecordBuilder(text);
 
         Grid grid = new();

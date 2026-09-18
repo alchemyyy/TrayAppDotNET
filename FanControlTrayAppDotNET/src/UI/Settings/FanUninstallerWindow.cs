@@ -3,15 +3,21 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace FanControlTrayAppDotNET.UI.Settings;
 
-public sealed class FanUninstallerWindow(string installDir, FanInstallScope scope)
-    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
+public sealed class FanUninstallerWindow(
+    string installDir,
+    FanInstallScope scope,
+    IProgress<TrayAppDotNETInstallProgress>? progress = null)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope, progress))
 {
     public FanUninstallerWindow()
         : this(string.Empty, FanInstallScope.LocalAppData)
     {
     }
 
-    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(string installDir, FanInstallScope scope)
+    private static TrayAppDotNETUninstallerWindowOptions CreateOptions(
+        string installDir,
+        FanInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
         AppSettings settings = AppServices.Settings ?? new AppSettings();
         SettingsPalette palette = FanSettingsWindow.CreatePalette(
@@ -28,8 +34,9 @@ public sealed class FanUninstallerWindow(string installDir, FanInstallScope scop
             Palette = palette,
             EnableRoundedCorners = settings.EnableRoundedCorners,
             L = L,
-            RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
+            Progress = progress,
+            RunUninstall = static (uninstallScope, deleteSettings, uninstallProgress) =>
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings, progress: uninstallProgress)
         };
     }
 

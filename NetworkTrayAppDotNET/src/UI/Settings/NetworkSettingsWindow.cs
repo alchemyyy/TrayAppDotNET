@@ -20,17 +20,17 @@ public enum NetworkSettingsPage
 public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<NetworkSettingsPage>
 {
     private readonly AppSettings _settings;
-    private readonly Action<string, InstallScope> _showUninstaller;
+    private readonly Action<string, InstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
     private readonly TrayAppDotNETSettingsColorCardCoordinator _colorCardCoordinator = new();
     private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
     private TrayAppDotNETAboutPage? _aboutPage;
 
     public NetworkSettingsWindow()
-        : this(new AppSettings(), static (_, _) => { })
+        : this(new AppSettings(), static (_, _, _) => { })
     {
     }
 
-    public NetworkSettingsWindow(AppSettings settings, Action<string, InstallScope> showUninstaller)
+    public NetworkSettingsWindow(AppSettings settings, Action<string, InstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         _settings = settings;
         _showUninstaller = showUninstaller;

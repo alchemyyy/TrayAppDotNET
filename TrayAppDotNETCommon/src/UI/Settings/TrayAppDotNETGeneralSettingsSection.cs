@@ -2,6 +2,8 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
+using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
@@ -39,14 +41,17 @@ public sealed class TrayAppDotNETInstallCardOptions
     public required string Title { get; init; }
     public required string ExecutablePath { get; init; }
     public required bool Elevated { get; init; }
-    public required Func<TrayAppDotNETInstallResult> Install { get; init; }
-    public required Func<Action, Task> UninstallAsync { get; init; }
+    public required Func<IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETInstallResult> Install { get; init; }
+    public required Func<Action, IProgress<TrayAppDotNETInstallProgress>?, Task> UninstallAsync { get; init; }
 }
 
 public sealed record TrayAppDotNETStoreInstallOptions(string Title, Func<string> Description);
 
 public sealed class TrayAppDotNETGeneralSettingsSection
 {
+    // An uninstall that returns without ever reporting was cancelled in its confirmation dialog
+    private static readonly TimeSpan UninstallSilenceTimeout = TimeSpan.FromMilliseconds(1500);
+
     private readonly TrayAppDotNETGeneralSettingsSectionOptions _options;
     private readonly List<Action> _refreshers = [];
     private TextBlock? _startupDescription;
@@ -123,6 +128,15 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         installButton.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(installButton, uninstallButton);
 
+        ProgressBar progressBar = BuildProgressBar(p);
+        TextBlock progressStatus = TrayAppDotNETSettingsUI.DescriptionText(
+            string.Empty,
+            p,
+            SettingsCardsLayout.ProgressStatusMargin);
+        StackPanel progressRow = new() { Margin = SettingsCardsLayout.ProgressRowMargin, IsVisible = false };
+        progressRow.Children.Add(progressBar);
+        progressRow.Children.Add(progressStatus);
+
         Border card = TrayAppDotNETSettingsCards.MutableCard(
             entry.Title,
             description: "...",
@@ -130,7 +144,12 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             p,
             _options.CardRadius,
             out TextBlock description,
-            [L(nameof(CommonStrings.Settings_General_Installation_SearchKeywords))]);
+            [L(nameof(CommonStrings.Settings_General_Installation_SearchKeywords))],
+            belowDescription: progressRow);
+
+        // Per-card operation state; every access happens on the UI thread
+        bool operationInProgress = false;
+        int operationGeneration = 0;
 
         _refreshers.Add(() =>
         {
@@ -146,6 +165,8 @@ public sealed class TrayAppDotNETGeneralSettingsSection
 
         installButton.Click += async (_, _) =>
         {
+            if (operationInProgress) return;
+
             bool ok = await _options.ConfirmAsync(
                 L(entry.Scope == InstallScope.ProgramFiles
                     ? nameof(CommonStrings.Settings_General_InstallSystemWideConfirm_Title)
@@ -158,23 +179,35 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                     entry.ExecutablePath),
                 L(nameof(CommonStrings.Common_Install)),
                 L(nameof(CommonStrings.Common_Cancel)));
-            if (!ok) return;
+            if (!ok || operationInProgress) return;
 
-            installButton.IsEnabled = false;
-            TrayAppDotNETInstallResult? result;
+            int generation = BeginOperation();
+            Progress<TrayAppDotNETInstallProgress> progress =
+                CreateUIProgress(update => ApplyProgress(generation, update));
+            TrayAppDotNETInstallResult? result = null;
+            TrayAppDotNETInstallProgress? failure = null;
             try
             {
-                result = await Task.Run(entry.Install);
+                result = await Task.Run(() => entry.Install(progress));
                 if (result is { Success: false, UserCancelled: false } && !string.IsNullOrEmpty(result.ErrorMessage))
-                {
-                    await _options.ShowMessage(L(nameof(CommonStrings.Settings_General_InstallFailed_Title)),
-                        result.ErrorMessage);
-                }
+                    failure = TrayAppDotNETInstallProgress.Failed(result.ErrorMessage);
             }
-            finally
+            catch (Exception exception)
             {
-                installButton.IsEnabled = true;
-                RefreshAfterInstallChange();
+                TADNLog.Log($"Install to {entry.Scope} threw: {exception.Message}");
+                failure = TrayAppDotNETInstallProgress.Failed(exception.Message);
+            }
+
+            // The final error replaces whatever stage message the installer left behind
+            if (failure != null)
+                ApplyProgress(generation, failure);
+            EndOperation(generation, failure);
+
+            if (failure != null)
+            {
+                await _options.ShowMessage(
+                    L(nameof(CommonStrings.Settings_General_InstallFailed_Title)),
+                    failure.Message);
             }
 
             if (result is { Success: true })
@@ -183,12 +216,131 @@ public sealed class TrayAppDotNETGeneralSettingsSection
 
         uninstallButton.Click += async (_, _) =>
         {
-            await entry.UninstallAsync(RefreshAfterInstallChange);
-            RefreshAfterInstallChange();
+            if (operationInProgress) return;
+
+            int generation = BeginOperation();
+            bool updateArrived = false;
+            bool terminalArrived = false;
+            DispatcherTimer silenceTimer = new() { Interval = UninstallSilenceTimeout };
+            silenceTimer.Tick += (_, _) =>
+            {
+                silenceTimer.Stop();
+                if (updateArrived) return;
+
+                EndOperation(generation, terminalUpdate: null);
+            };
+            // The uninstall runs in external processes and keeps reporting after the call returns
+            Progress<TrayAppDotNETInstallProgress> progress = CreateUIProgress(update =>
+            {
+                if (generation != operationGeneration || terminalArrived) return;
+
+                updateArrived = true;
+                silenceTimer.Stop();
+                // A first update that outlived the silence fallback re-opens the card
+                if (!operationInProgress)
+                    ShowOperation();
+                ApplyProgress(generation, update);
+                if (!update.IsComplete && !update.IsFailure) return;
+
+                terminalArrived = true;
+                EndOperation(generation, update);
+            });
+
+            try
+            {
+                await entry.UninstallAsync(RefreshAfterInstallChange, progress);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Uninstall from {entry.Scope} threw: {exception.Message}");
+                silenceTimer.Stop();
+                terminalArrived = true;
+                TrayAppDotNETInstallProgress failure = TrayAppDotNETInstallProgress.Failed(exception.Message);
+                ApplyProgress(generation, failure);
+                EndOperation(generation, failure);
+                return;
+            }
+
+            if (updateArrived || !operationInProgress || generation != operationGeneration) return;
+
+            silenceTimer.Start();
         };
 
         return card;
+
+        void ShowOperation()
+        {
+            operationInProgress = true;
+            progressBar.IsVisible = true;
+            progressRow.IsVisible = true;
+            installButton.IsEnabled = false;
+            uninstallButton.IsEnabled = false;
+        }
+
+        int BeginOperation()
+        {
+            operationGeneration++;
+            progressBar.Value = 0;
+            progressStatus.Text = string.Empty;
+            ShowOperation();
+            return operationGeneration;
+        }
+
+        void ApplyProgress(int generation, TrayAppDotNETInstallProgress update)
+        {
+            if (generation != operationGeneration) return;
+
+            progressBar.Value = Math.Clamp(update.Percent, min: 0, TrayAppDotNETInstallProgress.CompletePercent);
+            progressStatus.Text = update.Message;
+        }
+
+        void EndOperation(int generation, TrayAppDotNETInstallProgress? terminalUpdate)
+        {
+            if (generation != operationGeneration) return;
+
+            operationInProgress = false;
+            installButton.IsEnabled = true;
+            uninstallButton.IsEnabled = true;
+            progressBar.IsVisible = false;
+            // Only a failure message outlives the operation
+            bool keepFailureMessage = terminalUpdate is { IsFailure: true };
+            progressRow.IsVisible = keepFailureMessage;
+            if (!keepFailureMessage)
+                progressStatus.Text = string.Empty;
+            RefreshAfterInstallChange();
+        }
     }
+
+    /// <summary>Creates the thin accent progress bar shown under an install card description.</summary>
+    private ProgressBar BuildProgressBar(SettingsPalette palette) =>
+        new()
+        {
+            Minimum = 0,
+            Maximum = TrayAppDotNETInstallProgress.CompletePercent,
+            Value = 0,
+            MinWidth = 0,
+            MinHeight = SettingsCardsLayout.ProgressBarHeight,
+            Height = SettingsCardsLayout.ProgressBarHeight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent),
+            Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
+            BorderThickness = new Thickness(0),
+            CornerRadius = _options.CardRadius
+        };
+
+    /// <summary>Wraps a UI update so reports from worker threads and external processes land on the UI thread.</summary>
+    private static Progress<TrayAppDotNETInstallProgress> CreateUIProgress(
+        Action<TrayAppDotNETInstallProgress> applyUpdate) =>
+        new(update =>
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                applyUpdate(update);
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() => applyUpdate(update));
+        });
 
     private async Task PromptRestartFromInstalledAsync(TrayAppDotNETInstallCardOptions entry)
     {

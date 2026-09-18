@@ -16,6 +16,7 @@ using BrightnessTrayAppDotNET.UI.Settings;
 using BrightnessTrayAppDotNET.UI.Tray;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
@@ -116,7 +117,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             LoadSettingsAndTheme();
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope);
+            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -925,9 +926,12 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, BrightnessInstallScope scope)
+    private void ShowUninstallerWindow(
+        string installDir,
+        BrightnessInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        BrightnessUninstallerWindow window = new(installDir, scope);
+        BrightnessUninstallerWindow window = new(installDir, scope, progress);
         if (_settingsWindow != null) window.Show(_settingsWindow);
         else window.Show();
     }

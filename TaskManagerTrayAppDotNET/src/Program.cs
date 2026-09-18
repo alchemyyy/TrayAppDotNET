@@ -30,18 +30,17 @@ internal static class Program
             SharedRootFolderName,
             Constants.AppGUID,
             TaskManagerAvaloniaRunner.Run,
-            (sourceExecutable, buildNumber, installOptions) => TrayAppDotNETProgramInstallResult.From(
-                AppServices.Installation.RunAdminInstallSystem(sourceExecutable, buildNumber, installOptions)),
+            (sourceExecutable, buildNumber, installOptions, progress) => TrayAppDotNETProgramInstallResult.From(
+                AppServices.Installation.RunAdminInstallSystem(sourceExecutable, buildNumber, installOptions, progress)),
             (removingScope, allUsers) => AppServices.StartMenu.Sync(removingScope, allUsers),
-            scope => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.PrepareUninstall(scope)),
-            (scope, deleteSettings) => AppServices.Installation.RunUninstall(
+            (scope, deleteSettings, progress) => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.PrepareUninstall(scope, deleteSettings, progress)),
+            (scope, deleteSettings, progress) => AppServices.Installation.RunUninstall(
                 scope,
                 deleteSettings,
-                static () => Environment.Exit(0)),
-            installOptions => TrayAppDotNETProgramInstallResult.From(
-                AppServices.Installation.InstallToLocalAppData(installOptions: installOptions)),
-            installOptions => TrayAppDotNETProgramInstallResult.From(
-                AppServices.Installation.InstallSystemWide(installOptions: installOptions)),
+                static () => Environment.Exit(0),
+                progress),
+            (installOptions, progress) => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.InstallToLocalAppData(installOptions: installOptions, progress: progress)),
+            (installOptions, progress) => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.InstallSystemWide(installOptions: installOptions, progress: progress)),
             () => AppServices.InstallLayout.LocalAppDataInstallExecutable,
             () => AppServices.InstallLayout.ProgramFilesInstallExecutable,
             TADNLog.Log,

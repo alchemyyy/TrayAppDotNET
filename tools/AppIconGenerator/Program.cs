@@ -146,7 +146,7 @@ internal static class Program
         Console.WriteLine("  --target <name>     Generate one target; may be repeated");
         Console.WriteLine("  --help              Show this help");
         Console.WriteLine();
-        Console.WriteLine("Targets: BATADN, BTADN, FCTADN, NTADN, TMTADN, VTADN");
+        Console.WriteLine("Targets: BATADN, BTADN, FCTADN, NTADN, TMTADN, VTADN, TADN");
     }
 
     private sealed class GeneratorOptions

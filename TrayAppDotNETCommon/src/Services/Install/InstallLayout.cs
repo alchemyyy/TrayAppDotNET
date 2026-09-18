@@ -18,15 +18,29 @@ public sealed record TrayAppDotNETInstallLayout(
     public string WindowsAppsRoot { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), path2: "WindowsApps");
 
-    public string LocalAppDataExecutableProfileRelativePath =>
-        Path.Combine(path1: "AppData", path2: "Local", SharedRootFolderName, InstalledExecutableFileName);
+    // Local installs live in their own folder because the shared LocalAppData root also holds each app's
+    // settings directory, its log and the shared versions manifest.
+    public const string InstalledApplicationsFolderName = "apps";
 
+    public string LocalAppDataExecutableProfileRelativePath =>
+        Path.Combine(
+            "AppData",
+            "Local",
+            SharedRootFolderName,
+            InstalledApplicationsFolderName,
+            InstalledExecutableFileName);
+
+    /// <summary>
+    /// Builds the layout from the shared LocalAppData root. The installed binaries land in the
+    /// <see cref="InstalledApplicationsFolderName"/> subfolder of that root, beside the settings folders.
+    /// </summary>
     public static TrayAppDotNETInstallLayout Create(
         string applicationName,
         string sharedRootFolderName,
-        string localAppDataInstallDirectory)
+        string localAppDataRoot)
     {
         string installedExecutableFileName = applicationName + ".exe";
+        string localAppDataInstallDirectory = Path.Combine(localAppDataRoot, InstalledApplicationsFolderName);
         string programFilesInstallDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             sharedRootFolderName);
@@ -97,14 +111,13 @@ public sealed record TrayAppDotNETInstallPayload(
         TrayAppDotNETInstallFile[] requiredFiles =
         [
             new(Name: "av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             .. CreateLegalFiles()
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
         [
-            // Accept legacy copies and remove them only after the shared install root becomes empty
-            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new(Name: "MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];

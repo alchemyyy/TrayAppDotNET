@@ -14,4 +14,6 @@ public sealed record TrayAppDotNETInstallOptions(
     public const string PrepareUninstallArgument = "--uninstall-prepare";
     public const string DesktopShortcutArgument = "--desktop-shortcut";
     public const string StartMenuShortcutArgument = "--start-menu-shortcut";
+    public const string DeleteSettingsArgument = "--delete-settings";
+    public const string ProgressPipeArgument = "--progress-pipe";
 }

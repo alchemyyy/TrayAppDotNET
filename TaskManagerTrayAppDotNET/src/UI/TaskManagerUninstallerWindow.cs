@@ -2,12 +2,14 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-internal sealed class TaskManagerUninstallerWindow(string installDirectory, InstallScope scope)
-    : TrayAppDotNETUninstallerWindow(CreateOptions(installDirectory, scope))
+internal sealed class TaskManagerUninstallerWindow(
+    string installDirectory, InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress = null)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDirectory, scope, progress))
 {
     private static TrayAppDotNETUninstallerWindowOptions CreateOptions(
         string installDirectory,
-        InstallScope scope)
+        InstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         AppSettings? settings = AppServices.Settings;
@@ -27,9 +29,10 @@ internal sealed class TaskManagerUninstallerWindow(string installDirectory, Inst
             Icon = null,
             Palette = palette,
             EnableRoundedCorners = settings?.EnableRoundedCorners ?? true,
+            Progress = progress,
             L = static key => LocalizationManager.Instance[key],
-            RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
+            RunUninstall = static (uninstallScope, deleteSettings, uninstallProgress) =>
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings, progress: uninstallProgress)
         };
     }
 }

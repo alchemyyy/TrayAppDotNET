@@ -21,18 +21,18 @@ public sealed class ProgramStartupTests
             SharedRootFolderName: "TrayAppDotNETInstallTests",
             uniqueID,
             static _ => throw new InvalidOperationException("Application mode was not expected."),
-            static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
+            static (_, _, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
             static (_, _) => { },
-            static _ => throw new InvalidOperationException("Uninstall preparation was not expected."),
-            static (_, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
-            _ =>
+            static (_, _, _) => throw new InvalidOperationException("Uninstall preparation was not expected."),
+            static (_, _, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
+            (_, _) =>
             {
                 unrelatedProcessesWereRunning = !runningApplication.ProcessesExited;
                 return new TrayAppDotNETProgramInstallResult(
                     unrelatedProcessesWereRunning,
                     unrelatedProcessesWereRunning ? null : "Unrelated processes were stopped.");
             },
-            static _ => throw new InvalidOperationException("System install mode was not expected."),
+            static (_, _) => throw new InvalidOperationException("System install mode was not expected."),
             () => Path.Combine(Path.GetTempPath(), applicationName + ".exe"),
             () => Path.Combine(Path.GetTempPath(), applicationName + "-system.exe"),
             logMessages.Add);
@@ -59,12 +59,12 @@ public sealed class ProgramStartupTests
             SharedRootFolderName: "TrayAppDotNETInstallTests",
             uniqueID,
             static _ => throw new InvalidOperationException("Application mode was not expected."),
-            static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
+            static (_, _, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
             static (_, _) => { },
-            static _ => throw new InvalidOperationException("Uninstall preparation was not expected."),
-            static (_, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
-            static _ => throw new InvalidOperationException("Local install mode was not expected."),
-            _ =>
+            static (_, _, _) => throw new InvalidOperationException("Uninstall preparation was not expected."),
+            static (_, _, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
+            static (_, _) => throw new InvalidOperationException("Local install mode was not expected."),
+            (_, _) =>
             {
                 systemInstallInvoked = true;
                 return new TrayAppDotNETProgramInstallResult(

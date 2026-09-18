@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Principal;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Utils;
 
@@ -16,13 +18,46 @@ public sealed record TrayAppDotNETInstallationOptions(
     TrayAppDotNETDesktopShortcutOptions? DesktopShortcutOptions = null);
 
 /// <summary>
+/// Describes an uninstall started by <see cref="TrayAppDotNETInstallationService.RunUninstall"/>.
+/// The caller owns <see cref="Process"/> when one is returned. <see cref="Completion"/> finishes after the
+/// final progress report has been delivered and never faults.
+/// </summary>
+public sealed record TrayAppDotNETUninstallRun(Process? Process, bool UserCancelled, Task Completion)
+{
+    public static readonly TrayAppDotNETUninstallRun WithoutProcess =
+        new(Process: null, UserCancelled: false, Task.CompletedTask);
+
+    public static readonly TrayAppDotNETUninstallRun Cancelled =
+        new(Process: null, UserCancelled: true, Task.CompletedTask);
+}
+
+/// <summary>
 /// App-agnostic installer for TrayAppDotNET publish payloads.
 /// The caller supplies app identity, install layout, payload contents, current build number,
 /// and optional hooks for UI-thread shutdown and Start Menu reconciliation.
+/// Every long operation accepts an optional progress sink fed with localized stage messages.
 /// </summary>
 public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOptions options)
 {
     private const int UninstallProcessStopAttempts = 20;
+    private const int ElevatedProgressDrainTimeoutMs = 2000;
+
+    // Install stage percentages
+    private const int InstallStoppingInstancesPercent = 0;
+    private const int InstallCheckingFilesPercent = 5;
+    private const int InstallCopyStartPercent = 10;
+    private const int InstallCopyEndPercent = 85;
+    private const int InstallRegisteringPercent = 88;
+    private const int InstallShortcutsPercent = 92;
+
+    // Uninstall stage percentages; the batch file removal stage follows the helper stages
+    private const int UninstallStartupShortcutPercent = 5;
+    private const int UninstallStartMenuPercent = 20;
+    private const int UninstallDesktopShortcutPercent = 35;
+    private const int UninstallRegistryPercent = 50;
+    private const int UninstallStoppingInstancesPercent = 60;
+    private const int UninstallDeletingSettingsPercent = 75;
+    private const int UninstallRemovingFilesPercent = 85;
 
     public TrayAppDotNETInstallIdentity Identity => options.Identity;
 
@@ -131,104 +166,161 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
     public TrayAppDotNETInstallResult InstallToLocalAppData(
         string? sourceExe = null,
-        TrayAppDotNETInstallOptions? installOptions = null)
+        TrayAppDotNETInstallOptions? installOptions = null,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
-        {
-            return new TrayAppDotNETInstallResult(Success: false,
-                ErrorMessage: "Cannot determine running executable path");
-        }
+            return Fail(progress, errorMessage: "Cannot determine running executable path");
 
         try
         {
-            StopInstalledProcesses(InstallScope.LocalAppData);
-
-            TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
-                sourceExe,
-                Layout.LocalAppDataInstallDirectory,
-                Layout.LocalAppDataInstallExecutable);
-            if (!copyResult.Success) return copyResult;
-
-            WindowsUninstallRegistry.Write(
+            return InstallPayload(
                 InstallScope.LocalAppData,
-                Layout.LocalAppDataInstallDirectory,
+                sourceExe,
                 options.CurrentBuildNumber,
-                Identity,
-                Layout.InstalledExecutableFileName);
-
-            return ApplyInstallOptions(InstallScope.LocalAppData, allUsers: false, installOptions);
+                installOptions,
+                progress);
         }
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.InstallToLocalAppData: {ex}");
-            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
+            return Fail(progress, ex.Message);
         }
     }
 
     public TrayAppDotNETInstallResult InstallSystemWide(
         string? sourceExe = null,
-        TrayAppDotNETInstallOptions? installOptions = null)
+        TrayAppDotNETInstallOptions? installOptions = null,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
-        {
-            return new TrayAppDotNETInstallResult(Success: false,
-                ErrorMessage: "Cannot determine running executable path");
-        }
+            return Fail(progress, errorMessage: "Cannot determine running executable path");
 
         if (IsElevated(Identity.WriteLog))
-            return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber, installOptions);
+            return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber, installOptions, progress);
 
-        return TryInvokeElevated(
-            BuildElevatedInstallArguments(sourceExe, options.CurrentBuildNumber, installOptions),
-            sourceExe);
+        return InvokeElevatedInstall(sourceExe, installOptions, progress);
     }
 
     public TrayAppDotNETInstallResult RunAdminInstallSystem(
         string sourceExe,
         int buildNumber,
-        TrayAppDotNETInstallOptions? installOptions = null)
+        TrayAppDotNETInstallOptions? installOptions = null,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         try
         {
             if (!IsElevated(Identity.WriteLog))
-            {
-                return new TrayAppDotNETInstallResult(Success: false,
-                    ErrorMessage: "System installation requires elevation");
-            }
+                return Fail(progress, errorMessage: "System installation requires elevation");
 
             if (!File.Exists(sourceExe))
-                return new TrayAppDotNETInstallResult(Success: false, $"Source exe not found: {sourceExe}");
+                return Fail(progress, $"Source exe not found: {sourceExe}");
 
-            StopInstalledProcesses(InstallScope.ProgramFiles);
-
-            TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
-                sourceExe,
-                Layout.ProgramFilesInstallDirectory,
-                Layout.ProgramFilesInstallExecutable);
-            if (!copyResult.Success) return copyResult;
-
-            WindowsUninstallRegistry.Write(
-                InstallScope.ProgramFiles,
-                Layout.ProgramFilesInstallDirectory,
-                buildNumber,
-                Identity,
-                Layout.InstalledExecutableFileName);
-
-            return ApplyInstallOptions(InstallScope.ProgramFiles, allUsers: true, installOptions);
+            return InstallPayload(InstallScope.ProgramFiles, sourceExe, buildNumber, installOptions, progress);
         }
         catch (Exception ex)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.RunAdminInstallSystem: {ex}");
-            return new TrayAppDotNETInstallResult(Success: false, ex.Message);
+            return Fail(progress, ex.Message);
         }
+    }
+
+    /// <summary>Runs the staged install for one scope and reports every stage.</summary>
+    private TrayAppDotNETInstallResult InstallPayload(
+        InstallScope scope,
+        string sourceExe,
+        int buildNumber,
+        TrayAppDotNETInstallOptions? installOptions,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
+    {
+        bool allUsers = scope == InstallScope.ProgramFiles;
+        string destinationDirectory = allUsers
+            ? Layout.ProgramFilesInstallDirectory
+            : Layout.LocalAppDataInstallDirectory;
+        string destinationExecutable = allUsers
+            ? Layout.ProgramFilesInstallExecutable
+            : Layout.LocalAppDataInstallExecutable;
+
+        ReportStage(progress, InstallStoppingInstancesPercent, nameof(CommonStrings.Install_Progress_StoppingInstances));
+        StopInstalledProcesses(scope);
+
+        ReportStage(progress, InstallCheckingFilesPercent, nameof(CommonStrings.Install_Progress_CheckingFiles));
+        TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
+            sourceExe,
+            destinationDirectory,
+            destinationExecutable,
+            progress);
+        if (!copyResult.Success) return Fail(progress, copyResult.ErrorMessage);
+
+        ReportStage(progress, InstallRegisteringPercent, nameof(CommonStrings.Install_Progress_RegisteringUninstall));
+        WindowsUninstallRegistry.Write(
+            scope,
+            destinationDirectory,
+            buildNumber,
+            Identity,
+            Layout.InstalledExecutableFileName);
+
+        ReportStage(progress, InstallShortcutsPercent, nameof(CommonStrings.Install_Progress_UpdatingShortcuts));
+        TrayAppDotNETInstallResult result = ApplyInstallOptions(scope, allUsers, installOptions);
+        if (!result.Success) return Fail(progress, result.ErrorMessage);
+
+        ReportStage(
+            progress,
+            TrayAppDotNETInstallProgress.CompletePercent,
+            nameof(CommonStrings.Install_Progress_Complete));
+        return result;
+    }
+
+    /// <summary>Starts the elevated helper and relays its stage reports through a named pipe.</summary>
+    private TrayAppDotNETInstallResult InvokeElevatedInstall(
+        string sourceExe,
+        TrayAppDotNETInstallOptions? installOptions,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
+    {
+        if (progress == null)
+        {
+            return TryInvokeElevated(
+                BuildElevatedInstallArguments(sourceExe, options.CurrentBuildNumber, installOptions),
+                sourceExe);
+        }
+
+        ReportStage(progress, percent: 0, nameof(CommonStrings.Install_Progress_RequestingElevation));
+        TrayAppDotNETProgressTracker tracker = new(progress);
+        using TrayAppDotNETProgressPipeServer pipeServer = new(
+            TrayAppDotNETProgressPipeServer.CreatePipeName(Identity.ApplicationName),
+            tracker,
+            Identity.WriteLog);
+        TrayAppDotNETInstallResult result = TryInvokeElevated(
+            BuildElevatedInstallArguments(sourceExe, options.CurrentBuildNumber, installOptions, pipeServer.PipeName),
+            sourceExe);
+        DrainProgress(pipeServer);
+
+        // The helper reports its own outcome; only fill in when it never reached a terminal update
+        if (tracker.IsTerminal) return result;
+
+        if (result.Success)
+        {
+            ReportStage(
+                progress,
+                TrayAppDotNETInstallProgress.CompletePercent,
+                nameof(CommonStrings.Install_Progress_Complete));
+            return result;
+        }
+
+        string failureMessage = result.UserCancelled
+            ? L(nameof(CommonStrings.Install_Progress_Cancelled))
+            : result.ErrorMessage ?? string.Empty;
+        progress.Report(TrayAppDotNETInstallProgress.Failed(failureMessage));
+        return result;
     }
 
     public TrayAppDotNETInstallResult CopyInstallPayload(
         string sourceExe,
         string destinationDirectory,
-        string destinationExe)
+        string destinationExe,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         try
         {
@@ -262,47 +354,16 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 }
             }
 
+            List<InstallCopyItem> copyPlan = BuildCopyPlan(sourceExe, sourceDirectory, destinationDirectory, destinationExe);
             Directory.CreateDirectory(destinationDirectory);
-            CopyFileIfDifferent(sourceExe, destinationExe);
-
-            foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
+            int copiedCount = 0;
+            foreach (InstallCopyItem item in copyPlan)
             {
-                CopyFileIfDifferent(Path.Combine(sourceDirectory, file.Name),
-                    Path.Combine(destinationDirectory, file.Name));
-            }
+                if (item.IsDirectory) Directory.CreateDirectory(item.Destination);
+                else CopyFileIfDifferent(item.Source, item.Destination);
 
-            foreach (TrayAppDotNETInstallFile file in Payload.OptionalFiles)
-            {
-                string sourceFile = Path.Combine(sourceDirectory, file.Name);
-                if (File.Exists(sourceFile))
-                    CopyFileIfDifferent(sourceFile, Path.Combine(destinationDirectory, file.Name));
-            }
-
-            if (Payload.CopySourceDirectoryRootFiles)
-            {
-                foreach (string sourceFile in Directory.EnumerateFiles(sourceDirectory))
-                {
-                    if (!ShouldCopySourceDirectoryRootFile(sourceFile, Layout.InstalledExecutableFileName))
-                        continue;
-
-                    CopyFileIfDifferent(
-                        sourceFile,
-                        Path.Combine(destinationDirectory, Path.GetFileName(sourceFile)));
-                }
-            }
-
-            foreach (TrayAppDotNETInstallDirectory directory in Payload.RequiredDirectories)
-            {
-                CopyDirectoryMerge(
-                    Path.Combine(sourceDirectory, directory.Name),
-                    Path.Combine(destinationDirectory, directory.Name));
-            }
-
-            foreach (TrayAppDotNETInstallDirectory directory in Payload.OptionalDirectories)
-            {
-                string sourcePath = Path.Combine(sourceDirectory, directory.Name);
-                if (Directory.Exists(sourcePath))
-                    CopyDirectoryMerge(sourcePath, Path.Combine(destinationDirectory, directory.Name));
+                copiedCount++;
+                ReportCopyProgress(progress, copiedCount, copyPlan.Count);
             }
 
             return new TrayAppDotNETInstallResult(true);
@@ -314,7 +375,124 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         }
     }
 
-    public Process? RunUninstall(InstallScope scope, bool deleteSettings, Action? shutdownCurrentProcess = null)
+    /// <summary>Lists every file and directory to copy so progress can be reported against a known total.</summary>
+    private List<InstallCopyItem> BuildCopyPlan(
+        string sourceExe,
+        string sourceDirectory,
+        string destinationDirectory,
+        string destinationExe)
+    {
+        List<InstallCopyItem> copyPlan = [];
+        copyPlan.Add(new InstallCopyItem(sourceExe, destinationExe, IsDirectory: false));
+
+        foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
+        {
+            copyPlan.Add(new InstallCopyItem(
+                Path.Combine(sourceDirectory, file.Name),
+                Path.Combine(destinationDirectory, file.Name),
+                IsDirectory: false));
+        }
+
+        foreach (TrayAppDotNETInstallFile file in Payload.OptionalFiles)
+        {
+            string sourceFile = Path.Combine(sourceDirectory, file.Name);
+            if (!File.Exists(sourceFile)) continue;
+
+            copyPlan.Add(new InstallCopyItem(
+                sourceFile,
+                Path.Combine(destinationDirectory, file.Name),
+                IsDirectory: false));
+        }
+
+        if (Payload.CopySourceDirectoryRootFiles)
+        {
+            foreach (string sourceFile in Directory.EnumerateFiles(sourceDirectory))
+            {
+                if (!ShouldCopySourceDirectoryRootFile(sourceFile, Layout.InstalledExecutableFileName))
+                    continue;
+
+                copyPlan.Add(new InstallCopyItem(
+                    sourceFile,
+                    Path.Combine(destinationDirectory, Path.GetFileName(sourceFile)),
+                    IsDirectory: false));
+            }
+        }
+
+        foreach (TrayAppDotNETInstallDirectory directory in Payload.RequiredDirectories)
+        {
+            AddDirectoryMergePlan(
+                copyPlan,
+                Path.Combine(sourceDirectory, directory.Name),
+                Path.Combine(destinationDirectory, directory.Name));
+        }
+
+        foreach (TrayAppDotNETInstallDirectory directory in Payload.OptionalDirectories)
+        {
+            string sourcePath = Path.Combine(sourceDirectory, directory.Name);
+            if (!Directory.Exists(sourcePath)) continue;
+
+            AddDirectoryMergePlan(copyPlan, sourcePath, Path.Combine(destinationDirectory, directory.Name));
+        }
+
+        return copyPlan;
+    }
+
+    private static void AddDirectoryMergePlan(
+        List<InstallCopyItem> copyPlan,
+        string sourceDirectory,
+        string destinationDirectory)
+    {
+        if (string.Equals(
+                PathNormalization.Normalize(sourceDirectory),
+                PathNormalization.Normalize(destinationDirectory),
+                StringComparison.OrdinalIgnoreCase))
+            return;
+
+        copyPlan.Add(new InstallCopyItem(sourceDirectory, destinationDirectory, IsDirectory: true));
+
+        foreach (string directory in Directory.EnumerateDirectories(sourceDirectory, searchPattern: "*",
+                     SearchOption.AllDirectories))
+        {
+            string relativePath = Path.GetRelativePath(sourceDirectory, directory);
+            copyPlan.Add(new InstallCopyItem(
+                directory,
+                Path.Combine(destinationDirectory, relativePath),
+                IsDirectory: true));
+        }
+
+        foreach (string file in Directory.EnumerateFiles(sourceDirectory, searchPattern: "*",
+                     SearchOption.AllDirectories))
+        {
+            string relativePath = Path.GetRelativePath(sourceDirectory, file);
+            copyPlan.Add(new InstallCopyItem(
+                file,
+                Path.Combine(destinationDirectory, relativePath),
+                IsDirectory: false));
+        }
+    }
+
+    private static void ReportCopyProgress(IProgress<TrayAppDotNETInstallProgress>? progress, int copied, int total)
+    {
+        if (progress == null || total <= 0) return;
+
+        int percent = InstallCopyStartPercent + (InstallCopyEndPercent - InstallCopyStartPercent) * copied / total;
+        string message = string.Format(
+            CultureInfo.CurrentCulture,
+            L(nameof(CommonStrings.Install_Progress_CopyingFiles_Format)),
+            copied,
+            total);
+        progress.Report(TrayAppDotNETInstallProgress.At(percent, message));
+    }
+
+    /// <summary>
+    /// Starts the batch uninstall. Stage reports from the helper arrive through a named pipe, the file
+    /// removal stage is reported when the helper finishes, and completion follows the batch exit code.
+    /// </summary>
+    public TrayAppDotNETUninstallRun RunUninstall(
+        InstallScope scope,
+        bool deleteSettings,
+        Action? shutdownCurrentProcess = null,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         string installDirectory = scope switch
         {
@@ -322,7 +500,15 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             InstallScope.ProgramFiles => Layout.ProgramFilesInstallDirectory,
             _ => string.Empty
         };
-        if (string.IsNullOrEmpty(installDirectory)) return null;
+        if (string.IsNullOrEmpty(installDirectory)) return TrayAppDotNETUninstallRun.WithoutProcess;
+
+        TrayAppDotNETProgressTracker? tracker = progress == null ? null : new TrayAppDotNETProgressTracker(progress);
+        TrayAppDotNETProgressPipeServer? pipeServer = tracker == null
+            ? null
+            : new TrayAppDotNETProgressPipeServer(
+                TrayAppDotNETProgressPipeServer.CreatePipeName(Identity.ApplicationName),
+                tracker,
+                Identity.WriteLog);
 
         Process? batProcess = UninstallScript.Run(
             installDirectory,
@@ -331,9 +517,22 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             Identity,
             Layout.InstalledExecutableFileName,
             Payload,
+            pipeServer?.PipeName,
             out bool userCancelled);
 
-        if (userCancelled) return null;
+        if (userCancelled)
+        {
+            pipeServer?.Dispose();
+            tracker?.Report(TrayAppDotNETInstallProgress.Failed(L(nameof(CommonStrings.Uninstall_Progress_Cancelled))));
+            return TrayAppDotNETUninstallRun.Cancelled;
+        }
+
+        if (batProcess == null)
+        {
+            pipeServer?.Dispose();
+            tracker?.Report(TrayAppDotNETInstallProgress.Failed(L(nameof(CommonStrings.Uninstall_Progress_NotStarted))));
+            return TrayAppDotNETUninstallRun.WithoutProcess;
+        }
 
         string runningExe = PathNormalization.Normalize(Environment.ProcessPath);
         string installExecutable = PathNormalization.Normalize(
@@ -341,48 +540,150 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         bool runningFromInstall = !string.IsNullOrEmpty(runningExe)
                                   && string.Equals(runningExe, installExecutable, StringComparison.OrdinalIgnoreCase);
 
-        if (!runningFromInstall) return batProcess;
+        if (!runningFromInstall)
+        {
+            Task completion = tracker == null
+                ? Task.CompletedTask
+                : MonitorUninstallAsync(batProcess.Id, pipeServer, tracker);
+            return new TrayAppDotNETUninstallRun(batProcess, UserCancelled: false, completion);
+        }
 
+        // This process is the installed instance; it exits now and nothing remains to observe the stages
+        pipeServer?.Dispose();
         Action shutdown = shutdownCurrentProcess ?? (() => Environment.Exit(0));
         if (shutdownCurrentProcess != null) shutdown();
         else if (options.PostToUIThread != null) options.PostToUIThread(shutdown);
         else shutdown();
 
-        batProcess?.Dispose();
-        return null;
+        batProcess.Dispose();
+        return TrayAppDotNETUninstallRun.WithoutProcess;
+    }
+
+    private async Task MonitorUninstallAsync(
+        int processID,
+        TrayAppDotNETProgressPipeServer? pipeServer,
+        TrayAppDotNETProgressTracker tracker)
+    {
+        try
+        {
+            using Process observer = Process.GetProcessById(processID);
+            // Retain the handle so ExitCode remains available after the externally opened process exits
+            _ = observer.SafeHandle;
+            Task exitTask = observer.WaitForExitAsync();
+            if (pipeServer != null)
+            {
+                await Task.WhenAny(pipeServer.Completion, exitTask).ConfigureAwait(false);
+                if (!exitTask.IsCompleted && !tracker.IsTerminal)
+                {
+                    ReportStage(
+                        tracker,
+                        UninstallRemovingFilesPercent,
+                        nameof(CommonStrings.Uninstall_Progress_RemovingFiles));
+                }
+            }
+
+            await exitTask.ConfigureAwait(false);
+            if (tracker.IsTerminal) return;
+
+            int exitCode = observer.ExitCode;
+            if (exitCode == 0)
+            {
+                ReportStage(
+                    tracker,
+                    TrayAppDotNETInstallProgress.CompletePercent,
+                    nameof(CommonStrings.Uninstall_Progress_Complete));
+                return;
+            }
+
+            tracker.Report(TrayAppDotNETInstallProgress.Failed(string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.Uninstall_Progress_Failed_Format)),
+                exitCode)));
+        }
+        catch (ArgumentException)
+        {
+            // The batch finished before it could be observed
+            if (!tracker.IsTerminal)
+            {
+                ReportStage(
+                    tracker,
+                    TrayAppDotNETInstallProgress.CompletePercent,
+                    nameof(CommonStrings.Uninstall_Progress_Complete));
+            }
+        }
+        catch (Exception exception)
+        {
+            Identity.WriteLog($"TrayAppDotNETInstallationService.MonitorUninstall: {exception}");
+            if (!tracker.IsTerminal) tracker.Report(TrayAppDotNETInstallProgress.Failed(exception.Message));
+        }
+        finally
+        {
+            pipeServer?.Dispose();
+        }
     }
 
     /// <summary>Reconciles shell state and stops exact installed processes before file removal.</summary>
-    public TrayAppDotNETInstallResult PrepareUninstall(InstallScope scope)
+    public TrayAppDotNETInstallResult PrepareUninstall(
+        InstallScope scope,
+        bool deleteSettings = false,
+        IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         if (scope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
-            return new TrayAppDotNETInstallResult(Success: false, $"Unsupported uninstall scope: {scope}");
+            return Fail(progress, $"Unsupported uninstall scope: {scope}");
         if (scope == InstallScope.ProgramFiles && !IsElevated(Identity.WriteLog))
-        {
-            return new TrayAppDotNETInstallResult(Success: false,
-                ErrorMessage: "System uninstall preparation requires elevation");
-        }
+            return Fail(progress, errorMessage: "System uninstall preparation requires elevation");
 
         try
         {
+            ReportStage(progress, UninstallStartupShortcutPercent, nameof(CommonStrings.Uninstall_Progress_StartupShortcut));
             ReconcileStartupShortcut(scope);
+
+            ReportStage(progress, UninstallStartMenuPercent, nameof(CommonStrings.Uninstall_Progress_StartMenu));
             options.SyncStartMenu?.Invoke(scope, scope == InstallScope.ProgramFiles);
 
+            ReportStage(progress, UninstallDesktopShortcutPercent, nameof(CommonStrings.Uninstall_Progress_DesktopShortcut));
             TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(scope, enabled: false);
             if (!desktopResult.Success)
                 Identity.WriteLog($"PrepareUninstall: {desktopResult.ErrorMessage}");
 
+            ReportStage(progress, UninstallRegistryPercent, nameof(CommonStrings.Uninstall_Progress_Registry));
             _ = WindowsUninstallRegistry.Remove(scope, Identity);
             RemoveLegacyRunEntry();
+
+            ReportStage(progress, UninstallStoppingInstancesPercent, nameof(CommonStrings.Uninstall_Progress_StoppingInstances));
             StopInstalledProcesses(scope);
+
+            if (deleteSettings)
+            {
+                ReportStage(progress, UninstallDeletingSettingsPercent, nameof(CommonStrings.Uninstall_Progress_DeletingSettings));
+                DeleteSettingsDirectory();
+            }
+
             return desktopResult.Success
                 ? new TrayAppDotNETInstallResult(true)
-                : desktopResult;
+                : Fail(progress, desktopResult.ErrorMessage);
         }
         catch (Exception exception)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.PrepareUninstall({scope}): {exception}");
-            return new TrayAppDotNETInstallResult(Success: false, exception.Message);
+            return Fail(progress, exception.Message);
+        }
+    }
+
+    /// <summary>Removes the settings directory; the batch stage repeats the removal once every process is gone.</summary>
+    private void DeleteSettingsDirectory()
+    {
+        string settingsDirectory = Identity.SettingsDirectory;
+        if (string.IsNullOrWhiteSpace(settingsDirectory) || !Directory.Exists(settingsDirectory)) return;
+
+        try
+        {
+            Directory.Delete(settingsDirectory, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Identity.WriteLog(
+                $"PrepareUninstall: settings removal deferred to the batch stage: {exception.Message}");
         }
     }
 
@@ -589,22 +890,51 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     internal static string BuildElevatedInstallArguments(
         string sourceExecutable,
         int buildNumber,
-        TrayAppDotNETInstallOptions? installOptions)
+        TrayAppDotNETInstallOptions? installOptions,
+        string? progressPipeName = null)
     {
         string arguments =
             $"{TrayAppDotNETInstallOptions.SystemInstallArgument} "
             + $"{TrayAppDotNETInstallOptions.SourceExecutableArgument} \"{sourceExecutable}\" "
             + $"{TrayAppDotNETInstallOptions.BuildNumberArgument} {buildNumber}";
-        if (installOptions == null) return arguments;
+        if (installOptions != null)
+        {
+            arguments += $" {TrayAppDotNETInstallOptions.DesktopShortcutArgument} "
+                         + FormatBooleanArgument(installOptions.CreateDesktopShortcut)
+                         + $" {TrayAppDotNETInstallOptions.StartMenuShortcutArgument} "
+                         + FormatBooleanArgument(installOptions.CreateStartMenuShortcut);
+        }
 
-        return arguments
-               + $" {TrayAppDotNETInstallOptions.DesktopShortcutArgument} "
-               + FormatBooleanArgument(installOptions.CreateDesktopShortcut)
-               + $" {TrayAppDotNETInstallOptions.StartMenuShortcutArgument} "
-               + FormatBooleanArgument(installOptions.CreateStartMenuShortcut);
+        if (!string.IsNullOrWhiteSpace(progressPipeName))
+            arguments += $" {TrayAppDotNETInstallOptions.ProgressPipeArgument} {progressPipeName}";
+
+        return arguments;
     }
 
     private static string FormatBooleanArgument(bool value) => value ? "true" : "false";
+
+    private static void DrainProgress(TrayAppDotNETProgressPipeServer pipeServer)
+    {
+        try
+        {
+            _ = pipeServer.Completion.Wait(ElevatedProgressDrainTimeoutMs);
+        }
+        catch (AggregateException exception)
+        {
+            TADNLog.Log($"TrayAppDotNETInstallationService.DrainProgress: {exception.InnerException?.Message}");
+        }
+    }
+
+    private static TrayAppDotNETInstallResult Fail(IProgress<TrayAppDotNETInstallProgress>? progress, string? errorMessage)
+    {
+        progress?.Report(TrayAppDotNETInstallProgress.Failed(errorMessage ?? string.Empty));
+        return new TrayAppDotNETInstallResult(Success: false, errorMessage);
+    }
+
+    private static void ReportStage(IProgress<TrayAppDotNETInstallProgress>? progress, int percent, string messageKey) =>
+        progress?.Report(TrayAppDotNETInstallProgress.At(percent, L(messageKey)));
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private static bool ShouldCopySourceDirectoryRootFile(string sourceFile, string installedExecutableFileName)
     {
@@ -687,28 +1017,22 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                && File.ReadAllBytes(sourceFile).AsSpan().SequenceEqual(File.ReadAllBytes(destinationFile));
     }
 
-    private static void CopyDirectoryMerge(string sourceDirectory, string destinationDirectory)
+    /// <summary>One planned copy: a file to copy or a directory to create.</summary>
+    private readonly record struct InstallCopyItem(string Source, string Destination, bool IsDirectory);
+}
+
+/// <summary>Forwards progress updates and remembers whether a terminal update has been delivered.</summary>
+internal sealed class TrayAppDotNETProgressTracker(IProgress<TrayAppDotNETInstallProgress> target)
+    : IProgress<TrayAppDotNETInstallProgress>
+{
+    private int _terminal;
+
+    public bool IsTerminal => Volatile.Read(ref _terminal) != 0;
+
+    public void Report(TrayAppDotNETInstallProgress value)
     {
-        if (string.Equals(
-                PathNormalization.Normalize(sourceDirectory),
-                PathNormalization.Normalize(destinationDirectory),
-                StringComparison.OrdinalIgnoreCase))
-            return;
-
-        Directory.CreateDirectory(destinationDirectory);
-
-        foreach (string directory in Directory.EnumerateDirectories(sourceDirectory, searchPattern: "*",
-                     SearchOption.AllDirectories))
-        {
-            string relativePath = Path.GetRelativePath(sourceDirectory, directory);
-            Directory.CreateDirectory(Path.Combine(destinationDirectory, relativePath));
-        }
-
-        foreach (string file in Directory.EnumerateFiles(sourceDirectory, searchPattern: "*",
-                     SearchOption.AllDirectories))
-        {
-            string relativePath = Path.GetRelativePath(sourceDirectory, file);
-            CopyFileIfDifferent(file, Path.Combine(destinationDirectory, relativePath));
-        }
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.IsComplete || value.IsFailure) Volatile.Write(ref _terminal, value: 1);
+        target.Report(value);
     }
 }

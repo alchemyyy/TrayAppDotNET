@@ -96,7 +96,7 @@ internal sealed class BatteryAvaloniaApp : Application
         {
             LoadSettingsAndTheme();
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope);
+            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -619,9 +619,12 @@ internal sealed class BatteryAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, BatteryInstallScope scope)
+    private void ShowUninstallerWindow(
+        string installDir,
+        BatteryInstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
     {
-        BatteryUninstallerWindow window = new(installDir, scope);
+        BatteryUninstallerWindow window = new(installDir, scope, progress);
         if (_settingsWindow != null) window.Show(_settingsWindow);
         else window.Show();
     }

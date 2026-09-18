@@ -31,16 +31,18 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private const double NonFunctioningFanCardBottomGap = 6.0;
 
     private readonly AppSettings _settings;
-    private readonly Action<string, FanInstallScope> _showUninstaller;
+    private readonly Action<string, FanInstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
     private readonly List<FanPropertiesPageGeneration> _fanPropertiesPageGenerations = [];
     private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
 
     public FanSettingsWindow()
-        : this(new AppSettings(), static (_, _) => { })
+        : this(new AppSettings(), static (_, _, _) => { })
     {
     }
 
-    public FanSettingsWindow(AppSettings settings, Action<string, FanInstallScope> showUninstaller)
+    public FanSettingsWindow(
+        AppSettings settings,
+        Action<string, FanInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
@@ -154,11 +156,14 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
                 ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                 Elevated = false,
-                Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                UninstallAsync = refresh =>
+                Install = static progress =>
+                    AppServices.Installation.InstallToLocalAppData(progress: progress),
+                UninstallAsync = (refresh, progress) =>
                 {
-                    _showUninstaller(AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                        FanInstallScope.LocalAppData);
+                    _showUninstaller(
+                        AppServices.InstallLayout.LocalAppDataInstallDirectory,
+                        FanInstallScope.LocalAppData,
+                        progress);
                     return Task.CompletedTask;
                 }
             },
@@ -168,11 +173,14 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
                 ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                 Elevated = true,
-                Install = static () => AppServices.Installation.InstallSystemWide(),
-                UninstallAsync = refresh =>
+                Install = static progress =>
+                    AppServices.Installation.InstallSystemWide(progress: progress),
+                UninstallAsync = (refresh, progress) =>
                 {
-                    _showUninstaller(AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                        FanInstallScope.ProgramFiles);
+                    _showUninstaller(
+                        AppServices.InstallLayout.ProgramFilesInstallDirectory,
+                        FanInstallScope.ProgramFiles,
+                        progress);
                     return Task.CompletedTask;
                 }
             }
