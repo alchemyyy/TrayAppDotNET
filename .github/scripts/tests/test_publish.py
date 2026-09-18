@@ -143,7 +143,7 @@ def write_collected_app_manifest(
     zip_name = f"{app.name}_{version}.zip"
     with ZipFile(app_root / zip_name, "w"):
         pass
-    installer_name = PUBLISH.installer_asset_name(app.name)
+    installer_name = PUBLISH.installer_asset_name(app.name, version)
     if write_installer:
         (app_root / installer_name).write_bytes(b"installer")
 
@@ -725,7 +725,7 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual(
             input_root
             / selected_app.name
-            / PUBLISH.installer_asset_name(selected_app.name),
+            / PUBLISH.installer_asset_name(selected_app.name, 10),
             groups["release"]["apps"][0]["installerPath"],
         )
 
@@ -760,7 +760,7 @@ class PublishScriptTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, r"Missing staged app installer"):
                 PUBLISH.app_manifest_files(package_dir, profile, app)
 
-            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name, 10)
             installer_path.write_bytes(b"installer")
             _manifest_path, _manifest, files = PUBLISH.app_manifest_files(
                 package_dir, profile, app
@@ -989,14 +989,14 @@ class PublishScriptTests(unittest.TestCase):
                 f"{app.name} is missing app.ico for its installer.",
             )
 
-    def test_installer_asset_names_use_installer_prefix(self) -> None:
+    def test_installer_asset_names_carry_the_prefix_and_the_version(self) -> None:
         self.assertEqual(
-            "Installer_BatteryTrayAppDotNET.exe",
-            PUBLISH.installer_asset_name("BatteryTrayAppDotNET"),
+            "Installer_BrightnessTrayAppDotNET_210.exe",
+            PUBLISH.installer_asset_name("BrightnessTrayAppDotNET", 210),
         )
         self.assertEqual(
-            "Installer_TrayAppDotNET.exe",
-            PUBLISH.installer_asset_name(PUBLISH.BUNDLE_INSTALLER_NAME),
+            "Installer_TrayAppDotNET_305.exe",
+            PUBLISH.installer_asset_name(PUBLISH.BUNDLE_INSTALLER_NAME, 305),
         )
 
     def test_installer_restore_command_matches_publish_properties(self) -> None:
@@ -1145,7 +1145,7 @@ class PublishScriptTests(unittest.TestCase):
             factory_path.write_bytes(FACTORY_BYTES)
             payload_path = root / "BatteryTrayAppDotNET_10.zip"
             payload_path.write_bytes(b"zip")
-            output_path = root / "packages" / "Installer_BatteryTrayAppDotNET.exe"
+            output_path = root / "packages" / "Installer_BatteryTrayAppDotNET_10.exe"
             commands, run = fake_installer_run()
 
             with mock.patch.object(PUBLISH, "run", side_effect=run):
@@ -1187,7 +1187,7 @@ class PublishScriptTests(unittest.TestCase):
                 payload_path = root / file_name
                 payload_path.write_bytes(b"zip")
                 payload_paths.append(payload_path)
-            output_path = root / "_release" / "Installer_TrayAppDotNET.exe"
+            output_path = root / "_release" / "Installer_TrayAppDotNET_200.exe"
             commands, run = fake_installer_run()
 
             with mock.patch.object(PUBLISH, "run", side_effect=run):
@@ -1222,7 +1222,7 @@ class PublishScriptTests(unittest.TestCase):
                     root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME,
                     "BatteryTrayAppDotNET",
                     [payload_path],
-                    root / "Installer_BatteryTrayAppDotNET.exe",
+                    root / "Installer_BatteryTrayAppDotNET_10.exe",
                 )
 
         run.assert_not_called()
@@ -1235,7 +1235,7 @@ class PublishScriptTests(unittest.TestCase):
             present_payload_path = root / "BatteryTrayAppDotNET_10.zip"
             present_payload_path.write_bytes(b"zip")
             missing_payload_path = root / "VolumeTrayAppDotNET_7.zip"
-            output_path = root / "Installer_TrayAppDotNET.exe"
+            output_path = root / "Installer_TrayAppDotNET_200.exe"
 
             with mock.patch.object(PUBLISH, "run") as run:
                 with self.assertRaisesRegex(SystemExit, r"at least one payload zip"):
@@ -1264,7 +1264,7 @@ class PublishScriptTests(unittest.TestCase):
             factory_path.write_bytes(FACTORY_BYTES)
             payload_path = root / "BatteryTrayAppDotNET_10.zip"
             payload_path.write_bytes(b"zip")
-            output_path = root / "Installer_BatteryTrayAppDotNET.exe"
+            output_path = root / "Installer_BatteryTrayAppDotNET_10.exe"
             commands, run = fake_installer_run(verify_returncode=3)
 
             with (
@@ -1293,7 +1293,7 @@ class PublishScriptTests(unittest.TestCase):
             # The payloads are LZMA-recompressed while stamping, so a correct installer is routinely
             # smaller than the zips it was built from.
             payload_path.write_bytes(b"z" * (len(STAMPED_INSTALLER_BYTES) * 4))
-            output_path = root / "Installer_BatteryTrayAppDotNET.exe"
+            output_path = root / "Installer_BatteryTrayAppDotNET_10.exe"
             commands, run = fake_installer_run()
 
             with mock.patch.object(PUBLISH, "run", side_effect=run):
@@ -1333,7 +1333,7 @@ class PublishScriptTests(unittest.TestCase):
                     factory_path,
                     "BatteryTrayAppDotNET",
                     [payload_path],
-                    root / "Installer_BatteryTrayAppDotNET.exe",
+                    root / "Installer_BatteryTrayAppDotNET_10.exe",
                 )
 
             # The floor is cheap, so it runs before the factory is asked to verify anything.
@@ -1357,11 +1357,12 @@ class PublishScriptTests(unittest.TestCase):
 
             with mock.patch.object(PUBLISH, "run", side_effect=run):
                 bundle_installer_path = PUBLISH.build_bundle_installer(
-                    factory_path, payload_paths, final_dir
+                    factory_path, payload_paths, final_dir, 305
                 )
 
+            # The suite installer carries the tray version, matching the aggregate zip
             self.assertEqual(
-                final_dir / "Installer_TrayAppDotNET.exe", bundle_installer_path
+                final_dir / "Installer_TrayAppDotNET_305.exe", bundle_installer_path
             )
             self.assertEqual(
                 [str(payload_path.resolve()) for payload_path in payload_paths],
@@ -1417,7 +1418,7 @@ class PublishScriptTests(unittest.TestCase):
             )
             factory_path = output_root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
             factory_path.write_bytes(FACTORY_BYTES)
-            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name, 5)
             arguments = SimpleNamespace(
                 app_name=app.name,
                 profile="release",
@@ -1497,7 +1498,7 @@ class PublishScriptTests(unittest.TestCase):
                 reused_commit_hash,
             )
             factory_path = output_root / PUBLISH.INSTALLER_FACTORY_EXECUTABLE_NAME
-            installer_path = package_dir / PUBLISH.installer_asset_name(app.name)
+            installer_path = package_dir / PUBLISH.installer_asset_name(app.name, 5)
             arguments = SimpleNamespace(
                 app_name=app.name,
                 profile="release",
@@ -1567,11 +1568,11 @@ class PublishScriptTests(unittest.TestCase):
             final_dir = Path(temporary_directory)
             aggregate_zip = final_dir / "TrayAppDotNET_200.zip"
             aggregate_zip.write_bytes(b"aggregate")
-            bundle_installer_path = final_dir / "Installer_TrayAppDotNET.exe"
+            bundle_installer_path = final_dir / "Installer_TrayAppDotNET_200.exe"
             bundle_installer_path.write_bytes(b"bundle")
             zip_path = final_dir / "BatteryTrayAppDotNET_10.zip"
             zip_path.write_bytes(b"zip")
-            installer_path = final_dir / "Installer_BatteryTrayAppDotNET.exe"
+            installer_path = final_dir / "Installer_BatteryTrayAppDotNET_10.exe"
             installer_path.write_bytes(b"installer")
             group = {
                 "profile": "release",
@@ -1606,14 +1607,14 @@ class PublishScriptTests(unittest.TestCase):
 
         self.assertEqual(
             {
-                "fileName": "Installer_TrayAppDotNET.exe",
+                "fileName": "Installer_TrayAppDotNET_200.exe",
                 "sha256": hashlib.sha256(b"bundle").hexdigest(),
                 "size": len(b"bundle"),
             },
             manifest["bundleInstaller"],
         )
         self.assertEqual(
-            "Installer_BatteryTrayAppDotNET.exe",
+            "Installer_BatteryTrayAppDotNET_10.exe",
             manifest["apps"][0]["installerFileName"],
         )
         self.assertEqual("installer-sha", manifest["apps"][0]["installerSha256"])
@@ -1632,7 +1633,7 @@ class PublishScriptTests(unittest.TestCase):
                 "commitHash": "a" * 40,
             },
             "bundleInstaller": {
-                "fileName": "Installer_TrayAppDotNET.exe",
+                "fileName": "Installer_TrayAppDotNET_200.exe",
                 "sha256": "bundle-sha",
                 "size": 2,
             },
@@ -1645,7 +1646,7 @@ class PublishScriptTests(unittest.TestCase):
                     "size": 3,
                     "source": "reused-TrayAppDotNET_100",
                     "commitHash": "b" * 40,
-                    "installerFileName": "Installer_BatteryTrayAppDotNET.exe",
+                    "installerFileName": "Installer_BatteryTrayAppDotNET_10.exe",
                     "installerSha256": "installer-sha",
                     "installerSize": 4,
                 }
@@ -1662,7 +1663,7 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual("BatteryTrayAppDotNET", app_installer_row["appId"])
         self.assertEqual(10, app_installer_row["version"])
         self.assertEqual(
-            "Installer_BatteryTrayAppDotNET.exe", app_installer_row["fileName"]
+            "Installer_BatteryTrayAppDotNET_10.exe", app_installer_row["fileName"]
         )
         self.assertEqual("installer-sha", app_installer_row["sha256"])
         self.assertEqual(4, app_installer_row["size"])
@@ -1672,7 +1673,7 @@ class PublishScriptTests(unittest.TestCase):
         self.assertEqual("TrayAppDotNET", bundle_installer_row["appId"])
         self.assertEqual(200, bundle_installer_row["version"])
         self.assertEqual(
-            "Installer_TrayAppDotNET.exe", bundle_installer_row["fileName"]
+            "Installer_TrayAppDotNET_200.exe", bundle_installer_row["fileName"]
         )
         self.assertEqual("bundle-sha", bundle_installer_row["sha256"])
         self.assertEqual(2, bundle_installer_row["size"])
@@ -1692,7 +1693,7 @@ class PublishScriptTests(unittest.TestCase):
             [artifact.get("kind") for artifact in artifacts],
         )
         self.assertEqual(
-            ["Installer_BatteryTrayAppDotNET.exe", "Installer_TrayAppDotNET.exe"],
+            ["Installer_BatteryTrayAppDotNET_10.exe", "Installer_TrayAppDotNET_200.exe"],
             [
                 artifact.get("fileName")
                 for artifact in artifacts
@@ -1730,7 +1731,7 @@ class PublishScriptTests(unittest.TestCase):
             factory_path.write_bytes(FACTORY_BYTES)
             arguments.installer_factory = str(factory_path)
             final_dir = input_root / "_release"
-            bundle_installer_path = final_dir / "Installer_TrayAppDotNET.exe"
+            bundle_installer_path = final_dir / "Installer_TrayAppDotNET_200.exe"
 
             def fake_build_bundle_installer(*_positional_arguments) -> Path:
                 bundle_installer_path.write_bytes(b"bundle")
@@ -1778,27 +1779,29 @@ class PublishScriptTests(unittest.TestCase):
                 package_root / f"{first_app.name}_10.zip",
             ],
             final_dir,
+            200,
         )
         keep_names = prune_release_assets.call_args.args[2]
-        self.assertIn("Installer_TrayAppDotNET.exe", keep_names)
-        self.assertIn(f"Installer_{first_app.name}.exe", keep_names)
-        self.assertIn(f"Installer_{second_app.name}.exe", keep_names)
+        self.assertIn("Installer_TrayAppDotNET_200.exe", keep_names)
+        self.assertIn(f"Installer_{first_app.name}_10.exe", keep_names)
+        self.assertIn(f"Installer_{second_app.name}_7.exe", keep_names)
         upload_command = run.call_args.args[0]
         self.assertEqual(
             ["gh", "release", "upload", "TrayAppDotNET_200"], upload_command[:4]
         )
         self.assertIn(str(bundle_installer_path), upload_command)
         self.assertIn(
-            str(package_root / f"Installer_{first_app.name}.exe"), upload_command
+            str(package_root / f"Installer_{first_app.name}_10.exe"), upload_command
         )
         self.assertIn(
-            str(package_root / f"Installer_{second_app.name}.exe"), upload_command
+            str(package_root / f"Installer_{second_app.name}_7.exe"), upload_command
         )
+        # Each app installer carries its own package version; the suite one carries the tray version
         self.assertEqual(
             [
-                "Installer_BatteryTrayAppDotNET.exe",
-                "Installer_BrightnessTrayAppDotNET.exe",
-                "Installer_TrayAppDotNET.exe",
+                "Installer_BatteryTrayAppDotNET_7.exe",
+                "Installer_BrightnessTrayAppDotNET_10.exe",
+                "Installer_TrayAppDotNET_200.exe",
             ],
             [
                 artifact.get("fileName")

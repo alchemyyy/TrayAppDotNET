@@ -37,7 +37,7 @@ These are my projects for replacing, and adding to, the Windows 11 tray system a
 
 These apps are all portable executables, and they serve as their own installers. You can manage an app's installation by opening Settings -> About. 
 
-Every release also ships a single-file installer per app, named `Installer_<AppName>.exe`, plus `Installer_TrayAppDotNET.exe` for the whole suite. The installers need nothing installed first, since they run on the .NET Framework that ships with Windows. They offer three installation types: Local (current user, no administrator rights), System (all users, one UAC prompt), and Portable (extract to a folder of your choice). Desktop and Start Menu shortcuts and launching the app when finished are optional. The suite installer lets you choose which apps to install and unselects BatteryTrayAppDotNET automatically when no battery is present. All installers show a notice with a link to Windhawk when it is not detected.
+Every release also ships a single-file installer per app, named `Installer_<AppName>_<version>.exe`, plus `Installer_TrayAppDotNET_<version>.exe` for the whole suite. The installers need nothing installed first, since they run on the .NET Framework that ships with Windows. They offer three installation types: Local (current user, no administrator rights), System (all users, one UAC prompt), and Portable (extract to a folder of your choice). Desktop and Start Menu shortcuts and launching the app when finished are optional. The suite installer lets you choose which apps to install and unselects BatteryTrayAppDotNET automatically when no battery is present. All installers show a notice with a link to Windhawk when it is not detected.
 
 All app settings are saved to `%LocalAppData%\TrayAppDotNET`.
 

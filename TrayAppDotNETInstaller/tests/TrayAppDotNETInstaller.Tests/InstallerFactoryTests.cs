@@ -5,7 +5,7 @@ namespace TrayAppDotNETInstaller.Tests;
 
 public sealed class InstallerFactoryTests : IDisposable
 {
-    private const string OutputPath = @"C:\out\Installer_VolumeTrayAppDotNET.exe";
+    private const string OutputPath = @"C:\out\Installer_VolumeTrayAppDotNET_270.exe";
     private const string VolumePayload = @"C:\packages\VolumeTrayAppDotNET_270.zip";
     private const string BatteryPayload = @"C:\packages\BatteryTrayAppDotNET_31.zip";
 

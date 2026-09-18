@@ -822,12 +822,10 @@ def restore_command(app: App, profile: Profile) -> list[str]:
     return cmd
 
 
-def installer_assembly_name(name: str) -> str:
-    return f"{INSTALLER_ASSET_PREFIX}{name}"
-
-
-def installer_asset_name(name: str) -> str:
-    return f"{installer_assembly_name(name)}.exe"
+def installer_asset_name(name: str, version: int) -> str:
+    # Carries the version of the package inside, so an app installer matches its "<App>_<version>.zip"
+    # and the suite installer matches the "TrayAppDotNET_<version>.zip" aggregate.
+    return f"{INSTALLER_ASSET_PREFIX}{name}_{version}.exe"
 
 
 def installer_restore_command() -> list[str]:
@@ -1343,11 +1341,12 @@ def build_app_profile(args: argparse.Namespace) -> int:
         profile,
         commit_hash,
     )
+    # The package version, not the requested one: a reused package keeps the version it was published under
     installer_path = stamp_installer(
         factory_path,
         app.name,
         [package.zip_path],
-        package_dir / installer_asset_name(app.name),
+        package_dir / installer_asset_name(app.name, package.version),
     )
     manifest_path = package_dir / f"app-{profile.id}-{app.name}.json"
     manifest_path.write_text(
@@ -1876,13 +1875,13 @@ def create_flat_aggregate_from_zips(app_zips: list[tuple[str, Path]], aggregate_
 
 
 def build_bundle_installer(
-    factory_path: Path, payload_zip_paths: list[Path], final_dir: Path
+    factory_path: Path, payload_zip_paths: list[Path], final_dir: Path, tray_version: int
 ) -> Path:
     return stamp_installer(
         factory_path,
         BUNDLE_INSTALLER_NAME,
         payload_zip_paths,
-        final_dir / installer_asset_name(BUNDLE_INSTALLER_NAME),
+        final_dir / installer_asset_name(BUNDLE_INSTALLER_NAME, tray_version),
     )
 
 
@@ -2356,7 +2355,7 @@ def publish_release(args: argparse.Namespace) -> int:
             aggregate_commit_hash,
         )
         bundle_installer_path = build_bundle_installer(
-            factory_path, app_zip_paths, final_dir
+            factory_path, app_zip_paths, final_dir, tray_version
         )
         manifests.append(
             profile_manifest_from_group(

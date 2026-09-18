@@ -9,8 +9,8 @@ internal sealed record FactoryArguments(string OutputPath, IReadOnlyList<string>
 
 /// <summary>
 /// Console-only stamping mode. The factory executable is published once with no payload; this mode copies
-/// that image, replaces its shell icon, and appends the payload archive, producing one Installer_&lt;App&gt;.exe
-/// per release without a second compilation. It never creates a window.
+/// that image, replaces its shell icon, and appends the payload archive, producing one
+/// Installer_&lt;App&gt;_&lt;version&gt;.exe per release without a second compilation. It never creates a window.
 /// </summary>
 public static class InstallerFactory
 {
