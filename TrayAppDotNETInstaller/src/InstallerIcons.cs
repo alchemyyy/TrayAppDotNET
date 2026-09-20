@@ -16,6 +16,28 @@ internal static class InstallerIcons
     public static string ResourceName(string iconName) => ResourcePrefix + iconName + IconExtension;
 
     /// <summary>
+    /// Every tray application the factory carries an icon for, sorted, without the suite icon. Read from the
+    /// compiled resources rather than a list, so it follows whatever the project embeds.
+    /// </summary>
+    public static IReadOnlyList<string> ApplicationIconNames()
+    {
+        List<string> names = [];
+        foreach (string resourceName in typeof(InstallerIcons).Assembly.GetManifestResourceNames())
+        {
+            if (!resourceName.StartsWith(ResourcePrefix, StringComparison.Ordinal)) continue;
+            if (!resourceName.EndsWith(IconExtension, StringComparison.OrdinalIgnoreCase)) continue;
+
+            string iconName = resourceName[ResourcePrefix.Length..^IconExtension.Length];
+            if (iconName.Length == 0 || string.Equals(iconName, SuiteIconName, StringComparison.Ordinal)) continue;
+
+            names.Add(iconName);
+        }
+
+        names.Sort(static (left, right) => string.Compare(left, right, StringComparison.OrdinalIgnoreCase));
+        return names;
+    }
+
+    /// <summary>
     /// A single-application installer shows that application's icon. A bundle, or an installer with no
     /// payload at all, shows the suite icon.
     /// </summary>

@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Example window (suite)": {
+      "commandName": "Project",
+      "commandLineArgs": "--example"
+    },
+    "Example window (single app)": {
+      "commandName": "Project",
+      "commandLineArgs": "--example VolumeTrayAppDotNET"
+    },
+    "Example window (failing install)": {
+      "commandName": "Project",
+      "commandLineArgs": "--example --example-fail"
+    }
+  }
+}

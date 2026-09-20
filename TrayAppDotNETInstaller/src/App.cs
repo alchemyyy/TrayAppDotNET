@@ -15,13 +15,20 @@ public sealed class App : Application
         "pack://application:,,,/TrayAppDotNETInstaller;component/UI/Theme.xaml";
 
     private readonly EmbeddedPayloadCatalog _catalog;
+    private readonly bool _isExample;
+    private readonly bool _exampleFails;
 
-    /// <summary>Takes the catalog the process already loaded rather than reading the archive a second time.</summary>
-    public App(EmbeddedPayloadCatalog catalog)
+    /// <summary>
+    /// Takes the catalog the process already loaded rather than reading the archive a second time.
+    /// <paramref name="isExample"/> puts the window in the mode that installs nothing.
+    /// </summary>
+    public App(EmbeddedPayloadCatalog catalog, bool isExample = false, bool exampleFails = false)
     {
         FrameworkCompatibility.ThrowIfNull(catalog, nameof(catalog));
 
         _catalog = catalog;
+        _isExample = isExample;
+        _exampleFails = exampleFails;
         ShutdownMode = ShutdownMode.OnMainWindowClose;
     }
 
@@ -33,7 +40,15 @@ public sealed class App : Application
         Resources.MergedDictionaries.Add(theme);
         SystemTheme.ApplyPalette(Resources);
 
-        InstallerWindow window = new(_catalog, WindhawkDetector.Detect(), SystemProbes.HasSystemBattery());
+        // The example window reports no Windhawk and no battery on purpose. Both states are otherwise
+        // invisible on a machine that has them, and both drive interface a rework needs to see: the
+        // Windhawk notice, and the battery application unselecting itself.
+        WindhawkDetection windhawk = _isExample
+            ? new WindhawkDetection(IsInstalled: false, Evidence: null)
+            : WindhawkDetector.Detect();
+        bool hasSystemBattery = !_isExample && SystemProbes.HasSystemBattery();
+
+        InstallerWindow window = new(_catalog, windhawk, hasSystemBattery, _isExample, _exampleFails);
         MainWindow = window;
         window.Show();
     }

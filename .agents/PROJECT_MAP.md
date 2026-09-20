@@ -21,6 +21,8 @@
 - Installer factory (single-file .NET Framework 4.8 WPF app; deliberately does not reference TrayAppDotNETCommon):
   - `TrayAppDotNETInstaller/src/TrayAppDotNETInstaller.csproj`
   - `TrayAppDotNETInstaller/src/Services/SolidPayloadArchive.cs`
+  - `TrayAppDotNETInstaller/src/Services/ExampleMode.cs`
+  - `TrayAppDotNETInstaller/src/Properties/launchSettings.json`
   - `TrayAppDotNETInstaller/src/Compression/LzmaConstants.cs`
   - `TrayAppDotNETInstaller/src/Compression/LzmaEncoder.cs`
   - `TrayAppDotNETInstaller/src/Compression/LzmaDecoder.cs`
@@ -47,6 +49,15 @@
     percent reduction. Extracting the payload at install time takes about 1.1 seconds.
   - A package too large to hold resident while packing, over 512 MB uncompressed, is appended as its original
     zip instead, and the installer still reads it.
+  - The project is runnable on its own for interface work. `--example [App]` fabricates a catalog from the
+    embedded application icons and swaps the engine for a simulation that walks the same progress stages
+    while extracting nothing, starting no child installer and writing nothing; `--example-fail` makes that
+    simulation fail partway, which is the only way to reach the failure state. The example window also
+    reports no Windhawk and no battery, so the Windhawk notice and the battery application unselecting
+    itself are both visible. `launchSettings.json` carries the profiles, so `dotnet run` and the IDE run
+    button need no arguments, and a Debug build with no payload falls into the same mode. A stamped
+    installer is a Release build carrying a payload, so it cannot reach any of this; `ExampleModeTests`
+    covers the argument parsing, the fabricated catalog and the simulated run.
   - Targets `net48` on purpose. The framework and its renderer ship with Windows, so the installer is a few
     hundred kilobytes instead of the 28 MB an Avalonia Native AOT build cost, which embedded Skia.
   - `src/GlobalUsings.cs` supplies the usings the SDK only provides implicitly on .NET 6 and newer, and

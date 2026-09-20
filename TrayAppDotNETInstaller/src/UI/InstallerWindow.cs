@@ -69,15 +69,29 @@ public sealed class InstallerWindow : Window
     private readonly TextBlock _statusTextBlock = new();
     private readonly Button _installButton;
     private readonly Button _cancelButton;
+    private readonly bool _isExample;
+    private readonly bool _exampleFails;
     private bool _installRunning;
     private bool _installFinished;
 
     private sealed record PayloadSelection(EmbeddedPayload Payload, CheckBox CheckBox);
 
-    /// <summary>Builds the whole page from the catalog, the Windhawk probe and the battery probe.</summary>
-    public InstallerWindow(EmbeddedPayloadCatalog catalog, WindhawkDetection windhawk, bool hasSystemBattery)
+    /// <summary>
+    /// Builds the whole page from the catalog, the Windhawk probe and the battery probe.
+    /// <paramref name="isExample"/> swaps the engine for a simulation that writes nothing, so the window can
+    /// be run on its own; <paramref name="exampleFails"/> makes that simulation fail partway.
+    /// </summary>
+    public InstallerWindow(
+        EmbeddedPayloadCatalog catalog,
+        WindhawkDetection windhawk,
+        bool hasSystemBattery,
+        bool isExample = false,
+        bool exampleFails = false)
     {
         FrameworkCompatibility.ThrowIfNull(catalog, nameof(catalog));
+
+        _isExample = isExample;
+        _exampleFails = exampleFails;
         FrameworkCompatibility.ThrowIfNull(windhawk, nameof(windhawk));
 
         _catalog = catalog;
@@ -512,9 +526,13 @@ public sealed class InstallerWindow : Window
         InstallOutcome outcome;
         try
         {
-            outcome = plan.Mode == InstallMode.System
-                ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(plan, progress, CancellationToken.None))
-                : await Task.Run(() => InstallEngine.RunAsync(plan, progress, CancellationToken.None));
+            // The example simulation never leaves this thread, so neither engine is reachable from it
+            if (_isExample)
+                outcome = await ExampleMode.RunAsync(plan, progress, _exampleFails, CancellationToken.None);
+            else
+                outcome = plan.Mode == InstallMode.System
+                    ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(plan, progress, CancellationToken.None))
+                    : await Task.Run(() => InstallEngine.RunAsync(plan, progress, CancellationToken.None));
         }
         catch (Exception exception)
         {
@@ -616,6 +634,13 @@ public sealed class InstallerWindow : Window
         _progressBar.Value = ProgressMaximum;
         ShowStatus(Format(nameof(AppStrings.Installer_Status_Complete_Format), plan.TargetDirectory));
         if (_launchCheckBox.IsChecked != true) return;
+
+        // Nothing was installed, so there is nothing to start
+        if (_isExample)
+        {
+            InstallerLog.Write("InstallerWindow: example mode, so the launch checkbox starts nothing");
+            return;
+        }
 
         foreach (EmbeddedPayload payload in plan.Payloads)
         {

@@ -31,10 +31,28 @@ internal static class Program
             // Must precede the first touch of WPF, which reads the switch when its static state is built
             AppContext.SetSwitch(DoNotScaleForDpiChangesSwitch, isEnabled: false);
 
+            bool isExample = ExampleMode.IsRequested(args, out string? exampleApplicationName);
             // The catalog holds a handle on the appended archive until the process is on its way out
-            using EmbeddedPayloadCatalog catalog = EmbeddedPayloadCatalog.Load();
-            App application = new(catalog);
-            return application.Run();
+            EmbeddedPayloadCatalog catalog = isExample
+                ? ExampleMode.CreateCatalog(exampleApplicationName)
+                : EmbeddedPayloadCatalog.Load();
+#if DEBUG
+            // Running the project produces a payload-free Debug build, which as a real installer could only
+            // report that it has nothing to install. A stamped installer is a Release build and always
+            // carries a payload, so this can never turn one of those into an example.
+            if (!isExample && catalog.Payloads.Count == 0)
+            {
+                InstallerLog.Write("Program: a Debug build with no payload; opening the example window instead");
+                catalog.Dispose();
+                catalog = ExampleMode.CreateCatalog(applicationName: null);
+                isExample = true;
+            }
+#endif
+            using (catalog)
+            {
+                App application = new(catalog, isExample, ExampleMode.IsFailureRequested(args));
+                return application.Run();
+            }
         }
         catch (Exception exception)
         {
