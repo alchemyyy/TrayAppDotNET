@@ -140,7 +140,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             field = value;
             FriendlyName = value ? ResolveDisplayedFriendlyName(_systemFriendlyName) : _systemFriendlyName;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsBluetoothUnplugged));
             OnPropertyChanged(nameof(IsBluetoothAudioWaiting));
+            OnPropertyChanged(nameof(IsBluetoothOrphaned));
         }
     }
 
@@ -161,8 +163,55 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>True while the physical headset is connected but this audio endpoint is unavailable.</summary>
-    public bool IsBluetoothAudioWaiting => IsBluetooth && _isBluetoothConnected && IsDisconnected;
+    /// <summary>
+    /// True for a Bluetooth endpoint whose profile driver is loaded but not connected: a paired device
+    /// that is disconnected while the radio is on. The only disconnected state that accepts a reconnect.
+    /// </summary>
+    public bool IsBluetoothUnplugged => IsBluetoothUnpluggedState(IsBluetooth, State);
+
+    /// <summary>True while the physical headset is connected but this audio endpoint is still Unplugged.</summary>
+    public bool IsBluetoothAudioWaiting => _isBluetoothConnected && IsBluetoothUnplugged;
+
+    /// <summary>
+    /// Devnode where <see cref="BluetoothPairingResolver"/> starts this endpoint's lineage walk: the
+    /// adapter devnode Windows recorded for it, or the endpoint's own SWD devnode as a fallback.
+    /// </summary>
+    public string BluetoothLineageStart { get; }
+
+    /// <summary>
+    /// Set by <see cref="AudioDeviceManager"/>: this endpoint belongs to the current pairing of a
+    /// device in the Windows pairing store, and that pairing's radio is off. Only consulted while
+    /// the endpoint is NotPresent, which is how Windows reports every Bluetooth endpoint with the radio off.
+    /// </summary>
+    public bool IsRadioOffBluetoothPairing
+    {
+        get;
+        internal set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsBluetoothOrphaned));
+        }
+    }
+
+    /// <summary>
+    /// True for a Bluetooth endpoint that belongs to no usable pairing. It is never listed.
+    /// See <see cref="IsBluetoothOrphanedState"/>.
+    /// </summary>
+    public bool IsBluetoothOrphaned => IsBluetoothOrphanedState(IsBluetooth, State, IsRadioOffBluetoothPairing);
+
+    internal static bool IsBluetoothUnpluggedState(bool isBluetooth, DeviceState state) =>
+        isBluetooth && (state & DeviceState.Unplugged) != 0;
+
+    /// <summary>
+    /// Windows keeps a Bluetooth endpoint for every pairing ever made and reports the stale ones as NotPresent.
+    /// With the radio off it reports the current pairing as NotPresent too,
+    /// so a NotPresent endpoint is orphaned unless it was classified as the current pairing of a paired device.
+    /// Orphans keep the headset's name and container id but can never activate.
+    /// </summary>
+    internal static bool IsBluetoothOrphanedState(bool isBluetooth, DeviceState state, bool isRadioOffPairing) =>
+        isBluetooth && (state & DeviceState.NotPresent) != 0 && !isRadioOffPairing;
 
     /// <summary>True while a one-shot Bluetooth reconnect request is inside its observation window.</summary>
     public bool IsBluetoothConnectionPending => _bluetoothConnectionDeadlineMilliseconds != 0;
@@ -411,7 +460,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(IsDisabled));
             OnPropertyChanged(nameof(IsDisconnected));
             OnPropertyChanged(nameof(IsNotPresent));
+            OnPropertyChanged(nameof(IsBluetoothUnplugged));
             OnPropertyChanged(nameof(IsBluetoothAudioWaiting));
+            OnPropertyChanged(nameof(IsBluetoothOrphaned));
         }
     }
 
@@ -1049,6 +1100,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         EnumeratorName = ReadEnumeratorName(device) ?? string.Empty;
         IsBluetooth = DetectIsBluetooth(EnumeratorName, _friendlyName, _deviceDescription, _interfaceFriendlyName);
         ContainerId = ReadContainerId(device);
+        BluetoothLineageStart = BluetoothPairingResolver.ResolveLineageStart(Id, ReadAdapterInstancePath(device));
 
         device.GetState(out uint stateRaw);
         _state = (DeviceState)stateRaw;
@@ -2343,6 +2395,20 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             store.GetValue(ref key, out PROPVARIANT pv);
             try { return pv.GetGuid(); }
             finally { Ole32.PropVariantClear(ref pv); }
+        }
+        catch { return null; }
+        finally { Safe.Release(store); }
+    }
+
+    // Reads the adapter devnode path the endpoint builder recorded for this endpoint. Returns null
+    // when the property is absent so the lineage walk falls back to the endpoint's SWD devnode.
+    private static string? ReadAdapterInstancePath(IMMDevice device)
+    {
+        IPropertyStore? store = null;
+        try
+        {
+            device.OpenPropertyStore(Stgm.Read, out store);
+            return ReadStringProperty(store, PropertyKeys.PKEY_Endpoint_AdapterInstancePath);
         }
         catch { return null; }
         finally { Safe.Release(store); }

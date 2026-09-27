@@ -14,6 +14,9 @@ namespace VolumeTrayAppDotNET.Audio;
 /// the WinRT watcher requires runtime COM/WinRT marshalling that is brittle in constrained publish
 /// modes. This class uses cfgmgr32 for container identity and battery data, then the cached Classic
 /// Bluetooth device record's <c>fConnected</c> flag for actual physical connection state.
+/// The same background pass reads the Windows pairing store and classifies the devnode lineage of
+/// each tracked audio endpoint through <see cref="BluetoothPairingResolver"/>, so endpoints of a
+/// paired device can be told apart from the ones Windows keeps for older or removed pairings.
 /// </summary>
 internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPropertyChanged, IDisposable
 {
@@ -39,6 +42,17 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     // Containers whose cached Classic Bluetooth record currently has fConnected set. This is the
     // physical-link signal used independently of Core Audio endpoint activation.
     private readonly HashSet<Guid> _connectedBluetoothContainers = [];
+
+    // Containers with a paired Bluetooth record in the Windows pairing store, the list Settings shows.
+    // Unlike the present-devnode classification above, this survives the radio being turned off.
+    private readonly HashSet<Guid> _pairedBluetoothContainers = [];
+
+    // Tracked lineage starts whose devnode lineage says "current pairing, radio off"
+    private readonly HashSet<string> _radioOffBluetoothLineages = new(StringComparer.OrdinalIgnoreCase);
+
+    // Lineage starts of Bluetooth audio endpoints, published by AudioDeviceManager on the dispatcher
+    // and read once per background pass
+    private string[] _trackedBluetoothLineages = [];
     private readonly AsyncThrottler<string> _refreshThrottler = new(cooldownMs: 0, StringComparer.Ordinal);
 
     private DispatcherTimer? _pollTimer;
@@ -68,6 +82,11 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     /// </summary>
     public event Action<Guid, bool>? BluetoothContainerConnectionChanged;
 
+    /// <summary>
+    /// Fires on the dispatcher whenever the paired-container set or the radio-off lineage set changes.
+    /// </summary>
+    public event Action? BluetoothPairingChanged;
+
     /// <summary>True once cfgmgr32 reconciliation is active.</summary>
     public bool IsRunning
     {
@@ -93,6 +112,35 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     /// <summary>True when Windows currently reports a live Classic Bluetooth connection.</summary>
     public bool IsBluetoothContainerConnected(Guid containerId) =>
         _connectedBluetoothContainers.Contains(containerId);
+
+    /// <summary>True when the Windows pairing store holds a paired Bluetooth record for this container.</summary>
+    public bool IsPairedBluetoothContainer(Guid containerID) => _pairedBluetoothContainers.Contains(containerID);
+
+    /// <summary>
+    /// True when the latest pass classified this tracked lineage start as the current pairing of a
+    /// device whose radio is off. See <see cref="BluetoothPairingResolver.IsRadioOffPairing"/>.
+    /// </summary>
+    public bool IsRadioOffBluetoothLineage(string lineageStart) => _radioOffBluetoothLineages.Contains(lineageStart);
+
+    /// <summary>
+    /// Publishes the lineage starts the background pass classifies. Refreshes only when the set
+    /// changed and reconciliation is running; Start performs the first pass itself.
+    /// </summary>
+    public void SetTrackedBluetoothLineages(IEnumerable<string> lineageStarts)
+    {
+        if (_disposed) return;
+
+        string[] trackedLineages = lineageStarts
+            .Where(static lineageStart => !string.IsNullOrEmpty(lineageStart))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        string[] previousLineages = Volatile.Read(ref _trackedBluetoothLineages);
+        if (previousLineages.SequenceEqual(trackedLineages, StringComparer.OrdinalIgnoreCase)) return;
+
+        Volatile.Write(ref _trackedBluetoothLineages, trackedLineages);
+        if (_isRunning) Refresh();
+    }
 
     /// <summary>
     /// Resolves a physical Bluetooth container to the remote address embedded in its present
@@ -207,7 +255,10 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         _ = _refreshThrottler.RunAsync(throttleKey, async context =>
         {
             if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
-            ReconciliationResult result = await Task.Run(BuildCurrentState, context.CancellationToken)
+            string[] trackedLineages = Volatile.Read(ref _trackedBluetoothLineages);
+            ReconciliationResult result = await Task.Run(
+                    () => BuildCurrentState(trackedLineages),
+                    context.CancellationToken)
                 .ConfigureAwait(false);
             if (_disposed || context.HasReplacement
                           || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value)))
@@ -234,11 +285,14 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                         result.ConnectedContainers,
                         result.HasConnectionData,
                         connectionRefreshGeneration);
+                    ApplyPairingState(result.PairedContainers, result.RadioOffLineages);
                     TADNLog.LogDebug(
                         $"BluetoothBatteryMonitor.Reconcile: scanned={result.ScannedCount} " +
                         $"bluetoothClass={result.BluetoothClassMatches} battery={result.BatteryMatches} " +
                         $"knownContainers={_knownBluetoothContainers.Count} " +
-                        $"connectedContainers={_connectedBluetoothContainers.Count}");
+                        $"connectedContainers={_connectedBluetoothContainers.Count} " +
+                        $"pairedContainers={_pairedBluetoothContainers.Count} " +
+                        $"radioOffLineages={_radioOffBluetoothLineages.Count}");
                 }, DispatcherPriority.Background);
             }
             catch (Exception exception)
@@ -389,11 +443,16 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         });
     }
 
-    private static ReconciliationResult BuildCurrentState()
+    private static ReconciliationResult BuildCurrentState(string[] trackedLineages)
     {
         List<string> ids = EnumeratePresentDevnodeIds();
         if (ids.Count == 0)
             return ReconciliationResult.Empty;
+
+        HashSet<string> presentIDs = new(ids, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> radioOffLineages =
+            BluetoothPairingResolver.ResolveRadioOffLineages(trackedLineages, presentIDs);
+        HashSet<Guid>? pairedContainers = BluetoothPairingResolver.QueryPairedContainers();
 
         Dictionary<string, Guid> currentIds = new(StringComparer.Ordinal);
         Dictionary<Guid, int> currentBatteries = [];
@@ -407,10 +466,10 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             int cr = CfgMgr32.CM_Locate_DevNodeW(out uint devInst, deviceId, CfgMgr32.CM_LOCATE_DEVNODE_NORMAL);
             if (cr != CfgMgr32.CR_SUCCESS) continue;
 
-            Guid? container = TryReadGuidProperty(devInst, CfgMgr32.DEVPKEY_Device_ContainerId);
+            Guid? container = CfgMgr32.TryReadGuidProperty(devInst, CfgMgr32.DEVPKEY_Device_ContainerId);
             if (!container.HasValue || !IsRealContainer(container.Value)) continue;
 
-            Guid? classGuid = TryReadGuidProperty(devInst, CfgMgr32.DEVPKEY_Device_ClassGuid);
+            Guid? classGuid = CfgMgr32.TryReadGuidProperty(devInst, CfgMgr32.DEVPKEY_Device_ClassGuid);
             if (classGuid == BluetoothClassGuid)
             {
                 currentIds[deviceId] = container.Value;
@@ -418,7 +477,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                 bluetoothClassMatches++;
             }
 
-            int? battery = TryReadByteProperty(devInst, CfgMgr32.DEVPKEY_Bluetooth_Battery);
+            int? battery = CfgMgr32.TryReadByteProperty(devInst, CfgMgr32.DEVPKEY_Bluetooth_Battery);
             if (!battery.HasValue) continue;
 
             currentIds[deviceId] = container.Value;
@@ -441,7 +500,35 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             bluetoothClassMatches,
             batteryMatches,
             HasData: true,
-            connectionQuery.HasData);
+            connectionQuery.HasData,
+            pairedContainers,
+            radioOffLineages);
+    }
+
+    /// <summary>
+    /// Publishes the pairing-store and lineage results. A failed pairing query keeps the previous
+    /// paired set rather than briefly treating every device as unpaired.
+    /// </summary>
+    private void ApplyPairingState(HashSet<Guid>? pairedContainers, HashSet<string> radioOffLineages)
+    {
+        bool changed = ReplaceIfDifferent(_radioOffBluetoothLineages, radioOffLineages);
+        if (pairedContainers != null && ReplaceIfDifferent(_pairedBluetoothContainers, pairedContainers))
+            changed = true;
+        if (!changed) return;
+
+        try { BluetoothPairingChanged?.Invoke(); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BluetoothBatteryMonitor: pairing subscriber threw: {exception.Message}");
+        }
+    }
+
+    private static bool ReplaceIfDifferent<T>(HashSet<T> target, HashSet<T> source)
+    {
+        if (target.SetEquals(source)) return false;
+        target.Clear();
+        target.UnionWith(source);
+        return true;
     }
 
     private void ApplyCurrentState(
@@ -673,40 +760,6 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     // container. Treating it as Bluetooth would promote unrelated built-in audio endpoints.
     private static readonly Guid NoContainerSentinel = new("00000000-0000-0000-ffff-ffffffffffff");
 
-    // CM_Get_DevNode_Property: read a single byte property (DEVPROP_TYPE_BYTE) off a located
-    // devnode handle. Returns null on any CR_* failure / type mismatch / out-of-range value.
-    private static int? TryReadByteProperty(uint devInst, CfgMgr32.DEVPROPKEY key)
-    {
-        uint size = 0;
-        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, propertyBuffer: null, ref size,
-            ulFlags: 0);
-        if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
-        if (propType != CfgMgr32.DEVPROP_TYPE_BYTE || size < 1) return null;
-
-        byte[] buf = new byte[size];
-        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, ulFlags: 0);
-        if (cr != CfgMgr32.CR_SUCCESS) return null;
-
-        int level = buf[0];
-        return level is >= 0 and <= 100 ? level : null;
-    }
-
-    // CM_Get_DevNode_Property: read a 16-byte GUID property (DEVPROP_TYPE_GUID).
-    private static Guid? TryReadGuidProperty(uint devInst, CfgMgr32.DEVPROPKEY key)
-    {
-        uint size = 0;
-        int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, propertyBuffer: null, ref size,
-            ulFlags: 0);
-        if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
-        if (propType != CfgMgr32.DEVPROP_TYPE_GUID || size != 16) return null;
-
-        byte[] buf = new byte[16];
-        cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out propType, buf, ref size, ulFlags: 0);
-        if (cr != CfgMgr32.CR_SUCCESS) return null;
-
-        return new Guid(buf);
-    }
-
     // CM_Get_Device_ID_List(null, PRESENT): every PnP devnode currently present on the system,
     // as a double-null-terminated multi-string.
     private static List<string> EnumeratePresentDevnodeIds()
@@ -765,9 +818,12 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         _batteries.Clear();
         _knownBluetoothContainers.Clear();
         _connectedBluetoothContainers.Clear();
+        _pairedBluetoothContainers.Clear();
+        _radioOffBluetoothLineages.Clear();
         PropertyChanged = null;
         BatteryChanged = null;
         BluetoothContainerConnectionChanged = null;
+        BluetoothPairingChanged = null;
     }
 
     private readonly record struct PollGenerationLease(DispatcherTimer Timer, long Generation);
@@ -785,7 +841,9 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         int BluetoothClassMatches,
         int BatteryMatches,
         bool HasData,
-        bool HasConnectionData)
+        bool HasConnectionData,
+        HashSet<Guid>? PairedContainers,
+        HashSet<string> RadioOffLineages)
     {
         public static ReconciliationResult Empty { get; } =
             new(
@@ -797,6 +855,8 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                 BluetoothClassMatches: 0,
                 BatteryMatches: 0,
                 HasData: false,
-                HasConnectionData: false);
+                HasConnectionData: false,
+                PairedContainers: null,
+                RadioOffLineages: new HashSet<string>(StringComparer.OrdinalIgnoreCase));
     }
 }

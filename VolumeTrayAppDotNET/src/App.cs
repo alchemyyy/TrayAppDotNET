@@ -307,7 +307,8 @@ internal sealed class VolumeAvaloniaApp : Application
             or nameof(AudioDevice.InterfaceFriendlyName)
             or nameof(AudioDevice.State)
             or nameof(AudioDevice.IsDefault)
-            or nameof(AudioDevice.IsDefaultCommunications))
+            or nameof(AudioDevice.IsDefaultCommunications)
+            or nameof(AudioDevice.IsBluetoothOrphaned))
             InvalidateTrayMenuSnapshot();
     }
 

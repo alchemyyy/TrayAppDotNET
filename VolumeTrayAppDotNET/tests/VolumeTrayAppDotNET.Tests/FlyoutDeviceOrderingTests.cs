@@ -113,6 +113,24 @@ public sealed class FlyoutDeviceOrderingTests
                 hasConnectionActivity: true));
     }
 
+    // Unplugged is the only disconnected state whose profile driver can accept a reconnect request
+    [Theory]
+    [InlineData(true, (uint)DeviceState.Unplugged, true)]
+    [InlineData(true, (uint)DeviceState.NotPresent, false)]
+    [InlineData(true, (uint)DeviceState.Active, false)]
+    [InlineData(true, (uint)DeviceState.Disabled, false)]
+    [InlineData(false, (uint)DeviceState.Unplugged, false)]
+    [InlineData(false, (uint)DeviceState.NotPresent, false)]
+    public void OnlyUnpluggedBluetoothEndpointsAreReconnectable(
+        bool isBluetooth,
+        uint state,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            AudioDevice.IsBluetoothUnpluggedState(isBluetooth, (DeviceState)state));
+    }
+
     [Fact]
     public void DisconnectedBluetoothVisibilityDefaultsToAlwaysShowIntermixed()
     {

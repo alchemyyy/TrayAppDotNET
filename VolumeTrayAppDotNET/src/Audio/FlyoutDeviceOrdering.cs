@@ -19,6 +19,8 @@ namespace VolumeTrayAppDotNET.Audio;
 /// visibility, force into a dedicated section after both normal flows, or force into the normal
 /// render/capture ordering. An outer radio-state gate can hide every Bluetooth endpoint while the
 /// Windows Bluetooth radio is off, regardless of the disconnected-device policy.
+/// The policy covers only paired devices: Unplugged endpoints, and the current pairing's NotPresent endpoints while the radio is off.
+/// Orphaned Bluetooth endpoints of unpaired devices or older pairings are never listed.
 /// </summary>
 internal static class FlyoutDeviceOrdering
 {
@@ -65,7 +67,8 @@ internal static class FlyoutDeviceOrdering
                 ? DisconnectedBluetoothPlacement.Standard
                 : DisconnectedBluetoothPlacement.Hidden;
 
-            if (applyFlyoutBluetoothPolicies && device is { IsBluetooth: true, IsDisconnected: true })
+            if (applyFlyoutBluetoothPolicies
+                && device is { IsBluetooth: true, IsDisconnected: true, IsBluetoothOrphaned: false })
             {
                 placement = ClassifyDisconnectedBluetooth(
                     settings.FlyoutDisconnectedBluetoothDeviceVisibility,

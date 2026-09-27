@@ -166,6 +166,15 @@ internal static class PropertyKeys
         new Guid(a: 0x8C7ED206, b: 0x3F8A, c: 0x4827, d: 0xB3, e: 0xAB, f: 0xAE, g: 0x9E, h: 0x1F, i: 0xAE, j: 0xFC,
             k: 0x6C), pid: 2);
 
+    // Instance id of the adapter devnode behind the endpoint, stored by the endpoint builder as
+    // "{1}.BTHENUM\{0000110B-...}\..." and kept after the devnode is gone. Not in the public SDK
+    // headers; same fmtid as PKEY_AudioEndpoint_AllowExclusiveControl. The documented route,
+    // DEVPKEY_Device_Parent of the endpoint's SWD\MMDEVAPI devnode, is missing for endpoints that
+    // were never active, which includes paired headsets that have not connected since pairing.
+    public static readonly PROPERTYKEY PKEY_Endpoint_AdapterInstancePath = new(
+        new Guid(a: 0xB3F8FA53, b: 0x0004, c: 0x438E, d: 0x90, e: 0x03, f: 0x51, g: 0xA4, h: 0x6E, i: 0x13, j: 0x9B,
+            k: 0xFC), pid: 2);
+
     // 'Listen to this device' state on capture endpoints, mirroring the checkbox under
     // Sound > Recording > [Mic Properties] > Listen tab. Stored as VT_BOOL (VARIANT_TRUE / FALSE)
     // in HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\{guid}\Properties.

@@ -312,7 +312,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             or nameof(AudioDevice.IsBluetoothConnected)
             or nameof(AudioDevice.IsBluetoothAudioWaiting)
             or nameof(AudioDevice.IsBluetoothConnectionPending)
-            or nameof(AudioDevice.BluetoothConnectionDeadlineMilliseconds))
+            or nameof(AudioDevice.BluetoothConnectionDeadlineMilliseconds)
+            or nameof(AudioDevice.IsBluetoothOrphaned))
             QueueRebuild();
     }
 

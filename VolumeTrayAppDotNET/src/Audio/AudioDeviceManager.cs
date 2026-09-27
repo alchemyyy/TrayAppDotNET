@@ -93,6 +93,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private readonly AsyncThrottler<string> _deviceListRefreshThrottler;
     private const string MissingDefaultDeviceListRefreshKey = "missing-default-device-list-refresh";
     private const string ResumeDeviceListRefreshKey = "resume-device-list-refresh";
+    private const string BluetoothEnumeratorPrefix = "BTH";
     private bool _missingDefaultRecoveryArmed;
 
     // Realtime listener for the system A2DP codec. The ETW event the monitor consumes is
@@ -213,8 +214,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (_disposed || !device.IsBluetooth || !device.IsDisconnected || string.IsNullOrEmpty(device.Id)) return;
 
         Guid? containerID = device.ContainerId;
+        // NOTE: Only Unplugged endpoints accept the request; NotPresent ones share the container but have no driver loaded
         AudioDevice[] relatedDevices = _devices
-            .Where(candidate => candidate is { IsBluetooth: true, IsDisconnected: true }
+            .Where(candidate => candidate is { IsBluetoothUnplugged: true }
                                 && (containerID is null
                                     ? ReferenceEquals(candidate, device)
                                     : candidate.ContainerId == containerID))
@@ -544,6 +546,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             _batteryMonitorInitialized = true;
             _batteryMonitor.BatteryChanged += OnBluetoothBatteryChanged;
             _batteryMonitor.BluetoothContainerConnectionChanged += OnBluetoothContainerConnectionChanged;
+            _batteryMonitor.BluetoothPairingChanged += OnBluetoothPairingChanged;
+            SyncTrackedBluetoothLineages();
             _batteryMonitor.Start();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -669,6 +673,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 TADNLog.Log(
                     "AudioDeviceManager.DisposePartialConstruction: bluetooth-container " +
                     $"unsubscribe failed: {ex.Message}");
+            }
+
+            try { _batteryMonitor.BluetoothPairingChanged -= OnBluetoothPairingChanged; }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: bluetooth-pairing unsubscribe failed: {ex.Message}");
             }
 
             Safe.Dispose(_batteryMonitor);
@@ -1054,12 +1065,18 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             if (rebuiltDevice is { IsBluetooth: true, IsActive: true })
                 rebuiltDevice.IsBluetoothConnected = true;
-            if (batteryMonitor != null) PromoteBluetoothIfClassified(rebuiltDevice);
+            if (batteryMonitor != null)
+            {
+                PromoteBluetoothIfClassified(rebuiltDevice);
+                ApplyBluetoothPairing(rebuiltDevice);
+            }
 
             if (pendingBluetoothConnections.TryGetValue(rebuiltDevice.Id, out long deadlineMilliseconds)
                 && deadlineMilliseconds > nowMilliseconds)
                 rebuiltDevice.BeginBluetoothConnectionAttempt(deadlineMilliseconds, nowMilliseconds);
         }
+
+        SyncTrackedBluetoothLineages();
 
         if (_devices.Any(static device => device.IsBluetoothConnectionPending))
             StartBluetoothConnectionCountdownTimer(nowMilliseconds);
@@ -1148,12 +1165,14 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             ReconcileCaptureMeterActivation();
             NoteExternalDeviceTopologyChanged();
             ScheduleUpdateAllDefaults();
+            SyncTrackedBluetoothLineages();
             // Refresh and promote synchronously for runtime device-add events. The
             // property-store EnumeratorName check at construction misses some Win11 drivers,
             // so without this pass the codec strip and battery row can stay collapsed on a
             // newly-added Bluetooth row until the flyout polling timer runs.
             _batteryMonitor.Refresh();
             PromoteBluetoothIfClassified(wrapped);
+            ApplyBluetoothPairing(wrapped);
             // Newly-added BT render endpoint inherits whatever codec the monitor last saw
             // so it doesn't paint blank until the next ETW event fires.
             if (wrapped is { IsBluetooth: true, DataFlow: EDataFlow.eRender })
@@ -1188,6 +1207,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         bool wasBluetoothRender = match is { IsBluetooth: true, DataFlow: EDataFlow.eRender };
         _devices.Remove(match);
         Safe.Dispose(match);
+        SyncTrackedBluetoothLineages();
         StopBluetoothConnectionCountdownTimerIfIdle();
         ReconcileCaptureMeterActivation();
         NoteExternalDeviceTopologyChanged();
@@ -1871,7 +1891,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (!_batteryMonitor.IsBluetoothContainer(container)) return;
         if (!CanPromoteToBluetooth(device)) return;
 
-        if (!device.IsBluetooth) device.IsBluetooth = true;
+        if (!device.IsBluetooth)
+        {
+            device.IsBluetooth = true;
+            SyncTrackedBluetoothLineages();
+        }
+
         device.IsBluetoothConnected = device.IsActive
                                       || _batteryMonitor.IsBluetoothContainerConnected(container);
         ApplyBluetoothBattery(device, container, _batteryMonitor.TryGet(container));
@@ -1906,11 +1931,17 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         if (_disposed) return;
 
+        bool promoted = false;
         foreach (AudioDevice d in _devices)
         {
             if (d.ContainerId != containerID) continue;
             if (!d.IsBluetooth && !CanPromoteToBluetooth(d)) continue;
-            if (!d.IsBluetooth) d.IsBluetooth = true;
+            if (!d.IsBluetooth)
+            {
+                d.IsBluetooth = true;
+                promoted = true;
+            }
+
             d.IsBluetoothConnected = isConnected;
             if (!isConnected) continue;
 
@@ -1918,7 +1949,46 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             ApplyBluetoothBattery(d, containerID, _batteryMonitor.TryGet(containerID));
         }
 
+        if (promoted) SyncTrackedBluetoothLineages();
         if (isConnected) EndBluetoothConnectionAttempts(containerID);
+    }
+
+    // BatteryMonitor fires this on the dispatcher when the pairing store or a tracked lineage
+    // classification changed. Re-derive every wrapper's radio-off pairing flag from the new state.
+    private void OnBluetoothPairingChanged()
+    {
+        if (_disposed) return;
+        foreach (AudioDevice device in _devices) ApplyBluetoothPairing(device);
+    }
+
+    // A NotPresent Bluetooth endpoint is listable only as the current pairing of a paired device
+    // whose radio is off. Everything else Windows reports as NotPresent is an orphaned pairing.
+    private void ApplyBluetoothPairing(AudioDevice device)
+    {
+        if (_disposed) return;
+        device.IsRadioOffBluetoothPairing = device.ContainerId is { } containerID
+                                            && _batteryMonitor.IsPairedBluetoothContainer(containerID)
+                                            && _batteryMonitor.IsRadioOffBluetoothLineage(device.BluetoothLineageStart);
+    }
+
+    // Publishes the lineage starts of every Bluetooth endpoint so the monitor's background pass can
+    // classify them. Endpoints on a BTH* enumerator count before promotion confirms them.
+    private void SyncTrackedBluetoothLineages()
+    {
+        // NOTE: The constructor's first RebuildDeviceList runs before the monitor exists
+        BluetoothBatteryMonitor? batteryMonitor = _batteryMonitor;
+        if (_disposed || batteryMonitor == null) return;
+
+        List<string> lineageStarts = [];
+        foreach (AudioDevice device in _devices)
+        {
+            if (!device.IsBluetooth
+                && !device.EnumeratorName.StartsWith(BluetoothEnumeratorPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+            lineageStarts.Add(device.BluetoothLineageStart);
+        }
+
+        batteryMonitor.SetTrackedBluetoothLineages(lineageStarts);
     }
 
     private void ApplyBluetoothBattery(AudioDevice device, Guid containerId, int? currentLevel)
@@ -1996,6 +2066,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
         _batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged;
         _batteryMonitor.BluetoothContainerConnectionChanged -= OnBluetoothContainerConnectionChanged;
+        _batteryMonitor.BluetoothPairingChanged -= OnBluetoothPairingChanged;
         Safe.Dispose(_batteryMonitor);
 
         try { _enumerator.UnregisterEndpointNotificationCallback(_bridge); }

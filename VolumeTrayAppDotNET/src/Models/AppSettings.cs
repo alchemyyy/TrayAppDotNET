@@ -136,9 +136,10 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     }
 
     // Registry-only ghost endpoints surfaced via DeviceState.NotPresent: every USB DAC port the user
-    // has ever plugged into, every previous GPU's HDMI outputs, every paired Bluetooth headset that
-    // accumulated in the audio device registry. Off by default so the tray / flyout don't drown in
-    // "Unknown Device" rows; opt-in for users who want to inspect or revive a ghost endpoint.
+    // has ever plugged into, every previous GPU's HDMI outputs, and paired Bluetooth devices while the radio is off.
+    // Bluetooth endpoints of unpaired devices or older pairings are orphaned and never listed, even with this on.
+    // Off by default so the tray / flyout don't drown in "Unknown Device" rows;
+    // opt-in for users who want to inspect or revive a ghost endpoint.
     // Cross-flow: applies to both render and capture NotPresent devices in one switch.
     public bool ShowNotPresentDevices
     {
@@ -805,6 +806,7 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     // controls whether render and capture devices interleave inside their state buckets or whether
     // capture devices group together at the top of the list. The disconnected-Bluetooth policy can
     // override only the per-state visibility gates; it never overrides either recording master.
+    // It only ever applies to paired devices, so orphaned Bluetooth endpoints stay hidden in every mode.
     // ShowBluetoothDevicesOnlyWhenBluetoothIsOn is the outer flyout-only Bluetooth gate and wins
     // over every disconnected-device visibility mode.
     public FlyoutDeviceLayoutStyle FlyoutDeviceLayout

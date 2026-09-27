@@ -12,6 +12,8 @@ namespace VolumeTrayAppDotNET.Audio;
 ///     "show disconnected" switch
 ///   * NotPresent endpoints (registry-only ghosts whose driver isn't loaded) are gated by their
 ///     own cross-flow switch since they're rarely useful and cause "Unknown Device" floods
+///   * Orphaned Bluetooth endpoints (unpaired devices, older pairings, absent radios) are never
+///     listed, not even as ghosts
 /// Render and capture share the same precedence layout but use distinct settings so the user can
 /// run "no recording at all" while still showing every disabled playback device.
 /// </summary>
@@ -38,7 +40,7 @@ internal static class DeviceVisibility
 
         // NotPresent first: registry ghosts are gated by their own cross-flow switch so flipping
         // "show disconnected" doesn't flood the list with every device the user has ever owned.
-        if (device.IsNotPresent) return settings.ShowNotPresentDevices;
+        if (device.IsNotPresent) return !device.IsBluetoothOrphaned && settings.ShowNotPresentDevices;
 
         // Unplugged: real endpoint, currently disconnected.
         return isRender ? settings.ShowDisconnectedPlaybackDevices : settings.ShowDisconnectedRecordingDevices;

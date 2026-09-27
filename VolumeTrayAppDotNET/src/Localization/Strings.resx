@@ -429,7 +429,7 @@ slider thumb|slider handle|slider knob</value>
     <value>Disconnected Bluetooth audio devices</value>
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_Description" xml:space="preserve">
-    <value>Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after both the normal playback and recording devices in the configured sort direction. The intermixed option instead sorts each endpoint with its playback or recording devices.</value>
+    <value>Applies to paired Bluetooth devices that are not connected. Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after both the normal playback and recording devices in the configured sort direction. The intermixed option instead sorts each endpoint with its playback or recording devices. Endpoints left behind by unpaired devices or older pairings are never listed.</value>
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_NeverShow" xml:space="preserve">
     <value>Never show</value>
@@ -1187,7 +1187,7 @@ Target: {1}</value>
     <value>Show registry ghost devices</value>
   </data>
   <data name="Settings_Devices_ShowNotPresent_Description" xml:space="preserve">
-    <value>List endpoints Windows still has on file but no driver is currently loaded for - old USB DACs, removed GPUs' HDMI outputs, paired Bluetooth headsets. Most surface as "Unknown Device". Off by default.</value>
+    <value>List endpoints Windows still has on file but no driver is currently loaded for - old USB DACs, removed GPUs' HDMI outputs, paired Bluetooth devices while Bluetooth is off. Most surface as "Unknown Device". Bluetooth endpoints of unpaired devices or older pairings are never listed. Off by default.</value>
   </data>
   <data name="Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title" xml:space="preserve">
     <value>Activate recording devices for peak meters</value>
