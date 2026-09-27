@@ -16,6 +16,28 @@ internal static class InstallerIcons
     public static string ResourceName(string iconName) => ResourcePrefix + iconName + IconExtension;
 
     /// <summary>
+    /// Picks the icon frame to draw at <paramref name="targetPixelWidth"/>: the smallest frame at least that
+    /// wide, so it is only ever scaled down, or the widest there is when every frame is smaller. Returns -1
+    /// when there are no frames.
+    /// </summary>
+    public static int SelectFrameIndex(IReadOnlyList<int> pixelWidths, int targetPixelWidth)
+    {
+        FrameworkCompatibility.ThrowIfNull(pixelWidths, nameof(pixelWidths));
+
+        int bestIndex = -1;
+        int widestIndex = -1;
+        for (int index = 0; index < pixelWidths.Count; index++)
+        {
+            int width = pixelWidths[index];
+            if (widestIndex < 0 || width > pixelWidths[widestIndex]) widestIndex = index;
+            if (width < targetPixelWidth) continue;
+            if (bestIndex < 0 || width < pixelWidths[bestIndex]) bestIndex = index;
+        }
+
+        return bestIndex >= 0 ? bestIndex : widestIndex;
+    }
+
+    /// <summary>
     /// Every tray application the factory carries an icon for, sorted, without the suite icon. Read from the
     /// compiled resources rather than a list, so it follows whatever the project embeds.
     /// </summary>

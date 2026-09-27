@@ -146,8 +146,9 @@ internal static class SystemTheme
     }
 
     /// <summary>
-    /// Applies the dark title bar and the rounded corners once the window has a handle. Both attributes are
-    /// refinements, so a Windows build that rejects them costs nothing but the effect.
+    /// Applies the dark frame and the rounded corners once the window has a handle. The window draws its own
+    /// title bar, so the dark attribute now only tints the frame edge. Both attributes are refinements, so a
+    /// Windows build that rejects them costs nothing but the effect.
     /// </summary>
     public static void ApplyWindowChrome(IntPtr windowHandle)
     {

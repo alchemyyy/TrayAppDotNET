@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -46,6 +47,12 @@ public sealed class InstallerWindow : Window
     private const string NoticeBorderThicknessKey = "InstallerTheme.NoticeBorderThickness";
     private const string CautionBackgroundBrushKey = "InstallerTheme.CautionBackgroundBrush";
     private const string CautionBorderBrushKey = "InstallerTheme.CautionBorderBrush";
+    private const string CaptionHeightKey = "InstallerTheme.CaptionHeight";
+    private const string CaptionIconSizeKey = "InstallerTheme.CaptionIconSize";
+
+    // Parts of the window template in Theme.xaml, which draws the title bar
+    private const string CaptionIconPartName = "PART_CaptionIcon";
+    private const string CloseButtonPartName = "PART_CloseButton";
 
     private readonly EmbeddedPayloadCatalog _catalog;
     private readonly List<PayloadSelection> _payloadSelections = [];
@@ -71,6 +78,8 @@ public sealed class InstallerWindow : Window
     private readonly Button _cancelButton;
     private readonly bool _isExample;
     private readonly bool _exampleFails;
+    private readonly List<BitmapFrame> _iconFrames = [];
+    private Image? _captionIcon;
     private bool _installRunning;
     private bool _installFinished;
 
@@ -280,24 +289,27 @@ public sealed class InstallerWindow : Window
     private StackPanel CreateLocationSection()
     {
         string header = L(nameof(AppStrings.Installer_Location_Header));
-        Grid grid = new();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value: 1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        // The box holds a panel-free single line, so the header doubles as its accessible name
-        AutomationProperties.SetName(_directoryTextBox, header);
-        _directoryTextBox.VerticalAlignment = VerticalAlignment.Center;
+        // Browse sits at the end of the header row, which leaves the box the full width of the window
+        TextBlock headerText = CreateSectionHeader(header);
+        headerText.VerticalAlignment = VerticalAlignment.Center;
         _browseButton.Margin = ThicknessResource(BrowseButtonMarginKey);
         _browseButton.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(_directoryTextBox, value: 0);
+        Grid headerRow = new();
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value: 1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(headerText, value: 0);
         Grid.SetColumn(_browseButton, value: 1);
-        grid.Children.Add(_directoryTextBox);
-        grid.Children.Add(_browseButton);
+        headerRow.Children.Add(headerText);
+        headerRow.Children.Add(_browseButton);
+
+        // The box holds a panel-free single line, so the header doubles as its accessible name
+        AutomationProperties.SetName(_directoryTextBox, header);
         _inputs.Add(_directoryTextBox);
         _inputs.Add(_browseButton);
 
         List<UIElement> rows = [];
-        rows.Add(grid);
-        return CreateSection(header, rows);
+        rows.Add(_directoryTextBox);
+        return CreateSection(headerRow, rows);
     }
 
     private StackPanel CreateOptionsSection()
@@ -333,14 +345,21 @@ public sealed class InstallerWindow : Window
         return row;
     }
 
-    private StackPanel CreateSection(string header, IReadOnlyList<UIElement> items)
+    private StackPanel CreateSection(string header, IReadOnlyList<UIElement> items) =>
+        CreateSection(CreateSectionHeader(header), items);
+
+    /// <summary>Stacks a header element above its items, for a section whose header row carries more than text.</summary>
+    private StackPanel CreateSection(UIElement header, IReadOnlyList<UIElement> items)
     {
         StackPanel section = new();
-        section.Children.Add(new TextBlock { Text = header, Style = StyleResource(SectionHeaderTextStyleKey) });
+        section.Children.Add(header);
         foreach (UIElement item in items) section.Children.Add(item);
         ApplyStackSpacing(section, ThicknessResource(ItemSpacingKey));
         return section;
     }
+
+    private TextBlock CreateSectionHeader(string text) =>
+        new() { Text = text, Style = StyleResource(SectionHeaderTextStyleKey) };
 
     private RadioButton CreateModeRadioButton(string title, string description, bool isChecked)
     {
@@ -406,15 +425,17 @@ public sealed class InstallerWindow : Window
                 ?? InstallerIcons.Open(InstallerIcons.ResourceName(InstallerIcons.SuiteIconName));
             if (stream == null) return null;
 
-            // OnLoad decodes every frame up front, so the icon survives the stream being closed
+            // OnLoad decodes every frame up front, so the icon survives the stream being closed. Every frame is
+            // kept, so the title bar can draw the one nearest its size rather than shrink the largest.
             IconBitmapDecoder decoder = new(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
             BitmapFrame? largestFrame = null;
             foreach (BitmapFrame frame in decoder.Frames)
             {
+                if (frame.CanFreeze) frame.Freeze();
+                _iconFrames.Add(frame);
                 if (largestFrame == null || frame.PixelWidth > largestFrame.PixelWidth) largestFrame = frame;
             }
 
-            if (largestFrame != null && largestFrame.CanFreeze) largestFrame.Freeze();
             return largestFrame;
         }
         catch (Exception exception)
@@ -424,12 +445,75 @@ public sealed class InstallerWindow : Window
         }
     }
 
+    // Title bar
+
+    /// <summary>Wires the title bar the window template draws: the close button, and the icon's system menu.</summary>
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+
+        Button? closeButton = GetTemplateChild(CloseButtonPartName) as Button;
+        if (closeButton != null)
+        {
+            // The button shows only a glyph, so screen readers need its name spelled out
+            AutomationProperties.SetName(closeButton, L(nameof(AppStrings.Installer_Button_Close)));
+            closeButton.Click += OnCloseButtonClick;
+        }
+
+        _captionIcon = GetTemplateChild(CaptionIconPartName) as Image;
+        if (_captionIcon == null) return;
+
+        _captionIcon.MouseLeftButtonDown += OnCaptionIconMouseDown;
+        UpdateCaptionIcon(VisualTreeHelper.GetDpi(this));
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        UpdateCaptionIcon(newDpi);
+    }
+
+    /// <summary>
+    /// Points the title bar icon at the frame drawn nearest its size on this monitor, so it stays sharp instead
+    /// of being scaled down from the largest image.
+    /// </summary>
+    private void UpdateCaptionIcon(DpiScale dpi)
+    {
+        if (_captionIcon == null || _iconFrames.Count == 0) return;
+
+        List<int> frameWidths = [];
+        foreach (BitmapFrame frame in _iconFrames) frameWidths.Add(frame.PixelWidth);
+        int targetWidth = (int)Math.Ceiling(DoubleResource(CaptionIconSizeKey) * dpi.DpiScaleX);
+        int frameIndex = InstallerIcons.SelectFrameIndex(frameWidths, targetWidth);
+        if (frameIndex >= 0) _captionIcon.Source = _iconFrames[frameIndex];
+    }
+
+    // Closing goes through the system command so it still passes OnClosing, which holds the window open while
+    // an install is running
+    private void OnCloseButtonClick(object sender, RoutedEventArgs eventArgs) => SystemCommands.CloseWindow(this);
+
+    /// <summary>Opens the system menu below the title bar, as clicking the icon of a Windows title bar does.</summary>
+    private void OnCaptionIconMouseDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        Image? icon = sender as Image;
+        if (icon == null) return;
+
+        eventArgs.Handled = true;
+        double iconLeft = icon.TranslatePoint(new Point(0, 0), this).X;
+        // PointToScreen answers in device pixels, while ShowSystemMenu takes device independent units
+        Point devicePoint = PointToScreen(new Point(iconLeft, DoubleResource(CaptionHeightKey)));
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        SystemCommands.ShowSystemMenu(this, new Point(devicePoint.X / dpi.DpiScaleX, devicePoint.Y / dpi.DpiScaleY));
+    }
+
     // Interaction
 
     private void OnSourceInitialized(object? sender, EventArgs eventArgs)
     {
         WindowInteropHelper interopHelper = new(this);
         SystemTheme.ApplyWindowChrome(interopHelper.Handle);
+        // The handle now exists, so the monitor's scaling is known for certain
+        UpdateCaptionIcon(VisualTreeHelper.GetDpi(this));
     }
 
     private void OnModeChecked(object sender, RoutedEventArgs eventArgs)
@@ -670,6 +754,8 @@ public sealed class InstallerWindow : Window
     private Thickness ThicknessResource(string key) => (Thickness)FindResource(key);
 
     private CornerRadius CornerRadiusResource(string key) => (CornerRadius)FindResource(key);
+
+    private double DoubleResource(string key) => (double)FindResource(key);
 
     private static string Format(string key, object argument) =>
         string.Format(CultureInfo.CurrentCulture, L(key), argument);

@@ -58,6 +58,10 @@
     button need no arguments, and a Debug build with no payload falls into the same mode. A stamped
     installer is a Release build carrying a payload, so it cannot reach any of this; `ExampleModeTests`
     covers the argument parsing, the fabricated catalog and the simulated run.
+  - The window draws its own title bar through WPF's `WindowChrome`, because the one Windows draws cannot be
+    made taller for a single window. It is 34 units, 4 more than the 30 Windows gives this non-resizable
+    window, and every size and colour is in `Theme.xaml`. The icon draws from the frame nearest its size at
+    the current display scaling, and clicking it opens the system menu.
   - Targets `net48` on purpose. The framework and its renderer ship with Windows, so the installer is a few
     hundred kilobytes instead of the 28 MB an Avalonia Native AOT build cost, which embedded Skia.
   - `src/GlobalUsings.cs` supplies the usings the SDK only provides implicitly on .NET 6 and newer, and

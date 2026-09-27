@@ -18,6 +18,24 @@
     <system:Double x:Key="InstallerTheme.WindowWidth">560</system:Double>
     <Thickness x:Key="InstallerTheme.OuterMargin">24</Thickness>
 
+    <!-- Title bar. The window draws its own, because the one Windows draws cannot be made taller for a single
+         window. Windows gives this non-resizable window a 30 unit bar, measured; this one is 4 taller. -->
+    <system:Double x:Key="InstallerTheme.CaptionHeight">34</system:Double>
+    <system:Double x:Key="InstallerTheme.CaptionFontSize">12</system:Double>
+    <system:Double x:Key="InstallerTheme.CaptionIconSize">16</system:Double>
+    <Thickness x:Key="InstallerTheme.CaptionIconMargin">8,0,8,0</Thickness>
+    <system:Double x:Key="InstallerTheme.CaptionButtonWidth">46</system:Double>
+    <FontFamily x:Key="InstallerTheme.CaptionGlyphFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <system:Double x:Key="InstallerTheme.CaptionGlyphFontSize">10</system:Double>
+    <system:String x:Key="InstallerTheme.CloseGlyph">&#xE8BB;</system:String>
+    <!-- A sliver of glass keeps Windows drawing the shadow and the rounded corners. The window paints over it,
+         so it never shows. -->
+    <Thickness x:Key="InstallerTheme.CaptionGlassFrameThickness">0,0,0,1</Thickness>
+    <!-- The close button's red is the same in both appearances, so it sits outside the palette -->
+    <SolidColorBrush x:Key="InstallerTheme.CloseHoverBackgroundBrush" Color="#FFC42B1C" />
+    <SolidColorBrush x:Key="InstallerTheme.ClosePressedBackgroundBrush" Color="#E6C42B1C" />
+    <SolidColorBrush x:Key="InstallerTheme.CloseActiveGlyphBrush" Color="#FFFFFFFF" />
+
     <!-- Stack spacing, applied as a bottom or right margin on every child but the last -->
     <Thickness x:Key="InstallerTheme.SectionSpacing">0,0,0,20</Thickness>
     <Thickness x:Key="InstallerTheme.ItemSpacing">0,0,0,8</Thickness>
@@ -31,8 +49,10 @@
     <system:Double x:Key="InstallerTheme.ButtonMinHeight">32</system:Double>
     <Thickness x:Key="InstallerTheme.ButtonPadding">14,5,14,6</Thickness>
     <Thickness x:Key="InstallerTheme.LinkPadding">0,2,0,2</Thickness>
-    <system:Double x:Key="InstallerTheme.TextBoxMinHeight">32</system:Double>
-    <Thickness x:Key="InstallerTheme.TextBoxPadding">10,5,10,6</Thickness>
+    <!-- NOTE: the box is as tall as the larger of its minimum and one text line plus padding and border, so
+         a height change needs both values moved by the same amount -->
+    <system:Double x:Key="InstallerTheme.TextBoxMinHeight">28</system:Double>
+    <Thickness x:Key="InstallerTheme.TextBoxPadding">10,3,10,4</Thickness>
     <CornerRadius x:Key="InstallerTheme.ControlCornerRadius">4</CornerRadius>
     <Thickness x:Key="InstallerTheme.ControlBorderThickness">1</Thickness>
     <system:Double x:Key="InstallerTheme.FocusUnderlineHeight">2</system:Double>
@@ -110,6 +130,110 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <!-- The whole window becomes client area and the template draws the title bar. Dragging, the system
+             menu and Alt+F4 still come from Windows; only the parts marked hit-test visible take clicks. -->
+        <Setter Property="WindowChrome.WindowChrome">
+            <Setter.Value>
+                <WindowChrome CaptionHeight="{StaticResource InstallerTheme.CaptionHeight}"
+                              GlassFrameThickness="{StaticResource InstallerTheme.CaptionGlassFrameThickness}"
+                              ResizeBorderThickness="0"
+                              CornerRadius="0"
+                              UseAeroCaptionButtons="False" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Window">
+                    <Border Background="{TemplateBinding Background}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Height="{DynamicResource InstallerTheme.CaptionHeight}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- The window swaps in the frame drawn nearest this size on the current monitor -->
+                                <Image x:Name="PART_CaptionIcon"
+                                       Source="{TemplateBinding Icon}"
+                                       Width="{DynamicResource InstallerTheme.CaptionIconSize}"
+                                       Height="{DynamicResource InstallerTheme.CaptionIconSize}"
+                                       Margin="{DynamicResource InstallerTheme.CaptionIconMargin}"
+                                       VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       WindowChrome.IsHitTestVisibleInChrome="True" />
+                                <TextBlock x:Name="CaptionTitle"
+                                           Grid.Column="1"
+                                           Text="{TemplateBinding Title}"
+                                           FontSize="{DynamicResource InstallerTheme.CaptionFontSize}"
+                                           Foreground="{DynamicResource InstallerTheme.PrimaryTextBrush}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button x:Name="PART_CloseButton"
+                                        Grid.Column="2"
+                                        Style="{DynamicResource InstallerTheme.CaptionCloseButtonStyle}"
+                                        WindowChrome.IsHitTestVisibleInChrome="True" />
+                            </Grid>
+                            <AdornerDecorator Grid.Row="1">
+                                <ContentPresenter />
+                            </AdornerDecorator>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- Windows dims the title and the close glyph of a window that is not in front -->
+                        <Trigger Property="IsActive" Value="False">
+                            <Setter TargetName="CaptionTitle" Property="Foreground"
+                                    Value="{DynamicResource InstallerTheme.DisabledTextBrush}" />
+                            <Setter TargetName="PART_CloseButton" Property="Foreground"
+                                    Value="{DynamicResource InstallerTheme.DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The title bar's close button. It takes no keyboard focus, like the buttons Windows draws. The surface
+         must stay painted, even transparent, or only the glyph's own pixels would take the click. -->
+    <Style x:Key="InstallerTheme.CaptionCloseButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="{DynamicResource InstallerTheme.CaptionButtonWidth}" />
+        <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.PrimaryTextBrush}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="CloseSurface" Background="Transparent">
+                        <TextBlock x:Name="CloseGlyph"
+                                   Text="{DynamicResource InstallerTheme.CloseGlyph}"
+                                   FontFamily="{DynamicResource InstallerTheme.CaptionGlyphFontFamily}"
+                                   FontSize="{DynamicResource InstallerTheme.CaptionGlyphFontSize}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="NoWrap" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CloseSurface" Property="Background"
+                                    Value="{DynamicResource InstallerTheme.CloseHoverBackgroundBrush}" />
+                            <Setter TargetName="CloseGlyph" Property="Foreground"
+                                    Value="{DynamicResource InstallerTheme.CloseActiveGlyphBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="CloseSurface" Property="Background"
+                                    Value="{DynamicResource InstallerTheme.ClosePressedBackgroundBrush}" />
+                            <Setter TargetName="CloseGlyph" Property="Foreground"
+                                    Value="{DynamicResource InstallerTheme.CloseActiveGlyphBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Text. Only wrapping is set implicitly: a Foreground or FontSize here would also land on the text
