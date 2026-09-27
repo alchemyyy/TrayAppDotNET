@@ -88,7 +88,8 @@ internal static class Program
                    $"Could not find {RepositoryMarkerFileName}. Pass the repository path with --root.");
     }
 
-    private static string? FindRepositoryRoot(string startingPath)
+    /// <summary>Walks up from a path to the directory containing the repository marker file.</summary>
+    internal static string? FindRepositoryRoot(string startingPath)
     {
         DirectoryInfo? directory = new(Path.GetFullPath(startingPath));
         while (directory != null)
@@ -136,7 +137,7 @@ internal static class Program
 
     private static void PrintHelp()
     {
-        Console.WriteLine("Generate TrayAppDotNET app.ico files from embedded SVG sources.");
+        Console.WriteLine("Generate TrayAppDotNET app.ico files from the SVG sources in resources/app_icons.");
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  dotnet run --project tools/AppIconGenerator/AppIconGenerator.csproj -p:Platform=x64 -- [options]");

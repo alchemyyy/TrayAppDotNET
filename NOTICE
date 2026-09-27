@@ -187,7 +187,7 @@ Fluent UI System Icons and generated TrayAppDotNET application icons
   Modifications: source fill colors are normalized to white; Task Manager
   combines the desktop-tower and pulse icons; raster ICO sizes are generated
   from the SVG sources.
-  Source files: tools/AppIconGenerator/SVG
+  Source files: resources/app_icons
   Notices:
     .notices/Fluent-UI-System-Icons-MIT.txt
     .notices/Fluent-UI-System-Icons-NOTICE.txt

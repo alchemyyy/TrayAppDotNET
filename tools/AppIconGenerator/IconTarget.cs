@@ -1,7 +1,7 @@
 namespace TrayAppDotNET.Tools.AppIconGenerator;
 
 /// <summary>Describes one normalized SVG layer in an application icon.</summary>
-internal readonly record struct SVGIconLayer(string ResourceFileName, NormalizedRectangle Destination);
+internal readonly record struct SVGIconLayer(string SourceFileName,NormalizedRectangle Destination);
 
 /// <summary>Describes a rectangle in the composition's zero-to-one design canvas.</summary>
 internal readonly record struct NormalizedRectangle(float X, float Y, float Width, float Height)

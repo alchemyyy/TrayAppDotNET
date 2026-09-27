@@ -17,10 +17,11 @@ internal sealed class IconComposition : IDisposable
         _bounds = bounds;
     }
 
-    /// <summary>Loads and prepares every SVG layer in a target.</summary>
-    public static IconComposition Create(IconTarget target)
+    /// <summary>Loads and prepares every SVG layer in a target from the SVG source directory.</summary>
+    public static IconComposition Create(IconTarget target, string sourceDirectory)
     {
         ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
         if (target.Layers.Count == 0)
             throw new ArgumentException("An icon target must contain at least one SVG layer.", nameof(target));
 
@@ -30,13 +31,14 @@ internal sealed class IconComposition : IDisposable
             SKRect bounds = SKRect.Empty;
             foreach (SVGIconLayer layer in target.Layers)
             {
-                using SVGDocument document = SVGDocument.LoadEmbedded(layer.ResourceFileName);
+                string sourcePath = Path.Combine(sourceDirectory, layer.SourceFileName);
+                using SVGDocument document = SVGDocument.LoadFile(sourcePath);
                 SKPath path = document.CreateNormalizedPath(layer.Destination);
                 if (path.IsEmpty)
                 {
                     path.Dispose();
                     throw new InvalidDataException(
-                        $"SVG layer '{layer.ResourceFileName}' produced no drawable geometry.");
+                        $"SVG layer '{layer.SourceFileName}' produced no drawable geometry.");
                 }
 
                 paths.Add(path);

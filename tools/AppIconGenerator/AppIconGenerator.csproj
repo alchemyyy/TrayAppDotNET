@@ -15,8 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="SVG\*.svg"
-                      LogicalName="AppIconGenerator.SVG.%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="AppIconGenerator.Tests" />
   </ItemGroup>
 </Project>

@@ -36,23 +36,6 @@
      id="defs1">
     <inkscape:path-effect
        effect="fillet_chamfer"
-       id="path-effect7"
-       is_visible="true"
-       lpeversion="1"
-       nodesatellites_param="F,0,0,1,0,5.5217272,0,1 @ F,0,0,1,0,5.5217272,0,1 @ F,0,0,1,0,5.5217272,0,1"
-       radius="10"
-       unit="px"
-       method="auto"
-       mode="F"
-       chamfer_steps="1"
-       flexible="false"
-       use_knot_distance="true"
-       apply_no_radius="true"
-       apply_with_radius="true"
-       only_selected="false"
-       hide_knots="false" />
-    <inkscape:path-effect
-       effect="fillet_chamfer"
        id="path-effect6"
        is_visible="true"
        lpeversion="1"
@@ -169,11 +152,8 @@
        inkscape:original-d="M 119.0965,107.89517 62.552071,119.18741 24.500491,75.864618 42.993341,21.249585 99.537772,9.9573473 137.58935,53.280142 Z" />
     <path
        id="path7"
-       style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:16.3763;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke fill markers"
+       style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:8.545;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke fill markers"
        inkscape:transform-center-y="-4.1919956"
-       d="M 111.33691,44.269615 H 49.972412 a 3.1879707,3.1879707 60 0 1 -2.760863,-4.781956 l 30.68225,-53.143216 a 3.1879707,3.1879707 3.4263921e-7 0 1 5.521728,0 l 30.682253,53.143216 a 3.1879707,3.1879707 120 0 1 -2.76087,4.781956 z"
-       inkscape:path-effect="#path-effect7"
-       inkscape:original-d="M 116.85864,44.269615 H 44.450685 l 36.203978,-62.707128 z"
-       transform="matrix(0.59496466,0,0,0.4011019,47.613235,128.68098)" />
+       d="M 113.854762,146.437607 H 77.345054 a 1.89673,1.278701 0 0 1 -1.642616,-1.918052 l 18.254854,-21.315845 a 1.89673,1.278701 0 0 1 3.285233,0 l 18.254856,21.315845 a 1.89673,1.278701 0 0 1 -1.64262,1.918052 z" />
   </g>
 </svg>

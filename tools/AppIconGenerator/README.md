@@ -1,6 +1,6 @@
 # App Icon Generator
 
-Generates the seven TrayAppDotNET `app.ico` files from SVG sources embedded in this tool. Each ICO contains native PNG frames at 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256 pixels.
+Generates the seven TrayAppDotNET `app.ico` files from the SVG sources in `resources/app_icons/`. Each ICO contains native PNG frames at 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256 pixels.
 
 Run all targets from the repository root:
 
@@ -18,7 +18,7 @@ Targets may be selected by short name or full project-directory name. The tool r
 
 ## Sources
 
-The copied source assets are under `SVG/` and are embedded in the executable:
+The source assets are read from `resources/app_icons/` at run time, so SVG edits take effect on the next run without rebuilding the tool:
 
 - BATADN: `ic_fluent_battery_6_24_regular.svg`
 - BTADN: `ic_fluent_brightness_high_20_filled.svg`

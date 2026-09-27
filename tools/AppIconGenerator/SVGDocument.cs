@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using System.Xml.Linq;
 using SkiaSharp;
 
@@ -24,10 +23,9 @@ internal readonly record struct PathPaintStyle(
         StrokeMiterLimit: 4f);
 }
 
-/// <summary>Loads the path geometry and view box from one embedded SVG source.</summary>
+/// <summary>Loads the path geometry and view box from one SVG source file.</summary>
 internal sealed class SVGDocument : IDisposable
 {
-    private const string ResourcePrefix = "AppIconGenerator.SVG.";
     private const string NoneKeyword = "none";
     private static readonly char[] ViewBoxSeparators = [' ', ',', '\t', '\r', '\n'];
 
@@ -40,20 +38,18 @@ internal sealed class SVGDocument : IDisposable
         _viewBox = viewBox;
     }
 
-    /// <summary>Loads an SVG embedded in the generator assembly.</summary>
-    public static SVGDocument LoadEmbedded(string resourceFileName)
+    /// <summary>Loads an SVG source file from disk.</summary>
+    public static SVGDocument LoadFile(string filePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(resourceFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"SVG source was not found: {filePath}", filePath);
 
-        Assembly assembly = typeof(SVGDocument).Assembly;
-        string resourceName = ResourcePrefix + resourceFileName;
-        using Stream stream = assembly.GetManifestResourceStream(resourceName)
-                              ?? throw new InvalidOperationException(
-                                  $"Embedded SVG resource '{resourceName}' was not found.");
-        return Load(stream, resourceFileName);
+        using FileStream stream = File.OpenRead(filePath);
+        return Load(stream, Path.GetFileName(filePath));
     }
 
-    /// <summary>Loads SVG path geometry and view box from an arbitrary stream. Shared by embedded sources and tests.</summary>
+    /// <summary>Loads SVG path geometry and view box from an arbitrary stream. Shared by source files and tests.</summary>
     internal static SVGDocument Load(Stream stream, string sourceName)
     {
         ArgumentNullException.ThrowIfNull(stream);

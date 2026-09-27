@@ -25,11 +25,14 @@ public sealed class IconGeneratorTests
     public void EveryTargetRendersAnExpectedSizePNG()
     {
         const int renderSize = 32;
+        string repositoryRoot = Program.FindRepositoryRoot(AppContext.BaseDirectory)
+                                ?? throw new DirectoryNotFoundException("Test output is not inside the repository.");
+        string sourceDirectory = IconGenerator.GetSourceDirectory(repositoryRoot);
         IReadOnlyList<IconTarget> targets = IconTargetCatalog.Create();
 
         foreach (IconTarget target in targets)
         {
-            using IconComposition composition = IconComposition.Create(target);
+            using IconComposition composition = IconComposition.Create(target, sourceDirectory);
             byte[] PNGBytes = composition.RenderPNG(renderSize);
 
             Assert.True(PNGBytes.AsSpan(0, PNGSignature.Length).SequenceEqual(PNGSignature));
