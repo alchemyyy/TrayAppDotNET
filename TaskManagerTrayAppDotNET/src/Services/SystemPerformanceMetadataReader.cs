@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
@@ -11,6 +13,10 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
 
     private const string ProcessorPerformancePath =
         @"\Processor Information(*)\% Processor Performance";
+
+    // Its base counter is elapsed time in the same units as the performance counter's busy-time base
+    private const string ProcessorUtilityTotalPath =
+        @"\Processor Information(_Total)\% Processor Utility";
 
     private const uint AllProcessorGroups = 0xFFFF;
     private const int ProcessorPowerInformation = 11;
@@ -26,21 +32,22 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
     private const int CacheSizeOffset = 12;
     private const int ErrorInsufficientBuffer = 122;
     private const int MaximumCounterInstanceNameLength = 128;
+    private const int ProcessorGroupKeyShift = 16;
     private const uint PdhSuccess = 0;
     private const uint PdhMoreData = 0x800007D2;
     private const uint PdhValidData = 0;
     private const uint PdhNewData = 1;
-    private const uint PdhFormatDouble = 0x00000200;
-    private const uint PdhFormatNoCap100 = 0x00008000;
 
     private readonly string _processorName = ReadProcessorName();
     private readonly ProcessorTopology _topology = ReadProcessorTopology();
     private readonly ulong _installedPhysicalMemoryBytes = ReadInstalledPhysicalMemoryBytes();
+    private readonly ProcessorSpeedEstimator _speedEstimator = new();
     private IntPtr _processorPerformanceQuery;
     private IntPtr _processorPerformanceCounter;
+    private IntPtr _processorUtilityTotalCounter;
     private IntPtr _counterBuffer;
     private uint _counterBufferSize;
-    private bool _processorPerformanceQueryPrimed;
+    private ProcessorPerformanceReading[] _performanceReadings = [];
     private bool _disposed;
 
     public SystemPerformanceMetadataReader()
@@ -52,11 +59,21 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             ProcessorPerformancePath,
             IntPtr.Zero,
             out _processorPerformanceCounter);
+        if (status == PdhSuccess)
+        {
+            status = PdhAddEnglishCounterW(
+                _processorPerformanceQuery,
+                ProcessorUtilityTotalPath,
+                IntPtr.Zero,
+                out _processorUtilityTotalCounter);
+        }
+
         if (status == PdhSuccess) return;
 
         _ = PdhCloseQuery(_processorPerformanceQuery);
         _processorPerformanceQuery = IntPtr.Zero;
         _processorPerformanceCounter = IntPtr.Zero;
+        _processorUtilityTotalCounter = IntPtr.Zero;
     }
 
     /// <summary>Captures frequency, counts, commit data, and uptime for the current sample.</summary>
@@ -65,11 +82,11 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         bool hasFrequencyData = TryReadProcessorFrequency(
             out ulong highestCurrentSpeedHertz,
             out ulong baseSpeedHertz);
-        if (TryReadHighestCurrentTurboSpeed(
+        if (TryReadHighestEffectiveSpeed(
                 baseSpeedHertz,
-                out ulong highestTurboSpeedHertz))
+                out ulong highestEffectiveSpeedHertz))
         {
-            highestCurrentSpeedHertz = highestTurboSpeedHertz;
+            highestCurrentSpeedHertz = highestEffectiveSpeedHertz;
             hasFrequencyData = true;
         }
 
@@ -241,7 +258,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
     }
 
     /// <summary>Discards the current PDH delta baseline after a sampling reset.</summary>
-    internal void ResetFrequencyBaseline() => _processorPerformanceQueryPrimed = false;
+    internal void ResetFrequencyBaseline() => _speedEstimator.Reset();
 
     /// <summary>Applies a turbo-aware processor-performance percentage to the nominal base speed.</summary>
     internal static ulong CalculateCurrentSpeedHertz(
@@ -259,7 +276,8 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             : (ulong)Math.Round(speedHertz, MidpointRounding.AwayFromZero);
     }
 
-    private bool TryReadHighestCurrentTurboSpeed(
+    /// <summary>Reads the highest busy-time-qualified logical processor speed, held until a newer one qualifies.</summary>
+    private bool TryReadHighestEffectiveSpeed(
         ulong baseSpeedHertz,
         out ulong highestCurrentSpeedHertz)
     {
@@ -268,70 +286,81 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
             || baseSpeedHertz == 0
             || _processorPerformanceQuery == IntPtr.Zero
             || _processorPerformanceCounter == IntPtr.Zero
+            || _processorUtilityTotalCounter == IntPtr.Zero
             || PdhCollectQueryData(_processorPerformanceQuery) != PdhSuccess)
             return false;
 
-        bool canReadFormattedValues = _processorPerformanceQueryPrimed;
-        _processorPerformanceQueryPrimed = true;
-        if (!canReadFormattedValues
-            || !TryReadCounterArray(
-                _processorPerformanceCounter,
-                PdhFormatDouble | PdhFormatNoCap100,
-                out PDH_FORMATTED_COUNTER_VALUE_ITEM* items,
-                out uint itemCount))
+        long collectedTimestamp = Stopwatch.GetTimestamp();
+        if (!TryReadElapsedTime(out uint elapsedTime)
+            || !TryReadProcessorPerformanceReadings(out int readingCount))
             return false;
 
-        for (uint itemIndex = 0; itemIndex < itemCount; itemIndex++)
-        {
-            PDH_FORMATTED_COUNTER_VALUE_ITEM item = items[itemIndex];
-            if (item.Name == IntPtr.Zero
-                || item.Value.Status is not (PdhValidData or PdhNewData)
-                || !IsLogicalProcessorInstanceName(ReadNullTerminatedSpan((char*)item.Name)))
-                continue;
-
-            ulong currentSpeedHertz = CalculateCurrentSpeedHertz(
-                baseSpeedHertz,
-                item.Value.DoubleValue);
-            highestCurrentSpeedHertz = Math.Max(highestCurrentSpeedHertz, currentSpeedHertz);
-        }
-
+        _ = _speedEstimator.Update(
+            _performanceReadings.AsSpan(start: 0, readingCount),
+            elapsedTime,
+            collectedTimestamp);
+        highestCurrentSpeedHertz = CalculateCurrentSpeedHertz(
+            baseSpeedHertz,
+            _speedEstimator.HighestPerformancePercent);
         return highestCurrentSpeedHertz > 0;
     }
 
-    private bool TryReadCounterArray(
-        IntPtr counter,
-        uint format,
-        out PDH_FORMATTED_COUNTER_VALUE_ITEM* items,
-        out uint itemCount)
+    private bool TryReadElapsedTime(out uint elapsedTime)
     {
+        elapsedTime = 0;
+        if (PdhGetRawCounterValue(_processorUtilityTotalCounter, out _, out PDH_RAW_COUNTER value) != PdhSuccess
+            || value.Status is not (PdhValidData or PdhNewData))
+            return false;
+
+        // NOTE: the base is a 32-bit counter, so only the low bits carry the elapsed time
+        elapsedTime = unchecked((uint)value.SecondValue);
+        return true;
+    }
+
+    private bool TryReadProcessorPerformanceReadings(out int readingCount)
+    {
+        readingCount = 0;
         uint requiredSize = _counterBufferSize;
-        uint status = PdhGetFormattedCounterArrayW(
-            counter,
-            format,
+        uint status = PdhGetRawCounterArrayW(
+            _processorPerformanceCounter,
             ref requiredSize,
-            out itemCount,
+            out uint itemCount,
             _counterBuffer);
         if (status == PdhMoreData)
         {
             EnsureCounterBuffer(requiredSize);
             requiredSize = _counterBufferSize;
-            status = PdhGetFormattedCounterArrayW(
-                counter,
-                format,
+            status = PdhGetRawCounterArrayW(
+                _processorPerformanceCounter,
                 ref requiredSize,
                 out itemCount,
                 _counterBuffer);
         }
 
-        if (status != PdhSuccess)
+        if (status != PdhSuccess) return false;
+
+        if (_performanceReadings.Length < itemCount)
+            _performanceReadings = new ProcessorPerformanceReading[itemCount];
+
+        PDH_RAW_COUNTER_ITEM* items = (PDH_RAW_COUNTER_ITEM*)_counterBuffer;
+        for (uint itemIndex = 0; itemIndex < itemCount; itemIndex++)
         {
-            items = null;
-            itemCount = 0;
-            return false;
+            PDH_RAW_COUNTER_ITEM item = items[itemIndex];
+            if (item.Name == IntPtr.Zero
+                || item.Value.Status is not (PdhValidData or PdhNewData)
+                || !TryParseLogicalProcessorKey(
+                    ReadNullTerminatedSpan((char*)item.Name),
+                    out int processorKey))
+                continue;
+
+            _performanceReadings[readingCount] = new ProcessorPerformanceReading(
+                processorKey,
+                item.Value.FirstValue,
+                unchecked((uint)item.Value.SecondValue));
+            readingCount++;
         }
 
-        items = (PDH_FORMATTED_COUNTER_VALUE_ITEM*)_counterBuffer;
-        return true;
+        return readingCount > 0;
     }
 
     private void EnsureCounterBuffer(uint requiredSize)
@@ -355,25 +384,37 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         return new ReadOnlySpan<char>(value, length);
     }
 
-    private static bool IsLogicalProcessorInstanceName(ReadOnlySpan<char> instanceName)
+    /// <summary>Maps a "group,number" or "number" instance name to a stable key, rejecting totals.</summary>
+    internal static bool TryParseLogicalProcessorKey(ReadOnlySpan<char> instanceName, out int processorKey)
     {
-        bool hasDigit = false;
-        bool hasSeparator = false;
-        bool hasDigitAfterSeparator = false;
-        foreach (char character in instanceName)
+        processorKey = 0;
+        int group = 0;
+        ReadOnlySpan<char> numberText = instanceName;
+        int separatorIndex = instanceName.IndexOf(',');
+        if (separatorIndex >= 0)
         {
-            if (char.IsAsciiDigit(character))
-            {
-                hasDigit = true;
-                if (hasSeparator) hasDigitAfterSeparator = true;
-                continue;
-            }
-
-            if (character != ',' || !hasDigit || hasSeparator) return false;
-            hasSeparator = true;
+            if (!TryParseProcessorIndex(instanceName[..separatorIndex], out group)) return false;
+            numberText = instanceName[(separatorIndex + 1)..];
         }
 
-        return hasDigit && (!hasSeparator || hasDigitAfterSeparator);
+        if (!TryParseProcessorIndex(numberText, out int number)) return false;
+
+        processorKey = (group << ProcessorGroupKeyShift) | number;
+        return true;
+    }
+
+    private static bool TryParseProcessorIndex(ReadOnlySpan<char> text, out int index)
+    {
+        index = 0;
+        if (text.IsEmpty) return false;
+
+        foreach (char character in text)
+        {
+            if (!char.IsAsciiDigit(character)) return false;
+        }
+
+        return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out index)
+               && index < (1 << ProcessorGroupKeyShift);
     }
 
     private static bool TryReadPerformanceInformation(out SystemPerformanceInformation information)
@@ -439,6 +480,7 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
         _ = PdhCloseQuery(_processorPerformanceQuery);
         _processorPerformanceQuery = IntPtr.Zero;
         _processorPerformanceCounter = IntPtr.Zero;
+        _processorUtilityTotalCounter = IntPtr.Zero;
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -493,31 +535,37 @@ internal sealed unsafe class SystemPerformanceMetadataReader : IDisposable
     private static extern uint PdhCollectQueryData(IntPtr query);
 
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhGetFormattedCounterArrayW(
+    private static extern uint PdhGetRawCounterArrayW(
         IntPtr counter,
-        uint format,
         ref uint bufferSize,
         out uint itemCount,
         IntPtr itemBuffer);
 
     [DllImport("pdh.dll")]
+    private static extern uint PdhGetRawCounterValue(
+        IntPtr counter,
+        out uint counterType,
+        out PDH_RAW_COUNTER value);
+
+    [DllImport("pdh.dll")]
     private static extern uint PdhCloseQuery(IntPtr query);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct PDH_FORMATTED_COUNTER_VALUE_ITEM
+    private struct PDH_RAW_COUNTER_ITEM
     {
         public IntPtr Name;
-        public PDH_FORMATTED_COUNTER_VALUE Value;
+        public PDH_RAW_COUNTER Value;
     }
 
-    [StructLayout(LayoutKind.Explicit)]
-    private struct PDH_FORMATTED_COUNTER_VALUE
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PDH_RAW_COUNTER
     {
-        [FieldOffset(0)]
         public uint Status;
-
-        [FieldOffset(8)]
-        public double DoubleValue;
+        public uint TimeStampLow;
+        public uint TimeStampHigh;
+        public long FirstValue;
+        public long SecondValue;
+        public uint MultiCount;
     }
 
     [StructLayout(LayoutKind.Sequential)]
