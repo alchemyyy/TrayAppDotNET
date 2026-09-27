@@ -241,7 +241,9 @@ internal sealed class DiskPerformanceSampler
             DriveInfo drive = drives[driveIndex];
             try
             {
-                if (!drive.IsReady || drive.DriveType is not (DriveType.Fixed or DriveType.Removable))
+                // NOTE: DriveType needs no I/O, but IsReady on a disconnected network share blocks for about
+                // 21 seconds and stalls every Performance metric, so the type filter must run first
+                if (drive.DriveType is not (DriveType.Fixed or DriveType.Removable) || !drive.IsReady)
                     continue;
                 if (!TryCreateVolumeDevicePath(drive.Name, out string volumePath)) continue;
 

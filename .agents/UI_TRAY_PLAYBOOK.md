@@ -148,6 +148,18 @@ Check:
 3. Whether the active slider instance is replaced while captured.
 4. Whether feedback sounds or backend writes block the UI thread.
 
+### Frozen Task Manager Performance Graphs
+
+Every Performance provider runs serially on one sampling thread, so one blocking call freezes every value, graph,
+and the tray tooltip until it returns.
+
+Check:
+
+1. `active.log` for `PerformanceSnapshotService slow capture took ...`, which names the slow provider.
+2. Filesystem calls on drive letters. `DriveInfo.IsReady` on a disconnected mapped share blocked about 21 seconds
+   roughly every 51 seconds; `DriveType` needs no I/O, so filter by type before any readiness or size query.
+3. Sampler thread priority. Below-normal threads starve whenever normal-priority work saturates every core.
+
 ### Native AOT Freeze
 
 Check:

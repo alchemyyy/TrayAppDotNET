@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using Avalonia.Threading;
 
 namespace TaskManagerTrayAppDotNET.Services;
@@ -8,8 +10,19 @@ internal sealed class PerformanceSnapshotService : IDisposable
 {
     private const int DiskMetadataRefreshSeconds = 30;
 
+    // Every provider runs on one thread, so a capture this slow visibly freezes all Performance values
+    private const int SlowCaptureLogThresholdMilliseconds = 1_000;
+    private const int SlowCaptureLogIntervalSeconds = 60;
+    private const int SamplingProviderCount = (int)SamplingProvider.Disk + 1;
+
     private static readonly long DiskMetadataRefreshIntervalTicks =
         checked(Stopwatch.Frequency * DiskMetadataRefreshSeconds);
+
+    private static readonly long SlowCaptureLogThresholdTicks =
+        Stopwatch.Frequency * SlowCaptureLogThresholdMilliseconds / 1_000;
+
+    private static readonly long SlowCaptureLogIntervalTicks =
+        checked(Stopwatch.Frequency * SlowCaptureLogIntervalSeconds);
 
     private readonly Lock _lifecycleGate = new();
     private readonly Lock _samplingGate = new();
@@ -27,6 +40,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly GPUPerformanceDetailsReader _gpuDetailsReader = new();
     private readonly Thread _samplingThread;
     private readonly Action _notifySnapshotUpdated;
+    private readonly long[] _providerElapsedTicks = new long[SamplingProviderCount];
     private PerformanceSnapshot[] _snapshotHistory;
     private DiskDeviceMetadataSnapshot[] _diskMetadata = [];
     private PerformanceSnapshot _latestSnapshot = PerformanceSnapshot.Empty;
@@ -41,6 +55,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private int _disposed;
     private int _resourcesDisposed;
     private long _nextDiskMetadataRefreshTimestamp;
+    private long _nextSlowCaptureLogTimestamp;
     private ulong _highestRecordedCPUSpeedHertz;
     private bool _systemFailureLogged;
     private bool _metadataFailureLogged;
@@ -78,7 +93,9 @@ internal sealed class PerformanceSnapshotService : IDisposable
         {
             IsBackground = true,
             Name = Constants.ApplicationName + ".PerformanceSampler",
-            Priority = ThreadPriority.BelowNormal
+            // Below normal starves whenever normal-priority work saturates every core, which is exactly
+            // when the Performance page is watched; one capture costs only a few milliseconds
+            Priority = ThreadPriority.Normal
         };
     }
 
@@ -278,18 +295,27 @@ internal sealed class PerformanceSnapshotService : IDisposable
 
     private PerformanceSnapshot CaptureSnapshot(long samplingTimestamp)
     {
+        long providerStart = Stopwatch.GetTimestamp();
         SystemPerformanceSample systemSample = SampleSystem();
+        providerStart = RecordProviderTime(SamplingProvider.System, providerStart);
         SystemPerformanceMetadataSample metadata = SampleMetadata();
+        providerStart = RecordProviderTime(SamplingProvider.Metadata, providerStart);
         MemoryCompositionSample memoryComposition = SampleMemoryComposition();
+        providerStart = RecordProviderTime(SamplingProvider.MemoryComposition, providerStart);
         PhysicalMemoryHardwareMetadata physicalMemory = SamplePhysicalMemoryMetadata();
+        providerStart = RecordProviderTime(SamplingProvider.PhysicalMemory, providerStart);
         CPUPerformanceSnapshot cpu = CreateCPUSnapshot(systemSample, metadata);
         MemoryPerformanceSnapshot memory = CreateMemorySnapshot(
             metadata,
             memoryComposition,
             physicalMemory);
         GPUPerformanceSnapshot[] gpus = SampleGPUs();
+        providerStart = RecordProviderTime(SamplingProvider.GPU, providerStart);
         NetworkPerformanceSnapshot[] networks = SampleNetworks();
+        providerStart = RecordProviderTime(SamplingProvider.Network, providerStart);
         DiskPerformanceSnapshot[] disks = SampleDisks(samplingTimestamp);
+        _ = RecordProviderTime(SamplingProvider.Disk, providerStart);
+        LogSlowCapture(samplingTimestamp);
         return new PerformanceSnapshot(
             DateTimeOffset.UtcNow,
             samplingTimestamp,
@@ -299,6 +325,39 @@ internal sealed class PerformanceSnapshotService : IDisposable
             networks,
             disks);
     }
+
+    private long RecordProviderTime(SamplingProvider provider, long providerStart)
+    {
+        long providerEnd = Stopwatch.GetTimestamp();
+        _providerElapsedTicks[(int)provider] = providerEnd - providerStart;
+        return providerEnd;
+    }
+
+    /// <summary>Logs a per-provider breakdown, at most once a minute, when one capture blocks the sampler.</summary>
+    private void LogSlowCapture(long samplingTimestamp)
+    {
+        long captureEnd = Stopwatch.GetTimestamp();
+        long captureTicks = captureEnd - samplingTimestamp;
+        if (captureTicks < SlowCaptureLogThresholdTicks || captureEnd < _nextSlowCaptureLogTimestamp) return;
+
+        _nextSlowCaptureLogTimestamp = captureEnd + SlowCaptureLogIntervalTicks;
+        StringBuilder breakdown = new();
+        for (int providerIndex = 0; providerIndex < _providerElapsedTicks.Length; providerIndex++)
+        {
+            if (providerIndex > 0) breakdown.Append(", ");
+            breakdown.Append((SamplingProvider)providerIndex)
+                .Append(' ')
+                .Append(FormatMilliseconds(_providerElapsedTicks[providerIndex]));
+        }
+
+        TADNLog.Log(
+            $"PerformanceSnapshotService slow capture took {FormatMilliseconds(captureTicks)} ({breakdown})");
+    }
+
+    private static string FormatMilliseconds(long elapsedTicks) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{elapsedTicks * 1_000.0 / Stopwatch.Frequency:F0} ms");
 
     private void ResetSamplingBaselines()
     {
@@ -809,5 +868,17 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 TADNLog.Log($"PerformanceSnapshotService wake disposal: {exception}");
             }
         }
+    }
+
+    // Capture order of the providers timed for slow-capture diagnostics
+    private enum SamplingProvider
+    {
+        System,
+        Metadata,
+        MemoryComposition,
+        PhysicalMemory,
+        GPU,
+        Network,
+        Disk
     }
 }

@@ -131,7 +131,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             IsBackground = true,
             Name = Constants.ApplicationName + ".ProcessSampler",
-            Priority = ThreadPriority.BelowNormal
+            // Below normal starves whenever normal-priority work saturates every core, freezing the tray graph
+            Priority = ThreadPriority.Normal
         };
     }
 
