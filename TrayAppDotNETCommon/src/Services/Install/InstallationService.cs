@@ -702,7 +702,11 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         };
         if (!string.IsNullOrWhiteSpace(replacement))
         {
-            Interop.ShellLink.Create(shortcutPath, replacement, Identity.ApplicationName);
+            Interop.ShellLink.Create(
+                shortcutPath,
+                replacement,
+                Identity.ApplicationName,
+                TrayAppDotNETProgram.AutostartArgument);
             return;
         }
 

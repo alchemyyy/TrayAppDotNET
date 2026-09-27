@@ -74,7 +74,8 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
                 && string.Equals(
                     PathNormalization.Normalize(current),
                     PathNormalization.Normalize(desired),
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase)
+                && ShortcutHasAutostartArgument())
                 return;
 
             CreateShortcut(ShortcutPath, desired);
@@ -121,15 +122,43 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
             if (!File.Exists(ShortcutPath)) return;
 
             string? target = Interop.ShellLink.TryRead(ShortcutPath, options.Log);
-            if (IsValidInstallationTarget(target)) return;
+            if (IsValidInstallationTarget(target))
+            {
+                // Shortcuts written before the autostart marker existed would look like manual starts
+                if (!ShortcutHasAutostartArgument()) CreateShortcut(ShortcutPath, target!);
+                return;
+            }
 
             string? runningInstallExecutable = GetRunningInstallExecutablePathOrNull();
-            if (runningInstallExecutable != null) CreateShortcut(ShortcutPath, runningInstallExecutable);
+            if (runningInstallExecutable != null)
+            {
+                CreateShortcut(ShortcutPath, runningInstallExecutable);
+                return;
+            }
+
+            // A portable target keeps its path but still gains the autostart marker
+            if (!string.IsNullOrEmpty(target) && File.Exists(target) && !ShortcutHasAutostartArgument())
+                CreateShortcut(ShortcutPath, target);
         }
         catch (Exception ex)
         {
             options.Log?.Invoke($"TrayAppDotNETStartupManager.RepairShortcutIfStale: {ex.Message}");
         }
+    }
+
+    /// <summary>Checks whether the startup shortcut passes the argument that marks a sign-in launch.</summary>
+    private bool ShortcutHasAutostartArgument()
+    {
+        string? arguments = Interop.ShellLink.TryReadArguments(ShortcutPath, options.Log);
+        if (string.IsNullOrWhiteSpace(arguments)) return false;
+
+        foreach (string argument in arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (argument.Equals(TrayAppDotNETProgram.AutostartArgument, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     public string ResolveStartupTarget(InstallScope? exclude = null)
@@ -205,6 +234,10 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
     {
         string? lnkDir = Path.GetDirectoryName(lnkPath);
         if (!string.IsNullOrEmpty(lnkDir)) Directory.CreateDirectory(lnkDir);
-        Interop.ShellLink.Create(lnkPath, targetExe, options.ApplicationName);
+        Interop.ShellLink.Create(
+            lnkPath,
+            targetExe,
+            options.ApplicationName,
+            TrayAppDotNETProgram.AutostartArgument);
     }
 }

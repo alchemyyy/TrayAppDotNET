@@ -954,6 +954,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 AppServices.Startup.SetRunOnStartup(enabled);
                 _settings.RunOnStartup = enabled;
             },
+            GetStartMinimized = () => _settings.StartMinimized,
+            SetStartMinimized = value => _settings.StartMinimized = value,
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),

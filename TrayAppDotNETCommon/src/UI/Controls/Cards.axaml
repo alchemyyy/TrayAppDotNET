@@ -15,4 +15,7 @@
     <sys:Double x:Key="SettingsCards.ProgressBarHeight">4</sys:Double>
     <Thickness x:Key="SettingsCards.ProgressRowMargin">0,8,8,0</Thickness>
     <Thickness x:Key="SettingsCards.ProgressStatusMargin">0,4,0,0</Thickness>
+
+    <!-- Sub-option stacked under a card description -->
+    <Thickness x:Key="SettingsCards.SubOptionMargin">0,6,0,0</Thickness>
 </ResourceDictionary>

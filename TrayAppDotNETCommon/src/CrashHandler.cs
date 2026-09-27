@@ -70,7 +70,8 @@ public static class CrashHandler
         };
     }
 
-    public static int RunWatcher()
+    /// <summary>Runs the watcher loop; a startup launch is forwarded to every monitored process it starts.</summary>
+    public static int RunWatcher(bool isStartupLaunch = false)
     {
         CrashHandlerOptions options = Options;
         string exePath = Environment.ProcessPath ?? "";
@@ -87,7 +88,7 @@ public static class CrashHandler
         Span<long> restartTimes = stackalloc long[MaxRapidRestarts];
         int restartCount = 0;
 
-        WatchedProcess childProcess = LaunchApplication(exePath, exeDir ?? ".");
+        WatchedProcess childProcess = LaunchApplication(exePath, exeDir ?? ".", isStartupLaunch);
         if (!childProcess.IsValid)
         {
             ShowError($"Failed to start {options.ApplicationName}");
@@ -121,7 +122,7 @@ public static class CrashHandler
 
             Thread.Sleep(options.CrashRestartDelayMs);
 
-            childProcess = LaunchApplication(exePath, exeDir ?? ".");
+            childProcess = LaunchApplication(exePath, exeDir ?? ".", isStartupLaunch);
             if (!childProcess.IsValid)
             {
                 ShowError($"Failed to restart {options.ApplicationName}");
@@ -135,7 +136,7 @@ public static class CrashHandler
         return 0;
     }
 
-    public static bool LaunchWatcherDetached()
+    public static bool LaunchWatcherDetached(bool isStartupLaunch = false)
     {
         string exePath = Environment.ProcessPath ?? "";
 
@@ -149,6 +150,7 @@ public static class CrashHandler
             WindowStyle = ProcessWindowStyle.Hidden
         };
         startInfo.ArgumentList.Add("--watcher");
+        if (isStartupLaunch) startInfo.ArgumentList.Add(TrayAppDotNETProgram.AutostartArgument);
         ConfigureWatcherEnvironment(startInfo);
 
         try
@@ -163,12 +165,14 @@ public static class CrashHandler
         }
     }
 
-    private static WatchedProcess LaunchApplication(string exePath, string workDir)
+    private static WatchedProcess LaunchApplication(string exePath, string workDir, bool isStartupLaunch)
     {
         try
         {
             int watcherPID = Environment.ProcessId;
             StringBuilder commandLine = new($"\"{exePath}\" --monitored --watcher-pid {watcherPID}");
+            // Crash restarts keep the original launch origin, so a startup launch never reopens a window
+            if (isStartupLaunch) commandLine.Append(' ').Append(TrayAppDotNETProgram.AutostartArgument);
             STARTUPINFO startupInfo = new()
             {
                 cb = (uint)Marshal.SizeOf<STARTUPINFO>(), dwFlags = STARTF_USESHOWWINDOW, wShowWindow = SW_HIDE

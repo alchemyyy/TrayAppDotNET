@@ -22,6 +22,12 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required Func<string, string, Task> ShowMessage { get; init; }
     public required Func<bool> GetRunOnStartup { get; init; }
     public required Action<bool> SetRunOnStartup { get; init; }
+
+    /// <summary>Supplying both start-minimized delegates adds that sub-option to the Run on startup card.</summary>
+    public Func<bool>? GetStartMinimized { get; init; }
+
+    public Action<bool>? SetStartMinimized { get; init; }
+
     public required Func<string?> GetCurrentStartupShortcutTarget { get; init; }
     public required Action RetargetStartupShortcut { get; init; }
     public required Func<IReadOnlyList<TrayAppDotNETInstallationInfo>> DetectInstallations { get; init; }
@@ -65,12 +71,19 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     public Border BuildStartupCard()
     {
         SettingsPalette p = _options.Palette;
-        SettingsToggle startupToggle = TrayAppDotNETSettingsUI.Toggle(p, _options.GetRunOnStartup(), (_, enabled) =>
+        bool runOnStartup = _options.GetRunOnStartup();
+        CheckBox? startMinimizedCheckBox = BuildStartMinimizedCheckBox(p, runOnStartup);
+        SettingsToggle startupToggle = TrayAppDotNETSettingsUI.Toggle(p, runOnStartup, (_, enabled) =>
         {
             _options.SetRunOnStartup(enabled);
             _options.Save();
             RefreshStartupDescription();
+            startMinimizedCheckBox?.IsEnabled = enabled;
         });
+
+        List<string> searchKeywords = [L(nameof(CommonStrings.Settings_General_RunOnStartup_SearchKeywords))];
+        if (startMinimizedCheckBox != null)
+            searchKeywords.Add(L(nameof(CommonStrings.Settings_General_StartMinimized_SearchKeywords)));
 
         Border startupCard = TrayAppDotNETSettingsCards.MutableCard(
             L(nameof(CommonStrings.Settings_General_RunOnStartup_Title)),
@@ -79,9 +92,34 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             p,
             _options.CardRadius,
             out TextBlock startupDescriptionText,
-            [L(nameof(CommonStrings.Settings_General_RunOnStartup_SearchKeywords))]);
+            searchKeywords,
+            belowDescription: startMinimizedCheckBox);
         _startupDescription = startupDescriptionText;
         return startupCard;
+    }
+
+    /// <summary>Builds the start-minimized sub-option, which only applies while Run on startup is on.</summary>
+    private CheckBox? BuildStartMinimizedCheckBox(SettingsPalette palette, bool runOnStartup)
+    {
+        if (_options.GetStartMinimized == null || _options.SetStartMinimized == null) return null;
+
+        Action<bool> setStartMinimized = _options.SetStartMinimized;
+        CheckBox checkBox = new()
+        {
+            Content = TrayAppDotNETSettingsUI.Text(L(nameof(CommonStrings.Settings_General_StartMinimized_Title)), palette),
+            IsChecked = _options.GetStartMinimized(),
+            IsEnabled = runOnStartup,
+            Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = SettingsCardsLayout.SubOptionMargin
+        };
+        TrayAppDotNETToolTip.SetTip(checkBox, L(nameof(CommonStrings.Settings_General_StartMinimized_Description)));
+        checkBox.IsCheckedChanged += (_, _) =>
+        {
+            setStartMinimized(checkBox.IsChecked == true);
+            _options.Save();
+        };
+        return checkBox;
     }
 
     public void AddInstallationSection(

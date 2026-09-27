@@ -188,6 +188,8 @@
 
 - Running an app with no arguments starts normal mode.
 - Normal mode uses the crash watcher process, then the watcher starts the monitored app process.
+- The Run on startup shortcut passes `--autostart`; the watcher forwards it to the monitored process, where
+  `TrayAppDotNETProgram.IsStartupLaunch` exposes it. Task Manager's Start minimized option only applies then.
 - Useful arguments are documented in repo `README.md`:
   - `--install local`
   - `--install system`

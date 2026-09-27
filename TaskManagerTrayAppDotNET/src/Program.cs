@@ -17,6 +17,8 @@ internal static class Program
 
     public static bool IsInstallerMode => TrayAppDotNETProgram.IsInstallerMode;
 
+    public static bool IsStartupLaunch => TrayAppDotNETProgram.IsStartupLaunch;
+
     public static string? UninstallerInstallDir => TrayAppDotNETProgram.UninstallerInstallDir;
 
     public static InstallScope UninstallerScope => TrayAppDotNETProgram.UninstallerScope;

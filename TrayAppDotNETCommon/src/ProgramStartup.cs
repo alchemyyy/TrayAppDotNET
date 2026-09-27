@@ -33,6 +33,9 @@ public sealed record TrayAppDotNETProgramOptions(
 
 public static class TrayAppDotNETProgram
 {
+    /// <summary>Marks a launch from the sign-in startup shortcut, as opposed to a manual start.</summary>
+    public const string AutostartArgument = "--autostart";
+
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
     private const int ProgressPipeConnectTimeoutMs = 5000;
     private const int ProgressCompletionTimeoutMs = 5000;
@@ -42,6 +45,9 @@ public static class TrayAppDotNETProgram
     private static TrayAppDotNETProgramOptions? _installerProgramOptions;
 
     public static int? WatcherPID { get; private set; }
+
+    /// <summary>Gets whether this process was started, directly or through the watcher, by the startup shortcut.</summary>
+    public static bool IsStartupLaunch { get; private set; }
 
     public static bool IsUninstallerMode { get; private set; }
 
@@ -66,6 +72,7 @@ public static class TrayAppDotNETProgram
         Func<TrayAppDotNETProgramOptions> createOptions)
     {
         ResetState();
+        bool isStartupLaunch = HasArg(args, AutostartArgument);
 
         if (HasArg(args, flag: "--watcher"))
         {
@@ -74,7 +81,7 @@ public static class TrayAppDotNETProgram
                 new SingleInstanceIdentity(applicationName, appGuid),
                 NoopLog,
                 NoopFlush));
-            return CrashHandler.RunWatcher();
+            return CrashHandler.RunWatcher(isStartupLaunch);
         }
 
         if (ShouldLaunchWatcherBeforeConfiguring(args))
@@ -84,7 +91,7 @@ public static class TrayAppDotNETProgram
                 new SingleInstanceIdentity(applicationName, appGuid),
                 NoopLog,
                 NoopFlush));
-            return CrashHandler.LaunchWatcherDetached() ? 0 : 1;
+            return CrashHandler.LaunchWatcherDetached(isStartupLaunch) ? 0 : 1;
         }
 
         return RunConfigured(args, createOptions());
@@ -179,11 +186,12 @@ public static class TrayAppDotNETProgram
 
         bool isWatcher = HasArg(args, flag: "--watcher");
         bool isMonitored = HasArg(args, flag: "--monitored");
+        IsStartupLaunch = HasArg(args, AutostartArgument);
 
-        if (isWatcher) return CrashHandler.RunWatcher();
+        if (isWatcher) return CrashHandler.RunWatcher(IsStartupLaunch);
 
         if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
-            return !CrashHandler.LaunchWatcherDetached() ? 1 : 0;
+            return !CrashHandler.LaunchWatcherDetached(IsStartupLaunch) ? 1 : 0;
 
         WatcherPID = ParseWatcherPID(args);
         bool shouldOwnSingleInstance =
@@ -239,6 +247,7 @@ public static class TrayAppDotNETProgram
         ReleaseApplicationInstance();
         ReleaseSingleInstance();
         WatcherPID = null;
+        IsStartupLaunch = false;
         IsInstallerMode = false;
         IsUninstallerMode = false;
         _installerProgramOptions = null;

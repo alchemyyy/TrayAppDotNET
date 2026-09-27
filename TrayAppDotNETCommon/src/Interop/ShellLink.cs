@@ -15,11 +15,12 @@ public static unsafe partial class ShellLink
     private static readonly Guid ShellLinkIid = new("000214f9-0000-0000-c000-000000000046");
     private static readonly Guid PersistFileIid = new("0000010b-0000-0000-c000-000000000046");
 
-    public static void Create(string lnkPath, string targetExe, string description)
+    public static void Create(string lnkPath, string targetExe, string description, string? arguments = null)
     {
         using ComPtr link = CreateShellLink();
 
         ThrowIfFailed(link.SetPath(targetExe));
+        if (!string.IsNullOrEmpty(arguments)) ThrowIfFailed(link.SetArguments(arguments));
 
         string? workDir = Path.GetDirectoryName(targetExe);
         if (!string.IsNullOrEmpty(workDir)) ThrowIfFailed(link.SetWorkingDirectory(workDir));
@@ -45,6 +46,24 @@ public static unsafe partial class ShellLink
         catch (Exception ex)
         {
             log?.Invoke($"ShellLink.TryRead({lnkPath}): {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Reads a shortcut's command-line arguments, or null when the shortcut cannot be read.</summary>
+    public static string? TryReadArguments(string lnkPath, Action<string>? log = null)
+    {
+        try
+        {
+            using ComPtr link = CreateShellLink();
+            using ComPtr persist = link.Query(PersistFileIid);
+
+            ThrowIfFailed(persist.Load(lnkPath));
+            return link.GetArguments();
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"ShellLink.TryReadArguments({lnkPath}): {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -107,6 +126,21 @@ public static unsafe partial class ShellLink
         {
             fixed (char* p = directory)
                 return ((delegate* unmanaged[Stdcall]<void*, char*, int>)VTable[9])(_ptr, p);
+        }
+
+        public string GetArguments()
+        {
+            char* buffer = stackalloc char[MaxPath];
+            buffer[0] = '\0';
+            int hr = ((delegate* unmanaged[Stdcall]<void*, char*, int, int>)VTable[10])(_ptr, buffer, MaxPath);
+            ThrowIfFailed(hr);
+            return new string(buffer);
+        }
+
+        public int SetArguments(string arguments)
+        {
+            fixed (char* p = arguments)
+                return ((delegate* unmanaged[Stdcall]<void*, char*, int>)VTable[11])(_ptr, p);
         }
 
         public int SetPath(string path)

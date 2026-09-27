@@ -122,6 +122,13 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    /// <summary>Gets whether a sign-in startup launch keeps the window minimized; manual starts always show it.</summary>
+    public bool StartMinimized
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public bool AlwaysOnTop
     {
         get;

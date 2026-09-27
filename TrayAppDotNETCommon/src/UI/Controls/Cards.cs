@@ -19,6 +19,7 @@ internal static class SettingsCardsLayout
     public static double ProgressBarHeight => AXAMLResources.AxamlSettingsCards.ProgressBarHeight;
     public static Thickness ProgressRowMargin => AXAMLResources.AxamlSettingsCards.ProgressRowMargin;
     public static Thickness ProgressStatusMargin => AXAMLResources.AxamlSettingsCards.ProgressStatusMargin;
+    public static Thickness SubOptionMargin => AXAMLResources.AxamlSettingsCards.SubOptionMargin;
 }
 
 public static class TrayAppDotNETSettingsCards

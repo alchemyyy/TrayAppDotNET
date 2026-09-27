@@ -90,7 +90,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private int _restoreDragSearchLeftWithinWindow;
     private int _restoreDragSearchRightWithinWindow;
     private bool _allowClose;
+    private bool _hasOpened;
     private bool _initialElevationAttemptConsumed;
+    private bool _initialElevationDeferred;
     private bool _manualElevationPromptPending;
     private bool _isConfirmationOverlayVisible;
     private bool _isUpdateDialogOpen;
@@ -337,8 +339,36 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _windowDragWndProcHookAttached = true;
         }
 
+        _hasOpened = true;
         base.OnOpened(eventArgs);
         UpdateActivePageActivity();
+    }
+
+    /// <summary>Shows and activates the window, revealing a never-opened window only after its first frame.</summary>
+    internal void ShowAndActivate()
+    {
+        if (_hasOpened)
+        {
+            ShowAtDefaultPositionAndActivate();
+            return;
+        }
+
+        _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
+    }
+
+    /// <summary>
+    /// Starts without taking focus: hidden in the tray when Minimize to Tray is on, otherwise minimized to the
+    /// taskbar. The elevation attempt a normal startup makes waits until the window is first shown.
+    /// </summary>
+    internal void StartMinimized()
+    {
+        _initialElevationDeferred = true;
+        if (_settings.MinimizeToTray) return;
+
+        ShowActivated = false;
+        WindowState = WindowState.Minimized;
+        Show();
+        ShowActivated = true;
     }
 
     private void OnSidebarCollapseButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
@@ -532,6 +562,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _initialElevationAttemptConsumed = true;
         IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         _ = RunInitialElevatedTerminationAttemptAsync(ownerWindowHandle);
+    }
+
+    private void StartDeferredInitialElevationAttempt()
+    {
+        if (!_initialElevationDeferred || !ShouldEnableActivePageWork()) return;
+
+        _initialElevationDeferred = false;
+        // Background priority lets the shown window render before any Windows approval prompt appears
+        Dispatcher.UIThread.Post(StartInitialElevatedTerminationAttempt, DispatcherPriority.Background);
     }
 
     /// <summary>Allows app shutdown to close the otherwise warm, hide-on-close window.</summary>
@@ -1127,7 +1166,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
         if (change.Property == IsVisibleProperty || change.Property == WindowStateProperty)
+        {
             UpdateActivePageActivity();
+            StartDeferredInitialElevationAttempt();
+        }
 
         if (_allowClose
             || !_settings.MinimizeToTray

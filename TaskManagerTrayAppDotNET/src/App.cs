@@ -115,6 +115,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
         CreateTrayIcon();
         StartUpdateCheckService(settings);
         TaskManagerWindow taskManagerWindow = _taskManagerWindow!;
+        if (settings.StartMinimized && Program.IsStartupLaunch)
+        {
+            // Only sign-in launches honor the setting; a manual start always shows the window
+            taskManagerWindow.StartMinimized();
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         Task firstFrameReveal = taskManagerWindow.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
         base.OnFrameworkInitializationCompleted();
         _ = StartInitialElevationAfterWindowRevealAsync(taskManagerWindow, firstFrameReveal);
@@ -311,7 +319,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         ShowTaskManager();
     }
 
-    private void ShowTaskManager() => _taskManagerWindow?.ShowAtDefaultPositionAndActivate();
+    private void ShowTaskManager() => _taskManagerWindow?.ShowAndActivate();
 
     /// <summary>Brings the window forward in place for Ctrl+Shift+Esc, which arrives without foreground rights.</summary>
     private void ShowTaskManagerFromShortcut()
