@@ -8,10 +8,13 @@ pipeline](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAp
 
 ## Common sampling behavior
 
-- An app-owned, below-normal-priority worker starts with TMTADN and continues
+- An app-owned, normal-priority worker starts with TMTADN and continues
   sampling while the window is hidden or another page is selected. The sample
   interval is configurable from 1 to 60,000 milliseconds and defaults to
   1,000 milliseconds.
+- Every provider runs on that one worker, so a single blocking call delays every
+  value. A capture that takes longer than one second is logged with the time
+  spent in each provider.
 - CPU, GPU, network, and disk rates use successive counter reads. The first
   sample after application startup establishes a baseline and is not shown as
   a valid rate.
@@ -38,10 +41,12 @@ the delta baseline. [Windows API](https://learn.microsoft.com/en-us/windows/win3
 [Implementation](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/SystemPerformanceSampler.cs)
 
 Sockets, cores, logical processors, and cache sizes come from
-`GetLogicalProcessorInformationEx`. Current and maximum speed are the averages
-of the per-processor `ProcessorPowerInformation` values returned by
-`CallNtPowerInformation`. Process, thread, handle, commit, cache, and pool
-counts come from `K32GetPerformanceInfo`; uptime comes from `GetTickCount64`.
+`GetLogicalProcessorInformationEx`. Base speed is the average of the
+per-processor `MaxMhz` values returned by `CallNtPowerInformation`. Speed and
+highest recorded speed are measured from processor performance counters; see
+[Task Manager CPU frequency](task_manager_cpu_frequency.md). Process, thread,
+handle, commit, cache, and pool counts come from `K32GetPerformanceInfo`;
+uptime comes from `GetTickCount64`.
 [Topology](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex)
 [Power information](https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-callntpowerinformation)
 [Performance information](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-getperformanceinfo)
@@ -123,7 +128,9 @@ TMTADN calls `QueryDosDeviceW(NULL, ...)` and selects every exposed
 drive-letter volume and avoids guessing disk numbers with an index-probing
 loop. Ready fixed or removable volumes are mapped back to their physical disk
 with `IOCTL_STORAGE_GET_DEVICE_NUMBER`; their labels and space totals are then
-merged into that disk row. [DOS device enumeration](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-querydosdevicew)
+merged into that disk row. The drive type is checked before readiness, so mapped
+network shares and optical drives are never probed; a readiness query against a
+disconnected share can block for about 21 seconds. [DOS device enumeration](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-querydosdevicew)
 [Volume mapping](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number)
 
 Hardware vendor/product text and serial data come from

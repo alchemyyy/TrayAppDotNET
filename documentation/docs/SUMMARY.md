@@ -4,6 +4,7 @@
 - [Avalonia text layout retention](avalonia_text_layout_retention.md)
 - [Embedded native helper programs in NativeAOT executables](embedded_nativeaot_helper_programs.md)
 - [Task Manager performance data](task_manager_performance_data.md)
+- [Task Manager CPU frequency](task_manager_cpu_frequency.md)
 - [Task Manager AMD CCD topology](task_manager_amd_ccd_topology.md)
 - [Task Manager process resource data](task_manager_process_resource_data.md)
 - [Task Manager process single-thread CPU](task_manager_process_single_thread_cpu.md)
