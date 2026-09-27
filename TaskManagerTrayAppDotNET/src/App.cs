@@ -107,7 +107,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
         _windowsTaskManagerHotkeyOverride = new WindowsTaskManagerHotkeyOverride(
-            () => Dispatcher.UIThread.Post(ShowTaskManager),
+            () => Dispatcher.UIThread.Post(ShowTaskManagerFromShortcut),
             TADNLog.Log);
         _windowsTaskManagerHotkeyOverride.SetEnabled(settings.OverrideWindowsTaskManagerHotkey);
         _snapshotService.Start();
@@ -312,6 +312,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
     }
 
     private void ShowTaskManager() => _taskManagerWindow?.ShowAtDefaultPositionAndActivate();
+
+    /// <summary>Brings the window forward in place for Ctrl+Shift+Esc, which arrives without foreground rights.</summary>
+    private void ShowTaskManagerFromShortcut()
+    {
+        if (_taskManagerWindow == null) return;
+
+        _ = _taskManagerWindow.ShowInPlaceAndForceForegroundAsync();
+    }
 
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() => ShowTrayMenu(point));

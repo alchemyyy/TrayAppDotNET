@@ -12,6 +12,12 @@ internal enum WindowsTaskManagerHotkeyDecision
 }
 
 /// <summary>Overrides Ctrl+Shift+Esc while enabled and forwards activation to the application.</summary>
+/// <remarks>
+/// The low-level hook runs on a dedicated message thread. Hosted on the UI thread, any stall longer than
+/// the LowLevelHooksTimeout registry value made Windows skip the hook and, on Windows 7 and later,
+/// silently remove it, after which Ctrl+Shift+Esc opened Windows Task Manager again. It also delayed every
+/// keystroke on the desktop while the UI thread was busy.
+/// </remarks>
 internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
 {
     private const int LowLevelKeyboardHookID = 13;
@@ -20,6 +26,9 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
     private const int WindowsMessageKeyUp = 0x0101;
     private const int WindowsMessageSystemKeyDown = 0x0104;
     private const int WindowsMessageSystemKeyUp = 0x0105;
+    private const uint WindowsMessageQuit = 0x0012;
+    private const uint WindowsMessageUser = 0x0400;
+    private const uint PeekMessageNoRemove = 0x0000;
     private const int VirtualKeyEscape = 0x1B;
     private const int VirtualKeyControl = 0x11;
     private const int VirtualKeyShift = 0x10;
@@ -27,11 +36,15 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
     private const int VirtualKeyLeftWindows = 0x5B;
     private const int VirtualKeyRightWindows = 0x5C;
     private const short KeyDownMask = unchecked((short)0x8000);
+    private const int HookThreadStartTimeoutMilliseconds = 5_000;
+    private const int HookThreadStopTimeoutMilliseconds = 5_000;
 
     private static WindowsTaskManagerHotkeyOverride? _activeOverride;
 
     private readonly Action _activateTaskManager;
     private readonly Action<string>? _log;
+    private Thread? _hookThread;
+    private uint _hookThreadID;
     private IntPtr _hookHandle;
     private bool _escapeIsDown;
     private bool _suppressEscapeUntilKeyUp;
@@ -61,59 +74,109 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
         Enable();
     }
 
-    private unsafe void Enable()
+    private void Enable()
     {
-        if (ReferenceEquals(Volatile.Read(ref _activeOverride), this)) return;
-
-        if (_hookHandle == IntPtr.Zero)
-        {
-            IntPtr moduleHandle = GetModuleHandleW(null);
-            if (moduleHandle == IntPtr.Zero)
-            {
-                LogWin32Failure("resolve the application module", Marshal.GetLastWin32Error());
-                return;
-            }
-
-            _hookHandle = SetWindowsHookExW(
-                LowLevelKeyboardHookID,
-                &LowLevelKeyboardProcedure,
-                moduleHandle,
-                threadID: 0);
-            if (_hookHandle == IntPtr.Zero)
-            {
-                LogWin32Failure("install the keyboard hook", Marshal.GetLastWin32Error());
-                return;
-            }
-        }
+        if (_hookThread != null) return;
 
         WindowsTaskManagerHotkeyOverride? existing = Interlocked.CompareExchange(
             ref _activeOverride,
             this,
             comparand: null);
-        if (existing == null || ReferenceEquals(existing, this)) return;
+        if (existing != null && !ReferenceEquals(existing, this))
+        {
+            Log("Windows Task Manager hotkey override could not be enabled because another override is active.");
+            return;
+        }
 
-        Log("Windows Task Manager hotkey override could not be enabled because another override is active.");
-        TryUnhook();
+        TaskCompletionSource<bool> hookInstalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Thread hookThread = new(() => RunHookThread(hookInstalled))
+        {
+            IsBackground = true,
+            Name = Constants.ApplicationName + ".KeyboardHook",
+            // Every keystroke on the desktop waits for this callback, which does only trivial work
+            Priority = ThreadPriority.Highest
+        };
+        hookThread.Start();
+
+        bool isInstalled = hookInstalled.Task.Wait(HookThreadStartTimeoutMilliseconds) && hookInstalled.Task.Result;
+        if (isInstalled)
+        {
+            _hookThread = hookThread;
+            return;
+        }
+
+        Interlocked.CompareExchange(ref _activeOverride, null, this);
+        StopHookThread(hookThread);
     }
 
     private void Disable()
     {
         Interlocked.CompareExchange(ref _activeOverride, null, this);
-        ResetEscapeState();
-        TryUnhook();
+        Thread? hookThread = _hookThread;
+        _hookThread = null;
+        if (hookThread != null) StopHookThread(hookThread);
     }
 
-    private void TryUnhook()
+    private void StopHookThread(Thread hookThread)
     {
-        if (_hookHandle == IntPtr.Zero) return;
+        uint hookThreadID = Volatile.Read(ref _hookThreadID);
+        if (hookThreadID != 0 && !PostThreadMessageW(hookThreadID, WindowsMessageQuit, IntPtr.Zero, IntPtr.Zero))
+            LogWin32Failure("stop the keyboard hook thread", Marshal.GetLastWin32Error());
 
-        if (!UnhookWindowsHookEx(_hookHandle))
+        if (!hookThread.Join(HookThreadStopTimeoutMilliseconds))
+            Log("Windows Task Manager hotkey thread did not stop within five seconds.");
+    }
+
+    /// <summary>Owns the hook for its whole lifetime; low-level callbacks arrive while it waits for messages.</summary>
+    private unsafe void RunHookThread(TaskCompletionSource<bool> hookInstalled)
+    {
+        // Creates the thread message queue before the thread ID is published for PostThreadMessage
+        _ = PeekMessageW(out _, IntPtr.Zero, WindowsMessageUser, WindowsMessageUser, PeekMessageNoRemove);
+        Volatile.Write(ref _hookThreadID, GetCurrentThreadId());
+
+        IntPtr hookHandle = IntPtr.Zero;
+        try
         {
-            LogWin32Failure("remove the keyboard hook", Marshal.GetLastWin32Error());
-            return;
-        }
+            IntPtr moduleHandle = GetModuleHandleW(null);
+            if (moduleHandle == IntPtr.Zero)
+            {
+                LogWin32Failure("resolve the application module", Marshal.GetLastWin32Error());
+                hookInstalled.TrySetResult(false);
+                return;
+            }
 
-        _hookHandle = IntPtr.Zero;
+            hookHandle = SetWindowsHookExW(
+                LowLevelKeyboardHookID,
+                &LowLevelKeyboardProcedure,
+                moduleHandle,
+                threadID: 0);
+            if (hookHandle == IntPtr.Zero)
+            {
+                LogWin32Failure("install the keyboard hook", Marshal.GetLastWin32Error());
+                hookInstalled.TrySetResult(false);
+                return;
+            }
+
+            Volatile.Write(ref _hookHandle, hookHandle);
+            hookInstalled.TrySetResult(true);
+            while (GetMessageW(out _, IntPtr.Zero, messageFilterMinimum: 0, messageFilterMaximum: 0) > 0)
+            {
+            }
+        }
+        catch (Exception exception)
+        {
+            Log($"Windows Task Manager hotkey thread failed: {exception}");
+            hookInstalled.TrySetResult(false);
+        }
+        finally
+        {
+            if (hookHandle != IntPtr.Zero && !UnhookWindowsHookEx(hookHandle))
+                LogWin32Failure("remove the keyboard hook", Marshal.GetLastWin32Error());
+
+            Volatile.Write(ref _hookHandle, IntPtr.Zero);
+            Volatile.Write(ref _hookThreadID, 0);
+            ResetEscapeState();
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
@@ -287,6 +350,46 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
         IntPtr message,
         IntPtr eventData);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetMessageW(
+        out NativeMessage message,
+        IntPtr windowHandle,
+        uint messageFilterMinimum,
+        uint messageFilterMaximum);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PeekMessageW(
+        out NativeMessage message,
+        IntPtr windowHandle,
+        uint messageFilterMinimum,
+        uint messageFilterMaximum,
+        uint removeMessage);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostThreadMessageW(
+        uint threadID,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandleW(string? moduleName);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeMessage
+    {
+        public IntPtr WindowHandle;
+        public uint Message;
+        public IntPtr WParam;
+        public IntPtr LParam;
+        public uint Time;
+        public int PointX;
+        public int PointY;
+        public uint Private;
+    }
 }

@@ -384,6 +384,23 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             return Task.CompletedTask;
         }
 
+        return ShowHiddenAfterFirstFrameAsync(forceForeground: false);
+    }
+
+    /// <summary>
+    /// Shows the window where it was last placed, restores it if minimized, and takes the foreground even
+    /// when the request did not come from input this process received, such as a global keyboard hook.
+    /// </summary>
+    public Task ShowInPlaceAndForceForegroundAsync()
+    {
+        if (!IsVisible) return ShowHiddenAfterFirstFrameAsync(forceForeground: true);
+
+        BringToForeground(forceForeground: true);
+        return Task.CompletedTask;
+    }
+
+    private Task ShowHiddenAfterFirstFrameAsync(bool forceForeground)
+    {
         IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         bool isCloaked = TrySetNativeWindowCloak(windowHandle, isCloaked: true);
         double restoredOpacity = Opacity;
@@ -402,13 +419,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             throw;
         }
 
-        return RevealAfterFirstFrameAsync(windowHandle, isCloaked, restoredOpacity);
+        return RevealAfterFirstFrameAsync(windowHandle, isCloaked, restoredOpacity, forceForeground);
     }
 
     private async Task RevealAfterFirstFrameAsync(
         IntPtr windowHandle,
         bool isCloaked,
-        double restoredOpacity)
+        double restoredOpacity,
+        bool forceForeground)
     {
         try
         {
@@ -438,7 +456,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                     _ = TrySetNativeWindowCloak(windowHandle, isCloaked: false);
                 else
                     Opacity = restoredOpacity;
-                if (IsVisible) BringToForeground();
+                if (IsVisible) BringToForeground(forceForeground);
             },
             DispatcherPriority.Send);
     }
@@ -1123,15 +1141,25 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Position = new PixelPoint(left, top);
     }
 
-    private void BringToForeground()
+    private void BringToForeground(bool forceForeground = false)
     {
         if (OperatingSystem.IsWindows())
         {
             IntPtr hwnd = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
             if (hwnd != IntPtr.Zero)
             {
-                _ = User32.ShowWindow(hwnd, User32.SW_RESTORE);
-                _ = User32.SetForegroundWindow(hwnd);
+                if (forceForeground)
+                {
+                    // Restores only a minimized window so a maximized one keeps its placement
+                    if (User32.IsIconic(hwnd))
+                        _ = User32.ShowWindow(hwnd, User32.SW_RESTORE);
+                    _ = ForegroundWindowFunctions.ForceForeground(hwnd);
+                }
+                else
+                {
+                    _ = User32.ShowWindow(hwnd, User32.SW_RESTORE);
+                    _ = User32.SetForegroundWindow(hwnd);
+                }
             }
         }
 
