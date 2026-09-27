@@ -4036,6 +4036,41 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateLayers(RenderLayerMask.Selection);
     }
 
+    /// <summary>Lists selected processes whose rows are currently visible, in display order.</summary>
+    private ProcessInstanceKey[] CaptureVisibleSelectedProcesses()
+    {
+        if (_selectedProcesses.Count == 0) return [];
+
+        List<ProcessInstanceKey> visibleSelection = new(_selectedProcesses.Count);
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row != null && _selectedProcesses.Contains(row.InstanceKey))
+                visibleSelection.Add(row.InstanceKey);
+        }
+
+        return [.. visibleSelection];
+    }
+
+    /// <summary>Deselects rows a collapse just hid, so End task never targets processes the user cannot see.</summary>
+    private void DeselectProcessesHiddenByTreeToggle(ProcessInstanceKey[] visibleSelectionBeforeToggle)
+    {
+        if (visibleSelectionBeforeToggle.Length == 0) return;
+
+        ProcessInstanceKey[] visibleProcesses = CreateVisibleProcessKeys(requestedVisibleIndex: -1, out _);
+        ProcessSelectionResult result = ProcessSelectionFunctions.DeselectHiddenProcesses(
+            _selectedProcesses,
+            visibleSelectionBeforeToggle,
+            visibleProcesses,
+            _selectedProcess,
+            _selectionAnchorProcess);
+        if (!result.Changed) return;
+
+        _selectedProcess = result.ActiveProcess;
+        _selectionAnchorProcess = result.AnchorProcess;
+        NotifySelectionChanged();
+    }
+
     private bool TryHandleTreeNameClick(
         Point position,
         int visibleIndex,
@@ -4060,6 +4095,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
 
         if (!_rowHasChildren[rowIndex]) return false;
+        if (!ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(
+                IsSemanticSectionRow(rowIndex),
+                isControlPressed: (modifiers & KeyModifiers.Control) != 0,
+                isShiftPressed: (modifiers & KeyModifiers.Shift) != 0))
+            return false;
 
         ProcessTableColumn[] columns = DisplayColumns;
         int nameColumnIndex = FindColumn(columns, ProcessTableColumnKind.Name);
@@ -4075,6 +4115,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ApplyPointerSelection(visibleIndex, KeyModifiers.None);
         Focus();
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
+        ProcessInstanceKey[] visibleSelectionBeforeToggle = CaptureVisibleSelectedProcesses();
         if ((modifiers & KeyModifiers.Alt) != 0)
             ExpandTreeDeep(rowIndex);
         else if (_collapsedProcesses.Contains(row.InstanceKey))
@@ -4082,6 +4123,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         else
             CollapseTreeDeep(rowIndex);
         RebuildVisibleRows();
+        DeselectProcessesHiddenByTreeToggle(visibleSelectionBeforeToggle);
         InvalidateMeasure();
         RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();

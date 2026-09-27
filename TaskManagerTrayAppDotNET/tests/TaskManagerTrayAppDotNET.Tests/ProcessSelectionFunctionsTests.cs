@@ -190,6 +190,81 @@ public sealed class ProcessSelectionFunctionsTests
         Assert.False(result.Changed);
     }
 
+    [Theory]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, false, true, true)]
+    public void NameClickTogglesTreesOnlyWithoutSelectionModifiersOrOnSections(
+        bool isSectionRow,
+        bool isControlPressed,
+        bool isShiftPressed,
+        bool expectedToggle) =>
+        Assert.Equal(
+            expectedToggle,
+            ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(
+                isSectionRow,
+                isControlPressed,
+                isShiftPressed));
+
+    [Fact]
+    public void CollapseDeselectsOnlyTheProcessesItHid()
+    {
+        HashSet<ProcessInstanceKey> selectedProcesses = [Process1, Process3, Process4, Process5];
+        ProcessInstanceKey[] visibleSelectionBeforeCollapse = [Process1, Process3, Process4];
+        ProcessInstanceKey[] visibleProcessesAfterCollapse = [Process1, Process2];
+
+        ProcessSelectionResult result = ProcessSelectionFunctions.DeselectHiddenProcesses(
+            selectedProcesses,
+            visibleSelectionBeforeCollapse,
+            visibleProcessesAfterCollapse,
+            activeProcess: Process3,
+            anchorProcess: Process4);
+
+        AssertSelection(selectedProcesses, Process1, Process5);
+        Assert.Equal(Process1, result.ActiveProcess);
+        Assert.Equal(Process1, result.AnchorProcess);
+        Assert.True(result.Changed);
+    }
+
+    [Fact]
+    public void CollapseThatHidesNoSelectedProcessKeepsTheSelection()
+    {
+        HashSet<ProcessInstanceKey> selectedProcesses = [Process1, Process2];
+
+        ProcessSelectionResult result = ProcessSelectionFunctions.DeselectHiddenProcesses(
+            selectedProcesses,
+            [Process1, Process2],
+            VisibleProcesses,
+            activeProcess: Process2,
+            anchorProcess: Process1);
+
+        AssertSelection(selectedProcesses, Process1, Process2);
+        Assert.Equal(Process2, result.ActiveProcess);
+        Assert.Equal(Process1, result.AnchorProcess);
+        Assert.False(result.Changed);
+    }
+
+    [Fact]
+    public void CollapseHidingEverySelectedProcessClearsTheActiveAndAnchorProcesses()
+    {
+        HashSet<ProcessInstanceKey> selectedProcesses = [Process3, Process4];
+
+        ProcessSelectionResult result = ProcessSelectionFunctions.DeselectHiddenProcesses(
+            selectedProcesses,
+            [Process3, Process4],
+            [Process1, Process2],
+            activeProcess: Process4,
+            anchorProcess: Process3);
+
+        Assert.Empty(selectedProcesses);
+        Assert.Null(result.ActiveProcess);
+        Assert.Null(result.AnchorProcess);
+        Assert.True(result.Changed);
+    }
+
     private static ProcessSelectionResult Apply(
         HashSet<ProcessInstanceKey> selectedProcesses,
         int clickedIndex,

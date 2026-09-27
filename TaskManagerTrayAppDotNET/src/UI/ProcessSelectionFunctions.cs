@@ -107,6 +107,61 @@ internal static class ProcessSelectionFunctions
             clickedProcess);
     }
 
+    /// <summary>
+    /// Decides whether a Name-cell click on an expandable row toggles its tree. Ctrl and Shift extend the
+    /// selection instead, so grouped rows stay multi-selectable; section headers cannot be selected and
+    /// always toggle.
+    /// </summary>
+    public static bool ShouldToggleTreeOnNameClick(
+        bool isSectionRow,
+        bool isControlPressed,
+        bool isShiftPressed) =>
+        isSectionRow || (!isControlPressed && !isShiftPressed);
+
+    /// <summary>Deselects processes that a tree collapse hid, then repairs the active and anchor processes.</summary>
+    /// <param name="selectedProcesses">Current selection, updated in place when anything is hidden.</param>
+    /// <param name="previouslyVisibleSelection">Selected processes that were visible before the collapse.</param>
+    /// <param name="visibleProcesses">Selectable processes in display order after the collapse.</param>
+    /// <param name="activeProcess">Current active process.</param>
+    /// <param name="anchorProcess">Current range anchor.</param>
+    public static ProcessSelectionResult DeselectHiddenProcesses(
+        HashSet<ProcessInstanceKey> selectedProcesses,
+        IReadOnlyList<ProcessInstanceKey> previouslyVisibleSelection,
+        IReadOnlyList<ProcessInstanceKey> visibleProcesses,
+        ProcessInstanceKey? activeProcess,
+        ProcessInstanceKey? anchorProcess)
+    {
+        ArgumentNullException.ThrowIfNull(selectedProcesses);
+        ArgumentNullException.ThrowIfNull(previouslyVisibleSelection);
+        ArgumentNullException.ThrowIfNull(visibleProcesses);
+
+        HashSet<ProcessInstanceKey> stillVisibleProcesses = [.. visibleProcesses];
+        HashSet<ProcessInstanceKey> nextSelection = new(selectedProcesses);
+        for (int processIndex = 0; processIndex < previouslyVisibleSelection.Count; processIndex++)
+        {
+            ProcessInstanceKey process = previouslyVisibleSelection[processIndex];
+            if (!stillVisibleProcesses.Contains(process)) nextSelection.Remove(process);
+        }
+
+        if (nextSelection.Count == selectedProcesses.Count)
+            return new ProcessSelectionResult(activeProcess, anchorProcess, Changed: false);
+
+        ProcessInstanceKey? nextActiveProcess = activeProcess.HasValue && nextSelection.Contains(activeProcess.Value)
+            ? activeProcess
+            : FindFirstSelectedProcess(visibleProcesses, nextSelection);
+        ProcessInstanceKey? nextAnchorProcess = anchorProcess.HasValue
+                                                && stillVisibleProcesses.Contains(anchorProcess.Value)
+            ? anchorProcess
+            : nextActiveProcess;
+        return CommitSelection(
+            selectedProcesses,
+            nextSelection,
+            activeProcess,
+            anchorProcess,
+            nextActiveProcess,
+            nextAnchorProcess);
+    }
+
     private static ProcessSelectionResult CommitSelection(
         HashSet<ProcessInstanceKey> selectedProcesses,
         HashSet<ProcessInstanceKey> nextSelection,
