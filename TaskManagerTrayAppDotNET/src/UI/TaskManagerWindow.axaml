@@ -220,6 +220,8 @@
   <Thickness x:Key="TaskManagerPerformance.MemoryModuleRowMargin">0,0,0,2</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DiskTransferMargin">0,0,0,10</Thickness>
   <Thickness x:Key="TaskManagerPerformance.SpecialGraphHeaderMargin">0,0,0,4</Thickness>
+  <!-- Debug-only CPU topology simulation header buttons -->
+  <Thickness x:Key="TaskManagerPerformance.SimulationButtonBorderThickness">1</Thickness>
   <CornerRadius x:Key="TaskManagerPerformance.MemoryModuleCardCornerRadius">3</CornerRadius>
   <CornerRadius x:Key="TaskManagerPerformance.DeviceCardCornerRadius">0</CornerRadius>
   <Thickness x:Key="TaskManagerPerformance.DeviceCardBorderThickness">0</Thickness>

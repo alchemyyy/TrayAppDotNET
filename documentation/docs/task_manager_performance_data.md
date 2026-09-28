@@ -61,7 +61,13 @@ On AMD systems, the snapshot also carries exact logical-processor-to-CCD
 membership used by the Detailed CPU view's per-CCD graphs. The reader prefers
 Windows processor-die records and falls back to affinity-pinned AMD
 extended-topology CPUID queries; it does not infer CCD boundaries from shared
-L3 masks. [AMD CCD topology](task_manager_amd_ccd_topology.md)
+L3 masks. It does attach each CCD's Windows-reported L3 size, which labels the
+stacked-cache CCD of an X3D part. [AMD CCD topology](task_manager_amd_ccd_topology.md)
+
+On every vendor, the snapshot carries the core efficiency classes Windows
+reports, split by level-3 cache placement, for the Detailed view's performance
+core, efficiency core, and low power efficiency core graphs.
+[CPU core classes](task_manager_cpu_core_classes.md)
 
 ## Memory
 

@@ -1,17 +1,23 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Displays aggregate, per-CCD, and highest-core CPU utilization histories.</summary>
+/// <summary>One detailed CPU graph that averages a fixed set of logical processors.</summary>
+internal sealed record CPUDetailedGraphGroup(
+    string Label,
+    ReadOnlyMemory<int> LogicalProcessorIndexes);
+
+/// <summary>Displays aggregate, per-CCD, per-core-class, and highest-core CPU utilization histories.</summary>
 internal sealed class CPUPerformanceDetailedView : Grid
 {
     private readonly SettingsPalette _palette;
     private readonly TaskManagerWindowResources _resources;
-    private readonly List<PerformanceHistory> _ccdHistories = [];
+    private readonly List<PerformanceHistory> _groupHistories = [];
     private readonly List<PerformanceHistoryGraph> _graphs = [];
-    private CPUCCDTopology _topology = CPUCCDTopology.Empty;
+    private IReadOnlyList<CPUDetailedGraphGroup> _groups = [];
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
     private bool _showGraphUnderfill = true;
@@ -31,32 +37,31 @@ internal sealed class CPUPerformanceDetailedView : Grid
         IsVisible = false;
     }
 
-    /// <summary>Recreates detailed histories and graphs for the active CPU topology.</summary>
+    /// <summary>Recreates detailed histories and graphs for the given logical-processor groups.</summary>
     public void Rebuild(
         PerformanceHistory overallHistory,
         PerformanceHistory highestCoreHistory,
-        CPUCCDTopology topology,
+        IReadOnlyList<CPUDetailedGraphGroup> groups,
         int historyLengthMinutes,
         int sampleIntervalMilliseconds)
     {
         ArgumentNullException.ThrowIfNull(overallHistory);
         ArgumentNullException.ThrowIfNull(highestCoreHistory);
-        ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(groups);
 
-        _topology = topology.IsAvailable ? topology : CPUCCDTopology.Empty;
+        _groups = groups;
         _historyLengthMinutes = historyLengthMinutes;
         _sampleIntervalMilliseconds = sampleIntervalMilliseconds;
         Children.Clear();
         ColumnDefinitions.Clear();
         RowDefinitions.Clear();
-        _ccdHistories.Clear();
+        _groupHistories.Clear();
         _graphs.Clear();
 
-        int visibleCCDCount = GetVisibleCCDGraphCount(_topology);
-        for (int CCDIndex = 0; CCDIndex < visibleCCDCount; CCDIndex++)
-            _ccdHistories.Add(CreateHistory());
+        for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
+            _groupHistories.Add(CreateHistory());
 
-        int graphCount = 2 + visibleCCDCount;
+        int graphCount = 2 + groups.Count;
         int columnCount = CalculateColumnCount(
             graphCount,
             _resources.AxamlTaskManagerPerformance.DetailedCPUGridAspectRatio);
@@ -75,11 +80,11 @@ internal sealed class CPUPerformanceDetailedView : Grid
             hoverMetricProvider: null,
             graphIndex++,
             columnCount);
-        for (int CCDIndex = 0; CCDIndex < visibleCCDCount; CCDIndex++)
+        for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
         {
             AddGraph(
-                string.Concat(arg0: "CCD ", CCDIndex),
-                _ccdHistories[CCDIndex],
+                groups[groupIndex].Label,
+                _groupHistories[groupIndex],
                 accent,
                 hoverMetricProvider: null,
                 graphIndex++,
@@ -95,13 +100,13 @@ internal sealed class CPUPerformanceDetailedView : Grid
             columnCount);
     }
 
-    /// <summary>Appends per-CCD averages while preserving unavailable intervals.</summary>
+    /// <summary>Appends per-group averages while preserving unavailable intervals.</summary>
     public void Append(CPUPerformanceSnapshot snapshot, long capturedTimestamp)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        AppendCCDHistories(
-            _ccdHistories,
-            _topology,
+        AppendGroupHistories(
+            _groupHistories,
+            _groups,
             snapshot,
             capturedTimestamp);
     }
@@ -130,45 +135,127 @@ internal sealed class CPUPerformanceDetailedView : Grid
         ColumnDefinitions.Clear();
         RowDefinitions.Clear();
         _graphs.Clear();
-        _ccdHistories.Clear();
-        _topology = CPUCCDTopology.Empty;
+        _groupHistories.Clear();
+        _groups = [];
     }
 
-    /// <summary>Returns the number of CCD graphs that should be shown.</summary>
-    internal static int GetVisibleCCDGraphCount(CPUCCDTopology topology)
+    /// <summary>Returns the CCD and core-class graphs the Windows topology supports, in display order.</summary>
+    internal static List<CPUDetailedGraphGroup> CreateGraphGroups(
+        CPUCCDTopology CCDTopology,
+        CPUCoreClassTopology coreClassTopology)
     {
-        ArgumentNullException.ThrowIfNull(topology);
-        return topology is { IsAvailable: true, CCDs.Length: > 1 }
-            ? topology.CCDs.Length
-            : 0;
+        ArgumentNullException.ThrowIfNull(CCDTopology);
+        ArgumentNullException.ThrowIfNull(coreClassTopology);
+
+        List<CPUDetailedGraphGroup> groups = [];
+        if (CCDTopology is { IsAvailable: true, CCDs.Length: > 1 })
+        {
+            ReadOnlySpan<CPUCCDTopologyEntry> CCDs = CCDTopology.CCDs.Span;
+            bool hasUnequalL3Caches = TryGetSmallestUnequalL3CacheBytes(
+                CCDs,
+                out ulong smallestL3CacheBytes);
+            for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+            {
+                CPUCCDTopologyEntry CCD = CCDs[CCDIndex];
+                string label = hasUnequalL3Caches
+                    ? FormatCCDLabel(
+                        CCDIndex,
+                        CCD.L3CacheBytes,
+                        CCD.L3CacheBytes > smallestL3CacheBytes)
+                    : FormatCCDLabel(CCDIndex);
+                groups.Add(new CPUDetailedGraphGroup(label, CCD.LogicalProcessorIndexes));
+            }
+        }
+
+        if (coreClassTopology.IsHeterogeneous)
+        {
+            ReadOnlySpan<CPUCoreClassEntry> classes = coreClassTopology.Classes.Span;
+            int efficiencyClassCount = 1;
+            for (int classIndex = 1; classIndex < classes.Length; classIndex++)
+            {
+                if (classes[classIndex].EfficiencyClass != classes[classIndex - 1].EfficiencyClass)
+                    efficiencyClassCount++;
+            }
+
+            for (int classIndex = 0; classIndex < classes.Length; classIndex++)
+            {
+                CPUCoreClassEntry coreClass = classes[classIndex];
+                groups.Add(new CPUDetailedGraphGroup(
+                    FormatCoreClassLabel(
+                        coreClass,
+                        isHighestClass: classIndex == 0,
+                        showEfficiencyClass: efficiencyClassCount > 2),
+                    coreClass.LogicalProcessorIndexes));
+            }
+        }
+
+        return groups;
     }
 
-    /// <summary>Averages logical-processor utilization into timestamp-aligned CCD histories.</summary>
-    internal static void AppendCCDHistories(
+    /// <summary>Formats a CCD graph label when every CCD reports the same level-3 cache.</summary>
+    internal static string FormatCCDLabel(int CCDIndex) =>
+        string.Concat(str0: "CCD ", CCDIndex.ToString(CultureInfo.CurrentCulture));
+
+    /// <summary>Formats a CCD graph label with its level-3 cache, naming a larger-cache CCD X3D.</summary>
+    internal static string FormatCCDLabel(int CCDIndex, ulong l3CacheBytes, bool isX3D) =>
+        string.Concat(
+            FormatCCDLabel(CCDIndex),
+            isX3D ? " (X3D, " : " (",
+            PerformanceDevicePresentationFactory.FormatBytes(l3CacheBytes),
+            str3: " L3)");
+
+    /// <summary>Formats a core-class graph label such as "8 Performance Cores" or "2 Low Power Efficiency Cores".</summary>
+    internal static string FormatCoreClassLabel(
+        CPUCoreClassEntry coreClass,
+        bool isHighestClass,
+        bool showEfficiencyClass)
+    {
+        ArgumentNullException.ThrowIfNull(coreClass);
+
+        // Windows orders classes by performance but does not name them, so the name follows the order
+        // NOTE: names are spelled out because LP already means logical processor in this view
+        string className = isHighestClass
+            ? "Performance Core"
+            : coreClass.IsOutsideL3Cache
+                ? "Low Power Efficiency Core"
+                : "Efficiency Core";
+        string label = string.Concat(
+            coreClass.CoreCount.ToString(CultureInfo.CurrentCulture),
+            str1: " ",
+            className,
+            coreClass.CoreCount == 1 ? string.Empty : "s");
+        return showEfficiencyClass && !isHighestClass
+            ? string.Concat(
+                label,
+                str1: " (class ",
+                coreClass.EfficiencyClass.ToString(CultureInfo.InvariantCulture),
+                str3: ")")
+            : label;
+    }
+
+    /// <summary>Averages logical-processor utilization into timestamp-aligned group histories.</summary>
+    internal static void AppendGroupHistories(
         IReadOnlyList<PerformanceHistory> histories,
-        CPUCCDTopology topology,
+        IReadOnlyList<CPUDetailedGraphGroup> groups,
         CPUPerformanceSnapshot snapshot,
         long capturedTimestamp)
     {
         ArgumentNullException.ThrowIfNull(histories);
-        ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(groups);
         ArgumentNullException.ThrowIfNull(snapshot);
 
         for (int historyIndex = 0; historyIndex < histories.Count; historyIndex++)
             histories[historyIndex].AdvanceTo(capturedTimestamp);
         if (histories.Count == 0
             || !snapshot.HasUtilizationSample
-            || !topology.IsAvailable
-            || !snapshot.CCDTopology.IsAvailable
-            || topology.CCDs.Length != histories.Count)
+            || groups.Count != histories.Count)
             return;
 
         ReadOnlySpan<double> processorUtilization =
             snapshot.LogicalProcessorUtilizationPercents.Span;
-        ReadOnlySpan<CPUCCDTopologyEntry> CCDs = topology.CCDs.Span;
-        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+        for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
         {
-            ReadOnlySpan<int> processorIndexes = CCDs[CCDIndex].LogicalProcessorIndexes.Span;
+            ReadOnlySpan<int> processorIndexes = groups[groupIndex].LogicalProcessorIndexes.Span;
             if (processorIndexes.Length == 0) return;
 
             for (int processorOffset = 0;
@@ -180,19 +267,38 @@ internal sealed class CPUPerformanceDetailedView : Grid
             }
         }
 
-        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+        for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
         {
-            ReadOnlySpan<int> processorIndexes = CCDs[CCDIndex].LogicalProcessorIndexes.Span;
+            ReadOnlySpan<int> processorIndexes = groups[groupIndex].LogicalProcessorIndexes.Span;
             double utilizationTotal = 0;
             for (int processorOffset = 0;
                  processorOffset < processorIndexes.Length;
                  processorOffset++)
                 utilizationTotal += processorUtilization[processorIndexes[processorOffset]];
 
-            histories[CCDIndex].Add(
+            histories[groupIndex].Add(
                 capturedTimestamp,
                 utilizationTotal / processorIndexes.Length);
         }
+    }
+
+    /// <summary>Finds the smallest CCD level-3 cache when every CCD reports one and they are not all equal.</summary>
+    private static bool TryGetSmallestUnequalL3CacheBytes(
+        ReadOnlySpan<CPUCCDTopologyEntry> CCDs,
+        out ulong smallestL3CacheBytes)
+    {
+        smallestL3CacheBytes = ulong.MaxValue;
+        ulong largestL3CacheBytes = 0;
+        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+        {
+            ulong l3CacheBytes = CCDs[CCDIndex].L3CacheBytes;
+            if (l3CacheBytes == 0) return false;
+
+            smallestL3CacheBytes = Math.Min(smallestL3CacheBytes, l3CacheBytes);
+            largestL3CacheBytes = Math.Max(largestL3CacheBytes, l3CacheBytes);
+        }
+
+        return largestL3CacheBytes > smallestL3CacheBytes;
     }
 
     private PerformanceHistory CreateHistory() =>

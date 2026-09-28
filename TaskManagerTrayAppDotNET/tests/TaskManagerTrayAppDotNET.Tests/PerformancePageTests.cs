@@ -6,6 +6,8 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class PerformancePageTests
 {
+    private const ulong BytesPerMebibyte = 1_048_576;
+
     [Fact]
     public void CPUOverallHistoriesKeepAverageAndHighestCoreSamplesPaired()
     {
@@ -59,23 +61,21 @@ public sealed class PerformancePageTests
     }
 
     [Fact]
-    public void CPUDetailedViewAveragesLogicalProcessorsWithinEachCCD()
+    public void CPUDetailedViewAveragesLogicalProcessorsWithinEachGroup()
     {
         const long CapturedTimestamp = 789;
-        CPUCCDTopology topology = CreateCCDTopology(
-            [0, 1],
-            [2, 3]);
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CreateCCDTopology([0, 1], [2, 3]),
+            CPUCoreClassTopology.Empty);
         PerformanceHistory[] histories = [new(), new()];
         CPUPerformanceSnapshot snapshot = CPUPerformanceSnapshot.Empty with
         {
-            HasUtilizationSample = true,
-            LogicalProcessorUtilizationPercents = new double[] { 10, 30, 50, 70 },
-            CCDTopology = topology
+            HasUtilizationSample = true, LogicalProcessorUtilizationPercents = new double[] { 10, 30, 50, 70 }
         };
 
-        CPUPerformanceDetailedView.AppendCCDHistories(
+        CPUPerformanceDetailedView.AppendGroupHistories(
             histories,
-            topology,
+            groups,
             snapshot,
             CapturedTimestamp);
 
@@ -89,20 +89,18 @@ public sealed class PerformancePageTests
     public void CPUDetailedViewRejectsIncompleteLogicalProcessorSamples()
     {
         const long CapturedTimestamp = 987;
-        CPUCCDTopology topology = CreateCCDTopology(
-            [0, 1],
-            [2, 3]);
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CreateCCDTopology([0, 1], [2, 3]),
+            CPUCoreClassTopology.Empty);
         PerformanceHistory[] histories = [new(), new()];
         CPUPerformanceSnapshot snapshot = CPUPerformanceSnapshot.Empty with
         {
-            HasUtilizationSample = true,
-            LogicalProcessorUtilizationPercents = new double[] { 10, 20, 30 },
-            CCDTopology = topology
+            HasUtilizationSample = true, LogicalProcessorUtilizationPercents = new double[] { 10, 20, 30 }
         };
 
-        CPUPerformanceDetailedView.AppendCCDHistories(
+        CPUPerformanceDetailedView.AppendGroupHistories(
             histories,
-            topology,
+            groups,
             snapshot,
             CapturedTimestamp);
 
@@ -113,16 +111,189 @@ public sealed class PerformancePageTests
     [Fact]
     public void CPUDetailedViewOmitsTheOnlyCCDGraph()
     {
-        CPUCCDTopology singleCCDTopology = CreateCCDTopology([0, 1]);
-        CPUCCDTopology multipleCCDTopology = CreateCCDTopology([0, 1], [2, 3]);
+        List<CPUDetailedGraphGroup> singleCCDGroups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CreateCCDTopology([0, 1]),
+            CPUCoreClassTopology.Empty);
+        List<CPUDetailedGraphGroup> multipleCCDGroups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CreateCCDTopology([0, 1], [2, 3]),
+            CPUCoreClassTopology.Empty);
+
+        Assert.Empty(singleCCDGroups);
+        Assert.Equal(["CCD 0", "CCD 1"], multipleCCDGroups.Select(static group => group.Label));
+    }
+
+    [Fact]
+    public void CPUDetailedViewKeepsPlainCCDLabelsWhenL3SizesMatch()
+    {
+        CPUCCDTopology topology = WithL3CacheSizes(
+            CreateCCDTopology([0, 1], [2, 3]),
+            32 * BytesPerMebibyte,
+            32 * BytesPerMebibyte);
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            topology,
+            CPUCoreClassTopology.Empty);
+
+        Assert.Equal(["CCD 0", "CCD 1"], groups.Select(static group => group.Label));
+    }
+
+    [Fact]
+    public void CPUDetailedViewLabelsTheLargerL3CCDAsX3D()
+    {
+        CPUCCDTopology topology = WithL3CacheSizes(
+            CreateCCDTopology([0, 1], [2, 3]),
+            96 * BytesPerMebibyte,
+            32 * BytesPerMebibyte);
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            topology,
+            CPUCoreClassTopology.Empty);
 
         Assert.Equal(
-            expected: 0,
-            CPUPerformanceDetailedView.GetVisibleCCDGraphCount(singleCCDTopology));
-        Assert.Equal(
-            expected: 2,
-            CPUPerformanceDetailedView.GetVisibleCCDGraphCount(multipleCCDTopology));
+            [
+                string.Concat(
+                    str0: "CCD 0 (X3D, ",
+                    PerformanceDevicePresentationFactory.FormatBytes(96 * BytesPerMebibyte),
+                    str2: " L3)"),
+                string.Concat(
+                    str0: "CCD 1 (",
+                    PerformanceDevicePresentationFactory.FormatBytes(32 * BytesPerMebibyte),
+                    str2: " L3)")
+            ],
+            groups.Select(static group => group.Label));
     }
+
+    [Fact]
+    public void CPUDetailedViewSkipsX3DWhenAnyCCDLacksAnL3Size()
+    {
+        CPUCCDTopology topology = WithL3CacheSizes(
+            CreateCCDTopology([0, 1], [2, 3]),
+            96 * BytesPerMebibyte,
+            0);
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            topology,
+            CPUCoreClassTopology.Empty);
+
+        Assert.Equal(["CCD 0", "CCD 1"], groups.Select(static group => group.Label));
+    }
+
+    [Fact]
+    public void CPUDetailedViewAddsCoreClassGraphsAfterCCDs()
+    {
+        CPUCoreClassTopology coreClasses = new(new CPUCoreClassEntry[]
+        {
+            new(EfficiencyClass: 1, IsOutsideL3Cache: false, CoreCount: 1, new[] { 0, 1 }),
+            new(EfficiencyClass: 0, IsOutsideL3Cache: false, CoreCount: 2, new[] { 2, 3 })
+        });
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CreateCCDTopology([0, 1], [2, 3]),
+            coreClasses);
+
+        Assert.Equal(
+            ["CCD 0", "CCD 1", "1 Performance Core", "2 Efficiency Cores"],
+            groups.Select(static group => group.Label));
+        Assert.Equal([2, 3], groups[3].LogicalProcessorIndexes.ToArray());
+    }
+
+    [Fact]
+    public void CPUDetailedViewNamesLowerClassCoresOutsideL3AsLowPowerEfficiencyCores()
+    {
+        CPUCoreClassTopology coreClasses = new(new CPUCoreClassEntry[]
+        {
+            new(EfficiencyClass: 1, IsOutsideL3Cache: false, CoreCount: 6, new[] { 0, 1 }),
+            new(EfficiencyClass: 0, IsOutsideL3Cache: false, CoreCount: 8, new[] { 2 }),
+            new(EfficiencyClass: 0, IsOutsideL3Cache: true, CoreCount: 2, new[] { 3 })
+        });
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CPUCCDTopology.Empty,
+            coreClasses);
+
+        Assert.Equal(
+            ["6 Performance Cores", "8 Efficiency Cores", "2 Low Power Efficiency Cores"],
+            groups.Select(static group => group.Label));
+    }
+
+    [Fact]
+    public void CPUDetailedViewShowsTheWindowsClassWhenMoreThanTwoClassesExist()
+    {
+        CPUCoreClassTopology coreClasses = new(new CPUCoreClassEntry[]
+        {
+            new(EfficiencyClass: 2, IsOutsideL3Cache: false, CoreCount: 4, new[] { 0 }),
+            new(EfficiencyClass: 1, IsOutsideL3Cache: false, CoreCount: 4, new[] { 1 }),
+            new(EfficiencyClass: 0, IsOutsideL3Cache: false, CoreCount: 4, new[] { 2 })
+        });
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CPUCCDTopology.Empty,
+            coreClasses);
+
+        Assert.Equal(
+            ["4 Performance Cores", "4 Efficiency Cores (class 1)", "4 Efficiency Cores (class 0)"],
+            groups.Select(static group => group.Label));
+    }
+
+    [Fact]
+    public void CPUDetailedViewOmitsCoreClassGraphsForOneClass()
+    {
+        CPUCoreClassTopology coreClasses = new(new CPUCoreClassEntry[]
+        {
+            new(EfficiencyClass: 0, IsOutsideL3Cache: false, CoreCount: 2, new[] { 0, 1, 2, 3 })
+        });
+
+        List<CPUDetailedGraphGroup> groups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CPUCCDTopology.Empty,
+            coreClasses);
+
+        Assert.Empty(groups);
+    }
+
+#if DEBUG
+    [Fact]
+    public void CPUArchitectureSimulationsProduceTheExpectedGraphs()
+    {
+        Dictionary<string, string[]> labelsByButton = CPUArchitectureSimulation.All.ToDictionary(
+            static simulation => simulation.ButtonText,
+            static simulation => simulation.CreateGraphGroups(liveLogicalProcessorCount: 0)
+                .Select(static group => group.Label)
+                .ToArray());
+
+        Assert.Equal(["8 Performance Cores", "16 Efficiency Cores"], labelsByButton["Intel hybrid"]);
+        Assert.Equal(
+            ["6 Performance Cores", "8 Efficiency Cores", "2 Low Power Efficiency Cores"],
+            labelsByButton["Intel 3-tier hybrid"]);
+        Assert.Equal(["4 Performance Cores", "8 Efficiency Cores"], labelsByButton["Ryzen hybrid"]);
+        Assert.Equal(
+            [
+                string.Concat(
+                    str0: "CCD 0 (X3D, ",
+                    PerformanceDevicePresentationFactory.FormatBytes(96 * BytesPerMebibyte),
+                    str2: " L3)"),
+                string.Concat(
+                    str0: "CCD 1 (",
+                    PerformanceDevicePresentationFactory.FormatBytes(32 * BytesPerMebibyte),
+                    str2: " L3)")
+            ],
+            labelsByButton["Ryzen X3D"]);
+    }
+
+    [Fact]
+    public void CPUArchitectureSimulationWrapsOntoLiveLogicalProcessors()
+    {
+        CPUArchitectureSimulation simulation = CPUArchitectureSimulation.All.Single(
+            static candidate => candidate.ButtonText == "Ryzen X3D");
+
+        List<CPUDetailedGraphGroup> groups = simulation.CreateGraphGroups(liveLogicalProcessorCount: 12);
+
+        Assert.All(
+            groups,
+            static group => Assert.All(
+                group.LogicalProcessorIndexes.ToArray(),
+                static processorIndex => Assert.InRange(processorIndex, low: 0, high: 11)));
+    }
+#endif
 
     [Fact]
     public void NetworkHoverMetricShowsSendThenReceive()
@@ -256,5 +427,16 @@ public sealed class PerformancePageTests
             logicalProcessors.ToArray(),
             cores.ToArray(),
             CCDs);
+    }
+
+    private static CPUCCDTopology WithL3CacheSizes(
+        CPUCCDTopology topology,
+        params ulong[] l3CacheBytesByCCD)
+    {
+        CPUCCDTopologyEntry[] CCDs = topology.CCDs.ToArray();
+        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+            CCDs[CCDIndex] = CCDs[CCDIndex] with { L3CacheBytes = l3CacheBytesByCCD[CCDIndex] };
+
+        return topology with { CCDs = CCDs };
     }
 }

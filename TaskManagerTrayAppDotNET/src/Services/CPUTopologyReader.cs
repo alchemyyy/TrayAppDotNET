@@ -5,15 +5,24 @@ using System.Runtime.Intrinsics.X86;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>Reads exact AMD core-to-CCD membership without requiring a hardware driver.</summary>
-internal static unsafe class CPUCCDTopologyReader
+/// <summary>Reads Windows core efficiency classes and exact AMD core-to-CCD membership without a hardware driver.</summary>
+internal static unsafe class CPUTopologyReader
 {
     private const uint RelationProcessorCore = 0;
+    private const uint RelationCache = 2;
     private const uint RelationProcessorDie = 5;
     private const int ErrorInsufficientBuffer = 122;
     private const int LogicalProcessorInformationHeaderSize = 8;
+    private const int ProcessorEfficiencyClassOffset = 9;
     private const int ProcessorGroupCountOffset = 30;
     private const int ProcessorGroupMasksOffset = 32;
+    private const int CacheLevelOffset = 8;
+    private const int CacheSizeOffset = 12;
+    private const int CacheTypeOffset = 16;
+    private const int CacheGroupCountOffset = 38;
+    private const int CacheGroupMasksOffset = 40;
+    private const byte L3CacheLevel = 3;
+    private const uint UnifiedCacheType = 0;
     private const int GroupAffinitySize = 16;
     private const int MaximumTopologyLevelCount = 32;
     private const int AMDExtendedFunctionMaximum = unchecked((int)0x80000000);
@@ -28,7 +37,7 @@ internal static unsafe class CPUCCDTopologyReader
     private const int AuthenticAMDEDX = 0x69746E65;
 
     /// <summary>Reads the active AMD CCD topology, preferring Windows processor-die records.</summary>
-    public static CPUCCDTopology Read()
+    public static CPUCCDTopology ReadCCDTopology()
     {
         if (!IsAMDProcessor()) return CPUCCDTopology.Empty;
 
@@ -43,23 +52,48 @@ internal static unsafe class CPUCCDTopologyReader
                     RelationProcessorDie,
                     out ProcessorRelationshipMasks[] dieRelationships))
             {
-                CPUCCDTopology windowsTopology = BuildTopology(
+                CPUCCDTopology windowsTopology = BuildCCDTopology(
                     coreRelationships,
                     dieRelationships,
                     CPUCCDTopologySource.WindowsProcessorDie);
-                if (windowsTopology.IsAvailable) return windowsTopology;
+                if (windowsTopology.IsAvailable) return AttachL3CacheSizes(windowsTopology);
             }
 
             return TryReadAMDExtendedCPUTopology(
                 coreRelationships,
                 out CPUCCDTopology amdTopology)
-                ? amdTopology
+                ? AttachL3CacheSizes(amdTopology)
                 : CPUCCDTopology.Empty;
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"CPUCCDTopologyReader.Read: {exception}");
+            TADNLog.Log($"CPUTopologyReader.ReadCCDTopology: {exception}");
             return CPUCCDTopology.Empty;
+        }
+    }
+
+    /// <summary>Reads the efficiency class and level-3 cache placement Windows reports for every core.</summary>
+    public static CPUCoreClassTopology ReadCoreClassTopology()
+    {
+        try
+        {
+            if (!TryReadProcessorRelationships(
+                    RelationProcessorCore,
+                    out ProcessorRelationshipMasks[] coreRelationships))
+                return CPUCoreClassTopology.Empty;
+
+            // Without cache records no core can be shown to sit outside L3, so classes stay whole
+            CacheRelationshipMasks[] caches =
+                TryReadLogicalProcessorInformation(RelationCache, out byte[] information)
+                && TryParseCacheRelationships(information, out CacheRelationshipMasks[] parsedCaches)
+                    ? parsedCaches
+                    : [];
+            return BuildCoreClassTopology(coreRelationships, caches);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"CPUTopologyReader.ReadCoreClassTopology: {exception}");
+            return CPUCoreClassTopology.Empty;
         }
     }
 
@@ -98,18 +132,18 @@ internal static unsafe class CPUCCDTopologyReader
                        RelationProcessorCore,
                        out ProcessorRelationshipMasks[] coreRelationships)
                    && TryReadAMDExtendedCPUTopology(coreRelationships, out CPUCCDTopology topology)
-                ? topology
+                ? AttachL3CacheSizes(topology)
                 : CPUCCDTopology.Empty;
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"CPUCCDTopologyReader.ReadAMDExtendedCPUTopology: {exception}");
+            TADNLog.Log($"CPUTopologyReader.ReadAMDExtendedCPUTopology: {exception}");
             return CPUCCDTopology.Empty;
         }
     }
 
-    /// <summary>Builds a deterministic topology from exact Windows-style affinity relationships.</summary>
-    internal static CPUCCDTopology BuildTopology(
+    /// <summary>Builds a deterministic CCD topology from exact Windows-style affinity relationships.</summary>
+    internal static CPUCCDTopology BuildCCDTopology(
         IReadOnlyList<ProcessorRelationshipMasks> coreRelationships,
         IReadOnlyList<ProcessorRelationshipMasks> dieRelationships,
         CPUCCDTopologySource source)
@@ -201,7 +235,167 @@ internal static unsafe class CPUCCDTopologyReader
         return new CPUCCDTopology(source, logicalProcessors, cores, ccds);
     }
 
-    /// <summary>Parses one direct GetLogicalProcessorInformationEx relationship buffer.</summary>
+    /// <summary>Partitions active cores by Windows efficiency class and L3 placement, highest class first.</summary>
+    internal static CPUCoreClassTopology BuildCoreClassTopology(
+        IReadOnlyList<ProcessorRelationshipMasks> coreRelationships,
+        IReadOnlyList<CacheRelationshipMasks> caches)
+    {
+        ArgumentNullException.ThrowIfNull(coreRelationships);
+        ArgumentNullException.ThrowIfNull(caches);
+        if (coreRelationships.Count == 0
+            || !TryNormalizeRelationships(
+                coreRelationships,
+                out CPULogicalProcessorKey[] logicalProcessorKeys,
+                out NormalizedProcessorRelationship[] cores))
+            return CPUCoreClassTopology.Empty;
+
+        Dictionary<CPULogicalProcessorKey, int> processorIndexes = new();
+        for (int processorIndex = 0; processorIndex < logicalProcessorKeys.Length; processorIndex++)
+            processorIndexes.Add(logicalProcessorKeys[processorIndex], processorIndex);
+
+        bool[] processorHasL3Cache = new bool[logicalProcessorKeys.Length];
+        bool hasL3Cache = false;
+        for (int cacheIndex = 0; cacheIndex < caches.Count; cacheIndex++)
+        {
+            CacheRelationshipMasks cache = caches[cacheIndex];
+            if (cache.Level != L3CacheLevel
+                || cache.Type != UnifiedCacheType
+                || !TryExpandGroupMasks(cache.GroupMasks.Span, out CPULogicalProcessorKey[] cacheProcessors))
+                continue;
+
+            hasL3Cache = true;
+            for (int processorOffset = 0; processorOffset < cacheProcessors.Length; processorOffset++)
+            {
+                if (processorIndexes.TryGetValue(cacheProcessors[processorOffset], out int processorIndex))
+                    processorHasL3Cache[processorIndex] = true;
+            }
+        }
+
+        byte highestEfficiencyClass = 0;
+        for (int coreIndex = 0; coreIndex < cores.Length; coreIndex++)
+            highestEfficiencyClass = Math.Max(highestEfficiencyClass, cores[coreIndex].EfficiencyClass);
+
+        // Windows gives low power efficiency cores the efficiency class, so only their missing L3 separates them
+        CoreClassMember[] members = new CoreClassMember[cores.Length];
+        for (int coreIndex = 0; coreIndex < cores.Length; coreIndex++)
+        {
+            NormalizedProcessorRelationship core = cores[coreIndex];
+            bool isOutsideL3Cache = hasL3Cache && core.EfficiencyClass != highestEfficiencyClass;
+            for (int processorOffset = 0; processorOffset < core.LogicalProcessorIndexes.Length; processorOffset++)
+                isOutsideL3Cache &= !processorHasL3Cache[core.LogicalProcessorIndexes[processorOffset]];
+
+            members[coreIndex] = new CoreClassMember(
+                core.EfficiencyClass,
+                isOutsideL3Cache,
+                core.LogicalProcessorIndexes);
+        }
+
+        // Windows documents a higher efficiency class as intrinsically higher performance, so it leads
+        Array.Sort(
+            members,
+            static (left, right) =>
+            {
+                int classComparison = right.EfficiencyClass.CompareTo(left.EfficiencyClass);
+                if (classComparison != 0) return classComparison;
+
+                int placementComparison = left.IsOutsideL3Cache.CompareTo(right.IsOutsideL3Cache);
+                return placementComparison != 0
+                    ? placementComparison
+                    : left.LogicalProcessorIndexes[0].CompareTo(right.LogicalProcessorIndexes[0]);
+            });
+
+        List<CPUCoreClassEntry> classes = [];
+        int classStart = 0;
+        while (classStart < members.Length)
+        {
+            CoreClassMember firstMember = members[classStart];
+            List<int> logicalProcessorIndexes = [];
+            int classEnd = classStart;
+            while (classEnd < members.Length
+                   && members[classEnd].EfficiencyClass == firstMember.EfficiencyClass
+                   && members[classEnd].IsOutsideL3Cache == firstMember.IsOutsideL3Cache)
+            {
+                logicalProcessorIndexes.AddRange(members[classEnd].LogicalProcessorIndexes);
+                classEnd++;
+            }
+
+            int[] sortedLogicalProcessorIndexes = logicalProcessorIndexes.ToArray();
+            Array.Sort(sortedLogicalProcessorIndexes);
+            classes.Add(new CPUCoreClassEntry(
+                firstMember.EfficiencyClass,
+                firstMember.IsOutsideL3Cache,
+                classEnd - classStart,
+                sortedLogicalProcessorIndexes));
+            classStart = classEnd;
+        }
+
+        return new CPUCoreClassTopology(classes.ToArray());
+    }
+
+    /// <summary>Attributes each level-3 cache to the one CCD containing all of its logical processors.</summary>
+    internal static CPUCCDTopology AssignL3CacheSizes(
+        CPUCCDTopology topology,
+        IReadOnlyList<CacheRelationshipMasks> caches)
+    {
+        ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(caches);
+        if (!topology.IsAvailable) return topology;
+
+        ReadOnlySpan<CPULogicalProcessor> logicalProcessors = topology.LogicalProcessors.Span;
+        Dictionary<CPULogicalProcessorKey, int> processorIndexes = new();
+        for (int processorIndex = 0; processorIndex < logicalProcessors.Length; processorIndex++)
+        {
+            CPULogicalProcessor processor = logicalProcessors[processorIndex];
+            processorIndexes.Add(
+                new CPULogicalProcessorKey(processor.Group, processor.Number),
+                processor.SystemIndex);
+        }
+
+        ReadOnlySpan<CPUCCDTopologyEntry> CCDs = topology.CCDs.Span;
+        int[] CCDIndexByProcessor = new int[logicalProcessors.Length];
+        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+        {
+            ReadOnlySpan<int> CCDProcessorIndexes = CCDs[CCDIndex].LogicalProcessorIndexes.Span;
+            for (int processorOffset = 0; processorOffset < CCDProcessorIndexes.Length; processorOffset++)
+                CCDIndexByProcessor[CCDProcessorIndexes[processorOffset]] = CCDIndex;
+        }
+
+        ulong[] l3CacheBytesByCCD = new ulong[CCDs.Length];
+        for (int cacheIndex = 0; cacheIndex < caches.Count; cacheIndex++)
+        {
+            CacheRelationshipMasks cache = caches[cacheIndex];
+            if (cache.Level != L3CacheLevel || cache.Type != UnifiedCacheType) continue;
+
+            if (!TryExpandGroupMasks(cache.GroupMasks.Span, out CPULogicalProcessorKey[] cacheProcessors))
+                return topology;
+
+            int cacheCCDIndex = -1;
+            for (int processorOffset = 0; processorOffset < cacheProcessors.Length; processorOffset++)
+            {
+                if (!processorIndexes.TryGetValue(cacheProcessors[processorOffset], out int processorIndex))
+                    return topology;
+
+                // A cache shared across CCDs cannot be attributed, so no CCD reports a size
+                int processorCCDIndex = CCDIndexByProcessor[processorIndex];
+                if (cacheCCDIndex >= 0 && processorCCDIndex != cacheCCDIndex) return topology;
+
+                cacheCCDIndex = processorCCDIndex;
+            }
+
+            ulong currentL3CacheBytes = l3CacheBytesByCCD[cacheCCDIndex];
+            l3CacheBytesByCCD[cacheCCDIndex] = currentL3CacheBytes > ulong.MaxValue - cache.CacheSizeBytes
+                ? ulong.MaxValue
+                : currentL3CacheBytes + cache.CacheSizeBytes;
+        }
+
+        CPUCCDTopologyEntry[] CCDsWithCaches = new CPUCCDTopologyEntry[CCDs.Length];
+        for (int CCDIndex = 0; CCDIndex < CCDs.Length; CCDIndex++)
+            CCDsWithCaches[CCDIndex] = CCDs[CCDIndex] with { L3CacheBytes = l3CacheBytesByCCD[CCDIndex] };
+
+        return topology with { CCDs = CCDsWithCaches };
+    }
+
+    /// <summary>Parses one direct GetLogicalProcessorInformationEx processor relationship buffer.</summary>
     internal static bool TryParseProcessorRelationships(
         ReadOnlySpan<byte> buffer,
         uint expectedRelationship,
@@ -211,63 +405,76 @@ internal static unsafe class CPUCCDTopologyReader
         int offset = 0;
         while (offset < buffer.Length)
         {
-            if (buffer.Length - offset < LogicalProcessorInformationHeaderSize)
+            if (!TrySliceEntry(
+                    buffer,
+                    offset,
+                    expectedRelationship,
+                    ProcessorGroupMasksOffset,
+                    out ReadOnlySpan<byte> entry)
+                || !TryParseGroupMasks(
+                    entry,
+                    ProcessorGroupMasksOffset,
+                    BinaryPrimitives.ReadUInt16LittleEndian(
+                        entry.Slice(ProcessorGroupCountOffset, sizeof(ushort))),
+                    out ProcessorGroupAffinityMask[] groupMasks))
             {
                 relationships = [];
                 return false;
             }
 
-            ReadOnlySpan<byte> header = buffer.Slice(offset, LogicalProcessorInformationHeaderSize);
-            uint relationship = BinaryPrimitives.ReadUInt32LittleEndian(header);
-            uint entrySizeValue = BinaryPrimitives.ReadUInt32LittleEndian(header[sizeof(uint)..]);
-            if (relationship != expectedRelationship
-                || entrySizeValue < ProcessorGroupMasksOffset
-                || entrySizeValue > int.MaxValue)
-            {
-                relationships = [];
-                return false;
-            }
-
-            int entrySize = (int)entrySizeValue;
-            if (entrySize > buffer.Length - offset)
-            {
-                relationships = [];
-                return false;
-            }
-
-            ReadOnlySpan<byte> entry = buffer.Slice(offset, entrySize);
-            ushort groupCount = BinaryPrimitives.ReadUInt16LittleEndian(
-                entry.Slice(ProcessorGroupCountOffset, sizeof(ushort)));
-            int requiredEntrySize = checked(ProcessorGroupMasksOffset + groupCount * GroupAffinitySize);
-            if (groupCount == 0 || requiredEntrySize > entrySize)
-            {
-                relationships = [];
-                return false;
-            }
-
-            ProcessorGroupAffinityMask[] groupMasks = new ProcessorGroupAffinityMask[groupCount];
-            for (int groupIndex = 0; groupIndex < groupCount; groupIndex++)
-            {
-                int groupOffset = ProcessorGroupMasksOffset + groupIndex * GroupAffinitySize;
-                ulong mask = BinaryPrimitives.ReadUInt64LittleEndian(
-                    entry.Slice(groupOffset, sizeof(ulong)));
-                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(
-                    entry.Slice(groupOffset + sizeof(ulong), sizeof(ushort)));
-                if (mask == 0)
-                {
-                    relationships = [];
-                    return false;
-                }
-
-                groupMasks[groupIndex] = new ProcessorGroupAffinityMask(group, mask);
-            }
-
-            parsedRelationships.Add(new ProcessorRelationshipMasks(groupMasks));
-            offset += entrySize;
+            parsedRelationships.Add(new ProcessorRelationshipMasks(
+                groupMasks,
+                EfficiencyClass: entry[ProcessorEfficiencyClassOffset]));
+            offset += entry.Length;
         }
 
         relationships = parsedRelationships.ToArray();
         return relationships.Length > 0;
+    }
+
+    /// <summary>Parses one direct GetLogicalProcessorInformationEx cache relationship buffer.</summary>
+    internal static bool TryParseCacheRelationships(
+        ReadOnlySpan<byte> buffer,
+        out CacheRelationshipMasks[] caches)
+    {
+        List<CacheRelationshipMasks> parsedCaches = [];
+        int offset = 0;
+        while (offset < buffer.Length)
+        {
+            if (!TrySliceEntry(
+                    buffer,
+                    offset,
+                    RelationCache,
+                    CacheGroupMasksOffset,
+                    out ReadOnlySpan<byte> entry))
+            {
+                caches = [];
+                return false;
+            }
+
+            // NOTE: GroupCount replaced reserved bytes, so older Windows builds report zero with one mask
+            ushort groupCount = BinaryPrimitives.ReadUInt16LittleEndian(
+                entry.Slice(CacheGroupCountOffset, sizeof(ushort)));
+            if (!TryParseGroupMasks(
+                    entry,
+                    CacheGroupMasksOffset,
+                    Math.Max(groupCount, val2: (ushort)1),
+                    out ProcessorGroupAffinityMask[] groupMasks))
+            {
+                caches = [];
+                return false;
+            }
+
+            parsedCaches.Add(new CacheRelationshipMasks(
+                entry[CacheLevelOffset],
+                BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(CacheTypeOffset, sizeof(uint))),
+                BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(CacheSizeOffset, sizeof(uint))),
+                groupMasks));
+            offset += entry.Length;
+        }
+
+        caches = parsedCaches.ToArray();
+        return caches.Length > 0;
     }
 
     /// <summary>Decodes a CCD domain ID from one AMD extended-topology CPUID level.</summary>
@@ -298,29 +505,90 @@ internal static unsafe class CPUCCDTopologyReader
         out ProcessorRelationshipMasks[] relationships)
     {
         relationships = [];
+        return TryReadLogicalProcessorInformation(relationship, out byte[] information)
+               && TryParseProcessorRelationships(information, relationship, out relationships);
+    }
+
+    /// <summary>Adds Windows level-3 cache sizes to a CCD topology, leaving it unchanged if caches are unreadable.</summary>
+    private static CPUCCDTopology AttachL3CacheSizes(CPUCCDTopology topology) =>
+        TryReadLogicalProcessorInformation(RelationCache, out byte[] information)
+        && TryParseCacheRelationships(information, out CacheRelationshipMasks[] caches)
+            ? AssignL3CacheSizes(topology, caches)
+            : topology;
+
+    private static bool TryReadLogicalProcessorInformation(uint relationship, out byte[] information)
+    {
+        information = [];
         uint requiredLength = 0;
         if (GetLogicalProcessorInformationEx(relationship, IntPtr.Zero, ref requiredLength)
             || Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
-            || requiredLength < ProcessorGroupMasksOffset
+            || requiredLength < LogicalProcessorInformationHeaderSize
             || requiredLength > int.MaxValue)
             return false;
 
-        IntPtr buffer = Marshal.AllocHGlobal((int)requiredLength);
-        try
+        byte[] buffer = new byte[requiredLength];
+        uint returnedLength = requiredLength;
+        fixed (byte* bufferPointer = buffer)
         {
-            uint returnedLength = requiredLength;
-            if (!GetLogicalProcessorInformationEx(relationship, buffer, ref returnedLength)
+            if (!GetLogicalProcessorInformationEx(relationship, (IntPtr)bufferPointer, ref returnedLength)
                 || returnedLength == 0
                 || returnedLength > requiredLength)
                 return false;
+        }
 
-            ReadOnlySpan<byte> bytes = new((void*)buffer, (int)returnedLength);
-            return TryParseProcessorRelationships(bytes, relationship, out relationships);
-        }
-        finally
+        information = returnedLength == requiredLength ? buffer : buffer[..(int)returnedLength];
+        return true;
+    }
+
+    /// <summary>Slices one variable-sized relationship record after validating its header.</summary>
+    private static bool TrySliceEntry(
+        ReadOnlySpan<byte> buffer,
+        int offset,
+        uint expectedRelationship,
+        int minimumEntrySize,
+        out ReadOnlySpan<byte> entry)
+    {
+        entry = default;
+        if (buffer.Length - offset < LogicalProcessorInformationHeaderSize) return false;
+
+        ReadOnlySpan<byte> header = buffer.Slice(offset, LogicalProcessorInformationHeaderSize);
+        uint relationship = BinaryPrimitives.ReadUInt32LittleEndian(header);
+        uint entrySize = BinaryPrimitives.ReadUInt32LittleEndian(header[sizeof(uint)..]);
+        if (relationship != expectedRelationship
+            || entrySize < minimumEntrySize
+            || entrySize > buffer.Length - offset)
+            return false;
+
+        entry = buffer.Slice(offset, (int)entrySize);
+        return true;
+    }
+
+    private static bool TryParseGroupMasks(
+        ReadOnlySpan<byte> entry,
+        int groupMasksOffset,
+        int groupCount,
+        out ProcessorGroupAffinityMask[] groupMasks)
+    {
+        groupMasks = [];
+        if (groupCount == 0
+            || checked(groupMasksOffset + groupCount * GroupAffinitySize) > entry.Length)
+            return false;
+
+        ProcessorGroupAffinityMask[] parsedGroupMasks = new ProcessorGroupAffinityMask[groupCount];
+        for (int groupIndex = 0; groupIndex < groupCount; groupIndex++)
         {
-            Marshal.FreeHGlobal(buffer);
+            int groupOffset = groupMasksOffset + groupIndex * GroupAffinitySize;
+            ulong mask = BinaryPrimitives.ReadUInt64LittleEndian(
+                entry.Slice(groupOffset, sizeof(ulong)));
+            ushort group = BinaryPrimitives.ReadUInt16LittleEndian(
+                entry.Slice(groupOffset + sizeof(ulong), sizeof(ushort)));
+            if (mask == 0) return false;
+
+            parsedGroupMasks[groupIndex] = new ProcessorGroupAffinityMask(group, mask);
         }
+
+        groupMasks = parsedGroupMasks;
+        return true;
     }
 
     private static bool TryReadAMDExtendedCPUTopology(
@@ -371,7 +639,7 @@ internal static unsafe class CPUCCDTopologyReader
         probeThread.Join();
         if (probeException != null)
         {
-            TADNLog.Log($"CPUCCDTopologyReader CPUID probe: {probeException}");
+            TADNLog.Log($"CPUTopologyReader CPUID probe: {probeException}");
             return false;
         }
 
@@ -405,7 +673,7 @@ internal static unsafe class CPUCCDTopologyReader
                 hardwareTopologyID);
         }
 
-        topology = BuildTopology(
+        topology = BuildCCDTopology(
             coreRelationships,
             dieRelationships,
             CPUCCDTopologySource.AMDExtendedCPUTopology);
@@ -518,7 +786,7 @@ internal static unsafe class CPUCCDTopologyReader
              relationshipIndex++)
         {
             ProcessorRelationshipMasks relationship = relationships[relationshipIndex];
-            if (!TryExpandRelationship(relationship, out CPULogicalProcessorKey[] processors))
+            if (!TryExpandGroupMasks(relationship.GroupMasks.Span, out CPULogicalProcessorKey[] processors))
             {
                 normalizedRelationships = [];
                 return false;
@@ -540,7 +808,8 @@ internal static unsafe class CPUCCDTopologyReader
             Array.Sort(relationshipProcessorIndexes);
             normalizedRelationships[relationshipIndex] = new NormalizedProcessorRelationship(
                 relationshipProcessorIndexes,
-                relationship.HardwareTopologyID);
+                relationship.HardwareTopologyID,
+                relationship.EfficiencyClass);
         }
 
         if (assignedProcessorIndexes.Count != logicalProcessors.Length)
@@ -565,8 +834,8 @@ internal static unsafe class CPUCCDTopologyReader
              relationshipIndex < relationships.Count;
              relationshipIndex++)
         {
-            if (!TryExpandRelationship(
-                    relationships[relationshipIndex],
+            if (!TryExpandGroupMasks(
+                    relationships[relationshipIndex].GroupMasks.Span,
                     out CPULogicalProcessorKey[] processors))
             {
                 logicalProcessors = [];
@@ -597,11 +866,10 @@ internal static unsafe class CPUCCDTopologyReader
         return logicalProcessors.Length > 0;
     }
 
-    private static bool TryExpandRelationship(
-        ProcessorRelationshipMasks relationship,
+    private static bool TryExpandGroupMasks(
+        ReadOnlySpan<ProcessorGroupAffinityMask> groupMasks,
         out CPULogicalProcessorKey[] processors)
     {
-        ReadOnlySpan<ProcessorGroupAffinityMask> groupMasks = relationship.GroupMasks.Span;
         if (groupMasks.Length == 0)
         {
             processors = [];
@@ -685,13 +953,27 @@ internal static unsafe class CPUCCDTopologyReader
 
     private sealed record NormalizedProcessorRelationship(
         int[] LogicalProcessorIndexes,
-        uint? HardwareTopologyID);
+        uint? HardwareTopologyID,
+        byte EfficiencyClass);
+
+    private sealed record CoreClassMember(
+        byte EfficiencyClass,
+        bool IsOutsideL3Cache,
+        int[] LogicalProcessorIndexes);
 }
 
 /// <summary>One processor-group affinity mask from a Windows topology relationship.</summary>
 internal readonly record struct ProcessorGroupAffinityMask(ushort Group, ulong Mask);
 
-/// <summary>Affinity masks and optional hardware ID for one processor relationship.</summary>
+/// <summary>Affinity masks, optional hardware ID, and Windows efficiency class for one processor relationship.</summary>
 internal sealed record ProcessorRelationshipMasks(
     ReadOnlyMemory<ProcessorGroupAffinityMask> GroupMasks,
-    uint? HardwareTopologyID = null);
+    uint? HardwareTopologyID = null,
+    byte EfficiencyClass = 0);
+
+/// <summary>Level, Windows cache type, size, and affinity masks for one cache relationship.</summary>
+internal sealed record CacheRelationshipMasks(
+    byte Level,
+    uint Type,
+    uint CacheSizeBytes,
+    ReadOnlyMemory<ProcessorGroupAffinityMask> GroupMasks);

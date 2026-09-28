@@ -61,6 +61,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly StackPanel[] _statisticContainers = new StackPanel[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
+#if DEBUG
+    private readonly List<SettingsButton> _cpuArchitectureSimulationButtons = [];
+    private CPUArchitectureSimulation? _cpuArchitectureSimulation;
+#endif
     private PerformanceHardwareNameResolver _hardwareNameResolver;
     private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
     private PerformanceHistory _cpuHighestCoreHistory;
@@ -335,6 +339,19 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
+        AddCPUArchitectureSimulationButton(
+            text: "Live CPU",
+            simulation: null,
+            tip: "Detailed view from this machine's Windows topology");
+        foreach (CPUArchitectureSimulation simulation in CPUArchitectureSimulation.All)
+        {
+            AddCPUArchitectureSimulationButton(
+                simulation.ButtonText,
+                simulation,
+                string.Concat(str0: "Detailed view as Windows would report ", simulation.ProcessorName));
+        }
+
+        UpdateCPUArchitectureSimulationButtons();
 #endif
     }
 
@@ -351,6 +368,47 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _palette,
             _settings.EnableRoundedCorners,
             _settings));
+    }
+
+    /// <summary>Adds a header button that previews the CPU Detailed view for a simulated processor.</summary>
+    private void AddCPUArchitectureSimulationButton(
+        string text,
+        CPUArchitectureSimulation? simulation,
+        string tip)
+    {
+        SettingsButton button = TrayAppDotNETSettingsUI.Button(text, _palette);
+        button.Tag = simulation;
+        button.BorderThickness = _resources.AxamlTaskManagerPerformance.SimulationButtonBorderThickness;
+        button.Click += OnCPUArchitectureSimulationClick;
+        TrayAppDotNETToolTip.SetTip(button, tip);
+        HeaderActions.Children.Add(button);
+        _cpuArchitectureSimulationButtons.Add(button);
+    }
+
+    /// <summary>Shows the CPU Detailed view built from the clicked simulation, or from live topology.</summary>
+    private void OnCPUArchitectureSimulationClick(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed || sender is not SettingsButton button) return;
+
+        _cpuArchitectureSimulation = button.Tag as CPUArchitectureSimulation;
+        UpdateCPUArchitectureSimulationButtons();
+        _selectedDeviceID = CPUPerformanceSnapshot.StableDeviceID;
+        _settings.UpdateCPUPerformanceGraphView(CPUPerformanceGraphView.DetailedView);
+        RebuildHistoriesFromSnapshotArchive();
+    }
+
+    /// <summary>Outlines the header button whose topology the Detailed view currently shows.</summary>
+    private void UpdateCPUArchitectureSimulationButtons()
+    {
+        IBrush activeBrush = new SolidColorBrush(
+            PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU));
+        for (int buttonIndex = 0; buttonIndex < _cpuArchitectureSimulationButtons.Count; buttonIndex++)
+        {
+            SettingsButton button = _cpuArchitectureSimulationButtons[buttonIndex];
+            button.BorderBrush = ReferenceEquals(button.Tag, _cpuArchitectureSimulation)
+                ? activeBrush
+                : Brushes.Transparent;
+        }
     }
 #endif
 
@@ -464,6 +522,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
         int logicalProcessorCount = GetLogicalProcessorCount(latestSnapshot.CPU);
         CPUCCDTopology CCDTopology = latestSnapshot.CPU.CCDTopology;
+        CPUCoreClassTopology coreClassTopology = latestSnapshot.CPU.CoreClassTopology;
         if (logicalProcessorCount == 0)
         {
             for (int snapshotIndex = archivedSnapshots.Count - 1;
@@ -476,19 +535,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         }
 
-        if (!CCDTopology.IsAvailable)
+        for (int snapshotIndex = archivedSnapshots.Count - 1;
+             snapshotIndex >= 0 && (!CCDTopology.IsAvailable || !coreClassTopology.IsAvailable);
+             snapshotIndex--)
         {
-            for (int snapshotIndex = archivedSnapshots.Count - 1;
-                 snapshotIndex >= 0;
-                 snapshotIndex--)
-            {
-                CPUCCDTopology archivedTopology = archivedSnapshots[snapshotIndex].CPU.CCDTopology;
-                if (!archivedTopology.IsAvailable) continue;
-
-                CCDTopology = archivedTopology;
-                break;
-            }
+            CPUPerformanceSnapshot archivedCPU = archivedSnapshots[snapshotIndex].CPU;
+            if (!CCDTopology.IsAvailable) CCDTopology = archivedCPU.CCDTopology;
+            if (!coreClassTopology.IsAvailable) coreClassTopology = archivedCPU.CoreClassTopology;
         }
+
+        List<CPUDetailedGraphGroup> detailedGraphGroups = CPUPerformanceDetailedView.CreateGraphGroups(
+            CCDTopology,
+            coreClassTopology);
+#if DEBUG
+        if (_cpuArchitectureSimulation != null)
+            detailedGraphGroups = _cpuArchitectureSimulation.CreateGraphGroups(logicalProcessorCount);
+#endif
 
         _histories.Clear();
         _cpuHighestCoreHistory = CreateHistory();
@@ -499,7 +561,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _cpuDetailedView.Rebuild(
             GetOrCreateHistory(CPUPerformanceSnapshot.StableDeviceID),
             _cpuHighestCoreHistory,
-            CCDTopology,
+            detailedGraphGroups,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
         _hasProcessedSnapshot = false;
@@ -1260,6 +1322,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                                && _settings.CPUPerformanceGraphView
                                == CPUPerformanceGraphView.DetailedView;
         bool showGPUDetails = selectedDevice.Kind == PerformanceDeviceKind.GPU;
+#if DEBUG
+        if (showDetailedCPU && _cpuArchitectureSimulation != null)
+        {
+            _detailHardwareName.Text = string.Concat(
+                str0: "Simulated ",
+                _cpuArchitectureSimulation.ProcessorName);
+        }
+#endif
         _detailGraph.IsVisible = !showLogicalProcessors && !showDetailedCPU && !showGPUDetails;
         _cpuLogicalProcessorGrid.IsVisible = showLogicalProcessors;
         _cpuDetailedView.IsVisible = showDetailedCPU;
@@ -1451,6 +1521,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded -= OnContextMenuAXAMLResourcesReloaded;
+        for (int buttonIndex = 0; buttonIndex < _cpuArchitectureSimulationButtons.Count; buttonIndex++)
+            _cpuArchitectureSimulationButtons[buttonIndex].Click -= OnCPUArchitectureSimulationClick;
+        _cpuArchitectureSimulationButtons.Clear();
 #endif
         _deviceScrollViewport.Dispose();
         _deviceColumn.Dispose();

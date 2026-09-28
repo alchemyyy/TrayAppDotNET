@@ -25,7 +25,11 @@ internal sealed record CPUCCDTopologyEntry(
     int CCDIndex,
     uint? HardwareTopologyID,
     ReadOnlyMemory<int> CoreIndexes,
-    ReadOnlyMemory<int> LogicalProcessorIndexes);
+    ReadOnlyMemory<int> LogicalProcessorIndexes)
+{
+    /// <summary>Gets the Windows-reported level-3 cache inside this CCD, or zero when it cannot be attributed.</summary>
+    public ulong L3CacheBytes { get; init; }
+}
 
 /// <summary>Immutable active CPU topology suitable for per-CCD metric aggregation.</summary>
 internal sealed record CPUCCDTopology(

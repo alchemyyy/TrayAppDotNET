@@ -3,14 +3,18 @@
 TMTADN has a topology reader that maps every active Windows
 logical processor to an exact AMD Core Complex Die (CCD). The mapping is
 used for per-CCD metric aggregation in the CPU Performance page's Detailed
-view.
+view. Each CCD also carries the level-3 cache size Windows reports inside it,
+which is how the Detailed view labels the stacked-cache CCD of an X3D part.
 
 The implementation does not query an AMD chipset driver, Ryzen Master, the
 SMU, or a privileged device. It uses Windows processor-topology records first
 and an affinity-pinned AMD CPUID query as a fallback. Both paths work from a
 normal non-elevated process and in Debug and Release builds.
 
-[Topology reader](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/CPUCCDTopologyReader.cs)
+The same reader also groups cores by the efficiency class Windows reports on
+every vendor; see [Task Manager CPU core classes](task_manager_cpu_core_classes.md).
+
+[Topology reader](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/CPUTopologyReader.cs)
 [Topology model](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Models/CPUCCDTopology.cs)
 
 ## Scope and exactness policy
@@ -34,8 +38,8 @@ topologies can present cache boundaries that do not match physical dies. If
 neither exact source is available, the reader returns `CPUCCDTopology.Empty`.
 Consumers must omit the per-CCD view instead of fabricating a partition.
 
-The system is AMD-only. `CPUCCDTopologyReader.Read()` first verifies the
-`AuthenticAMD` CPUID vendor string and returns an unavailable topology for
+The system is AMD-only. `CPUTopologyReader.ReadCCDTopology()` first verifies
+the `AuthenticAMD` CPUID vendor string and returns an unavailable topology for
 other vendors.
 
 ## Runtime data flow
@@ -43,13 +47,14 @@ other vendors.
 ```text
 PerformanceSnapshotService construction
     |
-    +-- CPUCCDTopologyReader.Read()
+    +-- CPUTopologyReader.ReadCCDTopology()
     |       |
     |       +-- Verify AuthenticAMD
     |       +-- Read RelationProcessorCore
     |       +-- Prefer RelationProcessorDie
     |       +-- Otherwise probe CPUID 0x80000026 on every logical processor
     |       +-- Normalize and validate the complete topology
+    |       +-- Attribute RelationCache level-3 sizes to the finished CCDs
     |
     +-- Store one immutable CPUCCDTopology instance
             |
@@ -136,7 +141,7 @@ The entry types expose these fields:
 | --- | --- |
 | `CPULogicalProcessor` | `SystemIndex`, Windows `Group`, Windows `Number` |
 | `CPUCoreTopologyEntry` | `CoreIndex`, `CCDIndex`, `LogicalProcessorIndexes` |
-| `CPUCCDTopologyEntry` | `CCDIndex`, optional `HardwareTopologyID`, `CoreIndexes`, `LogicalProcessorIndexes` |
+| `CPUCCDTopologyEntry` | `CCDIndex`, optional `HardwareTopologyID`, `CoreIndexes`, `LogicalProcessorIndexes`, `L3CacheBytes` |
 
 Logical processors are sorted first by processor group and then by processor
 number. `SystemIndex` is their zero-based position in that order. Cores and
@@ -173,12 +178,12 @@ produce `CPUCCDTopology.Empty`. Exceptions are also written to the TADN log.
 CPU snapshots contain per-logical-processor utilization in
 `LogicalProcessorUtilizationPercents`. The Detailed view:
 
-1. Requires both `CPUPerformanceSnapshot.HasUtilizationSample` and
-   `CPUPerformanceSnapshot.CCDTopology.IsAvailable`.
-2. Iterates `CCDTopology.CCDs` in `CCDIndex` order.
-3. Uses each CCD's `LogicalProcessorIndexes` as indexes into
+1. Builds one graph group per CCD, in `CCDIndex` order, when the topology is
+   available and has more than one CCD. Core-class groups follow them.
+2. Requires `CPUPerformanceSnapshot.HasUtilizationSample` for every sample.
+3. Uses each group's `LogicalProcessorIndexes` as indexes into
    `LogicalProcessorUtilizationPercents`.
-4. Averages those logical-processor percentages for CCD utilization.
+4. Averages those logical-processor percentages for the group's utilization.
 5. Preserves the existing unavailable-sample behavior in graph history.
 
 Do not use `CoreIndexes` to index the utilization array. They describe
@@ -191,6 +196,55 @@ Before indexing, a consumer should still verify that the sample array covers
 all topology indexes. A mismatch means the sample and topology refer to
 different active processor sets and that sample should be treated as
 unavailable for per-CCD presentation.
+
+## Level-3 cache per CCD and X3D labels
+
+An X3D processor stacks extra L3 on one CCD. Windows reports that directly:
+`GetLogicalProcessorInformationEx(RelationCache)` returns one
+`CACHE_RELATIONSHIP` per cache instance with its level, type, size in bytes,
+and the logical processors that share it. After the CCD partition is final,
+from either source above, the reader queries `RelationCache` directly and:
+
+1. Keeps level-3 unified caches.
+2. Maps every processor in each cache mask to its CCD.
+3. Adds the cache size to that CCD's `L3CacheBytes`. Sizes are summed because
+   one CCD can hold two L3 domains, as on Zen 2.
+4. Leaves every CCD at zero if any L3 spans two CCDs or names a processor
+   outside the topology.
+
+The L3 masks never decide CCD membership, so the exactness policy above still
+holds. They only attach a Windows-reported size to CCDs that were already
+established exactly.
+
+| Record field | Byte offset in the record |
+| --- | --- |
+| `Level` | 8 |
+| `CacheSize` | 12 |
+| `Type` (`CacheUnified` is 0) | 16 |
+| `GroupCount` | 38 |
+| `GroupMasks` | 40 |
+
+`GroupCount` replaced reserved bytes when caches began spanning processor
+groups, so older Windows builds leave it zero with a single mask; the parser
+reads one mask in that case.
+
+The Detailed view compares the CCD sizes:
+
+- If every CCD has a size and the sizes are not all equal, each CCD label shows
+  its L3 size, and every CCD larger than the smallest is labeled X3D, for
+  example `CCD 0 (X3D, 96.0 MB L3)` and `CCD 1 (32.0 MB L3)`.
+- Otherwise the labels stay `CCD 0`, `CCD 1`, and so on.
+
+Windows exposes only the size, not whether it came from stacked die, so the
+label is relative:
+
+- A part whose CCDs all carry stacked cache reports equal sizes and gets no
+  X3D label.
+- A single-CCD X3D part shows no CCD graphs at all, as before.
+
+NOTE: this was verified only on symmetric hardware. No X3D machine or dump was
+checked, so Windows reporting 96 MB and 32 MB for the two CCDs of a part like
+the 9950X3D is expected but unverified.
 
 ## Platform limitations
 
@@ -209,15 +263,19 @@ unavailable for per-CCD presentation.
 
 ## Verification
 
-`CPUCCDTopologyReaderTests` covers native relationship parsing, deterministic
+`CPUTopologyReaderTests` covers native relationship parsing, deterministic
 ordering, processor groups, duplicate and incomplete membership rejection,
-core containment, CPUID die-level decoding, live discovery, the forced CPUID
-fallback, and snapshot integration.
+core containment, CPUID die-level decoding, cache record parsing, L3
+attribution, live discovery, the forced CPUID fallback, and snapshot
+integration. `PerformancePageTests` covers the CCD and X3D labels.
 
-[Topology tests](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests/CPUCCDTopologyReaderTests.cs)
+[Topology tests](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests/CPUTopologyReaderTests.cs)
+[Label tests](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests/PerformancePageTests.cs)
 
 The implementation was validated in a non-elevated Debug test run and a Native
 AOT publish. On the development AMD Ryzen Threadripper 9960X system, the
 preferred Windows path reported 48 logical processors, 24 physical cores, and
 4 CCDs. The forced CPUID fallback independently produced a complete topology
-on the same system.
+on the same system. Windows reported one 32 MB L3 per CCD there, so the labels
+stay plain; Debug builds can preview the X3D labels as described in
+[Task Manager CPU core classes](task_manager_cpu_core_classes.md).

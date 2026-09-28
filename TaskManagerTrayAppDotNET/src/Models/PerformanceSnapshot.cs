@@ -51,6 +51,9 @@ internal sealed record CPUPerformanceSnapshot(
     /// <summary>Gets exact AMD core-to-CCD membership when the platform exposes it.</summary>
     public CPUCCDTopology CCDTopology { get; init; } = CPUCCDTopology.Empty;
 
+    /// <summary>Gets the core efficiency classes Windows reports for every active physical core.</summary>
+    public CPUCoreClassTopology CoreClassTopology { get; init; } = CPUCoreClassTopology.Empty;
+
     public static CPUPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.CPU,

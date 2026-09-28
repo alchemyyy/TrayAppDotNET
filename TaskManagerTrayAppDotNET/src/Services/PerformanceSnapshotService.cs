@@ -30,7 +30,8 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly SystemPerformanceSampler _systemSampler = new();
     private readonly SystemPerformanceMetadataReader _metadataReader = new();
-    private readonly CPUCCDTopology _cpuCCDTopology = CPUCCDTopologyReader.Read();
+    private readonly CPUCCDTopology _cpuCCDTopology = CPUTopologyReader.ReadCCDTopology();
+    private readonly CPUCoreClassTopology _cpuCoreClassTopology = CPUTopologyReader.ReadCoreClassTopology();
     private readonly MemoryCompositionSampler _memoryCompositionSampler = new();
     private readonly PhysicalMemoryMetadataReader _physicalMemoryMetadataReader = new();
     private readonly NetworkPerformanceSampler _networkSampler = new();
@@ -607,7 +608,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             metadata.HasPerformanceInformation ? information.ProcessCount : 0,
             metadata.HasPerformanceInformation ? information.ThreadCount : 0,
             metadata.HasPerformanceInformation ? information.HandleCount : 0,
-            metadata.Uptime) { CCDTopology = _cpuCCDTopology };
+            metadata.Uptime) { CCDTopology = _cpuCCDTopology, CoreClassTopology = _cpuCoreClassTopology };
     }
 
     private MemoryPerformanceSnapshot CreateMemorySnapshot(
