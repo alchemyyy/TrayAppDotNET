@@ -2,8 +2,10 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
+using TaskManagerTrayAppDotNET.Services;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -141,6 +143,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             value => _settings.OverrideWindowsTaskManagerHotkey = value,
             palette,
             searchKeywords: ["Windows Task Manager hotkey shortcut control shift escape"]));
+        stack.Children.Add(BuildReplaceTaskManagerCard(palette));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
         stack.Children.Add(ComboCard(
             title: "Process grouping style",
@@ -195,6 +198,25 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             value => _settings.SkipRestartExplorerConfirmation = value,
             palette,
             searchKeywords: ["restart explorer confirmation prompt warning"]));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Administrator actions", palette));
+        stack.Children.Add(BoolCard(
+            title: "Enable elevated termination at startup",
+            description:
+            "Request administrator approval when the app starts so it can end protected processes. When off, "
+            + "approval is requested only the first time you act on a process that needs it.",
+            _settings.EnableElevatedTerminationOnStartup,
+            value => _settings.EnableElevatedTerminationOnStartup = value,
+            palette,
+            searchKeywords: ["elevated termination startup administrator UAC kill protected process eager"]));
+        stack.Children.Add(BoolCard(
+            title: "Run admin actions directly when elevated",
+            description:
+            "When the app itself runs as administrator, perform admin actions in-process instead of through the "
+            + "elevated helper. Off by default so behavior stays consistent whether or not the app is elevated.",
+            _settings.BypassElevationBrokerWhenElevated,
+            value => _settings.BypassElevationBrokerWhenElevated = value,
+            palette,
+            searchKeywords: ["bypass elevation broker elevated administrator in-process consistent helper"]));
 
         commonSection.AddInstallationSection(
             stack,
@@ -236,6 +258,74 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         CreateRenderingSettingsSection(palette).AddCards(stack);
         return stack;
     }
+
+    /// <summary>
+    /// Builds the system-wide "Replace Windows Task Manager" card. Unlike a plain setting, this reflects
+    /// the live registry redirect and applies changes through an elevated relaunch, so the toggle reverts
+    /// when administrator approval is declined or the write fails.
+    /// </summary>
+    private Border BuildReplaceTaskManagerCard(SettingsPalette palette)
+    {
+        TaskManagerReplacementState initialState = TaskManagerReplacement.GetState();
+        bool suppressReentry = false;
+
+        SettingsToggle toggle = new(palette) { IsChecked = initialState.IsEnabled };
+        Border card = MutableCard(
+            title: "Replace Windows Task Manager",
+            DescribeReplacementState(initialState),
+            toggle,
+            palette,
+            out TextBlock descriptionText,
+            searchKeywords:
+            [
+                "replace windows task manager system wide image file execution options debugger",
+                "ctrl alt del taskbar win+x administrator even when not running"
+            ]);
+
+        toggle.CheckedChanged += async (_, requestedEnabled) =>
+        {
+            if (suppressReentry) return;
+
+            toggle.IsEnabled = false;
+            TaskManagerReplacementResult result = await TaskManagerReplacement.SetEnabledElevatedAsync(requestedEnabled);
+            toggle.IsEnabled = true;
+
+            bool applied = requestedEnabled
+                ? result == TaskManagerReplacementResult.Enabled
+                : result == TaskManagerReplacementResult.Disabled;
+            if (!applied)
+            {
+                // Restore the visual state without re-entering this handler
+                suppressReentry = true;
+                toggle.IsChecked = !requestedEnabled;
+                suppressReentry = false;
+            }
+
+            descriptionText.Text = DescribeReplacementResult(result);
+        };
+
+        return card;
+    }
+
+    private static string DescribeReplacementState(TaskManagerReplacementState state)
+    {
+        if (state.IsEnabled)
+            return "On. Ctrl+Shift+Esc, the Ctrl+Alt+Del screen, the taskbar menu, and Win+X all open this app "
+                   + "instead of Windows Task Manager, even when this app is not already running. "
+                   + "Changing this needs administrator approval.";
+        if (state.PointsElsewhere)
+            return "Windows Task Manager is currently redirected to another program. Turning this on points it "
+                   + "at this app instead and needs administrator approval.";
+        return "Redirect every Windows Task Manager launch to this app system-wide, so it opens even when this "
+               + "app is not running. Applies to all users on this PC and needs administrator approval.";
+    }
+
+    private static string DescribeReplacementResult(TaskManagerReplacementResult result) => result switch
+    {
+        TaskManagerReplacementResult.Declined => "Administrator approval was declined, so nothing changed.",
+        TaskManagerReplacementResult.Failed => "The change could not be applied. See the Task Manager log for details.",
+        _ => DescribeReplacementState(TaskManagerReplacement.GetState())
+    };
 
     private StackPanel BuildTrayIconPage()
     {

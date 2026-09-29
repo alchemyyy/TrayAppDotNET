@@ -47,6 +47,9 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph SELECTED => Glyph("Selected");
 
+    /// <summary>UAC shield shown on context-menu actions that require administrator approval.</summary>
+    public static Glyph SHIELD => Glyph("Shield");
+
     public static Glyph SORT_ASCENDING => Glyph("SortAscending");
 
     public static Glyph SORT_DESCENDING => Glyph("SortDescending");

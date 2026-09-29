@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET;
@@ -43,6 +44,9 @@ internal static class AppServices
     public static AppTheme? Theme { get; set; }
     public static AppSettings? Settings { get; set; }
     public static UpdateCheckService? UpdateCheckService { get; set; }
+
+    /// <summary>Runs privileged process actions through the elevated broker; set once the UI is up.</summary>
+    public static ElevatedActionCoordinator? ElevatedActions { get; set; }
 
     private static List<TrayAppDotNETInstallationInfo> DetectInstallations() =>
         Installation.DetectAll();

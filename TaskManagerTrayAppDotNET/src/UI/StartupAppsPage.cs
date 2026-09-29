@@ -170,6 +170,23 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             _ = ChangeStatusAsync(entry, status);
     }
 
+    /// <summary>Toggles an all-users startup entry through the elevated broker.</summary>
+    private async Task<StartupAppActionResult> ChangeStatusElevatedAsync(StartupAppEntry entry, StartupAppStatus status)
+    {
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null)
+            return StartupAppActionResult.Failure(entry.Status, "Elevated actions are unavailable.");
+
+        ElevatedActionResult result = await coordinator.SetStartupApprovalAsync(
+            entry.ApprovalTarget,
+            status == StartupAppStatus.Enabled);
+        if (result.Declined) return StartupAppActionResult.Success(entry.Status); // declined; no change, no error
+        if (!result.Serviced) return StartupAppActionResult.Failure(entry.Status, result.Message);
+        return result.Success
+            ? StartupAppActionResult.Success(status)
+            : StartupAppActionResult.Failure(entry.Status, result.Message);
+    }
+
     private async Task ChangeStatusAsync(StartupAppEntry entry, StartupAppStatus status)
     {
         if (_disposed || _operationPending) return;
@@ -181,12 +198,15 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         UpdateActionButtons(entry);
         try
         {
-            StartupAppActionResult result = await Task.Run(() => status switch
-            {
-                StartupAppStatus.Enabled => _startupAppsService.Enable(entry),
-                StartupAppStatus.Disabled => _startupAppsService.Disable(entry),
-                _ => throw new ArgumentOutOfRangeException(nameof(status), status, message: "Unknown startup status.")
-            });
+            // All-users entries live under HKLM and need elevation; per-user entries write HKCU directly
+            StartupAppActionResult result = entry.ApprovalTarget.Scope == StartupAppScope.AllUsers
+                ? await ChangeStatusElevatedAsync(entry, status)
+                : await Task.Run(() => status switch
+                {
+                    StartupAppStatus.Enabled => _startupAppsService.Enable(entry),
+                    StartupAppStatus.Disabled => _startupAppsService.Disable(entry),
+                    _ => throw new ArgumentOutOfRangeException(nameof(status), status, message: "Unknown startup status.")
+                });
             if (_disposed) return;
             if (!result.Succeeded)
             {

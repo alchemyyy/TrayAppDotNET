@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -97,12 +98,23 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             text: isMultiple ? "End process trees" : "End process tree",
             () => ExecuteEndProcessTrees(processes));
         entries.AddSeparator();
-        entries.AddSubmenu(
-            text: isMultiple ? "Set priorities" : "Set priority",
-            () => BuildPriorityEntries(processes));
-        entries.Add(
-            text: isMultiple ? "Set affinities" : "Set affinity",
-            () => ShowAffinityWindow(processes));
+        // Mark priority and affinity with the UAC shield when any target needs elevation to modify
+        Glyph? elevationGlyph = ProcessesRequireElevationToModify(processes)
+            ? TaskManagerGlyphCatalog.SHIELD
+            : null;
+        entries.Add(new ContextMenuEntry(
+            isMultiple ? "Set priorities" : "Set priority",
+            static () => { })
+        {
+            SubmenuFactory = () => BuildPriorityEntries(processes),
+            LeadingGlyph = elevationGlyph
+        });
+        entries.Add(new ContextMenuEntry(
+            isMultiple ? "Set affinities" : "Set affinity",
+            () => ShowAffinityWindow(processes))
+        {
+            LeadingGlyph = elevationGlyph
+        });
         if (isMultiple) return entries.ToList();
 
         entries.AddSeparator();
@@ -182,6 +194,18 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             TADNLog.Log($"Copy failed: {exception}");
             if (!_disposed) _reportError(arg1: "Copy failed", exception.Message);
         }
+    }
+
+    /// <summary>Returns true when priority or affinity for any selected process requires elevation.</summary>
+    private static bool ProcessesRequireElevationToModify(IReadOnlyList<ProcessEndTaskItem> processes)
+    {
+        for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+        {
+            if (ProcessNativeActions.RequiresElevationForModify(processes[processIndex].Target))
+                return true;
+        }
+
+        return false;
     }
 
     private IReadOnlyList<ContextMenuEntry> BuildPriorityEntries(
@@ -302,6 +326,12 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         IReadOnlyList<ProcessEndTaskItem> processes,
         ProcessPriorityLevel priority)
     {
+        if (ProcessesRequireElevationToModify(processes))
+        {
+            _ = ExecuteSetPriorityElevatedAsync(processes, priority);
+            return;
+        }
+
         if (processes.Count == 1)
         {
             ExecuteBackground(
@@ -320,18 +350,88 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             refreshOnSuccess: true);
     }
 
-    private void ExecuteCreateMemoryDump(ProcessTerminationTarget target) => ExecuteBackground(
-        failureTitle: "Create memory dump failed",
-        () =>
+    /// <summary>Applies priority through the elevated broker for targets we cannot modify at medium integrity.</summary>
+    private async Task ExecuteSetPriorityElevatedAsync(
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        ProcessPriorityLevel priority)
+    {
+        string failureTitle = processes.Count > 1 ? "Set priorities failed" : "Set priority failed";
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null)
         {
-            bool succeeded = ProcessNativeActions.TryCreateMemoryDump(
-                target,
-                out string dumpPath,
-                out string errorMessage);
-            return new ProcessActionResult(succeeded, errorMessage, dumpPath);
-        },
-        refreshOnSuccess: false,
-        successTitle: "Memory dump created");
+            _reportError(failureTitle, "Elevated actions are unavailable.");
+            return;
+        }
+
+        List<string> failures = [];
+        bool anyServiced = false;
+        for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+        {
+            ProcessEndTaskItem process = processes[processIndex];
+            if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
+
+            ElevatedActionResult result = await coordinator.SetPriorityAsync(process.Target, priority);
+            if (result.Declined) return;
+            if (!result.Serviced)
+            {
+                if (!_disposed) _reportError(failureTitle, result.Message);
+                return;
+            }
+
+            anyServiced = true;
+            if (!result.Success && !CriticalProcessActions.IsTargetGone(process.Target))
+                failures.Add(processes.Count > 1 ? FormatProcessFailure(process, result.Message) : result.Message);
+        }
+
+        if (_disposed) return;
+        if (anyServiced) _requestRefresh();
+        if (failures.Count > 0) _reportError(failureTitle, string.Join(separator: "\n", failures));
+    }
+
+    private void ExecuteCreateMemoryDump(ProcessTerminationTarget target)
+    {
+        if (ProcessNativeActions.RequiresElevationForDump(target))
+        {
+            _ = ExecuteCreateMemoryDumpElevatedAsync(target);
+            return;
+        }
+
+        ExecuteBackground(
+            failureTitle: "Create memory dump failed",
+            () =>
+            {
+                bool succeeded = ProcessNativeActions.TryCreateMemoryDump(
+                    target,
+                    out string dumpPath,
+                    out string errorMessage);
+                return new ProcessActionResult(succeeded, errorMessage, dumpPath);
+            },
+            refreshOnSuccess: false,
+            successTitle: "Memory dump created");
+    }
+
+    /// <summary>Writes the dump in the elevated broker for targets we cannot read at medium integrity.</summary>
+    private async Task ExecuteCreateMemoryDumpElevatedAsync(ProcessTerminationTarget target)
+    {
+        const string failureTitle = "Create memory dump failed";
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null)
+        {
+            _reportError(failureTitle, "Elevated actions are unavailable.");
+            return;
+        }
+
+        ElevatedActionResult result = await coordinator.CreateDumpAsync(target);
+        if (result.Declined || _disposed) return;
+        if (!result.Serviced || !result.Success)
+        {
+            _reportError(failureTitle, result.Message);
+            return;
+        }
+
+        // On success the broker returns the path of the dump it wrote
+        _reportInformation?.Invoke("Memory dump created", result.Message);
+    }
 
     private void ExecuteWindowAction(
         string failureTitle,
@@ -885,12 +985,25 @@ internal sealed class ProcessAffinityWindow : Window
         _applyButton.IsEnabled = false;
         try
         {
+            string failureTitle = _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed";
+            if (AffinityTargetsRequireElevation())
+            {
+                string? elevatedError = await ApplyAffinitiesElevatedAsync(selectedMasks);
+                if (elevatedError == null) return; // user declined elevation; leave the window open
+                if (elevatedError.Length > 0)
+                {
+                    _reportError(failureTitle, elevatedError);
+                    return;
+                }
+
+                Close();
+                return;
+            }
+
             string errorMessage = await Task.Run(() => ApplyAffinities(selectedMasks));
             if (!string.IsNullOrEmpty(errorMessage))
             {
-                _reportError(
-                    _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
-                    errorMessage);
+                _reportError(failureTitle, errorMessage);
                 return;
             }
 
@@ -908,6 +1021,39 @@ internal sealed class ProcessAffinityWindow : Window
             _isApplying = false;
             if (IsVisible) _applyButton.IsEnabled = true;
         }
+    }
+
+    private bool AffinityTargetsRequireElevation()
+    {
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+        {
+            if (ProcessNativeActions.RequiresElevationForModify(_targets[targetIndex].Process.Target))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Applies affinity through the elevated broker; returns null when the user declines elevation.</summary>
+    private async Task<string?> ApplyAffinitiesElevatedAsync(IReadOnlyList<ulong> selectedMasks)
+    {
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null) return "Elevated actions are unavailable.";
+
+        List<string> failures = [];
+        for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
+        {
+            ProcessAffinityTarget target = _targets[targetIndex];
+            if (CriticalProcessActions.IsTargetGone(target.Process.Target)) continue;
+
+            ElevatedActionResult result = await coordinator.SetAffinityAsync(target.Process.Target, selectedMasks[targetIndex]);
+            if (result.Declined) return null;
+            if (!result.Serviced) return result.Message;
+            if (!result.Success && !CriticalProcessActions.IsTargetGone(target.Process.Target))
+                failures.Add(_targets.Length > 1 ? FormatAffinityFailure(target.Process, result.Message) : result.Message);
+        }
+
+        return string.Join(separator: "\n", failures);
     }
 
     private string ApplyAffinities(IReadOnlyList<ulong> selectedMasks)

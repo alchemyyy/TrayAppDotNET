@@ -77,13 +77,6 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
     public UserSessionActionResult Disconnect(UserSessionInfo session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (!OperatingSystem.IsWindows())
-        {
-            return UserSessionActionResult.Failure(
-                UserSessionActionError.UnsupportedPlatform,
-                errorMessage: "Disconnecting Windows sessions is unavailable on this platform.");
-        }
-
         if (!session.CanDisconnect)
         {
             return UserSessionActionResult.Failure(
@@ -91,14 +84,27 @@ internal sealed class WindowsUserSessionService(Action<string>? log = null)
                 errorMessage: "The selected session cannot be disconnected in its current state.");
         }
 
+        return Disconnect(session.SessionID);
+    }
+
+    /// <summary>Disconnects a session by id. The caller has already confirmed eligibility; used by the elevated broker.</summary>
+    public UserSessionActionResult Disconnect(int sessionID)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return UserSessionActionResult.Failure(
+                UserSessionActionError.UnsupportedPlatform,
+                errorMessage: "Disconnecting Windows sessions is unavailable on this platform.");
+        }
+
         try
         {
-            if (WTSDisconnectSession(IntPtr.Zero, session.SessionID, wait: false))
+            if (WTSDisconnectSession(IntPtr.Zero, sessionID, wait: false))
                 return UserSessionActionResult.Success();
 
             int errorCode = Marshal.GetLastPInvokeError();
             string errorMessage = GetErrorMessage(errorCode);
-            _log($"WTSDisconnectSession failed for session {session.SessionID} ({errorCode}): {errorMessage}");
+            _log($"WTSDisconnectSession failed for session {sessionID} ({errorCode}): {errorMessage}");
             return UserSessionActionResult.Failure(
                 UserSessionActionError.NativeFailure,
                 errorMessage,

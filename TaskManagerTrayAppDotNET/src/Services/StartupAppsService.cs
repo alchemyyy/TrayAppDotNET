@@ -155,6 +155,51 @@ internal sealed partial class StartupAppsService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a StartupApproved value directly from its target identity, without a full entry. Used by
+    /// the elevated broker to toggle an all-users (HKLM) startup entry that the medium-integrity UI cannot.
+    /// </summary>
+    public static StartupAppActionResult SetStatusByTarget(
+        StartupAppApprovalTarget target,
+        StartupAppStatus desiredStatus)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return StartupAppActionResult.Failure(
+                StartupAppStatus.Unknown,
+                errorMessage: "Startup application status changes are only supported on Windows.");
+        }
+
+        if (desiredStatus is not (StartupAppStatus.Enabled or StartupAppStatus.Disabled))
+            throw new ArgumentOutOfRangeException(nameof(desiredStatus));
+        if (!target.IsValid)
+        {
+            return StartupAppActionResult.Failure(
+                StartupAppStatus.Unknown,
+                errorMessage: "The startup entry does not have a writable StartupApproved target.");
+        }
+
+        RegistryHive registryHive = target.Scope == StartupAppScope.CurrentUser
+            ? RegistryHive.CurrentUser
+            : RegistryHive.LocalMachine;
+        RegistryView registryView = ToRegistryView(target.RegistryView);
+        try
+        {
+            using RegistryKey baseKey = RegistryKey.OpenBaseKey(registryHive, registryView);
+            using RegistryKey approvalKey = baseKey.CreateSubKey(target.RegistrySubKey, writable: true);
+            byte[] approvalBlob = StartupApprovedStatusCodec.Encode(desiredStatus, DateTimeOffset.UtcNow);
+            approvalKey.SetValue(target.ValueName, approvalBlob, RegistryValueKind.Binary);
+            return StartupAppActionResult.Success(desiredStatus);
+        }
+        catch (Exception exception) when (IsExpectedWindowsAccessException(exception))
+        {
+            string action = desiredStatus == StartupAppStatus.Enabled ? "enable" : "disable";
+            string errorMessage = $"Could not {action} the startup entry: {exception.Message}";
+            TADNLog.Log($"StartupAppsService.SetStatusByTarget: {errorMessage}");
+            return StartupAppActionResult.Failure(StartupAppStatus.Unknown, errorMessage);
+        }
+    }
+
     private static void EnumerateRegistryEntries(
         List<StartupAppEntry> entries,
         RegistryHive registryHive,

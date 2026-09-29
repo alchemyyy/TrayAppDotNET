@@ -550,10 +550,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 #endif
     }
 
-    /// <summary>Starts one silent elevation attempt after normal startup is complete.</summary>
+    /// <summary>Starts one silent elevation attempt after startup, only when the user opted in via settings.</summary>
     internal void StartInitialElevatedTerminationAttempt()
     {
-        if (_initialElevationAttemptConsumed ||
+        if (!(AppServices.Settings?.EnableElevatedTerminationOnStartup ?? false) ||
+            _initialElevationAttemptConsumed ||
             _manualElevationPromptPending ||
             _allowClose ||
             !IsVisible)

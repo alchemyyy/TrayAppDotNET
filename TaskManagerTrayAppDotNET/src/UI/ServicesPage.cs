@@ -200,10 +200,37 @@ internal sealed class ServicesPage : TaskManagerTablePage
     private void OnDisableClick(object? sender, EventArgs eventArgs) =>
         RunSelectedAction(WindowsServiceAction.Disable);
 
+    private const int AccessDeniedErrorCode = 5;
+
     private void RunSelectedAction(WindowsServiceAction action)
     {
         if (SelectedRow?.Tag is WindowsServiceSnapshot service)
             _ = RunActionAsync(action, service);
+    }
+
+    /// <summary>Retries a denied service action through the elevated broker; returns true when the original error is superseded.</summary>
+    private async Task<bool> TryRunActionElevatedAsync(WindowsServiceAction action, WindowsServiceSnapshot service)
+    {
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null) return false;
+
+        BrokerServiceVerb verb = action switch
+        {
+            WindowsServiceAction.Start => BrokerServiceVerb.Start,
+            WindowsServiceAction.Stop => BrokerServiceVerb.Stop,
+            WindowsServiceAction.Restart => BrokerServiceVerb.Restart,
+            _ => BrokerServiceVerb.Disable
+        };
+        ElevatedActionResult result = await coordinator.ServiceControlAsync(service.ServiceName, verb);
+        if (result.Declined || _disposed) return true;
+        if (!result.Serviced) return false;
+        if (!result.Success)
+        {
+            string actionName = action.ToString().ToLowerInvariant();
+            _reportMessage($"Service {actionName} failed", result.Message);
+        }
+
+        return true;
     }
 
     private async Task RunActionAsync(
@@ -229,6 +256,10 @@ internal sealed class ServicesPage : TaskManagerTablePage
             if (_disposed) return;
             if (!result.Succeeded)
             {
+                if (result.Win32ErrorCode == AccessDeniedErrorCode
+                    && await TryRunActionElevatedAsync(action, service))
+                    return;
+
                 string actionName = action.ToString().ToLowerInvariant();
                 _reportMessage(
                     $"Service {actionName} failed",

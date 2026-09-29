@@ -122,6 +122,20 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    /// <summary>Gets whether the elevated process-termination helper is started at launch (a UAC prompt); off keeps it lazy.</summary>
+    public bool EnableElevatedTerminationOnStartup
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    /// <summary>Gets whether an already-elevated app performs admin actions in-process instead of through the broker.</summary>
+    public bool BypassElevationBrokerWhenElevated
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     /// <summary>Gets whether a sign-in startup launch keeps the window minimized; manual starts always show it.</summary>
     public bool StartMinimized
     {

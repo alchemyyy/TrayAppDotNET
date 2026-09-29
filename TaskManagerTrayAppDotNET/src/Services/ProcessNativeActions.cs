@@ -183,8 +183,17 @@ internal static class ProcessNativeActions
     public static bool TrySetPriority(
         ProcessTerminationTarget target,
         ProcessPriorityLevel priority,
-        out string errorMessage)
+        out string errorMessage) =>
+        TrySetPriority(target, priority, out errorMessage, out _);
+
+    /// <summary>Sets priority and reports the underlying Win32 code so callers can escalate on ACCESS_DENIED.</summary>
+    public static bool TrySetPriority(
+        ProcessTerminationTarget target,
+        ProcessPriorityLevel priority,
+        out string errorMessage,
+        out int win32Error)
     {
+        win32Error = 0;
         if (!Enum.IsDefined(priority))
         {
             errorMessage = "The requested priority is invalid.";
@@ -195,7 +204,8 @@ internal static class ProcessNativeActions
                 target,
                 ProcessSetInformation,
                 out IntPtr processHandle,
-                out errorMessage))
+                out errorMessage,
+                out win32Error))
             return false;
 
         try
@@ -206,7 +216,8 @@ internal static class ProcessNativeActions
                 return true;
             }
 
-            errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
+            win32Error = Marshal.GetLastWin32Error();
+            errorMessage = DescribeWin32Error(win32Error);
             return false;
         }
         finally
@@ -254,8 +265,17 @@ internal static class ProcessNativeActions
     public static bool TrySetAffinity(
         ProcessTerminationTarget target,
         ulong affinityMask,
-        out string errorMessage)
+        out string errorMessage) =>
+        TrySetAffinity(target, affinityMask, out errorMessage, out _);
+
+    /// <summary>Sets affinity and reports the underlying Win32 code so callers can escalate on ACCESS_DENIED.</summary>
+    public static bool TrySetAffinity(
+        ProcessTerminationTarget target,
+        ulong affinityMask,
+        out string errorMessage,
+        out int win32Error)
     {
+        win32Error = 0;
         if (affinityMask == 0)
         {
             errorMessage = "Select at least one processor.";
@@ -266,7 +286,8 @@ internal static class ProcessNativeActions
                 target,
                 ProcessSetInformation,
                 out IntPtr processHandle,
-                out errorMessage))
+                out errorMessage,
+                out win32Error))
             return false;
 
         try
@@ -277,13 +298,38 @@ internal static class ProcessNativeActions
                 return true;
             }
 
-            errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
+            win32Error = Marshal.GetLastWin32Error();
+            errorMessage = DescribeWin32Error(win32Error);
             return false;
         }
         finally
         {
             _ = Kernel32.CloseHandle(processHandle);
         }
+    }
+
+    /// <summary>
+    /// Returns true when changing the target's priority or affinity would require elevation, i.e. opening
+    /// it for PROCESS_SET_INFORMATION at the current integrity level is denied. Own or same-integrity
+    /// processes (and targets that failed for other reasons, such as having exited) return false.
+    /// </summary>
+    internal static bool RequiresElevationForModify(ProcessTerminationTarget target) =>
+        RequiresElevationForAccess(target, ProcessSetInformation);
+
+    /// <summary>Returns true when creating a memory dump of the target would require elevation.</summary>
+    internal static bool RequiresElevationForDump(ProcessTerminationTarget target) =>
+        RequiresElevationForAccess(target, ProcessQueryInformation | ProcessVirtualMemoryRead);
+
+    private static bool RequiresElevationForAccess(ProcessTerminationTarget target, uint desiredAccess)
+    {
+        const int accessDenied = 5;
+        if (TryOpenValidatedProcess(target, desiredAccess, out IntPtr processHandle, out _, out int win32Error))
+        {
+            _ = Kernel32.CloseHandle(processHandle);
+            return false;
+        }
+
+        return win32Error == accessDenied;
     }
 
     public static bool TryCreateMemoryDump(
@@ -500,9 +546,18 @@ internal static class ProcessNativeActions
         ProcessTerminationTarget target,
         uint desiredAccess,
         out IntPtr processHandle,
-        out string errorMessage)
+        out string errorMessage) =>
+        TryOpenValidatedProcess(target, desiredAccess, out processHandle, out errorMessage, out _);
+
+    private static bool TryOpenValidatedProcess(
+        ProcessTerminationTarget target,
+        uint desiredAccess,
+        out IntPtr processHandle,
+        out string errorMessage,
+        out int win32Error)
     {
         processHandle = IntPtr.Zero;
+        win32Error = 0;
         if (target.ProcessID <= 0)
         {
             errorMessage = "The selected process is not available.";
@@ -515,7 +570,8 @@ internal static class ProcessNativeActions
             (uint)target.ProcessID);
         if (processHandle == IntPtr.Zero)
         {
-            errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
+            win32Error = Marshal.GetLastWin32Error();
+            errorMessage = DescribeWin32Error(win32Error);
             return false;
         }
 
@@ -527,6 +583,7 @@ internal static class ProcessNativeActions
 
         if (!TryReadCreationTime(processHandle, out long actualCreationTime, out int timeError))
         {
+            win32Error = timeError;
             errorMessage = DescribeWin32Error(timeError);
             _ = Kernel32.CloseHandle(processHandle);
             processHandle = IntPtr.Zero;

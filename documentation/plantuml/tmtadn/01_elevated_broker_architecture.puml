@@ -1,0 +1,72 @@
+@startuml elevated_broker_architecture
+!include ../btadn/dark-theme.puml
+' Added 2026-09-28; revised 2026-09-29: six ops wired through the broker, terminate still separate (deferred)
+title Elevated privileged-action broker - lazy per-action consent, six ops wired, terminate deferred
+
+legend top right
+  |= color |= zone |
+  |<$TINT_BLUE>| Medium integrity (asInvoker) |
+  |<$TINT_AMBER>| Elevated (consented on demand) |
+  |<$TINT_NEUTRAL>| Windows admin surfaces |
+endlegend
+
+package "Medium integrity  (asInvoker - the normal tray app)" $TINT_BLUE {
+  [Action call sites\nProcessRowContextMenu: priority / affinity / dump\nServicesPage: start / stop / restart / disable\nStartupAppsPage: enable / disable (all-users)\nUsersPage: disconnect another session] as CALLERS
+  component "ElevatedActionCoordinator\nAppServices.ElevatedActions\n(single entry; owns consent)" as COORD
+  [ProcessTerminationService\n(standard helper + managed handle;\nend task stays on this path)] as PTS
+  component "Settings\nEnableElevatedTerminationOnStartup (default off)\nBypassElevationBrokerWhenElevated (default off)" as SETTINGS
+}
+
+package "Elevated  (consented per action until granted, then reused)" $TINT_AMBER {
+  component "ElevationBroker\ntmtadn.exe --elevated-broker\nSetPriority / SetAffinity / CreateDump /\nServiceControl / SetStartupApproval / DisconnectSession" as BROKER
+  component "Native kill helper\ntmtadn.exe --kill-helper (or KillHelper.exe)\nterminate only; NOT via the broker yet" as KH
+}
+
+package "Windows administrative surfaces" $TINT_NEUTRAL {
+  [SCM (advapi32)] as SCM
+  [HKLM StartupApproved\n(registry)] as HKLM
+  [Session control (WTS)] as WTS
+  [Process handles\n(priority / affinity / dump / terminate)] as PROC
+}
+
+CALLERS --> COORD : escalate when the in-process\nattempt is denied (or all-users startup)
+COORD --> BROKER : named-pipe request\n[current-user ACL + client image check]
+COORD ..> PROC : direct in-process\n(only when elevated + bypass setting)
+BROKER --> SCM : start / stop / restart / disable
+BROKER --> HKLM : all-users startup toggle
+BROKER --> WTS : disconnect session
+BROKER --> PROC : set priority / affinity / create dump
+PTS --> KH : arm / fire over shared memory
+KH --> PROC : OpenProcess(PROCESS_TERMINATE)\n+ TerminateProcess
+SETTINGS ..> COORD
+SETTINGS ..> KH
+
+note right of COORD $TINT_BLUE
+  Lazy per-action consent (no eager prompt):
+  1. The op runs in-process at medium IL; on ACCESS_DENIED
+     (or a deterministic all-users startup entry) it escalates.
+  2. The UI shows an in-app confirmation, then ShellExecute "runas"
+     launches the broker: one Windows UAC prompt.
+  3. A decline changes nothing and is NOT remembered - every later
+     admin action prompts again until elevation is actually granted.
+  4. Once the broker is up it is reused for the session with no
+     further prompts.
+end note
+
+note bottom of BROKER $TINT_AMBER
+  Security model (the one elevated surface):
+  - Pipe ACL restricted to the current user.
+  - Broker verifies the connecting client is this executable's
+    image before serving any request.
+  - Only the fixed op set above is accepted; no arbitrary-exec.
+end note
+
+note bottom of KH $TINT_NEUTRAL
+  Process termination still uses the existing kill helper, not the
+  broker. Its elevated startup attempt is now gated by the
+  EnableElevatedTerminationOnStartup setting (default off), so there
+  is no eager UAC prompt. Unifying terminate under the broker (and
+  spawning the kill helper from it) remains the deferred next step.
+end note
+
+@enduml

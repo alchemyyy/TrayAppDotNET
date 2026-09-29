@@ -310,6 +310,27 @@ internal sealed class UsersPage : TaskManagerTablePage
     private void UpdateDisconnectButton(UserGroupSnapshot? group) =>
         _disconnectButton.IsEnabled = !_disconnectPending && group?.CanDisconnect == true;
 
+    private const int AccessDeniedErrorCode = 5;
+
+    /// <summary>Retries the disconnect through the elevated broker; returns true when the original error is superseded.</summary>
+    private async Task<bool> TryDisconnectElevatedAsync(int sessionID)
+    {
+        ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
+        if (coordinator == null) return false;
+
+        ElevatedActionResult result = await coordinator.DisconnectSessionAsync(sessionID);
+        if (result.Declined || _disposed) return true;
+        if (!result.Serviced) return false;
+        if (result.Success)
+        {
+            _snapshotService.RequestRefresh();
+            return true;
+        }
+
+        _reportMessage(arg1: "Disconnect failed", result.Message);
+        return true;
+    }
+
     private void OnDisconnectClick(object? sender, EventArgs eventArgs)
     {
         if (SelectedRow?.Tag is UserGroupSnapshot group)
@@ -328,6 +349,10 @@ internal sealed class UsersPage : TaskManagerTablePage
             if (_disposed) return;
             if (!result.Succeeded)
             {
+                if (result.NativeErrorCode == AccessDeniedErrorCode
+                    && await TryDisconnectElevatedAsync(group.Session.SessionID))
+                    return;
+
                 _reportMessage(
                     arg1: "Disconnect failed",
                     string.IsNullOrWhiteSpace(result.ErrorMessage)

@@ -42,6 +42,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private PerformanceSnapshotService? _performanceSnapshotService;
     private ProcessTerminationService? _processTerminationService;
     private WindowsTaskManagerHotkeyOverride? _windowsTaskManagerHotkeyOverride;
+    private TaskManagerActivationServer? _taskManagerActivationServer;
+    private ElevatedActionCoordinator? _elevatedActionCoordinator;
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
@@ -110,6 +112,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
             () => Dispatcher.UIThread.Post(ShowTaskManagerFromShortcut),
             TADNLog.Log);
         _windowsTaskManagerHotkeyOverride.SetEnabled(settings.OverrideWindowsTaskManagerHotkey);
+        // Answer hand-off requests from taskmgr.exe launches redirected here while this instance runs
+        _taskManagerActivationServer = new TaskManagerActivationServer(
+            () => Dispatcher.UIThread.Post(ShowTaskManagerFromShortcut),
+            TADNLog.Log);
+        _taskManagerActivationServer.Start();
+        // Runs priority/affinity on protected processes through the elevated broker, consented once on demand
+        _elevatedActionCoordinator = new ElevatedActionCoordinator(ConfirmEnableElevatedActionsAsync, TADNLog.Log);
+        AppServices.ElevatedActions = _elevatedActionCoordinator;
         _snapshotService.Start();
         _performanceSnapshotService.Start();
         CreateTrayIcon();
@@ -329,6 +339,20 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _ = _taskManagerWindow.ShowInPlaceAndForceForegroundAsync();
     }
 
+    /// <summary>Shows the one-time in-app consent before the broker's UAC prompt for elevated actions.</summary>
+    private Task<bool> ConfirmEnableElevatedActionsAsync()
+    {
+        TaskManagerWindow? window = _taskManagerWindow;
+        if (window == null) return Task.FromResult(false);
+
+        return window.ConfirmAsync(
+            title: "Administrator approval required",
+            "This action needs administrator rights. Continue to the Windows approval prompt? Declining "
+            + "leaves nothing changed, and you will be asked again the next time an action needs elevation.",
+            confirmText: "Continue",
+            cancelText: "Cancel");
+    }
+
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() => ShowTrayMenu(point));
 
@@ -432,6 +456,11 @@ internal sealed class TaskManagerAvaloniaApp : Application
         {
             Safe.Dispose(_windowsTaskManagerHotkeyOverride);
             _windowsTaskManagerHotkeyOverride = null;
+            Safe.Dispose(_taskManagerActivationServer);
+            _taskManagerActivationServer = null;
+            Safe.Dispose(_elevatedActionCoordinator);
+            _elevatedActionCoordinator = null;
+            AppServices.ElevatedActions = null;
 
             if (_updateCheckService != null)
             {
