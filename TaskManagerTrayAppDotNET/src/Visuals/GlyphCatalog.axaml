@@ -23,4 +23,9 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Selected" Text="&#xE73E;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SortAscending" Text="&#xE96E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SortDescending" Text="&#xE96D;" Font="SegoeFluentIcons" />
+
+    <!-- Processes Status column; suspended and efficiency mode are the code points Taskmgr.exe draws -->
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusSuspended" Text="&#xF2D9;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusEfficiencyMode" Text="&#xF1E8;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusNotResponding" Text="&#xE783;" Font="SegoeFluentIcons" />
 </ResourceDictionary>

@@ -61,6 +61,55 @@ public sealed class SemanticProcessAggregationTests
     }
 
     [Fact]
+    public void StatusAggregateShowsTheHighestStatusOfAnyMember()
+    {
+        ProcessSnapshotBuffer snapshot = CreateSnapshot(
+            ProcessTableColumnKind.Status,
+            (long)ProcessStatus.None,
+            (long)ProcessStatus.Suspended,
+            (long)ProcessStatus.EfficiencyMode,
+            (long)ProcessStatus.None);
+
+        long suspendedMember = SemanticProcessAggregation.AggregateDynamicNumeric(
+            snapshot,
+            [0, 1, 3],
+            ProcessTableColumnKind.Status,
+            representativeRowIndex: 0);
+        long efficiencyAndSuspendedMembers = SemanticProcessAggregation.AggregateDynamicNumeric(
+            snapshot,
+            [0, 1, 2],
+            ProcessTableColumnKind.Status,
+            representativeRowIndex: 0);
+        long noStatusMembers = SemanticProcessAggregation.AggregateDynamicNumeric(
+            snapshot,
+            [0, 3],
+            ProcessTableColumnKind.Status,
+            representativeRowIndex: 3);
+
+        Assert.Equal((long)ProcessStatus.Suspended, suspendedMember);
+        Assert.Equal((long)ProcessStatus.EfficiencyMode, efficiencyAndSuspendedMembers);
+        Assert.Equal((long)ProcessStatus.None, noStatusMembers);
+    }
+
+    [Fact]
+    public void StatusAggregateLetsAnyNotRespondingMemberWin()
+    {
+        ProcessSnapshotBuffer snapshot = CreateSnapshot(
+            ProcessTableColumnKind.Status,
+            (long)ProcessStatus.EfficiencyMode,
+            (long)ProcessStatus.NotResponding,
+            (long)ProcessStatus.Suspended);
+
+        long aggregate = SemanticProcessAggregation.AggregateDynamicNumeric(
+            snapshot,
+            [0, 1, 2],
+            ProcessTableColumnKind.Status,
+            representativeRowIndex: 0);
+
+        Assert.Equal((long)ProcessStatus.NotResponding, aggregate);
+    }
+
+    [Fact]
     public void NonAggregateColumnUsesRepresentativeValue()
     {
         ProcessSnapshotBuffer snapshot = CreateSnapshot(

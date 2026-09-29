@@ -105,7 +105,7 @@ Use `=~` and `!~` for case-insensitive .NET regex matching. Quote regex patterns
 syntax:
 
 ```text
-{Status}="Running"&&({Command line}=~"--type=(renderer|gpu-process)"||chrome)
+{Status}!="Suspended"&&({Command line}=~"--type=(renderer|gpu-process)"||chrome)
 ```
 
 Time operands accept `ms`, `s`, `m`/`min`, `h`, and `d`. Memory and byte operands accept binary `k`, `m`, `g`, and

@@ -12,6 +12,13 @@ public enum ProcessMemoryUnit : byte
     PercentageOfSystem
 }
 
+/// <summary>Chooses how the Status column draws every status, never mixing text and glyphs.</summary>
+public enum ProcessStatusDisplayMode : byte
+{
+    Glyph,
+    Text
+}
+
 public sealed class ProcessColumnSetting
 {
     [XmlAttribute]
@@ -53,6 +60,12 @@ public sealed class ProcessColumnSetting
 
     [XmlAttribute]
     public bool ShowLiveTotal { get; set; }
+
+    [XmlAttribute]
+    public ProcessStatusDisplayMode StatusDisplayMode { get; set; } = ProcessStatusDisplayMode.Glyph;
+
+    [XmlAttribute]
+    public bool CenterStatusGlyphs { get; set; }
 }
 
 internal static class ProcessColumnSettings
@@ -124,7 +137,9 @@ internal static class ProcessColumnSettings
                 ? GetDefaultMemorySuffix(memoryUnit)
                 : setting.MemorySuffix,
             ShowUserNamePrefix = setting.ShowUserNamePrefix,
-            ShowLiveTotal = SupportsLiveTotal(setting.Column) && setting.ShowLiveTotal
+            ShowLiveTotal = SupportsLiveTotal(setting.Column) && setting.ShowLiveTotal,
+            StatusDisplayMode = NormalizeStatusDisplayMode(setting.StatusDisplayMode),
+            CenterStatusGlyphs = setting.CenterStatusGlyphs
         };
     }
 
@@ -214,6 +229,8 @@ internal static class ProcessColumnSettings
             setting.MemorySuffix = replacementClone.MemorySuffix;
             setting.ShowUserNamePrefix = replacementClone.ShowUserNamePrefix;
             setting.ShowLiveTotal = replacementClone.ShowLiveTotal;
+            setting.StatusDisplayMode = replacementClone.StatusDisplayMode;
+            setting.CenterStatusGlyphs = replacementClone.CenterStatusGlyphs;
             break;
         }
 
@@ -318,6 +335,9 @@ internal static class ProcessColumnSettings
 
     private static ProcessMemoryUnit NormalizeMemoryUnit(ProcessMemoryUnit unit) =>
         Enum.IsDefined(unit) ? unit : ProcessMemoryUnit.Kilobytes;
+
+    private static ProcessStatusDisplayMode NormalizeStatusDisplayMode(ProcessStatusDisplayMode mode) =>
+        Enum.IsDefined(mode) ? mode : ProcessStatusDisplayMode.Glyph;
 
     private static double NormalizeWidth(double width, double defaultWidth) =>
         double.IsFinite(width) && width >= MinimumWidth ? width : defaultWidth;

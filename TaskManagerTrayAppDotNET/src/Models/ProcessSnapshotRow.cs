@@ -10,8 +10,6 @@ internal enum ProcessDisplayCode : byte
 {
     Empty,
     Unavailable,
-    Running,
-    Suspended,
     Windows,
     Platform32Bit,
     Platform64Bit,
@@ -89,8 +87,6 @@ internal static class ProcessDisplayCodeText
     {
         ProcessDisplayCode.Empty => string.Empty,
         ProcessDisplayCode.Unavailable => "Unavailable",
-        ProcessDisplayCode.Running => "Running",
-        ProcessDisplayCode.Suspended => "Suspended",
         ProcessDisplayCode.Windows => "Windows",
         ProcessDisplayCode.Platform32Bit => "32-bit",
         ProcessDisplayCode.Platform64Bit => "64-bit",

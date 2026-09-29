@@ -85,7 +85,8 @@ internal readonly record struct ProcessTableMetrics(
     double FontSize,
     double HeaderFontSize,
     double ProcessIconSize,
-    double ProcessIconGap);
+    double ProcessIconGap,
+    double StatusGlyphSize);
 
 internal readonly record struct ProcessTableColumn(
     ProcessTableColumnKind Kind,

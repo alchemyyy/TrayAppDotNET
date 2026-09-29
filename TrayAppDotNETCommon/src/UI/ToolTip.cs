@@ -33,6 +33,14 @@ public static class TrayAppDotNETToolTip
         ToolTip.SetTip(control, tip);
     }
 
+    /// <summary>Sets a tip that opens at the pointer, for painted controls whose tip changes per hovered region.</summary>
+    public static void SetPointerTip(Control control, object? tip)
+    {
+        ToolTip.SetPlacement(control, PlacementMode.Pointer);
+        ApplyShowDelay(control);
+        ToolTip.SetTip(control, tip);
+    }
+
     public static void SuppressWhileEngaged(Control control)
     {
         control.PointerPressed += (_, e) =>

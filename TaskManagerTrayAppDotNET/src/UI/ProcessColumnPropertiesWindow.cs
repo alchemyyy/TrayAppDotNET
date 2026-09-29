@@ -135,6 +135,8 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
                 new CPUProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             ProcessTableColumnKind.UserName =>
                 new UserNameProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
+            ProcessTableColumnKind.Status =>
+                new StatusProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             _ when ProcessColumnSettings.IsMemoryColumn(setting.Column) =>
                 new MemoryProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             _ => new DefaultProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply)
@@ -209,6 +211,8 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
                 resources.AxamlProcessColumnProperties.CPUWindowHeight,
             ProcessTableColumnKind.UserName =>
                 resources.AxamlProcessColumnProperties.UserNameWindowHeight,
+            ProcessTableColumnKind.Status =>
+                resources.AxamlProcessColumnProperties.StatusWindowHeight,
             _ when ProcessColumnSettings.IsMemoryColumn(column) =>
                 resources.AxamlProcessColumnProperties.MemoryWindowHeight,
             _ when ProcessColumnSettings.SupportsLiveTotal(column) =>
@@ -451,6 +455,76 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
         if (_isSynchronizingControls) return;
 
         Setting.MemorySuffix = _suffixTextBox.Text ?? string.Empty;
+        Publish();
+    }
+}
+
+internal sealed class StatusProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
+{
+    private readonly SettingsComboBox _displayModeComboBox;
+    private readonly SettingsToggle _centerGlyphsToggle;
+
+    public StatusProcessColumnPropertiesWindow(
+        ProcessColumnSetting setting,
+        SettingsPalette palette,
+        bool enableRoundedCorners,
+        Action<ProcessColumnSetting> apply)
+        : base(setting, palette, enableRoundedCorners, apply)
+    {
+        SetFixedHeight(WindowResources.AxamlProcessColumnProperties.StatusWindowHeight);
+
+        _displayModeComboBox = TrayAppDotNETSettingsUI.ComboBox(
+            palette,
+            WindowResources.AxamlProcessColumnProperties.ControlWidth);
+        AddDisplayMode(ProcessStatusDisplayMode.Glyph, label: "Glyphs");
+        AddDisplayMode(ProcessStatusDisplayMode.Text, label: "Text");
+        SelectDisplayMode(Setting.StatusDisplayMode);
+        _displayModeComboBox.SelectionChanged += OnDisplayModeSelectionChanged;
+        Own(_displayModeComboBox);
+        AddCard(
+            title: "Status display",
+            description: "Show each status as a glyph or as text, never both.",
+            _displayModeComboBox);
+
+        _centerGlyphsToggle = TrayAppDotNETSettingsUI.Toggle(
+            palette,
+            Setting.CenterStatusGlyphs,
+            (_, isChecked) =>
+            {
+                Setting.CenterStatusGlyphs = isChecked;
+                Publish();
+            });
+        _centerGlyphsToggle.IsEnabled = Setting.StatusDisplayMode == ProcessStatusDisplayMode.Glyph;
+        AddCard(
+            title: "Center glyphs",
+            description: "Center each glyph in the column instead of aligning it right.",
+            _centerGlyphsToggle);
+    }
+
+    private void AddDisplayMode(ProcessStatusDisplayMode mode, string label) =>
+        _displayModeComboBox.Items.Add(new SettingsComboBoxItem(mode, label, Palette));
+
+#if DEBUG
+    protected override void ApplySpecializedAXAMLResources(TaskManagerWindowResources resources) =>
+        _displayModeComboBox.Width = resources.AxamlProcessColumnProperties.ControlWidth;
+#endif
+
+    private void SelectDisplayMode(ProcessStatusDisplayMode mode)
+    {
+        foreach (SettingsComboBoxItem item in _displayModeComboBox.Items)
+        {
+            if (item.Tag is not ProcessStatusDisplayMode itemMode || itemMode != mode) continue;
+            _displayModeComboBox.SelectedItem = item;
+            return;
+        }
+    }
+
+    private void OnDisplayModeSelectionChanged(object? sender, EventArgs eventArgs)
+    {
+        if (_displayModeComboBox.SelectedItem?.Tag is not ProcessStatusDisplayMode mode) return;
+
+        Setting.StatusDisplayMode = mode;
+        _centerGlyphsToggle.IsEnabled = mode == ProcessStatusDisplayMode.Glyph;
         Publish();
     }
 }

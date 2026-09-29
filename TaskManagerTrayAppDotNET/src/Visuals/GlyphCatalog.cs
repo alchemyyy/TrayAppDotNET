@@ -51,6 +51,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph SORT_DESCENDING => Glyph("SortDescending");
 
+    public static Glyph STATUS_SUSPENDED => Glyph("StatusSuspended");
+
+    public static Glyph STATUS_EFFICIENCY_MODE => Glyph("StatusEfficiencyMode");
+
+    public static Glyph STATUS_NOT_RESPONDING => Glyph("StatusNotResponding");
+
     private static GlyphCatalogResources CurrentResources
     {
         get

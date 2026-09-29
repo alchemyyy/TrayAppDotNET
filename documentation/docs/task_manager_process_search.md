@@ -39,13 +39,17 @@ that contain expression syntax, especially regex groups or alternation.
 
 ```text
 {Lifetime}>=1h&&{Lifetime}<2h
-{Status}="Running"&&{CPU}>10%
+{Status}=""&&{CPU}>10%
 {Command line}=~"--type=(renderer|gpu-process)"
-chrome&&({Status}=Running||{Status}=Suspended)
+chrome&&({Status}="Efficiency mode"||{Status}=Suspended)
 ```
 
 A bare section such as `chrome` inside an expression retains the default Name/PID
 partial-match behavior.
+
+Status compares against its text, `Suspended`, `Efficiency mode` or `Not responding`, in
+both glyph and text display modes. A process with no status has an empty Status, so
+`{Status}=""` selects it.
 
 Memory and byte columns accept binary `k`, `m`, `g`, and `t` suffixes. Other numeric
 columns use decimal suffixes, and percentage columns accept `%`.

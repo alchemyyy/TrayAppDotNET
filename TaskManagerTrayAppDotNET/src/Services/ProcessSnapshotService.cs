@@ -70,7 +70,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         | ColumnMask(ProcessTableColumnKind.Isolation);
 
     private static readonly ulong ProcessHandleDynamicColumnsMask =
-        ColumnMask(ProcessTableColumnKind.UserObjects)
+        ColumnMask(ProcessTableColumnKind.Status)
+        | ColumnMask(ProcessTableColumnKind.UserObjects)
         | ColumnMask(ProcessTableColumnKind.GDIObjects)
         | ColumnMask(ProcessTableColumnKind.UACVirtualization)
         | ColumnMask(ProcessTableColumnKind.IOPriority)
@@ -84,6 +85,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
     private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
     private readonly ProcessWindowGroupingFactsCollector _windowGroupingFactsCollector = new();
+    private readonly ProcessHungWindowCollector _hungWindowCollector = new();
     private readonly Action _notifySnapshotAvailable;
     private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
 
@@ -344,6 +346,7 @@ internal sealed class ProcessSnapshotService : IDisposable
             _systemProcessData,
             schema.IsVisible(ProcessTableColumnKind.JobObjectID));
         if (semanticGroupingEnabled) _windowGroupingFactsCollector.Capture();
+        if (schema.IsVisible(ProcessTableColumnKind.Status)) _hungWindowCollector.Capture();
         int generation = NextHistoryGeneration();
         int count = hasSystemSnapshot
             ? RefreshFromSystemSnapshot(
@@ -1053,13 +1056,16 @@ internal sealed class ProcessSnapshotService : IDisposable
             else
                 ReadThreadState(process, out state, out threadCount);
 
-            SetDynamicCode(
-                schema,
-                history,
-                ProcessTableColumnKind.Status,
-                state == ProcessExecutionState.Suspended
-                    ? ProcessDisplayCode.Suspended
-                    : ProcessDisplayCode.Running);
+            if (schema.IsVisible(ProcessTableColumnKind.Status))
+            {
+                ProcessStatus status = ProcessStatusFunctions.Resolve(
+                    isSuspended: state == ProcessExecutionState.Suspended,
+                    isNotResponding: _hungWindowCollector.IsNotResponding(history.StaticData.ProcessID),
+                    isEfficiencyMode: processHandle != IntPtr.Zero
+                                      && NativeProcessInfo.ReadIsEfficiencyMode(processHandle));
+                SetDynamicNumeric(schema, history, ProcessTableColumnKind.Status, (long)status);
+            }
+
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.Threads, threadCount);
         }
 

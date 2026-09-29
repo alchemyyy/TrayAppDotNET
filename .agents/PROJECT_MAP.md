@@ -163,6 +163,9 @@
 - Painted Details table: `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs`
 - Render-thread cursor-sampled row hover: `TaskManagerTrayAppDotNET/src/UI/ProcessRowHoverVisual.cs`
 - Fixed-buffer process sampler: `TaskManagerTrayAppDotNET/src/Services/ProcessSnapshotService.cs`
+- Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
+  `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in
+  `documentation/docs/task_manager_process_status.md`
 - Tests: `TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests`
 
 ## Build And Packaging Files

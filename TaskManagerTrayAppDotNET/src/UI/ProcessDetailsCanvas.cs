@@ -134,8 +134,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #if DEBUG
     private Color _backgroundColor;
     private IBrush _backgroundBrush;
+    private StatusGlyphBrushes _statusGlyphBrushes;
 #else
     private readonly IBrush _backgroundBrush;
+    private readonly StatusGlyphBrushes _statusGlyphBrushes;
 #endif
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
@@ -201,6 +203,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private int _interactionColumnIndex = -1;
     private int _reorderInsertionIndex = -1;
     private int _hoveredHeaderColumnIndex = -1;
+    private string? _statusToolTipText;
     private int _textUnderlineSegmentCount;
     private double _resizeInitialWidth;
     private double _resizePreviewWidth;
@@ -297,6 +300,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
             resources.AxamlProcessTable.GridBackgroundColor);
+        _statusGlyphBrushes = new StatusGlyphBrushes(CreateStatusGlyphColors(resources));
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _selectionBackgroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected);
@@ -1240,6 +1244,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
     {
         base.OnPointerPressed(eventArgs);
+        SetStatusToolTipText(null);
         if (eventArgs.Handled) return;
         if (_headerInteraction != HeaderInteractionMode.None) return;
 
@@ -1364,6 +1369,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
+        SetStatusToolTipText(ResolveStatusToolTipText(position));
     }
 
     private Point GetLatestPointerPosition(PointerEventArgs eventArgs)
@@ -1540,6 +1546,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         base.OnPointerExited(eventArgs);
         SetHoveredHeaderColumnIndex(-1);
+        SetStatusToolTipText(null);
         if (_headerInteraction == HeaderInteractionMode.None)
             Cursor = TrayAppDotNETCursors.Arrow;
     }
@@ -1562,6 +1569,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     protected override void OnDetailsGridViewportChanged()
     {
+        // Scrolling moves another row under a stationary pointer
+        SetStatusToolTipText(null);
         PublishRowHoverGeometry();
         PublishWarmProcesses();
         EnsureRetainedDrawingsForViewport();
@@ -1588,6 +1597,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _headerPressPosition = position;
         _headerDragX = position.X;
         _headerPointerOffsetX = position.X - _columns[columnIndex].Left;
+        SetStatusToolTipText(null);
         _resizeInitialWidth = _columns[columnIndex].Width;
         _resizePreviewWidth = _resizeInitialWidth;
         _reorderInsertionIndex = columnIndex;
@@ -1695,6 +1705,34 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         UpdateHeaderHoverVisual();
     }
 
+    /// <summary>Names the status glyph under the pointer, because glyph mode draws no status text.</summary>
+    private string? ResolveStatusToolTipText(Point position)
+    {
+        if (!IsStatusGlyphMode() || IsHeaderPosition(position.Y)) return null;
+
+        ProcessTableColumn[] columns = DisplayColumns;
+        int columnIndex = ProcessTableLayout.HitTestColumn(position.X, columns);
+        if (columnIndex < 0 || columns[columnIndex].Kind != ProcessTableColumnKind.Status) return null;
+
+        int visibleIndex = DetailsGridLayout.HitTestRow(
+            position.Y,
+            _visibleRowCount,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight);
+        if (visibleIndex < 0) return null;
+
+        string display = GetCellDisplayValue(_visibleRowIndexes[visibleIndex], ProcessTableColumnKind.Status);
+        return display.Length == 0 ? null : display;
+    }
+
+    private void SetStatusToolTipText(string? toolTipText)
+    {
+        if (string.Equals(_statusToolTipText, toolTipText, StringComparison.Ordinal)) return;
+
+        _statusToolTipText = toolTipText;
+        TrayAppDotNETToolTip.SetPointerTip(this, toolTipText);
+    }
+
     private void UpdateHeaderHoverVisual()
     {
         ProcessTableColumn[] columns = DisplayColumns;
@@ -1766,7 +1804,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         RecreateSortCaretTexts();
         ReplaceHeaderTexts(_columns);
-        InvalidateLayers(RenderLayerMask.Header);
+
+        // Retained Status cells hold glyph text layouts from the replaced catalog
+        RebuildRetainedRowDrawings();
+        RebuildCopyPreview();
+        InvalidateLayers(RenderLayerMask.Header | RenderLayerMask.Rows | RenderLayerMask.CopyPreview);
     }
 
     /// <summary>Applies the current ProcessTable AXAML values without replacing runtime table state.</summary>
@@ -1796,7 +1838,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Thickness nextSelectionBorderThickness =
             _resources.AxamlProcessTable.SelectionBorderThickness;
         Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
+        StatusGlyphColors nextStatusGlyphColors = CreateStatusGlyphColors(_resources);
         bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
+        bool statusGlyphColorsChanged = nextStatusGlyphColors != _statusGlyphBrushes.Colors;
         bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
         bool liveTotalTypographyChanged = nextLiveTotalTypography != _liveTotalTypography;
         _axamlFontSize = nextAXAMLFontSize;
@@ -1805,15 +1849,17 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             && nextVisualMetrics == _visualMetrics
             && nextColumnWidths == _axamlColumnWidths
             && !backgroundColorChanged
+            && !statusGlyphColorsChanged
             && !selectionBorderChanged
             && !liveTotalTypographyChanged)
             return null;
 
-        bool rebuildRetainedRows = RetainedRowGeometryChanged(
-            _metrics,
-            nextMetrics,
-            _visualMetrics,
-            nextVisualMetrics);
+        bool rebuildRetainedRows = statusGlyphColorsChanged
+                                   || RetainedRowGeometryChanged(
+                                       _metrics,
+                                       nextMetrics,
+                                       _visualMetrics,
+                                       nextVisualMetrics);
         bool rebuildCaretText = _visualMetrics.SortCaretFontSize
                                 != nextVisualMetrics.SortCaretFontSize;
         int nextTableFontWeight = CalculateTableFontWeight(nextFontSize);
@@ -1832,6 +1878,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _visualMetrics = nextVisualMetrics;
         _backgroundColor = nextBackgroundColor;
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(nextBackgroundColor);
+        if (statusGlyphColorsChanged) _statusGlyphBrushes = new StatusGlyphBrushes(nextStatusGlyphColors);
         _selectionBorderThickness = nextSelectionBorderThickness;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
         if (liveTotalTypographyChanged)
@@ -1952,6 +1999,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         || currentMetrics.FontSize != nextMetrics.FontSize
         || currentMetrics.ProcessIconSize != nextMetrics.ProcessIconSize
         || currentMetrics.ProcessIconGap != nextMetrics.ProcessIconGap
+        || currentMetrics.StatusGlyphSize != nextMetrics.StatusGlyphSize
         || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
         || currentVisualMetrics.SemanticSectionChildIndent
         != nextVisualMetrics.SemanticSectionChildIndent
@@ -2393,7 +2441,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         if (display.Length == 0 || _textUnderlineSegmentCount >= _textUnderlineSegments.Length) return;
 
-        using CellTextLayout layout = CreateCellTextLayout(column, display, treeLayoutKey);
+        using CellTextLayout layout = CreateCellLayout(column, display, treeLayoutKey);
         double width = Math.Min(layout.Text.Width, layout.AvailableWidth);
         if (width <= 0) return;
 
@@ -2476,7 +2524,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             string display = GetCellDisplayValue(rowIndex, liveColumn.Kind);
             if (display.Length > 0)
             {
-                using CellTextLayout layout = CreateCellTextLayout(
+                using CellTextLayout layout = CreateCellLayout(
                     liveColumn,
                     display,
                     GetTreeLayoutKey(rowIndex));
@@ -3008,7 +3056,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                     continue;
                 }
 
-                CellTextLayout cellTextLayout = CreateCellTextLayout(column, display, treeLayoutKey);
+                CellTextLayout cellTextLayout = CreateCellLayout(column, display, treeLayoutKey);
                 try
                 {
                     _cellTextLayoutBuffer.Add(cellTextLayout);
@@ -3051,7 +3099,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             return existing;
         }
 
-        CellTextLayout cellTextLayout = CreateCellTextLayout(column, key.Value, key.TreeLayoutKey);
+        CellTextLayout cellTextLayout = CreateCellLayout(column, key.Value, key.TreeLayoutKey);
         SharedCellLayout sharedCell = new(key, cellTextLayout);
         try
         {
@@ -3087,6 +3135,44 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         _sharedCellLayouts.Remove(sharedCell.Key);
         sharedCell.Dispose();
+    }
+
+    /// <summary>Lays out one cell as text, or as a glyph when the Status column is in glyph mode.</summary>
+    private CellTextLayout CreateCellLayout(
+        ProcessTableColumn column,
+        string display,
+        int treeLayoutKey) =>
+        column.Kind == ProcessTableColumnKind.Status
+        && IsStatusGlyphMode()
+        && ProcessStatusFunctions.TryGetStatus(display, out ProcessStatus status)
+            ? CreateStatusGlyphLayout(column, status)
+            : CreateCellTextLayout(column, display, treeLayoutKey);
+
+    private bool IsStatusGlyphMode() =>
+        _settingsByColumn[(int)ProcessTableColumnKind.Status].StatusDisplayMode == ProcessStatusDisplayMode.Glyph;
+
+    private CellTextLayout CreateStatusGlyphLayout(ProcessTableColumn column, ProcessStatus status)
+    {
+        (Glyph glyph, IBrush brush) = status switch
+        {
+            ProcessStatus.Suspended => (TaskManagerGlyphCatalog.STATUS_SUSPENDED, _statusGlyphBrushes.Suspended),
+            ProcessStatus.EfficiencyMode => (TaskManagerGlyphCatalog.STATUS_EFFICIENCY_MODE,
+                _statusGlyphBrushes.EfficiencyMode),
+            ProcessStatus.NotResponding => (TaskManagerGlyphCatalog.STATUS_NOT_RESPONDING,
+                _statusGlyphBrushes.NotResponding),
+            _ => throw new ArgumentOutOfRangeException(nameof(status))
+        };
+        TextLayout text = CreateGlyphText(glyph, _metrics.StatusGlyphSize, brush);
+        double availableWidth = Math.Max(val1: 0, column.Width - _metrics.CellPadding * 2);
+        double textTop = Math.Max(val1: 0, (_metrics.RowHeight - text.Height) / 2);
+
+        // Right alignment matches Task Manager and keeps the left padding when the glyph does not fit
+        double textX = _settingsByColumn[(int)ProcessTableColumnKind.Status].CenterStatusGlyphs
+            ? column.Left + (column.Width - text.Width) / 2
+            : Math.Max(
+                column.Left + _metrics.CellPadding,
+                column.Right - _metrics.CellPadding - text.Width);
+        return new CellTextLayout(text, textX, textTop, availableWidth);
     }
 
     private CellTextLayout CreateCellTextLayout(
@@ -3381,7 +3467,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessColumnSetting setting = _settingsByColumn[(int)kind];
         return kind switch
         {
-            ProcessTableColumnKind.Status => FormatDisplayCode(value),
+            ProcessTableColumnKind.Status => ProcessStatusFunctions.GetText(
+                ProcessStatusFunctions.FromStoredValue(value)),
             ProcessTableColumnKind.JobObjectID => FormatJobObjectID(value),
             ProcessTableColumnKind.CPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
             ProcessTableColumnKind.CPUSingle => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
@@ -3869,6 +3956,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessViewportAnchor? viewportAnchor)
     {
         _pendingColumnLayout = null;
+        SetStatusToolTipText(null);
         PrepareColumnLayout(pendingColumnLayout.Columns);
         ClearSnapshotPresentationState();
         _schema = pendingColumnLayout.Schema;
@@ -3908,6 +3996,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessTableColumn[] columns,
         ProcessViewportAnchor? viewportAnchor)
     {
+        SetStatusToolTipText(null);
         _columns = columns;
         UpdateLiveTotalTexts();
         ReplaceHeaderTexts(columns);
@@ -4723,6 +4812,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             baseRowHeight,
             fontSize,
             effectiveRowHeight);
+        double statusGlyphSize = ProcessTableLayout.ScaleProcessIconSize(
+            resources.AxamlProcessTable.StatusGlyphSize,
+            resources.AxamlProcessTable.FontSize,
+            baseRowHeight,
+            fontSize,
+            effectiveRowHeight);
         return new ProcessTableMetrics(
             resources.AxamlProcessTable.HeaderHeight,
             effectiveRowHeight,
@@ -4731,7 +4826,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             fontSize,
             resources.AxamlProcessTable.HeaderFontSize,
             processIconSize,
-            resources.AxamlProcessTable.ProcessIconGap);
+            resources.AxamlProcessTable.ProcessIconGap,
+            statusGlyphSize);
     }
 
     private int CalculateTableFontWeight(double fontSize) =>
@@ -4788,6 +4884,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             maxLines: 1);
         return measurement.Height / AppSettings.GridFontSizeDefault;
     }
+
+    private static StatusGlyphColors CreateStatusGlyphColors(TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.StatusSuspendedGlyphColor,
+            resources.AxamlProcessTable.StatusEfficiencyModeGlyphColor,
+            resources.AxamlProcessTable.StatusNotRespondingGlyphColor);
 
     private static ProcessTableVisualMetrics CreateVisualMetrics(
         TaskManagerWindowResources resources) =>
@@ -4963,7 +5065,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         return column switch
         {
-            ProcessTableColumnKind.SessionID
+            ProcessTableColumnKind.Status
+                or ProcessTableColumnKind.SessionID
                 or ProcessTableColumnKind.BasePriority
                 or ProcessTableColumnKind.Threads
                 or ProcessTableColumnKind.UserObjects
@@ -5369,6 +5472,19 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double HorizontalScale,
         double TextGap);
 
+    private readonly record struct StatusGlyphColors(
+        Color Suspended,
+        Color EfficiencyMode,
+        Color NotResponding);
+
+    private sealed class StatusGlyphBrushes(StatusGlyphColors colors)
+    {
+        public StatusGlyphColors Colors { get; } = colors;
+        public IBrush Suspended { get; } = TrayAppDotNETSettingsUI.Brush(colors.Suspended);
+        public IBrush EfficiencyMode { get; } = TrayAppDotNETSettingsUI.Brush(colors.EfficiencyMode);
+        public IBrush NotResponding { get; } = TrayAppDotNETSettingsUI.Brush(colors.NotResponding);
+    }
+
     private readonly record struct ContextCopyRow(
         ProcessInstanceKey Process,
         string?[] ValuesByColumn);
@@ -5556,6 +5672,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 rightValue = snapshot.GetDynamicNumeric(rightIndex, column);
             }
 
+            if (column == ProcessTableColumnKind.Status)
+            {
+                int leftOrder = ProcessStatusFunctions.GetSortOrder(
+                    ProcessStatusFunctions.FromStoredValue(leftValue));
+                int rightOrder = ProcessStatusFunctions.GetSortOrder(
+                    ProcessStatusFunctions.FromStoredValue(rightValue));
+                return leftOrder.CompareTo(rightOrder);
+            }
+
             if (IsDoubleColumn(column))
             {
                 return ProcessTableValuePresentation.CompareNonnegativeDouble(
@@ -5585,8 +5710,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         public static bool IsDisplayCodeColumn(ProcessTableColumnKind column) => column switch
         {
-            ProcessTableColumnKind.Status
-                or ProcessTableColumnKind.OperatingSystemContext
+            ProcessTableColumnKind.OperatingSystemContext
                 or ProcessTableColumnKind.Platform
                 or ProcessTableColumnKind.Elevated
                 or ProcessTableColumnKind.UACVirtualization

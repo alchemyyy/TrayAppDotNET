@@ -31,6 +31,11 @@ internal static class SemanticProcessAggregation
                 snapshot,
                 memberRowIndexes,
                 column),
+            // Task Manager raises a group status when any member has it, and the highest status wins
+            ProcessTableColumnKind.Status => MaximumNonNegative(
+                snapshot,
+                memberRowIndexes,
+                column),
             ProcessTableColumnKind.Cycle
                 or ProcessTableColumnKind.IOReads
                 or ProcessTableColumnKind.IOWrites

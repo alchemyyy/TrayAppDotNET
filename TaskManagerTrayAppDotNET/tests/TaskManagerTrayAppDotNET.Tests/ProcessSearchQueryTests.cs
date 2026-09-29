@@ -164,6 +164,24 @@ public sealed class ProcessSearchQueryTests
     }
 
     [Fact]
+    public void StatusExpressionsMatchStatusTextAndProcessesWithoutStatus()
+    {
+        SearchRow efficiencyRow = new();
+        efficiencyRow.SetText(ProcessTableColumnKind.Status, ProcessStatusFunctions.EfficiencyModeText);
+        SearchRow noStatusRow = new();
+        noStatusRow.SetText(ProcessTableColumnKind.Status, text: string.Empty);
+        ProcessSearchQuery efficiencyQuery = Parse("{Status}=\"Efficiency mode\"");
+        ProcessSearchQuery noStatusQuery = Parse("{Status}=\"\"");
+
+        Assert.True(efficiencyQuery.IsValid, efficiencyQuery.ErrorMessage);
+        Assert.True(noStatusQuery.IsValid, noStatusQuery.ErrorMessage);
+        Assert.True(efficiencyQuery.Matches(rowIndex: 0, efficiencyRow.Resolve));
+        Assert.False(efficiencyQuery.Matches(rowIndex: 0, noStatusRow.Resolve));
+        Assert.True(noStatusQuery.Matches(rowIndex: 0, noStatusRow.Resolve));
+        Assert.False(noStatusQuery.Matches(rowIndex: 0, efficiencyRow.Resolve));
+    }
+
+    [Fact]
     public void ColumnReferencesResolveCustomNicknames()
     {
         List<ProcessColumnSetting> settings = ProcessColumnSettings.CreateDefault();

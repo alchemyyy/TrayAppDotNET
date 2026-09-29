@@ -31,6 +31,7 @@ internal static class NativeProcessInfo
     private const int ProcessPowerThrottling = 4;
     private const uint ProcessPowerThrottlingCurrentVersion = 1;
     private const uint ProcessPowerThrottlingExecutionSpeed = 0x1;
+    private const uint IdlePriorityClass = 0x40;
     private const int ProcessControlFlowGuardPolicy = 7;
     private const int ProcessUserShadowStackPolicy = 15;
     private const uint CFGEnabled = 0x1;
@@ -396,6 +397,11 @@ internal static class NativeProcessInfo
         };
     }
 
+    /// <summary>Reads the Power throttling value Task Manager shows, which is its Efficiency mode state.</summary>
+    /// <remarks>
+    /// Task Manager's Efficiency mode command sets both states, and both its Power throttling and Status columns
+    /// require both: EcoQoS execution-speed throttling and the idle priority class.
+    /// </remarks>
     public static ProcessDisplayCode ReadPowerThrottling(IntPtr processHandle)
     {
         PROCESS_POWER_THROTTLING_STATE state = new() { Version = ProcessPowerThrottlingCurrentVersion };
@@ -406,12 +412,20 @@ internal static class NativeProcessInfo
                 (uint)Marshal.SizeOf<PROCESS_POWER_THROTTLING_STATE>()))
             return ProcessDisplayCode.Unavailable;
 
-        if ((state.ControlMask & ProcessPowerThrottlingExecutionSpeed) == 0)
+        if ((state.ControlMask & ProcessPowerThrottlingExecutionSpeed) == 0
+            || (state.StateMask & ProcessPowerThrottlingExecutionSpeed) == 0)
             return ProcessDisplayCode.Disabled;
-        return (state.StateMask & ProcessPowerThrottlingExecutionSpeed) != 0
+
+        uint priorityClass = GetPriorityClass(processHandle);
+        if (priorityClass == 0) return ProcessDisplayCode.Unavailable;
+        return priorityClass == IdlePriorityClass
             ? ProcessDisplayCode.Enabled
             : ProcessDisplayCode.Disabled;
     }
+
+    /// <summary>Reads whether a process is in Efficiency mode; an unreadable state reports false.</summary>
+    public static bool ReadIsEfficiencyMode(IntPtr processHandle) =>
+        ReadPowerThrottling(processHandle) == ProcessDisplayCode.Enabled;
 
     public static ProcessDisplayCode ReadDPIAwareness(IntPtr processHandle)
     {

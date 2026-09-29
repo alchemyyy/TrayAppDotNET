@@ -179,6 +179,43 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(expected: "K", setting.MemorySuffix);
         Assert.False(setting.ShowUserNamePrefix);
         Assert.False(setting.ShowLiveTotal);
+        Assert.Equal(ProcessStatusDisplayMode.Glyph, setting.StatusDisplayMode);
+        Assert.False(setting.CenterStatusGlyphs);
+    }
+
+    [Fact]
+    public void UndefinedStatusDisplayModeNormalizesToGlyphs()
+    {
+        ProcessColumnSetting setting = new()
+        {
+            Column = ProcessTableColumnKind.Status,
+            StatusDisplayMode = (ProcessStatusDisplayMode)99
+        };
+
+        ProcessColumnSetting clone = ProcessColumnSettings.Clone(setting);
+
+        Assert.Equal(ProcessStatusDisplayMode.Glyph, clone.StatusDisplayMode);
+    }
+
+    [Fact]
+    public void WithPropertiesSwitchesTheStatusDisplayMode()
+    {
+        List<ProcessColumnSetting> source = ProcessColumnSettings.CreateDefault();
+        ProcessColumnSetting replacement = ProcessColumnSettings.Clone(
+            source.Single(static setting => setting.Column == ProcessTableColumnKind.Status));
+        replacement.StatusDisplayMode = ProcessStatusDisplayMode.Text;
+        replacement.CenterStatusGlyphs = true;
+
+        List<ProcessColumnSetting> changed = ProcessColumnSettings.WithProperties(source, replacement);
+        ProcessColumnSetting changedStatus =
+            changed.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
+        ProcessColumnSetting sourceStatus =
+            source.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
+
+        Assert.Equal(ProcessStatusDisplayMode.Text, changedStatus.StatusDisplayMode);
+        Assert.True(changedStatus.CenterStatusGlyphs);
+        Assert.Equal(ProcessStatusDisplayMode.Glyph, sourceStatus.StatusDisplayMode);
+        Assert.False(sourceStatus.CenterStatusGlyphs);
     }
 
     [Fact]
@@ -195,7 +232,9 @@ public sealed class ProcessColumnSettingsTests
             MemoryUnit = ProcessMemoryUnit.Gigabytes,
             MemorySuffix = " GiB",
             ShowUserNamePrefix = true,
-            ShowLiveTotal = true
+            ShowLiveTotal = true,
+            StatusDisplayMode = ProcessStatusDisplayMode.Text,
+            CenterStatusGlyphs = true
         };
 
         ProcessColumnSetting normalized = ProcessColumnSettings.Normalize([source])[0];
@@ -208,6 +247,8 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(expected: " GiB", normalized.MemorySuffix);
         Assert.True(normalized.ShowUserNamePrefix);
         Assert.True(normalized.ShowLiveTotal);
+        Assert.Equal(ProcessStatusDisplayMode.Text, normalized.StatusDisplayMode);
+        Assert.True(normalized.CenterStatusGlyphs);
     }
 
     [Fact]
@@ -423,6 +464,10 @@ public sealed class ProcessColumnSettingsTests
             ProcessColumnSetting userName =
                 settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.UserName);
             userName.ShowUserNamePrefix = true;
+            ProcessColumnSetting status =
+                settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
+            status.StatusDisplayMode = ProcessStatusDisplayMode.Text;
+            status.CenterStatusGlyphs = true;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
@@ -432,7 +477,11 @@ public sealed class ProcessColumnSettingsTests
                 loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.CPU);
             ProcessColumnSetting loadedUserName =
                 loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.UserName);
+            ProcessColumnSetting loadedStatus =
+                loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
 
+            Assert.Equal(ProcessStatusDisplayMode.Text, loadedStatus.StatusDisplayMode);
+            Assert.True(loadedStatus.CenterStatusGlyphs);
             Assert.Equal(expected: "Private", loadedMemory.Nickname);
             Assert.Equal(ProcessMemoryUnit.Gigabytes, loadedMemory.MemoryUnit);
             Assert.Equal(expected: " GiB", loadedMemory.MemorySuffix);
@@ -476,6 +525,10 @@ public sealed class ProcessColumnSettingsTests
             Assert.Equal(expected: "K", cpu.MemorySuffix);
             Assert.False(cpu.ShowUserNamePrefix);
             Assert.False(cpu.ShowLiveTotal);
+            ProcessColumnSetting status =
+                loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
+            Assert.Equal(ProcessStatusDisplayMode.Glyph, status.StatusDisplayMode);
+            Assert.False(status.CenterStatusGlyphs);
         }
         finally
         {

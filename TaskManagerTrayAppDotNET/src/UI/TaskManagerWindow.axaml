@@ -250,6 +250,11 @@
   <sys:Double x:Key="ProcessTable.ProcessIconSize">12</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconCornerRadius">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.StatusGlyphSize">14</sys:Double>
+  <!-- Task Manager's dark-theme Status glyph colors (Fluent caution and success); not responding uses Fluent critical -->
+  <Color x:Key="ProcessTable.StatusSuspendedGlyphColor">#FCE100</Color>
+  <Color x:Key="ProcessTable.StatusEfficiencyModeGlyphColor">#6CCB5F</Color>
+  <Color x:Key="ProcessTable.StatusNotRespondingGlyphColor">#FF99A4</Color>
   <sys:Double x:Key="ProcessTable.TreeIndentWidth">18</sys:Double>
   <sys:Double x:Key="ProcessTable.SemanticSectionChildIndent">6</sys:Double>
   <sys:Double x:Key="ProcessTable.SemanticSectionHeaderSizeOffset">6</sys:Double>
@@ -295,6 +300,7 @@
   <sys:Double x:Key="ProcessColumnProperties.CPUWindowHeight">460</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.MemoryWindowHeight">460</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.UserNameWindowHeight">330</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.StatusWindowHeight">400</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.ControlWidth">190</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.TitleBarHeight">32</sys:Double>
   <sys:Double x:Key="ProcessColumnProperties.TitleFontSize">13</sys:Double>
