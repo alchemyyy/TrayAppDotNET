@@ -75,7 +75,7 @@ end
 
 == BrightnessFlyout side reactions ==
 
-BF -> BF : UpdateMasterFromEnabledIndividuals()\n  (DynamicIconBrightnessTracking, MasterSliderMode)
+BF -> BF : UpdateMasterFromEnabledIndividuals()\n  (DynamicIconBrightnessTracking, MasterSliderMode)\n  only when the recomputed master value differs, so an\n  unrelated save does not reset curve auto re-engage
 BF -> NLP : GetStrength() / IsEnabled() readback\n  -> sync NightLightMonitor.Brightness\n  (handles InvertNightLightSlider flip)
 BF -> BF : Redock() if AllowFlyoutUndock turned off
 BF -> BF : raise PropertyChanged for\nShowFlyout*, AllowFlyoutUndock,\nShowMaster/IndividualSliders,\nShowNightLightKelvinLabel,\nInvertNightLightSlider,\nIsCurveAbsoluteMode, ...

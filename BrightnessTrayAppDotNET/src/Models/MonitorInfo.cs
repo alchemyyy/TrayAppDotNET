@@ -226,6 +226,8 @@ public class MonitorInfo : INotifyPropertyChanged
             // Hardware-sync writes from MonitorService.PromoteRecovered etc. go through
             // SyncBrightnessFromHardware, which bypasses LastUserBrightness so a drift between
             // the slider thumb and the user's intent can't be laundered into the curve baseline.
+            // Master recomputes after monitors fail, recover, attach, or detach go through
+            // SyncBrightnessFromIndividuals for the same reason.
             // Unconditional even when _brightness == value: LastUserBrightness can legitimately
             // diverge from Brightness post-recovery, so a user-drag back to the current Brightness
             // still has to reclaim the baseline.
@@ -270,7 +272,9 @@ public class MonitorInfo : INotifyPropertyChanged
     /// Tracks <see cref="Brightness"/> across every user-driven write
     /// (slider drag, keyboard, wheel, hotkey, sync ops, master propagation, profile load),
     /// but stays put when MonitorService syncs Brightness from a hardware reading via
-    /// <see cref="SyncBrightnessFromHardware(double)"/> on recovery / hot-plug.
+    /// <see cref="SyncBrightnessFromHardware(double)"/> on recovery / hot-plug,
+    /// and when the flyout recomputes the master from the monitors still available via
+    /// <see cref="SyncBrightnessFromIndividuals(double)"/>.
     /// Used by the brightness curve as the per-row baseline in offset mode and by
     /// <c>BrightnessFlyout.CaptureOffsetsFromMaster</c> when computing master-relative offsets,
     /// so a Brightness drift caused by a hardware-sync race never bakes into the curve's view of
@@ -337,7 +341,19 @@ public class MonitorInfo : INotifyPropertyChanged
     /// Called by MonitorService when a recovered or freshly-promoted monitor's bus value is
     /// authoritative for the slider thumb but does not represent a fresh user choice.
     /// </summary>
-    public void SyncBrightnessFromHardware(double value)
+    public void SyncBrightnessFromHardware(double value) => SyncBrightnessWithoutIntent(value);
+
+    /// <summary>
+    /// Master-row counterpart to <see cref="SyncBrightnessFromHardware"/>: shows the value recomputed from the
+    /// monitors still available after one fails, recovers, attaches, or detaches.
+    /// Availability is not user intent, so <see cref="LastUserBrightness"/>, <see cref="ManualBrightnessRevision"/>,
+    /// and <see cref="LastManualBrightnessWriteUtc"/> keep the user's last manual value.
+    /// The curve auto re-engage target and its grace window read those, so displays coming and going cannot move
+    /// the target or swallow a crossing.
+    /// </summary>
+    public void SyncBrightnessFromIndividuals(double value) => SyncBrightnessWithoutIntent(value);
+
+    private void SyncBrightnessWithoutIntent(double value)
     {
         _virtualBrightness = value;
         if (!_hasUserBrightness) _lastUserBrightness = value;
@@ -544,6 +560,28 @@ public class MonitorInfo : INotifyPropertyChanged
         if (_preFailureSliderState == SliderState.CurveReleased && curveEngaged) return SliderState.CurveReleased;
         if (!curveEngaged) return SliderState.Enabled;
         return inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
+    }
+
+    /// <summary>
+    /// True while a Failed row carries a manual curve override that hardware recovery will restore.
+    /// </summary>
+    public bool IsFailedWhileCurveReleased =>
+        _sliderState == SliderState.Failed && _preFailureSliderState == SliderState.CurveReleased;
+
+    /// <summary>
+    /// Applies a curve re-engage to the state a Failed row resumes after hardware recovery.
+    /// Re-engage paths only see the live Failed state, so without this a manual override the row carried into failure
+    /// outlives the re-engage and <see cref="ResolveHardwareRecoveredSliderState"/> restores it.
+    /// </summary>
+    /// <returns>True when a manual override carried into failure was ended.</returns>
+    public bool ReengageFailedCurveRelease(bool inDisabledPeriod)
+    {
+        if (!IsFailedWhileCurveReleased) return false;
+
+        _preFailureSliderState = SliderStateMachine.OnUserReengage(_preFailureSliderState, inDisabledPeriod);
+        // Match the live re-engage seed so a blind recovery probe still writes the slider value
+        SeedCurveTargetBrightnessFromSlider();
+        return true;
     }
 
     /// <summary>True when this row participates in master-driven changes (not Disabled, not Failed).</summary>

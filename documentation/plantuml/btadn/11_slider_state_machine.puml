@@ -43,12 +43,25 @@ Failed --> CurveReleased : ResolveHardwareRecoveredSliderState\n(pre-failure == 
 Failed --> Enabled : ResolveHardwareRecoveredSliderState\n(otherwise c=false)
 Failed --> CurveActive : ResolveHardwareRecoveredSliderState\n(otherwise c=true,d=false)
 Failed --> CurveSleeping : ResolveHardwareRecoveredSliderState\n(otherwise c=true,d=true)
+Failed --> Failed : ReengageFailedCurveRelease\n(stashed CurveReleased -> OnUserReengage)
 note right of Failed
   MonitorInfo retains _preFailureSliderState. Recovery preserves
   explicit Disabled and CurveReleased ownership, then consults the
   live IsBrightnessCurveEnabledQuery + IsInDisabledPeriodQuery for
   other rows. Hardware recovery cannot silently re-enroll a row the
   user excluded or return a released row to curve control.
+
+  A curve re-engage that happens while the row is Failed or
+  disconnected (master re-engage cascade, including auto re-engage
+  and stopwatch expiry, or brightness curve toggle-on) runs
+  MonitorService.ReengageFailedCurveReleases, which applies
+  OnUserReengage to a stashed CurveReleased. Recovery then resumes
+  curve control instead of restoring the ended override.
+
+  A per-row curve stopwatch stays armed (hidden) while the row is
+  Failed with a stashed CurveReleased, and its expiry re-engages the
+  stash. A stopwatch that ran out while the display was disconnected
+  ends the override when AttachMonitor restores the row.
 end note
 
 ' Post-fix notes on user-write paths

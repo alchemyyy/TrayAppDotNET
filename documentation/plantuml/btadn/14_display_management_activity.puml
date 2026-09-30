@@ -188,7 +188,7 @@ partition "CollectionChanged attach path" {
     endif
 
     :InitializeOffsetFromMaster(m)\nfor this new row only;
-    :UpdateMasterFromEnabledIndividuals();
+    :UpdateMasterFromEnabledIndividuals(isUserIntent: false);
     :Clear _suppressPropagation;
   endif
 
@@ -197,6 +197,13 @@ partition "CollectionChanged attach path" {
     Existing monitors' Offset and LastUserBrightness are not
     recaptured on attach/detach, so staggered acquisition cannot
     retarget already-attached monitors' curve/manual baselines.
+
+    The master follows the same rule. Attach, detach, and a row
+    failing or recovering only change the displayed master value
+    (SyncBrightnessFromIndividuals); master LastUserBrightness,
+    ManualBrightnessRevision, and LastManualBrightnessWriteUtc keep
+    the user's value, so the curve auto re-engage target and its
+    grace window survive monitors powering off and on.
   end note
 }
 

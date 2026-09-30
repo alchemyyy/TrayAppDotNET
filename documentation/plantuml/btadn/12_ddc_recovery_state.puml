@@ -34,6 +34,8 @@ note bottom of Failed
 
   Promotion preserves pre-failure Disabled and CurveReleased ownership;
   remaining rows resolve against the current curve/disabled-period flags.
+  A curve re-engage while the row is Failed or disconnected ends a
+  stashed CurveReleased first, so the row resumes curve control.
 
   MonitorsRefreshed subscribers reconcile ownership synchronously before
   recovery replay resolves CurveActive / CurveSleeping / CurveReleased.

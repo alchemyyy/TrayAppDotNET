@@ -615,6 +615,25 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
+    /// Ends manual curve overrides that Failed and disconnected rows carried into failure, so each resumes curve
+    /// control when its hardware returns. Curve re-engage paths only reach rows that are CurveReleased right now.
+    /// </summary>
+    /// <returns>Rows whose carried override ended, so the caller can clear their persisted release.</returns>
+    internal List<MonitorInfo> ReengageFailedCurveReleases(bool inDisabledPeriod)
+    {
+        List<MonitorInfo> reengaged = [];
+        foreach (MonitorInfo monitor in Monitors.Concat(_disconnectedMonitors.Keys))
+        {
+            if (!monitor.ReengageFailedCurveRelease(inDisabledPeriod)) continue;
+
+            reengaged.Add(monitor);
+            TADNLog.Log($"MonitorService: '{monitor.Name}' will resume curve control after recovery");
+        }
+
+        return reengaged;
+    }
+
+    /// <summary>
     /// Minimum interval between successive DDC/CI writes to any single monitor.
     /// Updates mid-session are honored by the next iteration of the write loop.
     /// </summary>

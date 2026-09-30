@@ -58,4 +58,24 @@ public sealed class EnvironmentalAutoEngageTests
         Assert.True(brightnessRevision > initialRevision);
         Assert.True(monitor.ManualBrightnessRevision > brightnessRevision);
     }
+
+    [Fact]
+    public void MasterAvailabilitySyncKeepsManualTargetAndGraceWindow()
+    {
+        MonitorInfo master = new() { IsMaster = true, Brightness = 34 };
+        long revision = master.ManualBrightnessRevision;
+        DateTime lastManualWriteUtc = master.LastManualBrightnessWriteUtc;
+
+        // Monitors powering off move the displayed average, then the returning set recomputes the same value
+        master.SyncBrightnessFromIndividuals(20);
+        int displayedWhileMonitorsAway = master.RoundedBrightness;
+        master.SyncBrightnessFromIndividuals(34);
+        master.SyncBrightnessFromIndividuals(34);
+
+        Assert.Equal(expected: 20, displayedWhileMonitorsAway);
+        Assert.Equal(expected: 34, master.RoundedBrightness);
+        Assert.Equal(expected: 34, master.LastUserBrightness);
+        Assert.Equal(revision, master.ManualBrightnessRevision);
+        Assert.Equal(lastManualWriteUtc, master.LastManualBrightnessWriteUtc);
+    }
 }

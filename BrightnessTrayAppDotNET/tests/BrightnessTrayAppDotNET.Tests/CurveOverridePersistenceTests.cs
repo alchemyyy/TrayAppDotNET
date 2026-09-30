@@ -54,6 +54,57 @@ public sealed class CurveOverridePersistenceTests
     }
 
     [Fact]
+    public void FailedRowReengageEndsOnlyReleaseCarriedIntoFailure()
+    {
+        MonitorInfo released = new() { SliderState = SliderState.CurveReleased };
+        MonitorInfo failedReleased = new() { Brightness = 34, CurveTargetBrightness = 19 };
+        failedReleased.SliderState = SliderState.CurveReleased;
+        failedReleased.SliderState = SliderState.Failed;
+        MonitorInfo failedDisabled = new() { SliderState = SliderState.Disabled };
+        failedDisabled.SliderState = SliderState.Failed;
+
+        Assert.True(failedReleased.IsFailedWhileCurveReleased);
+        Assert.False(released.ReengageFailedCurveRelease(inDisabledPeriod: false));
+        Assert.True(failedReleased.ReengageFailedCurveRelease(inDisabledPeriod: false));
+        Assert.False(failedReleased.ReengageFailedCurveRelease(inDisabledPeriod: false));
+        Assert.False(failedDisabled.ReengageFailedCurveRelease(inDisabledPeriod: false));
+
+        Assert.Equal(SliderState.CurveReleased, released.SliderState);
+        Assert.Equal(SliderState.Failed, failedReleased.SliderState);
+        Assert.False(failedReleased.IsFailedWhileCurveReleased);
+        // The stale pre-release curve target must not become the blind recovery probe value
+        Assert.Equal(expected: 34, failedReleased.RecoveryProbeBrightness);
+        Assert.Equal(
+            SliderState.CurveSleeping,
+            failedReleased.ResolveHardwareRecoveredSliderState(curveEngaged: true, inDisabledPeriod: true));
+        Assert.Equal(
+            SliderState.Disabled,
+            failedDisabled.ResolveHardwareRecoveredSliderState(curveEngaged: true, inDisabledPeriod: false));
+    }
+
+    [Theory]
+    [InlineData(true, true, SliderState.CurveReleased, false, true)]
+    [InlineData(true, true, SliderState.CurveReleased, true, true)]
+    [InlineData(true, true, SliderState.CurveActive, true, false)]
+    [InlineData(true, true, SliderState.CurveActive, false, false)]
+    [InlineData(false, true, SliderState.CurveReleased, true, false)]
+    [InlineData(true, false, SliderState.CurveReleased, true, false)]
+    public void CurveStopwatchSurvivesFailureOnlyWhileItsOverrideDoes(
+        bool isCurveEnabled,
+        bool isAbsoluteMode,
+        SliderState sliderState,
+        bool isFailed,
+        bool expected)
+    {
+        MonitorInfo monitor = new() { SliderState = sliderState };
+        if (isFailed) monitor.SliderState = SliderState.Failed;
+
+        bool shouldKeep = BrightnessFlyoutWindow.ShouldKeepCurveStopwatch(isCurveEnabled, isAbsoluteMode, monitor);
+
+        Assert.Equal(expected, shouldKeep);
+    }
+
+    [Fact]
     public void AppSettingsRoundTripPreservesManualOverrideWithoutStopwatch()
     {
         string settingsPath = Path.Combine(

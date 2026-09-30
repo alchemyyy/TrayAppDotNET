@@ -149,7 +149,7 @@ MS -> MS  : RefreshProbePhaseAsync\n(consumes Phase A snapshot;\n  _refreshGen g
 loop per enumerated monitor
   MS -> MS  : TryReadBrightnessWithRetryAsync\n(Task.Run; 80/160/480 backoff;\nfailed GET retires only that helper process)
   MS -> BFL : Monitors.Add(info) fires\nCollectionChanged synchronously
-  BFL -> BFL : AttachMonitor:\nprofile restore if needed\n+ InitializeOffsetFromMaster(new row only)\n+ UpdateMasterFromEnabledIndividuals\n(inside _suppressPropagation scope)
+  BFL -> BFL : AttachMonitor:\nprofile restore if needed\n+ InitializeOffsetFromMaster(new row only)\n+ UpdateMasterFromEnabledIndividuals(isUserIntent: false)\n(inside _suppressPropagation scope)
 end
 MS -> MS  : ResortMonitors -> per-row Move events
 MS -> BFL : (each Move re-enters OnMonitorsCollectionChanged)

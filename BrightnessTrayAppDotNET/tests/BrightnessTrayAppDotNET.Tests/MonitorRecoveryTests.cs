@@ -1686,6 +1686,68 @@ public sealed class MonitorRecoveryTests
         Assert.True(monitor.IsParticipatingInMaster);
     }
 
+    [Fact]
+    public async Task RecoveryResumesCurveWhenReleaseEndedWhileFailed()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-REENGAGED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 32, serial: "HDMI-REENGAGED"));
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.SliderState = SliderState.CurveReleased;
+        display.SetRead(DeviceID, ok: false, error: "powered off");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        // The curve re-engages while the panel is still off, as auto re-engage does overnight
+        List<MonitorInfo> reengaged = service.ReengageFailedCurveReleases(inDisabledPeriod: false);
+
+        display.SetRead(DeviceID, ok: true, current: 55, max: 100);
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+
+        Assert.Same(monitor, Assert.Single(reengaged));
+        Assert.Equal(SliderState.CurveActive, monitor.SliderState);
+    }
+
+    [Fact]
+    public async Task ReconnectedMonitorResumesCurveWhenReleaseEndedWhileDisconnected()
+    {
+        const string DeviceID = "DISPLAY\\RECONNECT-REENGAGED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 4, serial: "RECONNECT-REENGAGED"));
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            brightnessCurveEnabled: true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.SliderState = SliderState.CurveReleased;
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+
+        List<MonitorInfo> reengaged = service.ReengageFailedCurveReleases(inDisabledPeriod: false);
+
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 4, serial: "RECONNECT-REENGAGED"));
+        service.Refresh();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        Assert.Same(monitor, Assert.Single(reengaged));
+        Assert.Same(monitor, Assert.Single(service.Monitors));
+        Assert.Equal(SliderState.CurveActive, monitor.SliderState);
+    }
+
     private static MonitorService CreateService(
         FakeDisplayService display,
         MonitorIdentityStrategy strategy,
