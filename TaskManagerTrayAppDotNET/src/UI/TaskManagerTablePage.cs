@@ -111,8 +111,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _table.RowActivated += OnRowActivated;
         _table.GridZoomRequested += OnGridZoomRequested;
         _table.GridZoomResetRequested += OnGridZoomResetRequested;
+        _table.GridZoomBaselineRequested += OnGridZoomBaselineRequested;
         _table.GridRowSpacingRequested += OnGridRowSpacingRequested;
         _table.GridRowSpacingResetRequested += OnGridRowSpacingResetRequested;
+        _table.GridRowSpacingBaselineRequested += OnGridRowSpacingBaselineRequested;
 
         Grid tableSurface = new();
         tableSurface.Children.Add(_table);
@@ -367,7 +369,9 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     }
 
     private void OnGridZoomResetRequested() =>
-        ApplyGridTypography(AppSettings.GridFontSizeDefault, _settings.GridRowSpacing);
+        ApplyGridTypography(_settings.GridFontSizeBaseline, _settings.GridRowSpacing);
+
+    private void OnGridZoomBaselineRequested() => _settings.UpdateGridFontSizeBaseline(_settings.GridFontSize);
 
     private void OnGridRowSpacingRequested(int direction)
     {
@@ -381,7 +385,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     }
 
     private void OnGridRowSpacingResetRequested() =>
-        ApplyGridTypography(_settings.GridFontSize, AppSettings.GridRowSpacingDefault);
+        ApplyGridTypography(_settings.GridFontSize, _settings.GridRowSpacingBaseline);
+
+    private void OnGridRowSpacingBaselineRequested() =>
+        _settings.UpdateGridRowSpacingBaseline(_settings.GridRowSpacing);
 
     private void ApplyGridTypography(double fontSize, double rowSpacing)
     {
@@ -513,8 +520,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _table.RowActivated -= OnRowActivated;
         _table.GridZoomRequested -= OnGridZoomRequested;
         _table.GridZoomResetRequested -= OnGridZoomResetRequested;
+        _table.GridZoomBaselineRequested -= OnGridZoomBaselineRequested;
         _table.GridRowSpacingRequested -= OnGridRowSpacingRequested;
         _table.GridRowSpacingResetRequested -= OnGridRowSpacingResetRequested;
+        _table.GridRowSpacingBaselineRequested -= OnGridRowSpacingBaselineRequested;
         for (int registrationIndex = 0;
              registrationIndex < _headerActionRegistrations.Count;
              registrationIndex++)

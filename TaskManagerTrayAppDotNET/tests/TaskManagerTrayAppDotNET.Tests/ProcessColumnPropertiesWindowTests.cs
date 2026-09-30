@@ -29,6 +29,7 @@ public sealed class ProcessColumnPropertiesWindowTests
             {
                 ProcessColumnSetting setting = ProcessColumnSettings.CreateDefault()
                     .Single(static candidate => candidate.Column == ProcessTableColumnKind.Status);
+                setting.CenterStatusGlyphs = false;
                 List<ProcessColumnSetting> published = [];
                 using ProcessColumnPropertiesWindow window = ProcessColumnPropertiesWindow.Create(
                     setting,

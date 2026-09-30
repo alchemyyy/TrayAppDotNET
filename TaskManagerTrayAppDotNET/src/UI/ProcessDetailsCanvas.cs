@@ -76,6 +76,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const int SemanticSectionLayoutFlag = 1 << 9;
     private const int SemanticSectionHeaderLayoutFlag = 1 << 10;
     private const int ProcessGroupingLayoutFlag = 1 << 11;
+    private const int StackedHeaderLineCount = 2;
 
     private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
@@ -86,8 +87,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly DetailsGridFontWeight _baseTableFontWeight;
     private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
-    private Typeface _liveTotalTypeface;
-    private LiveTotalTypography _liveTotalTypography;
+    private readonly Typeface _liveTotalTypeface;
+    private readonly ProcessLiveTotalAppearance _liveTotalAppearance;
     private int _tableFontWeight;
     private readonly ProcessTableRenderLayer _selectionLayer;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
@@ -255,6 +256,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double gridFontSize,
         DetailsGridFontWeight gridFontWeight,
         double gridRowSpacing,
+        ProcessLiveTotalAppearance liveTotalAppearance,
         SettingsPalette palette,
         TaskManagerWindowResources resources)
     {
@@ -271,13 +273,17 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _baseTableFontWeight = gridFontWeight;
         _tableFontWeight = CalculateTableFontWeight(gridFontSize);
         _tableTypeface = CreateTableTypeface(_tableFontWeight);
-        _liveTotalTypography = CreateLiveTotalTypography(resources);
-        _liveTotalTypeface = CreateLiveTotalTypeface(_liveTotalTypography);
+        _liveTotalAppearance = NormalizeLiveTotalAppearance(liveTotalAppearance);
+        _liveTotalTypeface = CreateTableTypeface((int)_liveTotalAppearance.FontWeight);
+        _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
+        _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
+        _hasVisibleLiveTotals = ProcessColumnSettings.HasVisibleLiveTotals(_columnSettings);
         Typeface referenceTypeface = CreateTableTypeface((int)gridFontWeight);
         _rowTextHeightScale = MeasureRowTextHeightScale(referenceTypeface);
         double gridRowHeight = CalculateRowHeight(gridFontSize, gridRowSpacing);
         _metrics = CreateTableMetrics(
             resources,
+            ResolveHeaderHeight(),
             gridFontSize,
             gridRowHeight,
             _rowTextHeightScale);
@@ -287,9 +293,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _axamlFontSize = resources.AxamlProcessTable.FontSize;
         _axamlRowSpacing = resources.AxamlProcessTable.RowSpacing;
 #endif
-        _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
-        _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
-        _hasVisibleLiveTotals = ProcessColumnSettings.HasVisibleLiveTotals(_columnSettings);
         _filterQuery = ProcessSearchQuery.Parse(filterText: null, _columnSettings);
         _resolveSearchValue = GetSearchColumnValue;
         _columns = CreateColumns(_columnSettings);
@@ -384,12 +387,19 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
     public event Action<ProcessEndTaskRequest>? EndTaskRequested;
     public event Action<ProcessRowContextMenuRequest>? RowContextMenuRequested;
+    public event Action? HeaderHeightChanged;
 
     private ProcessTableColumn[] DisplayColumns =>
         _isLiveColumnResizeActive ? _liveResizeColumns! : _columns;
 
+    /// <summary>Gets whether live totals take their own header line above the column names.</summary>
+    private bool StacksLiveTotals => _liveTotalAppearance.ShowAboveColumnNames && _hasVisibleLiveTotals;
+
     /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
     public IReadOnlyList<Control> RenderLayers => _renderLayers;
+
+    /// <summary>Returns the column header height, doubled while live totals are stacked above the names.</summary>
+    public double HeaderHeight => _metrics.HeaderHeight;
 
     /// <summary>Returns the effective row height derived from rendered text and spacing.</summary>
     public double RowHeight => _metrics.RowHeight;
@@ -1688,6 +1698,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         AdvanceGridMetricsGeneration();
         _metrics = CreateTableMetrics(
             _resources,
+            _metrics.HeaderHeight,
             fontSize,
             rowHeight,
             _rowTextHeightScale);
@@ -1762,17 +1773,18 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     protected override void OnKeyDown(KeyEventArgs eventArgs)
     {
         base.OnKeyDown(eventArgs);
-        switch (eventArgs.Key)
+        if (eventArgs.Key == Key.Escape && _headerInteraction != HeaderInteractionMode.None)
         {
-            case Key.Delete when SelectedEndTaskRequest is { } request:
-                EndTaskRequested?.Invoke(request);
-                eventArgs.Handled = true;
-                return;
-            case Key.Escape when _headerInteraction != HeaderInteractionMode.None:
-                ResetHeaderInteraction();
-                eventArgs.Handled = true;
-                return;
+            ResetHeaderInteraction();
+            eventArgs.Handled = true;
+            return;
         }
+
+        DetailsGridShortcutAction action = DetailsGridShortcuts.ResolveKey(eventArgs.Key, eventArgs.KeyModifiers);
+        if (action != DetailsGridShortcutAction.EndTask || SelectedEndTaskRequest is not { } request) return;
+
+        EndTaskRequested?.Invoke(request);
+        eventArgs.Handled = true;
     }
 
     protected override void OnDetailsGridViewportChanged()
@@ -2045,12 +2057,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double nextRowHeight = CalculateRowHeight(nextFontSize, nextRowSpacing);
         ProcessTableMetrics nextMetrics = CreateTableMetrics(
             _resources,
+            ResolveHeaderHeight(),
             nextFontSize,
             nextRowHeight,
             _rowTextHeightScale);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
         ProcessTableAXAMLColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
-        LiveTotalTypography nextLiveTotalTypography = CreateLiveTotalTypography(_resources);
         Thickness nextSelectionBorderThickness =
             _resources.AxamlProcessTable.SelectionBorderThickness;
         Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
@@ -2058,7 +2070,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
         bool statusGlyphColorsChanged = nextStatusGlyphColors != _statusGlyphBrushes.Colors;
         bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
-        bool liveTotalTypographyChanged = nextLiveTotalTypography != _liveTotalTypography;
+        bool headerHeightChanged = nextMetrics.HeaderHeight != _metrics.HeaderHeight;
         _axamlFontSize = nextAXAMLFontSize;
         _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
@@ -2066,8 +2078,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             && nextColumnWidths == _axamlColumnWidths
             && !backgroundColorChanged
             && !statusGlyphColorsChanged
-            && !selectionBorderChanged
-            && !liveTotalTypographyChanged)
+            && !selectionBorderChanged)
             return null;
 
         bool rebuildRetainedRows = statusGlyphColorsChanged
@@ -2085,8 +2096,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                                  || _visualMetrics.SortCaretRightMargin
                                  != nextVisualMetrics.SortCaretRightMargin
                                  || rebuildCaretText
-                                 || rebuildTableTypeface
-                                 || liveTotalTypographyChanged;
+                                 || rebuildTableTypeface;
         bool gridMetricsChanged = _metrics.FontSize != nextMetrics.FontSize
                                   || _metrics.RowHeight != nextMetrics.RowHeight;
 
@@ -2097,11 +2107,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (statusGlyphColorsChanged) _statusGlyphBrushes = new StatusGlyphBrushes(nextStatusGlyphColors);
         _selectionBorderThickness = nextSelectionBorderThickness;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
-        if (liveTotalTypographyChanged)
-        {
-            _liveTotalTypography = nextLiveTotalTypography;
-            _liveTotalTypeface = CreateLiveTotalTypeface(nextLiveTotalTypography);
-        }
         if (rebuildTableTypeface)
         {
             _tableFontWeight = nextTableFontWeight;
@@ -2130,6 +2135,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         RestoreViewportAnchor(viewportAnchor);
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
+        if (headerHeightChanged) HeaderHeightChanged?.Invoke();
         return hotReloadedColumnSettings;
     }
 #endif
@@ -2993,6 +2999,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         ProcessTableColumn[] columns = DisplayColumns;
         Rect viewport = ResolveViewport();
+        // Column names occupy the lower line while live totals are stacked above them
+        double titleLineHeight = StacksLiveTotals
+            ? _metrics.HeaderHeight / StackedHeaderLineCount
+            : _metrics.HeaderHeight;
+        double titleLineTop = top + _metrics.HeaderHeight - titleLineHeight;
         for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
             ProcessTableColumn column = columns[columnIndex];
@@ -3035,7 +3046,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
             if (caret != null)
             {
-                double caretTop = top + Math.Max(val1: 0, (_metrics.HeaderHeight - caret.Height) / 2);
+                double caretTop = titleLineTop + Math.Max(val1: 0, (titleLineHeight - caret.Height) / 2);
                 caret.Draw(context, new Point(caretX, caretTop));
             }
 
@@ -4185,6 +4196,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
         _hasVisibleLiveTotals = ProcessColumnSettings.HasVisibleLiveTotals(normalized);
+        bool headerHeightChanged = UpdateHeaderHeight();
         _filterQuery = filterQuery;
         if (_schema.VisibleMask != schema.VisibleMask)
             ApplySearchSchema(schema, viewportAnchor);
@@ -4196,6 +4208,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         ApplyDisplayColumnLayout(columns, viewportAnchor);
         ColumnLayoutChanged?.Invoke(normalized);
+        if (headerHeightChanged) HeaderHeightChanged?.Invoke();
     }
 
     private void CommitPendingColumnLayout(
@@ -4214,13 +4227,30 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _settingsByColumn = CreateColumnSettingsIndex(pendingColumnLayout.Settings);
         _hasVisibleLiveTotals =
             ProcessColumnSettings.HasVisibleLiveTotals(pendingColumnLayout.Settings);
+        bool headerHeightChanged = UpdateHeaderHeight();
         _filterQuery = pendingColumnLayout.FilterQuery;
         _columns = pendingColumnLayout.Columns;
         UpdateLiveTotalTexts();
         ReplaceHeaderTexts(pendingColumnLayout.Columns);
         UpdateHeaderHoverVisual();
         RebuildFromCopiedSnapshot(count, version, viewportAnchor);
+        if (headerHeightChanged) HeaderHeightChanged?.Invoke();
     }
+
+    /// <summary>Applies the header height the live-total layout needs and reports whether it changed.</summary>
+    private bool UpdateHeaderHeight()
+    {
+        double headerHeight = ResolveHeaderHeight();
+        if (headerHeight == _metrics.HeaderHeight) return false;
+
+        _metrics = _metrics with { HeaderHeight = headerHeight };
+        PublishRowHoverGeometry();
+        return true;
+    }
+
+    /// <summary>Doubles the AXAML header height while live totals take their own line above the names.</summary>
+    private double ResolveHeaderHeight() =>
+        _resources.AxamlProcessTable.HeaderHeight * (StacksLiveTotals ? StackedHeaderLineCount : 1);
 
     private void PrepareColumnLayout(ProcessTableColumn[] columns)
     {
@@ -5072,6 +5102,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private static ProcessTableMetrics CreateTableMetrics(
         TaskManagerWindowResources resources,
+        double headerHeight,
         double fontSize,
         double rowHeight,
         double rowTextHeightScale)
@@ -5098,7 +5129,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             fontSize,
             effectiveRowHeight);
         return new ProcessTableMetrics(
-            resources.AxamlProcessTable.HeaderHeight,
+            headerHeight,
             effectiveRowHeight,
             rowTextHeight,
             resources.AxamlProcessTable.CellPadding,
@@ -5135,22 +5166,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             FontStyle.Normal,
             (FontWeight)fontWeight);
 
-    private static LiveTotalTypography CreateLiveTotalTypography(
-        TaskManagerWindowResources resources) =>
-        new(
-            resources.AxamlProcessTable.LiveTotalFontSize,
-            resources.AxamlProcessTable.LiveTotalFontWeight,
-            Math.Clamp(
-                resources.AxamlProcessTable.LiveTotalHorizontalScale,
-                min: 0.25,
-                max: 1),
-            Math.Max(val1: 0, resources.AxamlProcessTable.LiveTotalTextGap));
-
-    private static Typeface CreateLiveTotalTypeface(LiveTotalTypography typography) =>
-        new(
-            DefaultTableTypeface.FontFamily,
-            FontStyle.Normal,
-            (FontWeight)typography.FontWeight);
+    /// <summary>Clamps a caller-built appearance to the ranges the settings model enforces.</summary>
+    private static ProcessLiveTotalAppearance NormalizeLiveTotalAppearance(ProcessLiveTotalAppearance appearance) =>
+        appearance with
+        {
+            FontSize = AppSettings.NormalizeLiveTotalFontSize(appearance.FontSize),
+            FontWeight = AppSettings.NormalizeGridFontWeight(appearance.FontWeight),
+            HorizontalScale = AppSettings.NormalizeLiveTotalHorizontalScale(appearance.HorizontalScale),
+            TextGap = AppSettings.NormalizeLiveTotalTextGap(appearance.TextGap)
+        };
 
     private static double MeasureRowTextHeightScale(Typeface typeface)
     {
@@ -5370,19 +5394,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double maximumWidth)
     {
         string liveTotal = _liveTotalTextsByColumn[(int)column.Kind] ?? string.Empty;
-        if (liveTotal.Length == 0)
-        {
-            bool rightAligned = column.Alignment == ProcessTableColumnAlignment.Right;
-            TextLayout title = CreateHeaderTitleText(
-                column.Title,
-                rightAligned ? maximumWidth : double.PositiveInfinity,
-                rightAligned ? TextAlignment.Right : TextAlignment.Left,
-                trim: rightAligned);
-            return new HeaderContentLayout(title);
-        }
+        if (StacksLiveTotals) return CreateStackedHeaderText(column, liveTotal, maximumWidth);
+        if (liveTotal.Length == 0) return new HeaderContentLayout(CreateColumnTitleText(column, maximumWidth));
 
         double availableWidth = Math.Max(val1: 0, maximumWidth);
-        double horizontalScale = _liveTotalTypography.HorizontalScale;
+        double horizontalScale = _liveTotalAppearance.HorizontalScale;
         TextLayout? totalLayout = CreateLiveTotalText(liveTotal, double.PositiveInfinity);
         TextLayout? titleLayout = null;
         try
@@ -5406,8 +5422,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             }
 
             double remainingWidth = availableWidth - totalVisualWidth;
-            double textGap = remainingWidth > _liveTotalTypography.TextGap
-                ? _liveTotalTypography.TextGap
+            double textGap = remainingWidth > _liveTotalAppearance.TextGap
+                ? _liveTotalAppearance.TextGap
                 : 0;
             double titleAvailableWidth = Math.Max(val1: 0, remainingWidth - textGap);
             if (titleAvailableWidth <= 0)
@@ -5459,6 +5475,54 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
     }
 
+    /// <summary>Places a column's live total on the upper header line and its name on the lower line.</summary>
+    private HeaderContentLayout CreateStackedHeaderText(
+        ProcessTableColumn column,
+        string liveTotal,
+        double maximumWidth)
+    {
+        TextLayout title = CreateColumnTitleText(column, maximumWidth);
+        TextLayout? totalLayout = null;
+        try
+        {
+            if (liveTotal.Length == 0)
+                return HeaderContentLayout.CreateStacked(title, total: null, horizontalScale: 1, totalLeft: 0);
+
+            double availableWidth = Math.Max(val1: 0, maximumWidth);
+            double horizontalScale = _liveTotalAppearance.HorizontalScale;
+            totalLayout = CreateLiveTotalText(liveTotal, double.PositiveInfinity);
+            if (totalLayout.Width * horizontalScale >= availableWidth)
+            {
+                totalLayout.Dispose();
+                totalLayout = null;
+                totalLayout = CreateLiveTotalText(liveTotal, availableWidth / horizontalScale);
+            }
+
+            double totalVisualWidth = Math.Min(availableWidth, totalLayout.Width * horizontalScale);
+            double totalLeft = column.Alignment == ProcessTableColumnAlignment.Right
+                ? availableWidth - totalVisualWidth
+                : 0;
+            return HeaderContentLayout.CreateStacked(title, totalLayout, horizontalScale, totalLeft);
+        }
+        catch
+        {
+            title.Dispose();
+            totalLayout?.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Creates a column name aligned like its values; right-aligned names trim to the column.</summary>
+    private TextLayout CreateColumnTitleText(ProcessTableColumn column, double maximumWidth)
+    {
+        bool rightAligned = column.Alignment == ProcessTableColumnAlignment.Right;
+        return CreateHeaderTitleText(
+            column.Title,
+            rightAligned ? maximumWidth : double.PositiveInfinity,
+            rightAligned ? TextAlignment.Right : TextAlignment.Left,
+            trim: rightAligned);
+    }
+
     private TextLayout CreateHeaderTitleText(
         string text,
         double maximumWidth,
@@ -5481,7 +5545,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         new(
             LimitTextLayoutInput(text),
             _liveTotalTypeface,
-            _liveTotalTypography.FontSize,
+            _liveTotalAppearance.FontSize,
             _foregroundBrush,
             TextAlignment.Left,
             TextWrapping.NoWrap,
@@ -5577,6 +5641,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ColumnLayoutChanged = null;
         EndTaskRequested = null;
         RowContextMenuRequested = null;
+        HeaderHeightChanged = null;
         _pendingColumnLayout = null;
         _pendingViewportAnchor = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
@@ -5664,6 +5729,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         private readonly double _titleLeft;
         private readonly double _baseline;
         private readonly double _height;
+        private readonly bool _isStacked;
         private bool _disposed;
 
         public HeaderContentLayout(TextLayout title)
@@ -5676,7 +5742,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             TextLayout? total,
             double horizontalScale,
             double totalLeft,
-            double titleLeft)
+            double titleLeft,
+            bool isStacked = false)
         {
             if (title == null && total == null)
                 throw new ArgumentException("A header content layout needs text.");
@@ -5686,6 +5753,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _horizontalScale = horizontalScale;
             _totalLeft = totalLeft;
             _titleLeft = titleLeft;
+            _isStacked = isStacked;
 
             double titleBaseline = title?.Baseline ?? 0;
             double totalBaseline = total?.Baseline ?? 0;
@@ -5695,24 +5763,53 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _height = _baseline + Math.Max(titleBelowBaseline, totalBelowBaseline);
         }
 
+        /// <summary>Creates a two-line layout with the total above the column name.</summary>
+        public static HeaderContentLayout CreateStacked(
+            TextLayout title,
+            TextLayout? total,
+            double horizontalScale,
+            double totalLeft) =>
+            new(title, total, horizontalScale, totalLeft, titleLeft: 0, isStacked: true);
+
         public void Draw(DrawingContext context, double left, double top, double availableHeight)
         {
-            double contentTop = top + Math.Max(val1: 0, (availableHeight - _height) / 2);
-            if (_total != null)
+            if (_isStacked)
             {
-                double totalTop = contentTop + _baseline - _total.Baseline;
-                using (context.PushTransform(Matrix.CreateScale(_horizontalScale, 1)))
-                {
-                    _total.Draw(
-                        context,
-                        new Point((left + _totalLeft) / _horizontalScale, totalTop));
-                }
+                DrawStacked(context, left, top, availableHeight);
+                return;
             }
+
+            double contentTop = top + Math.Max(val1: 0, (availableHeight - _height) / 2);
+            if (_total != null) DrawTotal(context, _total, left, contentTop + _baseline - _total.Baseline);
 
             if (_title != null)
             {
                 double titleTop = contentTop + _baseline - _title.Baseline;
                 _title.Draw(context, new Point(left + _titleLeft, titleTop));
+            }
+        }
+
+        /// <summary>Centers the total in the upper header line and the name in the lower line.</summary>
+        private void DrawStacked(DrawingContext context, double left, double top, double availableHeight)
+        {
+            double lineHeight = availableHeight / StackedHeaderLineCount;
+            if (_total != null)
+                DrawTotal(context, _total, left, top + Math.Max(val1: 0, (lineHeight - _total.Height) / 2));
+
+            if (_title != null)
+            {
+                double titleTop = top + lineHeight + Math.Max(val1: 0, (lineHeight - _title.Height) / 2);
+                _title.Draw(context, new Point(left + _titleLeft, titleTop));
+            }
+        }
+
+        private void DrawTotal(DrawingContext context, TextLayout total, double left, double totalTop)
+        {
+            using (context.PushTransform(Matrix.CreateScale(_horizontalScale, 1)))
+            {
+                total.Draw(
+                    context,
+                    new Point((left + _totalLeft) / _horizontalScale, totalTop));
             }
         }
 
@@ -5753,12 +5850,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             DescendingSort.Dispose();
         }
     }
-
-    private readonly record struct LiveTotalTypography(
-        double FontSize,
-        int FontWeight,
-        double HorizontalScale,
-        double TextGap);
 
     private readonly record struct StatusGlyphColors(
         Color Suspended,

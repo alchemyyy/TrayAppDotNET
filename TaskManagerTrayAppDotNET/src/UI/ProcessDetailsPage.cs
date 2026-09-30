@@ -110,6 +110,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.GridFontSize,
             settings.GridFontWeight,
             settings.GridRowSpacing,
+            ProcessLiveTotalAppearance.FromSettings(settings),
             palette,
             resources);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
@@ -117,10 +118,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.ViewportAnchorAdjustmentRequested += OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested += OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
+        _processCanvas.HeaderHeightChanged += OnHeaderHeightChanged;
         _processCanvas.GridZoomRequested += OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested += OnGridZoomResetRequested;
+        _processCanvas.GridZoomBaselineRequested += OnGridZoomBaselineRequested;
         _processCanvas.GridRowSpacingRequested += OnGridRowSpacingRequested;
         _processCanvas.GridRowSpacingResetRequested += OnGridRowSpacingResetRequested;
+        _processCanvas.GridRowSpacingBaselineRequested += OnGridRowSpacingBaselineRequested;
         _processCanvas.EndTaskRequested += RequestEndTask;
         _processCanvas.RowContextMenuRequested += OnRowContextMenuRequested;
 
@@ -258,8 +262,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
         _tableScrollViewport.SetScrollContentLayoutRounding(isEnabled: false);
-        _tableScrollViewport.SetVerticalScrollBarTopInset(
-            GetProcessTableVerticalScrollBarTopInset(resources));
         _columnHeaderBorder = new Border
         {
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
@@ -267,7 +269,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false
         };
-        ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
+        ApplyColumnHeaderGeometry();
         SetColumnSpan(_columnHeaderBorder, value: 2);
         _tableScrollViewport.Children.Add(_columnHeaderBorder);
         SetRow(_tableScrollViewport, value: 1);
@@ -524,9 +526,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             resources.AxamlProcessTable.GridBackgroundColor);
 
         _tableScrollViewport.SetScrollBarStyle(TaskManagerScrollBarStyles.CreateProcessGrid(resources));
-        _tableScrollViewport.SetVerticalScrollBarTopInset(
-            GetProcessTableVerticalScrollBarTopInset(resources));
-        ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
+        ApplyColumnHeaderGeometry();
         _resizeGrip.ApplyResources(resources);
 
         foreach (ProcessColumnPropertiesWindow propertiesWindow in _columnPropertyWindows.Values)
@@ -565,22 +565,24 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     }
 #endif
 
-    private static double GetProcessTableVerticalScrollBarTopInset(
-        TaskManagerWindowResources resources) =>
-        resources.AxamlProcessTable.HeaderHeight;
-
     private static bool IsSelfOrDescendant(Visual boundary, Visual? source) =>
         source != null
         && (ReferenceEquals(source, boundary)
             || source.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, boundary)));
 
-    private static void ApplyColumnHeaderBorderResources(
-        Border columnHeaderBorder,
-        TaskManagerWindowResources resources)
+    /// <summary>Fits the header underline and the overlaid scrollbar to the canvas's current header height.</summary>
+    private void ApplyColumnHeaderGeometry()
     {
-        double borderThickness = resources.AxamlProcessTable.GridLineThickness;
-        columnHeaderBorder.BorderThickness = new Thickness(left: 0, top: 0, right: 0, borderThickness);
-        columnHeaderBorder.Height = resources.AxamlProcessTable.HeaderHeight + borderThickness / 2;
+        double headerHeight = _processCanvas.HeaderHeight;
+        double borderThickness = _resources.AxamlProcessTable.GridLineThickness;
+        _tableScrollViewport.SetVerticalScrollBarTopInset(headerHeight);
+        _columnHeaderBorder.BorderThickness = new Thickness(left: 0, top: 0, right: 0, borderThickness);
+        _columnHeaderBorder.Height = headerHeight + borderThickness / 2;
+    }
+
+    private void OnHeaderHeightChanged()
+    {
+        if (!_disposed) ApplyColumnHeaderGeometry();
     }
 
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
@@ -605,13 +607,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         if (direction == 0) return;
 
-#if DEBUG
-        double currentFontSize = _processCanvas.GridFontSize;
-        double currentRowSpacing = _processCanvas.GridRowSpacing;
-#else
-        double currentFontSize = _settings.GridFontSize;
-        double currentRowSpacing = _settings.GridRowSpacing;
-#endif
+        (double currentFontSize, double currentRowSpacing) = ResolveCurrentGridTypography();
         double fontSize = Math.Clamp(
             currentFontSize + Math.Sign(direction) * GridFontZoomStep,
             AppSettings.GridFontSizeMinimum,
@@ -621,28 +617,21 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnGridZoomResetRequested()
     {
-#if DEBUG
-        ApplyGridTypography(
-            _resources.AxamlProcessTable.FontSize,
-            _processCanvas.GridRowSpacing);
-#else
-        ApplyGridTypography(
-            AppSettings.GridFontSizeDefault,
-            _settings.GridRowSpacing);
-#endif
+        (_, double currentRowSpacing) = ResolveCurrentGridTypography();
+        ApplyGridTypography(_settings.GridFontSizeBaseline, currentRowSpacing);
+    }
+
+    private void OnGridZoomBaselineRequested()
+    {
+        (double currentFontSize, _) = ResolveCurrentGridTypography();
+        _settings.UpdateGridFontSizeBaseline(currentFontSize);
     }
 
     private void OnGridRowSpacingRequested(int direction)
     {
         if (direction == 0) return;
 
-#if DEBUG
-        double currentRowSpacing = _processCanvas.GridRowSpacing;
-        double currentFontSize = _processCanvas.GridFontSize;
-#else
-        double currentRowSpacing = _settings.GridRowSpacing;
-        double currentFontSize = _settings.GridFontSize;
-#endif
+        (double currentFontSize, double currentRowSpacing) = ResolveCurrentGridTypography();
         double rowSpacing = Math.Clamp(
             currentRowSpacing + Math.Sign(direction) * GridRowSpacingStep,
             AppSettings.GridRowSpacingMinimum,
@@ -652,14 +641,23 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnGridRowSpacingResetRequested()
     {
+        (double currentFontSize, _) = ResolveCurrentGridTypography();
+        ApplyGridTypography(currentFontSize, _settings.GridRowSpacingBaseline);
+    }
+
+    private void OnGridRowSpacingBaselineRequested()
+    {
+        (_, double currentRowSpacing) = ResolveCurrentGridTypography();
+        _settings.UpdateGridRowSpacingBaseline(currentRowSpacing);
+    }
+
+    /// <summary>Returns the rendered typography, which Debug AXAML reloads can move away from settings.</summary>
+    private (double FontSize, double RowSpacing) ResolveCurrentGridTypography()
+    {
 #if DEBUG
-        ApplyGridTypography(
-            _processCanvas.GridFontSize,
-            _resources.AxamlProcessTable.RowSpacing);
+        return (_processCanvas.GridFontSize, _processCanvas.GridRowSpacing);
 #else
-        ApplyGridTypography(
-            _settings.GridFontSize,
-            AppSettings.GridRowSpacingDefault);
+        return (_settings.GridFontSize, _settings.GridRowSpacing);
 #endif
     }
 
@@ -1056,10 +1054,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.ViewportAnchorAdjustmentRequested -= OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
+        _processCanvas.HeaderHeightChanged -= OnHeaderHeightChanged;
         _processCanvas.GridZoomRequested -= OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
+        _processCanvas.GridZoomBaselineRequested -= OnGridZoomBaselineRequested;
         _processCanvas.GridRowSpacingRequested -= OnGridRowSpacingRequested;
         _processCanvas.GridRowSpacingResetRequested -= OnGridRowSpacingResetRequested;
+        _processCanvas.GridRowSpacingBaselineRequested -= OnGridRowSpacingBaselineRequested;
         _processCanvas.EndTaskRequested -= RequestEndTask;
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;

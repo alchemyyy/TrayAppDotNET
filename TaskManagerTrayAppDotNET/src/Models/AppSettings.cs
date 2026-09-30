@@ -49,6 +49,15 @@ public sealed class AppSettings : AppSettingsCommon
     public const int GridRowHeightDefault = 19;
     public const int GridRowHeightMinimum = 14;
     public const int GridRowHeightMaximum = 64;
+    public const double LiveTotalFontSizeDefault = 13;
+    public const double LiveTotalFontSizeMinimum = 6;
+    public const double LiveTotalFontSizeMaximum = 24;
+    public const double LiveTotalHorizontalScaleDefault = 0.75;
+    public const double LiveTotalHorizontalScaleMinimum = 0.25;
+    public const double LiveTotalHorizontalScaleMaximum = 1;
+    public const double LiveTotalTextGapDefault = 4;
+    public const double LiveTotalTextGapMinimum = 0;
+    public const double LiveTotalTextGapMaximum = 32;
 
     private const double LegacyGridRowTextHeightMultiplier = 1.35;
 
@@ -57,6 +66,7 @@ public sealed class AppSettings : AppSettingsCommon
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
     private bool _gridRowSpacingWasDeserialized;
+    private bool _processGroupingStyleWasDeserialized;
 
     public AppSettings()
         : base(
@@ -90,13 +100,17 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
-    }
+    } = true;
 
     public ProcessGroupingStyle ProcessGroupingStyle
     {
         get;
-        set => SetField(ref field, NormalizeProcessGroupingStyle(value));
-    } = ProcessGroupingStyle.ParentProcess;
+        set
+        {
+            _processGroupingStyleWasDeserialized = true;
+            SetField(ref field, NormalizeProcessGroupingStyle(value));
+        }
+    } = ProcessGroupingStyle.Semantic;
 
     public ProcessTreeDefaultState ProcessTreeDefaultState
     {
@@ -115,10 +129,17 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
-    }
+    } = true;
 
     /// <summary>Gets whether every process with children in a semantic group also shows its subtree totals.</summary>
     public bool UseRootProcessForSemanticSubgroups
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    /// <summary>Gets whether the Processes column chooser lists only the visible columns.</summary>
+    public bool HideUnusedProcessColumns
     {
         get;
         set => SetField(ref field, value);
@@ -223,6 +244,55 @@ public sealed class AppSettings : AppSettingsCommon
         }
     } = GridRowSpacingDefault;
 
+    /// <summary>Gets the grid font size that a zoom reset returns to.</summary>
+    public double GridFontSizeBaseline
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontSize(value));
+    } = GridFontSizeDefault;
+
+    /// <summary>Gets the grid row spacing that a stretch reset returns to.</summary>
+    public double GridRowSpacingBaseline
+    {
+        get;
+        set => SetField(ref field, NormalizeGridRowSpacing(value));
+    } = GridRowSpacingDefault;
+
+    /// <summary>Gets the font size of the live totals drawn in Processes column headers.</summary>
+    public double LiveTotalFontSize
+    {
+        get;
+        set => SetField(ref field, NormalizeLiveTotalFontSize(value));
+    } = LiveTotalFontSizeDefault;
+
+    /// <summary>Gets the font weight of the live totals drawn in Processes column headers.</summary>
+    public DetailsGridFontWeight LiveTotalFontWeight
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontWeight(value));
+    } = DetailsGridFontWeight.Normal;
+
+    /// <summary>Gets the horizontal scale that narrows live-total text; 1 draws it unscaled.</summary>
+    public double LiveTotalHorizontalScale
+    {
+        get;
+        set => SetField(ref field, NormalizeLiveTotalHorizontalScale(value));
+    } = LiveTotalHorizontalScaleDefault;
+
+    /// <summary>Gets the gap between a live total and its column name when both share one line.</summary>
+    public double LiveTotalTextGap
+    {
+        get;
+        set => SetField(ref field, NormalizeLiveTotalTextGap(value));
+    } = LiveTotalTextGapDefault;
+
+    /// <summary>Gets whether live totals take a header line above the column names, doubling its height.</summary>
+    public bool ShowLiveTotalsAboveColumnNames
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public int PerformanceHistoryLengthMinutes
     {
         get;
@@ -314,6 +384,7 @@ public sealed class AppSettings : AppSettingsCommon
     public override void OnTrayXmlDeserializing()
     {
         _gridRowSpacingWasDeserialized = false;
+        _processGroupingStyleWasDeserialized = false;
         base.OnTrayXmlDeserializing();
     }
 
@@ -324,6 +395,10 @@ public sealed class AppSettings : AppSettingsCommon
             GridRowSpacing = GridRowHeight
                              - GridFontSize * LegacyGridRowTextHeightMultiplier;
         }
+
+        // Settings written before grouping styles existed could only group by parent process
+        if (!_processGroupingStyleWasDeserialized)
+            ProcessGroupingStyle = ProcessGroupingStyle.ParentProcess;
 
         PerformanceHistoryLengthMinutes =
             PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
@@ -351,37 +426,14 @@ public sealed class AppSettings : AppSettingsCommon
         List<ProcessHeaderButtonKind> normalized = ProcessHeaderButtonSettings.Normalize(buttonOrder);
         if (ProcessHeaderButtonOrder.SequenceEqual(normalized)) return;
 
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            ProcessHeaderButtonOrder = normalized;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => ProcessHeaderButtonOrder = normalized);
     }
 
     /// <summary>Persists an already-applied width or order change without rebuilding the app shell.</summary>
     internal void UpdateDetailsColumnLayout(List<ProcessColumnSetting> columns)
     {
         ArgumentNullException.ThrowIfNull(columns);
-
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            DetailsColumns = columns;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => DetailsColumns = columns);
     }
 
 #if DEBUG
@@ -403,23 +455,19 @@ public sealed class AppSettings : AppSettingsCommon
     }
 #endif
 
+    /// <summary>Persists the column chooser's unused-column filter without rebuilding the app shell.</summary>
+    internal void UpdateHideUnusedProcessColumns(bool hideUnusedColumns)
+    {
+        if (HideUnusedProcessColumns == hideUnusedColumns) return;
+
+        UpdateWithoutShellRefresh(() => HideUnusedProcessColumns = hideUnusedColumns);
+    }
+
     /// <summary>Persists an already-applied Performance device reorder without rebuilding the app shell.</summary>
     internal void UpdatePerformanceDeviceOrder(List<string> deviceIDs)
     {
         ArgumentNullException.ThrowIfNull(deviceIDs);
-
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            PerformanceDeviceOrder = deviceIDs;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => PerformanceDeviceOrder = deviceIDs);
     }
 
     /// <summary>Persists live saved-search edits without rebuilding the application shell.</summary>
@@ -429,18 +477,7 @@ public sealed class AppSettings : AppSettingsCommon
         List<ProcessSavedSearch> normalized = ProcessSavedSearchCollection.Normalize(searches);
         if (ProcessSavedSearchCollection.AreEquivalent(ProcessSavedSearches, normalized)) return;
 
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            ProcessSavedSearches = normalized;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => ProcessSavedSearches = normalized);
     }
 
     /// <summary>Persists the live CPU graph view without rebuilding the application shell.</summary>
@@ -449,18 +486,7 @@ public sealed class AppSettings : AppSettingsCommon
         CPUPerformanceGraphView normalized = NormalizeCPUPerformanceGraphView(graphView);
         if (CPUPerformanceGraphView == normalized) return;
 
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            CPUPerformanceGraphView = normalized;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => CPUPerformanceGraphView = normalized);
     }
 
     /// <summary>Persists live Performance hardware-name rules without rebuilding the app shell.</summary>
@@ -468,48 +494,41 @@ public sealed class AppSettings : AppSettingsCommon
         List<PerformanceHardwareNameReplacementRule> rules)
     {
         ArgumentNullException.ThrowIfNull(rules);
-
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            PerformanceHardwareNameReplacementRules = rules;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
+        UpdateWithoutShellRefresh(() => PerformanceHardwareNameReplacementRules = rules);
     }
 
     /// <summary>Persists an already-applied grouping change without rebuilding the app shell.</summary>
-    internal void UpdateGroupProcesses(bool groupProcesses)
-    {
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
-        {
-            GroupProcesses = groupProcesses;
-        }
-        finally
-        {
-            SuppressChangeNotification = wasSuppressed;
-        }
-
-        if (!wasSuppressed) RequestSave();
-    }
+    internal void UpdateGroupProcesses(bool groupProcesses) =>
+        UpdateWithoutShellRefresh(() => GroupProcesses = groupProcesses);
 
     /// <summary>Persists already-applied grid typography without rebuilding the app shell.</summary>
-    internal void UpdateGridMetrics(double fontSize, double rowHeight, double rowSpacing)
-    {
-        bool wasSuppressed = SuppressChangeNotification;
-        SuppressChangeNotification = true;
-        try
+    internal void UpdateGridMetrics(double fontSize, double rowHeight, double rowSpacing) =>
+        UpdateWithoutShellRefresh(() =>
         {
             GridFontSize = fontSize;
             GridRowHeight = (int)Math.Round(rowHeight, MidpointRounding.AwayFromZero);
             GridRowSpacing = rowSpacing;
+        });
+
+    /// <summary>Persists a zoom baseline chosen from a grid without rebuilding the app shell.</summary>
+    internal void UpdateGridFontSizeBaseline(double fontSize) =>
+        UpdateWithoutShellRefresh(() => GridFontSizeBaseline = fontSize);
+
+    /// <summary>Persists a stretch baseline chosen from a grid without rebuilding the app shell.</summary>
+    internal void UpdateGridRowSpacingBaseline(double rowSpacing) =>
+        UpdateWithoutShellRefresh(() => GridRowSpacingBaseline = rowSpacing);
+
+    /// <summary>
+    /// Applies a change the live UI already shows without the global notification that rebuilds the app shell.
+    /// It then schedules the save that notification would have requested.
+    /// </summary>
+    private void UpdateWithoutShellRefresh(Action apply)
+    {
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            apply();
         }
         finally
         {
@@ -569,7 +588,22 @@ public sealed class AppSettings : AppSettingsCommon
             ? Math.Clamp(value, GridRowSpacingMinimum, GridRowSpacingMaximum)
             : GridRowSpacingDefault;
 
-    private static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
+    internal static double NormalizeLiveTotalFontSize(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, LiveTotalFontSizeMinimum, LiveTotalFontSizeMaximum)
+            : LiveTotalFontSizeDefault;
+
+    internal static double NormalizeLiveTotalHorizontalScale(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, LiveTotalHorizontalScaleMinimum, LiveTotalHorizontalScaleMaximum)
+            : LiveTotalHorizontalScaleDefault;
+
+    internal static double NormalizeLiveTotalTextGap(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, LiveTotalTextGapMinimum, LiveTotalTextGapMaximum)
+            : LiveTotalTextGapDefault;
+
+    internal static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
         Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
 
     private static TrayGraphStyle NormalizeTrayGraphStyle(TrayGraphStyle value) =>

@@ -351,6 +351,7 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             AppSettings.GridFontSizeDefault,
             DetailsGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,
+            ProcessLiveTotalAppearance.Default,
             CreatePalette(),
             new TaskManagerWindowResources());
         try

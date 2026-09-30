@@ -72,18 +72,87 @@ internal static class ProcessColumnSettings
 {
     public const double MinimumWidth = 40;
 
+    private const string PrivateMemoryDefaultNickname = "RAM (private)";
+    private const string SharedWorkingSetDefaultNickname = "RAM (shared)";
+    private const string GDIObjectsDefaultNickname = "GDI";
+
+    // Default left-to-right order, hidden columns included so they reappear in these slots when shown
+    private static readonly ProcessTableColumnKind[] DefaultOrder =
+    [
+        ProcessTableColumnKind.Name,
+        ProcessTableColumnKind.Status,
+        ProcessTableColumnKind.ProcessID,
+        ProcessTableColumnKind.Disk,
+        ProcessTableColumnKind.Network,
+        ProcessTableColumnKind.UserName,
+        ProcessTableColumnKind.SessionID,
+        ProcessTableColumnKind.JobObjectID,
+        ProcessTableColumnKind.CPU,
+        ProcessTableColumnKind.CPUTime,
+        ProcessTableColumnKind.CPUSingle,
+        ProcessTableColumnKind.Cycle,
+        ProcessTableColumnKind.WorkingSet,
+        ProcessTableColumnKind.PeakWorkingSet,
+        ProcessTableColumnKind.WorkingSetDelta,
+        ProcessTableColumnKind.ActivePrivateWorkingSet,
+        ProcessTableColumnKind.PrivateMemory,
+        ProcessTableColumnKind.SharedWorkingSet,
+        ProcessTableColumnKind.CommitSize,
+        ProcessTableColumnKind.PagedPool,
+        ProcessTableColumnKind.NonPagedPool,
+        ProcessTableColumnKind.PageFaults,
+        ProcessTableColumnKind.PageFaultDelta,
+        ProcessTableColumnKind.BasePriority,
+        ProcessTableColumnKind.Handles,
+        ProcessTableColumnKind.Lifetime,
+        ProcessTableColumnKind.GPU,
+        ProcessTableColumnKind.UserObjects,
+        ProcessTableColumnKind.Threads,
+        ProcessTableColumnKind.IOReads,
+        ProcessTableColumnKind.IOWrites,
+        ProcessTableColumnKind.IOOther,
+        ProcessTableColumnKind.IOReadBytes,
+        ProcessTableColumnKind.IOWriteBytes,
+        ProcessTableColumnKind.IOOtherBytes,
+        ProcessTableColumnKind.ImagePath,
+        ProcessTableColumnKind.GDIObjects,
+        ProcessTableColumnKind.OperatingSystemContext,
+        ProcessTableColumnKind.Platform,
+        ProcessTableColumnKind.Elevated,
+        ProcessTableColumnKind.UACVirtualization,
+        ProcessTableColumnKind.Description,
+        ProcessTableColumnKind.DataExecutionPrevention,
+        ProcessTableColumnKind.IOPriority,
+        ProcessTableColumnKind.PackageName,
+        ProcessTableColumnKind.EnterpriseContext,
+        ProcessTableColumnKind.PowerThrottling,
+        ProcessTableColumnKind.CommandLine,
+        ProcessTableColumnKind.GPUEngine,
+        ProcessTableColumnKind.DedicatedGPUMemory,
+        ProcessTableColumnKind.SharedGPUMemory,
+        ProcessTableColumnKind.DPIAwareness,
+        ProcessTableColumnKind.Architecture,
+        ProcessTableColumnKind.HardwareStackProtection,
+        ProcessTableColumnKind.ExtendedControlFlowGuard,
+        ProcessTableColumnKind.Isolation,
+        ProcessTableColumnKind.NPU,
+        ProcessTableColumnKind.NPUEngine,
+        ProcessTableColumnKind.DedicatedNPUMemory,
+        ProcessTableColumnKind.SharedNPUMemory,
+        ProcessTableColumnKind.CPUUtility
+    ];
+
+    /// <summary>Gets the default left-to-right column order, hidden columns included.</summary>
+    public static IReadOnlyList<ProcessTableColumnKind> DefaultColumnOrder => DefaultOrder;
+
     public static List<ProcessColumnSetting> CreateDefault()
     {
-        List<ProcessColumnSetting> settings = new(ProcessTableColumnCatalog.Definitions.Length);
-        foreach (ProcessTableColumnDefinition definition in ProcessTableColumnCatalog.Definitions)
-        {
-            settings.Add(new ProcessColumnSetting
-            {
-                Column = definition.Kind, Visible = definition.DefaultVisible, Width = definition.DefaultWidth
-            });
-        }
+        List<ProcessColumnSetting> settings = new(DefaultOrder.Length);
+        foreach (ProcessTableColumnKind column in DefaultOrder)
+            settings.Add(CreateDefaultSetting(ProcessTableColumnCatalog.Get(column)));
 
-        return settings;
+        // Appends any catalog column the default order does not list yet
+        return Normalize(settings);
     }
 
     public static List<ProcessColumnSetting> Normalize(IEnumerable<ProcessColumnSetting>? source)
@@ -106,16 +175,40 @@ internal static class ProcessColumnSettings
         foreach (ProcessTableColumnDefinition definition in ProcessTableColumnCatalog.Definitions)
         {
             if (!used.Add(definition.Kind)) continue;
-
-            normalized.Add(new ProcessColumnSetting
-            {
-                Column = definition.Kind, Visible = definition.DefaultVisible, Width = definition.DefaultWidth
-            });
+            normalized.Add(CreateDefaultSetting(definition));
         }
 
         if (!normalized.Any(static setting => setting.Visible))
             normalized[0].Visible = true;
         return normalized;
+    }
+
+    /// <summary>Creates one column's default layout and display options.</summary>
+    private static ProcessColumnSetting CreateDefaultSetting(ProcessTableColumnDefinition definition)
+    {
+        ProcessColumnSetting setting = new()
+        {
+            Column = definition.Kind, Visible = definition.DefaultVisible, Width = definition.DefaultWidth
+        };
+        switch (definition.Kind)
+        {
+            case ProcessTableColumnKind.Status:
+                setting.CenterStatusGlyphs = true;
+                break;
+            case ProcessTableColumnKind.PrivateMemory:
+                setting.Nickname = PrivateMemoryDefaultNickname;
+                setting.MemoryUnit = ProcessMemoryUnit.Megabytes;
+                setting.MemorySuffix = GetDefaultMemorySuffix(ProcessMemoryUnit.Megabytes);
+                break;
+            case ProcessTableColumnKind.SharedWorkingSet:
+                setting.Nickname = SharedWorkingSetDefaultNickname;
+                break;
+            case ProcessTableColumnKind.GDIObjects:
+                setting.Nickname = GDIObjectsDefaultNickname;
+                break;
+        }
+
+        return setting;
     }
 
     /// <summary>Returns a normalized independent copy of one column setting.</summary>
@@ -327,8 +420,8 @@ internal static class ProcessColumnSettings
     public static string GetDefaultMemorySuffix(ProcessMemoryUnit unit) => NormalizeMemoryUnit(unit) switch
     {
         ProcessMemoryUnit.Kilobytes => "K",
-        ProcessMemoryUnit.Megabytes => "M",
-        ProcessMemoryUnit.Gigabytes => "G",
+        ProcessMemoryUnit.Megabytes => "MB",
+        ProcessMemoryUnit.Gigabytes => "GB",
         ProcessMemoryUnit.PercentageOfSystem => "%",
         _ => "K"
     };

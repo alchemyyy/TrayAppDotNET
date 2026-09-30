@@ -14,6 +14,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     private const int LuminanceDivisor = 1000;
     private const int LightSurfaceThreshold = 128;
 
+    private readonly AppSettings _settings;
     private readonly CheckBox _hideUnusedColumns;
 #if DEBUG
     private readonly List<ProcessColumnSetting> _items;
@@ -31,7 +32,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             palette ?? throw new ArgumentNullException(nameof(palette)),
             resources ?? throw new ArgumentNullException(nameof(resources)),
             ResolveBackground(palette),
-            CreateHideUnusedColumnsCheckBox(palette),
+            CreateHideUnusedColumnsCheckBox(palette, settings.HideUnusedProcessColumns),
             columnsChanged)
     {
     }
@@ -82,10 +83,12 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(columnsChanged);
 
+        _settings = settings;
         _hideUnusedColumns = hideUnusedColumns;
 #if DEBUG
         _items = items;
 #endif
+        if (_hideUnusedColumns.IsChecked == true) ApplyHideUnusedColumnsFilter();
         _hideUnusedColumns.IsCheckedChanged += OnHideUnusedColumnsChanged;
         Closed += OnChooserClosed;
     }
@@ -123,16 +126,22 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     }
 #endif
 
-    private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette) => new()
+    private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette, bool isChecked) => new()
     {
         Content = "Hide unused columns",
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
-        IsChecked = false,
+        IsChecked = isChecked,
         HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Center
     };
 
     private void OnHideUnusedColumnsChanged(object? sender, RoutedEventArgs eventArgs)
+    {
+        ApplyHideUnusedColumnsFilter();
+        _settings.UpdateHideUnusedProcessColumns(_hideUnusedColumns.IsChecked == true);
+    }
+
+    private void ApplyHideUnusedColumnsFilter()
     {
         Func<ProcessColumnSetting, bool>? includeItem = _hideUnusedColumns.IsChecked == true
             ? static setting => setting.Visible

@@ -12,6 +12,7 @@ internal static class SettingsCardsLayout
     private static CardsResources AXAMLResources => CardsResources.Current;
 
     public static double NumberBoxWidth => AXAMLResources.AxamlSettingsCards.NumberBoxWidth;
+    public static double ResetButtonSpacing => AXAMLResources.AxamlSettingsCards.ResetButtonSpacing;
     public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsCards.RightControlMargin;
     public static Thickness CardPadding => AXAMLResources.AxamlSettingsCards.CardPadding;
     public static Thickness CardMargin => AXAMLResources.AxamlSettingsCards.CardMargin;
@@ -136,6 +137,70 @@ public static class TrayAppDotNETSettingsCards
             save();
         };
         return Card(title, description, input, palette, cardRadius, searchKeywords);
+    }
+
+    /// <summary>
+    /// Builds a numeric card whose Reset button returns the value to a target read on demand, which may change.
+    /// Call <see cref="SettingsResettableNumber.Refresh"/> when the value or the target changes outside the card.
+    /// </summary>
+    public static Border ResettableDoubleCard(
+        string title,
+        string description,
+        Func<double> read,
+        Action<double> set,
+        Func<double> readResetValue,
+        double min,
+        double max,
+        SettingsPalette palette,
+        CornerRadius cardRadius,
+        CornerRadius buttonRadius,
+        Action save,
+        string resetText,
+        out SettingsResettableNumber resettableNumber,
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null,
+        int decimalPlaces = 1,
+        double step = 0.1)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        ArgumentNullException.ThrowIfNull(set);
+        ArgumentNullException.ThrowIfNull(readResetValue);
+        ArgumentNullException.ThrowIfNull(save);
+
+        SettingsNumberBox input = new(
+            palette,
+            read(),
+            min,
+            max,
+            SettingsCardsLayout.NumberBoxWidth,
+            suffix,
+            decimalPlaces) { Step = step, WheelStep = step };
+        SettingsButton resetButton = Button(resetText, palette, buttonRadius);
+        SettingsResettableNumber number = new(input, resetButton, read, readResetValue, decimalPlaces);
+        input.ValueChanged += (_, eventArgs) =>
+        {
+            // A sync from settings may round the shown value; writing that back would change the setting
+            if (eventArgs.NewValue is not { } value || number.IsRefreshing) return;
+
+            if (read() != value)
+            {
+                set(value);
+                save();
+            }
+
+            number.RefreshResetButton();
+        };
+        resetButton.Click += (_, _) => input.Value = readResetValue();
+        number.RefreshResetButton();
+        resettableNumber = number;
+
+        StackPanel controls = new()
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = SettingsCardsLayout.ResetButtonSpacing,
+            Children = { input, resetButton }
+        };
+        return Card(title, description, controls, palette, cardRadius, searchKeywords);
     }
 
     public static Border ComboCard(
@@ -276,4 +341,59 @@ public static class TrayAppDotNETSettingsCards
         Border card = RawCard(grid, palette, cardRadius);
         return SettingsSearchMetadata.MarkCard(card, title, searchKeywords);
     }
+}
+
+/// <summary>Keeps a resettable number card's shown value and Reset button in step with its settings.</summary>
+public sealed class SettingsResettableNumber
+{
+    private readonly SettingsNumberBox _input;
+    private readonly SettingsButton _resetButton;
+    private readonly Func<double> _read;
+    private readonly Func<double> _readResetValue;
+    private readonly int _decimalPlaces;
+
+    /// <summary>Gets whether the shown value is being synced from settings rather than edited.</summary>
+    internal bool IsRefreshing { get; private set; }
+
+    internal SettingsResettableNumber(
+        SettingsNumberBox input,
+        SettingsButton resetButton,
+        Func<double> read,
+        Func<double> readResetValue,
+        int decimalPlaces)
+    {
+        _input = input;
+        _resetButton = resetButton;
+        _read = read;
+        _readResetValue = readResetValue;
+        _decimalPlaces = Math.Max(val1: 0, decimalPlaces);
+    }
+
+    /// <summary>Shows the current value and enables Reset only while it differs from the reset target.</summary>
+    public void Refresh()
+    {
+        double value = _read();
+        if (_input.Value is not { } shownValue || !MatchesAsShown(shownValue, value))
+        {
+            IsRefreshing = true;
+            try
+            {
+                _input.Value = value;
+            }
+            finally
+            {
+                IsRefreshing = false;
+            }
+        }
+
+        RefreshResetButton();
+    }
+
+    internal void RefreshResetButton() =>
+        _resetButton.IsEnabled = !MatchesAsShown(_read(), _readResetValue());
+
+    // Values that display identically count as equal, so Reset never looks enabled for an invisible difference
+    private bool MatchesAsShown(double left, double right) =>
+        Math.Round(left, _decimalPlaces, MidpointRounding.AwayFromZero)
+        == Math.Round(right, _decimalPlaces, MidpointRounding.AwayFromZero);
 }

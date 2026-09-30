@@ -1,4 +1,5 @@
 using TaskManagerTrayAppDotNET.Models;
+using TaskManagerTrayAppDotNET.UI;
 using TrayAppDotNETCommon.Models;
 using Xunit;
 
@@ -25,25 +26,43 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
-    public void ProcessGroupingDefaultsToDisabledParentStyleAndRoundTripsSemanticStyle()
+    public void ProcessGroupingDefaultsToEnabledSemanticStyleAndRoundTripsParentStyle()
     {
         AppSettings settings = new() { Autosave = false };
-        Assert.Equal(ProcessGroupingStyle.ParentProcess, settings.ProcessGroupingStyle);
-        Assert.False(settings.GroupProcesses);
+        Assert.Equal(ProcessGroupingStyle.Semantic, settings.ProcessGroupingStyle);
+        Assert.True(settings.GroupProcesses);
         Assert.Equal(ProcessTreeDefaultState.Collapsed, settings.ProcessTreeDefaultState);
         Assert.True(settings.ExpandSemanticSectionsByDefault);
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.ProcessGroupingStyle = ProcessGroupingStyle.Semantic;
-            settings.GroupProcesses = true;
+            settings.ProcessGroupingStyle = ProcessGroupingStyle.ParentProcess;
+            settings.GroupProcesses = false;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.Equal(ProcessGroupingStyle.Semantic, loaded.ProcessGroupingStyle);
-            Assert.True(loaded.GroupProcesses);
+            Assert.Equal(ProcessGroupingStyle.ParentProcess, loaded.ProcessGroupingStyle);
+            Assert.False(loaded.GroupProcesses);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void SavedSemanticGroupingSurvivesALoadAndLegacyFilesKeepParentGrouping()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            new AppSettings { Autosave = false }.Save(path);
+            Assert.Equal(ProcessGroupingStyle.Semantic, AppSettings.LoadOrDefault(path).ProcessGroupingStyle);
+
+            File.WriteAllText(path, contents: "<AppSettings />");
+            Assert.Equal(ProcessGroupingStyle.ParentProcess, AppSettings.LoadOrDefault(path).ProcessGroupingStyle);
         }
         finally
         {
@@ -79,25 +98,146 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
-    public void RootProcessSemanticGroupsDefaultOffAndRoundTrip()
+    public void RootProcessSemanticGroupsDefaultOnAndRoundTrip()
     {
         AppSettings settings = new() { Autosave = false };
-        Assert.False(settings.UseRootProcessForSemanticGroups);
-        Assert.False(settings.UseRootProcessForSemanticSubgroups);
+        Assert.True(settings.UseRootProcessForSemanticGroups);
+        Assert.True(settings.UseRootProcessForSemanticSubgroups);
 
         string path = Path.Combine(
             Path.GetTempPath(),
             $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.UseRootProcessForSemanticGroups = true;
-            settings.UseRootProcessForSemanticSubgroups = true;
+            settings.UseRootProcessForSemanticGroups = false;
+            settings.UseRootProcessForSemanticSubgroups = false;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.True(loaded.UseRootProcessForSemanticGroups);
-            Assert.True(loaded.UseRootProcessForSemanticSubgroups);
+            Assert.False(loaded.UseRootProcessForSemanticGroups);
+            Assert.False(loaded.UseRootProcessForSemanticSubgroups);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GridBaselinesDefaultToTheGridDefaultsClampAndRoundTrip()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(AppSettings.GridFontSizeDefault, settings.GridFontSizeBaseline);
+        Assert.Equal(AppSettings.GridRowSpacingDefault, settings.GridRowSpacingBaseline);
+
+        settings.GridFontSizeBaseline = double.NaN;
+        settings.GridRowSpacingBaseline = AppSettings.GridRowSpacingMaximum + 1;
+        Assert.Equal(AppSettings.GridFontSizeDefault, settings.GridFontSizeBaseline);
+        Assert.Equal(AppSettings.GridRowSpacingMaximum, settings.GridRowSpacingBaseline);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.GridFontSizeBaseline = 14.5;
+            settings.GridRowSpacingBaseline = 6;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(expected: 14.5, loaded.GridFontSizeBaseline);
+            Assert.Equal(expected: 6, loaded.GridRowSpacingBaseline);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GridBaselinesSetFromATablePersistWithoutAGlobalShellNotification()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int changedCount = 0;
+        List<string?> changedProperties = [];
+        settings.Changed += () => changedCount++;
+        settings.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+
+        settings.UpdateGridFontSizeBaseline(fontSize: 13);
+        settings.UpdateGridRowSpacingBaseline(rowSpacing: 5);
+
+        Assert.Equal(expected: 0, changedCount);
+        Assert.Equal(expected: 13, settings.GridFontSizeBaseline);
+        Assert.Equal(expected: 5, settings.GridRowSpacingBaseline);
+        Assert.Equal(
+            [nameof(AppSettings.GridFontSizeBaseline), nameof(AppSettings.GridRowSpacingBaseline)],
+            changedProperties);
+    }
+
+    [Fact]
+    public void LiveTotalAppearanceDefaultsClampAndRoundTrip()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(AppSettings.LiveTotalFontSizeDefault, settings.LiveTotalFontSize);
+        Assert.Equal(DetailsGridFontWeight.Normal, settings.LiveTotalFontWeight);
+        Assert.Equal(AppSettings.LiveTotalHorizontalScaleDefault, settings.LiveTotalHorizontalScale);
+        Assert.Equal(AppSettings.LiveTotalTextGapDefault, settings.LiveTotalTextGap);
+        Assert.False(settings.ShowLiveTotalsAboveColumnNames);
+        Assert.Equal(ProcessLiveTotalAppearance.Default, ProcessLiveTotalAppearance.FromSettings(settings));
+
+        settings.LiveTotalFontSize = AppSettings.LiveTotalFontSizeMaximum + 10;
+        settings.LiveTotalFontWeight = (DetailsGridFontWeight)1;
+        settings.LiveTotalHorizontalScale = 0;
+        settings.LiveTotalTextGap = double.PositiveInfinity;
+        Assert.Equal(AppSettings.LiveTotalFontSizeMaximum, settings.LiveTotalFontSize);
+        Assert.Equal(DetailsGridFontWeight.Normal, settings.LiveTotalFontWeight);
+        Assert.Equal(AppSettings.LiveTotalHorizontalScaleMinimum, settings.LiveTotalHorizontalScale);
+        Assert.Equal(AppSettings.LiveTotalTextGapDefault, settings.LiveTotalTextGap);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.LiveTotalFontSize = 11;
+            settings.LiveTotalFontWeight = DetailsGridFontWeight.SemiBold;
+            settings.LiveTotalHorizontalScale = 0.9;
+            settings.LiveTotalTextGap = 6;
+            settings.ShowLiveTotalsAboveColumnNames = true;
+            settings.Save(path);
+
+            ProcessLiveTotalAppearance loaded =
+                ProcessLiveTotalAppearance.FromSettings(AppSettings.LoadOrDefault(path));
+
+            Assert.Equal(
+                new ProcessLiveTotalAppearance(
+                    FontSize: 11,
+                    DetailsGridFontWeight.SemiBold,
+                    HorizontalScale: 0.9,
+                    TextGap: 6,
+                    ShowAboveColumnNames: true),
+                loaded);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void HideUnusedProcessColumnsDefaultsOffAndPersistsWithoutAGlobalShellNotification()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int changedCount = 0;
+        settings.Changed += () => changedCount++;
+        Assert.False(settings.HideUnusedProcessColumns);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.UpdateHideUnusedProcessColumns(hideUnusedColumns: true);
+            settings.Save(path);
+
+            Assert.Equal(expected: 0, changedCount);
+            Assert.True(AppSettings.LoadOrDefault(path).HideUnusedProcessColumns);
         }
         finally
         {

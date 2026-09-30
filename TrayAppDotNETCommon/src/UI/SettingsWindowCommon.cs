@@ -776,6 +776,40 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             decimalPlaces,
             step);
 
+    protected Border ResettableDoubleCard(
+        string title,
+        string description,
+        Func<double> read,
+        Action<double> set,
+        Func<double> readResetValue,
+        double min,
+        double max,
+        SettingsPalette palette,
+        string resetText,
+        out SettingsResettableNumber resettableNumber,
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null,
+        int decimalPlaces = 1,
+        double step = 0.1) =>
+        TrayAppDotNETSettingsCards.ResettableDoubleCard(
+            title,
+            description,
+            read,
+            set,
+            readResetValue,
+            min,
+            max,
+            palette,
+            RadiusLarge,
+            RadiusMedium,
+            Save,
+            resetText,
+            out resettableNumber,
+            suffix,
+            searchKeywords,
+            decimalPlaces,
+            step);
+
     protected Border ComboCard(
         string title,
         string description,

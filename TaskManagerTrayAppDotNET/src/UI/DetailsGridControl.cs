@@ -31,8 +31,10 @@ internal abstract class DetailsGridControl : Control, IDisposable
     public event Action<double, double>? GridMetricsChanged;
     public event Action<int>? GridZoomRequested;
     public event Action? GridZoomResetRequested;
+    public event Action? GridZoomBaselineRequested;
     public event Action<int>? GridRowSpacingRequested;
     public event Action? GridRowSpacingResetRequested;
+    public event Action? GridRowSpacingBaselineRequested;
 
     protected bool IsDetailsGridDisposed => _disposed;
     protected bool IsDetailsGridZoomActive => _isZoomActive;
@@ -100,30 +102,11 @@ internal abstract class DetailsGridControl : Control, IDisposable
         base.OnPointerWheelChanged(eventArgs);
         if (_disposed || eventArgs.Handled || eventArgs.Delta.Y == 0) return;
 
+        DetailsGridShortcutAction action = DetailsGridShortcuts.Resolve(
+            DetailsGridShortcutTrigger.MouseWheel,
+            eventArgs.KeyModifiers);
         int direction = eventArgs.Delta.Y > 0 ? 1 : -1;
-        bool resetRequested = eventArgs.KeyModifiers.HasFlag(KeyModifiers.Alt);
-        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
-        {
-            if (resetRequested)
-            {
-                if (!CanResetDetailsGridZoom) return;
-                GridRowSpacingResetRequested?.Invoke();
-            }
-            else
-                GridRowSpacingRequested?.Invoke(direction);
-        }
-        else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-        {
-            if (resetRequested)
-            {
-                if (!CanResetDetailsGridZoom) return;
-                GridZoomResetRequested?.Invoke();
-            }
-            else
-                GridZoomRequested?.Invoke(direction);
-        }
-        else
-            return;
+        if (!TryRaiseShortcut(action, direction)) return;
 
         eventArgs.Handled = true;
     }
@@ -131,18 +114,47 @@ internal abstract class DetailsGridControl : Control, IDisposable
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
     {
         base.OnPointerPressed(eventArgs);
-        if (_disposed || eventArgs.Handled || !CanResetDetailsGridZoom) return;
+        if (_disposed || eventArgs.Handled) return;
 
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
         if (!pointerPoint.Properties.IsMiddleButtonPressed) return;
 
-        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
-            GridRowSpacingResetRequested?.Invoke();
-        else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-            GridZoomResetRequested?.Invoke();
-        else
-            return;
+        DetailsGridShortcutAction action = DetailsGridShortcuts.Resolve(
+            DetailsGridShortcutTrigger.MiddleClick,
+            eventArgs.KeyModifiers);
+        if (!TryRaiseShortcut(action, direction: 0)) return;
+
         eventArgs.Handled = true;
+    }
+
+    /// <summary>Raises the grid request for a resolved shortcut and reports whether one was raised.</summary>
+    private bool TryRaiseShortcut(DetailsGridShortcutAction action, int direction)
+    {
+        if (DetailsGridShortcuts.IsZoomReset(action) && !CanResetDetailsGridZoom) return false;
+
+        switch (action)
+        {
+            case DetailsGridShortcutAction.Zoom:
+                GridZoomRequested?.Invoke(direction);
+                return true;
+            case DetailsGridShortcutAction.Stretch:
+                GridRowSpacingRequested?.Invoke(direction);
+                return true;
+            case DetailsGridShortcutAction.ResetZoom:
+                GridZoomResetRequested?.Invoke();
+                return true;
+            case DetailsGridShortcutAction.ResetStretch:
+                GridRowSpacingResetRequested?.Invoke();
+                return true;
+            case DetailsGridShortcutAction.SetZoomBaseline:
+                GridZoomBaselineRequested?.Invoke();
+                return true;
+            case DetailsGridShortcutAction.SetStretchBaseline:
+                GridRowSpacingBaselineRequested?.Invoke();
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>Publishes applied font and row geometry to the owning page.</summary>
@@ -367,8 +379,10 @@ internal abstract class DetailsGridControl : Control, IDisposable
         GridMetricsChanged = null;
         GridZoomRequested = null;
         GridZoomResetRequested = null;
+        GridZoomBaselineRequested = null;
         GridRowSpacingRequested = null;
         GridRowSpacingResetRequested = null;
+        GridRowSpacingBaselineRequested = null;
         DisposeDetailsGridResources();
         GC.SuppressFinalize(this);
     }

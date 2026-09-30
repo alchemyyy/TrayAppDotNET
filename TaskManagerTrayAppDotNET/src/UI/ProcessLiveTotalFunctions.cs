@@ -4,6 +4,35 @@ internal readonly record struct ProcessLiveTotalValue(
     bool HasValue,
     long EncodedValue);
 
+/// <summary>User-configured typography and placement of the live totals drawn in Processes column headers.</summary>
+internal readonly record struct ProcessLiveTotalAppearance(
+    double FontSize,
+    DetailsGridFontWeight FontWeight,
+    double HorizontalScale,
+    double TextGap,
+    bool ShowAboveColumnNames)
+{
+    /// <summary>Gets the appearance of a fresh settings file.</summary>
+    public static ProcessLiveTotalAppearance Default => new(
+        AppSettings.LiveTotalFontSizeDefault,
+        DetailsGridFontWeight.Normal,
+        AppSettings.LiveTotalHorizontalScaleDefault,
+        AppSettings.LiveTotalTextGapDefault,
+        ShowAboveColumnNames: false);
+
+    /// <summary>Reads the live-total appearance configured in settings.</summary>
+    public static ProcessLiveTotalAppearance FromSettings(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return new ProcessLiveTotalAppearance(
+            settings.LiveTotalFontSize,
+            settings.LiveTotalFontWeight,
+            settings.LiveTotalHorizontalScale,
+            settings.LiveTotalTextGap,
+            settings.ShowLiveTotalsAboveColumnNames);
+    }
+}
+
 /// <summary>Aggregates one supported numeric column without allocating in the snapshot update path.</summary>
 internal static class ProcessLiveTotalFunctions
 {

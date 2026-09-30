@@ -48,7 +48,7 @@ public sealed class ProcessColumnSettingsTests
     }
 
     [Fact]
-    public void CPUSingleIsAnOptionalDynamicPercentageColumn()
+    public void CPUSingleIsADefaultDynamicPercentageColumn()
     {
         ProcessTableColumnDefinition definition =
             ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPUSingle);
@@ -56,7 +56,57 @@ public sealed class ProcessColumnSettingsTests
         Assert.Equal(expected: "CPU (single)", definition.Title);
         Assert.Equal(ProcessTableColumnLifetime.Dynamic, definition.Lifetime);
         Assert.Equal(ProcessTableColumnAlignment.Right, definition.Alignment);
-        Assert.False(definition.DefaultVisible);
+        Assert.True(definition.DefaultVisible);
+    }
+
+    [Fact]
+    public void DefaultOrderListsEveryCatalogColumnExactlyOnce()
+    {
+        Assert.Equal(
+            Enum.GetValues<ProcessTableColumnKind>().Order(),
+            ProcessColumnSettings.DefaultColumnOrder.Order());
+    }
+
+    [Fact]
+    public void DefaultLayoutShowsTheShippedProcessView()
+    {
+        List<ProcessColumnSetting> defaults = ProcessColumnSettings.CreateDefault();
+
+        Assert.Equal(ProcessColumnSettings.DefaultColumnOrder, defaults.Select(static setting => setting.Column));
+        Assert.Equal(
+            [
+                ProcessTableColumnKind.Name,
+                ProcessTableColumnKind.Status,
+                ProcessTableColumnKind.ProcessID,
+                ProcessTableColumnKind.Disk,
+                ProcessTableColumnKind.Network,
+                ProcessTableColumnKind.CPU,
+                ProcessTableColumnKind.CPUSingle,
+                ProcessTableColumnKind.PrivateMemory,
+                ProcessTableColumnKind.SharedWorkingSet,
+                ProcessTableColumnKind.GDIObjects,
+                ProcessTableColumnKind.CommandLine
+            ],
+            defaults.Where(static setting => setting.Visible).Select(static setting => setting.Column));
+
+        ProcessColumnSetting status =
+            defaults.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
+        ProcessColumnSetting privateMemory =
+            defaults.Single(static setting => setting.Column == ProcessTableColumnKind.PrivateMemory);
+        ProcessColumnSetting sharedWorkingSet =
+            defaults.Single(static setting => setting.Column == ProcessTableColumnKind.SharedWorkingSet);
+        ProcessColumnSetting gdiObjects =
+            defaults.Single(static setting => setting.Column == ProcessTableColumnKind.GDIObjects);
+        Assert.True(status.CenterStatusGlyphs);
+        Assert.Equal(expected: "RAM (private)", privateMemory.Nickname);
+        Assert.Equal(ProcessMemoryUnit.Megabytes, privateMemory.MemoryUnit);
+        Assert.Equal(expected: "MB", privateMemory.MemorySuffix);
+        Assert.Equal(expected: "RAM (shared)", sharedWorkingSet.Nickname);
+        Assert.Equal(ProcessMemoryUnit.Kilobytes, sharedWorkingSet.MemoryUnit);
+        Assert.Equal(expected: "GDI", gdiObjects.Nickname);
+        Assert.All(
+            defaults,
+            static setting => Assert.Equal(ProcessTableColumnCatalog.Get(setting.Column).DefaultWidth, setting.Width));
     }
 
     [Fact]
@@ -204,7 +254,7 @@ public sealed class ProcessColumnSettingsTests
         ProcessColumnSetting replacement = ProcessColumnSettings.Clone(
             source.Single(static setting => setting.Column == ProcessTableColumnKind.Status));
         replacement.StatusDisplayMode = ProcessStatusDisplayMode.Text;
-        replacement.CenterStatusGlyphs = true;
+        replacement.CenterStatusGlyphs = false;
 
         List<ProcessColumnSetting> changed = ProcessColumnSettings.WithProperties(source, replacement);
         ProcessColumnSetting changedStatus =
@@ -213,9 +263,9 @@ public sealed class ProcessColumnSettingsTests
             source.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
 
         Assert.Equal(ProcessStatusDisplayMode.Text, changedStatus.StatusDisplayMode);
-        Assert.True(changedStatus.CenterStatusGlyphs);
+        Assert.False(changedStatus.CenterStatusGlyphs);
         Assert.Equal(ProcessStatusDisplayMode.Glyph, sourceStatus.StatusDisplayMode);
-        Assert.False(sourceStatus.CenterStatusGlyphs);
+        Assert.True(sourceStatus.CenterStatusGlyphs);
     }
 
     [Fact]
@@ -313,8 +363,8 @@ public sealed class ProcessColumnSettingsTests
 
     [Theory]
     [InlineData(ProcessMemoryUnit.Kilobytes, "K")]
-    [InlineData(ProcessMemoryUnit.Megabytes, "M")]
-    [InlineData(ProcessMemoryUnit.Gigabytes, "G")]
+    [InlineData(ProcessMemoryUnit.Megabytes, "MB")]
+    [InlineData(ProcessMemoryUnit.Gigabytes, "GB")]
     [InlineData(ProcessMemoryUnit.PercentageOfSystem, "%")]
     public void MemoryUnitsHaveStableDefaultSuffixes(ProcessMemoryUnit unit, string expectedSuffix) =>
         Assert.Equal(expectedSuffix, ProcessColumnSettings.GetDefaultMemorySuffix(unit));
@@ -525,10 +575,11 @@ public sealed class ProcessColumnSettingsTests
             Assert.Equal(expected: "K", cpu.MemorySuffix);
             Assert.False(cpu.ShowUserNamePrefix);
             Assert.False(cpu.ShowLiveTotal);
+            // Columns missing from the file take the default layout, which centers Status glyphs
             ProcessColumnSetting status =
                 loaded.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
             Assert.Equal(ProcessStatusDisplayMode.Glyph, status.StatusDisplayMode);
-            Assert.False(status.CenterStatusGlyphs);
+            Assert.True(status.CenterStatusGlyphs);
         }
         finally
         {
