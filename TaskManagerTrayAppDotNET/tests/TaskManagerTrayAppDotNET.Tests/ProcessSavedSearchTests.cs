@@ -30,6 +30,80 @@ public sealed class ProcessSavedSearchTests
         Assert.Equal(expected: "Saved Search 4", updated[^1].Name);
     }
 
+    [Theory]
+    [InlineData("chrome")]
+    [InlineData("  chrome  ")]
+    [InlineData("CHROME")]
+    public void AddSkipsAQueryThatIsAlreadySaved(string query)
+    {
+        ProcessSavedSearch savedSearch = new() { Name = "Browsers", Query = "chrome" };
+
+        List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add([savedSearch], query);
+
+        ProcessSavedSearch retainedSearch = Assert.Single(updated);
+        Assert.Equal(expected: "Browsers", retainedSearch.Name);
+        Assert.Equal(expected: "chrome", retainedSearch.Query);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AddSkipsAnEmptyQuery(string query)
+    {
+        ProcessSavedSearch savedSearch = new() { Name = "Browsers", Query = "chrome" };
+
+        List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add([savedSearch], query);
+
+        Assert.Equal(expected: "chrome", Assert.Single(updated).Query);
+    }
+
+    [Fact]
+    public void AddAppendsAQueryThatIsNotSaved()
+    {
+        ProcessSavedSearch savedSearch = new() { Name = "Browsers", Query = "chrome" };
+
+        List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add(
+            [savedSearch],
+            query: "firefox");
+
+        Assert.Equal(["chrome", "firefox"], updated.Select(static search => search.Query));
+    }
+
+    [Theory]
+    [InlineData("chrome")]
+    [InlineData("  chrome  ")]
+    [InlineData("CHROME")]
+    public void SavedQueryIsFoundIgnoringPaddingAndCase(string query)
+    {
+        ProcessSavedSearch savedSearch = new() { Name = "Browsers", Query = "chrome" };
+
+        Assert.True(ProcessSavedSearchCollection.ContainsQuery([savedSearch], query));
+    }
+
+    [Theory]
+    [InlineData("firefox")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UnsavedOrEmptyQueryIsNotFound(string query)
+    {
+        ProcessSavedSearch savedSearch = new() { Name = "Browsers", Query = "chrome" };
+
+        Assert.False(ProcessSavedSearchCollection.ContainsQuery([savedSearch], query));
+    }
+
+    [Fact]
+    public void RegexQueriesDifferingOnlyByEscapeCaseAreDistinct()
+    {
+        // \d matches digits while \D matches everything else
+        ProcessSavedSearch savedSearch = new() { Name = "Digits", Query = "{Name}=~\"^\\d\"" };
+
+        Assert.True(ProcessSavedSearchCollection.ContainsQuery([savedSearch], query: " {Name}=~\"^\\d\" "));
+        Assert.False(ProcessSavedSearchCollection.ContainsQuery([savedSearch], query: "{Name}=~\"^\\D\""));
+        Assert.Equal(
+            expected: 2,
+            ProcessSavedSearchCollection.Add([savedSearch], query: "{Name}=~\"^\\D\"").Count);
+    }
+
     [Fact]
     public void RenameTrimsTheNameAndPreservesTheQuery()
     {

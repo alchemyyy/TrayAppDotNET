@@ -14,6 +14,9 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Hosts the saved-search menu anchored directly beneath the Processes search box.</summary>
 internal sealed class ProcessSavedSearchController : IDisposable
 {
+    private const string SaveSearchTip = "Save search";
+    private const string SearchAlreadySavedTip = "Search already saved";
+
     private readonly TextBox _textBox;
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
@@ -69,7 +72,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity) { IsVisible = HasQuery() };
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
+            windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
         _clearButton.Click += OnClearClick;
         TrayAppDotNETToolTip.SetTip(_clearButton, tip: "Clear search");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_clearButton);
@@ -82,10 +86,12 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity) { IsVisible = HasQuery() };
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
+            windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
         _saveButton.Click += OnSaveClick;
-        TrayAppDotNETToolTip.SetTip(_saveButton, tip: "Save search");
+        TrayAppDotNETToolTip.SetTip(_saveButton, SaveSearchTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_saveButton);
+        UpdateSaveButtonState();
 
         _textBox.TextChanged += OnTextChanged;
         _textBox.AddHandler(
@@ -128,7 +134,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity);
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
+            windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity);
         _saveButton.ApplyAXAMLResources(
             TaskManagerGlyphCatalog.SAVE,
             actionButtonSize,
@@ -136,17 +143,29 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity);
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
+            windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity);
     }
 #endif
 
     private bool HasQuery() => !string.IsNullOrWhiteSpace(_textBox.Text);
+
+    /// <summary>Disables Save and explains why while the current query is already saved.</summary>
+    private void UpdateSaveButtonState()
+    {
+        bool canSave = !ProcessSavedSearchCollection.ContainsQuery(_savedSearches, _textBox.Text);
+        if (_saveButton.IsEnabled == canSave) return;
+
+        _saveButton.IsEnabled = canSave;
+        TrayAppDotNETToolTip.SetTip(_saveButton, canSave ? SaveSearchTip : SearchAlreadySavedTip);
+    }
 
     private void OnTextChanged(object? sender, TextChangedEventArgs eventArgs)
     {
         bool hasQuery = HasQuery();
         _clearButton.IsVisible = hasQuery;
         _saveButton.IsVisible = hasQuery;
+        UpdateSaveButtonState();
         if (hasQuery) Close();
     }
 
@@ -557,6 +576,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
         {
             TADNLog.Log($"Saved-search settings update failed: {exception}");
         }
+
+        UpdateSaveButtonState();
     }
 
     public void Dispose()
@@ -585,11 +606,14 @@ internal sealed class ProcessSavedSearchController : IDisposable
     /// <summary>Keeps a full-size invisible hit target around a smaller visual button surface.</summary>
     internal sealed class InsetGlyphButton : Border, IDisposable
     {
+        private const double EnabledOpacity = 1;
+
         private readonly SettingsPalette _palette;
         private readonly Border _surface;
 #if DEBUG
         private readonly TextBlock _glyphText;
 #endif
+        private double _disabledOpacity;
         private bool _isPointerOver;
         private bool _isPressed;
         private bool _disposed;
@@ -602,12 +626,14 @@ internal sealed class ProcessSavedSearchController : IDisposable
             double visualInset,
             CornerRadius cornerRadius,
             Thickness visualPadding,
-            double glyphOpacity = 1)
+            double glyphOpacity,
+            double disabledOpacity)
         {
             ArgumentNullException.ThrowIfNull(glyph);
             ArgumentNullException.ThrowIfNull(palette);
 
             _palette = palette;
+            _disabledOpacity = Math.Clamp(disabledOpacity, min: 0, max: 1);
             double normalizedHitTargetSize = Math.Max(val1: 0, hitTargetSize);
             double normalizedInset = Math.Clamp(
                 visualInset,
@@ -662,7 +688,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             double visualInset,
             CornerRadius cornerRadius,
             Thickness visualPadding,
-            double glyphOpacity)
+            double glyphOpacity,
+            double disabledOpacity)
         {
             ArgumentNullException.ThrowIfNull(glyph);
             if (_disposed) return;
@@ -680,9 +707,24 @@ internal sealed class ProcessSavedSearchController : IDisposable
             _surface.CornerRadius = cornerRadius;
             _glyphText.FontSize = Math.Max(val1: 0, glyphFontSize);
             _glyphText.Opacity = Math.Clamp(glyphOpacity, min: 0, max: 1);
+            _disabledOpacity = Math.Clamp(disabledOpacity, min: 0, max: 1);
             GlyphApplicator.ApplyTo(_glyphText, glyph);
+            UpdateVisual();
         }
 #endif
+
+        /// <summary>Resets pointer state and the cursor whenever the enabled state flips.</summary>
+        protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+        {
+            base.OnPropertyChanged(change);
+            if (_disposed || change.Property != IsEnabledProperty) return;
+
+            // Pointer events bypass a disabled control, so hover and press state would otherwise go stale
+            _isPointerOver = false;
+            _isPressed = false;
+            Cursor = IsEnabled ? TrayAppDotNETCursors.Hand : null;
+            UpdateVisual();
+        }
 
         private void OnPointerEntered(object? sender, PointerEventArgs eventArgs)
         {
@@ -738,6 +780,15 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
         private void UpdateVisual()
         {
+            // A disabled button dims its glyph and never shows a hover or pressed surface
+            if (!IsEnabled)
+            {
+                Opacity = _disabledOpacity;
+                _surface.Background = Brushes.Transparent;
+                return;
+            }
+
+            Opacity = EnabledOpacity;
             _surface.Background = _isPressed
                 ? TrayAppDotNETSettingsUI.Brush(_palette.Pressed)
                 : _isPointerOver

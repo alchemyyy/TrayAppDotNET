@@ -50,17 +50,43 @@ internal static class ProcessSavedSearchCollection
         return normalized;
     }
 
-    /// <summary>Adds a query under the next non-conflicting one-based default name.</summary>
+    /// <summary>Adds an unsaved query under the next non-conflicting one-based default name.</summary>
     public static List<ProcessSavedSearch> Add(
         IEnumerable<ProcessSavedSearch>? searches,
         string? query)
     {
         List<ProcessSavedSearch> updated = Normalize(searches);
         string normalizedQuery = query?.Trim() ?? string.Empty;
-        if (normalizedQuery.Length == 0) return updated;
+        if (normalizedQuery.Length == 0 || ContainsQuery(updated, normalizedQuery)) return updated;
 
         updated.Add(new ProcessSavedSearch { Name = ResolveNextDefaultName(updated), Query = normalizedQuery });
         return updated;
+    }
+
+    /// <summary>Returns whether a trimmed query already exists among saved searches.</summary>
+    /// <remarks>
+    /// Plain queries compare case-insensitively because every non-regex comparison ignores case.
+    /// Regex queries compare exactly because escapes such as \d and \D differ only by case.
+    /// </remarks>
+    public static bool ContainsQuery(
+        IReadOnlyList<ProcessSavedSearch> searches,
+        string? query)
+    {
+        ArgumentNullException.ThrowIfNull(searches);
+
+        ReadOnlySpan<char> normalizedQuery = query.AsSpan().Trim();
+        if (normalizedQuery.IsEmpty) return false;
+
+        StringComparison comparison = UsesRegularExpression(query)
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+        for (int searchIndex = 0; searchIndex < searches.Count; searchIndex++)
+        {
+            if (searches[searchIndex].Query.AsSpan().Trim().Equals(normalizedQuery, comparison))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>Renames one saved search while preserving its query and list position.</summary>

@@ -44,6 +44,8 @@
   <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchClearGlyphScale">0.7</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphOpacity">1</sys:Double>
+  <!-- Matches SettingsUI.DisabledOpacity so a disabled search action dims like a disabled settings button -->
+  <sys:Double x:Key="TaskManagerDetails.SearchActionDisabledOpacity">0.4</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionVisualInset">3</sys:Double>
   <CornerRadius x:Key="TaskManagerDetails.SearchActionVisualCornerRadius">4</CornerRadius>
   <sys:Double x:Key="TaskManagerDetails.SearchActionSpacing">6</sys:Double>

@@ -776,7 +776,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             || (eventArgs.KeyModifiers & KeyModifiers.Control) != 0
             || !page.TryGetMainContentTop(this, out double contentTop)
             || pointerPoint.Position.Y >= contentTop
-            || IsInteractiveHeaderControl(eventArgs.Source))
+            || IsInteractiveHeaderControl(eventArgs.Source)
+            || IsInteractiveHeaderControlAt(this, pointerPoint.Position))
             return;
 
         if (eventArgs.ClickCount == 2)
@@ -951,6 +952,14 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
         return false;
     }
+
+    /// <summary>Finds a header control under a point even while it is disabled.</summary>
+    /// <remarks>
+    /// Avalonia routes a press on a disabled control to the element beneath it,
+    /// so the event source alone would turn a click on a disabled button into a window drag.
+    /// </remarks>
+    internal static bool IsInteractiveHeaderControlAt(IInputElement root, Point position) =>
+        IsInteractiveHeaderControl(root.InputHitTest(position, enabledElementsOnly: false));
 
     private StackPanel BuildSettingsPage()
     {
