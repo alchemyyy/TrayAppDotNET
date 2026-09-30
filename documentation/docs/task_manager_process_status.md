@@ -169,6 +169,12 @@ and `AtmViewItem::UpdateSuspendedOrEfficiencyModeStatus`:
 - A non-zero count of suspended members makes it suspended.
 - A non-zero count of efficiency-mode members makes it efficiency mode.
 
+With "Use root process as group row" on, the group's root process takes the
+group row's place and shows the group totals with no status. Its first entry,
+Root, shows the root process's own usage and status, so no row carries the group
+status. With "Apply to subgroups" also on, every process with child processes
+follows the same pattern for its own subtree.
+
 Parent-process grouping has no synthetic rows, so every row shows its own
 process.
 

@@ -251,6 +251,9 @@
   <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconCornerRadius">2</sys:Double>
   <sys:Double x:Key="ProcessTable.StatusGlyphSize">14</sys:Double>
+  <!-- Root line chevron glyph size along each axis, in font size units. Its stroke is 0.145 em, so a width of 8.64 matches the 1.25 unit tree expander line; its ink spans 0.75 of the width and 0.44 of the height -->
+  <sys:Double x:Key="ProcessTable.RootLineGlyphWidth">8.64</sys:Double>
+  <sys:Double x:Key="ProcessTable.RootLineGlyphHeight">10.1</sys:Double>
   <!-- Task Manager's dark-theme Status glyph colors (Fluent caution and success); not responding uses Fluent critical -->
   <Color x:Key="ProcessTable.StatusSuspendedGlyphColor">#FCE100</Color>
   <Color x:Key="ProcessTable.StatusEfficiencyModeGlyphColor">#6CCB5F</Color>

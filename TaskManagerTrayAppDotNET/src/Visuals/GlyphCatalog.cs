@@ -60,6 +60,9 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph STATUS_NOT_RESPONDING => Glyph("StatusNotResponding");
 
+    /// <summary>North-facing chevron drawn in the icon slot of a semantic group's Root line.</summary>
+    public static Glyph ROOT_LINE => Glyph("RootLine");
+
     private static GlyphCatalogResources CurrentResources
     {
         get

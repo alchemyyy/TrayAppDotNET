@@ -145,6 +145,33 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             searchKeywords: ["Windows Task Manager hotkey shortcut control shift escape"]));
         stack.Children.Add(BuildReplaceTaskManagerCard(palette));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
+        Border semanticSubgroupRootCard = BoolCard(
+            title: "Apply to subgroups",
+            description:
+            "Give every process with child processes the same layout. Its row shows the totals of its subtree, and "
+            + "its first entry, Root, shows its own usage.",
+            _settings.UseRootProcessForSemanticSubgroups,
+            value => _settings.UseRootProcessForSemanticSubgroups = value,
+            palette,
+            searchKeywords: ["semantic subgroup nested child process tree root total sum"]);
+        semanticSubgroupRootCard.IsVisible =
+            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic
+            && _settings.UseRootProcessForSemanticGroups;
+        Border semanticGroupRootCard = BoolCard(
+            title: "Use root process as group row",
+            description:
+            "Show each semantic application group as its root process instead of a synthetic group row. The root "
+            + "process shows the group's totals, and its first entry, Root, shows the root process's own usage.",
+            _settings.UseRootProcessForSemanticGroups,
+            value =>
+            {
+                _settings.UseRootProcessForSemanticGroups = value;
+                semanticSubgroupRootCard.IsVisible = value;
+            },
+            palette,
+            searchKeywords: ["semantic group root process total sum synthetic row aggregate"]);
+        semanticGroupRootCard.IsVisible =
+            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic;
         stack.Children.Add(ComboCard(
             title: "Process grouping style",
             description:
@@ -156,11 +183,17 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             _settings.ProcessGroupingStyle.ToString(),
             tag =>
             {
-                if (Enum.TryParse(tag, out ProcessGroupingStyle value))
-                    _settings.ProcessGroupingStyle = value;
+                if (!Enum.TryParse(tag, out ProcessGroupingStyle value)) return;
+
+                _settings.ProcessGroupingStyle = value;
+                semanticGroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic;
+                semanticSubgroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic
+                                                     && _settings.UseRootProcessForSemanticGroups;
             },
             palette,
             searchKeywords: ["process tree application semantic parent ancestry group"]));
+        stack.Children.Add(semanticGroupRootCard);
+        stack.Children.Add(semanticSubgroupRootCard);
         Border semanticSectionExemptionCard = BoolCard(
             title: "Keep semantic sections expanded",
             description:

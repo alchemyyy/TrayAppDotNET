@@ -30,4 +30,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusSuspended" Text="&#xF2D9;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusEfficiencyMode" Text="&#xF1E8;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.StatusNotResponding" Text="&#xE783;" Font="SegoeFluentIcons" />
+
+    <!-- Processes Root line: points up at the root process row whose own usage it shows, from the sort carets' family -->
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.RootLine" Text="&#xE96D;" Font="SegoeFluentIcons" />
 </ResourceDictionary>

@@ -79,6 +79,33 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void RootProcessSemanticGroupsDefaultOffAndRoundTrip()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.UseRootProcessForSemanticGroups);
+        Assert.False(settings.UseRootProcessForSemanticSubgroups);
+
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.UseRootProcessForSemanticGroups = true;
+            settings.UseRootProcessForSemanticSubgroups = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.UseRootProcessForSemanticGroups);
+            Assert.True(loaded.UseRootProcessForSemanticSubgroups);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void LegacyGroupProcessesSettingUsesParentProcessStyle()
     {
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");

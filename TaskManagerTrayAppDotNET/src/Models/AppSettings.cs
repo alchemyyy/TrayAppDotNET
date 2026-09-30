@@ -110,6 +110,20 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     } = true;
 
+    /// <summary>Gets whether a semantic group is headed by its root process, which shows the group totals.</summary>
+    public bool UseRootProcessForSemanticGroups
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    /// <summary>Gets whether every process with children in a semantic group also shows its subtree totals.</summary>
+    public bool UseRootProcessForSemanticSubgroups
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public bool SkipRestartExplorerConfirmation
     {
         get;

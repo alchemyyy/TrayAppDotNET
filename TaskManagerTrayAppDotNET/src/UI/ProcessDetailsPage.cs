@@ -105,6 +105,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.EnableLiveDetailsColumnResizing,
             settings.ProcessTreeDefaultState,
             settings.ExpandSemanticSectionsByDefault,
+            settings.UseRootProcessForSemanticGroups,
+            settings.UseRootProcessForSemanticSubgroups,
             settings.GridFontSize,
             settings.GridFontWeight,
             settings.GridRowSpacing,
