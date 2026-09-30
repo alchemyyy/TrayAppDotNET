@@ -23,6 +23,9 @@
   <Project Path="BatteryTrayAppDotNET/src/BatteryTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="BatteryTrayAppDotNET/tests/BatteryTrayAppDotNET.Tests/BatteryTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>

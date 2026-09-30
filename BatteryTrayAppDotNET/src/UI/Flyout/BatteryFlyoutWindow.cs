@@ -2,14 +2,15 @@
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using System.Diagnostics;
-using System.Globalization;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using BatteryTrayAppDotNET.Services;
+using FlyoutPowerMode = BatteryTrayAppDotNET.Models.BatteryPowerMode;
 using Microsoft.Win32;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -31,22 +32,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private const double UndockButtonHeight = 32;
     private const double UndockButtonFontSize = 20;
     private const double UndockButtonGlyphLineHeight = 26;
-    private const int PowerCfgTimeoutMs = 5_000;
-    private const double WindowWidth = 350;
-    private const double BatteryTitleFontSize = 19;
-    private const double BatteryTitleTopOffset = -4;
-    private const double BatteryContentWidth = WindowWidth - 26;
-    private const double BatteryBarHorizontalInset = 19;
-    private const double BatteryBarWidth = WindowWidth - 2 * BatteryBarHorizontalInset;
-    private const double BatteryBarHeight = 14;
-    private const string UltimatePowerSchemeGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
-    private const string UltimatePowerSchemeName = "Ultimate Performance";
-    private const string BalancedPowerSchemeGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
-    private const string PowerSaverPowerSchemeGuid = "a1841308-3541-4fab-bc81-f71556f20b4a";
-    private const string EnergySaverSubgroupGuid = "de830923-a562-41af-a086-e3a2c6bad2da";
-    private const string EnergySaverBatteryThresholdGuid = "e69653ca-cf7f-4f05-aa73-cb833fa90ad4";
-    private const int EnergySaverNeverThreshold = 0;
-    private const int EnergySaverAlwaysThreshold = 100;
 
     private static readonly Thickness HeaderPadding = new(left: 12, top: 4, right: 12, bottom: 4);
     private static readonly Thickness UndockButtonFloatingMargin = new(left: 0, top: 8, right: 8, bottom: 0);
@@ -60,34 +45,44 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private static readonly CornerRadius HeaderIconButtonCornerRadius = new(4);
     private static readonly CornerRadius UndockButtonCornerRadius = new(4);
 
-    private enum FlyoutPowerMode
-    {
-        Ultimate,
-        Balanced,
-        PowerSaver
-    }
-
     private readonly BatteryMonitorService _batteryMonitor;
+    private readonly BatteryPowerModeService _powerModes;
     private readonly AppSettings _settings;
     private readonly Action _openSettings;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
     private readonly FlyoutDockingController _dockingController;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
+    private BatteryHealthWindow? _healthWindow;
     private FlyoutUndockButtonController? _undockButtonController;
+    private LiveContent? _live;
     private Control? _chromeCaptureOwner;
     private IPointer? _chromeCapturedPointer;
-    private bool _isPowerModeChanging;
-    private bool _isEnergySaverChanging;
+    private bool? _energySaverAlwaysEnabled;
+    private bool _energySaverReadFailed;
+    private bool? _energySaverRequest;
+    private bool _energySaverWriteRunning;
+    private bool _energySaverAwaitingConfirmation;
+    private bool _energySaverConfirmationReadDone;
+    private bool _energySaverReadRunning;
+    private long _energySaverStatusRevision;
+    private int _powerModeAdjustmentDepth;
     private bool _isDraggingWindow;
     private bool _isRebuilding;
     private bool _rebuildPending;
     private bool _rebuildQueued;
+    private bool _liveUpdateQueued;
     private bool _isClosed;
     private long _visibilityGeneration;
 
-    public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings)
+    private static BatteryFlyoutResources.FlyoutAxamlProperties Layout => BatteryFlyoutResources.Current.AxamlFlyout;
+
+    public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings,
+        BatteryPowerModeService? powerModes = null)
     {
         _batteryMonitor = batteryMonitor;
+        // The application shares its service across warm-window eviction and recreation.
+        // Standalone hosts can inject their own service or let this window own one.
+        _powerModes = powerModes ?? WindowResources.Own(new BatteryPowerModeService());
         _settings = settings;
         _openSettings = openSettings;
         _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
@@ -102,10 +97,12 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             StateChanged = OnDockStateChanged
         });
 
-        SetFixedFlyoutWidth(WindowWidth);
+        SetFixedFlyoutWidth(Layout.WindowWidth);
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
+        _powerModes.StateChanged += OnPowerModeStateChanged;
+        WindowResources.Add(() => _powerModes.StateChanged -= OnPowerModeStateChanged);
         _settings.Changed += OnSettingsChanged;
         WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -113,7 +110,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+        CommonAXAMLHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+        WindowResources.Add(() => CommonAXAMLHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+        BatteryFlyoutResources.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+        WindowResources.Add(() => BatteryFlyoutResources.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
 #endif
+        _ = _powerModes.RefreshAsync();
+        RefreshEnergySaverStatus();
         Rebuild();
     }
 
@@ -124,6 +127,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         long visibilityGeneration = ++_visibilityGeneration;
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
+        _ = _powerModes.RefreshAsync();
+        RefreshEnergySaverStatus();
         _dockingController.RedockIfUndockingDisabled();
         ApplyWorkAreaMaxHeight();
 
@@ -170,12 +175,95 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
 
+    protected override bool HasOpenChildWindow => _healthWindow != null;
+
     protected override void HideFlyout() => Hide();
 
     private void OnBatteryStateChanged()
     {
         if (_isClosed) return;
-        QueueRebuild();
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnBatteryStateChanged, DispatcherPriority.Background);
+            return;
+        }
+
+        // Readings arrive every few seconds. They update values in place so hover, focus, and open tooltips
+        // survive; only structural changes rebuild the content.
+        TryReleaseEnergySaverRequest(snapshotArrived: true);
+        QueueLiveUpdate();
+
+        // Mode and Energy Saver changes made elsewhere reach an open flyout with the next reading.
+        // A hidden flyout reads both again when it is shown, so it runs no powercfg queries in the background.
+        if (!IsVisible) return;
+        _ = _powerModes.RefreshAsync();
+        RefreshEnergySaverStatus();
+    }
+
+    private void OnPowerModeStateChanged()
+    {
+        // Raised on worker threads while the service applies or reads a mode.
+        // Read Energy Saver back once a switch settles in case its per-scheme threshold did not carry over.
+        if (!_powerModes.IsApplying) RefreshEnergySaverStatus(invalidate: true);
+        QueueLiveUpdate();
+    }
+
+    private void RefreshEnergySaverStatus(bool invalidate = false)
+    {
+        if (_isClosed) return;
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => RefreshEnergySaverStatus(invalidate), DispatcherPriority.Background);
+            return;
+        }
+
+        if (invalidate) ++_energySaverStatusRevision;
+        // A running write reads the result itself when it finishes
+        if (_energySaverReadRunning || _energySaverWriteRunning) return;
+        _energySaverReadRunning = true;
+        _ = RefreshEnergySaverStatusAsync(_energySaverStatusRevision);
+    }
+
+    private async Task RefreshEnergySaverStatusAsync(long revision)
+    {
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        try
+        {
+            bool? enabled = await Task.Run(
+                () => WindowsPowerModeBackend.ReadEnergySaverAsync(cancellationToken), cancellationToken);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _energySaverReadRunning = false;
+                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                if (revision != _energySaverStatusRevision || _energySaverWriteRunning)
+                {
+                    RefreshEnergySaverStatus();
+                    return;
+                }
+
+                // A failed read keeps the last known state, so one failed query cannot flash the button off
+                if (enabled.HasValue) _energySaverAlwaysEnabled = enabled;
+                _energySaverReadFailed = !enabled.HasValue;
+                if (_energySaverAwaitingConfirmation) _energySaverConfirmationReadDone = true;
+                TryReleaseEnergySaverRequest(snapshotArrived: false);
+                UpdateLiveContent();
+            }, DispatcherPriority.Background, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal when a warm flyout is evicted or the application closes.
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"BatteryFlyoutWindow.RefreshEnergySaverStatus: {ex.Message}");
+            Dispatcher.UIThread.Post(() =>
+            {
+                _energySaverReadRunning = false;
+                if (_isClosed) return;
+                _energySaverReadFailed = true;
+                UpdateLiveContent();
+            }, DispatcherPriority.Background);
+        }
     }
 
 #if DEBUG
@@ -199,8 +287,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             () =>
             {
                 if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
+                // The fresh reading updates the content in place when it arrives
                 _batteryMonitor.ForceRefresh();
-                QueueRebuild();
             },
             DispatcherPriority.Background);
     }
@@ -259,8 +347,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         try
         {
-            (UIContentGeneration replacement, FlyoutUndockButtonController? replacementUndockButtonController) =
-                BuildContentGeneration();
+            bool restorePowerModeFocus = FocusManager?.GetFocusedElement() is FlyoutSlider;
+            SetFixedFlyoutWidth(Layout.WindowWidth);
+            (UIContentGeneration replacement, FlyoutUndockButtonController? replacementUndockButtonController,
+                LiveContent replacementLive) = BuildContentGeneration();
             FlyoutUndockButtonController? previousUndockButtonController = _undockButtonController;
             _undockButtonController = replacementUndockButtonController;
             try
@@ -273,6 +363,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 throw;
             }
 
+            _live = replacementLive;
+            if (restorePowerModeFocus) replacementLive.PowerMode.Slider.Focus();
             QueuePositionNearTray();
         }
         finally
@@ -283,7 +375,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlushPendingRebuild();
     }
 
-    private (UIContentGeneration Generation, FlyoutUndockButtonController? UndockButtonController)
+    private (UIContentGeneration Generation, FlyoutUndockButtonController? UndockButtonController, LiveContent Live)
         BuildContentGeneration()
     {
         UIResourceScope resources = new($"{nameof(BatteryFlyoutWindow)}.Content");
@@ -295,70 +387,25 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             FlyoutControlPalette fp = ToFlyoutPalette(p, theme, isLight);
             Color flyoutBackground = theme.ResolveFlyoutBackground(_settings, isLight);
             Color headerBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
-            BatterySnapshot snapshot = _batteryMonitor.Snapshot;
 
             StackPanel body = new()
             {
-                Width = BatteryContentWidth,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(left: 0, top: 16, right: 0, bottom: 16),
-                Spacing = 10
+                Margin = Layout.BodyMargin,
+                Spacing = Layout.SectionSpacing
             };
             ControlNames.Assign(body, parentName: "FlyoutBody");
-
-            TextBlock title = Text(
-                $"Battery: {FormatChargePercent(snapshot)}",
-                p,
-                BatteryTitleFontSize,
-                FontWeight.SemiBold);
-            title.Margin = new Thickness(left: 0, BatteryTitleTopOffset, right: 0, bottom: 0);
-            body.Children.Add(title);
-
-            body.Children.Add(BatteryBar(snapshot, p, theme.ResolveBatteryFill(snapshot, isLight)));
-
-            TextBlock status = Text(BuildStatus(snapshot), p, size: 14);
-            status.HorizontalAlignment = HorizontalAlignment.Center;
-            status.Foreground = Brush(p.SecondaryForeground);
-            body.Children.Add(status);
-
+            SummaryView summary = BuildBatterySummary(p);
+            body.Children.Add(summary.Root);
             body.Children.Add(Separator(p));
-
-            if (snapshot is { EstimatedTimeRemaining: not null, IsFullyCharged: false })
-            {
-                body.Children.Add(DetailBlock(
-                    snapshot.IsCharging ? "Time until full" : "Estimated life",
-                    FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value),
-                    p));
-                body.Children.Add(Separator(p));
-            }
-
-            Grid details = new()
-            {
-                RowSpacing = 6,
-                ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
-            };
-            ControlNames.Assign(details, parentName: "BatteryDetails");
-
-            AddDetailRow(details, row: 0, label: "Power source", snapshot.IsOnExternalPower ? "External" : "Battery",
-                p);
-            AddDetailRow(details, row: 1, label: "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
-            AddDetailRow(details, row: 2, label: "Remaining", FormatCapacity(snapshot.RemainingCapacityMilliwattHours),
-                p);
-            AddDetailRow(details, row: 3, label: "Full charge",
-                FormatCapacity(snapshot.FullChargeCapacityMilliwattHours), p);
-            AddDetailRow(details, row: 4, label: "Designed", FormatCapacity(snapshot.DesignedCapacityMilliwattHours),
-                p);
-            AddDetailRow(
-                details,
-                row: 5,
-                label: "Health",
-                snapshot.HealthPercent.HasValue ? $"{snapshot.HealthPercent.Value:F0}%" : "N/A",
-                p);
-            body.Children.Add(BuildBottomSection(details, snapshot, fp, p));
+            MetricsView metrics = BuildMetrics(p);
+            body.Children.Add(metrics.Root);
+            body.Children.Add(Separator(p));
+            PowerModeView powerMode = BuildPowerControls(fp, p, resources);
+            body.Children.Add(powerMode.Root);
 
             DockPanel root = new() { LastChildFill = true };
-            (Border header, FlyoutUndockButtonController? undockButtonController) =
-                BuildHeader(fp, headerBackground, resources);
+            (Border header, FlyoutUndockButtonController? undockButtonController, EnergySaverButton energySaver) =
+                BuildHeader(fp, p, headerBackground, resources);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
             root.Children.Add(body);
@@ -393,13 +440,22 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 frame.PointerPressed -= OnChromePointerPressed;
             });
 
+            LiveContent live = new(theme, isLight, p, summary, metrics, powerMode, energySaver);
+            resources.Add(() =>
+            {
+                if (ReferenceEquals(_live, live))
+                    _live = null;
+            });
+            // Fill every value before the generation is published so it never shows placeholders
+            UpdateLiveContent(live);
+
             ControlNames.AssignLogicalSubtree(frame, nameof(BatteryFlyoutWindow));
 
             UIContentGeneration generation = new(
                 $"{nameof(BatteryFlyoutWindow)}.Content",
                 frame,
                 resources);
-            return (generation, undockButtonController);
+            return (generation, undockButtonController, live);
         }
         catch
         {
@@ -462,28 +518,73 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private bool IsRebuildBlockedByPointerCapture() =>
         _isDraggingWindow
+        || _powerModeAdjustmentDepth > 0
         || _chromeCapturedPointer != null
         || _undockButtonController?.IsPointerCaptured == true;
 
-    private (Border Header, FlyoutUndockButtonController? UndockButtonController) BuildHeader(
-        FlyoutControlPalette p,
-        Color headerBackground,
-        UIResourceScope resources)
+    /// <summary>Queues one coalesced in-place refresh of the visible content's values.</summary>
+    private void QueueLiveUpdate()
+    {
+        if (_isClosed) return;
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(QueueLiveUpdate, DispatcherPriority.Background);
+            return;
+        }
+
+        if (_liveUpdateQueued) return;
+
+        _liveUpdateQueued = true;
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _liveUpdateQueued = false;
+                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                UpdateLiveContent();
+            },
+            DispatcherPriority.Background);
+    }
+
+    private void UpdateLiveContent()
+    {
+        // A hidden flyout rebuilds with current values when it is next shown
+        if (_isClosed || _live is not { } live || (!IsVisible && !IsWarmPriming)) return;
+        UpdateLiveContent(live);
+    }
+
+    private void UpdateLiveContent(LiveContent live)
+    {
+        BatterySnapshot snapshot = _batteryMonitor.Snapshot;
+        BatteryTimeEstimates estimates = _batteryMonitor.Estimates;
+        UpdateSummary(live, snapshot, estimates);
+        UpdateMetrics(live.Metrics, snapshot, estimates);
+        UpdateEnergySaver(live.EnergySaver);
+        UpdatePowerMode(live.PowerMode);
+    }
+
+    private (Border Header, FlyoutUndockButtonController? UndockButtonController, EnergySaverButton EnergySaver)
+        BuildHeader(
+            FlyoutControlPalette p,
+            SettingsPalette settingsPalette,
+            Color headerBackground,
+            UIResourceScope resources)
     {
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
         Grid grid = new();
         FlyoutUndockButtonController? undockButtonController = null;
+        EnergySaverButton energySaver = BuildEnergySaverButton(p, settingsPalette);
 
         if (bottomHeader)
         {
-            StackPanel actions = BuildHeaderActions(p, settingsLast: true);
+            StackPanel actions = BuildHeaderActions(p, energySaver, settingsLast: true);
             actions.HorizontalAlignment = HorizontalAlignment.Right;
             actions.VerticalAlignment = VerticalAlignment.Center;
             grid.Children.Add(actions);
         }
         else
         {
-            StackPanel left = BuildHeaderActions(p, settingsLast: false);
+            StackPanel left = BuildHeaderActions(p, energySaver, settingsLast: false);
             left.HorizontalAlignment = HorizontalAlignment.Left;
             left.VerticalAlignment = VerticalAlignment.Center;
             grid.Children.Add(left);
@@ -506,10 +607,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Padding = HeaderPadding,
             Child = grid
         };
-        return (ControlNames.Assign(header, parentName: "FlyoutHeader"), undockButtonController);
+        return (ControlNames.Assign(header, parentName: "FlyoutHeader"), undockButtonController, energySaver);
     }
 
-    private StackPanel BuildHeaderActions(FlyoutControlPalette p, bool settingsLast)
+    private StackPanel BuildHeaderActions(FlyoutControlPalette p, EnergySaverButton energySaver, bool settingsLast)
     {
         Border settingsButton = BuildHeaderIconButton(
             GlyphCatalog.SETTINGS,
@@ -521,30 +622,199 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         SuppressNextAutoHideWhenPressed(settingsButton);
 
         Border powerButton = BuildHeaderIconButton(
-            GlyphCatalog.POWER,
+            GlyphCatalog.LIGHTNING_BOLT,
             p,
             HeaderPowerIconButtonFontSize,
             OpenModernPowerSettings,
             L(nameof(AppStrings.Flyout_PowerSettings_Tooltip)));
         ControlNames.Assign(powerButton, parentName: "PowerSettingsButton");
 
+        Border healthButton = BuildHeaderIconButton(
+            TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs.About,
+            p,
+            HeaderIconButtonFontSize,
+            ShowBatteryHealth,
+            "Battery health");
+        ControlNames.Assign(healthButton, parentName: "BatteryHealthButton");
+        healthButton.Focusable = true;
+        AutomationProperties.SetName(healthButton, "Battery health");
+        healthButton.KeyDown += (_, e) =>
+        {
+            if (e.Key is not (Key.Enter or Key.Space)) return;
+            e.Handled = true;
+            ShowBatteryHealth();
+        };
+        SuppressNextAutoHideWhenPressed(healthButton);
+
         StackPanel actions = new()
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
+        actions.Children.Add(energySaver.Button);
 
         if (settingsLast)
         {
+            actions.Children.Add(healthButton);
             actions.Children.Add(powerButton);
             actions.Children.Add(settingsButton);
         }
         else
         {
             actions.Children.Add(settingsButton);
+            actions.Children.Add(healthButton);
             actions.Children.Add(powerButton);
         }
 
         return actions;
+    }
+
+    private EnergySaverButton BuildEnergySaverButton(FlyoutControlPalette p, SettingsPalette settingsPalette)
+    {
+        FlyoutControlPalette onPalette = p with
+        {
+            Foreground = settingsPalette.ToggleOnThumb,
+            ControlBackground = settingsPalette.ToggleOnTrack,
+            Hover = settingsPalette.ToggleOnTrack,
+            Pressed = settingsPalette.ToggleOnTrack,
+            Border = settingsPalette.ToggleOnTrack
+        };
+        EnergySaverButton button = new(
+            L(nameof(AppStrings.Flyout_EnergySaver)),
+            p,
+            onPalette,
+            Rounded(HeaderIconButtonCornerRadius),
+            ToggleEnergySaver);
+        ControlNames.Assign(button.Button, parentName: "EnergySaverButton");
+        return button;
+    }
+
+    private void UpdateEnergySaver(EnergySaverButton button)
+    {
+        bool isOn = IsEnergySaverShownOn();
+        bool isAvailable = IsEnergySaverAvailable;
+        string label = L(nameof(AppStrings.Flyout_EnergySaver));
+        string state = $"{label}: {(isOn ? "On" : "Off")}";
+        button.Apply(
+            isOn,
+            isAvailable,
+            state,
+            isAvailable
+                ? $"{state}. {L(nameof(AppStrings.Flyout_EnergySaver_Tooltip))}"
+                : L(nameof(AppStrings.Flyout_EnergySaver_Unavailable_Tooltip)));
+    }
+
+    /// <summary>The threshold is unknown only after a failed read, never while the first read is running.</summary>
+    private bool IsEnergySaverAvailable =>
+        _energySaverRequest.HasValue || _energySaverAlwaysEnabled.HasValue || !_energySaverReadFailed;
+
+    /// <summary>What Windows reports: Energy Saver running now, or set to Always.</summary>
+    private bool ObservedEnergySaverOn() =>
+        _batteryMonitor.Snapshot.EnergySaverEnabled || _energySaverAlwaysEnabled == true;
+
+    private bool IsEnergySaverShownOn() => _energySaverRequest ?? ObservedEnergySaverOn();
+
+    private void ToggleEnergySaver()
+    {
+        if (_isClosed || !IsEnergySaverAvailable) return;
+
+        // Show the choice at once. The backend orders the write after any mode switch still in progress.
+        _energySaverRequest = !IsEnergySaverShownOn();
+        _energySaverAwaitingConfirmation = false;
+        _energySaverConfirmationReadDone = false;
+        UpdateLiveContent();
+        if (!_energySaverWriteRunning) _ = WriteEnergySaverAsync();
+    }
+
+    private async Task WriteEnergySaverAsync()
+    {
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        _energySaverWriteRunning = true;
+        try
+        {
+            // Rapid clicks end on the newest choice
+            while (!_isClosed && _energySaverRequest is { } requested)
+            {
+                bool success = await Task.Run(
+                    () => WindowsPowerModeBackend.ApplyEnergySaverAsync(requested, cancellationToken),
+                    cancellationToken);
+                if (!success)
+                {
+                    TADNLog.Log($"BatteryFlyoutWindow.WriteEnergySaverAsync({requested}): powercfg failed");
+                    // Show what Windows reports instead of holding a choice that did not apply
+                    if (_energySaverRequest == requested) _energySaverRequest = null;
+                    break;
+                }
+
+                if (_energySaverRequest == requested) break;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"BatteryFlyoutWindow.WriteEnergySaverAsync: {ex.Message}");
+            _energySaverRequest = null;
+        }
+        finally
+        {
+            _energySaverWriteRunning = false;
+        }
+
+        if (_isClosed) return;
+        _energySaverAwaitingConfirmation = _energySaverRequest.HasValue;
+        _energySaverConfirmationReadDone = false;
+        _batteryMonitor.ForceRefresh();
+        RefreshEnergySaverStatus(invalidate: true);
+        UpdateLiveContent();
+    }
+
+    /// <summary>
+    /// Hands the button back to Windows' state once Windows reports the choice. A battery reading that arrives after
+    /// the post-write threshold read settles the choice either way, so a refused change cannot stay on screen.
+    /// </summary>
+    private void TryReleaseEnergySaverRequest(bool snapshotArrived)
+    {
+        if (_energySaverRequest is not { } requested
+            || !_energySaverAwaitingConfirmation
+            || !_energySaverConfirmationReadDone) return;
+        if (ObservedEnergySaverOn() != requested && !snapshotArrived) return;
+
+        _energySaverRequest = null;
+        _energySaverAwaitingConfirmation = false;
+        _energySaverConfirmationReadDone = false;
+    }
+
+    private void ShowBatteryHealth()
+    {
+        if (_isClosed || !IsVisible) return;
+        if (_healthWindow != null)
+        {
+            _healthWindow.Activate();
+            return;
+        }
+
+        _ = ShowBatteryHealthAsync();
+    }
+
+    private async Task ShowBatteryHealthAsync()
+    {
+        try
+        {
+            using BatteryHealthWindow dialog = new(_batteryMonitor, _settings);
+            _healthWindow = dialog;
+            await dialog.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"BatteryFlyoutWindow.ShowBatteryHealth: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            _healthWindow = null;
+            if (!_isClosed) NotifyChildWindowClosedFromDeactivation();
+        }
     }
 
     private Border BuildHeaderIconButton(
@@ -855,218 +1125,315 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private Grid BuildBottomSection(
-        Grid details,
-        BatterySnapshot snapshot,
-        FlyoutControlPalette p,
-        SettingsPalette settingsPalette)
+    private SummaryView BuildBatterySummary(SettingsPalette p)
     {
-        details.VerticalAlignment = VerticalAlignment.Top;
-
-        Grid section = new()
+        Grid summary = new()
         {
-            ColumnSpacing = 14,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }
+            ColumnSpacing = Layout.SummarySpacing,
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*")
         };
+        TextBlock battery = Text(string.Empty, p, Layout.BatteryGlyphFontSize);
+        battery.VerticalAlignment = VerticalAlignment.Center;
+        battery.IsHitTestVisible = false;
+        summary.Children.Add(ControlNames.Assign(battery, parentName: "BatteryGlyph"));
 
-        Control powerControls = BuildPowerControls(snapshot, p, settingsPalette);
-        section.Children.Add(powerControls);
+        TextBlock charge = Text(string.Empty, p, Layout.ChargeFontSize, FontWeight.SemiBold);
+        charge.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(charge, 1);
+        summary.Children.Add(charge);
 
-        Grid.SetColumn(details, value: 1);
-        section.Children.Add(details);
-
-        return section;
+        StackPanel status = new() { Spacing = Layout.SummaryTextSpacing, VerticalAlignment = VerticalAlignment.Center };
+        TextBlock time = Text(string.Empty, p, Layout.TimeFontSize);
+        status.Children.Add(time);
+        TextBlock statusText = Text(string.Empty, p, Layout.StatusFontSize);
+        statusText.Foreground = Brush(p.SecondaryForeground);
+        statusText.TextWrapping = TextWrapping.Wrap;
+        status.Children.Add(statusText);
+        Grid.SetColumn(status, 2);
+        summary.Children.Add(status);
+        return new SummaryView(
+            ControlNames.Assign(summary, parentName: "BatterySummary"), battery, charge, time, statusText);
     }
 
-    private StackPanel BuildPowerControls(
-        BatterySnapshot snapshot,
-        FlyoutControlPalette p,
-        SettingsPalette settingsPalette)
+    private static void UpdateSummary(LiveContent live, BatterySnapshot snapshot, BatteryTimeEstimates estimates)
     {
-        FlyoutPowerMode? activeMode = QueryActivePowerMode();
-        bool? energySaverAlways = QueryEnergySaverAlwaysEnabled();
-        bool energySaverEnabled = snapshot.EnergySaverEnabled || energySaverAlways == true;
+        SummaryView view = live.Summary;
+        Glyph batteryGlyph = snapshot.BatteryPresent ? BatteryGlyphResolver.Resolve(snapshot) : GlyphCatalog.BATTERY_0;
+        if (view.Glyph.Text != batteryGlyph.Text) GlyphApplicator.ApplyTo(view.Glyph, batteryGlyph);
+        SetForeground(view.Glyph, snapshot.BatteryPresent
+            ? live.Theme.ResolveBatteryFill(snapshot, live.IsLight)
+            : live.Palette.SecondaryForeground);
+        view.Charge.Text = FormatChargePercent(snapshot);
 
-        StackPanel panel = new() { Spacing = 6, VerticalAlignment = VerticalAlignment.Top };
-
-        panel.Children.Add(BuildToggleRow(
-            L(nameof(AppStrings.Flyout_EnergySaver)),
-            p,
-            settingsPalette,
-            energySaverEnabled,
-            SetEnergySaver,
-            energySaverAlways.HasValue
-                ? L(nameof(AppStrings.Flyout_EnergySaver_Tooltip))
-                : L(nameof(AppStrings.Flyout_EnergySaver_Unavailable_Tooltip)),
-            !_isEnergySaverChanging && energySaverAlways.HasValue));
-
-        TextBlock label = TrayAppDotNETFlyoutUI.Text(
-            L(nameof(AppStrings.Flyout_PowerMode_Label)),
-            p,
-            fontSize: 12,
-            FontWeight.SemiBold,
-            p.SecondaryForeground);
-        label.Margin = new Thickness(left: 0, top: 2, right: 0, bottom: 0);
-        panel.Children.Add(label);
-
-        panel.Children.Add(BuildPowerModeRow(
-            L(nameof(AppStrings.Flyout_PowerMode_Ultimate)),
-            FlyoutPowerMode.Ultimate,
-            activeMode,
-            p,
-            settingsPalette));
-        panel.Children.Add(BuildPowerModeRow(
-            L(nameof(AppStrings.Flyout_PowerMode_Balanced)),
-            FlyoutPowerMode.Balanced,
-            activeMode,
-            p,
-            settingsPalette));
-        panel.Children.Add(BuildPowerModeRow(
-            L(nameof(AppStrings.Flyout_PowerMode_PowerSaver)),
-            FlyoutPowerMode.PowerSaver,
-            activeMode,
-            p,
-            settingsPalette));
-
-        return panel;
+        string? time = SummaryTimeText(snapshot, estimates);
+        view.Time.Text = time;
+        view.Time.IsVisible = time != null;
+        view.Status.Text = BuildStatus(snapshot);
     }
 
-    private Grid BuildPowerModeRow(
-        string text,
-        FlyoutPowerMode mode,
-        FlyoutPowerMode? activeMode,
-        FlyoutControlPalette p,
-        SettingsPalette settingsPalette)
+    private static string? SummaryTimeText(BatterySnapshot snapshot, BatteryTimeEstimates estimates)
     {
-        bool selected = activeMode == mode;
-        return BuildToggleRow(
-            text,
-            p,
-            settingsPalette,
-            selected,
-            enabled =>
-            {
-                if (enabled) SetPowerMode(mode);
-                else QueueRebuild();
-            },
-            text,
-            !_isPowerModeChanging,
-            labelIndent: 2);
+        if (snapshot is not { BatteryPresent: true, IsFullyCharged: false }) return null;
+        if (snapshot.IsCharging)
+            return estimates.ChargeTime.HasValue ? $"{FormatEstimate(estimates.ChargeTime)} until full" : null;
+
+        // Predicted life is known on external power too, but only a draining battery has time remaining
+        if (snapshot.IsOnExternalPower) return null;
+        TimeSpan? remaining = estimates.PredictedLife ?? estimates.PresentDischarge;
+        return remaining.HasValue ? $"{FormatEstimate(remaining)} remaining" : null;
     }
 
-    private static Grid BuildToggleRow(
-        string text,
+    private MetricsView BuildMetrics(SettingsPalette p)
+    {
+        Grid metrics = new()
+        {
+            // The usage column takes the width its content needs so its values are never clipped;
+            // the estimates column takes the rest
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnSpacing = Layout.MetricColumnSpacing
+        };
+        Grid times = CreateMetricColumn();
+        TextBlock predictedLife = AddDetailRow(times, "Predicted life", p,
+            "How long the current charge would last, learned from the last 30 minutes on battery. " +
+            "Also shown while plugged in. Available after two minutes on battery.").Value;
+        TextBlock presentDischarge = AddDetailRow(times, "Present discharge", p,
+            "Time remaining at the recent discharge rate. Averaging and decay are adjustable in Flyout settings.").Value;
+        TextBlock chargeTime = AddDetailRow(times, "Time until full", p,
+            "Estimated time to full at the recent charging rate. Recalculates as charging slows.").Value;
+        metrics.Children.Add(ControlNames.Assign(times, parentName: "BatteryTimeEstimates"));
+
+        Grid usage = CreateMetricColumn();
+        TextBlock powerSource = AddDetailRow(usage, "Power source", p).Value;
+        (TextBlock rateLabel, TextBlock rate) = AddDetailRow(usage, "Discharge rate", p);
+        TextBlock remaining = AddDetailRow(usage, "Remaining", p).Value;
+        Grid.SetColumn(usage, 1);
+        metrics.Children.Add(ControlNames.Assign(usage, parentName: "BatteryUsage"));
+        return new MetricsView(
+            ControlNames.Assign(metrics, parentName: "BatteryDetails"),
+            predictedLife,
+            presentDischarge,
+            chargeTime,
+            powerSource,
+            rateLabel,
+            rate,
+            remaining);
+    }
+
+    private static void UpdateMetrics(MetricsView view, BatterySnapshot snapshot, BatteryTimeEstimates estimates)
+    {
+        view.PredictedLife.Text = estimates.PredictedLife == null
+                                  && snapshot is { BatteryPresent: true, IsOnExternalPower: false,
+                                      RemainingCapacityMilliwattHours: > 0, DischargeRateWatts: > 0 }
+            ? "Learning…"
+            : FormatEstimate(estimates.PredictedLife);
+        view.PresentDischarge.Text = FormatEstimate(estimates.PresentDischarge);
+        view.ChargeTime.Text = FormatEstimate(estimates.ChargeTime);
+        view.PowerSource.Text = snapshot.IsOnExternalPower ? "External" : "Battery";
+        // A charging battery has no discharge rate, so the row reports the rate it is charging at instead
+        view.RateLabel.Text = snapshot.IsCharging ? "Charge rate" : "Discharge rate";
+        view.Rate.Text = FormatPower(snapshot.CurrentBatteryPowerWatts);
+        view.Remaining.Text = FormatCapacity(snapshot.RemainingCapacityMilliwattHours);
+    }
+
+    private static string FormatEstimate(TimeSpan? value) =>
+        value.HasValue ? value.Value <= TimeSpan.Zero ? "0m" : FormatTimeSpan(value.Value) : "N/A";
+
+    /// <summary>Labels give way with an ellipsis before any value is clipped.</summary>
+    private static Grid CreateMetricColumn() => new()
+    {
+        RowSpacing = Layout.MetricRowSpacing,
+        ColumnSpacing = Layout.MetricValueSpacing,
+        ColumnDefinitions = new ColumnDefinitions("*,Auto")
+    };
+
+    private PowerModeView BuildPowerControls(
         FlyoutControlPalette p,
         SettingsPalette settingsPalette,
-        bool isChecked,
-        Action<bool> changed,
-        string tooltip,
-        bool enabled = true,
-        double labelIndent = 0)
+        UIResourceScope resources)
     {
-        TextBlock label = TrayAppDotNETFlyoutUI.Text(text, p, fontSize: 12, FontWeight.SemiBold);
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.Margin = new Thickness(labelIndent, top: 0, right: 0, bottom: 0);
-        label.TextTrimming = TextTrimming.CharacterEllipsis;
-
-        SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(
-            settingsPalette,
-            isChecked,
-            (_, value) => changed(value));
-        toggle.IsEnabled = enabled;
-        toggle.HorizontalAlignment = HorizontalAlignment.Right;
-        toggle.VerticalAlignment = VerticalAlignment.Center;
-        TrayAppDotNETToolTip.SetTip(toggle, tooltip);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(toggle);
-
-        Grid row = new()
+        Grid panel = new()
         {
-            ColumnSpacing = 10,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
+            RowSpacing = Layout.ControlRowSpacing,
+            ColumnDefinitions = new ColumnDefinitions("*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto")
+        };
+        string powerModeTitle = L(nameof(AppStrings.Flyout_PowerMode_Label));
+        TextBlock heading = Text(string.Empty, settingsPalette, Layout.ControlLabelFontSize, FontWeight.SemiBold);
+        panel.Children.Add(heading);
+
+        FlyoutSlider slider = resources.Own(new FlyoutSlider
+        {
+            Minimum = 0,
+            Maximum = 2,
+            WheelStep = 1,
+            KeyboardStep = 1,
+            LargeKeyboardStep = 1,
+            TrackColor = p.SliderTrack,
+            ProgressColor = p.SliderProgress,
+            ThumbColor = p.SliderThumb,
+            TickValues = [0, 1, 2],
+            TickColor = p.SecondaryForeground,
+            Thumb = new SliderThumbGlyphOption(),
+            HitTestVerticalPadding = Layout.SliderHitTestVerticalPadding
+        });
+        ControlNames.Assign(slider, parentName: "PowerModeSlider");
+        AutomationProperties.SetName(slider, powerModeTitle);
+        TrayAppDotNETToolTip.SuppressWhileEngaged(slider);
+        FlyoutPowerMode? requestedMode = null;
+        slider.UserAdjustmentStarted += (_, _) =>
+        {
+            // Wheel/key input can nest inside a pointer drag; retain its pending selection and capture guard.
+            if (_powerModeAdjustmentDepth++ > 0) return;
+            // An unchanged thumb click is also a choice, even if a read/apply completes during the gesture.
+            requestedMode = PowerModeAt(slider.Value);
+        };
+        slider.ValueChanged += (_, value) =>
+        {
+            slider.Value = Math.Round(value, MidpointRounding.AwayFromZero);
+            requestedMode = PowerModeAt(slider.Value);
+            slider.ThumbOpacity = 1;
+            slider.ProgressValueOverride = null;
+            string modeLabel = PowerModeLabel(requestedMode);
+            heading.Text = $"{powerModeTitle}: {modeLabel}";
+            TrayAppDotNETToolTip.SetTip(slider, modeLabel);
+        };
+        slider.UserAdjustmentCompleted += (_, _) =>
+        {
+            if (--_powerModeAdjustmentDepth > 0) return;
+            FlyoutPowerMode? mode = requestedMode;
+            requestedMode = null;
+            // The service compares against the newest intent, which may differ from this gesture's initial mode.
+            if (mode.HasValue) SetPowerMode(mode.Value);
+            // The gesture no longer owns the slider, so show the service's mode again
+            UpdateLiveContent();
+            FlushPendingRebuild();
         };
 
-        row.Children.Add(label);
-        Grid.SetColumn(toggle, value: 1);
-        row.Children.Add(toggle);
-        return row;
-    }
+        Grid.SetRow(slider, 1);
+        panel.Children.Add(slider);
 
-    private static Border BatteryBar(BatterySnapshot snapshot, SettingsPalette p, Color fill)
-    {
-        Grid bar = new() { Width = BatteryBarWidth, Height = BatteryBarHeight, ClipToBounds = true };
-
-        bar.Children.Add(new Border
+        // Align the endpoint glyph centers with the slider thumb's minimum/maximum positions.
+        double glyphInset = (slider.Thumb.Width - Layout.SliderGlyphSize) / 2;
+        Grid endpointGlyphs = new()
         {
-            Background = Brush(p.ControlBackground),
-            BorderBrush = Brush(p.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4)
-        });
-
-        double fillWidth = Math.Max(val1: 0, (BatteryBarWidth - 2) * snapshot.ChargePercentage / 100.0);
-        bar.Children.Add(new Border
-        {
-            Width = fillWidth,
-            Height = BatteryBarHeight - 2,
-            Margin = new Thickness(1),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = Brush(fill),
-            CornerRadius = new CornerRadius(3)
-        });
-
-        return new Border
-        {
-            Width = BatteryBarWidth,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = bar
+            ColumnDefinitions = new ColumnDefinitions("*,*"),
+            Margin = new Thickness(glyphInset, top: 0, glyphInset, bottom: 0)
         };
+        Control efficiency = PowerModeGlyph(GlyphCatalog.POWER_MODE_EFFICIENCY, p,
+            PowerModeLabel(FlyoutPowerMode.PowerSaver));
+        efficiency.HorizontalAlignment = HorizontalAlignment.Left;
+        endpointGlyphs.Children.Add(efficiency);
+        Control performance = PowerModeGlyph(GlyphCatalog.POWER_MODE_PERFORMANCE, p,
+            PowerModeLabel(FlyoutPowerMode.Ultimate));
+        performance.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(performance, 1);
+        endpointGlyphs.Children.Add(performance);
+        Grid.SetRow(endpointGlyphs, 2);
+        panel.Children.Add(endpointGlyphs);
+        return new PowerModeView(panel, heading, slider);
     }
+
+    private void UpdatePowerMode(PowerModeView view)
+    {
+        // A gesture owns the slider and heading until it completes
+        if (_powerModeAdjustmentDepth > 0) return;
+
+        FlyoutPowerMode? activeMode = _powerModes.DisplayMode;
+        string label = activeMode.HasValue || _powerModes.IsStateAvailable
+            ? PowerModeLabel(activeMode)
+            : "Unknown";
+        view.Slider.Value = PowerModeIndex(activeMode);
+        view.Slider.ThumbOpacity = activeMode.HasValue ? 1 : 0;
+        view.Slider.ProgressValueOverride = activeMode.HasValue ? null : 0;
+
+        string heading = $"{L(nameof(AppStrings.Flyout_PowerMode_Label))}: {label}";
+        if (view.Heading.Text == heading) return;
+        view.Heading.Text = heading;
+        TrayAppDotNETToolTip.SetTip(view.Slider, label);
+    }
+
+    private static TextBlock PowerModeGlyph(Glyph glyph, FlyoutControlPalette p, string tooltip)
+    {
+        TextBlock icon = TrayAppDotNETFlyoutUI.Text(glyph.Text, p, Layout.SliderGlyphSize,
+            FontWeight.Normal, p.SecondaryForeground);
+        GlyphApplicator.ApplyTo(icon, glyph);
+        icon.Width = Layout.SliderGlyphSize;
+        icon.TextAlignment = TextAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        TrayAppDotNETToolTip.SetTip(icon, tooltip);
+        return icon;
+    }
+
+    private static int PowerModeIndex(FlyoutPowerMode? mode) => mode switch
+    {
+        FlyoutPowerMode.PowerSaver => 0,
+        FlyoutPowerMode.Ultimate => 2,
+        _ => 1
+    };
+
+    private static FlyoutPowerMode PowerModeAt(double value) => (int)value switch
+    {
+        0 => FlyoutPowerMode.PowerSaver,
+        2 => FlyoutPowerMode.Ultimate,
+        _ => FlyoutPowerMode.Balanced
+    };
+
+    private static string PowerModeLabel(FlyoutPowerMode? mode) => mode switch
+    {
+        FlyoutPowerMode.PowerSaver => L(nameof(AppStrings.Flyout_PowerMode_PowerSaver)),
+        FlyoutPowerMode.Balanced => L(nameof(AppStrings.Flyout_PowerMode_Balanced)),
+        FlyoutPowerMode.Ultimate => L(nameof(AppStrings.Flyout_PowerMode_Ultimate)),
+        _ => "Custom"
+    };
 
     private static string FormatChargePercent(BatterySnapshot snapshot) =>
         snapshot.BatteryPresent ? $"{snapshot.ChargePercentage}%" : "--";
 
-    private static StackPanel DetailBlock(string label, string value, SettingsPalette p)
+    private static (TextBlock Label, TextBlock Value) AddDetailRow(
+        Grid grid,
+        string label,
+        SettingsPalette p,
+        string? tooltip = null)
     {
-        StackPanel panel = new() { Spacing = 3 };
-        TextBlock labelText = Text(label, p, size: 13);
-        labelText.Foreground = Brush(p.SecondaryForeground);
-        panel.Children.Add(labelText);
-        panel.Children.Add(Text(value, p, size: 18, FontWeight.SemiBold));
-        return panel;
-    }
-
-    private static void AddDetailRow(Grid grid, int row, string label, string value, SettingsPalette p)
-    {
+        int row = grid.RowDefinitions.Count;
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        TextBlock labelText = Text(label + ":", p, size: 12);
+        TextBlock labelText = Text(label, p, Layout.MetricFontSize);
         labelText.Foreground = Brush(p.SecondaryForeground);
-        labelText.Margin = new Thickness(left: 0, top: 0, right: 14, bottom: 0);
+        labelText.TextTrimming = TextTrimming.CharacterEllipsis;
+        if (tooltip != null) TrayAppDotNETToolTip.SetTip(labelText, tooltip);
         Grid.SetRow(labelText, row);
         Grid.SetColumn(labelText, value: 0);
         grid.Children.Add(labelText);
 
-        TextBlock valueText = Text(value, p, size: 12);
+        TextBlock valueText = Text(string.Empty, p, Layout.MetricFontSize, FontWeight.SemiBold);
+        if (tooltip != null) TrayAppDotNETToolTip.SetTip(valueText, tooltip);
         valueText.TextAlignment = TextAlignment.Right;
         Grid.SetRow(valueText, row);
         Grid.SetColumn(valueText, value: 1);
         grid.Children.Add(valueText);
+        return (labelText, valueText);
     }
 
     private static Border Separator(SettingsPalette p) =>
-        new() { Height = 1, Background = Brush(p.Border), Opacity = 0.75 };
+        new() { Height = Layout.SeparatorHeight, Background = Brush(p.Border), Opacity = Layout.SeparatorOpacity };
 
     private static TextBlock Text(string text, SettingsPalette p, double size, FontWeight weight = FontWeight.Normal) =>
         new()
         {
             Text = text,
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = TrayAppDotNETSettingsUI.UIFont,
             FontSize = size,
             FontWeight = weight,
             Foreground = Brush(p.Foreground)
         };
 
     private static SolidColorBrush Brush(Color color) => new(color);
+
+    private static void SetForeground(TextBlock text, Color color)
+    {
+        if (text.Foreground is ISolidColorBrush { Color: var current } && current == color) return;
+        text.Foreground = Brush(color);
+    }
 
     private static FlyoutControlPalette ToFlyoutPalette(SettingsPalette p, AppTheme theme, bool isLight) =>
         new(
@@ -1082,257 +1449,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p.SliderProgress,
             p.SliderThumb);
 
-    private static FlyoutPowerMode? QueryActivePowerMode()
-    {
-        string? output = RunPowerCfgOutput("/getactivescheme");
-        if (string.IsNullOrWhiteSpace(output)) return null;
-
-        if (PowerSchemeMatches(output, UltimatePowerSchemeGuid, UltimatePowerSchemeName))
-            return FlyoutPowerMode.Ultimate;
-        if (output.Contains(BalancedPowerSchemeGuid, StringComparison.OrdinalIgnoreCase))
-            return FlyoutPowerMode.Balanced;
-        if (output.Contains(PowerSaverPowerSchemeGuid, StringComparison.OrdinalIgnoreCase))
-            return FlyoutPowerMode.PowerSaver;
-
-        return null;
-    }
-
-    private static bool? QueryEnergySaverAlwaysEnabled()
-    {
-        string? output = RunPowerCfgOutput(
-            $"/qh SCHEME_CURRENT {EnergySaverSubgroupGuid} {EnergySaverBatteryThresholdGuid}");
-        if (string.IsNullOrWhiteSpace(output)) return null;
-
-        int? acThreshold = ParsePowerCfgIndex(output, label: "Current AC Power Setting Index");
-        int? dcThreshold = ParsePowerCfgIndex(output, label: "Current DC Power Setting Index");
-
-        if (dcThreshold.HasValue)
-            return dcThreshold.Value >= EnergySaverAlwaysThreshold;
-        if (acThreshold.HasValue)
-            return acThreshold.Value >= EnergySaverAlwaysThreshold;
-        return null;
-    }
-
-    private static int? ParsePowerCfgIndex(string output, string label)
-    {
-        foreach (string line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (!line.Contains(label, StringComparison.OrdinalIgnoreCase)) continue;
-            int colon = line.IndexOf(':');
-            if (colon < 0 || colon == line.Length - 1) return null;
-
-            string token = line[(colon + 1)..].Trim();
-            if (token.StartsWith(value: "0x", StringComparison.OrdinalIgnoreCase))
-            {
-                return int.TryParse(
-                    token[2..],
-                    NumberStyles.HexNumber,
-                    CultureInfo.InvariantCulture,
-                    out int hexValue)
-                    ? hexValue
-                    : null;
-            }
-
-            return int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
-                ? value
-                : null;
-        }
-
-        return null;
-    }
-
     private void SetPowerMode(FlyoutPowerMode mode)
     {
-        if (_isClosed || _isPowerModeChanging) return;
-
-        _isPowerModeChanging = true;
-        Rebuild();
-        _ = SetPowerModeAsync(mode);
-    }
-
-    private void SetEnergySaver(bool enabled)
-    {
-        if (_isClosed || _isEnergySaverChanging) return;
-
-        _isEnergySaverChanging = true;
-        Rebuild();
-        _ = SetEnergySaverAsync(enabled);
-    }
-
-    private async Task SetPowerModeAsync(FlyoutPowerMode mode)
-    {
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        bool success = await Task.Run(() => SetActivePowerMode(mode), cancellationToken);
-        if (_isClosed || cancellationToken.IsCancellationRequested) return;
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            if (_isClosed || cancellationToken.IsCancellationRequested) return;
-            _isPowerModeChanging = false;
-            if (!success) TADNLog.Log($"BatteryFlyoutWindow.SetPowerModeAsync({mode}): powercfg failed");
-            _batteryMonitor.ForceRefresh();
-            Rebuild();
-        });
-    }
-
-    private static bool SetActivePowerMode(FlyoutPowerMode mode)
-    {
-        if (mode == FlyoutPowerMode.Ultimate)
-            return SetUltimatePowerModeActive();
-
-        return RunPowerCfg("/setactive " + PowerSchemeGuid(mode));
-    }
-
-    private static bool SetUltimatePowerModeActive()
-    {
-        string? schemeGuid = FindPowerSchemeGuid(UltimatePowerSchemeGuid, UltimatePowerSchemeName);
-        if (!string.IsNullOrWhiteSpace(schemeGuid) && RunPowerCfg("/setactive " + schemeGuid))
-            return true;
-
-        schemeGuid = CreateUltimatePowerScheme();
-        return !string.IsNullOrWhiteSpace(schemeGuid) && RunPowerCfg("/setactive " + schemeGuid);
-    }
-
-    private static string? CreateUltimatePowerScheme()
-    {
-        string? output = RunPowerCfgOutput("/duplicatescheme " + UltimatePowerSchemeGuid);
-        string? createdGuid = ExtractPowerSchemeGuid(output);
-        if (!string.IsNullOrWhiteSpace(createdGuid)) return createdGuid;
-
-        return FindPowerSchemeGuid(UltimatePowerSchemeGuid, UltimatePowerSchemeName);
-    }
-
-    private static string? FindPowerSchemeGuid(string preferredGuid, string schemeName)
-    {
-        string? output = RunPowerCfgOutput("/list");
-        if (string.IsNullOrWhiteSpace(output)) return null;
-
-        string? namedGuid = null;
-        foreach (string line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            string? guid = ExtractPowerSchemeGuid(line);
-            if (string.IsNullOrWhiteSpace(guid)) continue;
-            if (guid.Equals(preferredGuid, StringComparison.OrdinalIgnoreCase)) return guid;
-            if (line.Contains($"({schemeName})", StringComparison.OrdinalIgnoreCase)) namedGuid ??= guid;
-        }
-
-        return namedGuid;
-    }
-
-    private static bool PowerSchemeMatches(string output, string guid, string schemeName) =>
-        output.Contains(guid, StringComparison.OrdinalIgnoreCase)
-        || output.Contains($"({schemeName})", StringComparison.OrdinalIgnoreCase);
-
-    private static string? ExtractPowerSchemeGuid(string? output)
-    {
-        if (string.IsNullOrWhiteSpace(output)) return null;
-
-        foreach (string token in output.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (Guid.TryParse(token, out Guid guid))
-                return guid.ToString("D");
-        }
-
-        return null;
-    }
-
-    private async Task SetEnergySaverAsync(bool enabled)
-    {
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        bool success = await Task.Run(() => SetEnergySaverThreshold(enabled), cancellationToken);
-        if (_isClosed || cancellationToken.IsCancellationRequested) return;
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            if (_isClosed || cancellationToken.IsCancellationRequested) return;
-            _isEnergySaverChanging = false;
-            if (!success) TADNLog.Log($"BatteryFlyoutWindow.SetEnergySaverAsync({enabled}): powercfg failed");
-            _batteryMonitor.ForceRefresh();
-            Rebuild();
-        });
-    }
-
-    private static string PowerSchemeGuid(FlyoutPowerMode mode) => mode switch
-    {
-        FlyoutPowerMode.Ultimate => UltimatePowerSchemeGuid,
-        FlyoutPowerMode.Balanced => BalancedPowerSchemeGuid,
-        FlyoutPowerMode.PowerSaver => PowerSaverPowerSchemeGuid,
-        _ => BalancedPowerSchemeGuid
-    };
-
-    private static bool SetEnergySaverThreshold(bool enabled)
-    {
-        int value = enabled ? EnergySaverAlwaysThreshold : EnergySaverNeverThreshold;
-        bool acSuccess = RunPowerCfg(
-            $"/setacvalueindex SCHEME_CURRENT {EnergySaverSubgroupGuid} {EnergySaverBatteryThresholdGuid} {value}");
-        bool dcSuccess = RunPowerCfg(
-            $"/setdcvalueindex SCHEME_CURRENT {EnergySaverSubgroupGuid} {EnergySaverBatteryThresholdGuid} {value}");
-        bool activeSuccess = RunPowerCfg("/setactive SCHEME_CURRENT");
-
-        return acSuccess && dcSuccess && activeSuccess;
-    }
-
-    private static string? RunPowerCfgOutput(string arguments)
-    {
-        try
-        {
-            using Process? process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "powercfg.exe",
-                Arguments = arguments,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            });
-            if (process == null) return null;
-
-            string output = process.StandardOutput.ReadToEnd();
-            if (!process.WaitForExit(PowerCfgTimeoutMs))
-            {
-                TryKill(process);
-                return null;
-            }
-
-            return process.ExitCode == 0 ? output : null;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryFlyoutWindow.RunPowerCfgOutput({arguments}): {ex.Message}");
-            return null;
-        }
-    }
-
-    private static bool RunPowerCfg(string arguments)
-    {
-        try
-        {
-            using Process? process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "powercfg.exe", Arguments = arguments, UseShellExecute = false, CreateNoWindow = true
-            });
-            if (process == null) return false;
-
-            if (!process.WaitForExit(PowerCfgTimeoutMs))
-            {
-                TryKill(process);
-                return false;
-            }
-
-            if (process.ExitCode != 0)
-                TADNLog.Log($"BatteryFlyoutWindow.RunPowerCfg({arguments}): exit code {process.ExitCode}");
-            return process.ExitCode == 0;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryFlyoutWindow.RunPowerCfg({arguments}): {ex.Message}");
-            return false;
-        }
-    }
-
-    private static void TryKill(Process process)
-    {
-        try { process.Kill(true); }
-        catch { }
+        if (_isClosed) return;
+        _ = _powerModes.RequestAsync(mode);
     }
 
     private static void OpenModernPowerSettings()
@@ -1345,18 +1465,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenModernPowerSettings: {ex.Message}"); }
-    }
-
-    private static void OpenEnergySaverSettings()
-    {
-        try
-        {
-            using Process? _ = Process.Start(new ProcessStartInfo
-            {
-                FileName = "ms-settings:batterysaver", UseShellExecute = true
-            });
-        }
-        catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenEnergySaverSettings: {ex.Message}"); }
     }
 
     private static string BuildStatus(BatterySnapshot snapshot)
@@ -1394,9 +1502,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _isClosed = true;
         _rebuildPending = false;
         _rebuildQueued = false;
+        _liveUpdateQueued = false;
         _isRebuilding = false;
-        _isPowerModeChanging = false;
-        _isEnergySaverChanging = false;
 
         Control? chromeCaptureOwner = _chromeCaptureOwner;
         if (chromeCaptureOwner != null)
@@ -1410,9 +1517,106 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         finally
         {
             _undockButtonController = null;
+            _live = null;
             _chromeCaptureOwner = null;
             _chromeCapturedPointer = null;
             _lastTrayIcon = null;
+        }
+    }
+
+    private sealed record SummaryView(Grid Root, TextBlock Glyph, TextBlock Charge, TextBlock Time, TextBlock Status);
+
+    private sealed record MetricsView(
+        Grid Root,
+        TextBlock PredictedLife,
+        TextBlock PresentDischarge,
+        TextBlock ChargeTime,
+        TextBlock PowerSource,
+        TextBlock RateLabel,
+        TextBlock Rate,
+        TextBlock Remaining);
+
+    private sealed record PowerModeView(Grid Root, TextBlock Heading, FlyoutSlider Slider);
+
+    /// <summary>The controls of one content generation whose values follow battery and power state in place.</summary>
+    private sealed record LiveContent(
+        AppTheme Theme,
+        bool IsLight,
+        SettingsPalette Palette,
+        SummaryView Summary,
+        MetricsView Metrics,
+        PowerModeView PowerMode,
+        EnergySaverButton EnergySaver);
+
+    /// <summary>The Energy Saver toggle, restyled in place so a state change never replaces or dims it.</summary>
+    private sealed class EnergySaverButton
+    {
+        private readonly FlyoutControlPalette _offPalette;
+        private readonly FlyoutControlPalette _onPalette;
+        private readonly TextBlock _label;
+        private readonly FlyoutButtonState _state;
+        private FlyoutControlPalette _palette;
+        private bool? _isOn;
+        private string? _tooltip;
+
+        public EnergySaverButton(
+            string text,
+            FlyoutControlPalette offPalette,
+            FlyoutControlPalette onPalette,
+            CornerRadius cornerRadius,
+            Action toggle)
+        {
+            _offPalette = offPalette;
+            _onPalette = onPalette;
+            _palette = offPalette;
+            _label = TrayAppDotNETFlyoutUI.Text(text, offPalette, Layout.ControlLabelFontSize, FontWeight.SemiBold);
+            _label.HorizontalAlignment = HorizontalAlignment.Center;
+            _label.VerticalAlignment = VerticalAlignment.Center;
+            Button = new Border
+            {
+                Height = HeaderIconButtonHeight,
+                Margin = Layout.EnergySaverButtonMargin,
+                Padding = Layout.EnergySaverButtonPadding,
+                BorderThickness = Layout.EnergySaverButtonBorderThickness,
+                BorderBrush = Brush(offPalette.Border),
+                CornerRadius = cornerRadius,
+                Child = _label,
+                Focusable = true
+            };
+            TrayAppDotNETToolTip.SuppressWhileEngaged(Button);
+            _state = FlyoutButtonState.Attach(
+                Button,
+                () => Brush(_palette.ControlBackground),
+                () => Brush(_palette.Hover),
+                () => Brush(_palette.Pressed),
+                _ => toggle());
+            Button.KeyDown += (_, e) =>
+            {
+                if (e.Key is not (Key.Enter or Key.Space)) return;
+                e.Handled = true;
+                toggle();
+            };
+        }
+
+        public Border Button { get; }
+
+        public void Apply(bool isOn, bool isAvailable, string automationName, string tooltip)
+        {
+            if (_isOn != isOn)
+            {
+                _isOn = isOn;
+                _palette = isOn ? _onPalette : _offPalette;
+                _label.Foreground = Brush(_palette.Foreground);
+                Button.BorderBrush = Brush(_palette.Border);
+                _state.Refresh();
+                AutomationProperties.SetName(Button, automationName);
+            }
+
+            _state.IsEnabled = isAvailable;
+            Button.Opacity = isAvailable ? 1 : Layout.DisabledOpacity;
+            if (_tooltip == tooltip) return;
+            _tooltip = tooltip;
+            TrayAppDotNETToolTip.SetTip(Button, tooltip);
         }
     }
 }

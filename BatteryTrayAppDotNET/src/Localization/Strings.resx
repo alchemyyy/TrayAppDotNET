@@ -30,6 +30,27 @@
   <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
     <value>Keep undocked flyout on screen</value>
   </data>
+  <data name="Settings_Flyout_BatteryEstimates_Header" xml:space="preserve">
+    <value>Battery estimates</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateChecks_Title" xml:space="preserve">
+    <value>Discharge averaging checks</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateChecks_Description" xml:space="preserve">
+    <value>Average the most recent discharge checks for the Present estimate. Each check is about 5 seconds; 1 uses only the latest reading.</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateChecks_SearchKeywords" xml:space="preserve">
+    <value>battery remaining present estimate discharge average smoothing readings samples</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateHalfLifeChecks_Title" xml:space="preserve">
+    <value>Discharge decay half-life (checks)</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateHalfLifeChecks_Description" xml:space="preserve">
+    <value>Set how quickly older readings lose influence in the Present estimate. A reading has half its weight after this many checks (about 5 seconds each).</value>
+  </data>
+  <data name="Settings_Flyout_DischargeEstimateHalfLifeChecks_SearchKeywords" xml:space="preserve">
+    <value>battery remaining present estimate discharge decay half-life smoothing weight recent</value>
+  </data>
   <data name="Settings_Flyout_HeaderAtBottom_Description" xml:space="preserve">
     <value>Render the flyout title bar at the bottom of the flyout instead of the top.</value>
   </data>
@@ -179,7 +200,7 @@ open power settings|open Windows power settings|open Power and battery settings|
     <value>Balanced</value>
   </data>
   <data name="Flyout_PowerMode_Label" xml:space="preserve">
-    <value>Power Mode</value>
+    <value>Power mode</value>
   </data>
   <data name="Flyout_PowerMode_PowerSaver" xml:space="preserve">
     <value>Power Saver</value>

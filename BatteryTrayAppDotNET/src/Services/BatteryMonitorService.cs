@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Devices.Power;
 using Avalonia.Threading;
@@ -6,23 +7,76 @@ namespace BatteryTrayAppDotNET.Services;
 
 public sealed class BatteryMonitorService : IDisposable
 {
-    private const int PollIntervalMs = 5_000;
+    private const int PollIntervalMs = BatteryTimeEstimator.CheckIntervalSeconds * 1_000;
     private const byte BatteryFlagCharging = 0x08;
     private const byte BatteryFlagNoSystemBattery = 0x80;
     private const byte BatteryFlagUnknown = 0xFF;
     private const byte BatteryLifePercentUnknown = 0xFF;
     private const uint BatteryLifeTimeUnknown = 0xFFFFFFFF;
 
+    // Discharge also saves when it ends and at shutdown; this bounds what a crash or a flat battery can lose
+    private static readonly TimeSpan LearnedUsageSaveInterval = TimeSpan.FromMinutes(5);
+
     private readonly SemaphoreSlim _pollGate = new(initialCount: 1, maxCount: 1);
     private readonly Lock _lifetimeGate = new();
+    private readonly long _clockOrigin = Stopwatch.GetTimestamp();
+    private readonly AppSettings? _settings;
+    private readonly BatteryTimeEstimator _timeEstimator;
+    private readonly string? _learnedUsagePath;
+    private BatteryLearnedUsage? _savedLearnedUsage;
+    private TimeSpan? _lastLearnedUsageSave;
+    private Task _learnedUsageSave = Task.CompletedTask;
+    private int _estimateChecks;
+    private double _estimateHalfLife;
     private CancellationTokenSource? _pollingCancellationToken;
     private Task? _pollTask;
     private Task? _forceRefreshTask;
     private bool _disposed;
 
     public BatterySnapshot Snapshot { get; private set; } = BatterySnapshot.Unknown;
+    public BatteryTimeEstimates Estimates { get; private set; } = BatteryTimeEstimates.Unknown;
 
     public event Action? StateChanged;
+
+    /// <param name="settings">Supplies the discharge estimate preferences.</param>
+    /// <param name="learnedUsagePath">Persists learned battery usage across restarts when set.</param>
+    public BatteryMonitorService(AppSettings? settings = null, string? learnedUsagePath = null)
+    {
+        _settings = settings;
+        _estimateChecks = settings?.DischargeEstimateChecks ?? BatteryTimeEstimator.DefaultDischargeChecks;
+        _estimateHalfLife = settings?.DischargeEstimateHalfLifeChecks ?? BatteryTimeEstimator.DefaultHalfLifeChecks;
+        _timeEstimator = new BatteryTimeEstimator(_estimateChecks, _estimateHalfLife);
+        _learnedUsagePath = learnedUsagePath;
+        if (learnedUsagePath != null && BatteryLearnedUsageStore.Load(learnedUsagePath) is { } learnedUsage)
+        {
+            _timeEstimator.RestoreLearnedUsage(learnedUsage);
+            _savedLearnedUsage = _timeEstimator.LearnedUsage;
+        }
+
+        if (_settings != null) _settings.Changed += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        if (_disposed) return;
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnSettingsChanged);
+            return;
+        }
+
+        if (_settings == null
+            || (_estimateChecks == _settings.DischargeEstimateChecks
+                && _estimateHalfLife == _settings.DischargeEstimateHalfLifeChecks)) return;
+
+        _estimateChecks = _settings.DischargeEstimateChecks;
+        _estimateHalfLife = _settings.DischargeEstimateHalfLifeChecks;
+        BatteryTimeEstimates estimates = _timeEstimator.Configure(
+            _estimateChecks, _estimateHalfLife, Stopwatch.GetElapsedTime(_clockOrigin));
+        if (estimates == Estimates) return;
+        Estimates = estimates;
+        StateChanged?.Invoke();
+    }
 
     public void Start()
     {
@@ -74,7 +128,11 @@ public sealed class BatteryMonitorService : IDisposable
             await Dispatcher.UIThread.InvokeAsync(
                 () =>
                 {
+                    if (_disposed) return;
+                    TimeSpan now = Stopwatch.GetElapsedTime(_clockOrigin);
                     Snapshot = snapshot;
+                    Estimates = _timeEstimator.Observe(snapshot, now);
+                    SaveLearnedUsageIfDue(snapshot, now);
                     StateChanged?.Invoke();
                 },
                 DispatcherPriority.Normal,
@@ -92,6 +150,30 @@ public sealed class BatteryMonitorService : IDisposable
         {
             _pollGate.Release();
         }
+    }
+
+    /// <summary>Saves changed usage when discharge ends, and periodically while it continues.</summary>
+    private void SaveLearnedUsageIfDue(BatterySnapshot snapshot, TimeSpan now)
+    {
+        if (_learnedUsagePath == null || _timeEstimator.LearnedUsage is not { } usage || usage == _savedLearnedUsage)
+            return;
+
+        bool discharging = snapshot is { BatteryPresent: true, IsOnExternalPower: false };
+        if (discharging && now - _lastLearnedUsageSave < LearnedUsageSaveInterval) return;
+
+        _lastLearnedUsageSave = now;
+        QueueLearnedUsageSave(_learnedUsagePath, usage);
+    }
+
+    /// <summary>Chains writes on the thread pool so an older save can never land after a newer one.</summary>
+    private void QueueLearnedUsageSave(string path, BatteryLearnedUsage usage)
+    {
+        _savedLearnedUsage = usage;
+        _learnedUsageSave = _learnedUsageSave.ContinueWith(
+            _ => BatteryLearnedUsageStore.Save(path, usage),
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
     }
 
     private static BatterySnapshot CreateSnapshot()
@@ -234,6 +316,7 @@ public sealed class BatteryMonitorService : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            if (_settings != null) _settings.Changed -= OnSettingsChanged;
 
             pollingCancellationToken = _pollingCancellationToken;
             pollTask = _pollTask;
@@ -249,6 +332,10 @@ public sealed class BatteryMonitorService : IDisposable
             WaitForPollTask(forceRefreshTask, nameof(_forceRefreshTask));
         pollingCancellationToken?.Dispose();
 
+        // Polling has stopped, so the estimator is no longer observed and can be read from this thread
+        if (_learnedUsagePath != null && _timeEstimator.LearnedUsage is { } usage && usage != _savedLearnedUsage)
+            QueueLearnedUsageSave(_learnedUsagePath, usage);
+        WaitForPollTask(_learnedUsageSave, nameof(_learnedUsageSave));
         _pollGate.Dispose();
     }
 

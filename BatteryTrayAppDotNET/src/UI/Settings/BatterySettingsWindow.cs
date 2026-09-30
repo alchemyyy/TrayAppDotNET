@@ -743,6 +743,33 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
                 ]));
 
+            stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+                L(nameof(AppStrings.Settings_Flyout_BatteryEstimates_Header)), p));
+            stack.Children.Add(IntCard(
+                L(nameof(AppStrings.Settings_Flyout_DischargeEstimateChecks_Title)),
+                L(nameof(AppStrings.Settings_Flyout_DischargeEstimateChecks_Description)),
+                _settings.DischargeEstimateChecks,
+                AppSettings.DischargeEstimateChecksMin,
+                AppSettings.DischargeEstimateChecksMax,
+                v => _settings.DischargeEstimateChecks = v,
+                p,
+                searchKeywords:
+                [
+                    L(nameof(AppStrings.Settings_Flyout_DischargeEstimateChecks_SearchKeywords))
+                ]));
+            stack.Children.Add(DoubleCard(
+                L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_Title)),
+                L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_Description)),
+                _settings.DischargeEstimateHalfLifeChecks,
+                AppSettings.DischargeEstimateHalfLifeChecksMin,
+                AppSettings.DischargeEstimateHalfLifeChecksMax,
+                v => _settings.DischargeEstimateHalfLifeChecks = v,
+                p,
+                searchKeywords:
+                [
+                    L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_SearchKeywords))
+                ]));
+
             return stack;
         });
 

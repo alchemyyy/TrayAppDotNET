@@ -50,6 +50,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private AppTheme? _theme;
     private AppSettings? _settings;
     private BatteryMonitorService? _batteryMonitor;
+    private BatteryPowerModeService? _powerModes;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BatteryTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
@@ -155,7 +156,9 @@ internal sealed class BatteryAvaloniaApp : Application
     {
         try
         {
-            _batteryMonitor = new BatteryMonitorService();
+            _powerModes = new BatteryPowerModeService();
+            _ = _powerModes.RefreshAsync();
+            _batteryMonitor = new BatteryMonitorService(_settings, BatteryLearnedUsageStore.DefaultPath);
             _batteryMonitor.StateChanged += OnBatteryStateChanged;
             _batteryMonitor.Start();
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -504,7 +507,8 @@ internal sealed class BatteryAvaloniaApp : Application
         if (_batteryMonitor == null || _settings == null)
             throw new InvalidOperationException("Battery flyout requires battery monitor and settings.");
 
-        BatteryFlyoutWindow flyout = new(_batteryMonitor, _settings, OpenSettings);
+        _powerModes ??= new BatteryPowerModeService();
+        BatteryFlyoutWindow flyout = new(_batteryMonitor, _settings, OpenSettings, _powerModes);
         _batteryFlyout = flyout;
         flyout.Closed += OnBatteryFlyoutClosed;
         return flyout;
@@ -715,6 +719,8 @@ internal sealed class BatteryAvaloniaApp : Application
 
             Safe.Dispose(_batteryFlyoutWarmSlot);
             _batteryFlyoutWarmSlot = null;
+            Safe.Dispose(_powerModes);
+            _powerModes = null;
 
             if (_trayIcon != null)
             {

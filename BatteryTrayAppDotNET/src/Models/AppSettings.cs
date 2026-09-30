@@ -14,6 +14,13 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public const int ContextMenuFontSizeMin = 8;
     public const int ContextMenuFontSizeMax = 48;
 
+    public const int DischargeEstimateChecksDefault = 24;
+    public const int DischargeEstimateChecksMin = 1;
+    public const int DischargeEstimateChecksMax = 720;
+    public const double DischargeEstimateHalfLifeChecksDefault = 6;
+    public const double DischargeEstimateHalfLifeChecksMin = 0.5;
+    public const double DischargeEstimateHalfLifeChecksMax = 720;
+
     public ContextMenuPosition ContextMenuPosition
     {
         get;
@@ -32,6 +39,20 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
             RaiseChanged();
         }
     } = ContextMenuFontSizeDefault;
+
+    public int DischargeEstimateChecks
+    {
+        get;
+        set => SetField(ref field, Math.Clamp(value, DischargeEstimateChecksMin, DischargeEstimateChecksMax));
+    } = DischargeEstimateChecksDefault;
+
+    public double DischargeEstimateHalfLifeChecks
+    {
+        get;
+        set => SetField(ref field, double.IsFinite(value)
+            ? Math.Clamp(value, DischargeEstimateHalfLifeChecksMin, DischargeEstimateHalfLifeChecksMax)
+            : DischargeEstimateHalfLifeChecksDefault);
+    } = DischargeEstimateHalfLifeChecksDefault;
 
     // Flyout undock/redock.
     // These mirror the Volume flyout settings so the titlebar's undock button can persist state and position.

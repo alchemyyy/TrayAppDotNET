@@ -1,0 +1,21 @@
+<UserControl
+    x:Class="BatteryTrayAppDotNET.UI.Flyout.BatteryChargeGlyph"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <UserControl.Resources>
+        <!-- Final scale of the composed glyph, including strokes and fill translation. -->
+        <sys:Double x:Key="BatteryGlyph.Scale">0.8</sys:Double>
+        <!-- Shape dimensions scale from the glyph height supplied by the flyout. -->
+        <sys:Double x:Key="BatteryGlyph.BodyWidthRatio">1.7</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.TerminalWidthRatio">0.138</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.TerminalHeightRatio">0.34</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.StrokeRatio">0.085</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.FillInsetRatio">0.22</sys:Double>
+        <!-- Offset the infill from its calculated position, in DIPs. -->
+        <TranslateTransform x:Key="BatteryGlyph.FillTransform" X="-0.6" Y="-0.255" />
+        <sys:Double x:Key="BatteryGlyph.BodyCornerRadiusRatio">0.22</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.FillCornerRadiusRatio">0.12</sys:Double>
+        <sys:Double x:Key="BatteryGlyph.TerminalCornerRadiusRatio">0.1</sys:Double>
+    </UserControl.Resources>
+</UserControl>

@@ -1,0 +1,36 @@
+<ResourceDictionary
+    x:Class="BatteryTrayAppDotNET.UI.Flyout.BatteryFlyoutResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+        <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
+        <Thickness x:Key="Flyout.BodyMargin">16</Thickness>
+        <sys:Double x:Key="Flyout.SectionSpacing">14</sys:Double>
+        <sys:Double x:Key="Flyout.SummarySpacing">12</sys:Double>
+        <sys:Double x:Key="Flyout.SummaryTextSpacing">2</sys:Double>
+        <sys:Double x:Key="Flyout.BatteryGlyphFontSize">38.4</sys:Double>
+        <sys:Double x:Key="Flyout.ChargeFontSize">28</sys:Double>
+        <sys:Double x:Key="Flyout.StatusFontSize">12</sys:Double>
+        <sys:Double x:Key="Flyout.TimeFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.MetricColumnSpacing">12</sys:Double>
+        <sys:Double x:Key="Flyout.MetricRowSpacing">8</sys:Double>
+        <sys:Double x:Key="Flyout.MetricValueSpacing">8</sys:Double>
+        <sys:Double x:Key="Flyout.MetricFontSize">12</sys:Double>
+        <Thickness x:Key="Flyout.EnergySaverButtonPadding">10,0</Thickness>
+        <Thickness x:Key="Flyout.EnergySaverButtonMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="Flyout.EnergySaverButtonBorderThickness">1</Thickness>
+        <sys:Double x:Key="Flyout.ControlRowSpacing">4</sys:Double>
+        <sys:Double x:Key="Flyout.ControlLabelFontSize">12</sys:Double>
+        <sys:Double x:Key="Flyout.SliderGlyphSize">20</sys:Double>
+        <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">14</sys:Double>
+        <sys:Double x:Key="Flyout.DisabledOpacity">0.45</sys:Double>
+        <sys:Double x:Key="Flyout.SeparatorHeight">1</sys:Double>
+        <sys:Double x:Key="Flyout.SeparatorOpacity">0.75</sys:Double>
+        <sys:Double x:Key="BatteryHealth.WindowWidth">320</sys:Double>
+        <Thickness x:Key="BatteryHealth.BodyMargin">20</Thickness>
+        <sys:Double x:Key="BatteryHealth.SectionSpacing">18</sys:Double>
+        <sys:Double x:Key="BatteryHealth.TitleFontSize">18</sys:Double>
+        <sys:Double x:Key="BatteryHealth.MetricFontSize">13</sys:Double>
+        <sys:Double x:Key="BatteryHealth.MetricRowSpacing">12</sys:Double>
+        <sys:Double x:Key="BatteryHealth.MetricValueSpacing">24</sys:Double>
+</ResourceDictionary>

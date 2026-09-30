@@ -20,11 +20,15 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public new static Glyph SETTINGS => Glyph("Settings");
     public new static Glyph POWER => Glyph("Power");
+    public static Glyph LIGHTNING_BOLT => Glyph("LightningBolt");
     public new static Glyph EXIT => Glyph("Exit");
     public static Glyph CLOSE => EXIT;
     public new static Glyph WARNING => Glyph("Warning");
     public new static Glyph UNDOCK => Glyph("Undock");
     public new static Glyph REDOCK => Glyph("Redock");
+
+    public static Glyph POWER_MODE_EFFICIENCY => Glyph("PowerModeEfficiency");
+    public static Glyph POWER_MODE_PERFORMANCE => Glyph("PowerModePerformance");
 
     public static Glyph BATTERY_0 => Glyph("Battery0");
     public static Glyph BATTERY_1 => Glyph("Battery1");
