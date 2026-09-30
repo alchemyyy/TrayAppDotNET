@@ -243,23 +243,6 @@
     <Copy SourceFiles="@(_HotAvaloniaRuntimeAssembly)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
   </Target>
 
-  <Target Name="CopyRuntimeReferencesToAggregateManagedOutput" AfterTargets="Build" Condition="'$(TrayAppDotNETUseRootOutput)' == 'true' and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">
-    <ItemGroup>
-      <_AggregateManagedRuntimeReference Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'" />
-      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)" Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' != ''" />
-      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)" Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' == ''">
-        <DestinationSubPath>%(Filename)%(Extension)</DestinationSubPath>
-      </_AggregateManagedRuntimeReferenceWithDestination>
-    </ItemGroup>
-
-    <Copy SourceFiles="@(_AggregateManagedRuntimeReferenceWithDestination)"
-          DestinationFiles="@(_AggregateManagedRuntimeReferenceWithDestination->'$(TargetDir)%(DestinationSubPath)')"
-          SkipUnchangedFiles="true"
-          Retries="$(CopyRetryCount)"
-          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
-          Condition="'@(_AggregateManagedRuntimeReferenceWithDestination)' != ''" />
-  </Target>
-
   <!-- Mono.Posix.NETStandard's Windows asset lands under runtimes\win-x64.
        Copy it beside the app because LHM loads it by simple assembly name at runtime. -->
   <Target Name="CopyLibreHardwareMonitorManagedRuntimeAssemblies" AfterTargets="Build" Condition="('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">

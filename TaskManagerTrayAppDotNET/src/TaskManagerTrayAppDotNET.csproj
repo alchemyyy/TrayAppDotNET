@@ -188,28 +188,6 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="CopyRuntimeReferencesToAggregateManagedOutput"
-          AfterTargets="Build"
-          Condition="'$(TrayAppDotNETUseRootOutput)' == 'true' and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">
-    <ItemGroup>
-      <_AggregateManagedRuntimeReference Include="@(ReferenceCopyLocalPaths)"
-                                         Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'" />
-      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)"
-                                                        Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' != ''" />
-      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)"
-                                                        Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' == ''">
-        <DestinationSubPath>%(Filename)%(Extension)</DestinationSubPath>
-      </_AggregateManagedRuntimeReferenceWithDestination>
-    </ItemGroup>
-
-    <Copy SourceFiles="@(_AggregateManagedRuntimeReferenceWithDestination)"
-          DestinationFiles="@(_AggregateManagedRuntimeReferenceWithDestination->'$(TargetDir)%(DestinationSubPath)')"
-          SkipUnchangedFiles="true"
-          Retries="$(CopyRetryCount)"
-          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
-          Condition="'@(_AggregateManagedRuntimeReferenceWithDestination)' != ''" />
-  </Target>
-
   <Target Name="PublishAfterBuild" AfterTargets="Build"
           Condition="'$(SkipPublishAfterBuild)' != 'true' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>

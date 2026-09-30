@@ -238,6 +238,33 @@
           DependsOnTargets="ResGen"
           Condition="'$(DesignTimeBuild)' == 'true' and '@(_TrayAppDotNETStronglyTypedResource)' != ''" />
 
+  <!-- UseCommonOutputDirectory suppresses the SDK's entire CopyLocal reference copy,
+       including NuGet runtime dependencies. Every aggregate managed app must supply
+       its dependencies even when it is the only app built into the shared output. -->
+  <Target Name="CopyRuntimeReferencesToAggregateManagedOutput"
+          AfterTargets="Build"
+          BeforeTargets="CopyLibreHardwareMonitorManagedRuntimeAssemblies"
+          Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETUseRootOutput)' == 'true' and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(PublishAot)' != 'true'">
+    <ItemGroup>
+      <_AggregateManagedRuntimeReference Include="@(ReferenceCopyLocalPaths)"
+                                         Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'" />
+      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)"
+                                                        Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' != ''" />
+      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)"
+                                                        Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' == ''">
+        <DestinationSubPath>%(_AggregateManagedRuntimeReference.DestinationSubDirectory)%(Filename)%(Extension)</DestinationSubPath>
+      </_AggregateManagedRuntimeReferenceWithDestination>
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_AggregateManagedRuntimeReferenceWithDestination)"
+          DestinationFiles="@(_AggregateManagedRuntimeReferenceWithDestination->'$(TargetDir)%(DestinationSubPath)')"
+          SkipUnchangedFiles="true"
+          OverwriteReadOnlyFiles="$(OverwriteReadOnlyFiles)"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
+          Condition="'@(_AggregateManagedRuntimeReferenceWithDestination)' != ''" />
+  </Target>
+
   <!-- Probe output files for write access and only kill TrayAppDotNET PIDs
        that Restart Manager reports as locking those files. -->
   <Target Name="UnlockTrayAppDotNETOutputFilesBeforeBuild"
