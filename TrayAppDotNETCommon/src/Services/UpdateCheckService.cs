@@ -143,6 +143,7 @@ public sealed class UpdateCheckService : IDisposable
     private const int GitHubFallbackReleasesPerPage = 10;
     private const int GitHubFallbackReleaseMaxPages = 10;
     private const string GitHubApiVersion = "2026-03-10";
+    private const string CacheWriteTimeLogFormat = "yyyy-MM-dd HH:mm:ss";
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
     private readonly SemaphoreSlim _previousReleaseSemaphore = new(initialCount: 1, maxCount: 1);
@@ -210,6 +211,12 @@ public sealed class UpdateCheckService : IDisposable
         if (_disposed) return;
 
         Stop();
+        string automaticChecks = _options.IsEnabled()
+            ? $"every {NormalizedInterval(_options.PollInterval())}"
+            : "disabled";
+        TADNLog.Log(
+            $"UpdateCheckService.Start: running build {_options.CurrentBuild}; automatic checks {automaticChecks}; "
+            + $"endpoint {_options.VersionsManifestUrl}");
         CancellationTokenSource cts = new();
         _loopCts = cts;
         _loopTask = Task.Run(() => RunLoopAsync(cts.Token), cts.Token);
@@ -298,6 +305,7 @@ public sealed class UpdateCheckService : IDisposable
         await InvokeIfRunningAsync(() =>
         {
             _options.PersistSkippedUpdateVersion(info.Version);
+            TADNLog.Log($"UpdateCheckService.SkipReleaseAsync: skipping build {info.Version}");
             if (_available?.Version == info.Version)
                 _available = null;
             StateChanged?.Invoke();
@@ -316,6 +324,9 @@ public sealed class UpdateCheckService : IDisposable
                 _options.PersistSkippedUpdateVersion(_options.CurrentBuild);
             else if (persistedVersion == _options.CurrentBuild)
                 _options.PersistSkippedUpdateVersion(0);
+            TADNLog.Log(
+                $"UpdateCheckService.SetCurrentVersionSkippedAsync: build {_options.CurrentBuild} "
+                + (isSkipped ? "is skipped" : "stays offered") + " after the backdate");
             StateChanged?.Invoke();
         }).ConfigureAwait(false);
     }
@@ -334,6 +345,10 @@ public sealed class UpdateCheckService : IDisposable
             UpdateInfo? previousRelease = await FetchPreviousReleaseAsync(timeoutCts.Token).ConfigureAwait(false);
             _previousRelease = previousRelease;
             _isPreviousReleaseResolved = true;
+            TADNLog.Log(previousRelease == null
+                ? $"UpdateCheckService.GetPreviousReleaseAsync: no release older than build {_options.CurrentBuild}"
+                : $"UpdateCheckService.GetPreviousReleaseAsync: previous release is build {previousRelease.Version} "
+                  + $"from {previousRelease.TagName}");
             return previousRelease;
         }
         finally
@@ -368,6 +383,8 @@ public sealed class UpdateCheckService : IDisposable
             string artifactBasePath = Path.Combine(stagingDirectory, updateId);
             string installerLogPath = artifactBasePath + ".log";
 
+            TADNLog.Log(
+                $"UpdateCheckService.DownloadAndStageAsync: downloading build {info.Version} from {info.AssetUrl}");
             bool downloaded = await DownloadAndExtractAssetWithRetryAsync(
                     info.AssetUrl,
                     zipPath,
@@ -376,6 +393,9 @@ public sealed class UpdateCheckService : IDisposable
                     token)
                 .ConfigureAwait(false);
             if (!downloaded) return false;
+
+            TADNLog.Log(
+                $"UpdateCheckService.DownloadAndStageAsync: extracted build {info.Version} to {extractDirectory}");
 
             string currentExe = _options.CurrentExecutablePath()
                                 ?? throw new InvalidOperationException("Could not resolve current executable path.");
@@ -533,6 +553,8 @@ public sealed class UpdateCheckService : IDisposable
                 _available = newer?.Version == skippedUpdateVersion ? null : newer;
                 _lastCheckTimeUtc = _options.GetCurrentUTCTime();
                 _lastResult = UpdateCheckResult.Success;
+                // Only manual checks bypass the shared manifest cache
+                LogCheckOutcome(info, isManualCheck: bypassLatestManifestCache, skippedUpdateVersion);
             }).ConfigureAwait(false);
             result = UpdateCheckResult.Success;
         }
@@ -559,6 +581,37 @@ public sealed class UpdateCheckService : IDisposable
 
             await SetCheckingAsync(false).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Logs which manifest a completed check read and how its offer compares with the running build.</summary>
+    private void LogCheckOutcome(UpdateInfo? info, bool isManualCheck, int skippedUpdateVersion)
+    {
+        string checkKind = isManualCheck ? "manual" : "scheduled";
+        long cacheWriteTimeUTCTicks = Interlocked.Read(ref _cachedManifestWriteTimeUTCTicks);
+        string source = cacheWriteTimeUTCTicks > 0
+            ? "the shared cache written " + new DateTime(cacheWriteTimeUTCTicks, DateTimeKind.Utc)
+                .ToLocalTime()
+                .ToString(CacheWriteTimeLogFormat, CultureInfo.InvariantCulture)
+            : _options.VersionsManifestUrl.ToString();
+        if (info == null)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.PollOnceAsync: {checkKind} check of {source} offers no "
+                + $"{_options.ApplicationName} release to running build {_options.CurrentBuild}");
+            return;
+        }
+
+        string verdict = info.Version switch
+        {
+            int version when version < _options.CurrentBuild =>
+                "the offer is older than the running build, so the endpoint may be stale",
+            int version when version == _options.CurrentBuild => "up to date",
+            int version when version == skippedUpdateVersion => "skipped by the user",
+            _ => "update available"
+        };
+        TADNLog.Log(
+            $"UpdateCheckService.PollOnceAsync: {checkKind} check of {source} offers build {info.Version} "
+            + $"from {info.TagName} to running build {_options.CurrentBuild}; {verdict}");
     }
 
     private async Task SetCheckingAsync(bool value)
@@ -838,7 +891,8 @@ public sealed class UpdateCheckService : IDisposable
             await File.WriteAllBytesAsync(temporaryPath, manifestBytes, token).ConfigureAwait(false);
 
             // Publish only a complete XML file because sibling apps can read it concurrently
-            File.Move(temporaryPath, cachePath, overwrite: true);
+            // NOTE: the replace fails while a sibling holds the file open, even with FileShare.Delete, so it retries
+            TrayXmlSerializer.ReplaceFileWithRetry(temporaryPath, cachePath);
             temporaryPath = null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)

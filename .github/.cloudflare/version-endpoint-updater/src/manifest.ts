@@ -241,7 +241,11 @@ function parseReleaseManifest(xml: string, expectedVersion?: number): ReleaseMan
   const applications: Map<ApplicationId, VersionArtifact> = new Map();
   let aggregate: VersionArtifact | null = null;
   for (const artifactValue of artifactValues) {
-    const artifact: VersionArtifact = parseArtifact(artifactValue);
+    const kind: string = requiredText(artifactValue["@_kind"], "artifact kind");
+    // The endpoint republishes only aggregate and app rows, so installer rows and later kinds stay on the release
+    if (kind !== "aggregate" && kind !== "app") continue;
+
+    const artifact: VersionArtifact = parseArtifact(artifactValue, kind);
     if (artifact.kind === "aggregate") {
       if (aggregate !== null || artifact.applicationId !== "TrayAppDotNET") {
         throw new Error("Version manifest has an invalid aggregate artifact");
@@ -272,13 +276,9 @@ function parseReleaseManifest(xml: string, expectedVersion?: number): ReleaseMan
   };
 }
 
-function parseArtifact(xml: XmlArtifact): VersionArtifact {
+function parseArtifact(xml: XmlArtifact, kind: VersionArtifact["kind"]): VersionArtifact {
   const profile: string = requiredText(xml["@_profile"], "artifact profile");
   if (profile !== "release") throw new Error(`Unsupported artifact profile: ${profile}`);
-  const kindText: string = requiredText(xml["@_kind"], "artifact kind");
-  if (kindText !== "aggregate" && kindText !== "app") {
-    throw new Error(`Unsupported artifact kind: ${kindText}`);
-  }
 
   const applicationId: string = requiredText(xml["@_appId"], "artifact appId");
   const version: number = positiveInteger(xml["@_version"], `${applicationId} version`);
@@ -298,7 +298,7 @@ function parseArtifact(xml: XmlArtifact): VersionArtifact {
   return {
     profile,
     profileName: text(xml["@_profileName"]) || "Release",
-    kind: kindText,
+    kind,
     applicationId,
     version,
     fileName,

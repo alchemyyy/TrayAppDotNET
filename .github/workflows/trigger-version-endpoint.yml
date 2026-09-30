@@ -35,7 +35,8 @@ jobs:
           maximum_attempts=4
           for attempt in $(seq 1 "$maximum_attempts"); do
             response=""
-            if response="$(curl --fail --silent --show-error \
+            # --fail-with-body keeps the updater's JSON error message, which --fail would discard
+            if response="$(curl --fail-with-body --silent --show-error \
               --connect-timeout 10 \
               --max-time 120 \
               --retry 2 \
@@ -51,7 +52,7 @@ jobs:
               fi
               echo "Endpoint returned ${published_release_tag:-no release tag}; expected $EXPECTED_RELEASE_TAG." >&2
             else
-              echo "Endpoint trigger attempt $attempt failed." >&2
+              echo "Endpoint trigger attempt $attempt failed: ${response:-no response body}" >&2
             fi
 
             if [ "$attempt" -lt "$maximum_attempts" ]; then

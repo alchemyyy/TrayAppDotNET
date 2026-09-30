@@ -144,6 +144,43 @@ test("missing release tags are skipped while repairing", async (): Promise<void>
   assert.equal(requestUrls.length, 3);
 });
 
+test("installer rows from the release manifest are left out of the endpoint", async (): Promise<void> => {
+  const releaseTag: string = "TrayAppDotNET_205";
+  const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
+    assert.equal(input, taggedManifestUrl(205));
+    return xmlResponse(manifestXml(205, [...EXPECTED_APPLICATION_IDS], true));
+  };
+
+  const prepared: PreparedEndpointManifest = await prepareEndpointManifestForRelease(
+    releaseTag,
+    fetchFunction,
+  );
+
+  assert.equal(prepared.releaseTag, releaseTag);
+  assert.doesNotMatch(prepared.xml, /kind="installer"/);
+  assert.doesNotMatch(prepared.xml, /Installer_/);
+  for (const applicationId of EXPECTED_APPLICATION_IDS) {
+    assert.equal(prepared.applicationReleaseTags.get(applicationId), releaseTag);
+    const artifactOccurrences: number = prepared.xml
+      .split(`appId="${applicationId}"`)
+      .length - 1;
+    assert.equal(artifactOccurrences, 1);
+  }
+});
+
+test("an artifact row without a kind is still rejected", async (): Promise<void> => {
+  const kindlessXml: string = manifestXml(205, [...EXPECTED_APPLICATION_IDS])
+    .replace(` kind="app" appId="${EXPECTED_APPLICATION_IDS[0]}"`, ` appId="${EXPECTED_APPLICATION_IDS[0]}"`);
+
+  await assert.rejects(
+    prepareEndpointManifestForRelease(
+      "TrayAppDotNET_205",
+      async (): Promise<Response> => xmlResponse(kindlessXml),
+    ),
+    /Missing artifact kind/,
+  );
+});
+
 test("static asset hash matches Cloudflare's documented algorithm", async (): Promise<void> => {
   const content: string = "<versions />\n";
   const base64Content: string = Buffer.from(content, "utf8").toString("base64");
@@ -314,12 +351,23 @@ test("endpoint deployment performs the direct static asset upload sequence", asy
   assert.equal(requestDescriptions.length, 3);
 });
 
-function manifestXml(version: number, applicationIds: readonly string[]): string {
+function manifestXml(
+  version: number,
+  applicationIds: readonly string[],
+  includeInstallers: boolean = false,
+): string {
   const artifactLines: string[] = [
     artifactXml("aggregate", "TrayAppDotNET", version),
   ];
   for (let index: number = 0; index < applicationIds.length; index += 1) {
     artifactLines.push(artifactXml("app", applicationIds[index], 200 + index));
+  }
+  // Mirrors publish.py, which writes one installer row per app plus the suite installer
+  if (includeInstallers) {
+    for (let index: number = 0; index < applicationIds.length; index += 1) {
+      artifactLines.push(installerArtifactXml(applicationIds[index], 200 + index));
+    }
+    artifactLines.push(installerArtifactXml("TrayAppDotNET", version));
   }
   return `<?xml version="1.0" encoding="utf-8"?>
 <versions version="${version}" runtime="win-x64">
@@ -333,6 +381,10 @@ ${artifactLines.join("\n")}
 
 function artifactXml(kind: "aggregate" | "app", applicationId: string, version: number): string {
   return `    <artifact profile="release" profileName="Release" kind="${kind}" appId="${applicationId}" version="${version}" fileName="${applicationId}_${version}.zip" sha256="${"a".repeat(64)}" size="123" source="test" commitHash="${"b".repeat(40)}" />`;
+}
+
+function installerArtifactXml(applicationId: string, version: number): string {
+  return `    <artifact profile="release" profileName="Release" kind="installer" appId="${applicationId}" version="${version}" fileName="Installer_${applicationId}_${version}.exe" sha256="${"c".repeat(64)}" size="456" source="test" commitHash="${"b".repeat(40)}" />`;
 }
 
 function taggedManifestUrl(version: number): string {

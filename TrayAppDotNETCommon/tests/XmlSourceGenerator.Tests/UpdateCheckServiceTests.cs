@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using TrayAppDotNETCommon.Services;
@@ -11,6 +12,10 @@ public sealed class UpdateCheckServiceTests : IDisposable
     private const string LatestReleaseTag = "TrayAppDotNET_110";
     private const string PreviousReleaseTag = "TrayAppDotNET_109";
     private const int CurrentBuild = 100;
+
+    // Shorter than the 250 ms the replace retries span, so a retrying writer outlasts the reader
+    private static readonly TimeSpan SiblingReaderHoldAfterStaging = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan SiblingReaderStagingTimeout = TimeSpan.FromSeconds(2);
 
     private readonly string _testDirectory = Path.Combine(
         Path.GetTempPath(),
@@ -103,6 +108,43 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.Equal(expected: 1, messageHandler.RequestCount);
         Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
         Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_ReplacesTheSharedManifestWhileASiblingAppIsReadingIt()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        WriteCachedManifest(cachedVersion, DateTime.UtcNow);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        // Hold the cache open like a sibling app's read until the writer has staged its replacement
+        FileStream siblingReader = new(CachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        Task releaseTask = Task.Run(async () =>
+        {
+            try
+            {
+                // A writer that gives up deletes its temporary file at once, so the wait can miss it and time out
+                Stopwatch stagingWait = Stopwatch.StartNew();
+                while (stagingWait.Elapsed < SiblingReaderStagingTimeout
+                       && !Directory.EnumerateFiles(_testDirectory, searchPattern: "versions.xml.*.tmp").Any())
+                    await Task.Delay(millisecondsDelay: 1);
+                await Task.Delay(SiblingReaderHoldAfterStaging);
+            }
+            finally
+            {
+                await siblingReader.DisposeAsync();
+            }
+        });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+        await releaseTask;
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.Empty(Directory.EnumerateFiles(_testDirectory, searchPattern: "versions.xml.*.tmp"));
     }
 
     [Fact]

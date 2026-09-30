@@ -163,7 +163,8 @@ public static class TrayXmlSerializer
         }
     }
 
-    private static void ReplaceFileWithRetry(string temporaryPath, string path)
+    /// <summary>Moves a staged file over its destination, retrying while another process holds it open.</summary>
+    internal static void ReplaceFileWithRetry(string temporaryPath, string path)
     {
         for (int attempt = 1;; attempt++)
         {
