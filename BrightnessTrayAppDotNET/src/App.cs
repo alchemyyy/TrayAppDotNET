@@ -369,9 +369,11 @@ internal sealed class BrightnessAvaloniaApp : Application
         return flyout;
     }
 
+    // NOTE: The flyout owns the curve session, so idle eviction would stop curves and orphan hotkeys.
+    // It therefore stays warm regardless of KeepFlyoutWarm, and the settings page does not offer that toggle.
     private TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow> BrightnessFlyoutWarmSlot =>
         _brightnessFlyoutWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow>(
-            () => _settings?.KeepFlyoutWarm ?? true,
+            static () => true,
             ex => TADNLog.Log($"BrightnessFlyout keep-warm: {ex.Message}"));
 
     private TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow> TrayMenuWarmSlot =>
@@ -387,7 +389,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             try
             {
                 if (_shuttingDown) return;
-                if (_settings?.KeepFlyoutWarm == true && _monitorService != null)
+                if (_monitorService != null)
                     await BrightnessFlyoutWarmSlot.PrimeAsync(CreateManagedBrightnessFlyout);
                 if (_shuttingDown) return;
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
@@ -1179,7 +1181,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void ApplyKeepWarmPolicies()
     {
-        if (_brightnessFlyoutWarmSlot != null || _settings?.KeepFlyoutWarm == true)
+        if (_monitorService != null)
             BrightnessFlyoutWarmSlot.ApplyKeepWarmPolicy(CreateManagedBrightnessFlyout);
         if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
             TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);

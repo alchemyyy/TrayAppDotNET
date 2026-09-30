@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
@@ -354,6 +355,37 @@ public sealed class SecondaryWindowLifetimeTests
     });
 
     [Fact]
+    public void WarmSlotPrimesOnlyTheWindowItCreatesSoRetainedFramesSurviveRepriming() =>
+        AvaloniaTestHost.RunAsync(async () =>
+        {
+            int createCount = 0;
+            Func<FakeWarmWindow> createWindow = () =>
+            {
+                createCount++;
+                return new FakeWarmWindow();
+            };
+            TrayAppDotNETWarmWindowSlot<FakeWarmWindow> slot = new(() => true);
+
+            try
+            {
+                await slot.PrimeAsync(createWindow);
+                FakeWarmWindow window = Assert.IsType<FakeWarmWindow>(slot.Cached);
+                await slot.PrimeAsync(createWindow);
+                slot.ApplyKeepWarmPolicy(createWindow);
+                await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+
+                Assert.Equal(expected: 1, createCount);
+                Assert.Same(window, slot.Cached);
+                Assert.Equal(expected: 1, window.WarmPrimingCount);
+                Assert.False(window.IsVisible);
+            }
+            finally
+            {
+                slot.Dispose();
+            }
+        });
+
+    [Fact]
     public void CoordinatorDisposeRemovesPendingFlyoutOpenedHandler() => AvaloniaTestHost.Run(() =>
     {
         Window settingsWindow = new();
@@ -571,14 +603,25 @@ public sealed class SecondaryWindowLifetimeTests
     private sealed class FakeWarmWindow : Window, ITrayAppDotNETWarmWindow, ITrayAppDotNETWarmResourceOwner
     {
         private EventHandler? _warmDismissed;
+        private bool _isWarmPriming;
 
         public bool ThrowWhenClosing { get; init; }
         public bool ThrowWhenDisposingResources { get; init; }
         public int CloseAttemptCount { get; private set; }
         public int DisposeWarmResourcesCount { get; private set; }
         public int WarmDismissedSubscriberCount { get; private set; }
-        public bool IsWarmPriming { get; set; }
+        public int WarmPrimingCount { get; private set; }
         public bool IsManagedByWarmSlot { get; set; }
+
+        public bool IsWarmPriming
+        {
+            get => _isWarmPriming;
+            set
+            {
+                if (value && !_isWarmPriming) WarmPrimingCount++;
+                _isWarmPriming = value;
+            }
+        }
 
         public event EventHandler? WarmDismissed
         {

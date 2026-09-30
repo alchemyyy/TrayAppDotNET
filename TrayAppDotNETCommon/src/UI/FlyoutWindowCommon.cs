@@ -20,6 +20,7 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     private double? _fixedLogicalWidth;
     private bool _focusGroupEvaluationQueued;
     private bool _scalingLayoutCorrectionQueued;
+    private bool _hasRetainedFrame;
 
     public bool KeepOpenForSettingsWindow { get; set; }
     public bool IsWarmPriming { get; set; }
@@ -74,16 +75,33 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         ReapplyFixedFlyoutWidth();
     }
 
-    /// <summary>Shows the transparent flyout on its target monitor before final measured positioning.</summary>
-    protected void ShowHiddenForPositioning(PixelPoint stagingPosition)
+    /// <summary>Gets whether the native surface still holds the frame of an earlier reveal.</summary>
+    protected bool HasRetainedFrame => _hasRetainedFrame;
+
+    /// <summary>
+    /// Shows the flyout at a position resolved for its current content size.
+    /// After the first reveal the flyout keeps full opacity, so the compositor presents the retained frame at once and
+    /// content published before the next render replaces it directly.
+    /// A flyout that has never been revealed stays transparent until <see cref="CompleteReveal"/>.
+    /// </summary>
+    protected void ShowWithRetainedFrame(PixelPoint position)
     {
         if (IsVisible) return;
 
-        Opacity = 0;
-        Position = stagingPosition;
+        // NOTE: Opacity only takes effect in a rendered frame, so hiding a revealed flyout must never zero it.
+        // The first frame after the next show would then paint transparent over the retained frame.
+        Opacity = _hasRetainedFrame ? 1 : 0;
+        Position = position;
         ReapplyFixedFlyoutWidth();
         RestoreAutomaticHeightSizing();
         Show();
+    }
+
+    /// <summary>Reveals a settled flyout and lets later shows present its retained frame immediately.</summary>
+    protected void CompleteReveal()
+    {
+        Opacity = 1;
+        _hasRetainedFrame = true;
     }
 
     /// <summary>Clears a realized height so height-to-content layout can measure replacement content.</summary>

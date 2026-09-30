@@ -4,10 +4,12 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
 
@@ -43,6 +45,41 @@ public sealed class ContextMenuWindowTests
                     glyphText.FontFamily);
                 Assert.Equal(FontWeight.Bold, glyphText.FontWeight);
                 Assert.IsType<TransformGroup>(glyphText.RenderTransform);
+            }
+            finally
+            {
+                menu.Close();
+            }
+        });
+
+    [Fact]
+    public void WarmTrayMenuReshowsOpaqueAtItsFinalPositionBeforeTheNextRender() =>
+        AvaloniaTestHost.RunAsync(async () =>
+        {
+            using TrayAppDotNETShellTrayIcon trayIcon = new(
+                Guid.NewGuid().ToString(),
+                nameof(ContextMenuWindowTests));
+            ContextMenuWindow menu = new(
+                [new ContextMenuEntry(Text: "Settings", static () => { })],
+                new ContextMenuWindowOptions { Palette = Palette() }) { IsManagedByWarmSlot = true };
+
+            try
+            {
+                menu.ShowAt(trayIcon, new PixelPoint(x: 400, y: 300), ContextMenuPlacement.Classic);
+                Assert.Equal(expected: 0d, menu.Opacity);
+
+                await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+                Assert.Equal(expected: 1d, menu.Opacity);
+
+                menu.DismissForWarmCache();
+                Assert.False(menu.IsVisible);
+
+                PixelPoint secondCursor = new(x: 600, y: 200);
+                menu.ShowAt(trayIcon, secondCursor, ContextMenuPlacement.Classic);
+
+                Assert.True(menu.IsVisible);
+                Assert.Equal(expected: 1d, menu.Opacity);
+                Assert.Equal(secondCursor, menu.Position);
             }
             finally
             {

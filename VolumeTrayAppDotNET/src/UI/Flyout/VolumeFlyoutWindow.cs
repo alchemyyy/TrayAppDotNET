@@ -185,24 +185,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
+        ApplyWorkAreaMaxHeight();
+
+        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
+        ShowWithRetainedFrame(Docking.ResolvePosition());
+
         _bluetoothRadioController?.Refresh();
         _audioManager.ReconcileSessions();
-        ApplyWorkAreaMaxHeight();
         Rebuild();
 
-        // Stage near the tray so native creation cannot flash at the work-area origin
-        PixelPoint stagingPosition = Docking.ResolvePosition();
-        ShowHiddenForPositioning(stagingPosition);
-
-        // Position before the dispatcher can present the staging surface
+        // Settle size, position, and scroll offset before the dispatcher can render the fresh generation
         ApplyWorkAreaMaxHeight();
         UpdateLayout();
         PositionNearTray();
+        ScrollCellsToBottomNow();
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -210,9 +208,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
             PositionNearTray();
-            ScrollCellsToBottom();
+            ScrollCellsToBottomNow();
             StartFlyoutActivity();
-            Opacity = 1;
+            CompleteReveal();
             if (activate) Activate();
         }, DispatcherPriority.Loaded);
     }
@@ -221,21 +219,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed) return;
 
+        // Keep opacity and the current generation so the next show presents this frame immediately
         _visibilityGeneration++;
-        Opacity = 0;
         CloseOpenMenu();
         StopFlyoutActivity();
-        bool retirePendingContent = _rebuildPending;
         _activeContent?.ActiveVolumeSliderDragCount = 0;
         base.Hide();
-        if (retirePendingContent)
-        {
-            _rebuildPending = true;
-            RetireActiveContentGeneration();
-        }
-        else
-            _rebuildPending = false;
-
         NotifyWarmDismissed();
     }
 
@@ -422,16 +411,23 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         SetAllGroupMetersVisible(false);
     }
 
-    private void ScrollCellsToBottom()
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            ScrollViewer? scroll = _activeContent?.CellsScrollViewer;
-            if (scroll == null) return;
+    private void ScrollCellsToBottom() => Dispatcher.UIThread.Post(ScrollCellsToBottomNow, DispatcherPriority.Loaded);
 
-            double maxOffset = Math.Max(val1: 0, scroll.Extent.Height - scroll.Viewport.Height);
-            scroll.Offset = new Vector(scroll.Offset.X, maxOffset);
-        }, DispatcherPriority.Loaded);
+    /// <summary>Scrolls the measured cells to the bottom and arranges the offset before the next render.</summary>
+    private void ScrollCellsToBottomNow()
+    {
+        ScrollViewer? scroll = _activeContent?.CellsScrollViewer;
+        if (scroll == null) return;
+
+        ApplyCellsScrollOffset(scroll, double.PositiveInfinity);
+    }
+
+    /// <summary>Clamps and applies a cell offset against the extent measured by the last layout pass.</summary>
+    private void ApplyCellsScrollOffset(ScrollViewer scroll, double offset)
+    {
+        double maxOffset = Math.Max(val1: 0, scroll.Extent.Height - scroll.Viewport.Height);
+        scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(offset, min: 0, maxOffset));
+        UpdateLayout();
     }
 
     private void Rebuild()
@@ -610,7 +606,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     /// <summary>
-    /// Queues one coalesced rebuild and retires stale hidden content until the next show.
+    /// Queues one coalesced rebuild. Hidden changes only mark the warm generation stale until the next show.
     /// </summary>
     private void QueueRebuild()
     {
@@ -623,10 +619,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         if (_layout == null) return;
+
+        // The attached stale generation keeps the window sized to its retained frame for the next show
         if (!IsVisible && !IsWarmPriming)
         {
             _rebuildPending = true;
-            RetireActiveContentGeneration();
             return;
         }
 
@@ -641,12 +638,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _rebuildQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
-            if (_isClosed) return;
+            // A synchronous rebuild since queueing, such as a show, already published this change
+            if (_isClosed || !_rebuildQueued) return;
+
             _rebuildQueued = false;
             if (!IsVisible && !IsWarmPriming)
             {
                 _rebuildPending = true;
-                RetireActiveContentGeneration();
                 return;
             }
 
@@ -661,12 +659,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private VolumeFlyoutContentGeneration BuildingContent =>
         _buildingContent ?? throw new InvalidOperationException("No Volume flyout generation is being built.");
-
-    private void RetireActiveContentGeneration()
-    {
-        _activeContent = null;
-        DisposeContentGeneration();
-    }
 
     private static void BeginVolumeSliderDrag(VolumeFlyoutContentGeneration content) =>
         content.ActiveVolumeSliderDragCount++;
@@ -693,17 +685,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             || content.IsDraggingWindow
             || content.UndockButtonController?.IsPointerCaptured == true);
 
+    /// <summary>Restores the previous cell offset before the fresh generation can render at offset zero.</summary>
     private void RestoreCellsScrollOffset(VolumeFlyoutContentGeneration content, double offset)
     {
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!ReferenceEquals(_activeContent, content)) return;
-            ScrollViewer? scroll = content.CellsScrollViewer;
-            if (scroll == null) return;
+        ScrollViewer? scroll = content.CellsScrollViewer;
+        if (scroll == null || !IsVisible) return;
 
-            double maxOffset = Math.Max(val1: 0, scroll.Extent.Height - scroll.Viewport.Height);
-            scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(offset, min: 0, maxOffset));
-        }, DispatcherPriority.Loaded);
+        // The offset clamps against the extent, so measure the fresh generation first
+        UpdateLayout();
+        if (!ReferenceEquals(_activeContent, content)) return;
+
+        ApplyCellsScrollOffset(scroll, offset);
     }
 
     private Grid BuildHeader(FlyoutPalette p)

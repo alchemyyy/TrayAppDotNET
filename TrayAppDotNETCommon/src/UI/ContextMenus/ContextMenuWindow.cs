@@ -136,6 +136,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private bool _closedFromDeactivation;
     private bool _closedFromSelection;
     private bool _deactivationCheckPending;
+    private bool _hasRetainedFrame;
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
     public bool ClosedFromDeactivation => _closedFromDeactivation;
@@ -274,6 +275,24 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         _closedFromDeactivation = false;
         _closedFromSelection = false;
+        if (_hasRetainedFrame)
+        {
+            // A warm menu keeps its size, so its retained frame appears where the menu belongs at once.
+            // Settling in the same dispatcher turn keeps the first rendered frame from painting transparent over it.
+            Position = ResolvePosition(trayIcon, cursorPoint, placement, ResolveWorkArea(cursorPoint));
+            Show();
+            TrySettleTrayMenu(trayIcon, cursorPoint, placement);
+            if (!_options.ActivateOnShow) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_windowResources.IsDisposed || !IsVisible) return;
+                Activate();
+            }, DispatcherPriority.Loaded);
+            return;
+        }
+
+        // Nothing has been presented yet, so stage transparently on the target monitor until layout settles
         PixelRect stagingWorkArea = ResolveWorkArea(cursorPoint);
         Opacity = 0;
         Position = stagingWorkArea.Position;
@@ -282,20 +301,32 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         Dispatcher.UIThread.Post(() =>
         {
             if (_windowResources.IsDisposed || !IsVisible) return;
-            ScrollViewer? scrollViewer = _scrollViewer;
-            if (scrollViewer == null) return;
+            if (!TrySettleTrayMenu(trayIcon, cursorPoint, placement)) return;
 
-            PixelRect workArea = ResolveWorkArea(cursorPoint);
-            scrollViewer.MaxHeight = Math.Max(
-                _options.PixelMinSize,
-                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
-
-            UpdateLayout();
-            Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);
-            if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
+            _hasRetainedFrame = true;
             if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Constrains, lays out, and positions a visible tray menu for its cursor point.</summary>
+    private bool TrySettleTrayMenu(
+        TrayAppDotNETShellTrayIcon trayIcon,
+        PixelPoint cursorPoint,
+        ContextMenuPlacement placement)
+    {
+        ScrollViewer? scrollViewer = _scrollViewer;
+        if (scrollViewer == null) return false;
+
+        PixelRect workArea = ResolveWorkArea(cursorPoint);
+        scrollViewer.MaxHeight = Math.Max(
+            _options.PixelMinSize,
+            (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+
+        UpdateLayout();
+        Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);
+        if (_options.ScrollToBottom) ScrollToBottom();
+        return true;
     }
 
     /// <summary>Shows the menu at an arbitrary screen point within its owner's work area.</summary>

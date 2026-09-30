@@ -122,20 +122,16 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         _dockingController.RedockIfUndockingDisabled();
         ApplyWorkAreaMaxHeight();
+
+        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
+        ShowWithRetainedFrame(_dockingController.ResolvePosition());
         Rebuild();
 
-        // Stage near the tray so native creation cannot flash at the work-area origin
-        PixelPoint stagingPosition = _dockingController.ResolvePosition();
-        ShowHiddenForPositioning(stagingPosition);
-
-        // Position before the dispatcher can present the staging surface
+        // Settle size and position before the dispatcher can render the fresh generation
         ApplyWorkAreaMaxHeight();
         UpdateLayout();
         PositionNearTray();
@@ -152,7 +148,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 ApplyWorkAreaMaxHeight();
                 UpdateLayout();
                 PositionNearTray();
-                Opacity = 1;
+                CompleteReveal();
                 if (activate) Activate();
             },
             DispatcherPriority.Loaded);
@@ -160,8 +156,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     public new void Hide()
     {
+        // Keep opacity so the next show presents this frame immediately
         _visibilityGeneration++;
-        Opacity = 0;
         base.Hide();
         NotifyWarmDismissed();
     }
@@ -446,7 +442,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (_isClosed || queuedCancellationToken.IsCancellationRequested) return;
+                // A synchronous rebuild since queueing, such as a show, already published this change
+                if (_isClosed || queuedCancellationToken.IsCancellationRequested || !_rebuildQueued) return;
+
                 _rebuildQueued = false;
                 Rebuild();
             },

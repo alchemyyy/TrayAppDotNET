@@ -356,7 +356,8 @@ public sealed partial class BrightnessSettingsWindow
             RenderingSettings = _settings,
             TrayMenuSettings = _settings,
             WarmWindowSettings = _settings,
-            SupportsFlyoutWarmWindow = true,
+            // The flyout hosts the curve session and is always kept warm
+            SupportsFlyoutWarmWindow = false,
             SupportsTrayContextMenuWarmWindow = true
         });
 

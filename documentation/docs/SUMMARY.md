@@ -2,6 +2,7 @@
 
 - [DDC pipeline audit](ddc-pipeline-audit.md)
 - [Avalonia text layout retention](avalonia_text_layout_retention.md)
+- [Warm flyout and tray menu show flicker](warm_window_show_flicker.md)
 - [Embedded native helper programs in NativeAOT executables](embedded_nativeaot_helper_programs.md)
 - [Task Manager performance data](task_manager_performance_data.md)
 - [Task Manager CPU frequency](task_manager_cpu_frequency.md)

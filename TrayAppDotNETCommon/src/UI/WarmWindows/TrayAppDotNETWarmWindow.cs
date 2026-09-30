@@ -44,6 +44,13 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     {
         if (_disposed || !isKeepWarmEnabled()) return;
 
+        // A cached window is already warm. Priming it again would replace its retained frame with a blank one.
+        if (Cached != null)
+        {
+            CancelIdleEviction();
+            return;
+        }
+
         TWindow window = TakeOrCreate(createWindow);
         if (window.IsVisible) return;
 

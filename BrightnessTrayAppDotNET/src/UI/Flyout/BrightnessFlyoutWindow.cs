@@ -364,19 +364,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (!IsWindowAlive) return;
 
         long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
+
+        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
+        ShowWithRetainedFrame(_dockingController.ResolvePosition());
         RebuildVisual();
 
-        // Stage near the tray so native creation cannot flash at the work-area origin
-        PixelPoint stagingPosition = _dockingController.ResolvePosition();
-        ShowHiddenForPositioning(stagingPosition);
-
-        // Position before the dispatcher can present the staging surface
+        // Settle size and position before the dispatcher can render the fresh generation
         ApplyWorkAreaMaxHeight();
         UpdateLayout();
         PositionNearTray();
@@ -388,7 +384,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
             PositionNearTray();
-            Opacity = 1;
+            CompleteReveal();
             if (activate) Activate();
         }, DispatcherPriority.Loaded);
     }
@@ -398,13 +394,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (!IsWindowAlive) return;
 
         long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
-        if (ActiveContentGeneration == null) RebuildVisual();
-        ShowHiddenForPositioning(_dockingController.ResolvePosition());
+        ShowWithRetainedFrame(_dockingController.ResolvePosition());
+        if (ActiveContentGeneration == null || _rebuildVisualPending) RebuildVisual();
         AppServices.DisplayEventManager?.RunSingleGatedScan();
 
+        // Settle size and position before the dispatcher can render the published generation
         ApplyWorkAreaMaxHeight();
         UpdateLayout();
         PositionNearTray();
@@ -415,42 +409,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
             PositionNearTray();
-            Opacity = 1;
+            CompleteReveal();
             Activate();
-        }, DispatcherPriority.Loaded);
-    }
-
-    public void ShowWithoutActivating()
-    {
-        if (!IsWindowAlive) return;
-
-        long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
-        if (ActiveContentGeneration == null) RebuildVisual();
-        ShowActivated = false;
-        try
-        {
-            ShowHiddenForPositioning(_dockingController.ResolvePosition());
-        }
-        finally
-        {
-            ShowActivated = true;
-        }
-
-        AppServices.DisplayEventManager?.RunSingleGatedScan();
-        ApplyWorkAreaMaxHeight();
-        UpdateLayout();
-        PositionNearTray();
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
-            ApplyWorkAreaMaxHeight();
-            UpdateLayout();
-            PositionNearTray();
-            Opacity = 1;
         }, DispatcherPriority.Loaded);
     }
 
@@ -458,8 +418,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public new void Hide()
     {
+        // Keep opacity and the current generation so the next show presents this frame immediately
         _visibilityGeneration++;
-        Opacity = 0;
         CancelPreviewSweep();
         CancelConfirmOverlay();
         base.Hide();
@@ -471,7 +431,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private static void TrimHiddenWarmResources()
     {
-        // Keep exactly one current generation warm. Hidden structural changes retire it in QueueRebuildVisual.
+        // Keep exactly one generation warm. Hidden structural changes only mark it stale in QueueRebuildVisual.
     }
 
     private void DisposeWarmResources() => DisposeContentGeneration();
@@ -818,6 +778,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 logError: exception => TADNLog.Log(
                     $"BrightnessFlyoutWindow root release failed: {exception.GetType().Name}: {exception.Message}"));
             PublishAndCommitVisualState(candidate, replacement);
+
+            // Re-anchor after the generation lands, since a height change otherwise leaves the flyout off the tray edge
+            QueuePositionNearTray();
         }
         catch
         {
@@ -911,10 +874,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         if (_layout == null) return;
+
+        // The attached stale generation keeps the window sized to its retained frame for the next show
         if (!IsVisible && !IsWarmPriming)
         {
             _rebuildVisualPending = true;
-            DisposeContentGeneration();
             return;
         }
 
@@ -930,7 +894,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _rebuildVisualQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!IsWindowAlive) return;
+            // A synchronous rebuild since queueing, such as a show, already published this change
+            if (!IsWindowAlive || !_rebuildVisualQueued) return;
+
             _rebuildVisualQueued = false;
             RebuildVisual();
         }, DispatcherPriority.Background);

@@ -78,7 +78,7 @@ public sealed class FlyoutFrameTests
         });
 
     [Fact]
-    public void HiddenShowStagesAnOpaqueWindowOnTheTargetMonitorBeforeCreatingItsNativeSurface() =>
+    public void UnrevealedShowStagesATransparentWindowOnTheTargetMonitorBeforeCreatingItsNativeSurface() =>
         AvaloniaTestHost.Run(() =>
         {
             PixelPoint stagingPosition = new(x: 2560, y: 120);
@@ -86,11 +86,41 @@ public sealed class FlyoutFrameTests
 
             try
             {
-                window.ShowHidden(stagingPosition);
+                window.ShowRetained(stagingPosition);
 
                 Assert.True(window.IsVisible);
+                Assert.False(window.RetainsFrame);
                 Assert.Equal(expected: 0, window.Opacity);
                 Assert.Equal(stagingPosition, window.Position);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void RevealedReshowKeepsFullOpacitySoTheRetainedFrameIsNeverPaintedTransparent() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            PixelPoint firstPosition = new(x: 2560, y: 120);
+            PixelPoint secondPosition = new(x: 2400, y: 360);
+            TestFlyoutWindow window = new();
+
+            try
+            {
+                window.ShowRetained(firstPosition);
+                window.Reveal();
+                window.Hide();
+
+                Assert.True(window.RetainsFrame);
+                Assert.Equal(expected: 1, window.Opacity);
+
+                window.ShowRetained(secondPosition);
+
+                Assert.True(window.IsVisible);
+                Assert.Equal(expected: 1, window.Opacity);
+                Assert.Equal(secondPosition, window.Position);
             }
             finally
             {
@@ -125,7 +155,7 @@ public sealed class FlyoutFrameTests
             try
             {
                 window.SetLogicalWidth(350);
-                window.ShowHidden(new PixelPoint(x: 0, y: 0));
+                window.ShowRetained(new PixelPoint(x: 0, y: 0));
                 window.UpdateLayout();
 
                 window.ScalingChanged += (_, _) =>
@@ -179,7 +209,11 @@ public sealed class FlyoutFrameTests
     {
         public int ScalingConstraintApplicationCount { get; private set; }
 
-        public void ShowHidden(PixelPoint stagingPosition) => ShowHiddenForPositioning(stagingPosition);
+        public bool RetainsFrame => HasRetainedFrame;
+
+        public void ShowRetained(PixelPoint position) => ShowWithRetainedFrame(position);
+
+        public void Reveal() => CompleteReveal();
 
         public void SetLogicalWidth(double logicalWidth) => SetFixedFlyoutWidth(logicalWidth);
 

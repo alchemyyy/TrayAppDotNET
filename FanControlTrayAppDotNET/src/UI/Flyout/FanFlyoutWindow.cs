@@ -273,45 +273,37 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (WindowResources.IsDisposed) return;
 
         long visibilityGeneration = ++_visibilityGeneration;
-        bool wasVisible = IsVisible;
-        if (!wasVisible) Opacity = 0;
-
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
+
+        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
+        ShowWithRetainedFrame(_dockingController.ResolvePosition());
         ExecuteFanRebuild(false);
 
-        // Stage near the tray so native creation cannot flash at the work-area origin
-        PixelPoint stagingPosition = _dockingController.ResolvePosition();
-        ShowHiddenForPositioning(stagingPosition);
-
-        // Position before the dispatcher can present the staging surface
+        // Settle size and position before the dispatcher can render the fresh generation
         ApplyWorkAreaMaxHeight();
         UpdateLayout();
         PositionNearTray();
 
-        FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
+        // A rebuild committed before this runs still needs the reveal, so only the show itself is checked
         Dispatcher.UIThread.Post(() =>
         {
-            if (WindowResources.IsDisposed
-                || visibilityGeneration != _visibilityGeneration
-                || !IsVisible
-                || !ReferenceEquals(_activeVisualGeneration, generation))
-                return;
+            if (WindowResources.IsDisposed || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
 
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
             PositionNearTray();
             ShowPinnedFanPropertiesWindows();
-            Opacity = 1;
+            CompleteReveal();
             if (activate) Activate();
         }, DispatcherPriority.Loaded);
     }
 
     public new void Hide()
     {
+        // Keep opacity and the current generation so the next show presents this frame immediately
         _visibilityGeneration++;
-        Opacity = 0;
         CloseAddItemMenu();
         ResetPointerGestureState();
         CancelConfirmOverlay();
