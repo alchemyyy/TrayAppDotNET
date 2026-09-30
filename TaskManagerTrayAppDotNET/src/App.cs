@@ -47,6 +47,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
+    private TaskbarForegroundTracker? _taskbarForegroundTracker;
     private TaskManagerTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private WatcherMonitor? _watcherMonitor;
@@ -249,11 +250,12 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void CreateTrayIcon()
     {
+        _taskbarForegroundTracker = new TaskbarForegroundTracker();
         _trayIcon = new TrayAppDotNETShellTrayIcon(
             Constants.TrayIconGUID,
             Program.ApplicationName + ".TrayIcon");
         _trayIcon.LeftClick += OnTrayLeftClick;
-        _trayIcon.LeftDoubleClick += ShowTaskManager;
+        _trayIcon.LeftDoubleClick += RevealTaskManagerFromTray;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RefreshTrayIcon;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
@@ -320,14 +322,13 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void OnTrayLeftClick()
     {
-        if (_taskManagerWindow is { IsVisible: true })
-        {
-            _taskManagerWindow.Hide();
-            return;
-        }
+        if (_taskManagerWindow == null || _taskbarForegroundTracker == null) return;
 
-        ShowTaskManager();
+        _taskManagerWindow.ToggleFromTray(_taskbarForegroundTracker);
     }
+
+    // The first click of a double click may already have shown the window, so this reveal must not move it
+    private void RevealTaskManagerFromTray() => _ = _taskManagerWindow?.ShowInPlaceAndActivateAsync();
 
     private void ShowTaskManager() => _taskManagerWindow?.ShowAndActivate();
 
@@ -498,7 +499,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             if (_trayIcon != null)
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
-                _trayIcon.LeftDoubleClick -= ShowTaskManager;
+                _trayIcon.LeftDoubleClick -= RevealTaskManagerFromTray;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RefreshTrayIcon;
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
@@ -506,6 +507,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
+            Safe.Dispose(_taskbarForegroundTracker);
+            _taskbarForegroundTracker = null;
             _trayIconRenderQueue.Dispose();
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;

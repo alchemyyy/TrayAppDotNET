@@ -388,14 +388,22 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     }
 
     /// <summary>
+    /// Shows the window where it was last placed, restores it if minimized, and activates it. Use it for input this
+    /// process received, such as a notification icon click.
+    /// </summary>
+    public Task ShowInPlaceAndActivateAsync() => ShowInPlaceAsync(forceForeground: false);
+
+    /// <summary>
     /// Shows the window where it was last placed, restores it if minimized, and takes the foreground even
     /// when the request did not come from input this process received, such as a global keyboard hook.
     /// </summary>
-    public Task ShowInPlaceAndForceForegroundAsync()
-    {
-        if (!IsVisible) return ShowHiddenAfterFirstFrameAsync(forceForeground: true);
+    public Task ShowInPlaceAndForceForegroundAsync() => ShowInPlaceAsync(forceForeground: true);
 
-        BringToForeground(forceForeground: true);
+    private Task ShowInPlaceAsync(bool forceForeground)
+    {
+        if (!IsVisible) return ShowHiddenAfterFirstFrameAsync(forceForeground);
+
+        BringToForeground(forceForeground);
         return Task.CompletedTask;
     }
 

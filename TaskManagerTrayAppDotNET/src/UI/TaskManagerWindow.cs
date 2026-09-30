@@ -349,6 +349,24 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     internal void ShowAndActivate() => _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
 
     /// <summary>
+    /// Handles a notification icon click. The window the user was working in hides; a hidden, minimized or covered
+    /// window comes forward where it was.
+    /// </summary>
+    internal void ToggleFromTray(TaskbarForegroundTracker foregroundTracker)
+    {
+        IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (IsVisible
+            && WindowState != WindowState.Minimized
+            && foregroundTracker.WasForegroundBeforeTaskbar(windowHandle))
+        {
+            Hide();
+            return;
+        }
+
+        _ = ShowInPlaceAndActivateAsync();
+    }
+
+    /// <summary>
     /// Starts without taking focus: hidden in the tray when Minimize to Tray is on, otherwise minimized to the
     /// taskbar. The elevation attempt a normal startup makes waits until the window is first shown.
     /// </summary>
