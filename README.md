@@ -194,6 +194,7 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 | --- | --- | --- |
 | No arguments | User | Start the app normally under the crash watcher. |
 | `--autostart` | Startup shortcut | Mark a sign-in launch. The Run on startup shortcut passes it, the watcher forwards it to every monitored process it starts, and apps with a Start minimized option only honor that option when it is present. |
+| `--hidden` | Installer | Start in the notification area without showing a window, whatever the startup settings say. The installer passes it to the apps it launches when it finishes, and the watcher forwards it to every monitored process it starts. Only Task Manager opens a window at startup, so it is the only app this changes. |
 | `--installer` or `--install-gui` | User | Open the one-page installer. Local installation is selected by default. Selecting system installation causes Windows to display a UAC prompt after Install is clicked. |
 | `--install-headless <scope>` | User/script | Install without opening a window, print progress lines (`[NN%] stage`) and the result to the parent console or redirected standard output, then exit. System scope causes Windows to display a UAC prompt. |
 | `--install <scope>` | User/script | Compatibility alias for `--install-headless <scope>`. |

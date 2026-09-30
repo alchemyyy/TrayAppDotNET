@@ -74,6 +74,8 @@ internal static class SystemTheme
         "TextOnAccent",
         "CautionBackground",
         "CautionBorder",
+        "InformationBackground",
+        "InformationBorder",
         "SuccessText",
         "CriticalText"
     ];

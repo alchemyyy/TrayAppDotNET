@@ -80,6 +80,35 @@ public sealed class ExampleModeTests
     }
 
     [Fact]
+    public void CreateDetectedInstallations_StartsASingleApplicationOnSystem()
+    {
+        using EmbeddedPayloadCatalog catalog = ExampleMode.CreateCatalog(SingleApplicationName);
+
+        IReadOnlyList<DetectedInstallation> installations = ExampleMode.CreateDetectedInstallations(catalog);
+
+        DetectedInstallation installation = Assert.Single(installations);
+        Assert.Equal(SingleApplicationName, installation.ApplicationName);
+        Assert.Equal(InstallMode.System, installation.Mode);
+        Assert.Equal(InstallDefaults.DefaultDirectory(InstallMode.System, catalog), installation.Directory);
+        Assert.Equal(InstallMode.System, InstallationDetector.PreferredMode(installations));
+    }
+
+    [Fact]
+    public void CreateDetectedInstallations_GivesTheSuiteEveryKindOfRow()
+    {
+        using EmbeddedPayloadCatalog catalog = ExampleMode.CreateCatalog(applicationName: null);
+        InstallMode[] systemOnly = [InstallMode.System];
+        InstallMode[] localOnly = [InstallMode.Local];
+
+        IReadOnlyList<DetectedInstallation> installations = ExampleMode.CreateDetectedInstallations(catalog);
+
+        Assert.Equal(systemOnly, InstallationDetector.ModesOf(installations, catalog.Payloads[0].ApplicationName));
+        Assert.Equal(localOnly, InstallationDetector.ModesOf(installations, catalog.Payloads[1].ApplicationName));
+        Assert.Empty(InstallationDetector.ModesOf(installations, catalog.Payloads[3].ApplicationName));
+        Assert.Equal(InstallMode.System, InstallationDetector.PreferredMode(installations));
+    }
+
+    [Fact]
     public void ApplicationIconNames_CoverTheTrayApplicationsAndNotTheSuite()
     {
         IReadOnlyList<string> names = InstallerIcons.ApplicationIconNames();

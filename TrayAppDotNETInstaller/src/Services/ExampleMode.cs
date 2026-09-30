@@ -31,6 +31,10 @@ public static class ExampleMode
     private const int SimulatedFailureExitCode = 1;
     private const char ArgumentPrefix = '-';
 
+    // Which fabricated applications report an existing installation other than a System one
+    private const int LocalInstallationIndex = 1;
+    private const int NotInstalledIndex = 3;
+
     // The files a release package actually holds, so the extraction lines look like the real ones
     private static string[] SharedEntryNames { get; } =
     [
@@ -90,6 +94,31 @@ public static class ExampleMode
 
         InstallerLog.Write($"ExampleMode: fabricated {fileNames.Count} payload(s)");
         return EmbeddedPayloadCatalog.FromFileNames(fileNames);
+    }
+
+    /// <summary>
+    /// Fabricates installations already on the machine, so the installed notice, the row labels and the preset
+    /// installation type show without installing anything first. Every application is installed for all users
+    /// except the second, installed for the current user, and the fourth, not installed, so a suite shows each
+    /// kind of row and a single application starts on System.
+    /// </summary>
+    public static IReadOnlyList<DetectedInstallation> CreateDetectedInstallations(EmbeddedPayloadCatalog catalog)
+    {
+        FrameworkCompatibility.ThrowIfNull(catalog, nameof(catalog));
+
+        List<DetectedInstallation> installations = [];
+        for (int index = 0; index < catalog.Payloads.Count; index++)
+        {
+            if (index == NotInstalledIndex) continue;
+
+            InstallMode mode = index == LocalInstallationIndex ? InstallMode.Local : InstallMode.System;
+            installations.Add(new DetectedInstallation(
+                catalog.Payloads[index].ApplicationName,
+                mode,
+                InstallDefaults.DefaultDirectory(mode, catalog)));
+        }
+
+        return installations;
     }
 
     /// <summary>

@@ -126,6 +126,14 @@ internal sealed class TaskManagerAvaloniaApp : Application
         CreateTrayIcon();
         StartUpdateCheckService(settings);
         TaskManagerWindow taskManagerWindow = _taskManagerWindow!;
+        if (Program.IsHiddenLaunch)
+        {
+            // The installer starts the app this way when it finishes, so it waits in the tray until it is opened
+            taskManagerWindow.StartHidden();
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         if (settings.StartMinimized && Program.IsStartupLaunch)
         {
             // Only sign-in launches honor the setting; a manual start always shows the window

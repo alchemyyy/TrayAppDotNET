@@ -52,7 +52,9 @@
     <!-- NOTE: the box is as tall as the larger of its minimum and one text line plus padding and border, so
          a height change needs both values moved by the same amount -->
     <system:Double x:Key="InstallerTheme.TextBoxMinHeight">28</system:Double>
-    <Thickness x:Key="InstallerTheme.TextBoxPadding">10,3,10,4</Thickness>
+    <!-- WPF insets text a further 2 units on each side, so 8 puts the text 11 units inside the outer edge,
+         where a Windows 11 text box draws it -->
+    <Thickness x:Key="InstallerTheme.TextBoxPadding">8,3,8,4</Thickness>
     <CornerRadius x:Key="InstallerTheme.ControlCornerRadius">4</CornerRadius>
     <Thickness x:Key="InstallerTheme.ControlBorderThickness">1</Thickness>
     <system:Double x:Key="InstallerTheme.FocusUnderlineHeight">2</system:Double>
@@ -81,6 +83,11 @@
          The margin keeps a long name and its battery hint clear of the state. -->
     <Thickness x:Key="InstallerTheme.ApplicationStateMargin">12,0,0,0</Thickness>
 
+    <!-- Application icon before each name in the suite list, as tall as the check box glyph. The icons are white
+         line art drawn for the dark taskbar, so the window paints each one as a mask in the row's text colour. -->
+    <system:Double x:Key="InstallerTheme.ApplicationIconSize">20</system:Double>
+    <Thickness x:Key="InstallerTheme.ApplicationIconMargin">0,0,8,0</Thickness>
+
     <!-- Accent shading. Windows paints its hover and pressed accent states as the accent colour at reduced
          opacity over the page, which is what these two alphas reproduce. -->
     <system:Double x:Key="InstallerTheme.AccentHoverOpacity">0.9</system:Double>
@@ -104,6 +111,9 @@
     <Color x:Key="InstallerTheme.Light.TextOnAccentColor">#FFFFFFFF</Color>
     <Color x:Key="InstallerTheme.Light.CautionBackgroundColor">#FFFFF4CE</Color>
     <Color x:Key="InstallerTheme.Light.CautionBorderColor">#FF9D5D00</Color>
+    <!-- The informational InfoBar fill and card stroke of Windows 11 controls, for the installed notice -->
+    <Color x:Key="InstallerTheme.Light.InformationBackgroundColor">#80F6F6F6</Color>
+    <Color x:Key="InstallerTheme.Light.InformationBorderColor">#0F000000</Color>
     <!-- The success and critical status colours of Windows 11 controls, like the caution colour above -->
     <Color x:Key="InstallerTheme.Light.SuccessTextColor">#FF0F7B0F</Color>
     <Color x:Key="InstallerTheme.Light.CriticalTextColor">#FFC42B1C</Color>
@@ -124,6 +134,8 @@
     <Color x:Key="InstallerTheme.Dark.TextOnAccentColor">#FF000000</Color>
     <Color x:Key="InstallerTheme.Dark.CautionBackgroundColor">#FF433519</Color>
     <Color x:Key="InstallerTheme.Dark.CautionBorderColor">#FFFCE100</Color>
+    <Color x:Key="InstallerTheme.Dark.InformationBackgroundColor">#08FFFFFF</Color>
+    <Color x:Key="InstallerTheme.Dark.InformationBorderColor">#19000000</Color>
     <Color x:Key="InstallerTheme.Dark.SuccessTextColor">#FF6CCB5F</Color>
     <Color x:Key="InstallerTheme.Dark.CriticalTextColor">#FFFF99A4</Color>
 
@@ -579,7 +591,9 @@
         </Setter>
     </Style>
 
-    <!-- Text box, with the accent underline Windows draws while the caret is in the field -->
+    <!-- Text box, with the accent underline Windows draws while the caret is in the field.
+         NOTE: TextBoxBase copies Padding onto the PART_ContentHost scroll viewer itself, so the template must
+         not apply it again as a margin; doing so doubled the inset and the height -->
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="{DynamicResource InstallerTheme.ControlBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource InstallerTheme.ControlBorderBrush}" />
@@ -603,7 +617,6 @@
                             SnapsToDevicePixels="True">
                         <Grid>
                             <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           HorizontalScrollBarVisibility="Hidden"
                                           VerticalScrollBarVisibility="Hidden" />

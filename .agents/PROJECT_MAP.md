@@ -54,7 +54,9 @@
     while extracting nothing, starting no child installer and writing nothing; `--example-fail` makes that
     simulation fail partway, which is the only way to reach the failure state. The example window also
     reports no Windhawk and no battery, so the Windhawk notice and the battery application unselecting
-    itself are both visible. `launchSettings.json` carries the profiles, so `dotnet run` and the IDE run
+    itself are both visible. It also fabricates existing installations
+    (`ExampleMode.CreateDetectedInstallations`), so the installed notice, the row labels and the preset
+    installation type show. `launchSettings.json` carries the profiles, so `dotnet run` and the IDE run
     button need no arguments, and a Debug build with no payload falls into the same mode. A stamped
     installer is a Release build carrying a payload, so it cannot reach any of this; `ExampleModeTests`
     covers the argument parsing, the fabricated catalog and the simulated run.
@@ -66,7 +68,17 @@
     hundred kilobytes instead of the 28 MB an Avalonia Native AOT build cost, which embedded Skia.
   - `src/GlobalUsings.cs` supplies the usings the SDK only provides implicitly on .NET 6 and newer, and
     `src/Compatibility` holds the compiler attribute polyfills and stand-ins for missing .NET APIs.
-  - Every app icon plus the suite icon is embedded in the factory, so the window icon needs no surgery.
+  - Every app icon plus the suite icon is embedded in the factory, so the window icon needs no surgery. The
+    suite list draws each app's icon before its name as a mask in the row's text colour, because the icons are
+    white line art that vanishes on the light palette.
+  - `src/Services/InstallationDetector.cs` finds existing Local and System copies by the executable in the
+    folder each mode installs to; the uninstall registry's build number goes stale after in-app updates, so it
+    is not read, and portable copies leave no record. The window starts on the mode holding the most copies
+    (System on a tie), shows an informational notice, and labels suite rows `Installed (System)` and so on.
+  - After a successful install the window launches each app with `--hidden` through `AppLauncher`. A process
+    elevated under UAC (`SystemProbes.IsSplitTokenElevated`) launches through the desktop Explorer's
+    `IShellDispatch2.ShellExecute` (`UnelevatedLauncher`), which keeps the arguments; `explorer.exe <path>`
+    is only the fallback because it drops them. With UAC off the installer launches directly.
   - `dotnet run` with no payload falls back to a `Payloads` folder beside the executable, which still holds
     plain `.zip` files. `ExtractArchive` in `src/Services/InstallEngine.cs` tells a solid payload from a zip
     by the leading bytes, not the file name.
@@ -193,6 +205,9 @@
 - Normal mode uses the crash watcher process, then the watcher starts the monitored app process.
 - The Run on startup shortcut passes `--autostart`; the watcher forwards it to the monitored process, where
   `TrayAppDotNETProgram.IsStartupLaunch` exposes it. Task Manager's Start minimized option only applies then.
+- The installer passes `--hidden` to the apps it launches; `TrayAppDotNETProgram.IsHiddenLaunch` exposes it and
+  Task Manager then starts in the tray without showing its window. The watcher rebuilds the monitored command
+  line, so only the flags in `TrayAppDotNETProgram.ForwardedLaunchArguments` survive it.
 - Useful arguments are documented in repo `README.md`:
   - `--install local`
   - `--install system`

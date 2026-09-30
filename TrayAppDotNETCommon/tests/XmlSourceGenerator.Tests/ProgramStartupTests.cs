@@ -84,6 +84,24 @@ public sealed class ProgramStartupTests
         Assert.False(runningApplication.ProcessesExited);
     }
 
+    [Fact]
+    public void ForwardedLaunchArgumentsKeepOnlyTheLaunchFlagsInAFixedOrder()
+    {
+        string[] args = ["--hidden", "--monitored", "--watcher-pid", "12", "--AUTOSTART"];
+        string[] expected = [TrayAppDotNETProgram.AutostartArgument, TrayAppDotNETProgram.HiddenArgument];
+
+        IReadOnlyList<string> forwarded = TrayAppDotNETProgram.SelectForwardedLaunchArguments(args);
+
+        Assert.Equal(expected, forwarded);
+    }
+
+    [Fact]
+    public void ForwardedLaunchArgumentsAreEmptyForAManualStart()
+    {
+        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments([]));
+        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments(["--monitored", "--watcher-pid", "12"]));
+    }
+
     private sealed class FakeRunningApplication : IDisposable
     {
         private const int OwnerReadyTimeoutMs = 5_000;

@@ -367,12 +367,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     }
 
     /// <summary>
+    /// Starts in the tray without showing the window; a tray click or Ctrl+Shift+Esc reveals it. The elevation
+    /// attempt a normal startup makes waits until the window is first shown.
+    /// </summary>
+    internal void StartHidden() => _initialElevationDeferred = true;
+
+    /// <summary>
     /// Starts without taking focus: hidden in the tray when Minimize to Tray is on, otherwise minimized to the
     /// taskbar. The elevation attempt a normal startup makes waits until the window is first shown.
     /// </summary>
     internal void StartMinimized()
     {
-        _initialElevationDeferred = true;
+        StartHidden();
         if (_settings.MinimizeToTray) return;
 
         ShowActivated = false;

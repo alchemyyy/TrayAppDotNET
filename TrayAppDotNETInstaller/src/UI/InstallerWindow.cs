@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -11,6 +12,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TrayAppDotNETInstaller.Localization;
 using TrayAppDotNETInstaller.Services;
+// Aliased because System.Windows.Shapes also declares a Path, which would hide System.IO.Path
+using Rectangle = System.Windows.Shapes.Rectangle;
+using Shape = System.Windows.Shapes.Shape;
 
 namespace TrayAppDotNETInstaller.UI;
 
@@ -28,6 +32,7 @@ public sealed class InstallerWindow : Window
     private const string WindhawkURL = "https://windhawk.net/";
     private const string WindhawkModURL = "https://windhawk.net/mods/taskbar-tray-system-icon-tweaks";
     private const string UnsupportedApplicationStateMessage = "Unsupported application state.";
+    private const string UnsupportedInstallModeMessage = "Unsupported install mode.";
 
     // Theme.xaml resource keys
     private const string WindowStyleKey = "InstallerTheme.WindowStyle";
@@ -52,15 +57,27 @@ public sealed class InstallerWindow : Window
     private const string NoticeBorderThicknessKey = "InstallerTheme.NoticeBorderThickness";
     private const string CautionBackgroundBrushKey = "InstallerTheme.CautionBackgroundBrush";
     private const string CautionBorderBrushKey = "InstallerTheme.CautionBorderBrush";
+    private const string InformationBackgroundBrushKey = "InstallerTheme.InformationBackgroundBrush";
+    private const string InformationBorderBrushKey = "InstallerTheme.InformationBorderBrush";
+    private const string ApplicationIconSizeKey = "InstallerTheme.ApplicationIconSize";
+    private const string ApplicationIconMarginKey = "InstallerTheme.ApplicationIconMargin";
     private const string CaptionHeightKey = "InstallerTheme.CaptionHeight";
     private const string CaptionIconSizeKey = "InstallerTheme.CaptionIconSize";
+
+    // The notice's sentences are localized one by one and read as a single paragraph
+    private const string SentenceSeparator = " ";
 
     // Parts of the window template in Theme.xaml, which draws the title bar
     private const string CaptionIconPartName = "PART_CaptionIcon";
     private const string CloseButtonPartName = "PART_CloseButton";
 
+    // Launched apps wait in the tray; a freshly installed Task Manager would otherwise open its window
+    private static readonly string[] PostInstallLaunchArguments = [AppLauncher.HiddenArgument];
+
     private readonly EmbeddedPayloadCatalog _catalog;
+    private readonly IReadOnlyList<DetectedInstallation> _installations;
     private readonly List<PayloadSelection> _payloadSelections = [];
+    private readonly List<ApplicationIcon> _applicationIcons = [];
     private readonly List<Control> _inputs = [];
     private readonly StackPanel _root = new();
     private readonly RadioButton _localRadioButton;
@@ -89,10 +106,19 @@ public sealed class InstallerWindow : Window
     private bool _installRunning;
     private bool _installFinished;
 
-    private sealed record PayloadSelection(EmbeddedPayload Payload, CheckBox CheckBox, TextBlock StateTextBlock);
+    /// <summary>One suite row. <paramref name="InstalledLabel"/> says where the application is already installed, or is null.</summary>
+    private sealed record PayloadSelection(
+        EmbeddedPayload Payload,
+        CheckBox CheckBox,
+        TextBlock StateTextBlock,
+        string? InstalledLabel);
+
+    /// <summary>The mask that paints one suite row's icon, and the frames it picks from as the scaling changes.</summary>
+    private sealed record ApplicationIcon(ImageBrush Mask, IReadOnlyList<BitmapFrame> Frames);
 
     /// <summary>
-    /// Builds the whole page from the catalog, the Windhawk probe and the battery probe.
+    /// Builds the whole page from the catalog, the Windhawk probe, the battery probe and the installations
+    /// already on the machine, which also decide the installation type the page starts on.
     /// <paramref name="isExample"/> swaps the engine for a simulation that writes nothing, so the window can
     /// be run on its own; <paramref name="exampleFails"/> makes that simulation fail partway.
     /// </summary>
@@ -100,16 +126,18 @@ public sealed class InstallerWindow : Window
         EmbeddedPayloadCatalog catalog,
         WindhawkDetection windhawk,
         bool hasSystemBattery,
+        IReadOnlyList<DetectedInstallation> installations,
         bool isExample = false,
         bool exampleFails = false)
     {
         FrameworkCompatibility.ThrowIfNull(catalog, nameof(catalog));
+        FrameworkCompatibility.ThrowIfNull(windhawk, nameof(windhawk));
+        FrameworkCompatibility.ThrowIfNull(installations, nameof(installations));
 
         _isExample = isExample;
         _exampleFails = exampleFails;
-        FrameworkCompatibility.ThrowIfNull(windhawk, nameof(windhawk));
-
         _catalog = catalog;
+        _installations = installations;
         Style = StyleResource(WindowStyleKey);
         Title = ResolveTitle(catalog);
         SizeToContent = SizeToContent.Height;
@@ -143,14 +171,17 @@ public sealed class InstallerWindow : Window
             Style = StyleResource(AccentButtonStyleKey)
         };
         _cancelButton = new Button { Content = L(nameof(AppStrings.Installer_Button_Cancel)) };
+        // An existing installation picks the starting type, whose folder is where that installation lives, so
+        // installing again replaces it rather than adding a second copy
+        InstallMode initialMode = InstallationDetector.PreferredMode(installations) ?? InstallMode.Local;
         _localRadioButton = CreateModeRadioButton(
             L(nameof(AppStrings.Installer_Type_Local_Title)),
             L(nameof(AppStrings.Installer_Type_Local_Description)),
-            isChecked: true);
+            isChecked: initialMode == InstallMode.Local);
         _systemRadioButton = CreateModeRadioButton(
             L(nameof(AppStrings.Installer_Type_System_Title)),
             L(nameof(AppStrings.Installer_Type_System_Description)),
-            isChecked: false);
+            isChecked: initialMode == InstallMode.System);
         _portableRadioButton = CreateModeRadioButton(
             L(nameof(AppStrings.Installer_Type_Portable_Title)),
             L(nameof(AppStrings.Installer_Type_Portable_Description)),
@@ -160,6 +191,7 @@ public sealed class InstallerWindow : Window
         _root.Children.Add(CreateHeader(catalog));
         if (!windhawk.IsInstalled) _root.Children.Add(CreateWindhawkNotice());
         if (catalog.IsBundle) _root.Children.Add(CreateAppSelection(catalog, hasSystemBattery));
+        if (installations.Count > 0) _root.Children.Add(CreateInstalledNotice(catalog, installations, initialMode));
         _root.Children.Add(CreateInstallTypeSection());
         _root.Children.Add(CreateLocationSection());
         _root.Children.Add(CreateOptionsSection());
@@ -177,7 +209,8 @@ public sealed class InstallerWindow : Window
         SourceInitialized += OnSourceInitialized;
         Closing += OnClosing;
 
-        ApplyMode(InstallMode.Local);
+        ApplyMode(initialMode);
+        UpdateApplicationIcons(VisualTreeHelper.GetDpi(this));
     }
 
     /// <summary>
@@ -249,6 +282,59 @@ public sealed class InstallerWindow : Window
         return notice;
     }
 
+    /// <summary>
+    /// The card that reports installations already on the machine, just above the installation type it explains.
+    /// A single-application installer names each installed copy and its folder; the suite counts the applications
+    /// and leaves the details to the labels at the end of their rows.
+    /// </summary>
+    private Border CreateInstalledNotice(
+        EmbeddedPayloadCatalog catalog,
+        IReadOnlyList<DetectedInstallation> installations,
+        InstallMode initialMode)
+    {
+        List<string> sentences = [];
+        if (catalog.IsBundle)
+        {
+            int applicationCount = InstallationDetector.CountApplications(installations);
+            sentences.Add(applicationCount == 1
+                ? L(nameof(AppStrings.Installer_Installed_BundleOne))
+                : Format(nameof(AppStrings.Installer_Installed_Bundle_Format), applicationCount));
+        }
+        else
+        {
+            foreach (DetectedInstallation installation in installations) sentences.Add(DescribeInstallation(installation));
+        }
+
+        // Counts the copies the starting type would replace, not the applications
+        sentences.Add(InstallationDetector.CountInMode(installations, initialMode) == 1
+            ? L(nameof(AppStrings.Installer_Installed_PresetOne))
+            : L(nameof(AppStrings.Installer_Installed_PresetMany)));
+
+        Border notice = new()
+        {
+            Child = new TextBlock { Text = string.Join(SentenceSeparator, sentences) },
+            Padding = ThicknessResource(NoticePaddingKey),
+            CornerRadius = CornerRadiusResource(NoticeCornerRadiusKey),
+            BorderThickness = ThicknessResource(NoticeBorderThicknessKey)
+        };
+        notice.SetResourceReference(Border.BackgroundProperty, InformationBackgroundBrushKey);
+        notice.SetResourceReference(Border.BorderBrushProperty, InformationBorderBrushKey);
+        return notice;
+    }
+
+    private static string DescribeInstallation(DetectedInstallation installation) => installation.Mode switch
+    {
+        InstallMode.System => Format(
+            nameof(AppStrings.Installer_Installed_System_Format),
+            installation.ApplicationName,
+            installation.Directory),
+        InstallMode.Local => Format(
+            nameof(AppStrings.Installer_Installed_Local_Format),
+            installation.ApplicationName,
+            installation.Directory),
+        _ => throw new ArgumentOutOfRangeException(nameof(installation), installation.Mode, UnsupportedInstallModeMessage)
+    };
+
     private StackPanel CreateAppSelection(EmbeddedPayloadCatalog catalog, bool hasSystemBattery)
     {
         List<UIElement> rows = [];
@@ -259,14 +345,20 @@ public sealed class InstallerWindow : Window
                 BatteryApplicationName,
                 StringComparison.OrdinalIgnoreCase);
             bool showBatteryHint = isBatteryApp && !hasSystemBattery;
-            CheckBox checkBox = new() { Content = payload.ApplicationName, IsChecked = !showBatteryHint };
-            // Collapsed until a run starts, which shows it only for the applications that run includes
+            CheckBox checkBox = new() { IsChecked = !showBatteryHint };
+            checkBox.Content = CreateApplicationLabel(payload.ApplicationName, checkBox);
+            // The content is a panel, so accessibility tools need the name spelled out
+            AutomationProperties.SetName(checkBox, payload.ApplicationName);
+            // Says where the application is already installed until a run starts, then the run's state for the
+            // applications it includes
             TextBlock stateTextBlock = new()
             {
                 Style = StyleResource(ApplicationStateTextStyleKey),
                 Visibility = Visibility.Collapsed
             };
-            _payloadSelections.Add(new PayloadSelection(payload, checkBox, stateTextBlock));
+            PayloadSelection selection = new(payload, checkBox, stateTextBlock, InstalledLabel(payload.ApplicationName));
+            _payloadSelections.Add(selection);
+            ShowInstalledState(selection);
             _inputs.Add(checkBox);
             if (!showBatteryHint)
             {
@@ -298,6 +390,65 @@ public sealed class InstallerWindow : Window
         row.Children.Add(stateTextBlock);
         return row;
     }
+
+    /// <summary>
+    /// A suite row's check box content: the application's icon, then its name. The icons are white line art drawn
+    /// for the dark taskbar, so the icon is a mask over a fill bound to the check box's text colour. That keeps it
+    /// visible in the light palette and dims it with the row when the inputs are disabled.
+    /// </summary>
+    private StackPanel CreateApplicationLabel(string applicationName, CheckBox checkBox)
+    {
+        StackPanel label = new() { Orientation = Orientation.Horizontal };
+        List<BitmapFrame> frames = LoadIconFrames(InstallerIcons.ResourceName(applicationName));
+        if (frames.Count > 0)
+        {
+            double iconSize = DoubleResource(ApplicationIconSizeKey);
+            // The frame is picked once the scaling is known; see UpdateApplicationIcons
+            ImageBrush mask = new();
+            Rectangle icon = new()
+            {
+                Width = iconSize,
+                Height = iconSize,
+                Margin = ThicknessResource(ApplicationIconMarginKey),
+                VerticalAlignment = VerticalAlignment.Center,
+                OpacityMask = mask
+            };
+            RenderOptions.SetBitmapScalingMode(icon, BitmapScalingMode.HighQuality);
+            icon.SetBinding(Shape.FillProperty, new Binding(nameof(Control.Foreground)) { Source = checkBox });
+            _applicationIcons.Add(new ApplicationIcon(mask, frames));
+            label.Children.Add(icon);
+        }
+
+        label.Children.Add(new TextBlock { Text = applicationName, VerticalAlignment = VerticalAlignment.Center });
+        return label;
+    }
+
+    /// <summary>The label a suite row shows while the application is already installed, or null when it is not.</summary>
+    private string? InstalledLabel(string applicationName)
+    {
+        IReadOnlyList<InstallMode> modes = InstallationDetector.ModesOf(_installations, applicationName);
+        switch (modes.Count)
+        {
+            case 0:
+                return null;
+            case 1:
+                return Format(nameof(AppStrings.Installer_Apps_Installed_Format), ModeTitle(modes[0]));
+            default:
+                return Format(
+                    nameof(AppStrings.Installer_Apps_InstalledBoth_Format),
+                    ModeTitle(modes[0]),
+                    ModeTitle(modes[1]));
+        }
+    }
+
+    /// <summary>The installation type's radio button title, so a row label names the type the way the page does.</summary>
+    private static string ModeTitle(InstallMode mode) => mode switch
+    {
+        InstallMode.Local => L(nameof(AppStrings.Installer_Type_Local_Title)),
+        InstallMode.System => L(nameof(AppStrings.Installer_Type_System_Title)),
+        InstallMode.Portable => L(nameof(AppStrings.Installer_Type_Portable_Title)),
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, UnsupportedInstallModeMessage)
+    };
 
     private StackPanel CreateInstallTypeSection()
     {
@@ -440,34 +591,59 @@ public sealed class InstallerWindow : Window
     /// </summary>
     private ImageSource? LoadIcon()
     {
+        List<string> applicationNames = [];
+        foreach (EmbeddedPayload payload in _catalog.Payloads) applicationNames.Add(payload.ApplicationName);
+
+        // Every frame is kept, so the title bar can draw the one nearest its size rather than shrink the largest
+        _iconFrames.AddRange(LoadIconFrames(InstallerIcons.ResourceNameForApplications(applicationNames)));
+        if (_iconFrames.Count == 0)
+            _iconFrames.AddRange(LoadIconFrames(InstallerIcons.ResourceName(InstallerIcons.SuiteIconName)));
+
+        BitmapFrame? largestFrame = null;
+        foreach (BitmapFrame frame in _iconFrames)
+        {
+            if (largestFrame == null || frame.PixelWidth > largestFrame.PixelWidth) largestFrame = frame;
+        }
+
+        return largestFrame;
+    }
+
+    /// <summary>Decodes every frame of an embedded icon. Returns none when the factory carries no such icon.</summary>
+    private static List<BitmapFrame> LoadIconFrames(string resourceName)
+    {
+        List<BitmapFrame> frames = [];
         try
         {
-            List<string> applicationNames = [];
-            foreach (EmbeddedPayload payload in _catalog.Payloads) applicationNames.Add(payload.ApplicationName);
+            using Stream? stream = InstallerIcons.Open(resourceName);
+            if (stream == null) return frames;
 
-            using Stream? stream =
-                InstallerIcons.Open(InstallerIcons.ResourceNameForApplications(applicationNames))
-                ?? InstallerIcons.Open(InstallerIcons.ResourceName(InstallerIcons.SuiteIconName));
-            if (stream == null) return null;
-
-            // OnLoad decodes every frame up front, so the icon survives the stream being closed. Every frame is
-            // kept, so the title bar can draw the one nearest its size rather than shrink the largest.
+            // OnLoad decodes every frame up front, so the frames survive the stream being closed
             IconBitmapDecoder decoder = new(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            BitmapFrame? largestFrame = null;
             foreach (BitmapFrame frame in decoder.Frames)
             {
                 if (frame.CanFreeze) frame.Freeze();
-                _iconFrames.Add(frame);
-                if (largestFrame == null || frame.PixelWidth > largestFrame.PixelWidth) largestFrame = frame;
+                frames.Add(frame);
             }
-
-            return largestFrame;
         }
         catch (Exception exception)
         {
-            InstallerLog.Write("InstallerWindow.LoadIcon", exception);
-            return null;
+            InstallerLog.Write($"InstallerWindow: could not load the icon {resourceName}", exception);
+            frames.Clear();
         }
+
+        return frames;
+    }
+
+    /// <summary>
+    /// The frame drawn nearest <paramref name="size"/> units at this scaling, so an icon stays sharp instead of
+    /// being scaled down from the largest image. Null when there are no frames.
+    /// </summary>
+    private static BitmapFrame? SelectIconFrame(IReadOnlyList<BitmapFrame> frames, double size, double scale)
+    {
+        List<int> frameWidths = [];
+        foreach (BitmapFrame frame in frames) frameWidths.Add(frame.PixelWidth);
+        int frameIndex = InstallerIcons.SelectFrameIndex(frameWidths, (int)Math.Ceiling(size * scale));
+        return frameIndex >= 0 ? frames[frameIndex] : null;
     }
 
     // Title bar
@@ -496,21 +672,27 @@ public sealed class InstallerWindow : Window
     {
         base.OnDpiChanged(oldDpi, newDpi);
         UpdateCaptionIcon(newDpi);
+        UpdateApplicationIcons(newDpi);
     }
 
-    /// <summary>
-    /// Points the title bar icon at the frame drawn nearest its size on this monitor, so it stays sharp instead
-    /// of being scaled down from the largest image.
-    /// </summary>
+    /// <summary>Points the title bar icon at the frame drawn nearest its size on this monitor.</summary>
     private void UpdateCaptionIcon(DpiScale dpi)
     {
-        if (_captionIcon == null || _iconFrames.Count == 0) return;
+        if (_captionIcon == null) return;
 
-        List<int> frameWidths = [];
-        foreach (BitmapFrame frame in _iconFrames) frameWidths.Add(frame.PixelWidth);
-        int targetWidth = (int)Math.Ceiling(DoubleResource(CaptionIconSizeKey) * dpi.DpiScaleX);
-        int frameIndex = InstallerIcons.SelectFrameIndex(frameWidths, targetWidth);
-        if (frameIndex >= 0) _captionIcon.Source = _iconFrames[frameIndex];
+        BitmapFrame? frame = SelectIconFrame(_iconFrames, DoubleResource(CaptionIconSizeKey), dpi.DpiScaleX);
+        if (frame != null) _captionIcon.Source = frame;
+    }
+
+    /// <summary>Points every suite row icon at the frame drawn nearest its size on this monitor.</summary>
+    private void UpdateApplicationIcons(DpiScale dpi)
+    {
+        double iconSize = DoubleResource(ApplicationIconSizeKey);
+        foreach (ApplicationIcon icon in _applicationIcons)
+        {
+            BitmapFrame? frame = SelectIconFrame(icon.Frames, iconSize, dpi.DpiScaleX);
+            if (frame != null) icon.Mask.ImageSource = frame;
+        }
     }
 
     // Closing goes through the system command so it still passes OnClosing, which holds the window open while
@@ -538,7 +720,9 @@ public sealed class InstallerWindow : Window
         WindowInteropHelper interopHelper = new(this);
         SystemTheme.ApplyWindowChrome(interopHelper.Handle);
         // The handle now exists, so the monitor's scaling is known for certain
-        UpdateCaptionIcon(VisualTreeHelper.GetDpi(this));
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        UpdateCaptionIcon(dpi);
+        UpdateApplicationIcons(dpi);
     }
 
     private void OnModeChecked(object sender, RoutedEventArgs eventArgs)
@@ -754,8 +938,8 @@ public sealed class InstallerWindow : Window
 
     /// <summary>
     /// Shows each application's state at the end of its row.
-    /// An application the run does not include shows nothing, so an unselected row stays as it was.
-    /// A single-application installer has no rows at all.
+    /// An application the run does not include keeps showing where it is already installed, so an unselected row
+    /// stays as it was. A single-application installer has no rows at all.
     /// </summary>
     private void ShowApplicationStates()
     {
@@ -766,7 +950,7 @@ public sealed class InstallerWindow : Window
             InstallApplicationState? state = _applicationTracker.StateOf(selection.Payload.ApplicationName);
             if (state == null)
             {
-                selection.StateTextBlock.Visibility = Visibility.Collapsed;
+                ShowInstalledState(selection);
                 continue;
             }
 
@@ -777,6 +961,22 @@ public sealed class InstallerWindow : Window
             // The state sits beside the check box rather than in it, so accessibility tools need it as the item status
             AutomationProperties.SetItemStatus(selection.CheckBox, label);
         }
+    }
+
+    /// <summary>Shows where the application is already installed at the end of its row, or nothing when it is not.</summary>
+    private void ShowInstalledState(PayloadSelection selection)
+    {
+        if (selection.InstalledLabel == null)
+        {
+            selection.StateTextBlock.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        selection.StateTextBlock.Text = selection.InstalledLabel;
+        selection.StateTextBlock.Style = StyleResource(ApplicationStateTextStyleKey);
+        selection.StateTextBlock.Visibility = Visibility.Visible;
+        // The label sits beside the check box rather than in it, so accessibility tools need it as the item status
+        AutomationProperties.SetItemStatus(selection.CheckBox, selection.InstalledLabel);
     }
 
     private static string ApplicationStateLabel(InstallApplicationState state) => state switch
@@ -830,7 +1030,7 @@ public sealed class InstallerWindow : Window
                 plan.Mode,
                 plan.TargetDirectory,
                 payload.ApplicationName);
-            AppLauncher.Launch(executablePath);
+            AppLauncher.Launch(executablePath, PostInstallLaunchArguments);
         }
     }
 
@@ -855,8 +1055,8 @@ public sealed class InstallerWindow : Window
 
     private double DoubleResource(string key) => (double)FindResource(key);
 
-    private static string Format(string key, object argument) =>
-        string.Format(CultureInfo.CurrentCulture, L(key), argument);
+    private static string Format(string key, params object[] arguments) =>
+        string.Format(CultureInfo.CurrentCulture, L(key), arguments);
 
     private static string L(string key) => LocalizationManager.Instance[key];
 

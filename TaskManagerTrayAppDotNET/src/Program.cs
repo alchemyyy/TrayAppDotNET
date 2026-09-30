@@ -21,6 +21,8 @@ internal static class Program
 
     public static bool IsStartupLaunch => TrayAppDotNETProgram.IsStartupLaunch;
 
+    public static bool IsHiddenLaunch => TrayAppDotNETProgram.IsHiddenLaunch;
+
     public static string? UninstallerInstallDir => TrayAppDotNETProgram.UninstallerInstallDir;
 
     public static InstallScope UninstallerScope => TrayAppDotNETProgram.UninstallerScope;

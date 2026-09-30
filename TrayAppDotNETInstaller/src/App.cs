@@ -42,13 +42,18 @@ public sealed class App : Application
 
         // The example window reports no Windhawk and no battery on purpose. Both states are otherwise
         // invisible on a machine that has them, and both drive interface a rework needs to see: the
-        // Windhawk notice, and the battery application unselecting itself.
+        // Windhawk notice, and the battery application unselecting itself. It reports existing
+        // installations for the same reason, so the installed notice, the row labels and the preset
+        // installation type show.
         WindhawkDetection windhawk = _isExample
             ? new WindhawkDetection(IsInstalled: false, Evidence: null)
             : WindhawkDetector.Detect();
         bool hasSystemBattery = !_isExample && SystemProbes.HasSystemBattery();
+        IReadOnlyList<DetectedInstallation> installations = _isExample
+            ? ExampleMode.CreateDetectedInstallations(_catalog)
+            : InstallationDetector.Detect(_catalog);
 
-        InstallerWindow window = new(_catalog, windhawk, hasSystemBattery, _isExample, _exampleFails);
+        InstallerWindow window = new(_catalog, windhawk, hasSystemBattery, installations, _isExample, _exampleFails);
         MainWindow = window;
         window.Show();
     }

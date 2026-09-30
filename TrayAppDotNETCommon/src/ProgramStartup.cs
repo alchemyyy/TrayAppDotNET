@@ -36,9 +36,18 @@ public static class TrayAppDotNETProgram
     /// <summary>Marks a launch from the sign-in startup shortcut, as opposed to a manual start.</summary>
     public const string AutostartArgument = "--autostart";
 
+    /// <summary>
+    /// Starts the app in the notification area without showing a window, whatever its startup settings say. The
+    /// installer launches apps this way once it finishes.
+    /// </summary>
+    public const string HiddenArgument = "--hidden";
+
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
     private const int ProgressPipeConnectTimeoutMs = 5000;
     private const int ProgressCompletionTimeoutMs = 5000;
+
+    // The launch arguments the watcher passes on to every monitored process it starts, in this order
+    private static readonly string[] ForwardedLaunchArguments = [AutostartArgument, HiddenArgument];
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
     private static ApplicationInstanceCoordinator? _applicationInstanceCoordinator;
@@ -48,6 +57,9 @@ public static class TrayAppDotNETProgram
 
     /// <summary>Gets whether this process was started, directly or through the watcher, by the startup shortcut.</summary>
     public static bool IsStartupLaunch { get; private set; }
+
+    /// <summary>Gets whether this process was started, directly or through the watcher, with <see cref="HiddenArgument"/>.</summary>
+    public static bool IsHiddenLaunch { get; private set; }
 
     public static bool IsUninstallerMode { get; private set; }
 
@@ -72,7 +84,7 @@ public static class TrayAppDotNETProgram
         Func<TrayAppDotNETProgramOptions> createOptions)
     {
         ResetState();
-        bool isStartupLaunch = HasArg(args, AutostartArgument);
+        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args);
 
         if (HasArg(args, flag: "--watcher"))
         {
@@ -81,7 +93,7 @@ public static class TrayAppDotNETProgram
                 new SingleInstanceIdentity(applicationName, appGuid),
                 NoopLog,
                 NoopFlush));
-            return CrashHandler.RunWatcher(isStartupLaunch);
+            return CrashHandler.RunWatcher(launchArguments);
         }
 
         if (ShouldLaunchWatcherBeforeConfiguring(args))
@@ -91,7 +103,7 @@ public static class TrayAppDotNETProgram
                 new SingleInstanceIdentity(applicationName, appGuid),
                 NoopLog,
                 NoopFlush));
-            return CrashHandler.LaunchWatcherDetached(isStartupLaunch) ? 0 : 1;
+            return CrashHandler.LaunchWatcherDetached(launchArguments) ? 0 : 1;
         }
 
         return RunConfigured(args, createOptions());
@@ -187,11 +199,13 @@ public static class TrayAppDotNETProgram
         bool isWatcher = HasArg(args, flag: "--watcher");
         bool isMonitored = HasArg(args, flag: "--monitored");
         IsStartupLaunch = HasArg(args, AutostartArgument);
+        IsHiddenLaunch = HasArg(args, HiddenArgument);
+        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args);
 
-        if (isWatcher) return CrashHandler.RunWatcher(IsStartupLaunch);
+        if (isWatcher) return CrashHandler.RunWatcher(launchArguments);
 
         if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
-            return !CrashHandler.LaunchWatcherDetached(IsStartupLaunch) ? 1 : 0;
+            return !CrashHandler.LaunchWatcherDetached(launchArguments) ? 1 : 0;
 
         WatcherPID = ParseWatcherPID(args);
         bool shouldOwnSingleInstance =
@@ -242,12 +256,28 @@ public static class TrayAppDotNETProgram
         return null;
     }
 
+    /// <summary>
+    /// Picks the launch arguments the watcher must pass on out of a command line. The watcher rebuilds the monitored
+    /// process's command line from scratch, so anything not listed here never reaches the app.
+    /// </summary>
+    internal static IReadOnlyList<string> SelectForwardedLaunchArguments(string[] args)
+    {
+        List<string> forwarded = [];
+        foreach (string argument in ForwardedLaunchArguments)
+        {
+            if (HasArg(args, argument)) forwarded.Add(argument);
+        }
+
+        return forwarded;
+    }
+
     private static void ResetState()
     {
         ReleaseApplicationInstance();
         ReleaseSingleInstance();
         WatcherPID = null;
         IsStartupLaunch = false;
+        IsHiddenLaunch = false;
         IsInstallerMode = false;
         IsUninstallerMode = false;
         _installerProgramOptions = null;
