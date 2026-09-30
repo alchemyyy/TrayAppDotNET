@@ -144,5 +144,6 @@ public sealed class SemanticProcessGroupRootsTests
             applicationUserModelID,
             IsApplicationUserModelIDAmbiguous: false,
             windowState,
-            IsCriticalOrProtected: false);
+            IsCritical: false,
+            IsProtected: false);
 }

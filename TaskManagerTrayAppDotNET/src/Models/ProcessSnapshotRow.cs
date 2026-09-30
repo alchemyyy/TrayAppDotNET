@@ -74,7 +74,15 @@ internal sealed class ProcessStaticData
     public int SessionID { get; init; } = -1;
     public string? PackageFullName { get; init; }
     public string? ProcessApplicationUserModelID { get; init; }
-    public bool IsCriticalOrProtected { get; init; }
+
+    /// <summary>
+    /// Gets the image path semantic grouping uses. Unlike <see cref="ProcessImageIdentity.ImagePath"/>, it is also
+    /// known for a process that cannot be opened.
+    /// </summary>
+    public string ExecutablePath { get; init; } = string.Empty;
+
+    public bool IsCritical { get; init; }
+    public bool IsProtected { get; init; }
     public required long[] NumericValues { get; init; }
     public required string?[] TextValues { get; init; }
 

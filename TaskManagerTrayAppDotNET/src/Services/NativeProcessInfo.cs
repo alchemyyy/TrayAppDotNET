@@ -313,8 +313,11 @@ internal static class NativeProcessInfo
         };
     }
 
-    /// <summary>Conservatively detects critical or protected process roles when native queries permit it.</summary>
-    public static bool ReadIsCriticalOrProtected(IntPtr processHandle)
+    /// <summary>
+    /// Reads ProcessBreakOnTermination, the flag RtlSetProcessIsCritical sets. Task Manager's IsCriticalProcess
+    /// reads the same flag; false when the query fails.
+    /// </summary>
+    public static bool ReadIsCritical(IntPtr processHandle)
     {
         int returnLength = 0;
         int breakOnTermination = 0;
@@ -324,14 +327,18 @@ internal static class NativeProcessInfo
             ref breakOnTermination,
             sizeof(int),
             ref returnLength);
-        if (status >= 0 && breakOnTermination != 0) return true;
+        return status >= 0 && breakOnTermination != 0;
+    }
 
+    /// <summary>Reads whether the process runs as a protected or protected light process; false when the query fails.</summary>
+    public static bool ReadIsProtected(IntPtr processHandle)
+    {
         IntPtr protectionBuffer = Marshal.AllocHGlobal(sizeof(byte));
         try
         {
             Marshal.WriteByte(protectionBuffer, 0);
-            returnLength = 0;
-            status = NtQueryInformationProcess(
+            int returnLength = 0;
+            int status = NtQueryInformationProcess(
                 processHandle,
                 ProcessProtectionInformation,
                 protectionBuffer,

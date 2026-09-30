@@ -35,6 +35,8 @@ internal enum ProcessIndependentWindowState : byte
 }
 
 /// <summary>Immutable process identity and UI facts consumed by semantic grouping.</summary>
+/// <param name="IsCritical">Whether ProcessBreakOnTermination is set, the flag RtlSetProcessIsCritical sets.</param>
+/// <param name="IsProtected">Whether the process runs as a protected or protected light process.</param>
 internal readonly record struct ProcessGroupingFacts(
     ProcessInstanceKey InstanceKey,
     bool IsCreationTimeKnown,
@@ -47,5 +49,6 @@ internal readonly record struct ProcessGroupingFacts(
     string? ApplicationUserModelID,
     bool IsApplicationUserModelIDAmbiguous,
     ProcessIndependentWindowState IndependentWindowState,
-    bool IsCriticalOrProtected,
+    bool IsCritical,
+    bool IsProtected,
     ProcessInstanceKey? ExplicitOwnerInstanceKey = null);

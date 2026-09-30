@@ -138,6 +138,16 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     } = true;
 
+    /// <summary>
+    /// Gets whether Windows processes get their own semantic section. Off files them under Apps or Background
+    /// processes like any other process.
+    /// </summary>
+    public bool GroupWindowsProcesses
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     /// <summary>Gets whether the Processes column chooser lists only the visible columns.</summary>
     public bool HideUnusedProcessColumns
     {

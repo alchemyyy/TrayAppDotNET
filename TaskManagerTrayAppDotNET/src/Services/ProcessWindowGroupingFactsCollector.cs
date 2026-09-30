@@ -75,12 +75,15 @@ internal sealed class ProcessWindowGroupingFactsCollector
     private bool OnEnumerateWindow(IntPtr windowHandle, IntPtr parameter)
     {
         _ = parameter;
-        _ = NativeMethods.GetWindowThreadProcessId(windowHandle, out uint nativeProcessID);
-        if (nativeProcessID > int.MaxValue) return true;
-        int processID = (int)nativeProcessID;
-
         WindowQualification qualification = QualifyWindow(windowHandle);
         if (qualification == WindowQualification.NotQualifying) return true;
+
+        // A ghost window belongs to dwm.exe; charge the hung window it covers, as the Status column does
+        IntPtr hungWindowHandle = NativeMethods.HungWindowFromGhostWindow(windowHandle);
+        IntPtr processWindowHandle = hungWindowHandle != IntPtr.Zero ? hungWindowHandle : windowHandle;
+        _ = NativeMethods.GetWindowThreadProcessId(processWindowHandle, out uint nativeProcessID);
+        if (nativeProcessID > int.MaxValue) return true;
+        int processID = (int)nativeProcessID;
 
         if (!_factsByProcessID.TryGetValue(processID, out MutableProcessWindowFacts? facts))
         {
@@ -214,6 +217,10 @@ internal sealed class ProcessWindowGroupingFactsCollector
 
         [DllImport("user32.dll")]
         public static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processID);
+
+        // Exported by name from user32 but absent from the SDK headers
+        [DllImport("user32.dll")]
+        public static extern IntPtr HungWindowFromGhostWindow(IntPtr windowHandle);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

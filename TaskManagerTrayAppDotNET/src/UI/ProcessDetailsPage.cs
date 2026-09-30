@@ -107,6 +107,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.ExpandSemanticSectionsByDefault,
             settings.UseRootProcessForSemanticGroups,
             settings.UseRootProcessForSemanticSubgroups,
+            settings.GroupWindowsProcesses,
             settings.GridFontSize,
             settings.GridFontWeight,
             settings.GridRowSpacing,

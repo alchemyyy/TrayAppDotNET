@@ -10,6 +10,7 @@
 - [Task Manager CPU core classes](task_manager_cpu_core_classes.md)
 - [Task Manager process resource data](task_manager_process_resource_data.md)
 - [Task Manager process status](task_manager_process_status.md)
+- [Task Manager process sections](task_manager_process_sections.md)
 - [Task Manager process single-thread CPU](task_manager_process_single_thread_cpu.md)
 - [Task Manager process table render stability](task_manager_process_table_render_stability.md)
 - [Task Manager process search](task_manager_process_search.md)

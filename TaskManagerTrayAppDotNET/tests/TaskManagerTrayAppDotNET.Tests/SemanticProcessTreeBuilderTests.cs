@@ -358,6 +358,168 @@ public sealed class SemanticProcessTreeBuilderTests
         Assert.Null(FindNode(forest, child.InstanceKey).ParentInstanceKey);
     }
 
+    [Fact]
+    public void ExplorerIsAWindowsProcessUntilItHasAnAppWindow()
+    {
+        string explorerPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "explorer.exe");
+        ProcessGroupingFacts explorer = Facts(
+            10,
+            100,
+            executableName: "explorer.exe",
+            executablePath: explorerPath);
+
+        Assert.Equal(SemanticProcessGroupClassification.Windows, ClassifySingleGroup(explorer));
+        Assert.Equal(
+            SemanticProcessGroupClassification.App,
+            ClassifySingleGroup(explorer with { IndependentWindowState = ProcessIndependentWindowState.Qualifying }));
+    }
+
+    [Theory]
+    [InlineData("svchost.exe")]
+    [InlineData("sihost.exe")]
+    [InlineData("conhost.exe")]
+    [InlineData("csrss.exe")]
+    [InlineData("dwm.exe")]
+    [InlineData("winlogon.exe")]
+    public void TaskManagerCriticalPathsAreWindowsProcesses(string executableName)
+    {
+        Assert.Equal(
+            SemanticProcessGroupClassification.Windows,
+            ClassifySingleGroup(SystemFacts(10, 100, executableName)));
+    }
+
+    [Fact]
+    public void DefenderInProgramFilesIsAWindowsProcess()
+    {
+        ProcessGroupingFacts defender = Facts(
+            10,
+            100,
+            executableName: "MsMpEng.exe",
+            executablePath: Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "Windows Defender",
+                "MsMpEng.exe"));
+
+        Assert.Equal(SemanticProcessGroupClassification.Windows, ClassifySingleGroup(defender));
+    }
+
+    [Fact]
+    public void SystemImageNameOutsideTheSystemDirectoryIsABackgroundProcess()
+    {
+        ProcessGroupingFacts impostor = Facts(
+            10,
+            100,
+            executableName: "svchost.exe",
+            executablePath: @"C:\Apps\svchost.exe");
+
+        Assert.Equal(SemanticProcessGroupClassification.Background, ClassifySingleGroup(impostor));
+    }
+
+    [Theory]
+    [InlineData(0, "System Idle Process")]
+    [InlineData(4, "System")]
+    [InlineData(120, "Registry")]
+    [InlineData(130, "Memory Compression")]
+    [InlineData(140, "Secure System")]
+    public void SystemPseudoProcessesAreWindowsProcesses(int processID, string executableName)
+    {
+        ProcessGroupingFacts pseudoProcess = Facts(
+            processID,
+            100,
+            executableName: executableName,
+            executablePath: null);
+
+        Assert.Equal(SemanticProcessGroupClassification.Windows, ClassifySingleGroup(pseudoProcess));
+    }
+
+    [Fact]
+    public void CriticalFlagMakesAWindowsProcessButProtectionAloneDoesNot()
+    {
+        ProcessGroupingFacts critical = Facts(
+            10,
+            100,
+            executableName: "LsaIso.exe",
+            executablePath: Path.Combine(Environment.SystemDirectory, "LsaIso.exe"),
+            isCritical: true);
+        ProcessGroupingFacts protectedProcess = Facts(
+            20,
+            200,
+            executableName: "MsMpEng.exe",
+            executablePath: @"C:\ProgramData\Microsoft\Windows Defender\Platform\4.18.0-0\MsMpEng.exe",
+            isProtected: true);
+
+        SemanticProcessForest forest = SemanticProcessTreeBuilder.Build([critical, protectedProcess]);
+
+        Assert.Equal(
+            SemanticProcessGroupClassification.Windows,
+            FindGroup(forest, critical.InstanceKey).Classification);
+        Assert.Equal(
+            SemanticProcessGroupClassification.Background,
+            FindGroup(forest, protectedProcess.InstanceKey).Classification);
+        // Both stay fenced from grouping
+        Assert.Equal(SemanticProcessGroupKind.Infrastructure, FindNode(forest, critical.InstanceKey).GroupKey.Kind);
+        Assert.Equal(
+            SemanticProcessGroupKind.Infrastructure,
+            FindNode(forest, protectedProcess.InstanceKey).GroupKey.Kind);
+    }
+
+    [Fact]
+    public void WindowsProcessWithAnAppWindowIsAnApp()
+    {
+        Assert.Equal(
+            SemanticProcessGroupClassification.App,
+            ClassifySingleGroup(SystemFacts(
+                10,
+                100,
+                "sihost.exe",
+                windowState: ProcessIndependentWindowState.Qualifying)));
+    }
+
+    [Fact]
+    public void WindowsRootKeepsItsHeadlessHelpersInWindowsProcesses()
+    {
+        ProcessGroupingFacts serviceHost = SystemFacts(10, 100, "svchost.exe");
+        ProcessGroupingFacts helper = Facts(
+            11,
+            200,
+            parentProcessID: 10,
+            executableName: "helper.exe",
+            executablePath: @"C:\Apps\helper.exe");
+
+        SemanticProcessGroup group = Assert.Single(SemanticProcessTreeBuilder.Build([helper, serviceHost]).Groups);
+
+        Assert.Equal(expected: 2, group.Nodes.Length);
+        Assert.Equal(SemanticProcessGroupClassification.Windows, group.Classification);
+    }
+
+    [Fact]
+    public void ConsoleHostFollowsTheApplicationItServes()
+    {
+        ProcessGroupingFacts tool = Facts(
+            10,
+            100,
+            executableName: "tool.exe",
+            executablePath: @"C:\Apps\tool.exe");
+        ProcessGroupingFacts consoleHost = SystemFacts(11, 200, "conhost.exe", parentProcessID: 10);
+
+        Assert.Equal(SemanticProcessGroupClassification.Background, ClassifySingleGroup(tool, consoleHost));
+        Assert.Equal(
+            SemanticProcessGroupClassification.App,
+            ClassifySingleGroup(
+                tool with { IndependentWindowState = ProcessIndependentWindowState.Qualifying },
+                consoleHost));
+    }
+
+    private static SemanticProcessGroup FindGroup(
+        SemanticProcessForest forest,
+        ProcessInstanceKey instanceKey)
+    {
+        SemanticProcessGroupKey groupKey = FindNode(forest, instanceKey).GroupKey;
+        return Assert.Single(forest.Groups, group => group.Key == groupKey);
+    }
+
     private static SemanticProcessNode FindNode(
         SemanticProcessForest forest,
         ProcessInstanceKey instanceKey)
@@ -378,7 +540,8 @@ public sealed class SemanticProcessTreeBuilderTests
         string? applicationUserModelID = null,
         bool isApplicationUserModelIDAmbiguous = false,
         ProcessIndependentWindowState windowState = ProcessIndependentWindowState.None,
-        bool isCriticalOrProtected = false,
+        bool isCritical = false,
+        bool isProtected = false,
         bool isCreationTimeKnown = true) =>
         new(
             new ProcessInstanceKey(processID, creationTime),
@@ -392,5 +555,23 @@ public sealed class SemanticProcessTreeBuilderTests
             applicationUserModelID,
             isApplicationUserModelIDAmbiguous,
             windowState,
-            isCriticalOrProtected);
+            isCritical,
+            isProtected);
+
+    private static ProcessGroupingFacts SystemFacts(
+        int processID,
+        long creationTime,
+        string executableName,
+        int parentProcessID = -1,
+        ProcessIndependentWindowState windowState = ProcessIndependentWindowState.None) =>
+        Facts(
+            processID,
+            creationTime,
+            parentProcessID,
+            executableName,
+            Path.Combine(Environment.SystemDirectory, executableName),
+            windowState: windowState);
+
+    private static SemanticProcessGroupClassification ClassifySingleGroup(params ProcessGroupingFacts[] processes) =>
+        Assert.Single(SemanticProcessTreeBuilder.Build(processes).Groups).Classification;
 }

@@ -125,6 +125,28 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void WindowsProcessesGroupDefaultsOffAndRoundTrips()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.GroupWindowsProcesses);
+
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.GroupWindowsProcesses = true;
+            settings.Save(path);
+
+            Assert.True(AppSettings.LoadOrDefault(path).GroupWindowsProcesses);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void GridBaselinesDefaultToTheGridDefaultsClampAndRoundTrip()
     {
         AppSettings settings = new() { Autosave = false };

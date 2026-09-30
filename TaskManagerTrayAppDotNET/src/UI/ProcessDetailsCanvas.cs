@@ -111,6 +111,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly bool _expandSemanticSectionsByDefault;
     private readonly bool _useRootProcessForSemanticGroups;
     private readonly bool _useRootProcessForSemanticSubgroups;
+    private readonly bool _groupWindowsProcesses;
     private readonly ProcessSnapshotBuffer _sourceSnapshot = new();
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
@@ -255,6 +256,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         bool expandSemanticSectionsByDefault,
         bool useRootProcessForSemanticGroups,
         bool useRootProcessForSemanticSubgroups,
+        bool groupWindowsProcesses,
         double gridFontSize,
         DetailsGridFontWeight gridFontWeight,
         double gridRowSpacing,
@@ -306,6 +308,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _expandSemanticSectionsByDefault = expandSemanticSectionsByDefault;
         _useRootProcessForSemanticGroups = useRootProcessForSemanticGroups;
         _useRootProcessForSemanticSubgroups = useRootProcessForSemanticSubgroups;
+        _groupWindowsProcesses = groupWindowsProcesses;
         _liveResizeColumns = enableLiveColumnResizing
             ? new ProcessTableColumn[_columns.Length]
             : null;
@@ -609,7 +612,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         {
             SemanticProcessGroup group = forest.Groups[groupIndex];
             if (group.Nodes.Length > 1) syntheticCount += includesSubgroups ? group.Nodes.Length - 1 : 1;
-            _semanticSectionEntryCounts[(int)group.Classification]++;
+            _semanticSectionEntryCounts[(int)GetSectionClassification(group)]++;
         }
 
         int sectionRowCount = 0;
@@ -691,7 +694,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 CopySourceDynamicTextValues(representativeRowIndex, schema));
             _membersBySyntheticKey.Add(groupInstanceKey, memberInstanceKeys);
             _semanticParentByInstance.Add(groupInstanceKey, value: null);
-            _semanticClassificationByInstance.Add(groupInstanceKey, group.Classification);
+            _semanticClassificationByInstance.Add(groupInstanceKey, GetSectionClassification(group));
             presentationRowIndex++;
             AddSemanticGroupNodes(group, groupInstanceKey);
         }
@@ -709,6 +712,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Array.Fill(_semanticSectionHeaderRowIndexes, value: -1);
         Array.Clear(_semanticSectionEntryCounts);
     }
+
+    /// <summary>
+    /// Returns the section that lists a group. With Windows grouping off, a Windows group joins Background
+    /// processes; it has no app window, or the builder would have filed it under Apps.
+    /// </summary>
+    private SemanticProcessGroupClassification GetSectionClassification(SemanticProcessGroup group) =>
+        !_groupWindowsProcesses && group.Classification == SemanticProcessGroupClassification.Windows
+            ? SemanticProcessGroupClassification.Background
+            : group.Classification;
 
     private void AppendSemanticSectionRows(
         ProcessDataSchema schema,
@@ -804,7 +816,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             SemanticProcessNode node = group.Nodes[memberIndex];
             _semanticParentByInstance[node.Facts.InstanceKey] =
                 SemanticProcessGroupRoots.ResolveParentInstanceKey(node, groupHeadingInstanceKey);
-            _semanticClassificationByInstance[node.Facts.InstanceKey] = group.Classification;
+            _semanticClassificationByInstance[node.Facts.InstanceKey] = GetSectionClassification(group);
         }
     }
 
@@ -900,7 +912,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _membersBySyntheticKey.Add(rootLineInstanceKey, [leadInstanceKey]);
         _groupMembersByRootKey.Add(leadInstanceKey, subtreeInstanceKeys);
         _semanticParentByInstance.Add(rootLineInstanceKey, leadInstanceKey);
-        _semanticClassificationByInstance.Add(rootLineInstanceKey, group.Classification);
+        _semanticClassificationByInstance.Add(rootLineInstanceKey, GetSectionClassification(group));
         presentationRowIndex++;
     }
 
@@ -916,7 +928,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private static ProcessGroupingFacts CreateFallbackGroupingFacts(ProcessStaticData row)
     {
-        string executablePath = row.Image.ImagePath;
+        string executablePath = row.ExecutablePath.Length > 0 ? row.ExecutablePath : row.Image.ImagePath;
         string executableName = executablePath.Length > 0
             ? Path.GetFileName(executablePath)
             : row.Image.Name;
@@ -932,7 +944,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             row.ProcessApplicationUserModelID,
             IsApplicationUserModelIDAmbiguous: false,
             ProcessIndependentWindowState.Unknown,
-            row.IsCriticalOrProtected);
+            row.IsCritical,
+            row.IsProtected);
     }
 
     private ProcessInstanceKey GetOrCreateSyntheticInstanceKey(SemanticProcessGroupKey groupKey)
@@ -1039,7 +1052,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             SessionID = root.SessionID,
             PackageFullName = root.PackageFullName,
             ProcessApplicationUserModelID = root.ProcessApplicationUserModelID,
-            IsCriticalOrProtected = root.IsCriticalOrProtected,
+            ExecutablePath = root.ExecutablePath,
+            IsCritical = root.IsCritical,
+            IsProtected = root.IsProtected,
             NumericValues = root.NumericValues,
             TextValues = root.TextValues
         };

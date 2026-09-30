@@ -291,6 +291,17 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             searchKeywords: ["semantic group root process total sum synthetic row aggregate"]);
         semanticGroupRootCard.IsVisible =
             _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic;
+        Border windowsProcessesCard = BoolCard(
+            title: "Group Windows processes",
+            description:
+            "List Windows system processes in their own Windows processes section, as Task Manager does. When off, "
+            + "they appear under Apps or Background processes like any other process.",
+            _settings.GroupWindowsProcesses,
+            value => _settings.GroupWindowsProcesses = value,
+            palette,
+            searchKeywords: ["windows system processes section category svchost apps background"]);
+        windowsProcessesCard.IsVisible =
+            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic;
         stack.Children.Add(ComboCard(
             title: "Process grouping style",
             description:
@@ -308,11 +319,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                 semanticGroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic;
                 semanticSubgroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic
                                                      && _settings.UseRootProcessForSemanticGroups;
+                windowsProcessesCard.IsVisible = value == ProcessGroupingStyle.Semantic;
             },
             palette,
             searchKeywords: ["process tree application semantic parent ancestry group"]));
         stack.Children.Add(semanticGroupRootCard);
         stack.Children.Add(semanticSubgroupRootCard);
+        stack.Children.Add(windowsProcessesCard);
         Border semanticSectionExemptionCard = BoolCard(
             title: "Keep semantic sections expanded",
             description:

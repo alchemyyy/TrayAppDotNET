@@ -28,8 +28,13 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
     private const string ZetaPath = @"C:\Apps\Browser\zeta.exe";
     private const string GammaPath = @"C:\Apps\Browser\gamma.exe";
     private const string OtherPath = @"C:\Apps\Other\other.exe";
+    private const string ServicePath = @"C:\Apps\Service\service.exe";
     private const int AppSpacerProcessID = -1;
     private const int AppHeaderProcessID = -2;
+    private const int BackgroundSpacerProcessID = -3;
+    private const int BackgroundHeaderProcessID = -4;
+    private const int WindowsSpacerProcessID = -5;
+    private const int WindowsHeaderProcessID = -6;
     private const int GroupRowProcessID = SemanticProcessSections.FirstGroupSyntheticProcessID;
     private const int SubgroupRootLineProcessID = GroupRowProcessID - 1;
     private const long BrowserRootPrivateBytes = 100;
@@ -371,6 +376,51 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             CancellationToken.None);
     }
 
+    [Fact]
+    public async Task WindowsProcessesGetTheirOwnSectionOnlyWhenEnabled()
+    {
+        await using HeadlessUnitTestSession session =
+            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+        await session.Dispatch(
+            static () =>
+            {
+                using ProcessIconService processIconService = new();
+                using ProcessDetailsCanvas groupedCanvas = CreateSemanticCanvas(
+                    processIconService,
+                    useRootProcessForSemanticGroups: true,
+                    rows: CreateRowsWithWindowsProcess(),
+                    groupWindowsProcesses: true);
+                using ProcessDetailsCanvas ungroupedCanvas = CreateSemanticCanvas(
+                    processIconService,
+                    useRootProcessForSemanticGroups: true,
+                    rows: CreateRowsWithWindowsProcess());
+
+                Assert.Equal(
+                [
+                    ("", AppSpacerProcessID),
+                    ("Apps (1)", AppHeaderProcessID),
+                    ("other.exe", 20),
+                    ("", BackgroundSpacerProcessID),
+                    ("Background processes (1)", BackgroundHeaderProcessID),
+                    ("service.exe", 40),
+                    ("", WindowsSpacerProcessID),
+                    ("Windows processes (1)", WindowsHeaderProcessID),
+                    ("svchost.exe", 30)
+                ], GetVisibleRows(groupedCanvas));
+                Assert.Equal(
+                [
+                    ("", AppSpacerProcessID),
+                    ("Apps (1)", AppHeaderProcessID),
+                    ("other.exe", 20),
+                    ("", BackgroundSpacerProcessID),
+                    ("Background processes (2)", BackgroundHeaderProcessID),
+                    ("service.exe", 40),
+                    ("svchost.exe", 30)
+                ], GetVisibleRows(ungroupedCanvas));
+            },
+            CancellationToken.None);
+    }
+
     /// <summary>
     /// Builds a canvas over one four-process browser group and one singleton unless other rows are given. The
     /// windowed browser child is the group representative, so the root process must be found by walking up from it.
@@ -379,7 +429,8 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
         ProcessIconService processIconService,
         bool useRootProcessForSemanticGroups,
         bool useRootProcessForSemanticSubgroups = false,
-        ProcessRow[]? rows = null)
+        ProcessRow[]? rows = null,
+        bool groupWindowsProcesses = false)
     {
         List<ProcessColumnSetting> columnSettings = CreateColumnSettings();
         ProcessDataSchema schema = ProcessDataSchema.Create(columnSettings, ProcessTableColumnKind.Name);
@@ -392,6 +443,7 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             expandSemanticSectionsByDefault: true,
             useRootProcessForSemanticGroups,
             useRootProcessForSemanticSubgroups,
+            groupWindowsProcesses,
             AppSettings.GridFontSizeDefault,
             DetailsGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,
@@ -446,6 +498,17 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             GammaPrivateBytes, RootBasePriority),
         new(20, 400, -1, "other.exe", OtherPath, ProcessIndependentWindowState.Qualifying,
             PrivateBytes: 1_600, RootBasePriority)
+    ];
+
+    /// <summary>One windowed app, one headless service and one svchost.exe from the system directory.</summary>
+    private static ProcessRow[] CreateRowsWithWindowsProcess() =>
+    [
+        new(20, 400, -1, "other.exe", OtherPath, ProcessIndependentWindowState.Qualifying,
+            PrivateBytes: 1_600, RootBasePriority),
+        new(30, 500, -1, "svchost.exe", Path.Combine(Environment.SystemDirectory, "svchost.exe"),
+            ProcessIndependentWindowState.None, PrivateBytes: 3_200, RootBasePriority),
+        new(40, 600, -1, "service.exe", ServicePath, ProcessIndependentWindowState.None,
+            PrivateBytes: 6_400, RootBasePriority)
     ];
 
     private static List<ProcessColumnSetting> CreateColumnSettings()
@@ -503,7 +566,8 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             ApplicationUserModelID: null,
             IsApplicationUserModelIDAmbiguous: false,
             row.WindowState,
-            IsCriticalOrProtected: false);
+            IsCritical: false,
+            IsProtected: false);
         snapshot.SetRow(
             rowIndex,
             staticData,

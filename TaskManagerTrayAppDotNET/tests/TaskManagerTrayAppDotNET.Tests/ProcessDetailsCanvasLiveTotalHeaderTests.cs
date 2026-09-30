@@ -93,6 +93,7 @@ public sealed class ProcessDetailsCanvasLiveTotalHeaderTests
             expandSemanticSectionsByDefault: true,
             useRootProcessForSemanticGroups: false,
             useRootProcessForSemanticSubgroups: false,
+            groupWindowsProcesses: true,
             AppSettings.GridFontSizeDefault,
             DetailsGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,

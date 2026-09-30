@@ -85,6 +85,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
     private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
     private readonly ProcessWindowGroupingFactsCollector _windowGroupingFactsCollector = new();
+    private readonly ProcessImagePathResolver _imagePathResolver = new();
     private readonly ProcessHungWindowCollector _hungWindowCollector = new();
     private readonly Action _notifySnapshotAvailable;
     private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
@@ -737,6 +738,10 @@ internal sealed class ProcessSnapshotService : IDisposable
         string imagePath = processHandle == IntPtr.Zero || !needsImagePath
             ? string.Empty
             : ReadExecutablePath(processHandle);
+        // Grouping classifies by path even when the process cannot be opened, as Task Manager does
+        string executablePath = imagePath.Length > 0 || !semanticGroupingEnabled
+            ? imagePath
+            : _imagePathResolver.Resolve(processID);
         ProcessImageIdentity image = AcquireImageIdentity(
             processName,
             imagePath,
@@ -876,9 +881,13 @@ internal sealed class ProcessSnapshotService : IDisposable
             SessionID = sessionID,
             PackageFullName = semanticGroupingEnabled ? packageFullName : null,
             ProcessApplicationUserModelID = processApplicationUserModelID,
-            IsCriticalOrProtected = semanticGroupingEnabled
-                                      && processHandle != IntPtr.Zero
-                                      && NativeProcessInfo.ReadIsCriticalOrProtected(processHandle),
+            ExecutablePath = executablePath,
+            IsCritical = semanticGroupingEnabled
+                         && processHandle != IntPtr.Zero
+                         && NativeProcessInfo.ReadIsCritical(processHandle),
+            IsProtected = semanticGroupingEnabled
+                          && processHandle != IntPtr.Zero
+                          && NativeProcessInfo.ReadIsProtected(processHandle),
             NumericValues = numericValues,
             TextValues = textValues
         };
@@ -1334,14 +1343,15 @@ internal sealed class ProcessSnapshotService : IDisposable
             staticData.IsCreationTimeKnown,
             staticData.ParentProcessID,
             staticData.Image.Name,
-            staticData.Image.ImagePath.Length > 0 ? staticData.Image.ImagePath : null,
+            staticData.ExecutablePath.Length > 0 ? staticData.ExecutablePath : null,
             staticData.UserSID,
             staticData.SessionID,
             staticData.PackageFullName,
             applicationID,
             isApplicationIDAmbiguous,
             windowFacts.IndependentWindowState,
-            staticData.IsCriticalOrProtected);
+            staticData.IsCritical,
+            staticData.IsProtected);
     }
 
     private void ReleaseImageIdentity(ProcessImageIdentity identity)

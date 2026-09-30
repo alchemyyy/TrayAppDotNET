@@ -521,7 +521,7 @@ internal static class SemanticProcessTreeBuilder
                 Nodes = groupNodes,
                 RootInstanceKeys = [.. roots],
                 RepresentativeInstanceKey = representative,
-                Classification = ClassifyGroup(groupNodes)
+                Classification = ClassifyGroup(groupNodes, representative)
             };
         }
 
@@ -599,18 +599,28 @@ internal static class SemanticProcessTreeBuilder
         return CompareFacts(candidate.Facts, current.Facts) < 0;
     }
 
-    private static SemanticProcessGroupClassification ClassifyGroup(SemanticProcessNode[] nodes)
+    /// <summary>
+    /// Any member with an app window files the group under Apps, Windows processes such as Explorer included.
+    /// Otherwise the process that represents the group decides between Windows processes and Background processes,
+    /// so a system root keeps the helpers grouped beneath it in its own section.
+    /// </summary>
+    private static SemanticProcessGroupClassification ClassifyGroup(
+        SemanticProcessNode[] nodes,
+        ProcessInstanceKey representativeInstanceKey)
     {
-        for (int nodeIndex = 0; nodeIndex < nodes.Length; nodeIndex++)
-        {
-            if (SemanticProcessInfrastructurePolicy.IsIsolatedInfrastructure(nodes[nodeIndex].Facts))
-                return SemanticProcessGroupClassification.Windows;
-        }
-
         for (int nodeIndex = 0; nodeIndex < nodes.Length; nodeIndex++)
         {
             if (nodes[nodeIndex].Facts.IndependentWindowState == ProcessIndependentWindowState.Qualifying)
                 return SemanticProcessGroupClassification.App;
+        }
+
+        for (int nodeIndex = 0; nodeIndex < nodes.Length; nodeIndex++)
+        {
+            ProcessGroupingFacts facts = nodes[nodeIndex].Facts;
+            if (facts.InstanceKey != representativeInstanceKey) continue;
+            return SemanticProcessInfrastructurePolicy.IsWindowsProcess(facts)
+                ? SemanticProcessGroupClassification.Windows
+                : SemanticProcessGroupClassification.Background;
         }
 
         return SemanticProcessGroupClassification.Background;
