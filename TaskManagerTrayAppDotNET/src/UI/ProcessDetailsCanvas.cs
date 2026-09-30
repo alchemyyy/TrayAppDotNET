@@ -119,6 +119,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly List<CellTextLayout> _cellTextLayoutBuffer = new(8);
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
+    // A search starts fully expanded so every match shows, then tracks the trees collapsed while it is active
+    private readonly HashSet<ProcessInstanceKey> _searchCollapsedProcesses = [];
     private readonly HashSet<ProcessInstanceKey> _initializedTreeExpansionStates = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
     private readonly Dictionary<ProcessInstanceKey, int> _sourceRowIndexByInstance = new(1_024);
@@ -394,6 +396,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     /// <summary>Gets whether live totals take their own header line above the column names.</summary>
     private bool StacksLiveTotals => _liveTotalAppearance.ShowAboveColumnNames && _hasVisibleLiveTotals;
+
+    /// <summary>Gets the collapsed trees the view honors: the search's own set while a search is active.</summary>
+    private HashSet<ProcessInstanceKey> ActiveCollapsedProcesses =>
+        _filterQuery.IsEmpty ? _collapsedProcesses : _searchCollapsedProcesses;
 
     /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
     public IReadOnlyList<Control> RenderLayers => _renderLayers;
@@ -1117,6 +1123,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             SemanticProcessGroupKey groupKey = _staleSemanticGroupKeys[staleIndex];
             if (!_syntheticKeyByGroup.Remove(groupKey, out ProcessInstanceKey instanceKey)) continue;
             _collapsedProcesses.Remove(instanceKey);
+            _searchCollapsedProcesses.Remove(instanceKey);
             _initializedTreeExpansionStates.Remove(instanceKey);
         }
 
@@ -1276,6 +1283,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         _filterText = nextFilter;
+        // Each new search reveals all of its matches; clearing the search restores the pre-search tree state
+        _searchCollapsedProcesses.Clear();
         if (_pendingColumnLayout is { } pendingColumnLayout)
         {
             ProcessSearchQuery pendingFilterQuery = ProcessSearchQuery.Parse(
@@ -2947,7 +2956,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double centerY = top + _metrics.RowHeight / 2;
         if (isSemanticSectionHeader)
             centerY -= _visualMetrics.SemanticSectionCaretUpwardShift;
-        if (_filterQuery.IsEmpty && _collapsedProcesses.Contains(row.InstanceKey))
+        if (ActiveCollapsedProcesses.Contains(row.InstanceKey))
         {
             context.DrawLine(
                 _treeExpanderPen,
@@ -4484,12 +4493,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         Focus();
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         ProcessInstanceKey[] visibleSelectionBeforeToggle = CaptureVisibleSelectedProcesses();
+        HashSet<ProcessInstanceKey> collapsedProcesses = ActiveCollapsedProcesses;
         if ((modifiers & KeyModifiers.Alt) != 0)
-            ExpandTreeDeep(rowIndex);
-        else if (_collapsedProcesses.Contains(row.InstanceKey))
-            _collapsedProcesses.Remove(row.InstanceKey);
+            ExpandTreeDeep(rowIndex, collapsedProcesses);
+        else if (collapsedProcesses.Contains(row.InstanceKey))
+            collapsedProcesses.Remove(row.InstanceKey);
         else
-            CollapseTreeDeep(rowIndex);
+            CollapseTreeDeep(rowIndex, collapsedProcesses);
         RebuildVisibleRows();
         DeselectProcessesHiddenByTreeToggle(visibleSelectionBeforeToggle);
         InvalidateMeasure();
@@ -4502,7 +4512,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         return true;
     }
 
-    private void CollapseTreeDeep(int rootRowIndex)
+    private void CollapseTreeDeep(int rootRowIndex, HashSet<ProcessInstanceKey> collapsedProcesses)
     {
         if (TryGetSemanticSectionClassification(
                 rootRowIndex,
@@ -4510,7 +4520,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         {
             ProcessStaticData? sectionHeader = _snapshot.StaticRows[rootRowIndex];
             if (sectionHeader != null)
-                _collapsedProcesses.Add(sectionHeader.InstanceKey);
+                collapsedProcesses.Add(sectionHeader.InstanceKey);
 
             for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
             {
@@ -4519,7 +4529,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                     continue;
 
                 ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-                if (row != null) _collapsedProcesses.Add(row.InstanceKey);
+                if (row != null) collapsedProcesses.Add(row.InstanceKey);
             }
 
             return;
@@ -4536,11 +4546,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 continue;
 
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row != null) _collapsedProcesses.Add(row.InstanceKey);
+            if (row != null) collapsedProcesses.Add(row.InstanceKey);
         }
     }
 
-    private void ExpandTreeDeep(int rootRowIndex)
+    private void ExpandTreeDeep(int rootRowIndex, HashSet<ProcessInstanceKey> collapsedProcesses)
     {
         if (TryGetSemanticSectionClassification(
                 rootRowIndex,
@@ -4548,13 +4558,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         {
             ProcessStaticData? sectionHeader = _snapshot.StaticRows[rootRowIndex];
             if (sectionHeader != null)
-                _collapsedProcesses.Remove(sectionHeader.InstanceKey);
+                collapsedProcesses.Remove(sectionHeader.InstanceKey);
 
             for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
             {
                 if (!IsSemanticClassification(rowIndex, sectionClassification)) continue;
                 ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-                if (row != null) _collapsedProcesses.Remove(row.InstanceKey);
+                if (row != null) collapsedProcesses.Remove(row.InstanceKey);
             }
 
             return;
@@ -4570,7 +4580,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 continue;
 
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row != null) _collapsedProcesses.Remove(row.InstanceKey);
+            if (row != null) collapsedProcesses.Remove(row.InstanceKey);
         }
     }
 
@@ -4812,9 +4822,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessStaticData header = _snapshot.StaticRows[headerRowIndex]
                                        ?? throw new InvalidOperationException(
                                            "A semantic process section header is missing static data.");
-            bool hideSection = _filterQuery.IsEmpty
-                               && _collapsedProcesses.Contains(header.InstanceKey);
-            if (hideSection) continue;
+            if (ActiveCollapsedProcesses.Contains(header.InstanceKey)) continue;
 
             for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
             {
@@ -4870,6 +4878,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private int AppendTree(int rootRowIndex, int outputCount, byte initialDepth)
     {
+        HashSet<ProcessInstanceKey> collapsedProcesses = ActiveCollapsedProcesses;
         int stackCount = 1;
         _treeStackRows[0] = rootRowIndex;
         _treeStackDepths[0] = initialDepth;
@@ -4896,9 +4905,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             int childStart = _treeChildStarts[rowIndex];
             int childCount = _treeChildCounts[rowIndex];
             byte childDepth = depth == byte.MaxValue ? byte.MaxValue : (byte)(depth + 1);
-            bool hideChildren = hidden
-                                || (_filterQuery.IsEmpty
-                                    && _collapsedProcesses.Contains(row.InstanceKey));
+            bool hideChildren = hidden || collapsedProcesses.Contains(row.InstanceKey);
             for (int childOffset = childCount - 1; childOffset >= 0; childOffset--)
             {
                 _treeStackRows[stackCount] = _treeChildren[childStart + childOffset];
@@ -4965,6 +4972,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessInstanceKey key = _staleProcessKeys[staleIndex];
             if (!_renderCaches.Remove(key, out ProcessRowRenderCache? cache)) continue;
             _collapsedProcesses.Remove(key);
+            _searchCollapsedProcesses.Remove(key);
             _initializedTreeExpansionStates.Remove(key);
             ReleaseRenderCache(cache);
         }
@@ -5654,6 +5662,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _cellTextLayoutBuffer.Clear();
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
+        _searchCollapsedProcesses.Clear();
         _initializedTreeExpansionStates.Clear();
         _selectedProcesses.Clear();
         _rowIndexByProcessID.Clear();

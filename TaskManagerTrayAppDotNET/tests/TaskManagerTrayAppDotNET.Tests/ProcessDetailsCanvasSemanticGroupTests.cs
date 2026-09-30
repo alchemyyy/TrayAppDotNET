@@ -41,6 +41,8 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
         BrowserRootPrivateBytes + BrowserWindowPrivateBytes + AlphaPrivateBytes + ZetaPrivateBytes;
     private const long RootBasePriority = 8;
     private const long WindowBasePriority = 13;
+    // Name is the leftmost column, so any x inside its default width lands on it
+    private const double NameColumnClickX = 10;
 
     [Fact]
     public async Task SubgroupHeadsShowSubtreeTotalsAboveTheirOwnRootLine()
@@ -254,6 +256,48 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
                     ("Root", GroupRowProcessID),
                     ("alpha.exe", 12)
                 ], GetVisibleRows(canvas));
+            },
+            CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task SearchResultsCollapseWithoutChangingTheTreeOutsideTheSearch()
+    {
+        await using HeadlessUnitTestSession session =
+            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+        await session.Dispatch(
+            static () =>
+            {
+                using ProcessIconService processIconService = new();
+                using ProcessDetailsCanvas canvas = CreateSemanticCanvas(
+                    processIconService,
+                    useRootProcessForSemanticGroups: true);
+                List<(string Name, int ProcessID)> unfilteredRows = GetVisibleRows(canvas);
+                List<(string Name, int ProcessID)> searchRows =
+                [
+                    ("", AppSpacerProcessID),
+                    ("Apps (2)", AppHeaderProcessID),
+                    ("browser.exe", 10),
+                    ("Root", GroupRowProcessID),
+                    ("alpha.exe", 12)
+                ];
+
+                canvas.SetFilter("alpha");
+                Assert.Equal(searchRows, GetVisibleRows(canvas));
+
+                ClickTreeName(canvas, visibleIndex: 2);
+                Assert.Equal(searchRows[..3], GetVisibleRows(canvas));
+
+                ClickTreeName(canvas, visibleIndex: 1);
+                Assert.Equal(searchRows[..2], GetVisibleRows(canvas));
+
+                // Collapsing inside a search leaves the unfiltered tree as it was
+                canvas.SetFilter(filterText: null);
+                Assert.Equal(unfilteredRows, GetVisibleRows(canvas));
+
+                // A new search starts expanded again so every match shows
+                canvas.SetFilter("alpha");
+                Assert.Equal(searchRows, GetVisibleRows(canvas));
             },
             CancellationToken.None);
     }
@@ -505,6 +549,15 @@ public sealed class ProcessDetailsCanvasSemanticGroupTests
             visibleRowIndexes[visibleIndex],
             column));
     }
+
+    /// <summary>Clicks a row's name, which toggles its tree the way a user click on the Name column does.</summary>
+    private static void ClickTreeName(ProcessDetailsCanvas canvas, int visibleIndex) =>
+        Assert.True(Assert.IsType<bool>(InvokePrivate(
+            canvas,
+            methodName: "TryHandleTreeNameClick",
+            new Point(NameColumnClickX, y: 0),
+            visibleIndex,
+            KeyModifiers.None)));
 
     private static T GetPrivateField<T>(ProcessDetailsCanvas canvas, string fieldName)
     {
