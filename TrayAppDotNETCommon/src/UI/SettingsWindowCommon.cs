@@ -1182,18 +1182,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             IntPtr hwnd = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
             if (hwnd != IntPtr.Zero)
             {
-                if (forceForeground)
-                {
-                    // Restores only a minimized window so a maximized one keeps its placement
-                    if (User32.IsIconic(hwnd))
-                        _ = User32.ShowWindow(hwnd, User32.SW_RESTORE);
-                    _ = ForegroundWindowFunctions.ForceForeground(hwnd);
-                }
-                else
-                {
+                // Restores only a minimized window. SW_RESTORE would also move a maximized or snapped one back to
+                // its normal placement after it was revealed.
+                if (User32.IsIconic(hwnd))
                     _ = User32.ShowWindow(hwnd, User32.SW_RESTORE);
+
+                if (forceForeground)
+                    _ = ForegroundWindowFunctions.ForceForeground(hwnd);
+                else
                     _ = User32.SetForegroundWindow(hwnd);
-                }
             }
         }
 

@@ -90,7 +90,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private int _restoreDragSearchLeftWithinWindow;
     private int _restoreDragSearchRightWithinWindow;
     private bool _allowClose;
-    private bool _hasOpened;
     private bool _initialElevationAttemptConsumed;
     private bool _initialElevationDeferred;
     private bool _manualElevationPromptPending;
@@ -339,22 +338,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _windowDragWndProcHookAttached = true;
         }
 
-        _hasOpened = true;
         base.OnOpened(eventArgs);
         UpdateActivePageActivity();
     }
 
-    /// <summary>Shows and activates the window, revealing a never-opened window only after its first frame.</summary>
-    internal void ShowAndActivate()
-    {
-        if (_hasOpened)
-        {
-            ShowAtDefaultPositionAndActivate();
-            return;
-        }
-
-        _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
-    }
+    /// <summary>
+    /// Shows and activates the window. A hidden window, never opened or closed to the tray, stays cloaked until its
+    /// first frame is rendered in place, the same way Ctrl+Shift+Esc reveals it.
+    /// </summary>
+    internal void ShowAndActivate() => _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
 
     /// <summary>
     /// Starts without taking focus: hidden in the tray when Minimize to Tray is on, otherwise minimized to the
