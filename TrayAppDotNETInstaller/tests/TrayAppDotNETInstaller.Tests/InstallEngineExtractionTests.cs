@@ -7,6 +7,11 @@ namespace TrayAppDotNETInstaller.Tests;
 
 public sealed class InstallEngineExtractionTests : IDisposable
 {
+    private const string FirstApplicationName = "FirstTrayAppDotNET";
+    private const string SecondApplicationName = "SecondTrayAppDotNET";
+    private const string ThirdApplicationName = "ThirdTrayAppDotNET";
+    private const int PackageVersion = 1;
+
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "TrayAppDotNETInstaller.Tests",
@@ -133,8 +138,10 @@ public sealed class InstallEngineExtractionTests : IDisposable
         string target = Path.Combine(_root, "portable");
         InstallPlan plan = new(InstallMode.Portable, target, [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
         List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
 
-        InstallOutcome outcome = await InstallEngine.RunAsync(plan, _ => File.OpenRead(zipPath), new ListProgress(reports), CancellationToken.None);
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            plan, _ => File.OpenRead(zipPath), new ListProgress(reports), new StatusListProgress(statuses), CancellationToken.None);
 
         Assert.True(outcome.Success, outcome.ErrorMessage);
         Assert.Null(outcome.ErrorMessage);
@@ -142,6 +149,12 @@ public sealed class InstallEngineExtractionTests : IDisposable
         Assert.True(File.Exists(Path.Combine(target, "LICENSE.txt")));
         Assert.Equal([Path.Combine(target, "FakeTrayAppDotNET.exe")], outcome.InstalledExecutables);
         Assert.True(reports[reports.Count - 1].IsComplete);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus("FakeTrayAppDotNET", InstallApplicationState.Installing),
+                new InstallApplicationStatus("FakeTrayAppDotNET", InstallApplicationState.Installed)
+            ],
+            statuses);
     }
 
     [Fact]
@@ -151,14 +164,95 @@ public sealed class InstallEngineExtractionTests : IDisposable
         EmbeddedPayload payload = new("FakeTrayAppDotNET", 1, "FakeTrayAppDotNET_1.zip");
         InstallPlan plan = new(InstallMode.Local, Path.Combine(_root, "local"), [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: true);
         List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
 
-        InstallOutcome outcome = await InstallEngine.RunAsync(plan, _ => File.OpenRead(zipPath), new ListProgress(reports), CancellationToken.None);
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            plan, _ => File.OpenRead(zipPath), new ListProgress(reports), new StatusListProgress(statuses), CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.NotNull(outcome.ErrorMessage);
         Assert.Contains("FakeTrayAppDotNET.exe", outcome.ErrorMessage);
         Assert.True(reports[reports.Count - 1].IsFailure);
         Assert.Empty(outcome.InstalledExecutables);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus("FakeTrayAppDotNET", InstallApplicationState.Installing),
+                new InstallApplicationStatus("FakeTrayAppDotNET", InstallApplicationState.Failed)
+            ],
+            statuses);
+    }
+
+    [Fact]
+    public async Task RunAsync_PinsAFailureToTheApplicationInFlightAndGoesNoFurther()
+    {
+        string[] applicationNames = [FirstApplicationName, SecondApplicationName, ThirdApplicationName];
+        // The middle package escapes its destination, which the engine surfaces as an exception
+        Dictionary<string, string> zipPaths = new(StringComparer.Ordinal)
+        {
+            [FirstApplicationName] = CreatePackage(FirstApplicationName),
+            [SecondApplicationName] = CreatePackage(SecondApplicationName, (EntryName: "../escaped.txt", Content: "escaped")),
+            [ThirdApplicationName] = CreatePackage(ThirdApplicationName)
+        };
+        string target = Path.Combine(_root, "suite");
+        InstallPlan plan = CreateSuitePlan(target, applicationNames);
+        List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
+
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            plan,
+            payload => File.OpenRead(zipPaths[payload.ApplicationName]),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            CancellationToken.None);
+
+        Assert.False(outcome.Success);
+        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.Equal([Path.Combine(target, ExecutableName(FirstApplicationName))], outcome.InstalledExecutables);
+        Assert.False(File.Exists(Path.Combine(target, ExecutableName(ThirdApplicationName))));
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installed),
+                new InstallApplicationStatus(SecondApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(SecondApplicationName, InstallApplicationState.Failed)
+            ],
+            statuses);
+    }
+
+    [Fact]
+    public async Task RunAsync_CancelledBetweenApplicationsBlamesNoneOfThem()
+    {
+        string[] applicationNames = [FirstApplicationName, SecondApplicationName];
+        Dictionary<string, string> zipPaths = new(StringComparer.Ordinal)
+        {
+            [FirstApplicationName] = CreatePackage(FirstApplicationName),
+            [SecondApplicationName] = CreatePackage(SecondApplicationName)
+        };
+        InstallPlan plan = CreateSuitePlan(Path.Combine(_root, "cancelled"), applicationNames);
+        List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
+        using CancellationTokenSource cancellation = new();
+        // Cancelling as the first application finishes stops the run between the two applications
+        StatusListProgress statusProgress = new(statuses, status =>
+        {
+            if (status.State == InstallApplicationState.Installed) cancellation.Cancel();
+        });
+
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            plan,
+            payload => File.OpenRead(zipPaths[payload.ApplicationName]),
+            new ListProgress(reports),
+            statusProgress,
+            cancellation.Token);
+
+        Assert.False(outcome.Success);
+        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installed)
+            ],
+            statuses);
     }
 
     [Fact]
@@ -166,12 +260,20 @@ public sealed class InstallEngineExtractionTests : IDisposable
     {
         InstallPlan plan = new(InstallMode.Portable, _root, [], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
         List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
 
-        InstallOutcome outcome = await InstallEngine.RunAsync(plan, _ => throw new InvalidOperationException("unreachable"), new ListProgress(reports), CancellationToken.None);
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            plan,
+            _ => throw new InvalidOperationException("unreachable"),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.Single(reports);
         Assert.True(reports[0].IsFailure);
+        // No application was reached, so none is blamed
+        Assert.Empty(statuses);
     }
 
     private string CreateZip(string fileName, params (string EntryName, string? Content)[] entries)
@@ -192,8 +294,45 @@ public sealed class InstallEngineExtractionTests : IDisposable
         return zipPath;
     }
 
+    /// <summary>A release-style package holding the application's executable plus any extra entries.</summary>
+    private string CreatePackage(string applicationName, params (string EntryName, string? Content)[] extraEntries)
+    {
+        List<(string EntryName, string? Content)> entries = [(ExecutableName(applicationName), applicationName)];
+        entries.AddRange(extraEntries);
+        return CreateZip(PackageName(applicationName), [.. entries]);
+    }
+
+    private static InstallPlan CreateSuitePlan(string target, IEnumerable<string> applicationNames)
+    {
+        List<EmbeddedPayload> payloads = [];
+        foreach (string applicationName in applicationNames)
+            payloads.Add(new EmbeddedPayload(applicationName, PackageVersion, PackageName(applicationName)));
+
+        return new InstallPlan(
+            InstallMode.Portable,
+            target,
+            payloads,
+            CreateDesktopShortcut: false,
+            CreateStartMenuShortcut: false);
+    }
+
+    private static string ExecutableName(string applicationName) => applicationName + ".exe";
+
+    private static string PackageName(string applicationName) => $"{applicationName}_{PackageVersion}.zip";
+
     private sealed class ListProgress(List<InstallProgressLine> lines) : IProgress<InstallProgressLine>
     {
         public void Report(InstallProgressLine value) => lines.Add(value);
+    }
+
+    private sealed class StatusListProgress(
+        List<InstallApplicationStatus> statuses,
+        Action<InstallApplicationStatus>? statusReported = null) : IProgress<InstallApplicationStatus>
+    {
+        public void Report(InstallApplicationStatus value)
+        {
+            statuses.Add(value);
+            statusReported?.Invoke(value);
+        }
     }
 }

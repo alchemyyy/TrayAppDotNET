@@ -77,6 +77,10 @@
     <CornerRadius x:Key="InstallerTheme.NoticeCornerRadius">4</CornerRadius>
     <Thickness x:Key="InstallerTheme.NoticeBorderThickness">1</Thickness>
 
+    <!-- Application install state, at the right edge of each application row.
+         The margin keeps a long name and its battery hint clear of the state. -->
+    <Thickness x:Key="InstallerTheme.ApplicationStateMargin">12,0,0,0</Thickness>
+
     <!-- Accent shading. Windows paints its hover and pressed accent states as the accent colour at reduced
          opacity over the page, which is what these two alphas reproduce. -->
     <system:Double x:Key="InstallerTheme.AccentHoverOpacity">0.9</system:Double>
@@ -100,6 +104,9 @@
     <Color x:Key="InstallerTheme.Light.TextOnAccentColor">#FFFFFFFF</Color>
     <Color x:Key="InstallerTheme.Light.CautionBackgroundColor">#FFFFF4CE</Color>
     <Color x:Key="InstallerTheme.Light.CautionBorderColor">#FF9D5D00</Color>
+    <!-- The success and critical status colours of Windows 11 controls, like the caution colour above -->
+    <Color x:Key="InstallerTheme.Light.SuccessTextColor">#FF0F7B0F</Color>
+    <Color x:Key="InstallerTheme.Light.CriticalTextColor">#FFC42B1C</Color>
 
     <!-- Dark palette -->
     <Color x:Key="InstallerTheme.Dark.WindowBackgroundColor">#FF202020</Color>
@@ -117,6 +124,8 @@
     <Color x:Key="InstallerTheme.Dark.TextOnAccentColor">#FF000000</Color>
     <Color x:Key="InstallerTheme.Dark.CautionBackgroundColor">#FF433519</Color>
     <Color x:Key="InstallerTheme.Dark.CautionBorderColor">#FFFCE100</Color>
+    <Color x:Key="InstallerTheme.Dark.SuccessTextColor">#FF6CCB5F</Color>
+    <Color x:Key="InstallerTheme.Dark.CriticalTextColor">#FFFF99A4</Color>
 
     <!-- Window. The installer window is a derived type, so WPF never applies an implicit Window style to it
          and the constructor assigns this one by key. -->
@@ -259,6 +268,33 @@
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="FontSize" Value="{DynamicResource InstallerTheme.SecondaryFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.SecondaryTextBrush}" />
+    </Style>
+
+    <!-- Application install states. The window swaps between these as a run moves an application along.
+         Waiting and Not installed keep the base style's secondary colour.
+         Installing takes the primary text colour rather than the accent, which a grey accent would dim below the waiting rows. -->
+    <Style x:Key="InstallerTheme.ApplicationStateTextStyle" TargetType="TextBlock">
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="FontSize" Value="{DynamicResource InstallerTheme.SecondaryFontSize}" />
+        <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.SecondaryTextBrush}" />
+        <Setter Property="Margin" Value="{DynamicResource InstallerTheme.ApplicationStateMargin}" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="InstallerTheme.ApplicationStateInstallingTextStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource InstallerTheme.ApplicationStateTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.PrimaryTextBrush}" />
+    </Style>
+
+    <Style x:Key="InstallerTheme.ApplicationStateInstalledTextStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource InstallerTheme.ApplicationStateTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.SuccessTextBrush}" />
+    </Style>
+
+    <Style x:Key="InstallerTheme.ApplicationStateFailedTextStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource InstallerTheme.ApplicationStateTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource InstallerTheme.CriticalTextBrush}" />
     </Style>
 
     <!-- Buttons -->

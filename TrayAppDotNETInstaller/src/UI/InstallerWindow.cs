@@ -27,12 +27,17 @@ public sealed class InstallerWindow : Window
     private const string BatteryApplicationName = "BatteryTrayAppDotNET";
     private const string WindhawkURL = "https://windhawk.net/";
     private const string WindhawkModURL = "https://windhawk.net/mods/taskbar-tray-system-icon-tweaks";
+    private const string UnsupportedApplicationStateMessage = "Unsupported application state.";
 
     // Theme.xaml resource keys
     private const string WindowStyleKey = "InstallerTheme.WindowStyle";
     private const string TitleTextStyleKey = "InstallerTheme.TitleTextStyle";
     private const string SectionHeaderTextStyleKey = "InstallerTheme.SectionHeaderTextStyle";
     private const string SecondaryTextStyleKey = "InstallerTheme.SecondaryTextStyle";
+    private const string ApplicationStateTextStyleKey = "InstallerTheme.ApplicationStateTextStyle";
+    private const string ApplicationStateInstallingTextStyleKey = "InstallerTheme.ApplicationStateInstallingTextStyle";
+    private const string ApplicationStateInstalledTextStyleKey = "InstallerTheme.ApplicationStateInstalledTextStyle";
+    private const string ApplicationStateFailedTextStyleKey = "InstallerTheme.ApplicationStateFailedTextStyle";
     private const string AccentButtonStyleKey = "InstallerTheme.AccentButtonStyle";
     private const string HyperlinkButtonStyleKey = "InstallerTheme.HyperlinkButtonStyle";
     private const string OuterMarginKey = "InstallerTheme.OuterMargin";
@@ -80,10 +85,11 @@ public sealed class InstallerWindow : Window
     private readonly bool _exampleFails;
     private readonly List<BitmapFrame> _iconFrames = [];
     private Image? _captionIcon;
+    private InstallApplicationTracker? _applicationTracker;
     private bool _installRunning;
     private bool _installFinished;
 
-    private sealed record PayloadSelection(EmbeddedPayload Payload, CheckBox CheckBox);
+    private sealed record PayloadSelection(EmbeddedPayload Payload, CheckBox CheckBox, TextBlock StateTextBlock);
 
     /// <summary>
     /// Builds the whole page from the catalog, the Windhawk probe and the battery probe.
@@ -254,24 +260,43 @@ public sealed class InstallerWindow : Window
                 StringComparison.OrdinalIgnoreCase);
             bool showBatteryHint = isBatteryApp && !hasSystemBattery;
             CheckBox checkBox = new() { Content = payload.ApplicationName, IsChecked = !showBatteryHint };
-            _payloadSelections.Add(new PayloadSelection(payload, checkBox));
+            // Collapsed until a run starts, which shows it only for the applications that run includes
+            TextBlock stateTextBlock = new()
+            {
+                Style = StyleResource(ApplicationStateTextStyleKey),
+                Visibility = Visibility.Collapsed
+            };
+            _payloadSelections.Add(new PayloadSelection(payload, checkBox, stateTextBlock));
             _inputs.Add(checkBox);
             if (!showBatteryHint)
             {
-                rows.Add(checkBox);
+                rows.Add(CreateApplicationRow(checkBox, stateTextBlock));
                 continue;
             }
 
-            StackPanel row = new() { Orientation = Orientation.Horizontal };
-            row.Children.Add(checkBox);
+            StackPanel checkBoxWithHint = new() { Orientation = Orientation.Horizontal };
+            checkBoxWithHint.Children.Add(checkBox);
             TextBlock hint = CreateSecondaryText(L(nameof(AppStrings.Installer_Apps_NoBatteryHint)));
             hint.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(hint);
-            ApplyStackSpacing(row, ThicknessResource(InlineSpacingKey));
-            rows.Add(row);
+            checkBoxWithHint.Children.Add(hint);
+            ApplyStackSpacing(checkBoxWithHint, ThicknessResource(InlineSpacingKey));
+            rows.Add(CreateApplicationRow(checkBoxWithHint, stateTextBlock));
         }
 
         return CreateSection(L(nameof(AppStrings.Installer_Apps_Header)), rows);
+    }
+
+    /// <summary>One application row: the selector on the left, and the install state a run shows at the right edge.</summary>
+    private static Grid CreateApplicationRow(UIElement selector, TextBlock stateTextBlock)
+    {
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value: 1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(selector, value: 0);
+        Grid.SetColumn(stateTextBlock, value: 1);
+        row.Children.Add(selector);
+        row.Children.Add(stateTextBlock);
+        return row;
     }
 
     private StackPanel CreateInstallTypeSection()
@@ -603,20 +628,23 @@ public sealed class InstallerWindow : Window
         _cancelButton.IsEnabled = false;
         _progressBar.Value = ProgressMinimum;
         ShowStatus(L(nameof(AppStrings.Installer_Status_Starting)));
+        StartApplicationStates(plan);
         InstallerLog.Write(
             $"InstallerWindow: starting {plan.Mode} install of {plan.Payloads.Count} app(s) into {plan.TargetDirectory}");
 
-        DispatcherProgress progress = new(Dispatcher, ApplyProgress);
+        DispatcherProgress<InstallProgressLine> progress = new(Dispatcher, ApplyProgress);
+        DispatcherProgress<InstallApplicationStatus> applicationProgress = new(Dispatcher, ApplyApplicationStatus);
         InstallOutcome outcome;
         try
         {
             // The example simulation never leaves this thread, so neither engine is reachable from it
             if (_isExample)
-                outcome = await ExampleMode.RunAsync(plan, progress, _exampleFails, CancellationToken.None);
+                outcome = await ExampleMode.RunAsync(plan, progress, applicationProgress, _exampleFails, CancellationToken.None);
             else
                 outcome = plan.Mode == InstallMode.System
-                    ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(plan, progress, CancellationToken.None))
-                    : await Task.Run(() => InstallEngine.RunAsync(plan, progress, CancellationToken.None));
+                    ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(
+                        plan, progress, applicationProgress, CancellationToken.None))
+                    : await Task.Run(() => InstallEngine.RunAsync(plan, progress, applicationProgress, CancellationToken.None));
         }
         catch (Exception exception)
         {
@@ -624,6 +652,9 @@ public sealed class InstallerWindow : Window
             outcome = new InstallOutcome(Success: false, exception.Message, []);
         }
 
+        // Reports wait at Normal priority; this continuation inherits the click's Send priority and would overtake them
+        // Yielding at Normal runs every queued report first, so the outcome settles only what the reports left open
+        await Dispatcher.Yield(DispatcherPriority.Normal);
         FinishInstall(plan, outcome);
     }
 
@@ -697,11 +728,75 @@ public sealed class InstallerWindow : Window
 
     private void ApplyProgress(InstallProgressLine line)
     {
-        if (line.IsFailure) return;
+        // A line arriving after the run finished must not replace the final status
+        if (line.IsFailure || _installFinished) return;
 
         _progressBar.Value = line.Percent;
         ShowStatus(line.Message);
     }
+
+    /// <summary>Starts every application of the plan Waiting, so each selected row shows a state for the whole run.</summary>
+    private void StartApplicationStates(InstallPlan plan)
+    {
+        List<string> applicationNames = [];
+        foreach (EmbeddedPayload payload in plan.Payloads) applicationNames.Add(payload.ApplicationName);
+
+        _applicationTracker = new InstallApplicationTracker(applicationNames);
+        ShowApplicationStates();
+    }
+
+    private void ApplyApplicationStatus(InstallApplicationStatus status)
+    {
+        if (_applicationTracker?.Apply(status) != true) return;
+
+        ShowApplicationStates();
+    }
+
+    /// <summary>
+    /// Shows each application's state at the end of its row.
+    /// An application the run does not include shows nothing, so an unselected row stays as it was.
+    /// A single-application installer has no rows at all.
+    /// </summary>
+    private void ShowApplicationStates()
+    {
+        if (_applicationTracker == null) return;
+
+        foreach (PayloadSelection selection in _payloadSelections)
+        {
+            InstallApplicationState? state = _applicationTracker.StateOf(selection.Payload.ApplicationName);
+            if (state == null)
+            {
+                selection.StateTextBlock.Visibility = Visibility.Collapsed;
+                continue;
+            }
+
+            string label = ApplicationStateLabel(state.Value);
+            selection.StateTextBlock.Text = label;
+            selection.StateTextBlock.Style = StyleResource(ApplicationStateStyleKey(state.Value));
+            selection.StateTextBlock.Visibility = Visibility.Visible;
+            // The state sits beside the check box rather than in it, so accessibility tools need it as the item status
+            AutomationProperties.SetItemStatus(selection.CheckBox, label);
+        }
+    }
+
+    private static string ApplicationStateLabel(InstallApplicationState state) => state switch
+    {
+        InstallApplicationState.Waiting => L(nameof(AppStrings.Installer_Apps_State_Waiting)),
+        InstallApplicationState.Installing => L(nameof(AppStrings.Installer_Apps_State_Installing)),
+        InstallApplicationState.Installed => L(nameof(AppStrings.Installer_Apps_State_Installed)),
+        InstallApplicationState.Failed => L(nameof(AppStrings.Installer_Apps_State_Failed)),
+        InstallApplicationState.NotInstalled => L(nameof(AppStrings.Installer_Apps_State_NotInstalled)),
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, UnsupportedApplicationStateMessage)
+    };
+
+    private static string ApplicationStateStyleKey(InstallApplicationState state) => state switch
+    {
+        InstallApplicationState.Waiting or InstallApplicationState.NotInstalled => ApplicationStateTextStyleKey,
+        InstallApplicationState.Installing => ApplicationStateInstallingTextStyleKey,
+        InstallApplicationState.Installed => ApplicationStateInstalledTextStyleKey,
+        InstallApplicationState.Failed => ApplicationStateFailedTextStyleKey,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, UnsupportedApplicationStateMessage)
+    };
 
     private void FinishInstall(InstallPlan plan, InstallOutcome outcome)
     {
@@ -709,6 +804,9 @@ public sealed class InstallerWindow : Window
         _installFinished = true;
         _installButton.Content = L(nameof(AppStrings.Installer_Button_Close));
         _installButton.IsEnabled = true;
+        // The outcome settles whatever the reports left open, so every row keeps a final state
+        _applicationTracker?.Finish(outcome.Success);
+        ShowApplicationStates();
         if (!outcome.Success)
         {
             ShowStatus(outcome.ErrorMessage ?? L(nameof(AppStrings.Installer_Status_Failed)));
@@ -762,11 +860,14 @@ public sealed class InstallerWindow : Window
 
     private static string L(string key) => LocalizationManager.Instance[key];
 
-    /// <summary>Marshals engine progress from worker threads onto the interface thread.</summary>
-    private sealed class DispatcherProgress(Dispatcher dispatcher, Action<InstallProgressLine> handler)
-        : IProgress<InstallProgressLine>
+    /// <summary>
+    /// Marshals engine reports from worker threads onto the interface thread.
+    /// Every instance queues at the same priority,
+    /// so progress lines and application statuses are handled in the order they were reported.
+    /// </summary>
+    private sealed class DispatcherProgress<TReport>(Dispatcher dispatcher, Action<TReport> handler) : IProgress<TReport>
     {
-        public void Report(InstallProgressLine value)
+        public void Report(TReport value)
         {
             _ = dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() => handler(value)));
         }

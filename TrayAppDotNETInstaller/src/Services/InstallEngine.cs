@@ -32,24 +32,40 @@ public static class InstallEngine
     public static Task<InstallOutcome> RunAsync(
         InstallPlan plan,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken) =>
-        RunAsync(plan, EmbeddedPayloadCatalog.Load().OpenPayload, progress, cancellationToken);
+        RunAsync(plan, EmbeddedPayloadCatalog.Load().OpenPayload, progress, applicationProgress, cancellationToken);
 
-    /// <summary>Runs the plan; <paramref name="openPayload"/> lets tests substitute on-disk zips.</summary>
+    /// <summary>
+    /// Runs the plan, reporting each application's Installing, Installed or Failed state to <paramref name="applicationProgress"/>.
+    /// <paramref name="openPayload"/> lets tests substitute on-disk zips.
+    /// </summary>
     internal static async Task<InstallOutcome> RunAsync(
         InstallPlan plan,
         Func<EmbeddedPayload, Stream> openPayload,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken)
     {
         FrameworkCompatibility.ThrowIfNull(plan, nameof(plan));
         FrameworkCompatibility.ThrowIfNull(openPayload, nameof(openPayload));
         FrameworkCompatibility.ThrowIfNull(progress, nameof(progress));
+        FrameworkCompatibility.ThrowIfNull(applicationProgress, nameof(applicationProgress));
 
         List<string> installedExecutables = [];
-        if (plan.Payloads.Count == 0) return Fail(L(nameof(AppStrings.Installer_Progress_NoPayloads)), progress, installedExecutables);
+        if (plan.Payloads.Count == 0)
+        {
+            return Fail(
+                L(nameof(AppStrings.Installer_Progress_NoPayloads)),
+                failedApplicationName: null,
+                progress,
+                applicationProgress,
+                installedExecutables);
+        }
 
         string? temporaryRoot = null;
+        // The application in flight, so a failure that escapes as an exception is still pinned to it
+        string? currentApplicationName = null;
         try
         {
             for (int index = 0; index < plan.Payloads.Count; index++)
@@ -57,6 +73,8 @@ public static class InstallEngine
                 cancellationToken.ThrowIfCancellationRequested();
                 EmbeddedPayload payload = plan.Payloads[index];
                 ProgressSlice slice = ProgressSlice.ForIndex(index, plan.Payloads.Count);
+                currentApplicationName = payload.ApplicationName;
+                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
                 AppInstallResult result;
                 switch (plan.Mode)
                 {
@@ -74,11 +92,14 @@ public static class InstallEngine
                         throw new ArgumentOutOfRangeException(nameof(plan), plan.Mode, message: "Unsupported install mode.");
                 }
 
-                if (result.Error != null) return Fail(result.Error, progress, installedExecutables);
+                if (result.Error != null)
+                    return Fail(result.Error, payload.ApplicationName, progress, applicationProgress, installedExecutables);
 
                 installedExecutables.Add(result.InstalledExecutable
                                          ?? InstallDefaults.InstalledExecutablePath(
                                              plan.Mode, plan.TargetDirectory, payload.ApplicationName));
+                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installed));
+                currentApplicationName = null;
             }
 
             progress.Report(InstallProgressLine.At(InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
@@ -86,12 +107,17 @@ public static class InstallEngine
         }
         catch (OperationCanceledException)
         {
-            return Fail(L(nameof(AppStrings.Installer_Progress_Cancelled)), progress, installedExecutables);
+            return Fail(
+                L(nameof(AppStrings.Installer_Progress_Cancelled)),
+                currentApplicationName,
+                progress,
+                applicationProgress,
+                installedExecutables);
         }
         catch (Exception exception)
         {
             InstallerLog.Write("InstallEngine.RunAsync", exception);
-            return Fail(exception.Message, progress, installedExecutables);
+            return Fail(exception.Message, currentApplicationName, progress, applicationProgress, installedExecutables);
         }
         finally
         {
@@ -338,11 +364,20 @@ public static class InstallEngine
         return new AppInstallResult(Error: null, output.InstalledExecutable);
     }
 
-    private static InstallOutcome Fail(
+    /// <summary>
+    /// Marks the application the run stopped on as failed, when there is one, then reports the terminal failure line.
+    /// Example mode ends its simulated runs through this too, so both report failures identically.
+    /// </summary>
+    internal static InstallOutcome Fail(
         string message,
+        string? failedApplicationName,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         IReadOnlyList<string> installedExecutables)
     {
+        if (failedApplicationName != null)
+            applicationProgress.Report(new InstallApplicationStatus(failedApplicationName, InstallApplicationState.Failed));
+
         progress.Report(InstallProgressLine.Failed(message));
         return new InstallOutcome(Success: false, message, installedExecutables);
     }

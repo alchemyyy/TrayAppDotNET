@@ -70,7 +70,8 @@ public sealed record InstallProgressLine(int Percent, string Message, bool IsFai
 
     // The .NET Framework string.Replace(string, string) is already ordinal, so the comparison argument the
     // modern overload took is simply dropped
-    private static string SingleLine(string message) =>
+    /// <summary>Collapses line breaks so a value always travels as one wire line.</summary>
+    internal static string SingleLine(string message) =>
         string.IsNullOrEmpty(message)
             ? string.Empty
             : message.Replace(oldValue: "\r", newValue: " ")

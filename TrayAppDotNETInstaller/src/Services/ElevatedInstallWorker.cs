@@ -19,8 +19,9 @@ public sealed record WorkerArguments(
     IReadOnlyList<string> ApplicationNames);
 
 /// <summary>
-/// System installs run the engine in a second, elevated copy of this executable. The UI hosts a named pipe,
-/// starts the worker with the runas verb, and relays the progress lines the worker writes to the pipe.
+/// System installs run the engine in a second, elevated copy of this executable.
+/// The UI hosts a named pipe, starts the worker with the runas verb,
+/// and relays the progress lines and application status lines the worker writes to the pipe.
 /// </summary>
 public static class ElevatedInstallWorker
 {
@@ -142,7 +143,9 @@ public static class ElevatedInstallWorker
         InstallerLog.Write($"ElevatedInstallWorker.Run: mode {arguments.Mode}, apps {string.Join(AppsSeparatorText, arguments.ApplicationNames)}");
         try
         {
-            return RunWorkerAsync(arguments, progress => RunInstallAsync(arguments, progress))
+            return RunWorkerAsync(
+                    arguments,
+                    (progress, applicationProgress) => RunInstallAsync(arguments, progress, applicationProgress))
                 .GetAwaiter()
                 .GetResult();
         }
@@ -153,10 +156,13 @@ public static class ElevatedInstallWorker
         }
     }
 
-    /// <summary>Pipe transport of the worker; <paramref name="runInstall"/> is injected so tests can drive it without payloads.</summary>
+    /// <summary>
+    /// Pipe transport of the worker; <paramref name="runInstall"/> is injected so tests can drive it without payloads.
+    /// It receives one writer for both progress lines and application statuses, so the two keep their relative order on the pipe.
+    /// </summary>
     internal static async Task<int> RunWorkerAsync(
         WorkerArguments arguments,
-        Func<IProgress<InstallProgressLine>, Task<InstallOutcome>> runInstall)
+        Func<IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>, Task<InstallOutcome>> runInstall)
     {
         // The .NET Framework has no IAsyncDisposable, so these are plain using declarations; disposal order
         // is unchanged, the writer closing before the pipe.
@@ -174,22 +180,27 @@ public static class ElevatedInstallWorker
         using StreamWriter writer = new(pipe, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         writer.AutoFlush = true;
         PipeProgress progress = new(writer);
-        InstallOutcome outcome = await runInstall(progress).ConfigureAwait(false);
+        InstallOutcome outcome = await runInstall(progress, progress).ConfigureAwait(false);
         progress.EnsureTerminalLine(outcome);
         return outcome.Success ? SuccessExitCode : FailureExitCode;
     }
 
-    /// <summary>UI side: starts the elevated worker and relays its progress. Runs in-process when already elevated.</summary>
+    /// <summary>
+    /// UI side: starts the elevated worker and relays its progress and application statuses.
+    /// Runs in-process when already elevated.
+    /// </summary>
     public static async Task<InstallOutcome> RunElevatedAsync(
         InstallPlan plan,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken)
     {
         FrameworkCompatibility.ThrowIfNull(plan, nameof(plan));
         FrameworkCompatibility.ThrowIfNull(progress, nameof(progress));
+        FrameworkCompatibility.ThrowIfNull(applicationProgress, nameof(applicationProgress));
 
         if (SystemProbes.IsElevated())
-            return await InstallEngine.RunAsync(plan, progress, cancellationToken).ConfigureAwait(false);
+            return await InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken).ConfigureAwait(false);
 
         string? executablePath = FrameworkCompatibility.ProcessPath;
         if (string.IsNullOrEmpty(executablePath))
@@ -247,7 +258,8 @@ public static class ElevatedInstallWorker
             using (worker)
             {
                 InstallerLog.Write($"ElevatedInstallWorker: started worker PID {worker.Id}");
-                return await RelayWorkerAsync(server, worker, plan, progress, cancellationToken).ConfigureAwait(false);
+                return await RelayWorkerAsync(server, worker, plan, progress, applicationProgress, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -266,6 +278,7 @@ public static class ElevatedInstallWorker
         Process worker,
         InstallPlan plan,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken)
     {
         Task workerExitTask = worker.WaitForExitAsync(CancellationToken.None);
@@ -292,14 +305,8 @@ public static class ElevatedInstallWorker
             string? line;
             while ((line = await ReadLineAsync(reader, cancellationToken).ConfigureAwait(false)) != null)
             {
-                if (!InstallProgressLine.TryParseLine(line, out InstallProgressLine? parsed))
-                {
-                    InstallerLog.Write($"ElevatedInstallWorker: unrecognized worker line: {line}");
-                    continue;
-                }
-
-                if (parsed.IsFailure) failureMessage = parsed.Message;
-                progress.Report(parsed);
+                InstallProgressLine? relayed = RelayWorkerLine(line, progress, applicationProgress);
+                if (relayed?.IsFailure == true) failureMessage = relayed.Message;
             }
         }
 
@@ -318,6 +325,32 @@ public static class ElevatedInstallWorker
         }
 
         return new InstallOutcome(Success: true, ErrorMessage: null, installedExecutables);
+    }
+
+    /// <summary>
+    /// Forwards one line the worker wrote: an application status to <paramref name="applicationProgress"/>,
+    /// and a progress line to <paramref name="progress"/>.
+    /// Returns the progress line so the caller can see a failure, or null for a status or an unrecognized line.
+    /// </summary>
+    internal static InstallProgressLine? RelayWorkerLine(
+        string line,
+        IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress)
+    {
+        if (InstallApplicationStatus.TryParseLine(line, out InstallApplicationStatus? status))
+        {
+            applicationProgress.Report(status);
+            return null;
+        }
+
+        if (InstallProgressLine.TryParseLine(line, out InstallProgressLine? parsed))
+        {
+            progress.Report(parsed);
+            return parsed;
+        }
+
+        InstallerLog.Write($"ElevatedInstallWorker: unrecognized worker line: {line}");
+        return null;
     }
 
     /// <summary>
@@ -347,7 +380,10 @@ public static class ElevatedInstallWorker
         throw new OperationCanceledException(cancellationToken);
     }
 
-    private static Task<InstallOutcome> RunInstallAsync(WorkerArguments arguments, IProgress<InstallProgressLine> progress)
+    private static Task<InstallOutcome> RunInstallAsync(
+        WorkerArguments arguments,
+        IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress)
     {
         EmbeddedPayloadCatalog catalog = EmbeddedPayloadCatalog.Load();
         List<EmbeddedPayload> payloads = [];
@@ -356,7 +392,9 @@ public static class ElevatedInstallWorker
             EmbeddedPayload? payload = catalog.Find(applicationName);
             if (payload == null)
             {
+                // Nothing has been installed yet, and this application is the one that stopped the run
                 string message = Format(nameof(AppStrings.Installer_Error_PayloadMissing_Format), applicationName);
+                applicationProgress.Report(new InstallApplicationStatus(applicationName, InstallApplicationState.Failed));
                 progress.Report(InstallProgressLine.Failed(message));
                 return Task.FromResult(new InstallOutcome(Success: false, message, []));
             }
@@ -370,7 +408,7 @@ public static class ElevatedInstallWorker
             payloads,
             arguments.CreateDesktopShortcut,
             arguments.CreateStartMenuShortcut);
-        return InstallEngine.RunAsync(plan, progress, CancellationToken.None);
+        return InstallEngine.RunAsync(plan, progress, applicationProgress, CancellationToken.None);
     }
 
     /// <summary>
@@ -480,8 +518,11 @@ public static class ElevatedInstallWorker
         }
     }
 
-    /// <summary>Writes progress lines to the pipe; the engine reports from several threads.</summary>
-    private sealed class PipeProgress(TextWriter writer) : IProgress<InstallProgressLine>
+    /// <summary>
+    /// Writes progress lines and application status lines to the pipe.
+    /// The engine reports from several threads, and one gate keeps both kinds in the order they were reported.
+    /// </summary>
+    private sealed class PipeProgress(TextWriter writer) : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
     {
         // Stands in for System.Threading.Lock, which the .NET Framework does not define
         private readonly object _gate = new();
@@ -491,18 +532,14 @@ public static class ElevatedInstallWorker
         {
             FrameworkCompatibility.ThrowIfNull(value, nameof(value));
 
-            lock (_gate)
-            {
-                try
-                {
-                    writer.WriteLine(value.ToLine());
-                    if (value.IsFailure || value.IsComplete) _terminalLineWritten = true;
-                }
-                catch (Exception exception) when (exception is IOException or ObjectDisposedException)
-                {
-                    InstallerLog.Write("ElevatedInstallWorker: pipe write failed", exception);
-                }
-            }
+            WriteLine(value.ToLine(), isTerminal: value.IsFailure || value.IsComplete);
+        }
+
+        public void Report(InstallApplicationStatus value)
+        {
+            FrameworkCompatibility.ThrowIfNull(value, nameof(value));
+
+            WriteLine(value.ToLine(), isTerminal: false);
         }
 
         /// <summary>Guarantees the UI sees a terminal line even when the engine returned without one.</summary>
@@ -516,6 +553,22 @@ public static class ElevatedInstallWorker
             Report(outcome.Success
                 ? InstallProgressLine.At(InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete)))
                 : InstallProgressLine.Failed(outcome.ErrorMessage ?? L(nameof(AppStrings.Installer_Status_Failed))));
+        }
+
+        private void WriteLine(string line, bool isTerminal)
+        {
+            lock (_gate)
+            {
+                try
+                {
+                    writer.WriteLine(line);
+                    if (isTerminal) _terminalLineWritten = true;
+                }
+                catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+                {
+                    InstallerLog.Write("ElevatedInstallWorker: pipe write failed", exception);
+                }
+            }
         }
     }
     private static string L(string key) => LocalizationManager.Instance[key];

@@ -93,29 +93,48 @@ public static class ExampleMode
     }
 
     /// <summary>
-    /// Walks the same progress stages a real install reports, on a timer. Honours cancellation so the
-    /// window behaves the way it does when a real run is interrupted.
+    /// Walks the same progress stages and application states a real install reports, on a timer.
+    /// Honours cancellation so the window behaves the way it does when a real run is interrupted.
+    /// A simulated failure lands on the middle application,
+    /// so a suite run leaves applications installed before it and not installed after it.
     /// </summary>
     public static async Task<InstallOutcome> RunAsync(
         InstallPlan plan,
         IProgress<InstallProgressLine> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
         bool simulateFailure,
         CancellationToken cancellationToken)
     {
         FrameworkCompatibility.ThrowIfNull(plan, nameof(plan));
         FrameworkCompatibility.ThrowIfNull(progress, nameof(progress));
+        FrameworkCompatibility.ThrowIfNull(applicationProgress, nameof(applicationProgress));
 
         List<string> installedExecutables = [];
         if (plan.Payloads.Count == 0)
-            return Fail(L(nameof(AppStrings.Installer_Progress_NoPayloads)), progress, installedExecutables);
+        {
+            return InstallEngine.Fail(
+                L(nameof(AppStrings.Installer_Progress_NoPayloads)),
+                failedApplicationName: null,
+                progress,
+                applicationProgress,
+                installedExecutables);
+        }
 
         InstallerLog.Write($"ExampleMode: simulating a {plan.Mode} install of {plan.Payloads.Count} app(s); nothing is written");
+        int failingIndex = plan.Payloads.Count / 2;
+        // The application in flight, so an interruption is pinned to it the way the engine pins one
+        string? currentApplicationName = null;
         try
         {
             for (int index = 0; index < plan.Payloads.Count; index++)
             {
+                // Checked before the next application is reported, as the engine does
+                // A run stopped between applications therefore blames none of them
+                cancellationToken.ThrowIfCancellationRequested();
                 EmbeddedPayload payload = plan.Payloads[index];
                 ProgressSlice slice = ProgressSlice.ForIndex(index, plan.Payloads.Count);
+                currentApplicationName = payload.ApplicationName;
+                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
                 await SimulateExtractionAsync(
                     payload, slice.Portion(fromInnerPercent: 0, ExtractPortionEndPercent), progress, cancellationToken)
                     .ConfigureAwait(true);
@@ -126,20 +145,24 @@ public static class ExampleMode
                     Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
                 await Task.Delay(StageDelayMilliseconds, cancellationToken).ConfigureAwait(true);
 
-                if (simulateFailure)
+                if (simulateFailure && index == failingIndex)
                 {
-                    return Fail(
+                    return InstallEngine.Fail(
                         Format(
                             nameof(AppStrings.Installer_Error_AppInstallerExitCode_Format),
                             payload.ApplicationName,
                             SimulatedFailureExitCode),
+                        payload.ApplicationName,
                         progress,
+                        applicationProgress,
                         installedExecutables);
                 }
 
                 progress.Report(InstallProgressLine.At(installSlice.EndPercent, DescribeInstalled(plan, payload)));
                 installedExecutables.Add(
                     InstallDefaults.InstalledExecutablePath(plan.Mode, plan.TargetDirectory, payload.ApplicationName));
+                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installed));
+                currentApplicationName = null;
             }
 
             progress.Report(InstallProgressLine.At(
@@ -148,7 +171,12 @@ public static class ExampleMode
         }
         catch (OperationCanceledException)
         {
-            return Fail(L(nameof(AppStrings.Installer_Progress_Cancelled)), progress, installedExecutables);
+            return InstallEngine.Fail(
+                L(nameof(AppStrings.Installer_Progress_Cancelled)),
+                currentApplicationName,
+                progress,
+                applicationProgress,
+                installedExecutables);
         }
     }
 
@@ -200,15 +228,6 @@ public static class ExampleMode
             nameof(AppStrings.Installer_Progress_Installing_Format),
             payload.ApplicationName + " -> " + InstallDefaults.InstalledExecutablePath(
                 plan.Mode, plan.TargetDirectory, payload.ApplicationName));
-
-    private static InstallOutcome Fail(
-        string message,
-        IProgress<InstallProgressLine> progress,
-        IReadOnlyList<string> installedExecutables)
-    {
-        progress.Report(InstallProgressLine.Failed(message));
-        return new InstallOutcome(Success: false, message, installedExecutables);
-    }
 
     private static string L(string key) => LocalizationManager.Instance[key];
 

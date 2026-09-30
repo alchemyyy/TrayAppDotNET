@@ -73,7 +73,9 @@ internal static class SystemTheme
         "ProgressTrack",
         "TextOnAccent",
         "CautionBackground",
-        "CautionBorder"
+        "CautionBorder",
+        "SuccessText",
+        "CriticalText"
     ];
 
     private static ResourceDictionary? _appliedPalette;

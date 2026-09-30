@@ -150,6 +150,21 @@
   <data name="Installer_Apps_NoBatteryHint" xml:space="preserve">
     <value>No battery detected</value>
   </data>
+  <data name="Installer_Apps_State_Waiting" xml:space="preserve">
+    <value>Waiting</value>
+  </data>
+  <data name="Installer_Apps_State_Installing" xml:space="preserve">
+    <value>Installing...</value>
+  </data>
+  <data name="Installer_Apps_State_Installed" xml:space="preserve">
+    <value>Installation complete</value>
+  </data>
+  <data name="Installer_Apps_State_Failed" xml:space="preserve">
+    <value>Installation failed</value>
+  </data>
+  <data name="Installer_Apps_State_NotInstalled" xml:space="preserve">
+    <value>Not installed</value>
+  </data>
   <data name="Installer_Type_Header" xml:space="preserve">
     <value>Installation type</value>
   </data>

@@ -4,13 +4,16 @@ using Xunit;
 namespace TrayAppDotNETInstaller.Tests;
 
 /// <summary>
-/// Example mode exists so the window can be run on its own. These pin the two things that matter: the
-/// command line resolves to the layout it claims, and the simulation reports the same progress shape a real
-/// install does without touching anything.
+/// Example mode exists so the window can be run on its own.
+/// These pin the two things that matter: the command line resolves to the layout it claims,
+/// and the simulation reports the same progress shape and application states a real install does without touching anything.
 /// </summary>
 public sealed class ExampleModeTests
 {
     private const string SingleApplicationName = "VolumeTrayAppDotNET";
+    private const string FirstSuiteApplicationName = "BatteryTrayAppDotNET";
+    private const string MiddleSuiteApplicationName = "BrightnessTrayAppDotNET";
+    private const string LastSuiteApplicationName = "FanControlTrayAppDotNET";
 
     [Fact]
     public void IsRequested_IsFalseWithoutTheArgument()
@@ -92,7 +95,7 @@ public sealed class ExampleModeTests
         RecordingProgress progress = new();
 
         InstallOutcome outcome = await ExampleMode.RunAsync(
-            CreatePlan(SingleApplicationName), progress, simulateFailure: false, CancellationToken.None);
+            CreatePlan(SingleApplicationName), progress, progress, simulateFailure: false, CancellationToken.None);
 
         Assert.True(outcome.Success, outcome.ErrorMessage);
         Assert.Null(outcome.ErrorMessage);
@@ -100,6 +103,12 @@ public sealed class ExampleModeTests
         Assert.NotEmpty(progress.Lines);
         Assert.DoesNotContain(progress.Lines, line => line.IsFailure);
         Assert.Equal(InstallProgressLine.CompletePercent, progress.Lines[^1].Percent);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Installed)
+            ],
+            progress.Statuses);
 
         int previousPercent = 0;
         foreach (InstallProgressLine line in progress.Lines)
@@ -115,7 +124,7 @@ public sealed class ExampleModeTests
         RecordingProgress progress = new();
 
         InstallOutcome outcome = await ExampleMode.RunAsync(
-            CreatePlan(SingleApplicationName), progress, simulateFailure: true, CancellationToken.None);
+            CreatePlan(SingleApplicationName), progress, progress, simulateFailure: true, CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.NotNull(outcome.ErrorMessage);
@@ -124,6 +133,42 @@ public sealed class ExampleModeTests
         // The run has to get far enough to be worth looking at, but never reach the end
         Assert.NotEmpty(progress.Lines);
         Assert.DoesNotContain(progress.Lines, line => !line.IsFailure && line.Percent >= InstallProgressLine.CompletePercent);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Failed)
+            ],
+            progress.Statuses);
+    }
+
+    [Fact]
+    public async Task RunAsync_FailsASuiteOnItsMiddleApplication()
+    {
+        RecordingProgress progress = new();
+        InstallPlan plan = CreatePlan(FirstSuiteApplicationName, MiddleSuiteApplicationName, LastSuiteApplicationName);
+
+        InstallOutcome outcome = await ExampleMode.RunAsync(
+            plan, progress, progress, simulateFailure: true, CancellationToken.None);
+
+        Assert.False(outcome.Success);
+        Assert.Single(outcome.InstalledExecutables);
+        // The last application is never reached, so nothing is reported for it
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Installed),
+                new InstallApplicationStatus(MiddleSuiteApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(MiddleSuiteApplicationName, InstallApplicationState.Failed)
+            ],
+            progress.Statuses);
+
+        // What the window shows once the outcome settles the run: every final state appears at once
+        InstallApplicationTracker tracker = new([FirstSuiteApplicationName, MiddleSuiteApplicationName, LastSuiteApplicationName]);
+        foreach (InstallApplicationStatus status in progress.Statuses) tracker.Apply(status);
+        tracker.Finish(outcome.Success);
+        Assert.Equal(InstallApplicationState.Installed, tracker.StateOf(FirstSuiteApplicationName));
+        Assert.Equal(InstallApplicationState.Failed, tracker.StateOf(MiddleSuiteApplicationName));
+        Assert.Equal(InstallApplicationState.NotInstalled, tracker.StateOf(LastSuiteApplicationName));
     }
 
     [Fact]
@@ -134,10 +179,42 @@ public sealed class ExampleModeTests
         cancellation.Cancel();
 
         InstallOutcome outcome = await ExampleMode.RunAsync(
-            CreatePlan(SingleApplicationName), progress, simulateFailure: false, cancellation.Token);
+            CreatePlan(SingleApplicationName), progress, progress, simulateFailure: false, cancellation.Token);
 
         Assert.False(outcome.Success);
         Assert.True(progress.Lines[^1].IsFailure);
+        // Like the engine, a run stopped before any application started blames none of them
+        Assert.Empty(progress.Statuses);
+    }
+
+    [Fact]
+    public async Task RunAsync_PinsACancellationToTheApplicationInFlight()
+    {
+        using CancellationTokenSource cancellation = new();
+        // Cancelling the moment an application starts stops the run inside it, with no timing involved
+        RecordingProgress progress = new()
+        {
+            StatusReported = status =>
+            {
+                if (status.State == InstallApplicationState.Installing) cancellation.Cancel();
+            }
+        };
+
+        InstallOutcome outcome = await ExampleMode.RunAsync(
+            CreatePlan(FirstSuiteApplicationName, MiddleSuiteApplicationName),
+            progress,
+            progress,
+            simulateFailure: false,
+            cancellation.Token);
+
+        Assert.False(outcome.Success);
+        Assert.True(progress.Lines[^1].IsFailure);
+        Assert.Equal(
+            [
+                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Installing),
+                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Failed)
+            ],
+            progress.Statuses);
     }
 
     [Fact]
@@ -151,28 +228,48 @@ public sealed class ExampleModeTests
             CreateDesktopShortcut: false,
             CreateStartMenuShortcut: false);
 
-        InstallOutcome outcome = await ExampleMode.RunAsync(plan, progress, simulateFailure: false, CancellationToken.None);
+        InstallOutcome outcome = await ExampleMode.RunAsync(
+            plan, progress, progress, simulateFailure: false, CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.True(progress.Lines[^1].IsFailure);
+        Assert.Empty(progress.Statuses);
     }
 
-    private static InstallPlan CreatePlan(string applicationName)
+    /// <summary>A portable plan over fabricated payloads, in the order the names are given.</summary>
+    private static InstallPlan CreatePlan(params string[] applicationNames)
     {
-        using EmbeddedPayloadCatalog catalog = ExampleMode.CreateCatalog(applicationName);
+        List<EmbeddedPayload> payloads = [];
+        foreach (string applicationName in applicationNames)
+        {
+            using EmbeddedPayloadCatalog catalog = ExampleMode.CreateCatalog(applicationName);
+            payloads.AddRange(catalog.Payloads);
+        }
+
         return new InstallPlan(
             InstallMode.Portable,
             TargetDirectory: @"C:\example",
-            catalog.Payloads,
+            payloads,
             CreateDesktopShortcut: false,
             CreateStartMenuShortcut: true);
     }
 
-    /// <summary>Collects every reported line so the order and the end state can be asserted.</summary>
-    private sealed class RecordingProgress : IProgress<InstallProgressLine>
+    /// <summary>Collects every reported line and application status so the order and the end state can be asserted.</summary>
+    private sealed class RecordingProgress : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
     {
         public List<InstallProgressLine> Lines { get; } = [];
 
+        public List<InstallApplicationStatus> Statuses { get; } = [];
+
+        /// <summary>Runs after each status is recorded, so a test can react to a specific report.</summary>
+        public Action<InstallApplicationStatus>? StatusReported { get; set; }
+
         public void Report(InstallProgressLine value) => Lines.Add(value);
+
+        public void Report(InstallApplicationStatus value)
+        {
+            Statuses.Add(value);
+            StatusReported?.Invoke(value);
+        }
     }
 }
