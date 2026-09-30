@@ -13,6 +13,12 @@
     <sys:Double x:Key="FlyoutSlider.KeyboardStep">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.LargeKeyboardStep">10</sys:Double>
 
+    <!-- Optional value ticks above and below the track -->
+    <sys:Double x:Key="FlyoutSlider.TickHeight">4</sys:Double>
+    <sys:Double x:Key="FlyoutSlider.TickGap">4</sys:Double>
+    <sys:Double x:Key="FlyoutSlider.TickThickness">1</sys:Double>
+    <sys:Double x:Key="FlyoutSlider.TickOpacity">0.65</sys:Double>
+
     <!-- Preview and indicator visuals -->
     <sys:Double x:Key="FlyoutSlider.ThumbOpacity">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.PreviewOpacity">0.33</sys:Double>

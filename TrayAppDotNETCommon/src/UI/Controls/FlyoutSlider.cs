@@ -20,6 +20,10 @@ internal static class FlyoutSliderLayout
     public static double WheelStep => AXAMLResources.AxamlFlyoutSlider.WheelStep;
     public static double KeyboardStep => AXAMLResources.AxamlFlyoutSlider.KeyboardStep;
     public static double LargeKeyboardStep => AXAMLResources.AxamlFlyoutSlider.LargeKeyboardStep;
+    public static double TickHeight => AXAMLResources.AxamlFlyoutSlider.TickHeight;
+    public static double TickGap => AXAMLResources.AxamlFlyoutSlider.TickGap;
+    public static double TickThickness => AXAMLResources.AxamlFlyoutSlider.TickThickness;
+    public static double TickOpacity => AXAMLResources.AxamlFlyoutSlider.TickOpacity;
     public static double ThumbOpacity => AXAMLResources.AxamlFlyoutSlider.ThumbOpacity;
     public static double PreviewOpacity => AXAMLResources.AxamlFlyoutSlider.PreviewOpacity;
     public static double IndicatorOpacity => AXAMLResources.AxamlFlyoutSlider.IndicatorOpacity;
@@ -103,6 +107,25 @@ public sealed class FlyoutSlider : Control, IDisposable
             field = value;
             InvalidateVisual();
         }
+    }
+
+    /// <summary>Optional tick positions. Replace the collection to update the ticks.</summary>
+    public IReadOnlyList<double>? TickValues
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+    }
+
+    public Color TickColor
+    {
+        get;
+        set => SetColor(ref field, value);
     }
 
     public double? ProgressValueOverride
@@ -360,6 +383,9 @@ public sealed class FlyoutSlider : Control, IDisposable
             ? FlyoutSliderLayout.DefaultMeasureWidth
             : availableSize.Width;
         double hitHeight = FlyoutSliderLayout.TrackHeight + HitTestVerticalPadding * 2.0;
+        if (TickValues is { Count: > 0 })
+            hitHeight = Math.Max(hitHeight, FlyoutSliderLayout.TrackHeight
+                + 2 * (FlyoutSliderLayout.TickGap + FlyoutSliderLayout.TickHeight));
         double secondaryThumbHeight = SecondaryThumb?.Height ?? 0;
         double height = Math.Max(hitHeight, Math.Max(val1: 1, Math.Max(Thumb.Height, secondaryThumbHeight)));
         return new Size(width, height);
@@ -423,6 +449,7 @@ public sealed class FlyoutSlider : Control, IDisposable
                 MeterPeakColor);
         }
 
+        DrawTicks(context, width, thumbWidth, trackY);
         Rect thumb = ThumbRect(width, height, thumbWidth, thumbHeight, Value);
 
         if (PreviewValue.HasValue && IsVisibleTranslucent(PreviewOpacity))
@@ -668,6 +695,29 @@ public sealed class FlyoutSlider : Control, IDisposable
     }
 
     private double ValuePosition(double width, double value) => Math.Max(val1: 0, width) * Normalize(value);
+
+    private void DrawTicks(DrawingContext context, double width, double thumbWidth, double trackY)
+    {
+        if (TickValues is not { Count: > 0 } ticks || TickColor.A == 0) return;
+
+        double tickHeight = FlyoutSliderLayout.TickHeight;
+        double tickGap = FlyoutSliderLayout.TickGap;
+        double tickThickness = FlyoutSliderLayout.TickThickness;
+        if (tickHeight <= 0 || tickThickness <= 0) return;
+
+        Pen pen = new(new SolidColorBrush(WithOpacity(TickColor, FlyoutSliderLayout.TickOpacity)), tickThickness);
+        double topEnd = trackY - tickGap;
+        double bottomStart = trackY + FlyoutSliderLayout.TrackHeight + tickGap;
+        for (int index = 0; index < ticks.Count; index++)
+        {
+            double value = ticks[index];
+            if (!double.IsFinite(value) || value < Minimum || value > Maximum) continue;
+
+            double x = ThumbLeft(width, thumbWidth, value) + thumbWidth / 2.0;
+            context.DrawLine(pen, new Point(x, topEnd - tickHeight), new Point(x, topEnd));
+            context.DrawLine(pen, new Point(x, bottomStart), new Point(x, bottomStart + tickHeight));
+        }
+    }
 
     private Rect ThumbRect(double width, double height, double thumbWidth, double thumbHeight, double value) =>
         new(
