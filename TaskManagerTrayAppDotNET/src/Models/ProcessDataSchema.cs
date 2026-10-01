@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.UI;
-
 namespace TaskManagerTrayAppDotNET.Models;
 
 /// <summary>Compact storage map containing visible columns plus active search columns.</summary>

@@ -172,8 +172,11 @@
 
 - App startup/lifetime: `TaskManagerTrayAppDotNET/src/App.cs`, `TaskManagerTrayAppDotNET/src/Program.cs`
 - Shared settings-shell derivative: `TaskManagerTrayAppDotNET/src/UI/TaskManagerWindow.cs`
-- Painted Details table: `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs`
-- Render-thread cursor-sampled row hover: `TaskManagerTrayAppDotNET/src/UI/ProcessRowHoverVisual.cs`
+- Page folders: `TaskManagerTrayAppDotNET/src/UI/ProcessesPage` and `TaskManagerTrayAppDotNET/src/UI/Performance`
+  (namespaces follow the folders); the Services, Users, Startup apps and App history table pages stay in `src/UI`
+- Grid shared by every table (base control, row geometry, shortcut registry): `src/UI/TaskManagerGrid*.cs`
+- Painted Processes table: `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs`
+- Render-thread cursor-sampled row hover: `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessRowHoverVisual.cs`
 - Fixed-buffer process sampler: `TaskManagerTrayAppDotNET/src/Services/ProcessSnapshotService.cs`
 - Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
   `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in

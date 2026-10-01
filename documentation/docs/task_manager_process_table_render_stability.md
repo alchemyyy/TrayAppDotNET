@@ -25,7 +25,7 @@ process identity can all remain unchanged while the rasterized result changes.
 
 ## Relevant rendering path
 
-`ProcessDetailsCanvas` paints retained table layers inside a
+`ProcessTableCanvas` paints retained table layers inside a
 `SettingsScrollViewport`:
 
 1. A row's content-space top is calculated as
@@ -96,9 +96,9 @@ calculations, rebuild text, replace icons, or alter retained drawing membership.
 
 Relevant repository locations:
 
-- `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsPage.cs`
-- `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs`
-- `TaskManagerTrayAppDotNET/src/UI/ProcessViewportAnchoring.cs`
+- `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessDetailsPage.cs`
+- `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs`
+- `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessViewportAnchoring.cs`
 - `TrayAppDotNETCommon/src/UI/Controls/SettingsUI.cs`
 
 ## Why the opt-out is process-table specific

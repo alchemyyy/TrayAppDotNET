@@ -216,7 +216,7 @@ The evaluated Release package list must omit both `HotAvalonia` and `Avalonia.Ma
 
 Intentional Task Manager exceptions are marked in source:
 
-- Persisted process-column model defaults in `UI/ProcessTableLayout.cs`
+- Persisted process-column model defaults in `Models/ProcessTableColumnCatalog.cs`
 - Background tray-icon rendering style in `UI/Tray/TaskManagerTrayIcon.cs`
 - Avalonia's built-in `DashStyle.Dash` in the performance graph controls
 - Optional glyph scale/translation metadata in painted process-table sort `TextLayout` geometry

@@ -1,7 +1,6 @@
 using System.Globalization;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
-using TaskManagerTrayAppDotNET.UI;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

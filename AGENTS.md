@@ -14,6 +14,7 @@ These companion files can be found in the `.agents` folder. Read them only when 
   - `btadn`, `brtadn` mean `BrightnessTrayAppDotNET`
   - `fctadn` means `FanControlTrayAppDotNET`
   - `ntadn` means `NetworkTrayAppDotNET`
+  - `tmtadn` means `TaskManagerTrayAppDotNET`
   - `vtadn` means `VolumeTrayAppDotNET`
   - `tadnc`, `tadncommon` means `TrayAppDotNETCommon`
   - `commonize` means to consolidate into `TrayAppDotNETCommon`

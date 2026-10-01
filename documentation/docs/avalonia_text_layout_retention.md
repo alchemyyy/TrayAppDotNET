@@ -32,10 +32,11 @@ earlier draws or retired controls can accumulate until a later text operation
 is the first allocation that fails. Debug mode is where this incident was
 observed; the ownership defects are not debug-only behavior.
 
-Current `ProcessDetailsCanvas` source uses `TextLayout`, not `FormattedText`,
-and disposes transient, replaced, and owner-held layouts. If a new stack from
-that method contains `FormattedText.Draw`, first confirm that the binary and
-PDB match the current source, then check for a reintroduced call site.
+Current `ProcessTableCanvas` source, named `ProcessDetailsCanvas` when that stack
+was captured, uses `TextLayout`, not `FormattedText`, and disposes transient,
+replaced, and owner-held layouts. If a new stack from that method contains
+`FormattedText.Draw`, first confirm that the binary and PDB match the current
+source, then check for a reintroduced call site.
 
 ## Two related retention paths
 
@@ -105,7 +106,7 @@ are disposed on failure, replacement, and final owner disposal.
 
 The audited custom-drawing areas include:
 
-- `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs`
+- `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs`
 - `BrightnessTrayAppDotNET/src/UI/Settings/Environmental/EnvironmentalCurveEditor.Math.cs`
 - `BrightnessTrayAppDotNET/src/UI/Settings/Environmental/EnvironmentalCurveEditor.Rendering.cs`
 - `BrightnessTrayAppDotNET/src/UI/Settings/Environmental/EnvironmentalMapPickerCanvas.cs`

@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.UI;
-
 namespace TaskManagerTrayAppDotNET.Models;
 
 /// <summary>Right-sized structure-of-arrays snapshot with shared immutable static rows.</summary>

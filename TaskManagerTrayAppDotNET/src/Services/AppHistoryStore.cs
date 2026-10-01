@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Services;
 

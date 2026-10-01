@@ -13,7 +13,7 @@ elsewhere in the view.
 
 [Topology reader](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/CPUTopologyReader.cs)
 [Core class model](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Models/CPUCoreClassTopology.cs)
-[Detailed view](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/CPUPerformanceDetailedView.cs)
+[Detailed view](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/Performance/CPUPerformanceDetailedView.cs)
 
 ## Windows sources
 
@@ -181,7 +181,7 @@ The simulated graphs plot live utilization. Each simulated logical processor
 reads the live processor with the same index, wrapping when the simulated part
 has more threads than the machine.
 
-[Simulation](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/CPUArchitectureSimulation.cs)
+[Simulation](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/Performance/CPUArchitectureSimulation.cs)
 
 ## Verification
 

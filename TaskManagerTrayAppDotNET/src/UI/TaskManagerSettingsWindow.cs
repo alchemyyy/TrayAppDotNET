@@ -364,7 +364,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             title: "Zoom",
             description:
             "Set the text size of process rows and the other Task Manager tables. "
-            + $"{DescribeShortcut(DetailsGridShortcutAction.Zoom)} changes it from a table, and Reset returns it "
+            + $"{DescribeShortcut(TaskManagerGridShortcutAction.Zoom)} changes it from a table, and Reset returns it "
             + "to the baseline zoom.",
             () => _settings.GridFontSize,
             value => _settings.GridFontSize = value,
@@ -381,7 +381,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             title: "Baseline zoom",
             description:
             "Set the text size that Reset zoom returns to. "
-            + $"{DescribeShortcut(DetailsGridShortcutAction.SetZoomBaseline)} makes the current zoom the "
+            + $"{DescribeShortcut(TaskManagerGridShortcutAction.SetZoomBaseline)} makes the current zoom the "
             + "baseline from a table.",
             () => _settings.GridFontSizeBaseline,
             value => _settings.GridFontSizeBaseline = value,
@@ -398,8 +398,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             title: "Stretch",
             description:
             "Set the visible gap between table rows. "
-            + $"{DescribeShortcut(DetailsGridShortcutAction.Stretch)} changes it from a table, and Reset returns it "
-            + "to the baseline stretch.",
+            + $"{DescribeShortcut(TaskManagerGridShortcutAction.Stretch)} changes it from a table, and Reset returns "
+            + "it to the baseline stretch.",
             () => _settings.GridRowSpacing,
             value => _settings.GridRowSpacing = value,
             () => _settings.GridRowSpacingBaseline,
@@ -415,7 +415,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             title: "Baseline stretch",
             description:
             "Set the row spacing that Reset stretch returns to. "
-            + $"{DescribeShortcut(DetailsGridShortcutAction.SetStretchBaseline)} makes the current stretch the "
+            + $"{DescribeShortcut(TaskManagerGridShortcutAction.SetStretchBaseline)} makes the current stretch the "
             + "baseline from a table.",
             () => _settings.GridRowSpacingBaseline,
             value => _settings.GridRowSpacingBaseline = value,
@@ -435,7 +435,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             _settings.GridFontWeight.ToString(),
             tag =>
             {
-                if (Enum.TryParse(tag, out DetailsGridFontWeight value))
+                if (Enum.TryParse(tag, out TaskManagerGridFontWeight value))
                     _settings.GridFontWeight = value;
             },
             palette,
@@ -475,7 +475,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             _settings.LiveTotalFontWeight.ToString(),
             tag =>
             {
-                if (Enum.TryParse(tag, out DetailsGridFontWeight value))
+                if (Enum.TryParse(tag, out TaskManagerGridFontWeight value))
                     _settings.LiveTotalFontWeight = value;
             },
             palette,
@@ -519,9 +519,9 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         SettingsPalette palette = Palette;
         StackPanel stack = PageStack(title: "Hotkeys", palette);
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Tables", palette));
-        foreach (DetailsGridShortcutAction action in Enum.GetValues<DetailsGridShortcutAction>())
+        foreach (TaskManagerGridShortcutAction action in Enum.GetValues<TaskManagerGridShortcutAction>())
         {
-            if (action == DetailsGridShortcutAction.None) continue;
+            if (action == TaskManagerGridShortcutAction.None) continue;
 
             string gestures = DescribeShortcut(action, ShortcutGestureSeparator);
             if (gestures.Length == 0) continue;
@@ -529,8 +529,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             TextBlock gestureText = TrayAppDotNETSettingsUI.Text(gestures, palette);
             gestureText.TextAlignment = TextAlignment.Right;
             stack.Children.Add(Card(
-                DetailsGridShortcuts.GetTitle(action),
-                DetailsGridShortcuts.GetDescription(action),
+                TaskManagerGridShortcuts.GetTitle(action),
+                TaskManagerGridShortcuts.GetDescription(action),
                 gestureText,
                 palette,
                 searchKeywords: [gestures, "shortcut hotkey mouse wheel middle click keyboard"]));
@@ -540,12 +540,12 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     }
 
     /// <summary>Formats every registered gesture that performs an action, for example "Ctrl + Mouse wheel".</summary>
-    private static string DescribeShortcut(DetailsGridShortcutAction action, string separator = " or ")
+    private static string DescribeShortcut(TaskManagerGridShortcutAction action, string separator = " or ")
     {
         List<string> gestures = [];
-        foreach (DetailsGridShortcut shortcut in DetailsGridShortcuts.All)
+        foreach (TaskManagerGridShortcut shortcut in TaskManagerGridShortcuts.All)
         {
-            if (shortcut.Action == action) gestures.Add(DetailsGridShortcuts.FormatGesture(shortcut));
+            if (shortcut.Action == action) gestures.Add(TaskManagerGridShortcuts.FormatGesture(shortcut));
         }
 
         return string.Join(separator, gestures);
@@ -553,16 +553,16 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
     private static IReadOnlyList<(string Tag, string Text)> FontWeightItems() =>
     [
-        (nameof(DetailsGridFontWeight.Thin), "Thin"),
-        (nameof(DetailsGridFontWeight.ExtraLight), "Extra light"),
-        (nameof(DetailsGridFontWeight.Light), "Light"),
-        (nameof(DetailsGridFontWeight.SemiLight), "Semi-light"),
-        (nameof(DetailsGridFontWeight.Normal), "Normal"),
-        (nameof(DetailsGridFontWeight.Medium), "Medium"),
-        (nameof(DetailsGridFontWeight.SemiBold), "Semi-bold"),
-        (nameof(DetailsGridFontWeight.Bold), "Bold"),
-        (nameof(DetailsGridFontWeight.ExtraBold), "Extra bold"),
-        (nameof(DetailsGridFontWeight.Black), "Black")
+        (nameof(TaskManagerGridFontWeight.Thin), "Thin"),
+        (nameof(TaskManagerGridFontWeight.ExtraLight), "Extra light"),
+        (nameof(TaskManagerGridFontWeight.Light), "Light"),
+        (nameof(TaskManagerGridFontWeight.SemiLight), "Semi-light"),
+        (nameof(TaskManagerGridFontWeight.Normal), "Normal"),
+        (nameof(TaskManagerGridFontWeight.Medium), "Medium"),
+        (nameof(TaskManagerGridFontWeight.SemiBold), "Semi-bold"),
+        (nameof(TaskManagerGridFontWeight.Bold), "Bold"),
+        (nameof(TaskManagerGridFontWeight.ExtraBold), "Extra bold"),
+        (nameof(TaskManagerGridFontWeight.Black), "Black")
     ];
 
     /// <summary>Keeps a resettable card in step with its settings until the page that owns it is torn down.</summary>

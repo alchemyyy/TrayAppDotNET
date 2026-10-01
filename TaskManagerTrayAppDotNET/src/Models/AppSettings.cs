@@ -23,7 +23,7 @@ public enum CPUPerformanceGraphView
     DetailedView
 }
 
-public enum DetailsGridFontWeight
+public enum TaskManagerGridFontWeight
 {
     Thin = 100,
     ExtraLight = 200,
@@ -230,11 +230,11 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, NormalizeGridFontSize(value));
     } = GridFontSizeDefault;
 
-    public DetailsGridFontWeight GridFontWeight
+    public TaskManagerGridFontWeight GridFontWeight
     {
         get;
         set => SetField(ref field, NormalizeGridFontWeight(value));
-    } = DetailsGridFontWeight.Normal;
+    } = TaskManagerGridFontWeight.Normal;
 
     /// <summary>Retains absolute row height for compatibility with older settings files.</summary>
     public int GridRowHeight
@@ -276,11 +276,11 @@ public sealed class AppSettings : AppSettingsCommon
     } = LiveTotalFontSizeDefault;
 
     /// <summary>Gets the font weight of the live totals drawn in Processes column headers.</summary>
-    public DetailsGridFontWeight LiveTotalFontWeight
+    public TaskManagerGridFontWeight LiveTotalFontWeight
     {
         get;
         set => SetField(ref field, NormalizeGridFontWeight(value));
-    } = DetailsGridFontWeight.Normal;
+    } = TaskManagerGridFontWeight.Normal;
 
     /// <summary>Gets the horizontal scale that narrows live-total text; 1 draws it unscaled.</summary>
     public double LiveTotalHorizontalScale
@@ -613,8 +613,8 @@ public sealed class AppSettings : AppSettingsCommon
             ? Math.Clamp(value, LiveTotalTextGapMinimum, LiveTotalTextGapMaximum)
             : LiveTotalTextGapDefault;
 
-    internal static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
-        Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
+    internal static TaskManagerGridFontWeight NormalizeGridFontWeight(TaskManagerGridFontWeight value) =>
+        Enum.IsDefined(value) ? value : TaskManagerGridFontWeight.Normal;
 
     private static TrayGraphStyle NormalizeTrayGraphStyle(TrayGraphStyle value) =>
         Enum.IsDefined(value) ? value : TrayGraphStyle.Marquee;

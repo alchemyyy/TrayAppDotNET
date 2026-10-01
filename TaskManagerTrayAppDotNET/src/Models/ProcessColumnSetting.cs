@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Xml.Serialization;
-using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Models;
 

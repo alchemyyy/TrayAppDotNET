@@ -10,6 +10,8 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
+using TaskManagerTrayAppDotNET.UI.Performance;
+using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -961,7 +963,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 or SettingsButton
                 or SettingsToggle
                 or SettingsNavItem
-                or ProcessSavedSearchController.InsetGlyphButton)
+                or InsetGlyphButton)
                 return true;
             current = current.GetVisualParent();
         }

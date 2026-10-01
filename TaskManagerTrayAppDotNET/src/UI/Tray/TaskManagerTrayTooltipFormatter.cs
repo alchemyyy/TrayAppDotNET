@@ -1,5 +1,5 @@
 using System.Globalization;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.Performance;
 
 namespace TaskManagerTrayAppDotNET.UI.Tray;
 

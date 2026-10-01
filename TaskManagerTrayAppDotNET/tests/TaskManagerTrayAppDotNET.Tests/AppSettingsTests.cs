@@ -1,5 +1,5 @@
 using TaskManagerTrayAppDotNET.Models;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using TrayAppDotNETCommon.Models;
 using Xunit;
 
@@ -201,18 +201,18 @@ public sealed class AppSettingsTests
     {
         AppSettings settings = new() { Autosave = false };
         Assert.Equal(AppSettings.LiveTotalFontSizeDefault, settings.LiveTotalFontSize);
-        Assert.Equal(DetailsGridFontWeight.Normal, settings.LiveTotalFontWeight);
+        Assert.Equal(TaskManagerGridFontWeight.Normal, settings.LiveTotalFontWeight);
         Assert.Equal(AppSettings.LiveTotalHorizontalScaleDefault, settings.LiveTotalHorizontalScale);
         Assert.Equal(AppSettings.LiveTotalTextGapDefault, settings.LiveTotalTextGap);
         Assert.False(settings.ShowLiveTotalsAboveColumnNames);
         Assert.Equal(ProcessLiveTotalAppearance.Default, ProcessLiveTotalAppearance.FromSettings(settings));
 
         settings.LiveTotalFontSize = AppSettings.LiveTotalFontSizeMaximum + 10;
-        settings.LiveTotalFontWeight = (DetailsGridFontWeight)1;
+        settings.LiveTotalFontWeight = (TaskManagerGridFontWeight)1;
         settings.LiveTotalHorizontalScale = 0;
         settings.LiveTotalTextGap = double.PositiveInfinity;
         Assert.Equal(AppSettings.LiveTotalFontSizeMaximum, settings.LiveTotalFontSize);
-        Assert.Equal(DetailsGridFontWeight.Normal, settings.LiveTotalFontWeight);
+        Assert.Equal(TaskManagerGridFontWeight.Normal, settings.LiveTotalFontWeight);
         Assert.Equal(AppSettings.LiveTotalHorizontalScaleMinimum, settings.LiveTotalHorizontalScale);
         Assert.Equal(AppSettings.LiveTotalTextGapDefault, settings.LiveTotalTextGap);
 
@@ -220,7 +220,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.LiveTotalFontSize = 11;
-            settings.LiveTotalFontWeight = DetailsGridFontWeight.SemiBold;
+            settings.LiveTotalFontWeight = TaskManagerGridFontWeight.SemiBold;
             settings.LiveTotalHorizontalScale = 0.9;
             settings.LiveTotalTextGap = 6;
             settings.ShowLiveTotalsAboveColumnNames = true;
@@ -232,7 +232,7 @@ public sealed class AppSettingsTests
             Assert.Equal(
                 new ProcessLiveTotalAppearance(
                     FontSize: 11,
-                    DetailsGridFontWeight.SemiBold,
+                    TaskManagerGridFontWeight.SemiBold,
                     HorizontalScale: 0.9,
                     TextGap: 6,
                     ShowAboveColumnNames: true),
@@ -962,17 +962,17 @@ public sealed class AppSettingsTests
     public void GridFontWeightDefaultsToNormalAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };
-        Assert.Equal(DetailsGridFontWeight.Normal, settings.GridFontWeight);
+        Assert.Equal(TaskManagerGridFontWeight.Normal, settings.GridFontWeight);
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.GridFontWeight = DetailsGridFontWeight.SemiBold;
+            settings.GridFontWeight = TaskManagerGridFontWeight.SemiBold;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
-            Assert.Equal(DetailsGridFontWeight.SemiBold, loaded.GridFontWeight);
+            Assert.Equal(TaskManagerGridFontWeight.SemiBold, loaded.GridFontWeight);
         }
         finally
         {

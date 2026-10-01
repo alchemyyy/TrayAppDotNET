@@ -1,6 +1,6 @@
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.Performance;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

@@ -6,7 +6,7 @@ piggybacks on the process snapshot already required by the grid, while Network
 uses the private SRUM real-time API used by Windows Task Manager.
 
 [Process snapshot service](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/ProcessSnapshotService.cs)
-[Process table](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs)
+[Process table](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs)
 
 ## What makes a column active
 

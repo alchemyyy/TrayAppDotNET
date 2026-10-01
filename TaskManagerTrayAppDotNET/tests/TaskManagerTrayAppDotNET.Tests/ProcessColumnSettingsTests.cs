@@ -1,5 +1,4 @@
 using TaskManagerTrayAppDotNET.Models;
-using TaskManagerTrayAppDotNET.UI;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

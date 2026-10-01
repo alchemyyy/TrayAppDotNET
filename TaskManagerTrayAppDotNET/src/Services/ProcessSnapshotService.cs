@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia.Threading;
-using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Services;
 

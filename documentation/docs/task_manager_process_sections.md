@@ -166,5 +166,5 @@ Defender engine were listed there too.
 
 `ProcessImagePathResolverTests` covers the device-to-drive mapping and reads the
 paths of the test process and of `smss.exe` without a handle.
-`ProcessDetailsCanvasSemanticGroupTests` checks the sections with the option on
+`ProcessTableCanvasSemanticGroupTests` checks the sections with the option on
 and off, and `AppSettingsTests` checks its default and persistence.

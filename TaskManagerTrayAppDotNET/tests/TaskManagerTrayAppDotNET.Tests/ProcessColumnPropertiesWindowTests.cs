@@ -4,7 +4,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
 

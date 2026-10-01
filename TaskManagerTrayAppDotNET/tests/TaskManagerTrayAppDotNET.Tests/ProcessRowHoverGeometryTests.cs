@@ -1,5 +1,5 @@
 using Avalonia;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

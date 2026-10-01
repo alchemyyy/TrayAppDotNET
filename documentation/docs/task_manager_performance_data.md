@@ -165,5 +165,5 @@ ordered rows. [Ordering rules](https://github.com/alchemyyy/TrayAppDotNET/blob/m
 When a device disappears, its row and graph history are removed. Its persisted
 order ID is retained so it can recover its previous position if the device
 returns. Presentation formatting is separate from sampling and does not alter
-the measured values. [Page integration](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/PerformancePage.cs)
-[Presentation mapping](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/PerformanceDevicePresentation.cs)
+the measured values. [Page integration](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/Performance/PerformancePage.cs)
+[Presentation mapping](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/Performance/PerformanceDevicePresentation.cs)

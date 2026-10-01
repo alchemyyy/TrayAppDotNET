@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.UI;
-
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Projects process snapshots into interactive user-session groups.</summary>

@@ -21,9 +21,9 @@ Use this for tray icon flicker, stale tooltip, hover scroll failures, shell noti
   - `VolumeTrayAppDotNET/src/UI/Flyout`
   - `FanControlTrayAppDotNET/src/UI/Flyout`
 - Render-thread process-row hover:
-  - `TaskManagerTrayAppDotNET/src/UI/ProcessRowHoverVisual.cs`
-  - `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsCanvas.cs`
-  - `TaskManagerTrayAppDotNET/src/UI/ProcessDetailsPage.cs`
+  - `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessRowHoverVisual.cs`
+  - `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs`
+  - `TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessDetailsPage.cs`
   - `TrayAppDotNETCommon/src/Interop/User32.cs`
 
 ## Rules
@@ -62,7 +62,7 @@ run in a `CompositionCustomVisualHandler`.
 
 ### Task Manager Architecture
 
-1. `ProcessDetailsCanvas` publishes immutable `ProcessRowHoverGeometry` only when structural state changes. That state
+1. `ProcessTableCanvas` publishes immutable `ProcessRowHoverGeometry` only when structural state changes. That state
    contains the table viewport, visible row count, header and row heights, sticky-header position, and whether row
    hover is currently enabled.
 2. `ProcessDetailsPage` passes the geometry to the non-hit-testable `ProcessRowHoverVisual` overlay.

@@ -1,5 +1,5 @@
 using Avalonia.Media;
-using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.Performance;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

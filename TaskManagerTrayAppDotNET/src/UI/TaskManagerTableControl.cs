@@ -7,7 +7,7 @@ using TaskManagerTrayAppDotNET.Services;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Paints structured rows for the non-Processes Task Manager table pages.</summary>
-internal sealed class TaskManagerTableControl : DetailsGridControl
+internal sealed class TaskManagerTableControl : TaskManagerGridControl
 {
     private const int MaximumTextLayoutCharacters = 2_048;
     private const string TextEllipsis = "\u2026";
@@ -16,7 +16,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     private readonly TaskManagerTableSchema _schema;
     private readonly ProcessIconService _processIconService;
     private readonly TaskManagerWindowResources _resources;
-    private readonly DetailsGridFontWeight _baseFontWeight;
+    private readonly TaskManagerGridFontWeight _baseFontWeight;
     private readonly FontFamily _fontFamily;
     private readonly double _rowTextHeightScale;
     private readonly IBrush _backgroundBrush;
@@ -135,7 +135,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     /// <summary>Attaches process-wide notifications after the owning page is fully constructed.</summary>
     internal void AttachExternalSubscriptions()
     {
-        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
         if (_externalSubscriptionsAttached) return;
 
         _processIconService.IconsChanged += OnIconsChanged;
@@ -151,20 +151,20 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         _processIconService.IconsChanged -= OnIconsChanged;
     }
 
-    protected override int DetailsGridRowCount => _visibleRows.Count;
-    protected override double DetailsGridHeaderHeight => _headerHeight;
-    protected override double DetailsGridRowHeight => _rowHeight;
-    protected override double DetailsGridFontSize => _fontSize;
+    protected override int TaskManagerGridRowCount => _visibleRows.Count;
+    protected override double TaskManagerGridHeaderHeight => _headerHeight;
+    protected override double TaskManagerGridRowHeight => _rowHeight;
+    protected override double TaskManagerGridFontSize => _fontSize;
 
-    protected override double DetailsGridDefaultViewportHeight =>
+    protected override double TaskManagerGridDefaultViewportHeight =>
         _resources.AxamlProcessTable.DefaultViewportHeight;
 
-    protected override bool CanResetDetailsGridZoom => _resizingColumnIndex < 0;
+    protected override bool CanResetTaskManagerGridZoom => _resizingColumnIndex < 0;
 
     /// <summary>Replaces all rows while preserving compatible sort, expansion, and selection state.</summary>
     public void SetRows(IReadOnlyList<TaskManagerTableRow> rows)
     {
-        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
         ArgumentNullException.ThrowIfNull(rows);
 
         _sourceRows.Clear();
@@ -184,7 +184,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     /// <summary>Filters against all display cells while retaining matching parent groups.</summary>
     public void SetFilter(string? filterText)
     {
-        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
         string nextFilter = filterText?.Trim() ?? string.Empty;
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
@@ -195,7 +195,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     /// <summary>Updates live aggregate text in a column header without rebuilding rows.</summary>
     public void SetColumnTitle(int columnIndex, string title)
     {
-        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
         if ((uint)columnIndex >= (uint)_columnTitles.Length)
             throw new ArgumentOutOfRangeException(nameof(columnIndex));
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -208,18 +208,18 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     /// <summary>Applies the shared grid font and visible row spacing settings.</summary>
     public void SetGridTypography(double fontSize, double rowSpacing)
     {
-        double rowTextHeight = ProcessTableLayout.CalculateRowTextHeight(
+        double rowTextHeight = TaskManagerGridLayout.CalculateRowTextHeight(
             fontSize,
             _rowTextHeightScale);
         SetGridMetrics(
             fontSize,
-            ProcessTableLayout.CalculateRowHeight(rowTextHeight, rowSpacing));
+            TaskManagerGridLayout.CalculateRowHeight(rowTextHeight, rowSpacing));
     }
 
     /// <summary>Selects a stable row key, or clears the selection when the key is absent.</summary>
     public void SelectRow(string? rowKey)
     {
-        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
 #if DEBUG
         _hotReloadPendingSelectedRowKey = null;
 #endif
@@ -297,7 +297,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             : contentWidth;
         return new Size(
             width,
-            DetailsGridLayout.GetContentHeight(_visibleRows.Count, _headerHeight, _rowHeight));
+            TaskManagerGridLayout.GetContentHeight(_visibleRows.Count, _headerHeight, _rowHeight));
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -310,12 +310,12 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        if (IsDetailsGridDisposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        if (IsTaskManagerGridDisposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
-        Rect viewport = ResolveDetailsGridViewport();
+        Rect viewport = ResolveTaskManagerGridViewport();
         double stickyHeaderTop = ResolveStickyHeaderTop(viewport);
-        DetailsGridLayout.GetVisibleRowRange(
+        TaskManagerGridLayout.GetVisibleRowRange(
             viewport,
             _visibleRows.Count,
             _headerHeight,
@@ -332,11 +332,11 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
     {
         base.OnPointerPressed(eventArgs);
-        if (eventArgs.Handled || IsDetailsGridDisposed) return;
+        if (eventArgs.Handled || IsTaskManagerGridDisposed) return;
 
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
         Point position = eventArgs.GetPosition(this);
-        Rect viewport = ResolveDetailsGridViewport();
+        Rect viewport = ResolveTaskManagerGridViewport();
         double headerTop = ResolveStickyHeaderTop(viewport);
         bool isHeader = position.Y >= headerTop && position.Y < headerTop + _headerHeight;
         if (pointerPoint.Properties.IsLeftButtonPressed && isHeader)
@@ -406,7 +406,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             return;
         }
 
-        Rect viewport = ResolveDetailsGridViewport();
+        Rect viewport = ResolveTaskManagerGridViewport();
         double headerTop = ResolveStickyHeaderTop(viewport);
         bool isHeader = position.Y >= headerTop && position.Y < headerTop + _headerHeight;
         int nextHeaderColumn = isHeader ? HitTestColumn(position.X) : -1;
@@ -500,7 +500,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
         eventArgs.Handled = true;
     }
 
-    protected override void ApplyDetailsGridMetrics(double fontSize, double rowHeight)
+    protected override void ApplyTaskManagerGridMetrics(double fontSize, double rowHeight)
     {
         _fontSize = fontSize;
         _rowHeight = rowHeight;
@@ -511,23 +511,23 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             fontWeight));
     }
 
-    protected override void OnDetailsGridMetricsChanged()
+    protected override void OnTaskManagerGridMetricsChanged()
     {
         InvalidateMeasure();
         InvalidateVisual();
     }
 
-    protected override bool RebuildDetailsGridZoomRow(int rowIndex) => false;
+    protected override bool RebuildTaskManagerGridZoomRow(int rowIndex) => false;
 
-    protected override void CommitDetailsGridRetainedRange(int firstRow, int lastRowExclusive)
+    protected override void CommitTaskManagerGridRetainedRange(int firstRow, int lastRowExclusive)
     {
     }
 
-    protected override void InvalidateDetailsGridRows() => InvalidateVisual();
+    protected override void InvalidateTaskManagerGridRows() => InvalidateVisual();
 
-    protected override void OnDetailsGridViewportChanged() => InvalidateVisual();
+    protected override void OnTaskManagerGridViewportChanged() => InvalidateVisual();
 
-    protected override void DisposeDetailsGridResources()
+    protected override void DisposeTaskManagerGridResources()
     {
         DetachExternalSubscriptions();
         _capturedResizePointer?.Capture(null);
@@ -832,7 +832,7 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
             || (position.Y >= headerTop && position.Y < headerTop + _headerHeight))
             return -1;
 
-        return DetailsGridLayout.HitTestRow(
+        return TaskManagerGridLayout.HitTestRow(
             position.Y,
             _visibleRows.Count,
             _headerHeight,
@@ -895,11 +895,11 @@ internal sealed class TaskManagerTableControl : DetailsGridControl
 
     private void OnIconsChanged()
     {
-        if (!IsDetailsGridDisposed) InvalidateVisual();
+        if (!IsTaskManagerGridDisposed) InvalidateVisual();
     }
 
     private int CalculateFontWeight(double fontSize) =>
-        ProcessTableLayout.CalculateZoomFontWeight(
+        TaskManagerGridLayout.CalculateZoomFontWeight(
             _baseFontWeight,
             AppSettings.GridFontSizeDefault,
             fontSize);

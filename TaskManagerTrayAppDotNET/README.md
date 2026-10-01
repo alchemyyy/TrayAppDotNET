@@ -33,7 +33,7 @@ End task is independent of the sampler and pre-opens handles when a process is s
 ### Render-thread row hover
 
 Process-row hover is a non-hit-testable `CompositionCustomVisual`, not a UI-thread pointer-event effect.
-`ProcessDetailsCanvas` publishes immutable table geometry only when structural table state changes.
+`ProcessTableCanvas` publishes immutable table geometry only when structural table state changes.
 `ProcessRowHoverVisual` also resends its client origin and render scaling after arrange or DPI changes. Its composition
 animation callback samples `GetCursorPos`, validates the owning HWND with `WindowFromPoint` and `GetAncestor`, converts
 screen pixels through `ScreenToClient` and `TopLevel.RenderScaling`, and performs arithmetic row hit-testing on the
@@ -42,8 +42,8 @@ render thread. It invalidates only the old and new row rectangles and samples ag
 This keeps decorative row feedback moving during a brief Avalonia UI-thread stall. Selection, clicks, header input,
 and accessibility remain on the normal UI path. The sampling clock runs only while the window is visible and not
 minimized. `GPUPreferred` is the default rendering backend; software rendering remains an explicit fallback option.
-The implementation is in `src/UI/ProcessRowHoverVisual.cs`, with geometry produced by
-`src/UI/ProcessDetailsCanvas.cs`. The full design and verification checklist are in
+The implementation is in `src/UI/ProcessesPage/ProcessRowHoverVisual.cs`, with geometry produced by
+`src/UI/ProcessesPage/ProcessTableCanvas.cs`. The full design and verification checklist are in
 `../.agents/UI_TRAY_PLAYBOOK.md`.
 
 ## Termination path
