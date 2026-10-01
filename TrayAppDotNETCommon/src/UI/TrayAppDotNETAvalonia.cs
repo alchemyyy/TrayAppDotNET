@@ -281,7 +281,8 @@ public static class TrayAppDotNETAvalonia
             string settingsPath = options.GetSettingsPath();
             bool firstRun = !File.Exists(settingsPath);
             settings = options.LoadSettings(settingsPath);
-            if (firstRun)
+            // The startup shortcut is shared by every settings folder, so a fresh override folder leaves it alone
+            if (firstRun && TrayAppDotNETProgram.SettingsDirectoryOverride == null)
                 options.Startup?.SetRunOnStartup(options.GetRunOnStartup(settings));
         }
         catch (Exception ex)

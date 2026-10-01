@@ -338,11 +338,11 @@ internal static class UpdateInstaller
             switch (workerExitCode)
             {
                 case SuccessExitCode:
-                    StartApplications(restartExecutables, log);
+                    StartApplications(restartExecutables, targetExecutable, log);
                     ScheduleCleanup(sourceDirectory, archivePath, log);
                     return SuccessExitCode;
                 case RolledBackExitCode:
-                    StartApplications(restartExecutables, log);
+                    StartApplications(restartExecutables, targetExecutable, log);
                     ShowUpdateError(
                         options.ApplicationName,
                         "The update could not be installed. The previous version was restored and restarted.\n\n"
@@ -360,7 +360,7 @@ internal static class UpdateInstaller
                         + $"Recovery files and details were preserved at: {sourceDirectory}\n{logPath}");
                     return UnsafeFailureExitCode;
                 default:
-                    StartApplications(restartExecutables, log);
+                    StartApplications(restartExecutables, targetExecutable, log);
                     ShowUpdateError(
                         options.ApplicationName,
                         "The update worker failed before completing the installation.\n\n"
@@ -423,6 +423,9 @@ internal static class UpdateInstaller
         AddArgument(startInfo, argument: "--target", targetExecutable);
         AddArgument(startInfo, argument: "--archive", archivePath);
         AddArgument(startInfo, argument: "--log", logPath);
+        // The restarter applies the override to itself and passes it on when it restarts the target
+        if (TrayAppDotNETProgram.SettingsDirectoryOverride is { } settingsDirectory)
+            AddArgument(startInfo, TrayAppDotNETProgram.SettingsDirectoryArgument, settingsDirectory);
         return startInfo;
     }
 
@@ -638,8 +641,16 @@ internal static class UpdateInstaller
         return [.. executables.Order(StringComparer.OrdinalIgnoreCase)];
     }
 
-    private static void StartApplications(IReadOnlyList<string> executables, Action<string> log)
+    /// <summary>
+    /// Restarts the stopped apps. Only <paramref name="targetExecutable"/> gets the settings folder override, since
+    /// the sibling apps' command lines are not known.
+    /// </summary>
+    private static void StartApplications(
+        IReadOnlyList<string> executables,
+        string targetExecutable,
+        Action<string> log)
     {
+        string? settingsDirectory = TrayAppDotNETProgram.SettingsDirectoryOverride;
         foreach (string executable in executables)
         {
             try
@@ -658,6 +669,9 @@ internal static class UpdateInstaller
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
+                if (settingsDirectory != null
+                    && string.Equals(executable, targetExecutable, StringComparison.OrdinalIgnoreCase))
+                    AddArgument(startInfo, TrayAppDotNETProgram.SettingsDirectoryArgument, settingsDirectory);
                 using Process? process = Process.Start(startInfo);
                 log(process == null
                     ? $"Process.Start returned null for {executable}"

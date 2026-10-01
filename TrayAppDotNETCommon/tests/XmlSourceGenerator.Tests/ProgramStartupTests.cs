@@ -90,7 +90,7 @@ public sealed class ProgramStartupTests
         string[] args = ["--hidden", "--monitored", "--watcher-pid", "12", "--AUTOSTART"];
         string[] expected = [TrayAppDotNETProgram.AutostartArgument, TrayAppDotNETProgram.HiddenArgument];
 
-        IReadOnlyList<string> forwarded = TrayAppDotNETProgram.SelectForwardedLaunchArguments(args);
+        IReadOnlyList<string> forwarded = TrayAppDotNETProgram.SelectForwardedLaunchArguments(args, settingsDirectory: null);
 
         Assert.Equal(expected, forwarded);
     }
@@ -98,8 +98,122 @@ public sealed class ProgramStartupTests
     [Fact]
     public void ForwardedLaunchArgumentsAreEmptyForAManualStart()
     {
-        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments([]));
-        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments(["--monitored", "--watcher-pid", "12"]));
+        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments([], settingsDirectory: null));
+        Assert.Empty(TrayAppDotNETProgram.SelectForwardedLaunchArguments(
+            ["--monitored", "--watcher-pid", "12"],
+            settingsDirectory: null));
+    }
+
+    [Fact]
+    public void ForwardedLaunchArgumentsCarryTheResolvedSettingsDirectoryLast()
+    {
+        const string SettingsDirectory = @"D:\Portable Settings\Volume";
+        string[] args = ["--settings-dir", @"relative\folder", "--hidden"];
+        string[] expected =
+        [
+            TrayAppDotNETProgram.HiddenArgument,
+            TrayAppDotNETProgram.SettingsDirectoryArgument,
+            SettingsDirectory
+        ];
+
+        IReadOnlyList<string> forwarded = TrayAppDotNETProgram.SelectForwardedLaunchArguments(args, SettingsDirectory);
+
+        Assert.Equal(expected, forwarded);
+    }
+
+    [Fact]
+    public void SettingsDirectoryIsAbsentWithoutTheArgument()
+    {
+        bool resolved = TrayAppDotNETProgram.TryResolveSettingsDirectory(
+            ["--hidden"],
+            out string? settingsDirectory,
+            out string? errorMessage);
+
+        Assert.True(resolved);
+        Assert.Null(settingsDirectory);
+        Assert.Null(errorMessage);
+    }
+
+    [Theory]
+    [InlineData(@"D:\Settings\Volume", @"D:\Settings\Volume")]
+    [InlineData(@"D:\Settings\Volume\", @"D:\Settings\Volume")]
+    [InlineData("D:\\Settings\\Volume\"", @"D:\Settings\Volume")]
+    [InlineData(@"D:\Settings\..\Other", @"D:\Other")]
+    [InlineData(@"D:\", @"D:\")]
+    public void SettingsDirectoryResolvesToAnAbsoluteFolder(string value, string expected)
+    {
+        bool resolved = TrayAppDotNETProgram.TryResolveSettingsDirectory(
+            ["--SETTINGS-DIR", value],
+            out string? settingsDirectory,
+            out string? errorMessage);
+
+        Assert.True(resolved, errorMessage);
+        Assert.Equal(expected, settingsDirectory);
+    }
+
+    [Fact]
+    public void RelativeSettingsDirectoryResolvesAgainstTheWorkingDirectory()
+    {
+        string expected = Path.Combine(Environment.CurrentDirectory, path2: "portable", path3: "settings");
+
+        bool resolved = TrayAppDotNETProgram.TryResolveSettingsDirectory(
+            ["--settings-dir", @"portable\settings"],
+            out string? settingsDirectory,
+            out string? errorMessage);
+
+        Assert.True(resolved, errorMessage);
+        Assert.Equal(expected, settingsDirectory);
+    }
+
+    [Fact]
+    public void SettingsDirectoryExpandsEnvironmentVariables()
+    {
+        string expected = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            path2: "Custom");
+
+        bool resolved = TrayAppDotNETProgram.TryResolveSettingsDirectory(
+            ["--settings-dir", @"%LOCALAPPDATA%\Custom"],
+            out string? settingsDirectory,
+            out string? errorMessage);
+
+        Assert.True(resolved, errorMessage);
+        Assert.Equal(expected, settingsDirectory);
+    }
+
+    [Theory]
+    [InlineData("--settings-dir")]
+    [InlineData("--settings-dir", "")]
+    [InlineData("--settings-dir", "  ")]
+    [InlineData("--settings-dir", "--hidden")]
+    [InlineData("--settings-dir", "my settings\" --hidden")]
+    [InlineData("--settings-dir", @"D:\Settings\<name>")]
+    [InlineData("--settings-dir", @"D:\Settings\*")]
+    [InlineData("--settings-dir", "D:\\Settings\tTab")]
+    public void SettingsDirectoryWithoutAUsablePathIsRejected(params string[] args)
+    {
+        bool resolved = TrayAppDotNETProgram.TryResolveSettingsDirectory(
+            args,
+            out string? settingsDirectory,
+            out string? errorMessage);
+
+        Assert.False(resolved);
+        Assert.Null(settingsDirectory);
+        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+    }
+
+    [Theory]
+    [InlineData(@"--hidden", @"--hidden")]
+    [InlineData(@"D:\Settings", @"D:\Settings")]
+    [InlineData(@"D:\Portable Settings", "\"D:\\Portable Settings\"")]
+    [InlineData(@"D:\Portable Settings\", "\"D:\\Portable Settings\\\\\"")]
+    [InlineData(@"D:\", @"D:\")]
+    [InlineData("", "\"\"")]
+    [InlineData("say \"hi\"", "\"say \\\"hi\\\"\"")]
+    [InlineData("a\\\"b", "\"a\\\\\\\"b\"")]
+    public void CommandLineArgumentsAreQuotedForCommandLineToArgv(string argument, string expected)
+    {
+        Assert.Equal(expected, TrayAppDotNETProgram.QuoteCommandLineArgument(argument));
     }
 
     private sealed class FakeRunningApplication : IDisposable

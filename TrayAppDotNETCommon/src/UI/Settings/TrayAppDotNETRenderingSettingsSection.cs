@@ -193,7 +193,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             string? workingDirectory = Path.GetDirectoryName(executablePath);
             if (!ExplorerProcessLauncher.TryShellExecute(
                     executablePath,
-                    arguments: null,
+                    TrayAppDotNETProgram.SettingsDirectoryCommandLine(),
                     workingDirectory,
                     verb: null,
                     out _,

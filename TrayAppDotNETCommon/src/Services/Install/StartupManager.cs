@@ -50,7 +50,12 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
             {
                 string exe = ResolveStartupTarget();
                 if (string.IsNullOrEmpty(exe)) return;
-                CreateShortcut(ShortcutPath, exe);
+                // Sign-in launches use the settings folder of the instance that turned this on
+                string? settingsDirectoryArguments = TrayAppDotNETProgram.SettingsDirectoryCommandLine();
+                string arguments = settingsDirectoryArguments == null
+                    ? TrayAppDotNETProgram.AutostartArgument
+                    : TrayAppDotNETProgram.AutostartArgument + " " + settingsDirectoryArguments;
+                CreateShortcut(ShortcutPath, exe, arguments);
             }
             else if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath);
         }
@@ -78,7 +83,7 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
                 && ShortcutHasAutostartArgument())
                 return;
 
-            CreateShortcut(ShortcutPath, desired);
+            CreateShortcut(ShortcutPath, desired, PreservedShortcutArguments());
         }
         catch (Exception ex)
         {
@@ -125,20 +130,20 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
             if (IsValidInstallationTarget(target))
             {
                 // Shortcuts written before the autostart marker existed would look like manual starts
-                if (!ShortcutHasAutostartArgument()) CreateShortcut(ShortcutPath, target!);
+                if (!ShortcutHasAutostartArgument()) CreateShortcut(ShortcutPath, target!, PreservedShortcutArguments());
                 return;
             }
 
             string? runningInstallExecutable = GetRunningInstallExecutablePathOrNull();
             if (runningInstallExecutable != null)
             {
-                CreateShortcut(ShortcutPath, runningInstallExecutable);
+                CreateShortcut(ShortcutPath, runningInstallExecutable, PreservedShortcutArguments());
                 return;
             }
 
             // A portable target keeps its path but still gains the autostart marker
             if (!string.IsNullOrEmpty(target) && File.Exists(target) && !ShortcutHasAutostartArgument())
-                CreateShortcut(ShortcutPath, target);
+                CreateShortcut(ShortcutPath, target, PreservedShortcutArguments());
         }
         catch (Exception ex)
         {
@@ -159,6 +164,19 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Keeps the existing shortcut's arguments, such as a settings folder override, when repairing or retargeting
+    /// it, adding the autostart marker if it is missing.
+    /// </summary>
+    private string PreservedShortcutArguments()
+    {
+        string arguments = Interop.ShellLink.TryReadArguments(ShortcutPath, options.Log)?.Trim() ?? string.Empty;
+        if (arguments.Length == 0) return TrayAppDotNETProgram.AutostartArgument;
+        return ShortcutHasAutostartArgument()
+            ? arguments
+            : TrayAppDotNETProgram.AutostartArgument + " " + arguments;
     }
 
     public string ResolveStartupTarget(InstallScope? exclude = null)
@@ -230,7 +248,7 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
         }
     }
 
-    private void CreateShortcut(string lnkPath, string targetExe)
+    private void CreateShortcut(string lnkPath, string targetExe, string arguments)
     {
         string? lnkDir = Path.GetDirectoryName(lnkPath);
         if (!string.IsNullOrEmpty(lnkDir)) Directory.CreateDirectory(lnkDir);
@@ -238,6 +256,6 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
             lnkPath,
             targetExe,
             options.ApplicationName,
-            TrayAppDotNETProgram.AutostartArgument);
+            arguments);
     }
 }

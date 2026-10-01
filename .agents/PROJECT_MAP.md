@@ -211,6 +211,11 @@
 - The installer passes `--hidden` to the apps it launches; `TrayAppDotNETProgram.IsHiddenLaunch` exposes it and
   Task Manager then starts in the tray without showing its window. The watcher rebuilds the monitored command
   line, so only the flags in `TrayAppDotNETProgram.ForwardedLaunchArguments` survive it.
+- `--settings-dir <path>` replaces the per-app folder: `TrayAppDotNETProgram.Run` resolves it to an absolute path
+  (`SettingsDirectoryOverride`) before the watcher hop, and `AppLocalAppDataDirectory` returns it, so every
+  `Program.AppLocalAppDataDirectory` consumer (settings, theme, logs, data stores) follows. The watcher, the
+  rendering restart (`SettingsDirectoryCommandLine`), the update restarter and an explicitly enabled startup
+  shortcut carry it forward. The shared `LocalAppDataRoot` (versions manifest cache, install folder) does not move.
 - Useful arguments are documented in repo `README.md`:
   - `--install local`
   - `--install system`

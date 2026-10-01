@@ -1,5 +1,8 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using System.Text;
+using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.Utils;
@@ -42,12 +45,24 @@ public static class TrayAppDotNETProgram
     /// </summary>
     public const string HiddenArgument = "--hidden";
 
+    /// <summary>
+    /// Followed by a folder path, replaces the per-app folder under %LOCALAPPDATA%\TrayAppDotNET that holds
+    /// settings.xml, the theme, logs and the other per-app data files.
+    /// </summary>
+    public const string SettingsDirectoryArgument = "--settings-dir";
+
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
     private const int ProgressPipeConnectTimeoutMs = 5000;
     private const int ProgressCompletionTimeoutMs = 5000;
+    private const int UsageErrorExitCode = 2;
 
     // The launch arguments the watcher passes on to every monitored process it starts, in this order
     private static readonly string[] ForwardedLaunchArguments = [AutostartArgument, HiddenArgument];
+
+    // Characters Windows rejects in a path, wildcards and control characters included
+    private static readonly SearchValues<char> InvalidSettingsDirectoryCharacters = SearchValues.Create(
+        "\"<>|*?\0\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000B\f\r\u000E\u000F"
+        + "\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001A\u001B\u001C\u001D\u001E\u001F");
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
     private static ApplicationInstanceCoordinator? _applicationInstanceCoordinator;
@@ -69,13 +84,26 @@ public static class TrayAppDotNETProgram
 
     public static InstallScope UninstallerScope { get; private set; } = InstallScope.LocalAppData;
 
+    /// <summary>Gets the absolute folder passed with <see cref="SettingsDirectoryArgument"/>, or null without one.</summary>
+    public static string? SettingsDirectoryOverride { get; private set; }
+
     public static string LocalAppDataRoot(string sharedRootFolderName) =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             sharedRootFolderName);
 
+    /// <summary>Returns the per-app data folder, which <see cref="SettingsDirectoryArgument"/> can replace.</summary>
     public static string AppLocalAppDataDirectory(string applicationName, string sharedRootFolderName) =>
-        Path.Combine(LocalAppDataRoot(sharedRootFolderName), applicationName);
+        SettingsDirectoryOverride ?? Path.Combine(LocalAppDataRoot(sharedRootFolderName), applicationName);
+
+    /// <summary>
+    /// Builds the arguments that carry the settings folder override into a relaunch of this app, or null when
+    /// there is no override.
+    /// </summary>
+    public static string? SettingsDirectoryCommandLine() =>
+        SettingsDirectoryOverride == null
+            ? null
+            : SettingsDirectoryArgument + " " + QuoteCommandLineArgument(SettingsDirectoryOverride);
 
     public static int Run(
         string[] args,
@@ -84,7 +112,8 @@ public static class TrayAppDotNETProgram
         Func<TrayAppDotNETProgramOptions> createOptions)
     {
         ResetState();
-        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args);
+        if (!ApplySettingsDirectoryArgument(args, applicationName)) return UsageErrorExitCode;
+        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args, SettingsDirectoryOverride);
 
         if (HasArg(args, flag: "--watcher"))
         {
@@ -112,6 +141,7 @@ public static class TrayAppDotNETProgram
     public static int Run(string[] args, TrayAppDotNETProgramOptions options)
     {
         ResetState();
+        if (!ApplySettingsDirectoryArgument(args, options.ApplicationName)) return UsageErrorExitCode;
         return RunConfigured(args, options);
     }
 
@@ -200,7 +230,7 @@ public static class TrayAppDotNETProgram
         bool isMonitored = HasArg(args, flag: "--monitored");
         IsStartupLaunch = HasArg(args, AutostartArgument);
         IsHiddenLaunch = HasArg(args, HiddenArgument);
-        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args);
+        IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args, SettingsDirectoryOverride);
 
         if (isWatcher) return CrashHandler.RunWatcher(launchArguments);
 
@@ -259,8 +289,10 @@ public static class TrayAppDotNETProgram
     /// <summary>
     /// Picks the launch arguments the watcher must pass on out of a command line. The watcher rebuilds the monitored
     /// process's command line from scratch, so anything not listed here never reaches the app.
+    /// <paramref name="settingsDirectory"/> is forwarded already resolved, because the monitored process starts in
+    /// the executable's folder rather than the original working directory.
     /// </summary>
-    internal static IReadOnlyList<string> SelectForwardedLaunchArguments(string[] args)
+    internal static IReadOnlyList<string> SelectForwardedLaunchArguments(string[] args, string? settingsDirectory)
     {
         List<string> forwarded = [];
         foreach (string argument in ForwardedLaunchArguments)
@@ -268,7 +300,106 @@ public static class TrayAppDotNETProgram
             if (HasArg(args, argument)) forwarded.Add(argument);
         }
 
+        if (settingsDirectory != null)
+        {
+            forwarded.Add(SettingsDirectoryArgument);
+            forwarded.Add(settingsDirectory);
+        }
+
         return forwarded;
+    }
+
+    /// <summary>
+    /// Resolves the <see cref="SettingsDirectoryArgument"/> value to an absolute folder with no trailing separator.
+    /// Returns false with a message when the argument is present without a usable path.
+    /// </summary>
+    internal static bool TryResolveSettingsDirectory(
+        string[] args,
+        out string? settingsDirectory,
+        out string? errorMessage)
+    {
+        settingsDirectory = null;
+        errorMessage = null;
+        if (!HasArg(args, SettingsDirectoryArgument)) return true;
+
+        // NOTE: "C:\dir\" parses as C:\dir" under the Windows quoting rules, so stray quotes are stripped
+        string value = (TryGetArgValue(args, SettingsDirectoryArgument) ?? string.Empty).Trim().Trim('"');
+        // A flag in the value position means the path itself was left out
+        if (value.Length == 0 || value.StartsWith(value: "--", StringComparison.Ordinal))
+        {
+            errorMessage = $"{SettingsDirectoryArgument} must be followed by a folder path.";
+            return false;
+        }
+
+        string expandedValue = Environment.ExpandEnvironmentVariables(value);
+        // A quote inside the value usually means "C:\dir\" swallowed the arguments after it
+        if (expandedValue.AsSpan().IndexOfAny(InvalidSettingsDirectoryCharacters) >= 0)
+        {
+            errorMessage = $"{SettingsDirectoryArgument} path '{value}' contains a character Windows does not allow "
+                           + "in a folder path. A path that ends in a backslash must not be quoted.";
+            return false;
+        }
+
+        try
+        {
+            string fullPath = Path.GetFullPath(expandedValue);
+            settingsDirectory = Path.TrimEndingDirectorySeparator(fullPath);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException)
+        {
+            errorMessage = $"{SettingsDirectoryArgument} path '{value}' is invalid: {exception.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Quotes one argument so CommandLineToArgvW and the C runtime parse it back unchanged.
+    /// </summary>
+    internal static string QuoteCommandLineArgument(string argument)
+    {
+        if (argument.Length > 0 && argument.AsSpan().IndexOfAny(" \t\"") < 0) return argument;
+
+        StringBuilder builder = new(argument.Length + 2);
+        builder.Append('"');
+        int backslashCount = 0;
+        foreach (char character in argument)
+        {
+            if (character == '\\')
+            {
+                backslashCount++;
+                continue;
+            }
+
+            // Backslashes are literal unless a quote follows them, then each one needs its own escape
+            int escapedBackslashCount = character == '"' ? backslashCount * 2 + 1 : backslashCount;
+            builder.Append('\\', escapedBackslashCount);
+            builder.Append(character);
+            backslashCount = 0;
+        }
+
+        // The closing quote would escape trailing backslashes, so they are doubled
+        builder.Append('\\', backslashCount * 2);
+        builder.Append('"');
+        return builder.ToString();
+    }
+
+    /// <summary>Applies <see cref="SettingsDirectoryArgument"/>, reporting an unusable value before startup stops.</summary>
+    private static bool ApplySettingsDirectoryArgument(string[] args, string applicationName)
+    {
+        if (TryResolveSettingsDirectory(args, out string? settingsDirectory, out string? errorMessage))
+        {
+            SettingsDirectoryOverride = settingsDirectory;
+            return true;
+        }
+
+        TADNLog.Log($"TrayAppDotNETProgram.ApplySettingsDirectoryArgument: {errorMessage}");
+        // The process exits right after this, before the periodic flush
+        TADNLog.Flush();
+        // A shortcut launch has no console to print to
+        if (!TrayAppDotNETConsoleOutput.TryWriteLine(errorMessage!, error: true))
+            _ = User32.MessageBox(IntPtr.Zero, errorMessage!, applicationName, User32.MB_ICONERROR);
+        return false;
     }
 
     private static void ResetState()
@@ -276,6 +407,7 @@ public static class TrayAppDotNETProgram
         ReleaseApplicationInstance();
         ReleaseSingleInstance();
         WatcherPID = null;
+        SettingsDirectoryOverride = null;
         IsStartupLaunch = false;
         IsHiddenLaunch = false;
         IsInstallerMode = false;

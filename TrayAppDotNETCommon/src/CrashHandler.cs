@@ -71,7 +71,7 @@ public static class CrashHandler
     }
 
     /// <summary>
-    /// Runs the watcher loop. <paramref name="launchArguments"/>, the fixed flags
+    /// Runs the watcher loop. <paramref name="launchArguments"/>, the arguments
     /// <see cref="TrayAppDotNETProgram.SelectForwardedLaunchArguments"/> picks, are forwarded to every monitored
     /// process it starts.
     /// </summary>
@@ -177,8 +177,9 @@ public static class CrashHandler
             int watcherPID = Environment.ProcessId;
             StringBuilder commandLine = new($"\"{exePath}\" --monitored --watcher-pid {watcherPID}");
             // Crash restarts keep the original launch arguments, so a startup or hidden launch never reopens a
-            // window. They are fixed flags without spaces or quotes, so they need no quoting
-            foreach (string argument in launchArguments) commandLine.Append(' ').Append(argument);
+            // window and a settings folder override stays in effect
+            foreach (string argument in launchArguments)
+                commandLine.Append(' ').Append(TrayAppDotNETProgram.QuoteCommandLineArgument(argument));
             STARTUPINFO startupInfo = new()
             {
                 cb = (uint)Marshal.SizeOf<STARTUPINFO>(), dwFlags = STARTF_USESHOWWINDOW, wShowWindow = SW_HIDE
