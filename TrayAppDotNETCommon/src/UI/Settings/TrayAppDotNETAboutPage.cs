@@ -216,6 +216,16 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(CommonStrings.Settings_About_Updates_Header)),
             p));
+        stack.Children.Add(BuildUpdateActionCard(p));
+        stack.Children.Add(IntCard(
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_Title)),
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_Description)),
+            Math.Clamp(settings.UpdateCheckIntervalMs / 60_000, min: 1, max: 1440),
+            min: 1,
+            max: 1440,
+            minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_MinutesSuffix)),
+            [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))]));
         stack.Children.Add(BoolCard(
             L(nameof(CommonStrings.Settings_About_CheckForUpdates_Title)),
             L(nameof(CommonStrings.Settings_About_CheckForUpdates_Description)),
@@ -239,16 +249,6 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateButton_SearchKeywords))]));
         }
 
-        stack.Children.Add(IntCard(
-            L(nameof(CommonStrings.Settings_About_UpdateInterval_Title)),
-            L(nameof(CommonStrings.Settings_About_UpdateInterval_Description)),
-            Math.Clamp(settings.UpdateCheckIntervalMs / 60_000, min: 1, max: 1440),
-            min: 1,
-            max: 1440,
-            minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
-            L(nameof(CommonStrings.Settings_About_UpdateInterval_MinutesSuffix)),
-            [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))]));
-        stack.Children.Add(BuildUpdateActionCard(p));
         stack.Children.Add(BuildBackdateCard(p));
     }
 
