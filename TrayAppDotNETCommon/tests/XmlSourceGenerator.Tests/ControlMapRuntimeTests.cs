@@ -187,6 +187,8 @@ public sealed class ControlMapRuntimeTests
         Assert.True(view.ToolbarRun.IsFocused);
     });
 
+#if DEBUG
+    // The drift check only exists in Debug builds
     [Fact]
     public void DriftCheckFindsInteractiveControlsWithoutANode() => RunWithMap(view =>
     {
@@ -199,6 +201,7 @@ public sealed class ControlMapRuntimeTests
         Assert.DoesNotContain(view.FirstA, unmapped);
         Assert.DoesNotContain(view.ItemOneName, unmapped);
     });
+#endif
 
     [Fact]
     public void SpatialNavigationPicksTheNearestTargetInLine()

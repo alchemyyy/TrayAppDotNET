@@ -232,6 +232,7 @@
                   Description="A left press outside the table, except on End task, clears the selection" />
         </Scope>
         <Scope ID="PerformancePage" Source="PerformancePage.PerformancePage">
+            <!-- Suppress TADNCM100: only Debug builds create these buttons, so Release code never tags them -->
             <Scope ID="ArchitectureSimulations" Tab="Once" Arrows="Horizontal"
                    Source="PerformancePage.AddCPUArchitectureSimulationButton"
                    Description="Debug builds only: header buttons that preview the CPU Detailed view">

@@ -270,6 +270,39 @@ public sealed class ControlMapGeneratorTests
     }
 
     [Fact]
+    public void AnalyzerSkipsTheSubtreeBelowASuppressionComment()
+    {
+        string map = Map(
+            """
+            <Surface ID="Flyout" Kind="Popup">
+                <!-- Suppress TADNCM100: only Debug builds create these buttons -->
+                <Scope ID="Simulations" Tab="Once" Arrows="Horizontal">
+                    <Leaf ID="Simulation" Kind="Option" />
+                </Scope>
+                <!-- An ordinary comment exempts nothing -->
+                <Leaf ID="Close" Kind="Button" />
+            </Surface>
+            """);
+        const string tagging =
+            """
+            namespace Samples.UI
+            {
+                public static class Tagging
+                {
+                    public static object[] Tags() => [ControlMap.Flyout.ID];
+                }
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = ControlMapGeneratorHost.RunAnalyzer(
+            [new ControlMapTestFile(Path: "UI/ControlMap.axaml", map)],
+            tagging);
+
+        Diagnostic untagged = Assert.Single(diagnostics, static diagnostic => diagnostic.Id == "TADNCM100");
+        Assert.Contains(expectedSubstring: "'Flyout.Close'", untagged.GetMessage());
+    }
+
+    [Fact]
     public void SummariesCarryKindAndEscapedDescription()
     {
         ControlMapGeneratorResult result = ControlMapGeneratorHost.Run(

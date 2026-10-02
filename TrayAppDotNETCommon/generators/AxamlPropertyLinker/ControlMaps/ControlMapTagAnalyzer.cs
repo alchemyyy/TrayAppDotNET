@@ -11,7 +11,9 @@ namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 /// generated id, which MapTo and MapCommand calls do. Only nodes the runtime needs a control or handler for are
 /// required: window and popup surfaces, scopes whose navigation needs a container, keyboard-reachable leaves,
 /// commands with accelerators, and template instances the runtime could not tell apart without an instance id.
-/// Nothing under a tray or global surface is required: Win32 delivers that input, not a focused control.
+/// Nothing under a tray or global surface is required: Win32 delivers that input, not a focused control. A comment
+/// directly above a node that starts with "Suppress TADNCM100" exempts the node and everything inside it, for UI that
+/// only some builds create.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ControlMapTagAnalyzer : DiagnosticAnalyzer
@@ -26,6 +28,8 @@ public sealed class ControlMapTagAnalyzer : DiagnosticAnalyzer
 
     private static readonly string[] KeyboardLeafKinds =
         ["Button", "Toggle", "Option", "Select", "Slider", "Number", "Text", "Navigation", "ListItem"];
+
+    private static readonly string SuppressionCommentPrefix = "Suppress " + ControlMapDiagnostics.UntaggedNode.Id;
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
         [ControlMapDiagnostics.UntaggedNode];
@@ -121,7 +125,7 @@ public sealed class ControlMapTagAnalyzer : DiagnosticAnalyzer
         while (pending.Count > 0)
         {
             ControlMapElement element = pending.Pop();
-            if (IsWin32Surface(element)) continue;
+            if (IsWin32Surface(element) || IsSuppressed(element)) continue;
 
             PushChildren(pending, element.Children);
             if (!IsRequired(element, instanceCounts)) continue;
@@ -189,6 +193,9 @@ public sealed class ControlMapTagAnalyzer : DiagnosticAnalyzer
     private static bool IsWin32Surface(ControlMapElement element) =>
         string.Equals(element.Name, ControlMapValidator.SurfaceElement, StringComparison.Ordinal)
         && element.GetValue(attributeName: "Kind") is "Tray" or "Global";
+
+    private static bool IsSuppressed(ControlMapElement element) =>
+        element.LeadingComment.StartsWith(SuppressionCommentPrefix, StringComparison.Ordinal);
 
     private static bool IsTrue(string? value) => string.Equals(value, b: "True", StringComparison.OrdinalIgnoreCase);
 

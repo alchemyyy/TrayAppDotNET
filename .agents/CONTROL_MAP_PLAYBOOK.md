@@ -261,7 +261,7 @@ inside its `ReorderList` instance, so the column chooser's `Visible` toggle (`Sl
 | `TADNCM015` | A template instantiates itself |
 | `TADNCM016` | The `x:Class` has no hand-written partial owner deriving from `TrayAppDotNETCommon.UI.ControlMapping.ControlMap` |
 | `TADNCM017` | A variant on a template instance or beside an unnamed slot, or an `Order` naming an unknown, repeated, or no child |
-| `TADNCM100` | Warning from `ControlMapTagAnalyzer`: a node the runtime needs is never tagged in code. Required are window and popup surfaces, scopes with `IsRepeated`, `IsArranged`, `IsFocusable`, `Entry`, a non-`Local` `Tab` or `Arrows`, keyboard leaves that are tab stops, commands with `Keys`, and template instances whose template the map instantiates more than once. Nothing under a `Tray` or `Global` surface is required, because Win32 delivers that input |
+| `TADNCM100` | Warning from `ControlMapTagAnalyzer`: a node the runtime needs is never tagged in code. Required are window and popup surfaces, scopes with `IsRepeated`, `IsArranged`, `IsFocusable`, `Entry`, a non-`Local` `Tab` or `Arrows`, keyboard leaves that are tab stops, commands with `Keys`, and template instances whose template the map instantiates more than once. Nothing under a `Tray` or `Global` surface is required, because Win32 delivers that input. A comment directly above a node that starts with `Suppress TADNCM100` exempts the node and its subtree; use it only for UI that some builds never create, such as Task Manager's Debug-only `ArchitectureSimulations` |
 
 ## Runtime
 

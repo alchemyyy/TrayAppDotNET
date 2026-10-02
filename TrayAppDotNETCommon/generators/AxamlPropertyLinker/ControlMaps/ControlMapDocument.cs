@@ -26,6 +26,9 @@ internal sealed class ControlMapElement(string name, int line, int column, Contr
     public readonly List<ControlMapAttribute> Attributes = [];
     public readonly List<ControlMapElement> Children = [];
 
+    /// <summary>Text of the XML comment directly above the element, or an empty string when there is none.</summary>
+    public string LeadingComment = string.Empty;
+
     /// <summary>Gets the ID attribute value, or an empty string when the element has none.</summary>
     public string ID => GetValue(IDAttribute) ?? string.Empty;
 
@@ -193,7 +196,10 @@ internal static class ControlMapParser
                 continue;
             }
 
-            ControlMapElement element = new(source.Name.LocalName, line, column, parent);
+            ControlMapElement element = new(source.Name.LocalName, line, column, parent)
+            {
+                LeadingComment = ReadLeadingComment(source)
+            };
             foreach (XAttribute attribute in source.Attributes())
             {
                 if (attribute.IsNamespaceDeclaration) continue;
@@ -230,6 +236,25 @@ internal static class ControlMapParser
 
             PushChildren(pending, source, element);
         }
+    }
+
+    // Only whitespace may separate the comment from its element
+    private static string ReadLeadingComment(XElement source)
+    {
+        for (XNode? node = source.PreviousNode; node != null; node = node.PreviousNode)
+        {
+            switch (node)
+            {
+                case XComment comment:
+                    return comment.Value.Trim();
+                case XText text when string.IsNullOrWhiteSpace(text.Value):
+                    continue;
+                default:
+                    return string.Empty;
+            }
+        }
+
+        return string.Empty;
     }
 
     // Pushes in reverse so elements pop in document order
