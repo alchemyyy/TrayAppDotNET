@@ -6,6 +6,7 @@ These companion files can be found in the `.agents` folder. Read them only when 
 - `UI_TRAY_PLAYBOOK.md` for tray icon, flyout, tooltip, freeze, and high-frequency UI work.
 - `AXAML_PLAYBOOK.md` for Avalonia resource extraction and visual tuning.
 - `AXAML_HOT_RELOAD_PLAYBOOK.md` for making AXAML edits update already-open UI and auditing reload gaps.
+- `CONTROL_MAP_PLAYBOOK.md` for control maps: interactive control inventory, tab order, scopes, and key bindings.
 - `NATIVE_AOT_DUMP_ANALYSIS_TOOLING.md` special case toolkit for debugging native aot builds
 - `PYTHON_TOOLING.md` for Python linting and formatting commands.
 
@@ -38,5 +39,6 @@ These companion files can be found in the `.agents` folder. Read them only when 
 
 - Tray icon flicker, stale tooltip, hover scroll, or shell freeze: read `UI_TRAY_PLAYBOOK.md`.
 - Avalonia constants, AXAML resources, settings windows, visual card layout, scrollbars, and styling: read `AXAML_PLAYBOOK.md`.
+- Adding, removing, or reordering an interactive control, tab order, focus, or keyboard shortcuts: read `CONTROL_MAP_PLAYBOOK.md`.
 - New sessions that need codebase orientation: read `PROJECT_MAP.md` before broad `rg --files` inventory.
 - Python linting or formatting: read `PYTHON_TOOLING.md` before invoking Ruff.

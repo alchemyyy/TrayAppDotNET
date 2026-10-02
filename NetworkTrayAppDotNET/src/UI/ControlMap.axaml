@@ -1,0 +1,162 @@
+<ControlMap
+    x:Class="NetworkTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Leaf order mirrors the Tray icon settings page that configures the modified clicks -->
+    <Surface ID="TrayIcon" Kind="Tray" Source="NetworkAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="OpenFlyout" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftClick"
+              Description="Opens the network UI chosen by FlyoutStyle" />
+        <Leaf ID="CtrlLeftClickAction" Kind="Command" Pointer="Ctrl+Click" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftClick"
+              Description="Default OpenAdapterSettings; Nothing falls through to OpenFlyout" />
+        <Leaf ID="AltLeftClickAction" Kind="Command" Pointer="Alt+Click" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftClick"
+              Description="Default OpenSettings; Nothing falls through to OpenFlyout" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayRightClick"
+              Description="Shows TrayMenu; the keys arrive as WM_CONTEXTMENU while the icon has shell focus" />
+        <Leaf ID="CtrlRightClickAction" Kind="Command" Pointer="Ctrl+RightClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayRightClick"
+              Description="Default Nothing, which falls through to OpenMenu" />
+        <Leaf ID="AltRightClickAction" Kind="Command" Pointer="Alt+RightClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayRightClick"
+              Description="Default Nothing, which falls through to OpenMenu" />
+        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Default OpenAdapterSettings; runs after the first click's own action" />
+        <Leaf ID="CtrlDoubleLeftClickAction" Kind="Command" Pointer="Ctrl+DoubleClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Default Nothing, which falls back to DoubleClickAction" />
+        <Leaf ID="AltDoubleLeftClickAction" Kind="Command" Pointer="Alt+DoubleClick" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Default Nothing, which falls back to DoubleClickAction" />
+        <Leaf ID="OpenUpdate" Kind="Command" Event="TrayMessage" Source="NetworkAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Update balloon click; opens Settings at the About page while an update is available" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="NetworkAvaloniaApp.CreateTrayMenuWindow">
+        <Leaf ID="OpenNetworkSettings" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="NetworkTrayMenuWindow.BuildEntries" Description="Opens ms-settings:network" />
+        <Leaf ID="OpenAdapterSettings" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="NetworkTrayMenuWindow.BuildEntries"
+              Description="Opens Network Connections in the host AdapterSettingsStyle selects" />
+        <Leaf ID="OpenSettings" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="NetworkTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="NetworkTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <Surface ID="Settings" Template="SettingsShell" Source="NetworkAvaloniaApp.OpenSettings">
+        <Scope ID="GeneralPage" Source="NetworkSettingsWindow.BuildGeneralPage">
+            <Scope ID="Startup" Template="StartupCard" Source="NetworkSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="FlyoutStyle" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildGeneralPage" Description="Left-click flyout card" />
+            <Leaf ID="AdapterSettingsStyle" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildGeneralPage" Description="Adapter settings window card" />
+            <Scope ID="Installation" Template="InstallationSection" Source="NetworkSettingsWindow.BuildGeneralPage"
+                   Description="Local user and system-wide cards; Uninstall opens the Uninstaller surface" />
+            <Scope ID="Rendering" Template="RenderingSection" Source="NetworkSettingsWindow.BuildGeneralPage" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="NetworkSettingsWindow.BuildTrayIconPage">
+            <Leaf ID="ContextMenuPosition" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildTrayIconPage" Description="Classic or Modern" />
+            <Leaf ID="CtrlLeftClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltLeftClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlRightClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltRightClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="DoubleClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlDoubleLeftClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltDoubleLeftClickAction" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.AddTrayClickActionCard" />
+        </Scope>
+        <Scope ID="HotkeysPage" Source="NetworkSettingsWindow.BuildHotkeysPage">
+            <Leaf ID="SearchText" Kind="Text" Event="TextChanged"
+                  Source="NetworkSettingsWindow.BuildHotkeysPage" Description="Filters the hotkey rows below" />
+            <Scope ID="OpenFlyout" Source="NetworkSettingsWindow.AddHotkeyRow">
+                <Leaf ID="BindingModifiers" Kind="Select" Event="SelectionChanged"
+                      Source="NetworkSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="BindingKey" Kind="Text" FocusKeys="Tab;Shift+Tab;Escape" Event="KeyDown"
+                      Source="NetworkSettingsWindow.AddHotkeyRow"
+                      Description="Read-only capture box; consumes every key and stores most as the binding key" />
+                <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="NetworkSettingsWindow.AddHotkeyRow"
+                      Description="Enabled only for a new modifier and key pair" />
+                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="NetworkSettingsWindow.BuildHotkeyEntryCard"
+                      Description="One per binding; a default binding is tombstoned instead of removed" />
+            </Scope>
+            <Scope ID="OpenSettings" Source="NetworkSettingsWindow.AddHotkeyRow">
+                <Leaf ID="BindingModifiers" Kind="Select" Event="SelectionChanged"
+                      Source="NetworkSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="BindingKey" Kind="Text" FocusKeys="Tab;Shift+Tab;Escape" Event="KeyDown"
+                      Source="NetworkSettingsWindow.AddHotkeyRow"
+                      Description="Read-only capture box; consumes every key and stores most as the binding key" />
+                <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="NetworkSettingsWindow.AddHotkeyRow"
+                      Description="Enabled only for a new modifier and key pair" />
+                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="NetworkSettingsWindow.BuildHotkeyEntryCard"
+                      Description="One per binding; a default binding is tombstoned instead of removed" />
+            </Scope>
+        </Scope>
+        <Scope ID="ThemePage" Source="NetworkSettingsWindow.BuildThemePage">
+            <Leaf ID="ContextMenuFontSize" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="NetworkSettingsWindow.BuildThemePage" />
+            <Leaf ID="ThemeMode" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildThemePage" Description="Rebuilds the shell, dropping focus" />
+            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildThemePage" Description="Rebuilds the shell, dropping focus" />
+            <Scope ID="TextColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage" />
+            <Scope ID="BackgroundColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage" />
+            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildThemePage" Description="Rebuilds the shell, dropping focus" />
+            <Leaf ID="AnimationMode" Kind="Select" Event="Callback"
+                  Source="NetworkSettingsWindow.BuildThemePage"
+                  Description="Applies the animation policy, then rebuilds the shell, dropping focus" />
+            <Leaf ID="ToolTipShowDelay" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="NetworkSettingsWindow.BuildThemePage" />
+            <Scope ID="TrayIconColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage"
+                   Description="Static icon color; inert while TrayIconStyle is Dynamic, which no page changes" />
+            <Scope ID="ConnectedColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage" />
+            <Scope ID="NoInternetColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage" />
+            <Scope ID="DisconnectedColor" Template="CoordinatorColorCard"
+                   Source="NetworkSettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="NetworkSettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="Global" Kind="Global" Source="NetworkAvaloniaApp.StartServices">
+        <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="NetworkAvaloniaApp.HandleHotkey"
+              Description="No default binding" />
+        <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="NetworkAvaloniaApp.HandleHotkey"
+              Description="Default binding Ctrl+Alt+Win+S" />
+        <Leaf ID="OpenNetworkSettings" Kind="Command" Event="Hotkey" Source="NetworkAvaloniaApp.HandleHotkey"
+              Description="No default and no Hotkeys page row; bindable only in settings.xml" />
+        <Leaf ID="OpenAdapterSettings" Kind="Command" Event="Hotkey" Source="NetworkAvaloniaApp.HandleHotkey"
+              Description="No default and no Hotkeys page row; bindable only in settings.xml" />
+    </Surface>
+
+    <!-- Common dialogs this app opens -->
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="TrayAppDotNETSettingsColorCardCoordinator.OpenColorPicker"
+             Description="One window per color and variant, owned by Settings" />
+    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation"
+             Source="TrayAppDotNETUpdatePromptPresenter.ShowPromptAsync"
+             Description="Modal over Settings from the About page update and backdate actions" />
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="NetworkAvaloniaApp.ShowUninstallerWindow"
+             Description="NetworkUninstallerWindow from an Uninstall button or an uninstaller-mode launch" />
+    <Surface ID="Installer" Template="Installer" Source="NetworkAvaloniaApp.OnFrameworkInitializationCompleted"
+             Description="Installer-mode launch only" />
+</ControlMap>

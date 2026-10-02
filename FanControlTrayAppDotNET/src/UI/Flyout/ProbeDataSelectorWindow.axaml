@@ -71,7 +71,6 @@
         <sys:Int32 x:Key="ProbeSelector.ReorderNormalZIndex">0</sys:Int32>
         <sys:Double x:Key="ProbeSelector.ControlDisabledOpacity">0.45</sys:Double>
         <sys:Double x:Key="ProbeSelector.FullOpacity">1</sys:Double>
-        <sys:Double x:Key="ProbeSelector.KeyboardSelectionBorderThickness">1</sys:Double>
 
         <!-- Window, tabs, and cards -->
         <Thickness x:Key="ProbeSelector.ZeroThickness">0</Thickness>

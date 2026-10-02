@@ -346,6 +346,7 @@ public sealed class TaskManagerTableHotReloadStateTests
         TaskManagerWindowResources resources)
         : TaskManagerTablePage(
             title: "Test",
+            UI.ControlMap.Main.AppHistoryPage.ID,
             schema,
             processIconService,
             settings,

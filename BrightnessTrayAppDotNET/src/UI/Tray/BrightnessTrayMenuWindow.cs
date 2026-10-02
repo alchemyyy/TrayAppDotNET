@@ -61,8 +61,11 @@ internal sealed class BrightnessTrayMenuWindow(
         {
             foreach ((int capturedIndex, string label, bool isSelected) in profiles)
             {
-                entries.Add(label, () => selectProfile(capturedIndex),
-                    isSelected ? GlyphCatalog.CHECK_MARK.Text : null);
+                entries.Add(new ContextMenuEntry(label, () => selectProfile(capturedIndex))
+                {
+                    TrailingGlyph = isSelected ? GlyphCatalog.CHECK_MARK.Text : null,
+                    Node = ControlMap.TrayMenu.Profile
+                });
             }
 
             entries.AddSeparator();
@@ -70,7 +73,12 @@ internal sealed class BrightnessTrayMenuWindow(
 
         bool hasPowerTargets = monitors.Any(static m => m.SupportsPowerControl);
         if (settings.ShowAllDisplaysPowerButton && hasPowerTargets)
-            entries.Add(L(nameof(AppStrings.Tray_PowerOffAllDisplays)), powerOffAllMonitors);
+        {
+            entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_PowerOffAllDisplays)), powerOffAllMonitors)
+            {
+                Node = ControlMap.TrayMenu.PowerOffAllDisplays
+            });
+        }
 
         if (settings.ShowMonitorPowerButtons && hasPowerTargets)
         {
@@ -80,15 +88,21 @@ internal sealed class BrightnessTrayMenuWindow(
                 string label = string.Format(
                     L(nameof(AppStrings.Tray_PowerOffMonitor_Format)),
                     monitor.Name);
-                entries.Add(label, () => powerOffMonitor(capturedMonitor));
+                entries.Add(new ContextMenuEntry(label, () => powerOffMonitor(capturedMonitor))
+                {
+                    Node = ControlMap.TrayMenu.PowerOffDisplay
+                });
             }
         }
 
         if (entries.Count > 0) entries.AddSeparator();
 
-        entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_Settings)), openSettings)
+        {
+            Node = ControlMap.TrayMenu.OpenSettings
+        });
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_Exit)), exit) { Node = ControlMap.TrayMenu.Exit });
 
         return entries.ToList();
     }

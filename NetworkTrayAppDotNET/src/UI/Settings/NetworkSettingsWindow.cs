@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using NetworkTrayAppDotNET.Models;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Settings;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
@@ -133,7 +134,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
         Color lightFallback,
         Color darkFallback,
         SettingsPalette palette,
-        IReadOnlyList<string>? searchKeywords = null) =>
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null) =>
         _colorCardCoordinator.ColorCard(
             this,
             name,
@@ -155,7 +157,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             Save,
             RefreshPalette,
             IsSettingsWindowClosing,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     private bool IsSettingsWindowClosing() => IsClosing;
 

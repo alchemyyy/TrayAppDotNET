@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using BrightnessTrayAppDotNET.UI.Settings.Environmental;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
@@ -52,7 +53,8 @@ public sealed partial class BrightnessSettingsWindow
 
     private StackPanel BuildEnvironmentalProfileRow(SettingsPalette p)
     {
-        SettingsComboBox profileCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 140, autoSizeToText: true);
+        SettingsComboBox profileCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 140, autoSizeToText: true)
+            .MapTo(ControlMap.Settings.EnvironmentalPage.Profile);
         _environmentalPageResources?.Own(profileCombo);
         _environmentalProfileCombo = profileCombo;
         _environmentalProfileCombo.SelectionChanged += (_, _) =>
@@ -85,7 +87,7 @@ public sealed partial class BrightnessSettingsWindow
                 _settings.EnvironmentalOffsetMode = enabled;
                 Save();
                 _environmentalCurveEditor?.SetOffsetMode(enabled);
-            });
+            }, ControlMap.Settings.EnvironmentalPage.Mode.OffsetMode);
         _followTheSunToggle = AddToggleRow(panel, p, L(nameof(AppStrings.Settings_Environmental_FollowTheSun_Title)),
             value: true, (_, enabled) =>
             {
@@ -97,7 +99,7 @@ public sealed partial class BrightnessSettingsWindow
                 _profileManager?.Save();
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            });
+            }, ControlMap.Settings.EnvironmentalPage.Mode.FollowTheSun);
         _useDaylightSavingsToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_UseDaylightSavings_Title)), value: true, (_, enabled) =>
             {
@@ -109,7 +111,7 @@ public sealed partial class BrightnessSettingsWindow
                 _environmentalCurveEditor?.SetUseDaylightSavings(enabled);
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            });
+            }, ControlMap.Settings.EnvironmentalPage.Mode.UseDaylightSavings);
 
         return panel;
     }
@@ -128,7 +130,7 @@ public sealed partial class BrightnessSettingsWindow
                 ApplyEnvironmentalDisabledPeriodFieldVisibility(enabled);
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            });
+            }, ControlMap.Settings.EnvironmentalPage.DisabledPeriod.Enabled);
 
         _disabledPeriodFollowTheSunRow = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_DisabledPeriodFollowTheSun_Title)), value: false,
@@ -142,13 +144,14 @@ public sealed partial class BrightnessSettingsWindow
                 _profileManager?.Save();
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            }, out SettingsToggle disabledPeriodFollowTheSunToggle, indent: 8);
+            }, ControlMap.Settings.EnvironmentalPage.DisabledPeriod.FollowTheSun,
+            out SettingsToggle disabledPeriodFollowTheSunToggle, indent: 8);
         _disabledPeriodFollowTheSunToggle = disabledPeriodFollowTheSunToggle;
 
         StackPanel fields = new()
             { Orientation = Orientation.Horizontal, Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 6) };
-        _disabledPeriodStartBox = TimeBox(p);
-        _disabledPeriodEndBox = TimeBox(p);
+        _disabledPeriodStartBox = TimeBox(p).MapTo(ControlMap.Settings.EnvironmentalPage.DisabledPeriod.Start);
+        _disabledPeriodEndBox = TimeBox(p).MapTo(ControlMap.Settings.EnvironmentalPage.DisabledPeriod.End);
         _disabledPeriodStartBox.Width = 64;
         _disabledPeriodEndBox.Width = 64;
         fields.Children.Add(InlineLabel(L(nameof(AppStrings.Settings_Environmental_DisabledPeriod_Start_Label)), p,
@@ -174,10 +177,12 @@ public sealed partial class BrightnessSettingsWindow
         };
         _showBrightnessCurveToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowBrightnessCurve_Title)),
-            _settings.EnvironmentalShowBrightnessCurve, OnEnvironmentalCurveVisibilityChanged);
+            _settings.EnvironmentalShowBrightnessCurve, OnEnvironmentalCurveVisibilityChanged,
+            ControlMap.Settings.EnvironmentalPage.Visibility.ShowBrightnessCurve);
         _showNightLightCurveToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowNightLightCurve_Title)),
-            _settings.EnvironmentalShowNightLightCurve, OnEnvironmentalCurveVisibilityChanged);
+            _settings.EnvironmentalShowNightLightCurve, OnEnvironmentalCurveVisibilityChanged,
+            ControlMap.Settings.EnvironmentalPage.Visibility.ShowNightLightCurve);
         _showSunOverlayToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowSunOverlay_Title)),
             _settings.EnvironmentalShowSunOverlay, (_, enabled) =>
@@ -186,7 +191,7 @@ public sealed partial class BrightnessSettingsWindow
                 _settings.EnvironmentalShowSunOverlay = enabled;
                 Save();
                 _environmentalCurveEditor?.SetShowSunOverlay(enabled);
-            });
+            }, ControlMap.Settings.EnvironmentalPage.Visibility.ShowSunOverlay);
         _showCursorReadoutToggle = AddToggleRow(panel, p,
             L(nameof(AppStrings.Settings_Environmental_ShowCursorReadout_Title)),
             _settings.EnvironmentalShowCursorReadout, (_, enabled) =>
@@ -195,7 +200,7 @@ public sealed partial class BrightnessSettingsWindow
                 _settings.EnvironmentalShowCursorReadout = enabled;
                 Save();
                 _environmentalCurveEditor?.SetShowCursorReadout(enabled);
-            });
+            }, ControlMap.Settings.EnvironmentalPage.Visibility.ShowCursorReadout);
         return new Grid { Children = { panel } };
     }
 
@@ -216,7 +221,7 @@ public sealed partial class BrightnessSettingsWindow
         right.Children.Add(BuildEnvironmentalDateRow(p));
 
         _previewSweepButton = Button(L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Idle_Button)),
-            p);
+            p).MapTo(ControlMap.Settings.EnvironmentalPage.PreviewSweep);
         _previewSweepButton.Width = 217;
         _previewSweepButton.HorizontalAlignment = HorizontalAlignment.Right;
         _previewSweepButton.Margin = new Thickness(left: 0, top: -2, right: 0, bottom: 4);
@@ -249,7 +254,8 @@ public sealed partial class BrightnessSettingsWindow
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(94)));
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(28)));
 
-        _sunOverlayDateBox = TrayAppDotNETSettingsUI.TextBox(p, width: 94, FormatSunOverlayDate(DateTime.Today));
+        _sunOverlayDateBox = TrayAppDotNETSettingsUI.TextBox(p, width: 94, FormatSunOverlayDate(DateTime.Today))
+            .MapTo(ControlMap.Settings.EnvironmentalPage.PreviewDate.Date);
         _sunOverlayDateBox.Padding = new Thickness(left: 8, top: 0, right: 0, bottom: 0);
         _sunOverlayDateBox.TextAlignment = TextAlignment.Left;
         _sunOverlayDateBox.LostFocus += (_, _) => CommitEnvironmentalSunOverlayDate();
@@ -278,7 +284,8 @@ public sealed partial class BrightnessSettingsWindow
             handledEventsToo: true);
         dateControl.Children.Add(_sunOverlayDateBox);
 
-        SettingsButton calendarButton = Button(GlyphCatalog.CALENDAR.Text, p);
+        SettingsButton calendarButton = Button(GlyphCatalog.CALENDAR.Text, p)
+            .MapTo(ControlMap.Settings.EnvironmentalPage.PreviewDate.PickDate);
         calendarButton.Width = 28;
         calendarButton.Height = 32;
         calendarButton.MinHeight = 32;
@@ -314,6 +321,7 @@ public sealed partial class BrightnessSettingsWindow
             SelectedDate = _environmentalSunOverlayDate,
             SelectionMode = CalendarSelectionMode.SingleDate
         };
+        calendar.MapTo(ControlMap.PreviewDateCalendar.Calendar);
         calendar.SelectedDatesChanged += OnEnvironmentalSunOverlayCalendarSelectedDatesChanged;
         calendar.PointerReleased += OnEnvironmentalSunOverlayCalendarPointerReleased;
         calendar.KeyDown += OnEnvironmentalSunOverlayCalendarKeyDown;
@@ -343,7 +351,7 @@ public sealed partial class BrightnessSettingsWindow
             VerticalOffset = 4,
             IsLightDismissEnabled = true,
             Child = popupBorder
-        };
+        }.MapTo(ControlMap.PreviewDateCalendar.ID);
     }
 
     private Border BuildEnvironmentalSmoothnessCard(SettingsPalette p)
@@ -353,7 +361,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalCurveSmoothness,
             CurveSmoothnessMin,
             CurveSmoothnessMax,
-            width: 80);
+            width: 80).MapTo(ControlMap.Settings.EnvironmentalPage.Smoothness);
         smoothness.HandleMouseWheelWhenMouseOver = true;
         smoothness.ValueChanged += (_, e) =>
         {
@@ -425,11 +433,15 @@ public sealed partial class BrightnessSettingsWindow
         panel.Children.Add(description);
 
         _latitudeBox =
-            TrayAppDotNETSettingsUI.TextBox(p, double.NaN, FormatCoordinate(_settings.EnvironmentalLatitude));
+            TrayAppDotNETSettingsUI.TextBox(p, double.NaN, FormatCoordinate(_settings.EnvironmentalLatitude))
+                .MapTo(ControlMap.Settings.EnvironmentalPage.GeoLocation.Latitude);
         _longitudeBox =
-            TrayAppDotNETSettingsUI.TextBox(p, double.NaN, FormatCoordinate(_settings.EnvironmentalLongitude));
-        SettingsButton approximate = Button(L(nameof(AppStrings.Settings_Environmental_ApproxFromIP_Button)), p);
-        SettingsButton map = Button(L(nameof(AppStrings.Settings_Environmental_PickOnMap_Button)), p);
+            TrayAppDotNETSettingsUI.TextBox(p, double.NaN, FormatCoordinate(_settings.EnvironmentalLongitude))
+                .MapTo(ControlMap.Settings.EnvironmentalPage.GeoLocation.Longitude);
+        SettingsButton approximate = Button(L(nameof(AppStrings.Settings_Environmental_ApproxFromIP_Button)), p)
+            .MapTo(ControlMap.Settings.EnvironmentalPage.GeoLocation.ApproxFromIP);
+        SettingsButton map = Button(L(nameof(AppStrings.Settings_Environmental_PickOnMap_Button)), p)
+            .MapTo(ControlMap.Settings.EnvironmentalPage.GeoLocation.PickOnMap);
         approximate.MinWidth = 130;
         map.MinWidth = 130;
         ApplyEnvironmentalButtonFont(approximate);
@@ -462,7 +474,8 @@ public sealed partial class BrightnessSettingsWindow
 
     private SettingsButton BuildEnvironmentalResetButton(SettingsPalette p)
     {
-        SettingsButton reset = Button(L(nameof(AppStrings.Settings_Environmental_ResetCurves_Button)), p);
+        SettingsButton reset = Button(L(nameof(AppStrings.Settings_Environmental_ResetCurves_Button)), p)
+            .MapTo(ControlMap.Settings.EnvironmentalPage.ResetCurves);
         reset.HorizontalAlignment = HorizontalAlignment.Left;
         reset.Margin = new Thickness(left: 0, top: 4, right: 0, bottom: 0);
         ApplyEnvironmentalButtonFont(reset);
@@ -479,10 +492,11 @@ public sealed partial class BrightnessSettingsWindow
         string label,
         bool value,
         EventHandler<bool> changed,
+        ControlMapNodeID node,
         out SettingsToggle toggle,
         double indent = 0.0)
     {
-        toggle = TrayAppDotNETSettingsUI.Toggle(p, value, changed);
+        toggle = TrayAppDotNETSettingsUI.Toggle(p, value, changed).MapTo(node);
         TextBlock text = TrayAppDotNETSettingsUI.TitleText(label, p);
         text.VerticalAlignment = VerticalAlignment.Center;
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(toggle, text);
@@ -497,9 +511,10 @@ public sealed partial class BrightnessSettingsWindow
         SettingsPalette p,
         string label,
         bool value,
-        EventHandler<bool> changed)
+        EventHandler<bool> changed,
+        ControlMapNodeID node)
     {
-        AddToggleRow(panel, p, label, value, changed, out SettingsToggle toggle);
+        AddToggleRow(panel, p, label, value, changed, node, out SettingsToggle toggle);
         return toggle;
     }
 

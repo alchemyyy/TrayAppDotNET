@@ -1,26 +1,33 @@
 using Avalonia;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace FanControlTrayAppDotNET.UI.Tray;
 
-public sealed class FanTrayMenuWindow(
-    AppSettings settings,
-    SettingsPalette palette,
-    bool rounded,
-    int fontSize,
-    Action openSettings,
-    Action exit)
-    : ContextMenuWindow(BuildEntries(openSettings, exit),
-        new ContextMenuWindowOptions
-        {
-            Palette = palette,
-            Rounded = rounded,
-            FontSize = fontSize,
-            ContextMenuSettings = settings,
-            ShadowColor = ResolveMenuShadowColor(settings)
-        })
+public sealed class FanTrayMenuWindow : ContextMenuWindow
 {
+    /// <summary>
+    /// Builds the tray menu. ContextMenu is a shared control map template, so the menu carries its own surface id.
+    /// </summary>
+    public FanTrayMenuWindow(
+        AppSettings settings,
+        SettingsPalette palette,
+        bool rounded,
+        int fontSize,
+        Action openSettings,
+        Action exit)
+        : base(BuildEntries(openSettings, exit),
+            new ContextMenuWindowOptions
+            {
+                Palette = palette,
+                Rounded = rounded,
+                FontSize = fontSize,
+                ContextMenuSettings = settings,
+                ShadowColor = ResolveMenuShadowColor(settings)
+            }) =>
+        this.MapTo(ControlMap.TrayMenu.ID);
+
     internal void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
@@ -30,9 +37,12 @@ public sealed class FanTrayMenuWindow(
     private static List<ContextMenuEntry> BuildEntries(Action openSettings, Action exit)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_Settings)), openSettings)
+        {
+            Node = ControlMap.TrayMenu.Settings
+        });
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_Exit)), exit) { Node = ControlMap.TrayMenu.Exit });
         return entries.ToList();
     }
 

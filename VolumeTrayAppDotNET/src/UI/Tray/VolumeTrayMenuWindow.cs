@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using VolumeTrayAppDotNET.Audio;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
@@ -57,28 +58,47 @@ public sealed class VolumeTrayMenuWindow : ContextMenuWindow
             for (int i = orderedForFlyout.Count - 1; i >= 0; i--)
             {
                 AudioDevice device = orderedForFlyout[i];
-                entries.Add(
+                entries.Add(new ContextMenuEntry(
                     FormatTrayMenuDeviceName(device, settings),
-                    () => DeviceShellLinks.OpenDeviceProperties(device));
+                    () => DeviceShellLinks.OpenDeviceProperties(device))
+                {
+                    Node = ControlMap.TrayMenu.OpenDeviceProperties
+                });
             }
 
             entries.AddSeparator();
         }
 
-        entries.Add(L(nameof(AppStrings.Tray_SoundDevices)), DeviceShellLinks.OpenPlaybackTab);
+        AddEntry(entries, L(nameof(AppStrings.Tray_SoundDevices)), DeviceShellLinks.OpenPlaybackTab,
+            ControlMap.TrayMenu.OpenPlaybackDevices);
         if (settings.ShowTrayMenuRecordingLink)
-            entries.Add(L(nameof(AppStrings.Tray_Recording)), DeviceShellLinks.OpenRecordingTab);
+        {
+            AddEntry(entries, L(nameof(AppStrings.Tray_Recording)), DeviceShellLinks.OpenRecordingTab,
+                ControlMap.TrayMenu.OpenRecordingDevices);
+        }
+
         if (settings.ShowTrayMenuSoundsLink)
-            entries.Add(L(nameof(AppStrings.Tray_Sounds)), DeviceShellLinks.OpenSoundsTab);
+        {
+            AddEntry(entries, L(nameof(AppStrings.Tray_Sounds)), DeviceShellLinks.OpenSoundsTab,
+                ControlMap.TrayMenu.OpenSounds);
+        }
+
         if (settings.ShowTrayMenuCommunicationsLink)
-            entries.Add(L(nameof(AppStrings.Tray_Communications)), DeviceShellLinks.OpenCommunicationsTab);
-        entries.Add(L(nameof(AppStrings.Tray_Bluetooth)), OpenBluetoothFlyout);
+        {
+            AddEntry(entries, L(nameof(AppStrings.Tray_Communications)), DeviceShellLinks.OpenCommunicationsTab,
+                ControlMap.TrayMenu.OpenCommunications);
+        }
+
+        AddEntry(entries, L(nameof(AppStrings.Tray_Bluetooth)), OpenBluetoothFlyout, ControlMap.TrayMenu.OpenBluetooth);
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
+        AddEntry(entries, L(nameof(AppStrings.Tray_Settings)), openSettings, ControlMap.TrayMenu.OpenSettings);
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
+        AddEntry(entries, L(nameof(AppStrings.Tray_Exit)), exit, ControlMap.TrayMenu.Exit);
         return entries.ToList();
     }
+
+    private static void AddEntry(ContextMenuEntryBuilder entries, string text, Action click, ControlMapNodeID node) =>
+        entries.Add(new ContextMenuEntry(text, click) { Node = node });
 
     private static string FormatTrayMenuDeviceName(AudioDevice device, AppSettings settings)
     {

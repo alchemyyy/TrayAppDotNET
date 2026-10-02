@@ -1,12 +1,14 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Debugging;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
 /// <summary>
 /// Shared pointer/pressed-state behavior for flyout buttons whose content may update in place.
+/// A click and a keyboard activation through the control map run the same callback.
 /// </summary>
 public sealed class FlyoutButtonState
 {
@@ -14,8 +16,8 @@ public sealed class FlyoutButtonState
     private readonly Func<IBrush> _normalBrush;
     private readonly Func<IBrush> _hoverBrush;
     private readonly Func<IBrush> _pressedBrush;
-    private readonly Action<PointerReleasedEventArgs> _click;
-    private readonly Action<PointerReleasedEventArgs>? _rightClick;
+    private readonly Action<ControlActivation> _click;
+    private readonly Action<ControlActivation>? _rightClick;
     private bool _isEnabled;
     private bool _isPointerOver;
     private bool _isPressed;
@@ -25,9 +27,9 @@ public sealed class FlyoutButtonState
         Func<IBrush> normalBrush,
         Func<IBrush> hoverBrush,
         Func<IBrush> pressedBrush,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         bool enabled,
-        Action<PointerReleasedEventArgs>? rightClick)
+        Action<ControlActivation>? rightClick)
     {
         _button = button;
         _normalBrush = normalBrush;
@@ -46,6 +48,7 @@ public sealed class FlyoutButtonState
         _button.PointerPressed += OnPointerPressed;
         _button.PointerReleased += OnPointerReleased;
         _button.PointerCaptureLost += OnPointerCaptureLost;
+        _button.MapActivation(OnActivated);
 
         Refresh();
     }
@@ -74,9 +77,9 @@ public sealed class FlyoutButtonState
         Func<IBrush> normalBrush,
         Func<IBrush> hoverBrush,
         Func<IBrush> pressedBrush,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         bool enabled = true,
-        Action<PointerReleasedEventArgs>? rightClick = null) =>
+        Action<ControlActivation>? rightClick = null) =>
         new(button, normalBrush, hoverBrush, pressedBrush, click, enabled, rightClick);
 
     public void Refresh()
@@ -89,6 +92,13 @@ public sealed class FlyoutButtonState
                     ? _hoverBrush()
                     : _normalBrush();
         DebugUIProvenance.RecordBuilder(_button);
+    }
+
+    // Enter, Space, or an accelerator while the button is mapped and focused
+    private void OnActivated(ControlActivation activation)
+    {
+        if (_isEnabled)
+            _click(activation);
     }
 
     private void OnPointerEntered(object? sender, PointerEventArgs e)
@@ -120,7 +130,7 @@ public sealed class FlyoutButtonState
 
         if (e.InitialPressMouseButton == MouseButton.Right && _rightClick != null)
         {
-            _rightClick(e);
+            _rightClick(new ControlActivation(_button, e.KeyModifiers));
             e.Handled = true;
             return;
         }
@@ -131,7 +141,7 @@ public sealed class FlyoutButtonState
         _isPressed = false;
         _isPointerOver = releasedInside;
         Refresh();
-        if (releasedInside) _click(e);
+        if (releasedInside) _click(new ControlActivation(_button, e.KeyModifiers));
         e.Handled = true;
     }
 

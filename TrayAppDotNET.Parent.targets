@@ -126,6 +126,20 @@
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
 
+  <!-- App control maps instantiate templates from the common control map. The control map generator reads the
+       common map as a reference so template ids resolve when an app compiles; it generates no code for it. -->
+  <PropertyGroup>
+    <TrayAppDotNETCommonControlMap>$(TrayAppDotNETCommonRoot)\src\UI\ControlMap.axaml</TrayAppDotNETCommonControlMap>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe'
+                        and '$(TrayAppDotNETIsVendoredProject)' != 'true'
+                        and '$(TrayAppDotNETIsInstallerFactory)' != 'true'
+                        and Exists('$(TrayAppDotNETCommonControlMap)')">
+    <AdditionalFiles Include="$(TrayAppDotNETCommonControlMap)" TrayAppDotNETControlMapReference="true" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="TrayAppDotNETControlMapReference" />
+  </ItemGroup>
+
   <!-- Single-file executables such as the installer carry their legal files inside their payloads. -->
   <ItemGroup Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETIsVendoredProject)' != 'true' and '$(TrayAppDotNETSingleFileExecutable)' != 'true'">
     <Content Include="$(TrayAppDotNETRoot)LICENSE"

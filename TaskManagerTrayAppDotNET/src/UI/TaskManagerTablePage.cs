@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -41,8 +42,13 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private bool _hasReceivedRows;
 #endif
 
+    /// <summary>
+    /// Builds one TaskManagerTablePage instance. The page tags itself and its title bar search overlay with
+    /// <paramref name="pageNode"/>, the instance id that tells the template's nodes on each page apart.
+    /// </summary>
     protected TaskManagerTablePage(
         string title,
+        ControlMapNodeID pageNode,
         TaskManagerTableSchema schema,
         ProcessIconService processIconService,
         AppSettings settings,
@@ -63,23 +69,30 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _palette = palette;
         _resources = resources;
         _startProcess = startProcess;
+        this.MapTo(pageNode);
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        _runTaskButton = AddHeaderAction(label: "Run new task", OnRunTaskClick);
+        HeaderActions.MapTo(ControlMap.TaskManagerTablePage.Actions.ID);
+        _runTaskButton = AddHeaderAction(label: "Run new task", OnRunTaskClick)
+            .MapTo(ControlMap.TaskManagerTablePage.Actions.RunNewTask);
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
         _searchBox.PlaceholderText = searchPlaceholder;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.TextChanged += OnSearchTextChanged;
+        _searchBox.MapTo(ControlMap.TaskManagerTablePage.Search);
         _searchOverlay = new TaskManagerSearchOverlay(
             _searchBox,
             _searchBox,
             settings.LeftAlignProcessSearchBar,
             resources.AxamlTaskManagerDetails.SearchMargin,
             resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
+
+        // The shell hosts the overlay outside the page, so the overlay carries the page id the search box resolves in
+        _searchOverlay.MapTo(pageNode);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -88,9 +101,12 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
         _runInput.PlaceholderText = "Executable, document, or URI";
         _runInput.KeyDown += OnRunInputKeyDown;
-        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette);
+        _runInput.MapTo(ControlMap.TaskManagerTablePage.RunTask.CommandLine);
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette)
+            .MapTo(ControlMap.TaskManagerTablePage.RunTask.Run);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+            .MapTo(ControlMap.TaskManagerTablePage.RunTask.Cancel);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel();
         _runPanel.IsVisible = false;
@@ -135,7 +151,11 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
                 settings.EnableRoundedCorners,
                 settings),
             resizeGrip,
-            overlayVerticalScrollBar: true) { Margin = resources.AxamlTaskManagerDetails.TableMargin };
+            overlayVerticalScrollBar: true,
+            node: ControlMap.TaskManagerTablePage.TableViewport.ID)
+        {
+            Margin = resources.AxamlTaskManagerDetails.TableMargin
+        };
         _tableScrollViewport.SetVerticalScrollBarTopInset(resources.AxamlProcessTable.HeaderHeight);
         _columnHeaderBorder = new Border
         {
@@ -281,9 +301,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     protected void SetColumnTitle(int columnIndex, string title) =>
         _table.SetColumnTitle(columnIndex, title);
 
-    /// <summary>Shows a standard Task Manager action menu below a header control.</summary>
+    /// <summary>Shows a standard Task Manager action menu below a header control as the given menu surface.</summary>
     protected void ShowActionMenu(
         Control anchor,
+        ControlMapNodeID menuSurface,
         IReadOnlyList<ContextMenuEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(anchor);
@@ -291,11 +312,11 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         if (_disposed || TopLevel.GetTopLevel(anchor) is not Window owner) return;
 
         CloseActionMenu();
-        TaskManagerContextMenuWindow menuWindow = new(
+        TaskManagerContextMenuWindow menuWindow = new TaskManagerContextMenuWindow(
             entries,
             _palette,
             _settings.EnableRoundedCorners,
-            _settings);
+            _settings).MapTo(menuSurface);
         _actionMenuWindow = menuWindow;
         menuWindow.Closed += OnActionMenuClosed;
         menuWindow.ShowAt(owner, anchor.PointToScreen(new Point(x: 0, anchor.Bounds.Height)));

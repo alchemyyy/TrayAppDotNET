@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 
@@ -49,6 +50,12 @@ public sealed class TrayAppDotNETAboutPageOptions
     public bool SupportsFlyoutUpdateButton { get; init; } = true;
     public int StaleCheckTimerIntervalMs { get; init; } = TimeConstants.AboutStaleCheckTimerIntervalMs;
     public int UpdateStaleGraceMs { get; init; } = TimeConstants.UpdateStaleGraceMs;
+
+    /// <summary>
+    /// Gets the app's UpdateConfirmation surface for the install and backdate prompts this page opens. An app whose
+    /// map instantiates UpdateConfirmation more than once sets it; otherwise the template root id resolves.
+    /// </summary>
+    public ControlMapNodeID? UpdatePromptNode { get; init; }
 
     private static void ShutdownDesktopApp()
     {
@@ -225,20 +232,23 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             max: 1440,
             minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
             L(nameof(CommonStrings.Settings_About_UpdateInterval_MinutesSuffix)),
-            [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))]));
+            [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))],
+            ControlMap.AboutPage.Updates.UpdateInterval));
         stack.Children.Add(BoolCard(
             L(nameof(CommonStrings.Settings_About_CheckForUpdates_Title)),
             L(nameof(CommonStrings.Settings_About_CheckForUpdates_Description)),
             settings.CheckForUpdatesEnabled,
             value => settings.CheckForUpdatesEnabled = value,
             _options.RebuildAboutPage,
-            [L(nameof(CommonStrings.Settings_About_Updates_SearchKeywords))]));
+            [L(nameof(CommonStrings.Settings_About_Updates_SearchKeywords))],
+            ControlMap.AboutPage.Updates.CheckForUpdatesEnabled));
         stack.Children.Add(BoolCard(
             L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Title)),
             L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Description)),
             settings.ShowUpdateNotificationsEnabled,
             value => settings.ShowUpdateNotificationsEnabled = value,
-            searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateNotifications_SearchKeywords))]));
+            searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateNotifications_SearchKeywords))],
+            node: ControlMap.AboutPage.Updates.ShowUpdateNotifications));
         if (_options.SupportsFlyoutUpdateButton)
         {
             stack.Children.Add(BoolCard(
@@ -246,7 +256,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 L(nameof(CommonStrings.Settings_About_ShowUpdateButton_Description)),
                 settings.ShowUpdateButtonInFlyout,
                 value => settings.ShowUpdateButtonInFlyout = value,
-                searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateButton_SearchKeywords))]));
+                searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateButton_SearchKeywords))],
+                node: ControlMap.AboutPage.Updates.ShowUpdateButton));
         }
 
         stack.Children.Add(BuildBackdateCard(p));
@@ -257,9 +268,12 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
-        SettingsButton check = Button(L(nameof(CommonStrings.Settings_About_CheckForUpdates_Button)), p);
-        SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button)), p);
-        SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p);
+        SettingsButton check = Button(L(nameof(CommonStrings.Settings_About_CheckForUpdates_Button)), p)
+            .MapTo(ControlMap.AboutPage.Updates.UpdateCard.CheckForUpdates);
+        SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button)), p)
+            .MapTo(ControlMap.AboutPage.Updates.UpdateCard.SkipUpdate);
+        SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p)
+            .MapTo(ControlMap.AboutPage.Updates.UpdateCard.InstallUpdate);
         check.Margin = layout.UpdateCheckButtonMargin;
         skip.Margin = layout.UpdateCheckButtonMargin;
 
@@ -295,7 +309,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
             L(nameof(CommonStrings.Settings_About_Backdate_Checking)),
             p);
-        SettingsButton backdate = Button(L(nameof(CommonStrings.Settings_About_Backdate_Button)), p);
+        SettingsButton backdate = Button(L(nameof(CommonStrings.Settings_About_Backdate_Button)), p)
+            .MapTo(ControlMap.AboutPage.Updates.Backdate);
         backdate.Click += async (_, _) => await BackdateAsync();
 
         Grid grid = new();
@@ -415,7 +430,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                         _installInProgress = inFlight;
                         RefreshUpdateUI();
                         RefreshBackdateUI();
-                    }
+                    },
+                    Node = _options.UpdatePromptNode
                 });
         }
         catch (Exception exception)
@@ -466,7 +482,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                         _backdateInProgress = inFlight;
                         RefreshUpdateUI();
                         RefreshBackdateUI();
-                    }
+                    },
+                    Node = _options.UpdatePromptNode
                 });
         }
         catch (Exception exception)
@@ -701,7 +718,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         bool value,
         Action<bool> set,
         Action? afterSave = null,
-        IReadOnlyList<string>? searchKeywords = null) =>
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.BoolCard(
             title,
             description,
@@ -711,10 +729,11 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _options.CardRadius,
             _options.Save,
             afterSave,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     private Border IntCard(string title, string description, int value, int min, int max, Action<int> set,
-        string suffix, IReadOnlyList<string>? searchKeywords = null) =>
+        string suffix, IReadOnlyList<string>? searchKeywords = null, ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.IntCard(
             title,
             description,
@@ -726,7 +745,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _options.CardRadius,
             _options.Save,
             suffix,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     private SettingsButton Button(string text, SettingsPalette palette) =>
         TrayAppDotNETSettingsCards.Button(text, palette, _options.ButtonRadius);
@@ -741,7 +761,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
     private Border BuildSettingsFolderCard(SettingsPalette p)
     {
-        SettingsButton openFolder = Button(L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Button)), p);
+        SettingsButton openFolder = Button(L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Button)), p)
+            .MapTo(ControlMap.AboutPage.OpenSettingsFolder);
         openFolder.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(_options.SettingsFolderPath);
         return TrayAppDotNETSettingsCards.Card(
             _options.OpenSettingsFolderText,
@@ -768,16 +789,13 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             valueBlock.PointerPressed += (sender, eventArgs) =>
             {
                 if (!eventArgs.GetCurrentPoint(valueBlock).Properties.IsLeftButtonPressed) return;
-                if (!ExplorerProcessLauncher.TryShellExecute(
-                        openUrl,
-                        arguments: null,
-                        workingDirectory: null,
-                        verb: null,
-                        out _,
-                        out string errorMessage))
-                    TADNLog.Log($"About page failed to open a link: {errorMessage}");
+                OpenLink(openUrl);
                 eventArgs.Handled = true;
             };
+
+            // The GitHub row is the page's only link; the map makes it a tab stop that Enter or Space opens
+            valueBlock.MapTo(ControlMap.AboutPage.OpenGitHub);
+            valueBlock.MapActivation(_ => OpenLink(openUrl));
         }
 
         return new StackPanel
@@ -786,6 +804,18 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             Margin = layout.AboutRowMargin,
             Children = { labelBlock, valueBlock }
         };
+    }
+
+    private static void OpenLink(string url)
+    {
+        if (!ExplorerProcessLauncher.TryShellExecute(
+                url,
+                arguments: null,
+                workingDirectory: null,
+                verb: null,
+                out _,
+                out string errorMessage))
+            TADNLog.Log($"About page failed to open a link: {errorMessage}");
     }
 
     private string L(string key) => _options.L(key);

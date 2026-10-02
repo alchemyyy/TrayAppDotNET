@@ -110,6 +110,11 @@
   - `TrayAppDotNETCommon/src/UI/Controls`
   - `TrayAppDotNETCommon/src/UI/Controls/FlyoutSlider.cs`
   - `TrayAppDotNETCommon/src/UI/Controls/SearchableListBox.cs`
+- Control maps (see `CONTROL_MAP_PLAYBOOK.md`):
+  - Schema and runtime index: `TrayAppDotNETCommon/src/UI/ControlMapping`
+  - Shared templates: `TrayAppDotNETCommon/src/UI/ControlMap.axaml`
+  - App maps: `<App>/src/UI/ControlMap.axaml`; every map class is `<Project>.UI.ControlMap`
+  - Generator: `TrayAppDotNETCommon/generators/AxamlPropertyLinker/ControlMaps`
 - AXAML resource readers:
   - `TrayAppDotNETCommon/src/UI/HotReloadResourceReader.cs`
   - `TrayAppDotNETCommon/src/UI/TrayAppDotNETAXAMLResources.cs`

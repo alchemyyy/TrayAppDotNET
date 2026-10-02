@@ -18,7 +18,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_SetDefaultCommsToDefault_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.SetDefaultCommsToDefault));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_Description)),
@@ -28,7 +29,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowNotPresent));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description)),
@@ -38,7 +40,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ActivateRecordingDevicesForPeakMeters));
 
         string playback = Loc(nameof(AppStrings.Settings_Common_Playback));
         string recording = Loc(nameof(AppStrings.Settings_Common_Recording));
@@ -58,7 +61,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowRecording_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowRecording.ID));
         stack.Children.Add(PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_Description)),
@@ -74,7 +78,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowDisabled.ID));
 
         bool hideDefaultCards = _settings.ShowDisabledPlaybackDevices
                                 && (!_settings.ShowRecordingDevices || _settings.ShowDisabledRecordingDevices);
@@ -93,7 +98,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDefaultEvenIfDisabled_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowDefaultEvenIfDisabled.ID)));
         stack.Children.Add(Maybe(!hideDefaultCards, PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_Description)),
@@ -109,7 +115,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowDefaultCommsEvenIfDisabled.ID)));
         stack.Children.Add(PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_Description)),
@@ -124,7 +131,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowDisconnected.ID));
 
         stack.Children.Add(PairColumnHeader(Loc(nameof(AppStrings.Settings_Devices_RowButtons_Header)), p));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackLockButton_Title)),
@@ -134,7 +142,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackLockButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowLockButton.ID));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Description)),
             playback, recording, _settings.ShowEqualizerAPOButtonForPlayback,
@@ -143,7 +152,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowEqualizerAPOButton.ID));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Description)),
             playback, recording, _settings.ShowDefaultDeviceButtonForPlayback,
@@ -152,7 +162,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowDefaultDeviceButton.ID));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Description)),
             playback, recording, _settings.ShowBatteryButtonForPlayback,
@@ -161,7 +172,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowBatteryButton.ID));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Description)),
             playback, recording, leftValue: null, setLeft: null, _settings.ShowListenButtonForRecording,
@@ -169,7 +181,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DevicesPage.ShowListenButton.ID));
 
         ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Devices));
         return stack;

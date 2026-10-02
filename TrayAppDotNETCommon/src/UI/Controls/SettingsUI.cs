@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Rendering;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ContextMenus;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
@@ -479,6 +480,11 @@ public sealed class SettingsNavItem : Border
             }
         };
 
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) Click?.Invoke(this, EventArgs.Empty);
+        });
+
         DebugUIProvenance.RecordBuilder(this);
         DebugUIProvenance.RecordBuilder(_label);
         DebugUIProvenance.RecordBuilder(_outer);
@@ -831,6 +837,11 @@ public sealed class SettingsButton : Border
             }
         };
 
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) Click?.Invoke(this, EventArgs.Empty);
+        });
+
         DebugUIProvenance.RecordBuilder(this);
         DebugUIProvenance.RecordBuilder(_label);
     }
@@ -991,6 +1002,11 @@ public sealed class SettingsToggle : Border
             }
         };
 
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) IsChecked = !IsChecked;
+        });
+
         UpdateVisual();
         DebugUIProvenance.RecordBuilder(this);
         DebugUIProvenance.RecordBuilder(grid);
@@ -1096,6 +1112,11 @@ public sealed class SettingsSwatch : Border
             }
         };
 
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) Click?.Invoke(this, EventArgs.Empty);
+        });
+
         DebugUIProvenance.RecordBuilder(this);
     }
 
@@ -1134,7 +1155,14 @@ public sealed class SettingsScrollHost : Grid, IDisposable
     private readonly SettingsScrollBar _scrollBar;
     private int _disposed;
 
-    public SettingsScrollHost(Control content, SettingsPalette palette, Thickness padding)
+    /// <summary>
+    /// Creates a scroll host; scrollBarNode tags its painted scroll bar with the ScrollBar instance it stands for.
+    /// </summary>
+    public SettingsScrollHost(
+        Control content,
+        SettingsPalette palette,
+        Thickness padding,
+        ControlMapNodeID? scrollBarNode = null)
     {
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
         ClipToBounds = true;
@@ -1156,7 +1184,7 @@ public sealed class SettingsScrollHost : Grid, IDisposable
         _scrollBar = new SettingsScrollBar(palette)
         {
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch
-        };
+        }.MapTo(scrollBarNode);
         _scrollBar.Attach(_scrollViewer);
         Children.Add(_scrollBar);
     }
@@ -1237,18 +1265,24 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
     private double _lastVerticalOffset;
     private int _disposed;
 
+    /// <summary>
+    /// Creates the viewport; node tags it with the VerticalScrollViewport instance it stands for, which an owner that
+    /// builds several viewports needs.
+    /// </summary>
     public SettingsVerticalScrollViewport(
         Control content,
         Thickness padding,
         Color background,
         SettingsScrollBarStyle scrollBarStyle,
-        ContextMenuWindowOptions contextMenuOptions)
+        ContextMenuWindowOptions contextMenuOptions,
+        ControlMapNodeID? node = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (scrollBarStyle.TrackThickness <= 0)
             throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), message: "Track thickness must be positive.");
 
+        this.MapTo(node);
         IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
         Background = backgroundBrush;
         ClipToBounds = true;
@@ -1271,7 +1305,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
             Orientation.Vertical,
             scrollBarStyle,
             TrayAppDotNETCursors.Arrow,
-            contextMenuOptions);
+            contextMenuOptions).MapTo(ControlMap.VerticalScrollViewport.VerticalScrollBar.ID);
         _scrollBar.Attach(_scrollViewer);
         SetColumn(_scrollBar, value: 1);
         Children.Add(_scrollBar);
@@ -1360,6 +1394,10 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     private readonly Border _cornerHost;
     private int _disposed;
 
+    /// <summary>
+    /// Creates the viewport; node tags it with the ScrollViewport instance it stands for, which an owner that builds
+    /// several viewports needs.
+    /// </summary>
     public SettingsScrollViewport(
         Control content,
         Thickness padding,
@@ -1367,13 +1405,15 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         SettingsScrollBarStyle scrollBarStyle,
         ContextMenuWindowOptions contextMenuOptions,
         Control? cornerContent = null,
-        bool overlayVerticalScrollBar = false)
+        bool overlayVerticalScrollBar = false,
+        ControlMapNodeID? node = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (scrollBarStyle.TrackThickness <= 0)
             throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), message: "Track thickness must be positive.");
 
+        this.MapTo(node);
         IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
         Background = backgroundBrush;
         ClipToBounds = true;
@@ -1397,7 +1437,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             Orientation.Vertical,
             scrollBarStyle,
             TrayAppDotNETCursors.Arrow,
-            contextMenuOptions);
+            contextMenuOptions).MapTo(ControlMap.ScrollViewport.VerticalScrollBar.ID);
         _verticalScrollBar.Attach(_scrollViewer);
         SetColumn(_verticalScrollBar, value: 1);
         Children.Add(_verticalScrollBar);
@@ -1406,7 +1446,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             Orientation.Horizontal,
             scrollBarStyle,
             TrayAppDotNETCursors.Arrow,
-            contextMenuOptions);
+            contextMenuOptions).MapTo(ControlMap.ScrollViewport.HorizontalScrollBar.ID);
         _horizontalScrollBar.Attach(_scrollViewer);
         SetRow(_horizontalScrollBar, value: 1);
         Children.Add(_horizontalScrollBar);
@@ -1995,16 +2035,37 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         }
 
         ContextMenuEntryBuilder entries = new();
-        entries.Add(ScrollHereText, () => ScrollHere(pointerAxis));
+        entries.Add(new ContextMenuEntry(ScrollHereText, () => ScrollHere(pointerAxis))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.ScrollHere
+        });
         entries.AddSeparator();
-        entries.Add(startText, () => SetCurrentOffset(0));
-        entries.Add(endText, () => SetCurrentOffset(MaxOffset));
+        entries.Add(new ContextMenuEntry(startText, () => SetCurrentOffset(0))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.ScrollToStart
+        });
+        entries.Add(new ContextMenuEntry(endText, () => SetCurrentOffset(MaxOffset))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.ScrollToEnd
+        });
         entries.AddSeparator();
-        entries.Add(pageBackwardText, () => ScrollPage(-1));
-        entries.Add(pageForwardText, () => ScrollPage(1));
+        entries.Add(new ContextMenuEntry(pageBackwardText, () => ScrollPage(-1))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.PageBackward
+        });
+        entries.Add(new ContextMenuEntry(pageForwardText, () => ScrollPage(1))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.PageForward
+        });
         entries.AddSeparator();
-        entries.Add(lineBackwardText, () => ScrollLine(-1));
-        entries.Add(lineForwardText, () => ScrollLine(1));
+        entries.Add(new ContextMenuEntry(lineBackwardText, () => ScrollLine(-1))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.LineBackward
+        });
+        entries.Add(new ContextMenuEntry(lineForwardText, () => ScrollLine(1))
+        {
+            Node = ControlMap.ScrollBarMenu.Entries.LineForward
+        });
         return entries.ToList();
     }
 
@@ -2015,6 +2076,10 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         PixelPoint screenPosition = this.PointToScreen(position);
         CloseContextMenu();
         ContextMenuWindow menuWindow = new(BuildContextMenuEntries(Axis(position)), _contextMenuOptions);
+        menuWindow.MapToSurface(
+            ControlMap.ScrollBarMenu.ID,
+            ControlMap.ScrollBarMenu.Entries.ID,
+            ControlMap.ScrollBarMenu.Dismiss);
         _contextMenuWindow = menuWindow;
         menuWindow.Closed += OnContextMenuClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
@@ -2453,6 +2518,10 @@ public sealed class SettingsComboBox : Grid, IDisposable
         PointerPressed += OnPointerPressed;
         PointerReleased += OnPointerReleased;
         KeyDown += OnKeyDown;
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) IsDropDownOpen = true;
+        });
         _popup.PropertyChanged += OnPopupPropertyChanged;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
 
@@ -3649,8 +3718,15 @@ public static class TrayAppDotNETSettingsUI
         return SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
     }
 
-    public static SettingsScrollHost ScrollHost(Control content, SettingsPalette palette, Thickness padding) =>
-        new(content, palette, padding);
+    /// <summary>
+    /// Creates a scroll host; scrollBarNode tags its painted scroll bar with the ScrollBar instance it stands for.
+    /// </summary>
+    public static SettingsScrollHost ScrollHost(
+        Control content,
+        SettingsPalette palette,
+        Thickness padding,
+        ControlMapNodeID? scrollBarNode = null) =>
+        new(content, palette, padding, scrollBarNode);
 
     public static SettingsButton Button(string text, SettingsPalette palette) => new(text, palette);
 

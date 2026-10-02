@@ -35,7 +35,8 @@ public sealed partial class NetworkSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Network_FlyoutStyle_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.FlyoutStyle));
         stack.Children.Add(ComboCard(
             Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
             Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Description)),
@@ -55,7 +56,8 @@ public sealed partial class NetworkSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.AdapterSettingsStyle));
         commonSection.AddInstallationSection(
             stack,
             [

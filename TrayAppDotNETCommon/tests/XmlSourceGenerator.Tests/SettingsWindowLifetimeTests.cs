@@ -4,9 +4,11 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
@@ -430,7 +432,7 @@ public sealed class SettingsWindowLifetimeTests
     }
 
     [Fact]
-    public void ConfirmationVisibilityHookTracksOverlayLifetime() => AvaloniaTestHost.Run(() =>
+    public void ConfirmationVisibilityHookTracksOverlayLifetime() => RunWithShellMap(() =>
     {
         TestSettingsWindow window = new();
         window.Show();
@@ -450,6 +452,37 @@ public sealed class SettingsWindowLifetimeTests
         finally
         {
             window.Close();
+        }
+    });
+
+    [Fact]
+    public void PageOverlayFollowsMapOrderWhenThePageContinuesTheWindowTabOrder() => RunWithShellMap(() =>
+    {
+        PageOverlaySettingsWindow window = new();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            // The shell hosts the overlay outside the page, yet the map orders its search box before the page action
+            Assert.True(window.OverlaySearch.Focus(NavigationMethod.Tab));
+            PressTab(window, RawInputModifiers.None);
+            Assert.Same(window.PageAction, window.FocusManager?.GetFocusedElement());
+
+            PressTab(window, RawInputModifiers.Shift);
+            Assert.Same(window.OverlaySearch, window.FocusManager?.GetFocusedElement());
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        return;
+
+        static void PressTab(Window target, RawInputModifiers modifiers)
+        {
+            target.KeyPress(Key.Tab, modifiers, PhysicalKey.Tab, keySymbol: null);
+            target.KeyRelease(Key.Tab, modifiers, PhysicalKey.Tab, keySymbol: null);
+            Dispatcher.UIThread.RunJobs();
         }
     });
 
@@ -740,6 +773,21 @@ public sealed class SettingsWindowLifetimeTests
         window.MouseUp(windowPoint, MouseButton.Left, RawInputModifiers.None);
     }
 
+    // Settings windows tag themselves with the SettingsShell template root, which resolves only through an app map that
+    // instantiates the shell, as every app's map does
+    private static void RunWithShellMap(Action test) => AvaloniaTestHost.Run(() =>
+    {
+        ControlMapCatalog.Register(new SettingsShellTestMap());
+        try
+        {
+            test();
+        }
+        finally
+        {
+            ControlMapCatalog.Unregister(SettingsShellTestMap.TestMapName);
+        }
+    });
+
     private enum TestPage
     {
         Stable,
@@ -796,6 +844,67 @@ public sealed class SettingsWindowLifetimeTests
         {
             AddPageCleanup(() => FailedPageCleanupCount++);
             throw new InvalidOperationException("expected page failure");
+        }
+    }
+
+    // An app map with one settings window; its page continues the window's tab order, as Task Manager's table pages do
+    private sealed class SettingsShellTestMap : UI.ControlMapping.ControlMap
+    {
+        public const string TestMapName = "SettingsWindowLifetimeTests";
+
+        public static readonly ControlMapNodeID PageID = new(TestMapName, Path: "Settings.Page");
+        public static readonly ControlMapNodeID PageSearchID = new(TestMapName, Path: "Settings.Page.Search");
+        public static readonly ControlMapNodeID PageActionID = new(TestMapName, Path: "Settings.Page.Action");
+
+        public SettingsShellTestMap() : base(TestMapName)
+        {
+            Scope page = new() { ID = "Page", Tab = KeyboardNavigationMode.Continue };
+            page.Children.Add(new Leaf { ID = "Search", Kind = LeafKind.Text });
+            page.Children.Add(new Leaf { ID = "Action", Kind = LeafKind.Button });
+            Surface settings = new() { ID = "Settings", Template = "SettingsShell" };
+            settings.Children.Add(page);
+            Children.Add(settings);
+        }
+    }
+
+    // Hosts the page's search box in the shell's page overlay, outside the page, as Task Manager's table pages do
+    private sealed class PageOverlaySettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly Grid _overlay = new Grid().MapTo(SettingsShellTestMap.PageID);
+
+        public PageOverlaySettingsWindow()
+        {
+            _overlay.Children.Add(OverlaySearch);
+            InitializeSettingsShell();
+        }
+
+        public TextBox OverlaySearch { get; } = new TextBox().MapTo(SettingsShellTestMap.PageSearchID);
+        public Button PageAction { get; } = new Button().MapTo(SettingsShellTestMap.PageActionID);
+
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+
+        protected override Control? ResolvePageOverlay(Control pageRoot) => _overlay;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new(TestPage.Stable, Label: "Stable", BuildPage)
+        ];
+
+        protected override void Save()
+        {
+        }
+
+        private StackPanel BuildPage()
+        {
+            StackPanel page = new StackPanel().MapTo(SettingsShellTestMap.PageID);
+            page.Children.Add(PageAction);
+            return page;
         }
     }
 

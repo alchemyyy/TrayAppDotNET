@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -79,6 +80,10 @@ internal sealed class InsetGlyphButton : Border, IDisposable
         PointerPressed += OnPointerPressed;
         PointerReleased += OnPointerReleased;
         KeyDown += OnKeyDown;
+        this.MapActivation(_ =>
+        {
+            if (!_disposed && IsEnabled) Click?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     public event EventHandler? Click;

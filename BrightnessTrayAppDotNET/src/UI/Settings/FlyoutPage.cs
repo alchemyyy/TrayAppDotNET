@@ -19,7 +19,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.RestoreUndockState));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Flyout_Visibility_Header)),
@@ -33,7 +34,8 @@ public sealed partial class BrightnessSettingsWindow
             () => RebuildShell(BrightnessSettingsPage.Flyout),
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowUndockButton));
         stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
             L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
@@ -43,7 +45,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ClampUndockedToScreen)));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Description)),
@@ -53,7 +56,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowMonitorPowerButtons));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Description)),
@@ -63,7 +67,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowDisplayNumberBadge));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Description)),
@@ -73,7 +78,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowDisplaySettingsButton));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Description)),
@@ -83,7 +89,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowPowerButton));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Description)),
@@ -93,7 +100,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowMasterSlider));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Description)),
@@ -103,7 +111,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowIndividualSliders));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Description)),
@@ -113,7 +122,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowEnvironmentalCurvesButton));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Title)),
             L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Description)),
@@ -123,7 +133,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.ShowNightLightKelvinLabel));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Flyout_Behavior_Header)),
@@ -137,7 +148,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.PowerButtonOnlyEnabled));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Title)),
             L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Description)),
@@ -147,7 +159,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.NumberKeysSwitchProfile));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Title)),
             L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Description)),
@@ -162,7 +175,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.MasterSliderTracking));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Title)),
             L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Description)),
@@ -172,7 +186,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.PreserveSliderOffsets));
         stack.Children.Add(IntCard(
             L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Title)),
             L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Description)),
@@ -184,7 +199,8 @@ public sealed partial class BrightnessSettingsWindow
             suffix: "%",
             [
                 L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.FlyoutPage.MouseWheelStep));
 
         return stack;
     }

@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
@@ -429,6 +430,8 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
             };
             itemBorder.PointerEntered += OnSuggestionPointerEntered;
             itemBorder.PointerPressed += OnSuggestionPointerPressed;
+            itemBorder.MapTo(ControlMap.Main.ProcessesPage.Search.Suggestion);
+            itemBorder.MapActivation(_ => CompleteSuggestion(itemBorder));
             _itemBorders.Add(itemBorder);
             _itemsPanel.Children.Add(itemBorder);
         }
@@ -491,13 +494,20 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
 
     private void OnSuggestionPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
-        if (sender is not Border itemBorder) return;
+        if (sender is not Border itemBorder || !CompleteSuggestion(itemBorder)) return;
 
+        eventArgs.Handled = true;
+    }
+
+    /// <summary>Completes the column token with a suggestion row's column; returns false for a stale row.</summary>
+    private bool CompleteSuggestion(Border itemBorder)
+    {
         int suggestionIndex = _itemBorders.IndexOf(itemBorder);
-        if (suggestionIndex < 0) return;
+        if (suggestionIndex < 0) return false;
+
         _selectedIndex = suggestionIndex;
         CompleteSelectedSuggestion();
-        eventArgs.Handled = true;
+        return true;
     }
 
     private void UpdateItemVisuals()

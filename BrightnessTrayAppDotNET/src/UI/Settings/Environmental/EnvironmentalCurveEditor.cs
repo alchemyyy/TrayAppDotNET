@@ -207,6 +207,7 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
         Cursor = ArrowCursor;
         GotFocus += OnEditorGotFocus;
         LostFocus += OnEditorLostFocus;
+        MapKeyboardCommands();
     }
 
     public event Action? CurveChanged;

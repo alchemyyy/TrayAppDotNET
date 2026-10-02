@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
@@ -236,6 +237,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 #endif
         _windowResources = new UIResourceScope(GetType().Name);
         ControlNames = ControlNameScope.For(this);
+
+        // A derived window whose app map instantiates the shell more than once tags itself with its surface id
+        this.MapTo(ControlMap.SettingsShell.ID);
         Resources.MergedDictionaries.Add(_settingsResources);
         Resources.MergedDictionaries.Add(_commonBindingResources);
         _wndProcHook = WndProcHook;
@@ -722,7 +726,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Action<bool> set,
         SettingsPalette palette,
         Action? afterSave = null,
-        IReadOnlyList<string>? searchKeywords = null) =>
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.BoolCard(
             title,
             description,
@@ -732,7 +737,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             RadiusLarge,
             Save,
             afterSave,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     protected Border IntCard(
         string title,
@@ -743,7 +749,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Action<int> set,
         SettingsPalette palette,
         string suffix = "",
-        IReadOnlyList<string>? searchKeywords = null) =>
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.IntCard(
             title,
             description,
@@ -755,7 +762,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             RadiusLarge,
             Save,
             suffix,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     protected Border DoubleCard(
         string title,
@@ -768,7 +776,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         string suffix = "",
         IReadOnlyList<string>? searchKeywords = null,
         int decimalPlaces = 1,
-        double step = 0.1) =>
+        double step = 0.1,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.DoubleCard(
             title,
             description,
@@ -782,7 +791,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             suffix,
             searchKeywords,
             decimalPlaces,
-            step);
+            step,
+            node);
 
     protected Border ResettableDoubleCard(
         string title,
@@ -798,7 +808,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         string suffix = "",
         IReadOnlyList<string>? searchKeywords = null,
         int decimalPlaces = 1,
-        double step = 0.1) =>
+        double step = 0.1,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.ResettableDoubleCard(
             title,
             description,
@@ -816,7 +827,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             suffix,
             searchKeywords,
             decimalPlaces,
-            step);
+            step,
+            node);
 
     protected Border ComboCard(
         string title,
@@ -828,7 +840,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Action? afterSave = null,
         bool autoSizeToText = false,
         SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem,
-        IReadOnlyList<string>? searchKeywords = null) =>
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null) =>
         TrayAppDotNETSettingsCards.ComboCard(
             title,
             description,
@@ -841,7 +854,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             afterSave,
             autoSizeToText,
             autoSizeMode,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     protected Border Card(
         string title,
@@ -914,8 +928,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebarHeader = BuildSidebarHeader(headerTitle, palette);
         _sidebar.SetHeader(_sidebarHeader);
 
-        StackPanel nav = _sidebar.Navigation;
-        StackPanel footer = _sidebar.Footer;
+        StackPanel nav = _sidebar.Navigation.MapTo(ControlMap.SettingsShell.Sidebar.Navigation.ID);
+        StackPanel footer = _sidebar.Footer.MapTo(ControlMap.SettingsShell.Sidebar.FooterNavigation.ID);
         _sidebarNavigationActions = CreateSidebarNavigationActions(palette);
         foreach (SettingsNavItem navigationAction in _sidebarNavigationActions)
             nav.Children.Add(navigationAction);
@@ -926,7 +940,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
-            AddNavItem(IsFooterNavigationPage(page.Key) ? footer : nav, page, palette);
+            if (IsFooterNavigationPage(page.Key))
+                AddNavItem(footer, page, palette, ControlMap.SettingsShell.Sidebar.FooterNavigation.FooterPage);
+            else
+                AddNavItem(nav, page, palette, ControlMap.SettingsShell.Sidebar.Navigation.Page);
         }
 
         if (ShowSettingsSearchBox)
@@ -935,13 +952,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 palette,
                 L(nameof(CommonStrings.SettingsWindow_SearchPlaceholder)));
             _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
-            footer.Children.Add(_settingsSearchBox);
+
+            // Below the footer rows but outside their focus group, so Tab still reaches the search box
+            _sidebar.FooterHost.Children.Add(_settingsSearchBox);
         }
 
         _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
             _content,
             palette,
-            ContentPadding);
+            ContentPadding,
+            ControlMap.SettingsShell.Content.ScrollBar.ID);
         Grid.SetColumn(_scrollHost, value: 1);
         body.Children.Add(_scrollHost);
 
@@ -956,7 +976,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 GetAvailableSidebarMaximumWidth,
                 PreviewSidebarWidth,
                 PersistSidebarWidth,
-                ResetSidebarWidth);
+                ResetSidebarWidth).MapTo(ControlMap.SettingsShell.ResizeSidebar);
             if (PageContentExtendsIntoTitleBar)
             {
                 _sidebarResizeHandle.Margin = new Thickness(
@@ -1024,14 +1044,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private Grid BuildTitleBar(SettingsPalette palette)
     {
-        Grid titleBar = new()
+        Grid titleBar = new Grid
         {
             Background = PageContentExtendsIntoTitleBar ? null : Brushes.Transparent,
             Height = UseExtendedTitleBarDragZone
                 ? _settingsResources.AxamlSettingsWindow.TitleBarDragZoneHeight
                 : _settingsResources.AxamlSettingsWindow.TitleBarHeight,
             VerticalAlignment = VerticalAlignment.Top
-        };
+        }.MapTo(ControlMap.SettingsShell.TitleBar.ID);
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -1042,7 +1062,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 Background = Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Stretch
-            };
+            }.MapTo(ControlMap.SettingsShell.TitleBar.Move);
             AttachTitleBarDrag(_titleBarDragZone);
             titleBar.Children.Add(_titleBarDragZone);
         }
@@ -1058,13 +1078,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         SettingsButton minimize = CaptionButton(
             GlyphCatalog.CHROME_MINIMIZE,
             palette,
-            minimizeButton: true);
+            minimizeButton: true).MapTo(ControlMap.SettingsShell.TitleBar.Minimize);
         SettingsButton maximize = CaptionButton(
             WindowState == WindowState.Maximized
                 ? GlyphCatalog.CHROME_RESTORE
                 : GlyphCatalog.CHROME_MAXIMIZE,
-            palette);
-        SettingsButton close = CaptionButton(GlyphCatalog.CHROME_CLOSE, palette, closeButton: true);
+            palette).MapTo(ControlMap.SettingsShell.TitleBar.Maximize);
+        SettingsButton close = CaptionButton(GlyphCatalog.CHROME_CLOSE, palette, closeButton: true)
+            .MapTo(ControlMap.SettingsShell.TitleBar.Close);
         SetCaptionButtonTip(minimize, L(nameof(CommonStrings.SettingsWindow_Caption_Minimize)));
         SetCaptionButtonTip(maximize, L(nameof(CommonStrings.SettingsWindow_Caption_Maximize)));
         SetCaptionButtonTip(close, L(nameof(CommonStrings.Common_Close)));
@@ -1208,13 +1229,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private void AddNavItem(
         StackPanel navigationPanel,
         SettingsPageDescriptor<TPageKey> page,
-        SettingsPalette palette)
+        SettingsPalette palette,
+        ControlMapNodeID node)
     {
         bool useWindows11Style = UseWindows11SettingsNavigation;
         Control? customNavigationIcon = useWindows11Style
             ? page.NavigationIconFactory?.Invoke(palette.Foreground)
             : null;
-        SettingsNavItem item = new(
+        SettingsNavItem item = new SettingsNavItem(
             page.Label,
             palette,
             RadiusTiny,
@@ -1223,7 +1245,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             page.NavigationGlyph,
             customNavigationIcon,
             page.NavigationIconScale,
-            page.NavigationIconTransform);
+            page.NavigationIconTransform).MapTo(node);
         item.Click += (_, _) =>
         {
             if (item.IsSelected)
@@ -1593,10 +1615,17 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             : Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)), palette);
         _confirmOk.Click += (_, _) => CompleteConfirm(true);
         _confirmCancel.Click += (_, _) => CompleteConfirm(false);
+        _confirmOk.MapTo(ControlMap.SettingsShell.ConfirmOverlay.Confirm);
+        _confirmCancel.MapTo(ControlMap.SettingsShell.ConfirmOverlay.Cancel);
 
-        return UseProminentConfirmationDialog
+        Border overlay = UseProminentConfirmationDialog
             ? BuildProminentConfirmOverlay(palette)
             : BuildCompactConfirmOverlay(palette);
+
+        // The prominent layout puts Confirm left of Cancel
+        return overlay
+            .MapTo(ControlMap.SettingsShell.ConfirmOverlay.ID)
+            .MapVariant(ControlMap.Variants.ProminentConfirmOverlay, UseProminentConfirmationDialog);
     }
 
     private static SettingsButton BuildProminentConfirmButton(string text, SettingsPalette palette) =>
@@ -1759,9 +1788,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             switch (eventArgs.Key)
             {
+                // The control map runs Cancel on Escape
                 case Key.Escape:
-                    CompleteConfirm(false);
-                    eventArgs.Handled = true;
                     return;
                 case Key.Tab:
                 case Key.Left:

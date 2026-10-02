@@ -1,0 +1,669 @@
+<ControlMap
+    x:Class="TaskManagerTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Template ID="TaskManagerGrid" Source="TaskManagerGridControl.TaskManagerGridControl"
+              Description="Gestures the abstract grid base handles for every table; the Slot takes the table's own">
+        <!-- TaskManagerGridShortcuts reads these Pointer gestures for dispatch and the Hotkeys settings page; the
+             most specific held-modifier match wins, and the two-trigger resets omit Event (both hooks raise them) -->
+        <Leaf ID="Zoom" Kind="Command" Pointer="Ctrl+Wheel" Event="OnPointerWheelChanged"
+              Source="TaskManagerGridControl.OnPointerWheelChanged" Description="Enlarges or shrinks table text" />
+        <Leaf ID="Stretch" Kind="Command" Pointer="Shift+Wheel" Event="OnPointerWheelChanged"
+              Source="TaskManagerGridControl.OnPointerWheelChanged" Description="Adds or removes space between rows" />
+        <Leaf ID="ResetZoom" Kind="Command" Pointer="Ctrl+MiddleClick;Ctrl+Alt+Wheel"
+              Source="TaskManagerGridControl.TryRaiseShortcut" Description="Returns text to the baseline zoom" />
+        <Leaf ID="ResetStretch" Kind="Command" Pointer="Shift+MiddleClick;Shift+Alt+Wheel"
+              Source="TaskManagerGridControl.TryRaiseShortcut"
+              Description="Returns row spacing to the baseline stretch" />
+        <Leaf ID="SetZoomBaseline" Kind="Command" Pointer="Ctrl+Alt+MiddleClick" Event="OnPointerPressed"
+              Source="TaskManagerGridControl.OnPointerPressed" Description="Makes the current zoom the reset target" />
+        <Leaf ID="SetStretchBaseline" Kind="Command" Pointer="Shift+Alt+MiddleClick" Event="OnPointerPressed"
+              Source="TaskManagerGridControl.OnPointerPressed"
+              Description="Makes the current stretch the reset target" />
+        <Slot />
+    </Template>
+
+    <!-- App history, Startup apps, Users and Services; one TaskManagerTablePage builds every node here -->
+    <Template ID="TaskManagerTablePage" Source="TaskManagerTablePage.TaskManagerTablePage"
+              Description="The Slot takes the page's header actions; Information takes content above the table">
+        <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="TaskManagerTablePage.OnSearchTextChanged"
+              Description="Filters the table; the shell hosts its overlay outside the page, tagged with the page id" />
+        <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="TaskManagerTablePage.AddHeaderAction">
+            <Leaf ID="RunNewTask" Kind="Button" Event="Click" Source="TaskManagerTablePage.OnRunTaskClick" />
+            <Slot />
+        </Scope>
+        <Scope ID="RunTask" Source="TaskManagerTablePage.BuildRunPanel" Description="Hidden until Run new task">
+            <Leaf ID="CommandLine" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                  Source="TaskManagerTablePage.OnRunInputKeyDown"
+                  Description="Enter runs the command; Escape hides the panel" />
+            <Leaf ID="Run" Kind="Button" Event="Click" Source="TaskManagerTablePage.OnSubmitRunClick" />
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TaskManagerTablePage.OnCancelRunClick" />
+        </Scope>
+        <Slot ID="Information" />
+        <Scope ID="TableViewport" Template="ScrollViewport" Source="TaskManagerTablePage.TaskManagerTablePage">
+            <Scope ID="Table" Template="TaskManagerGrid" IsFocusable="True"
+                   Source="TaskManagerTableControl.TaskManagerTableControl">
+                <Leaf ID="HeaderCell" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Click"
+                      Event="OnPointerPressed" Source="TaskManagerTableControl.OnPointerPressed"
+                      Description="Sorts by the column on press; sorting it again reverses the order" />
+                <Leaf ID="ResizeColumn" Kind="Handle" IsRepeated="True" IsTabStop="False" Pointer="Drag"
+                      Event="OnPointerPressed" Source="TaskManagerTableControl.OnPointerPressed"
+                      Description="Column divider in the header" />
+                <Leaf ID="Row" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Click"
+                      Event="OnPointerPressed" Source="TaskManagerTableControl.OnPointerPressed"
+                      Description="Selects the row and focuses the table" />
+                <Leaf ID="ToggleGroup" Kind="Region" IsRepeated="True" IsTabStop="False"
+                      Pointer="Click;DoubleClick" Event="OnPointerPressed"
+                      Source="TaskManagerTableControl.OnPointerPressed"
+                      Description="Group rows, as on Users: the chevron or a double-click toggles the group" />
+                <Leaf ID="CollapseGroup" Kind="Command" Keys="Left" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Collapses the selected group row" />
+                <Leaf ID="ExpandGroup" Kind="Command" Keys="Right" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Expands the selected group row" />
+                <Leaf ID="SelectPreviousRow" Kind="Command" Keys="Up" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Selects the previous row, or the first when none is selected" />
+                <Leaf ID="SelectNextRow" Kind="Command" Keys="Down" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Selects the next row, or the first when none is selected" />
+                <Leaf ID="SelectFirstRow" Kind="Command" Keys="Home" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl" />
+                <Leaf ID="SelectLastRow" Kind="Command" Keys="End" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Row selection keys never scroll the selected row into view" />
+                <Leaf ID="ActivateRow" Kind="Command" Keys="Return" Pointer="DoubleClick" Event="MapCommand"
+                      Source="TaskManagerTableControl.TaskManagerTableControl"
+                      Description="Group rows toggle, others raise RowActivated; OnPointerPressed takes DoubleClick" />
+            </Scope>
+            <Leaf ID="ResizeGrip" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="OnPointerPressed"
+                  Source="TaskManagerResizeGrip.OnPointerPressed"
+                  Description="Scroll bar corner; resizes the window from its bottom-right edge" />
+        </Scope>
+    </Template>
+
+    <!-- TaskManagerReorderDialog is abstract; ProcessColumnChooserWindow and ProcessHeaderButtonArrangementWindow
+         instantiate it, and the base builds the list -->
+    <Template ID="ReorderDialog" Source="TaskManagerReorderDialog.TaskManagerReorderDialog"
+              Description="Owned modal reorder window; Header takes a subclass option, RowContent fills each row">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="TaskManagerReorderDialog.TaskManagerReorderDialog" Description="Closes the dialog" />
+        <Scope ID="TitleBar" Source="TaskManagerReorderDialog.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TaskManagerReorderDialog.OnTitleBarPointerPressed"
+                  Description="Dragging the title bar moves the dialog" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TaskManagerReorderDialog.OnCancelClick"
+                  Description="TrayAppDotNETCaptionCloseButton" />
+        </Scope>
+        <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="TaskManagerReorderDialog.OnSearchTextChanged"
+              Description="Filters the rows; present only when the dialog enables search" />
+        <Slot ID="Header" />
+        <Scope ID="Items" Template="VerticalScrollViewport" Source="TaskManagerReorderDialog.TaskManagerReorderDialog"
+               Description="Only with a scroll bar style, as in ProcessColumnChooser; otherwise a border hosts List">
+            <Scope ID="List" Template="ReorderList" Source="TaskManagerReorderList.TaskManagerReorderList">
+                <Slot ID="RowContent" />
+            </Scope>
+        </Scope>
+        <Scope ID="Footer" Tab="Once" Arrows="Horizontal" Source="TaskManagerReorderDialog.BuildFooter">
+            <Leaf ID="Reset" Kind="Button" Event="Click" Source="TaskManagerReorderDialog.OnResetClick"
+                  Description="Restores the default order after the dialog's optional confirmation" />
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TaskManagerReorderDialog.OnCancelClick"
+                  Description="Closes without reverting; changes apply as they are made" />
+            <Leaf ID="Done" Kind="Button" Event="Click" Source="TaskManagerReorderDialog.OnDoneClick" />
+        </Scope>
+    </Template>
+
+    <Template ID="ReorderList" Source="TaskManagerReorderList.TaskManagerReorderList"
+              Description="Filterable reorder rows; the Slot takes each row's dialog-supplied content">
+        <Scope ID="Row" IsRepeated="True" Source="TaskManagerReorderList.BuildRow">
+            <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TaskManagerReorderList.OnRowPointerPressed"
+                  Description="Dragging the row moves it; the tunneling press also selects it" />
+            <Leaf ID="Activate" Kind="Region" IsTabStop="False" Pointer="Click" Event="PointerReleased"
+                  Source="TaskManagerReorderList.OnRowPointerReleased"
+                  Description="Selects the row and runs the dialog's item action when it has one" />
+            <Slot />
+            <Scope ID="Move" Tab="Once" Arrows="Horizontal" Source="TaskManagerReorderList.BuildRow">
+                <Leaf ID="MoveUp" Kind="Button" Event="Click" Source="TaskManagerReorderList.BuildRow" />
+                <Leaf ID="MoveDown" Kind="Button" Event="Click" Source="TaskManagerReorderList.BuildRow" />
+            </Scope>
+        </Scope>
+    </Template>
+
+    <Surface ID="Main" Template="SettingsShell" Source="TaskManagerWindow.CreatePageDescriptors"
+             Description="The Settings footer page opens the Settings surface instead of a page">
+        <Leaf ID="ToggleSidebar" Kind="Button" Event="Click" Slot="NavigationActions"
+              Source="TaskManagerWindow.OnSidebarCollapseButtonClick"
+              Description="Caret row above the pages; collapses or expands the sidebar" />
+        <Leaf ID="Update" Kind="Button" Event="Click" Slot="FooterActions"
+              Source="TaskManagerWindow.OnUpdateSidebarButtonClick"
+              Description="Visible only while an update is available; opens MainUpdateConfirmation" />
+        <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag;DoubleClick" Event="PointerPressed"
+              Source="TaskManagerWindow.OnWindowPointerPressed"
+              Description="Left press above page content, off controls; replaces the inert TitleBar.Move" />
+        <Scope ID="ProcessesPage" Source="TaskManagerWindow.BuildProcessesPage">
+            <Scope ID="Search" Source="ProcessDetailsPage.PageOverlay"
+                   Description="Shell title-bar overlay; Clear and Save sit left of the box">
+                <Leaf ID="Clear" Kind="Button" Event="Click" Source="ProcessSavedSearchController.OnClearClick"
+                      Description="Visible with a query; clears it and reopens saved searches" />
+                <Leaf ID="Save" Kind="Button" Event="Click" Source="ProcessSavedSearchController.OnSaveClick"
+                      Description="Visible with a query; disabled while it is already saved" />
+                <Leaf ID="SearchText" Kind="Text" FocusKeys="Down;Up;Tab;Escape" Event="TextChanged"
+                      Source="ProcessDetailsPage.OnSearchTextChanged"
+                      Description="Filters rows; arrows, Enter and Tab drive autocomplete, Escape closes popups" />
+                <Leaf ID="OpenSavedSearches" Kind="Command" Pointer="Click" Event="PointerPressed"
+                      Source="ProcessSavedSearchController.OnPointerPressed"
+                      Description="Left press in the empty box opens ProcessSavedSearchMenu" />
+                <Leaf ID="Suggestion" Kind="ListItem" IsRepeated="True" IsTabStop="False" Pointer="Click"
+                      Event="PointerPressed"
+                      Source="ProcessSearchAutocompleteController.OnSuggestionPointerPressed"
+                      Description="Autocomplete popup row; completes the column token at the caret" />
+            </Scope>
+            <Scope ID="CommandBar" Tab="Once" Arrows="Horizontal" IsArranged="True"
+                   Source="ProcessDetailsPage.PopulateHeaderActions"
+                   Description="Page header; the four middle buttons follow ProcessHeaderButtonArrangement">
+                <Leaf ID="GroupProcesses" Kind="Toggle" Event="Callback"
+                      Source="ProcessDetailsPage.OnGroupProcessesChanged"
+                      Description="Flat rows or the grouping style chosen in settings" />
+                <Leaf ID="RunNewTask" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnRunTaskClick"
+                      Description="Shows RunPanel and focuses its input" />
+                <Leaf ID="Columns" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnColumnsClick"
+                      Description="Opens ProcessColumnChooser" />
+                <Leaf ID="EndTask" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnEndTaskClick"
+                      Description="Needs a selection; clears it, then confirms in the shell overlay" />
+                <Leaf ID="RestartExplorer" Kind="Button" Event="Click"
+                      Source="ProcessDetailsPage.OnRestartExplorerClick"
+                      Description="Confirms unless skipped in settings, then restarts explorer.exe" />
+                <Leaf ID="MoreActions" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnMoreActionsClick"
+                      Description="Opens ProcessMoreMenu" />
+            </Scope>
+            <Scope ID="RunPanel" Source="ProcessDetailsPage.BuildRunPanel" Description="Hidden until Run new task">
+                <Leaf ID="CommandText" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="ProcessDetailsPage.OnRunInputKeyDown"
+                      Description="Executable, document, or URI; Enter runs it, Escape hides the panel" />
+                <Leaf ID="Run" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnSubmitRunClick"
+                      Description="Starts the command; failures show in the shell overlay" />
+                <Leaf ID="Cancel" Kind="Button" Event="Click" Source="ProcessDetailsPage.OnCancelRunClick"
+                      Description="Hides the panel and focuses Run new task" />
+            </Scope>
+            <Scope ID="TableViewport" Template="ScrollViewport" Source="ProcessDetailsPage.ProcessDetailsPage"
+                   Description="Over the canvas Shift+Wheel is the grid Stretch gesture, not horizontal scrolling">
+                <Scope ID="Table" Template="TaskManagerGrid" IsFocusable="True"
+                       Source="ProcessTableCanvas.ProcessTableCanvas"
+                       Description="Painted grid; its only keys are Delete and Escape, with no row navigation">
+                    <Leaf ID="SortColumn" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Click"
+                          Event="OnPointerReleased" Source="ProcessTableCanvas.SortFromHeader"
+                          Description="Header cell; sorts by its column, again reverses the order" />
+                    <Leaf ID="ReorderColumn" Kind="Handle" IsRepeated="True" IsTabStop="False" Pointer="Drag"
+                          Event="OnPointerPressed" Source="ProcessTableCanvas.CommitColumnReorder"
+                          Description="Header cell dragged past the threshold moves the column" />
+                    <Leaf ID="ColumnProperties" Kind="Region" IsRepeated="True" IsTabStop="False"
+                          Pointer="RightClick" Event="OnPointerPressed" Source="ProcessTableCanvas.OnPointerPressed"
+                          Description="Header cell; opens or activates its ProcessColumnProperties" />
+                    <Leaf ID="ResizeColumn" Kind="Handle" IsRepeated="True" IsTabStop="False" Pointer="Drag"
+                          Event="OnPointerPressed" Source="ProcessTableCanvas.CommitColumnResize"
+                          Description="Header divider; live resize or a guide line per settings" />
+                    <Leaf ID="TreeToggle" Kind="Region" IsRepeated="True" IsTabStop="False"
+                          Pointer="Click;Alt+Click" Event="OnPointerPressed"
+                          Source="ProcessTableCanvas.TryHandleTreeNameClick"
+                          Description="Grouped parent or section Name cell; Alt+Click expands the subtree" />
+                    <Leaf ID="Row" Kind="Region" IsRepeated="True" IsTabStop="False"
+                          Pointer="Click;Ctrl+Click;Shift+Click;Ctrl+Shift+Click" Event="OnPointerPressed"
+                          Source="ProcessTableCanvas.ApplyPointerSelection"
+                          Description="Ctrl toggles, Shift extends; empty space clears the selection" />
+                    <Leaf ID="RowMenu" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="RightClick"
+                          Event="OnPointerPressed" Source="ProcessTableCanvas.CreateRowContextMenuRequest"
+                          Description="Selects the row unless already selected, then opens ProcessRowMenu" />
+                    <Leaf ID="EndTask" Kind="Command" Keys="Delete" Event="MapCommand"
+                          Source="ProcessTableCanvas.ProcessTableCanvas"
+                          Description="Ends the selection after confirming and keeps it; Hotkeys lists these Keys" />
+                    <Leaf ID="CancelColumnDrag" Kind="Command" Keys="Escape" Event="MapCommand"
+                          Source="ProcessTableCanvas.ProcessTableCanvas"
+                          Description="Acts only while a column resize or reorder drag is active" />
+                </Scope>
+                <Leaf ID="ResizeGrip" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="OnPointerPressed"
+                      Source="TaskManagerResizeGrip.OnPointerPressed"
+                      Description="Scroll bar corner; resizes the window from its bottom-right edge" />
+            </Scope>
+            <Leaf ID="ClearSelection" Kind="Command" Pointer="Click" Event="PointerPressed"
+                  Source="ProcessDetailsPage.ClearSelectionForExternalPointerSource"
+                  Description="A left press outside the table, except on End task, clears the selection" />
+        </Scope>
+        <Scope ID="PerformancePage" Source="PerformancePage.PerformancePage">
+            <Scope ID="ArchitectureSimulations" Tab="Once" Arrows="Horizontal"
+                   Source="PerformancePage.AddCPUArchitectureSimulationButton"
+                   Description="Debug builds only: header buttons that preview the CPU Detailed view">
+                <Leaf ID="Simulation" Kind="Option" IsRepeated="True" Event="Click"
+                      Source="PerformancePage.OnCPUArchitectureSimulationClick"
+                      Description="Live CPU or one simulated processor topology; the active one is outlined" />
+            </Scope>
+            <Scope ID="DeviceList" Template="VerticalScrollViewport" Tab="Once" Arrows="Vertical"
+                   Source="PerformancePage.PerformancePage">
+                <Leaf ID="Device" Kind="ListItem" IsRepeated="True" FocusKeys="Ctrl+Up;Ctrl+Down"
+                      Pointer="Click;Drag" Event="PointerReleased" Source="PerformanceDeviceColumn.AttachRow"
+                      Description="Shows the device's details; dragging or Ctrl+Up/Down moves it" />
+            </Scope>
+            <Scope ID="Details" Source="PerformancePage.PerformancePage">
+                <Leaf ID="OpenGraphMenu" Kind="Region" IsTabStop="False" Pointer="RightClick" Event="PointerPressed"
+                      Source="PerformancePage.OnGraphSurfacePointerPressed"
+                      Description="Graph area while CPU is selected; opens CPUGraphMenu" />
+                <Leaf ID="MemoryModules" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                      Source="MemoryModuleDetailsPanel.MemoryModuleDetailsPanel"
+                      Description="Memory only: plain ScrollViewer over the module cards, no app handler" />
+            </Scope>
+        </Scope>
+        <!-- Table pages continue the window's tab order instead of forming tab groups: the shell hosts each page's
+             search box outside the page, and a page group would put the box after the page's content -->
+        <Scope ID="AppHistoryPage" Template="TaskManagerTablePage" Tab="Continue" Source="AppHistoryPage.AppHistoryPage"
+               Description="Row activation does nothing">
+            <Leaf ID="More" Kind="Button" Event="Click" Source="AppHistoryPage.OnMoreClick"
+                  Description="Opens AppHistoryMoreMenu" />
+            <Leaf ID="DeleteUsageHistory" Kind="Button" Event="Click" Slot="Information"
+                  Source="AppHistoryPage.OnDeleteHistoryClick" Description="Link under the history description" />
+        </Scope>
+        <Scope ID="StartupAppsPage" Template="TaskManagerTablePage" Tab="Continue"
+               Source="StartupAppsPage.StartupAppsPage"
+               Description="Row activation opens the entry's file properties when available">
+            <Leaf ID="Enable" Kind="Button" Event="Click" Source="StartupAppsPage.OnEnableClick" />
+            <Leaf ID="Disable" Kind="Button" Event="Click" Source="StartupAppsPage.OnDisableClick" />
+            <Leaf ID="Properties" Kind="Button" Event="Click" Source="StartupAppsPage.OnPropertiesClick" />
+            <Leaf ID="More" Kind="Button" Event="Click" Source="StartupAppsPage.OnMoreClick"
+                  Description="Opens StartupAppsMoreMenu" />
+        </Scope>
+        <Scope ID="UsersPage" Template="TaskManagerTablePage" Tab="Continue" Source="UsersPage.UsersPage"
+               Description="User rows are groups, so activating one expands or collapses it">
+            <Leaf ID="Disconnect" Kind="Button" Event="Click" Source="UsersPage.OnDisconnectClick" />
+            <Leaf ID="ManageUserAccounts" Kind="Button" Event="Click" Source="UsersPage.OnManageUsersClick" />
+            <Leaf ID="More" Kind="Button" Event="Click" Source="UsersPage.OnMoreClick"
+                  Description="Opens UsersMoreMenu" />
+        </Scope>
+        <Scope ID="ServicesPage" Template="TaskManagerTablePage" Tab="Continue" Source="ServicesPage.ServicesPage"
+               Description="Row activation starts the service when it can start">
+            <Leaf ID="Start" Kind="Button" Event="Click" Source="ServicesPage.OnStartClick" />
+            <Leaf ID="Stop" Kind="Button" Event="Click" Source="ServicesPage.OnStopClick" />
+            <Leaf ID="Restart" Kind="Button" Event="Click" Source="ServicesPage.OnRestartClick" />
+            <Leaf ID="Disable" Kind="Button" Event="Click" Source="ServicesPage.OnDisableClick"
+                  Description="Asks for confirmation first" />
+            <Leaf ID="OpenServices" Kind="Button" Event="Click" Source="ServicesPage.OnOpenServicesClick" />
+            <Leaf ID="More" Kind="Button" Event="Click" Source="ServicesPage.OnMoreClick"
+                  Description="Opens ServicesMoreMenu" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="MainUpdateConfirmation" Template="UpdateConfirmation"
+             Source="TaskManagerWindow.ShowUpdateConfirmationAsync"
+             Description="Install prompt opened by the Update footer action" />
+
+    <Surface ID="SettingsUpdateConfirmation" Template="UpdateConfirmation"
+             Source="TaskManagerSettingsWindow.BuildAboutPage"
+             Description="Install and backdate prompts the Settings About page opens" />
+
+    <Surface ID="ProcessSavedSearchMenu" Kind="Popup" Template="EditableContextMenu"
+             Source="ProcessSavedSearchController.Open"
+             Description="Shown without activation; only an inline rename activates it">
+        <Scope ID="SavedSearch" Template="EditableMenuEntry" IsRepeated="True"
+               Source="ProcessSavedSearchController.BuildEntries"
+               Description="LeadingButton renames, Item runs the query, TrailingButton deletes (regex confirms)" />
+    </Surface>
+
+    <Surface ID="ProcessMoreMenu" Kind="Popup" Template="ContextMenu"
+             Source="ProcessDetailsPage.ShowHeaderActionsMenu" Description="Anchored over More">
+        <Leaf ID="ArrangeButtons" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessDetailsPage.ShowHeaderActionsMenu" Description="Opens ProcessHeaderButtonArrangement" />
+        <Leaf ID="ElevatedTermination" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessDetailsPage.AddElevatedHelperMenuEntry"
+              Description="Enable or retry; a no-op status row while starting, ready, or disposed" />
+    </Surface>
+
+    <Surface ID="ProcessHeaderButtonArrangement" Template="ReorderDialog"
+             Source="ProcessDetailsPage.ShowHeaderButtonArrangement"
+             Description="Header button order, top row leftmost; Reset needs no confirmation here" />
+
+    <Surface ID="ProcessColumnChooser" Template="ReorderDialog" Source="ProcessDetailsPage.ShowColumnChooser"
+             Description="A row click toggles visibility; Reset confirms in ProcessColumnResetConfirmation">
+        <Leaf ID="HideUnusedColumns" Kind="Toggle" Event="IsCheckedChanged" Slot="Header"
+              Source="ProcessColumnChooserWindow.OnHideUnusedColumnsChanged"
+              Description="Check box beside the description; lists only visible columns" />
+        <Leaf ID="Visible" Kind="Toggle" IsRepeated="True" Event="IsCheckedChanged" Slot="RowContent"
+              Source="ProcessColumnChooserWindow.BuildVisibilityCheckBox"
+              Description="Reverts instead of hiding the last visible column" />
+    </Surface>
+
+    <Surface ID="ProcessColumnResetConfirmation" Template="UpdateConfirmation"
+             Source="ProcessColumnChooserWindow.ConfirmResetAsync"
+             Description="Reset process columns prompt, modal over ProcessColumnChooser" />
+
+    <Surface ID="ProcessColumnProperties" Source="ProcessDetailsPage.ShowColumnProperties"
+             Description="Owned and non-modal, one per column; every edit applies live">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="ProcessColumnPropertiesWindow.ProcessColumnPropertiesWindow"
+              Description="Closes the window, like Close" />
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="ProcessColumnPropertiesWindow.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="ProcessColumnPropertiesWindow.OnTitleBarPointerPressed" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="ProcessColumnPropertiesWindow.OnCloseClick" />
+        </Scope>
+        <Leaf ID="Nickname" Kind="Text" Event="TextChanged"
+              Source="ProcessColumnPropertiesWindow.OnNicknameTextChanged"
+              Description="Blank shows the column title; Enter on key up clears focus" />
+        <Leaf ID="ShowLiveTotal" Kind="Toggle" Event="Callback"
+              Source="ProcessColumnPropertiesWindow.ProcessColumnPropertiesWindow"
+              Description="Only for columns that support a live total" />
+        <Leaf ID="ShowPercentSuffix" Kind="Toggle" Event="Callback"
+              Source="CPUProcessColumnPropertiesWindow.CPUProcessColumnPropertiesWindow"
+              Description="CPU columns only" />
+        <Leaf ID="ShowDecimalUsage" Kind="Toggle" Event="Callback"
+              Source="CPUProcessColumnPropertiesWindow.CPUProcessColumnPropertiesWindow"
+              Description="CPU columns only" />
+        <Leaf ID="MemoryUnit" Kind="Select" Event="SelectionChanged"
+              Source="MemoryProcessColumnPropertiesWindow.OnUnitSelectionChanged"
+              Description="Memory columns only; also resets MemorySuffix" />
+        <Leaf ID="MemorySuffix" Kind="Text" Event="TextChanged"
+              Source="MemoryProcessColumnPropertiesWindow.OnSuffixTextChanged"
+              Description="Memory columns only; Enter on key up clears focus" />
+        <Leaf ID="StatusDisplay" Kind="Select" Event="SelectionChanged"
+              Source="StatusProcessColumnPropertiesWindow.OnDisplayModeSelectionChanged"
+              Description="Status column only; glyphs or text" />
+        <Leaf ID="CenterGlyphs" Kind="Toggle" Event="Callback"
+              Source="StatusProcessColumnPropertiesWindow.StatusProcessColumnPropertiesWindow"
+              Description="Status column only; enabled in glyph mode" />
+        <Leaf ID="ShowAccountPrefix" Kind="Toggle" Event="Callback"
+              Source="UserNameProcessColumnPropertiesWindow.UserNameProcessColumnPropertiesWindow"
+              Description="User name column only" />
+    </Surface>
+
+    <Surface ID="ProcessRowMenu" Kind="Popup" Template="ContextMenu" Source="ProcessRowContextMenuController.ShowMenu"
+             Description="Entries from CreateMemoryDump on need a single selection">
+        <Leaf ID="Copy" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Copies the clicked column of each selected row; hover previews it" />
+        <Leaf ID="CopyRow" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Copy rows for several; copies whole rows; hover previews them" />
+        <Leaf ID="EndTask" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="End tasks for several; confirms in the shell overlay" />
+        <Leaf ID="EndProcessTree" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="End process trees for several; descendants first, then the roots" />
+        <Leaf ID="SetPriority" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Opens ProcessPriorityMenu, also on hover; shield when elevation is needed" />
+        <Leaf ID="SetAffinity" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Opens ProcessAffinity; shield when elevation is needed" />
+        <Leaf ID="CreateMemoryDump" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Uses the elevated broker when the target requires it" />
+        <Leaf ID="OpenFileLocation" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries" />
+        <Leaf ID="Properties" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Opens the shell file properties of the image" />
+        <Leaf ID="SwitchTo" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries"
+              Description="Only for a process with a top-level window, like the three below" />
+        <Leaf ID="BringToFront" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries" />
+        <Leaf ID="Minimize" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries" />
+        <Leaf ID="Maximize" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.BuildMainEntries" />
+    </Surface>
+
+    <Surface ID="ProcessPriorityMenu" Kind="Popup" Template="ContextMenu"
+             Source="ProcessRowContextMenuController.BuildPriorityEntries"
+             Description="Submenu shown without activation; checks the current class for one process">
+        <Leaf ID="Realtime" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" />
+        <Leaf ID="High" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" />
+        <Leaf ID="AboveNormal" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" />
+        <Leaf ID="Normal" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" />
+        <Leaf ID="BelowNormal" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" />
+        <Leaf ID="Low" Kind="ListItem" Event="MenuEntry"
+              Source="ProcessRowContextMenuController.AddPriorityEntry" Description="ProcessPriorityLevel.Idle" />
+    </Surface>
+
+    <Surface ID="ProcessAffinity" Source="ProcessRowContextMenuController.ShowAffinityWindow"
+             Description="System-framed and non-modal; it handles no keys">
+        <Scope ID="Processors" Tab="Once" Arrows="Spatial" Source="ProcessAffinityWindow.BuildContent"
+               Description="WrapPanel of CPU check boxes in a ScrollViewer">
+            <Leaf ID="Processor" Kind="Toggle" IsRepeated="True" Source="ProcessAffinityWindow.BuildContent"
+                  Description="No handler; three-state for several processes, read on Apply" />
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="ProcessAffinityWindow.BuildContent"
+                  Description="Avalonia ScrollViewer and scroll bar with no handler" />
+        </Scope>
+        <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="ProcessAffinityWindow.BuildContent">
+            <Leaf ID="SelectAll" Kind="Button" Event="Click" Source="ProcessAffinityWindow.OnSelectAllClick" />
+            <Leaf ID="Clear" Kind="Button" Event="Click" Source="ProcessAffinityWindow.OnClearClick" />
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="ProcessAffinityWindow.OnCancelClick" />
+            <Leaf ID="Apply" Kind="Button" Event="Click" Source="ProcessAffinityWindow.OnApplyClick"
+                  Description="Closes on success; stays open on errors or declined elevation" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="Settings" Template="SettingsShell" Source="TaskManagerSettingsWindow.TaskManagerSettingsWindow">
+        <Scope ID="GeneralPage" Source="TaskManagerSettingsWindow.BuildGeneralPage">
+            <Scope ID="Startup" Template="StartupCard" Source="TaskManagerSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="Autosave" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildGeneralPage" />
+            <Scope ID="WindowManagement" Source="TaskManagerSettingsWindow.BuildWindowManagementCard">
+                <Leaf ID="AlwaysOnTop" Kind="Toggle" Event="IsCheckedChanged"
+                      Source="TaskManagerSettingsWindow.CreateWindowManagementCheckBox" />
+                <Leaf ID="CloseToTray" Kind="Toggle" Event="IsCheckedChanged"
+                      Source="TaskManagerSettingsWindow.CreateWindowManagementCheckBox" />
+                <Leaf ID="MinimizeToTray" Kind="Toggle" Event="IsCheckedChanged"
+                      Source="TaskManagerSettingsWindow.CreateWindowManagementCheckBox" />
+            </Scope>
+            <Leaf ID="OverrideWindowsTaskManagerHotkey" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildGeneralPage"
+                  Description="Replace Ctrl+Shift+Esc shortcut; enables Global.ShowTaskManager" />
+            <Leaf ID="ReplaceWindowsTaskManager" Kind="Toggle" Event="CheckedChanged"
+                  Source="TaskManagerSettingsWindow.BuildReplaceTaskManagerCard"
+                  Description="System-wide taskmgr.exe redirect; reverts when elevation is declined" />
+            <Leaf ID="ElevatedTerminationOnStartup" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="BypassElevationBroker" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildGeneralPage"
+                  Description="Run admin actions directly when elevated" />
+            <Scope ID="Installation" Template="InstallationSection"
+                   Source="TaskManagerSettingsWindow.BuildGeneralPage" />
+            <Scope ID="Rendering" Template="RenderingSection"
+                   Source="TaskManagerSettingsWindow.CreateRenderingSettingsSection" />
+        </Scope>
+        <Scope ID="ProcessesPage" Source="TaskManagerSettingsWindow.BuildProcessesPage">
+            <Leaf ID="GroupingStyle" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards" />
+            <Leaf ID="UseRootProcessForGroups" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards"
+                  Description="Use root process as group row; semantic grouping only" />
+            <Leaf ID="UseRootProcessForSubgroups" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards"
+                  Description="Apply to subgroups; only while UseRootProcessForGroups is on" />
+            <Leaf ID="GroupWindowsProcesses" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards" />
+            <Leaf ID="DefaultTreeState" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards" />
+            <Leaf ID="ExpandSemanticSections" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessGroupingCards"
+                  Description="Keep semantic sections expanded; collapsed default tree state only" />
+            <Scope ID="Zoom" Template="ResettableNumberCard" Source="TaskManagerSettingsWindow.AddProcessZoomCards" />
+            <Scope ID="ZoomBaseline" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddProcessZoomCards" />
+            <Scope ID="Stretch" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddProcessZoomCards" />
+            <Scope ID="StretchBaseline" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddProcessZoomCards" />
+            <Leaf ID="FontWeight" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddProcessZoomCards" />
+            <Leaf ID="ShowTotalsAboveColumnNames" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddLiveTotalCards" />
+            <Scope ID="TotalFontSize" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddLiveTotalCards" />
+            <Leaf ID="TotalFontWeight" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.AddLiveTotalCards" />
+            <Scope ID="TotalWidth" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddLiveTotalCards" />
+            <Scope ID="TotalTextGap" Template="ResettableNumberCard"
+                   Source="TaskManagerSettingsWindow.AddLiveTotalCards"
+                   Description="Gap before column name" />
+            <Leaf ID="LiveColumnResizing" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildProcessesPage" />
+            <Leaf ID="LeftAlignSearchBar" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildProcessesPage" />
+            <Leaf ID="SkipExplorerRestartConfirmation" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildProcessesPage" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="TaskManagerSettingsWindow.BuildTrayIconPage">
+            <Leaf ID="GraphStyle" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="DataSource" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowHighestCoreTrace" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildTrayIconPage" />
+        </Scope>
+        <Scope ID="PerformancePage" Source="TaskManagerSettingsWindow.BuildPerformancePage">
+            <Leaf ID="HistoryLength" Kind="Number" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Leaf ID="SamplingInterval" Kind="Number" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Leaf ID="FillGraphAreas" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Leaf ID="ShowHighestCoreTrace" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Leaf ID="ShowMemorySerialNumbers" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Scope ID="DevicePriority" Source="TaskManagerSettingsWindow.BuildDevicePriorityCard">
+                <Scope ID="Category" Tab="Once" Arrows="Horizontal" IsRepeated="True"
+                       Source="TaskManagerSettingsWindow.BuildDevicePriorityRow"
+                       Description="One row per device category in priority order">
+                    <Leaf ID="MoveUp" Kind="Button" Event="Click"
+                          Source="TaskManagerSettingsWindow.BuildDevicePriorityRow" />
+                    <Leaf ID="MoveDown" Kind="Button" Event="Click"
+                          Source="TaskManagerSettingsWindow.BuildDevicePriorityRow" />
+                </Scope>
+                <Scope ID="ResetActions" Tab="Once" Arrows="Horizontal"
+                       Source="TaskManagerSettingsWindow.BuildDevicePriorityCard">
+                    <Leaf ID="ResetPriority" Kind="Button" Event="Click"
+                          Source="TaskManagerSettingsWindow.BuildDevicePriorityCard"
+                          Description="Reset default priority" />
+                    <Leaf ID="ClearDeviceOrder" Kind="Button" Event="Click"
+                          Source="TaskManagerSettingsWindow.BuildDevicePriorityCard"
+                          Description="Clear dragged device order" />
+                </Scope>
+            </Scope>
+            <Scope ID="HardwareNameReplacements"
+                   Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementCard">
+                <Leaf ID="AddReplacement" Kind="Button" Event="Click"
+                      Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementCard" />
+                <Scope ID="Rule" IsRepeated="True"
+                       Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow">
+                    <Leaf ID="DeviceCategory" Kind="Select" Event="SelectionChanged"
+                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
+                    <Leaf ID="MatchPattern" Kind="Text" Event="TextChanged"
+                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
+                    <Leaf ID="Replacement" Kind="Text" Event="TextChanged"
+                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
+                    <Leaf ID="Delete" Kind="Button" Event="Click"
+                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
+                </Scope>
+            </Scope>
+        </Scope>
+        <!-- HotkeysPage (BuildHotkeysPage) lists the TaskManagerGrid gestures and Table.EndTask Keys this map declares,
+             read through TaskManagerGridShortcuts, as read-only cards; no leaves -->
+        <Scope ID="ThemePage" Source="TaskManagerSettingsWindow.BuildThemePage" Description="Appearance page">
+            <Leaf ID="ThemeMode" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage"
+                  Description="Windows 11-style settings menu" />
+            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Leaf ID="CollapseNavigationWhenNarrow" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Leaf ID="Animations" Kind="Select" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Leaf ID="ToolTipDelay" Kind="Number" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="TaskManagerSettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="TrayIcon" Kind="Tray" Source="TaskManagerAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="ToggleWindow" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="TaskManagerAvaloniaApp.OnTrayLeftClick" Description="Shows or hides the window" />
+        <Leaf ID="ShowWindow" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
+              Source="TaskManagerAvaloniaApp.RevealTaskManagerFromTray"
+              Description="Shows the window in place after the first click toggled it" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
+              Source="TaskManagerAvaloniaApp.OnTrayRightClick"
+              Description="Opens TrayMenu; the keys arrive as WM_CONTEXTMENU while the icon has shell focus" />
+        <Leaf ID="ShowFromUpdateBalloon" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="TaskManagerAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Clicking the update notification balloon shows the window" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="TaskManagerAvaloniaApp.ShowTrayMenu">
+        <Leaf ID="OpenTaskManager" Kind="ListItem" Event="MenuEntry"
+              Source="TaskManagerTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="TaskManagerTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <Surface ID="CPUGraphMenu" Kind="Popup" Template="ContextMenu" Source="PerformancePage.ShowCPUGraphContextMenu"
+             Description="CPU graph view choice; the active view shows a check glyph">
+        <Leaf ID="LogicalProcessors" Kind="ListItem" Event="MenuEntry"
+              Source="PerformancePage.ShowCPUGraphContextMenu" />
+        <Leaf ID="OverallUtilization" Kind="ListItem" Event="MenuEntry"
+              Source="PerformancePage.ShowCPUGraphContextMenu" />
+        <Leaf ID="DetailedView" Kind="ListItem" Event="MenuEntry"
+              Source="PerformancePage.ShowCPUGraphContextMenu" />
+    </Surface>
+
+    <Surface ID="AppHistoryMoreMenu" Kind="Popup" Template="ContextMenu" Source="AppHistoryPage.OnMoreClick">
+        <Leaf ID="Refresh" Kind="ListItem" Event="MenuEntry" Source="AppHistoryPage.OnMoreClick" />
+        <Leaf ID="DeleteUsageHistory" Kind="ListItem" Event="MenuEntry" Source="AppHistoryPage.OnMoreClick" />
+    </Surface>
+
+    <Surface ID="StartupAppsMoreMenu" Kind="Popup" Template="ContextMenu" Source="StartupAppsPage.OnMoreClick">
+        <Leaf ID="Enable" Kind="ListItem" Event="MenuEntry" Source="StartupAppsPage.OnMoreClick"
+              Description="Entries above Refresh appear only when the selected entry allows them" />
+        <Leaf ID="Disable" Kind="ListItem" Event="MenuEntry" Source="StartupAppsPage.OnMoreClick" />
+        <Leaf ID="Properties" Kind="ListItem" Event="MenuEntry" Source="StartupAppsPage.OnMoreClick" />
+        <Leaf ID="Refresh" Kind="ListItem" Event="MenuEntry" Source="StartupAppsPage.OnMoreClick" />
+    </Surface>
+
+    <Surface ID="UsersMoreMenu" Kind="Popup" Template="ContextMenu" Source="UsersPage.OnMoreClick">
+        <Leaf ID="Refresh" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick" />
+        <Leaf ID="Disconnect" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick"
+              Description="Only when the selected user session can be disconnected" />
+        <Leaf ID="ManageUserAccounts" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick" />
+    </Surface>
+
+    <Surface ID="ServicesMoreMenu" Kind="Popup" Template="ContextMenu" Source="ServicesPage.OnMoreClick">
+        <Leaf ID="Start" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick"
+              Description="Entries above Refresh appear only when the selected service allows them" />
+        <Leaf ID="Stop" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
+        <Leaf ID="Restart" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
+        <Leaf ID="Disable" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
+        <Leaf ID="Refresh" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
+        <Leaf ID="OpenServices" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
+    </Surface>
+
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="TaskManagerUninstallerWindow.CreateOptions" />
+
+    <Surface ID="Installer" Template="Installer"
+             Source="TaskManagerAvaloniaApp.OnFrameworkInitializationCompleted" />
+
+    <Surface ID="Global" Kind="Global" Source="TaskManagerAvaloniaApp.OnFrameworkInitializationCompleted">
+        <Leaf ID="ShowTaskManager" Kind="Command" Keys="Ctrl+Shift+Escape" Event="Hotkey"
+              Source="WindowsTaskManagerHotkeyOverride.ProcessKeyboardEvent"
+              Description="WH_KEYBOARD_LL hook while OverrideWindowsTaskManagerHotkey is on" />
+    </Surface>
+</ControlMap>

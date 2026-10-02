@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.Visuals;
 
@@ -136,7 +137,7 @@ public static class TrayAppDotNETFlyoutUI
     public static Border IconButton(
         string glyph,
         FlyoutControlPalette palette,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         double width,
         double height,
         double fontSize,
@@ -144,7 +145,7 @@ public static class TrayAppDotNETFlyoutUI
         Thickness? margin = null,
         string? tooltip = null,
         string? fontFamily = null,
-        Action<PointerReleasedEventArgs>? rightClick = null,
+        Action<ControlActivation>? rightClick = null,
         FontWeight? fontWeight = null)
     {
         Control content = string.IsNullOrEmpty(glyph) || fontSize <= 0
@@ -184,7 +185,7 @@ public static class TrayAppDotNETFlyoutUI
     public static Border IconButton(
         Glyph glyph,
         FlyoutControlPalette palette,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         double width,
         double height,
         double fontSize,
@@ -192,7 +193,7 @@ public static class TrayAppDotNETFlyoutUI
         Thickness? margin = null,
         string? tooltip = null,
         string? fontFamily = null,
-        Action<PointerReleasedEventArgs>? rightClick = null,
+        Action<ControlActivation>? rightClick = null,
         FontWeight? fontWeight = null)
     {
         Control content = string.IsNullOrEmpty(glyph.Text) || fontSize <= 0

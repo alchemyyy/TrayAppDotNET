@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -370,6 +371,9 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
 
         ClipToBounds = true;
         Focusable = true;
+        this.MapTo(ControlMap.Main.ProcessesPage.TableViewport.Table.ID);
+        this.MapCommand(ControlMap.Main.ProcessesPage.TableViewport.Table.EndTask, RequestSelectedEndTask);
+        this.MapCommand(ControlMap.Main.ProcessesPage.TableViewport.Table.CancelColumnDrag, CancelColumnDrag);
     }
 
     /// <summary>Attaches external notifications after the owning page is fully constructed.</summary>
@@ -1794,23 +1798,20 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             Cursor = TrayAppDotNETCursors.Arrow;
     }
 
-    protected override void OnKeyDown(KeyEventArgs eventArgs)
+    /// <summary>Requests End task for the selection, which stays selected while the shell confirms.</summary>
+    private void RequestSelectedEndTask()
     {
-        base.OnKeyDown(eventArgs);
-        if (eventArgs.Key == Key.Escape && _headerInteraction != HeaderInteractionMode.None)
-        {
-            ResetHeaderInteraction();
-            eventArgs.Handled = true;
-            return;
-        }
-
-        TaskManagerGridShortcutAction action = TaskManagerGridShortcuts.ResolveKey(
-            eventArgs.Key,
-            eventArgs.KeyModifiers);
-        if (action != TaskManagerGridShortcutAction.EndTask || SelectedEndTaskRequest is not { } request) return;
+        if (SelectedEndTaskRequest is not { } request) return;
 
         EndTaskRequested?.Invoke(request);
-        eventArgs.Handled = true;
+    }
+
+    /// <summary>Abandons an active column resize or reorder drag.</summary>
+    private void CancelColumnDrag()
+    {
+        if (_headerInteraction == HeaderInteractionMode.None) return;
+
+        ResetHeaderInteraction();
     }
 
     protected override void OnTaskManagerGridViewportChanged()

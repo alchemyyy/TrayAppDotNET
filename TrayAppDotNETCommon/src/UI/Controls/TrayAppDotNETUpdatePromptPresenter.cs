@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -26,6 +27,12 @@ public sealed record TrayAppDotNETUpdatePromptOptions
     public Action<bool>? SetDownloadInFlight { get; init; }
     public Action? PromptClosed { get; init; }
     public bool ShowFailurePrompt { get; init; } = true;
+
+    /// <summary>
+    /// Gets the app's UpdateConfirmation surface that every prompt of this flow is tagged with. An app whose map
+    /// instantiates UpdateConfirmation more than once sets it; otherwise the template root id resolves.
+    /// </summary>
+    public ControlMapNodeID? Node { get; init; }
 }
 
 /// <summary>
@@ -241,6 +248,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         TrayAppDotNETUpdatePromptOptions options,
         TrayAppDotNETUpdateConfirmationWindow dialog)
     {
+        dialog.MapTo(options.Node);
         if (options.Owner is FlyoutWindowCommon)
             dialog.PlaceOverOwnerUpperThird(options.Owner);
 

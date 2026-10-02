@@ -16,6 +16,7 @@ using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -157,8 +158,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     _subscribedUpdateCheckService.StateChanged -= NotifyUpdateStateChanged);
             }
 
-            KeyDown += OnFlyoutKeyDown;
-            WindowResources.Add(() => KeyDown -= OnFlyoutKeyDown);
+            this.MapTo(ControlMap.Flyout.ID);
+            this.MapCommand(ControlMap.Flyout.Close, Hide);
 #if DEBUG
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             WindowResources.Add(() =>
@@ -181,13 +182,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             DisposeActiveContentResilient();
             throw;
         }
-    }
-
-    private void OnFlyoutKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape) return;
-        Hide();
-        e.Handled = true;
     }
 
 #if DEBUG
@@ -405,6 +399,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     _settings.EnableRoundedCorners,
                     Layout.RootInnerPadding) { Focusable = true },
                 parentName: "FlyoutFrame");
+
+            // Focusable so clicks and card drags can pull focus out of inline editors; the map gives it no tab stop
+            KeyboardNavigation.SetIsTabStop(rootCard, false);
             generation.RootCard = rootCard;
             rootCard.PointerPressed += OnRootPointerPressed;
             rootCard.PointerMoved += OnRootPointerMoved;
@@ -532,27 +529,34 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             new Grid { Margin = Layout.HeaderMargin },
             parentName: "FlyoutHeader");
 
+        // Actions and profiles each sit in a grid of their own, the container their control map scope needs
+        Grid actions = ControlNames.Assign(new Grid(), parentName: "HeaderActions")
+            .MapTo(ControlMap.Flyout.Header.Actions.ID);
         const int primaryButtonColumnCount = 4;
         const int profileButtonCount = FanProfile.SlotCount;
         for (int columnIndex = 0; columnIndex < primaryButtonColumnCount; columnIndex++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+            actions.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
 
-#if DEBUG
-        int dragDebugVisualsColumn = grid.ColumnDefinitions.Count;
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
-#endif
-
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        int firstProfileColumn = grid.ColumnDefinitions.Count;
+        Grid profiles = ControlNames.Assign(new Grid(), parentName: "HeaderProfiles")
+            .MapTo(ControlMap.Flyout.Header.Profiles.ID);
         for (int profileIndex = 0; profileIndex < profileButtonCount; profileIndex++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)));
+            profiles.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)));
 
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        int profilesColumn = grid.ColumnDefinitions.Count;
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         int undockColumn = grid.ColumnDefinitions.Count;
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
 
+        grid.Children.Add(actions);
+        Grid.SetColumn(profiles, profilesColumn);
+        grid.Children.Add(profiles);
+
         AddHeaderButton(
-            grid,
+            actions,
             column: 0,
+            ControlMap.Flyout.Header.Actions.Settings,
             GlyphCatalog.SETTINGS,
             flyoutControlPalette,
             () => _openSettings(null),
@@ -560,8 +564,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             controlName: "SettingsButton",
             configureButton: SuppressNextAutoHideWhenPressed);
         AddHeaderButton(
-            grid,
+            actions,
             column: 1,
+            ControlMap.Flyout.Header.Actions.CurveEditor,
             GlyphCatalog.CURVE_WINDOW,
             flyoutControlPalette,
             OpenHeaderCurveEditor,
@@ -570,32 +575,42 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.HeaderManagerIconButtonFontSize,
             SuppressNextAutoHideWhenPressed);
         generation.NonFunctioningFansButtonGlyph = AddHeaderButton(
-            grid,
+            actions,
             column: 2,
+            ControlMap.Flyout.Header.Actions.NonFunctioningFans,
             NonFunctioningFansGlyph,
             flyoutControlPalette,
             ToggleNonFunctioningFans,
             tooltip: "Show/hide non-functioning fans",
             controlName: "NonFunctioningFansButton");
-        AddItemButton(grid, column: 3, flyoutControlPalette);
-#if DEBUG
-        generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
-            grid,
-            dragDebugVisualsColumn,
-            FanDragDebugVisualsGlyph,
-            flyoutControlPalette,
-            ToggleFanDragDebugVisuals,
-            tooltip: "Toggle fan drag debug visuals",
-            controlName: "DragDebugButton");
-#endif
+        AddItemButton(actions, column: 3, flyoutControlPalette);
 
-        AddProfileButton(grid, firstProfileColumn, profileNumber: 1, flyoutControlPalette);
-        AddProfileButton(grid, firstProfileColumn + 1, profileNumber: 2, flyoutControlPalette);
-        AddProfileButton(grid, firstProfileColumn + 2, profileNumber: 3, flyoutControlPalette);
+        // A flag rather than #if DEBUG, so Release compilations still see the map id and the tag analyzer stays quiet
+        if (EnableFanDragDebugOverlay)
+        {
+            int dragDebugVisualsColumn = actions.ColumnDefinitions.Count;
+            actions.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+            generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
+                actions,
+                dragDebugVisualsColumn,
+                ControlMap.Flyout.Header.Actions.DragDebug,
+                FanDragDebugVisualsGlyph,
+                flyoutControlPalette,
+                ToggleFanDragDebugVisuals,
+                tooltip: "Toggle fan drag debug visuals",
+                controlName: "DragDebugButton");
+        }
+
+        AddProfileButton(profiles, column: 0, profileNumber: 1, ControlMap.Flyout.Header.Profiles.Profile1,
+            flyoutControlPalette);
+        AddProfileButton(profiles, column: 1, profileNumber: 2, ControlMap.Flyout.Header.Profiles.Profile2,
+            flyoutControlPalette);
+        AddProfileButton(profiles, column: 2, profileNumber: 3, ControlMap.Flyout.Header.Profiles.Profile3,
+            flyoutControlPalette);
 
         FlyoutUndockButtonController undockButtonController =
             BuildUndockButton(flyoutControlPalette, generation);
-        Border undockButton = undockButtonController.Button;
+        Border undockButton = undockButtonController.Button.MapTo(ControlMap.Flyout.Header.Undock);
         ControlNames.Assign(undockButton, parentName: "UndockButton");
         Grid.SetColumn(undockButton, undockColumn);
         grid.Children.Add(undockButton);
@@ -654,7 +669,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     min: 0,
                     Layout.MaxSettingSpacing))
             },
-            parentName: "CellList");
+            parentName: "CellList").MapTo(ControlMap.Flyout.Cards.ID);
 
         StackPanel cellStack = ControlNames.Assign(
             new StackPanel { Spacing = 0 },
@@ -805,7 +820,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             p,
             ShowUpdateConfirmation,
             Layout.UpdateButtonFontSize,
-            Layout.UpdateButtonPadding);
+            Layout.UpdateButtonPadding).MapTo(ControlMap.Flyout.Cards.InstallUpdate);
         ControlNames.Assign(install, parentName: "UpdateButton");
         install.VerticalAlignment = VerticalAlignment.Center;
         install.Margin = Layout.TelemetryMargin;
@@ -872,6 +887,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         card.Tag = cell;
         if (interactive)
         {
+            // Drag ghosts reuse the card builders; only live cards join the control map
+            card.MapTo(cell.HasGroupHeader
+                ? ControlMap.Flyout.Cards.GroupCard.ID
+                : ControlMap.Flyout.Cards.FanCard.ID);
             if (cell.HasGroupHeader)
                 WireGroupDrag(card, cell);
             else if (cell.Fans.Count == 1)
@@ -921,7 +940,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
         StackPanel content = new() { Spacing = 0 };
         content.Children.Add(BuildProbeHeader(probeCard,
-            p)); //, ProbeCardDominantDeviceName(probeCard, nicknameResolver)));
+            p, interactive)); //, ProbeCardDominantDeviceName(probeCard, nicknameResolver)));
 
         if (!probeCard.IsCollapsed)
         {
@@ -973,14 +992,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             parentName: "ProbeCard");
         card.Tag = probeCard;
         if (interactive)
+        {
+            card.MapTo(ControlMap.Flyout.Cards.ProbeCard.ID);
             WireProbeDrag(card, probeCard);
+        }
+
         return card;
     }
 
     /// <summary>
     /// Builds the probe-card header with a selector button and editable title.
     /// </summary>
-    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p) //, string deviceName)
+    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p, bool interactive) //, string deviceName)
     {
         Grid row = ControlNames.Assign(
             new Grid
@@ -1051,6 +1074,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete probe card");
         Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
+
+        // Drag ghosts reuse this builder and stay out of the control map
+        if (!interactive) return row;
+
+        // The name grid holds the inline rename box, which becomes a tab stop while it is shown
+        probeButton.MapTo(ControlMap.Flyout.Cards.ProbeCard.OpenEditor);
+        nameGrid.MapTo(ControlMap.Flyout.Cards.ProbeCard.DisplayName);
+        expand.MapTo(ControlMap.Flyout.Cards.ProbeCard.Expanded);
+        delete.MapTo(ControlMap.Flyout.Cards.ProbeCard.Delete);
         return row;
     }
 
@@ -1252,6 +1284,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutSlider? slider = null;
         TextBlock? modeGlyph = null;
         Border? mode = null;
+        Grid? valueGrid = null;
         if (!grouped)
         {
             mode = IconButton(
@@ -1333,7 +1366,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             };
             sliderRow.Children.Add(slider);
 
-            Grid valueGrid = new()
+            valueGrid = new Grid
             {
                 Width = fan.FanDisplayedValueSlotWidth,
                 Height = Layout.SliderRowHeight,
@@ -1378,6 +1411,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 WireFanDrag(row, fan);
         }
 
+        // Drag ghosts reuse this builder and stay out of the control map
+        if (!interactive) return row;
+
+        // The name and value grids hold the inline edit boxes, which become tab stops while they are shown
+        if (grouped)
+        {
+            row.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.ID);
+            fanButton.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.OpenProperties);
+            nameGrid.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.DisplayName);
+            return row;
+        }
+
+        fanButton.MapTo(ControlMap.Flyout.Cards.FanCard.OpenProperties);
+        nameGrid.MapTo(ControlMap.Flyout.Cards.FanCard.DisplayName);
+        mode?.MapTo(ControlMap.Flyout.Cards.FanCard.ControlMode);
+        slider?.MapTo(ControlMap.Flyout.Cards.FanCard.Speed);
+        valueGrid?.MapTo(ControlMap.Flyout.Cards.FanCard.SpeedValue);
         return row;
     }
 
@@ -1565,6 +1615,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 new GroupHeaderVisualRefs(name, activeCurve, valueText, slider, modeGlyph, mode));
         }
 
+        // Drag ghosts reuse this builder and stay out of the control map
+        if (!registerVisual) return row;
+
+        // The name grid holds the inline rename box, which becomes a tab stop while it is shown
+        groupIcon.MapTo(ControlMap.Flyout.Cards.GroupCard.Icon);
+        nameGrid.MapTo(ControlMap.Flyout.Cards.GroupCard.DisplayName);
+        expand.MapTo(ControlMap.Flyout.Cards.GroupCard.Expanded);
+        delete.MapTo(ControlMap.Flyout.Cards.GroupCard.Delete);
+        mode.MapTo(ControlMap.Flyout.Cards.GroupCard.ControlMode);
+        slider.MapTo(ControlMap.Flyout.Cards.GroupCard.Speed);
         return row;
     }
 
@@ -2187,14 +2247,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static Border IconButton(
         Glyph glyph,
         FlyoutControlPalette palette,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         double width,
         double height,
         double fontSize,
         bool enabled = true,
         Thickness? margin = null,
         string? tooltip = null,
-        Action<PointerReleasedEventArgs>? rightClick = null,
+        Action<ControlActivation>? rightClick = null,
         FontWeight? fontWeight = null)
     {
         Border button = TrayAppDotNETFlyoutUI.IconButton(
@@ -2219,6 +2279,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private TextBlock? AddHeaderButton(
         Grid grid,
         int column,
+        ControlMapNodeID node,
         Glyph glyph,
         FlyoutControlPalette p,
         Action click,
@@ -2228,7 +2289,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Action<Border>? configureButton = null)
     {
         Border button = IconButton(glyph, p, _ => click(), Layout.HeaderIconButtonWidth,
-            Layout.HeaderIconButtonHeight, fontSize ?? Layout.HeaderIconButtonFontSize, tooltip: tooltip);
+            Layout.HeaderIconButtonHeight, fontSize ?? Layout.HeaderIconButtonFontSize, tooltip: tooltip).MapTo(node);
         ControlNames.Assign(button, controlName ?? tooltip);
         configureButton?.Invoke(button);
         TextBlock? text = button.Child as TextBlock;
@@ -2246,27 +2307,35 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.HeaderIconButtonWidth,
             Layout.HeaderIconButtonHeight,
             Layout.HeaderIconButtonFontSize,
-            tooltip: "Add item");
+            tooltip: "Add item").MapTo(ControlMap.Flyout.Header.Actions.AddItem);
         ControlNames.Assign(button, parentName: "AddItemButton");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
 
-    private void ShowAddItemMenu(PointerReleasedEventArgs e)
+    private void ShowAddItemMenu(ControlActivation activation)
     {
-        if (e.Source is not Visual source) return;
-        Border? anchor = FindVisualAncestor<Border>(source);
+        Border? anchor = FindVisualAncestor<Border>(activation.Source);
         if (anchor == null) return;
-        Visual? anchorParent = anchor.GetVisualParent();
-        Control edgeAnchor = anchorParent?.GetVisualParent() as Control ?? anchor;
+
+        // The menu's vertical edge comes from the title bar border around the header's action grid
+        Control edgeAnchor = anchor.GetVisualParent() is { } anchorParent
+            ? FindVisualAncestor<Border>(anchorParent) ?? anchor
+            : anchor;
 
         CloseAddItemMenu();
         bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         List<ContextMenuEntry> entries =
         [
-            new(Text: "Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
-            new(Text: "Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
+            new(Text: "Add Group Card", AddGroup)
+            {
+                LeadingGlyph = GlyphCatalog.GROUP, Node = ControlMap.AddItemMenu.AddGroupCard
+            },
+            new(Text: "Add Probe Card", AddProbeCard)
+            {
+                LeadingGlyph = GlyphCatalog.PROBE, Node = ControlMap.AddItemMenu.AddProbeCard
+            }
         ];
         ContextMenuWindow menu = new(
             entries,
@@ -2280,6 +2349,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 InvokeOnPointerReleased = true,
                 InvokeBeforeClose = true
             });
+
+        // ContextMenu is a shared template, so each menu instance carries its own surface id
+        menu.MapTo(ControlMap.AddItemMenu.ID);
         _addItemMenu = menu;
         menu.Closed += OnAddItemMenuClosed;
         try
@@ -2334,7 +2406,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
     }
 
-    private void AddProfileButton(Grid grid, int column, int profileNumber, FlyoutControlPalette p)
+    private void AddProfileButton(
+        Grid grid,
+        int column,
+        int profileNumber,
+        ControlMapNodeID node,
+        FlyoutControlPalette p)
     {
         TextBlock label = TrayAppDotNETFlyoutUI.Text(profileNumber.ToString(CultureInfo.InvariantCulture), p,
             Layout.ProfileLabelFontSize, FontWeight.SemiBold);
@@ -2363,7 +2440,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Layout.ProfileButtonHeight,
                 fontSize: 0,
                 tooltip: _settings.FanProfiles[profileNumber - 1].DisplayName(profileNumber - 1)),
-            $"ProfileButton{profileNumber}");
+            $"ProfileButton{profileNumber}").MapTo(node);
         button.Child = content;
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
@@ -2404,6 +2481,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 DragThreshold = Layout.DragThreshold
             }));
         generation.UndockButtonController = controller;
+
+        // The controller handles only the pointer; Enter, Space and accelerators run what its click runs
+        controller.Button.MapActivation(_ =>
+        {
+            _dockingController.ToggleUndocked();
+            FlushPendingFanRebuild();
+        });
         return controller;
     }
 
@@ -2429,12 +2513,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             parentName: "ConfirmationOverlay");
         generation.ConfirmOK = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p),
-            parentName: "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.Confirm);
         generation.ConfirmCancel = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(
                 L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)),
                 p),
-            parentName: "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.Cancel);
         generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
         generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
         generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
@@ -2468,7 +2552,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
                 Child = dialog
             },
-            parentName: "ConfirmationOverlay");
+            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.ID);
     }
 
     private async Task DeleteGroupAsync(FanFlyoutCell cell)

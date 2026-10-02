@@ -1,0 +1,14 @@
+<ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.ControlMapping.ControlMapFocusVisualResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Keyboard focus ring drawn around mapped controls that have no focus visual of their own.
+         A dark outer ring over a light inner ring stays visible on light and dark palettes -->
+    <Color x:Key="FocusVisual.PrimaryColor">#FF000000</Color>
+    <Color x:Key="FocusVisual.SecondaryColor">#FFFFFFFF</Color>
+    <Thickness x:Key="FocusVisual.PrimaryThickness">2</Thickness>
+    <Thickness x:Key="FocusVisual.SecondaryThickness">1</Thickness>
+    <sys:Double x:Key="FocusVisual.Outset">3</sys:Double>
+</ResourceDictionary>

@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -193,23 +194,23 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             TaskManagerGlyphCatalog.CHEVRON_UP_BIG,
             MoveUpToolTip,
             visibleIndex > 0,
-            resources);
+            resources).MapTo(ControlMap.ReorderList.Row.Move.MoveUp);
         SettingsButton downButton = BuildMoveButton(
             TaskManagerGlyphCatalog.CHEVRON_DOWN_BIG,
             MoveDownToolTip,
             visibleIndex < visibleCount - 1,
-            resources);
+            resources).MapTo(ControlMap.ReorderList.Row.Move.MoveDown);
         upButton.Click += (_, _) => MoveItem(item, direction: -1);
         downButton.Click += (_, _) => MoveItem(item, direction: 1);
 
-        StackPanel buttons = new()
+        StackPanel buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Spacing = resources.ButtonSpacing,
             Children = { upButton, downButton }
-        };
+        }.MapTo(ControlMap.ReorderList.Row.Move.ID);
 
         Grid rowContent = new()
         {
@@ -231,14 +232,14 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Child = rowContent
         };
 
-        Border slot = new()
+        Border slot = new Border
         {
             Background = Brushes.Transparent,
             Cursor = TrayAppDotNETCursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = isLast ? default : resources.RowHitSlotPadding,
             Child = highlightSurface
-        };
+        }.MapTo(ControlMap.ReorderList.Row.ID);
         ReorderRow row = new(item, slot, highlightSurface);
         slot.PointerEntered += (_, _) => OnRowPointerEntered(row);
         slot.PointerExited += (_, _) => OnRowPointerExited(row);

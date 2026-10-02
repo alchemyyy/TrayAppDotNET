@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 
@@ -24,7 +25,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsPalette palette,
         Action? afterSave = null,
         bool autoSizeToText = true,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
         where TEnum : struct, Enum =>
         ComboCard(
             title,
@@ -40,7 +42,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             afterSave,
             autoSizeToText,
             SettingsComboBoxAutoSizeMode.SelectedItem,
-            searchKeywords);
+            searchKeywords,
+            node);
 
     protected Border PairBoolCard(
         string title,
@@ -55,7 +58,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         bool showLeft = true,
         bool showRight = true,
         Action? afterSave = null,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(
@@ -70,7 +74,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 setLeft(v);
                 Save();
                 afterSave?.Invoke();
-            });
+            }).MapTo(ControlMap.PairToggleCard.Left);
             toggle.HorizontalAlignment = HorizontalAlignment.Center;
             toggle.IsVisible = showLeft;
             Grid.SetColumn(toggle, value: 0);
@@ -84,7 +88,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 setRight(v);
                 Save();
                 afterSave?.Invoke();
-            });
+            }).MapTo(ControlMap.PairToggleCard.Right);
             toggle.HorizontalAlignment = HorizontalAlignment.Center;
             toggle.IsVisible = showRight;
             Grid.SetColumn(toggle, value: 1);
@@ -92,7 +96,9 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         }
 
         TrayAppDotNETToolTip.SetTip(row, $"{leftHeader} / {rightHeader}");
-        return Card(title, description, row, palette, searchKeywords);
+
+        // A PairToggleCard instance; the caller's id tells its instances apart
+        return Card(title, description, row, palette, searchKeywords).MapTo(node);
     }
 
     protected Grid PairColumnHeader(string title, SettingsPalette palette)
@@ -136,14 +142,16 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Action reset,
         SettingsPalette palette,
         string? tooltip = null,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
         Color currentValue = value;
-        SettingsSwatch swatch = new(palette);
+        SettingsSwatch swatch = new SettingsSwatch(palette).MapTo(ControlMap.SingleColorCard.PickColor);
         swatch.SetColor(currentValue, defaultColor);
         if (!string.IsNullOrWhiteSpace(tooltip))
             TrayAppDotNETToolTip.SetTip(swatch, tooltip);
-        SettingsButton resetButton = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette);
+        SettingsButton resetButton = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette)
+            .MapTo(ControlMap.SingleColorCard.Reset);
 
         swatch.Click += (_, _) =>
         {
@@ -198,12 +206,13 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             RefreshPalette();
         };
 
+        // A SingleColorCard instance; the caller's id tells its instances apart
         return Card(
             title,
             description,
             TrayAppDotNETSettingsUI.Horizontal(swatch, resetButton),
             palette,
-            searchKeywords);
+            searchKeywords).MapTo(node);
     }
 
     protected Border VariantColorCard(
@@ -216,13 +225,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Color lightFallback,
         Color darkFallback,
         SettingsPalette palette,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
-        SettingsSwatch light = new(palette);
-        SettingsSwatch dark = new(palette);
+        SettingsSwatch light = new SettingsSwatch(palette).MapTo(ControlMap.VariantColorCard.PickLightColor);
+        SettingsSwatch dark = new SettingsSwatch(palette).MapTo(ControlMap.VariantColorCard.PickDarkColor);
         TrayAppDotNETToolTip.SetTip(light, lightTooltip);
         TrayAppDotNETToolTip.SetTip(dark, darkTooltip);
-        SettingsButton reset = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette);
+        SettingsButton reset = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette)
+            .MapTo(ControlMap.VariantColorCard.Reset);
 
         bool effectiveIsLight = ResolveEffectiveIsLightForBindings();
         light.IsVisible = effectiveIsLight;
@@ -246,7 +257,9 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
         row.Tag = name;
-        return Card(title, description, row, palette, searchKeywords);
+
+        // A VariantColorCard instance; the caller's id tells its instances apart
+        return Card(title, description, row, palette, searchKeywords).MapTo(node);
     }
 
     protected virtual bool ResolveEffectiveIsLightForBindings() => false;

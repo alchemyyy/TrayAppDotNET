@@ -16,6 +16,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -129,22 +130,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             WindowResources.Add(() => updateService.StateChanged -= NotifyUpdateStateChanged);
         }
 
-        KeyDown += OnWindowKeyDown;
-        WindowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        this.MapTo(ControlMap.Flyout.ID);
+        this.MapCommand(ControlMap.Flyout.Close, () => Hide());
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
 #endif
 
         InitializeComponentState();
-    }
-
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape) return;
-
-        Hide();
-        e.Handled = true;
     }
 
 #if DEBUG
@@ -563,6 +556,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             root.Children.Add(header);
             root.Children.Add(body);
 
+            // A bottom header follows the devices in tab order
+            root.MapVariant(ControlMap.Variants.HeaderAtBottom, _settings.FlyoutHeaderAtBottom);
+
             FlyoutFrame frame = new(
                 root,
                 flyoutPalette.Background,
@@ -702,7 +698,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         Grid grid = ControlNames.Assign(
             new Grid { MinHeight = Layout.HeaderMinHeight, Background = Brush(p.Background) },
-            parentName: "FlyoutHeader");
+            parentName: "FlyoutHeader").MapTo(ControlMap.Flyout.Header.ID);
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
 
         StackPanel left = ControlNames.Assign(
@@ -717,20 +713,21 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }, grid);
 
         Border settingsButton = HeaderIconButton(GlyphCatalog.SETTINGS, p, _openSettings,
-            L(nameof(AppStrings.Flyout_Settings_Tooltip)));
+            L(nameof(AppStrings.Flyout_Settings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenSettings);
         ControlNames.Assign(settingsButton, parentName: "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
         left.Children.Add(settingsButton);
         Border soundSettingsButton = HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
             () => DeviceShellLinks.OpenSoundSettings(_settings.SoundSettingsTarget),
-            L(nameof(AppStrings.Flyout_SoundSettings_Tooltip)));
+            L(nameof(AppStrings.Flyout_SoundSettings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenSoundSettings);
         ControlNames.Assign(soundSettingsButton, parentName: "SoundSettingsButton");
         left.Children.Add(soundSettingsButton);
         Border disabledDevicesButton = HeaderIconButton(
             DisabledDevicesGlyph,
             p,
             ToggleDisabledDevices,
-            L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip)));
+            L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip)))
+            .MapTo(ControlMap.Flyout.Header.ToggleDisabledDevices);
         ControlNames.Assign(disabledDevicesButton, parentName: "DisabledDevicesButton");
         left.Children.Add(disabledDevicesButton);
 
@@ -744,7 +741,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 eventArgs => ToggleBluetoothRadio(eventArgs.KeyModifiers),
                 BluetoothRadioTooltip(bluetoothRadioState, _settings.FlyoutBluetoothRadioButtonClickGesture),
                 !_isBluetoothRadioToggleInFlight
-                && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
+                && bluetoothRadioState != BluetoothRadioPowerState.Unavailable)
+                .MapTo(ControlMap.Flyout.Header.ToggleBluetoothRadio);
             ControlNames.Assign(bluetoothRadioButton, parentName: "BluetoothRadioButton");
             bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
                 ? 1.0
@@ -758,7 +756,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 GlyphCatalog.COMMUNICATIONS_ACTIVITY,
                 p,
                 e => ToggleCommunicationsDucking(e.KeyModifiers),
-                L(nameof(AppStrings.Flyout_Communications_Tooltip)));
+                L(nameof(AppStrings.Flyout_Communications_Tooltip)))
+                .MapTo(ControlMap.Flyout.Header.ToggleCommunicationsDucking);
             ControlNames.Assign(communications, parentName: "CommunicationsDuckingButton");
             communications.Opacity = CommunicationsDucking.IsActive()
                 ? 1.0
@@ -770,7 +769,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         if (IsUpdateButtonVisible)
         {
-            Border update = TextButton(L(nameof(CommonStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation);
+            Border update = TextButton(L(nameof(CommonStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation)
+                .MapTo(ControlMap.Flyout.Header.InstallUpdate);
             ControlNames.Assign(update, parentName: "UpdateButton");
             SuppressNextAutoHideWhenPressed(update);
             update.Width = Layout.UpdateButtonWidth;
@@ -789,7 +789,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             grid.Children.Add(update);
         }
 
-        Border undock = BuildUndockButton(p);
+        Border undock = BuildUndockButton(p).MapTo(ControlMap.Flyout.Header.Undock);
         ControlNames.Assign(undock, parentName: "UndockButton");
         undock.IsVisible = _settings.AllowFlyoutUndock;
         undock.HorizontalAlignment = HorizontalAlignment.Right;
@@ -820,7 +820,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         UpdateGroupMeterVisibility(device, groups, drawerVisible);
         bool appsBottom = _settings.FlyoutDeviceLayout == FlyoutDeviceLayoutStyle.AppsBelowDevice;
 
-        Grid root = new();
+        Grid root = new Grid().MapTo(ControlMap.Flyout.Devices.Device.ID);
+        if (DeviceLayoutVariant(appsBottom) is { } layoutVariant)
+            root.MapVariant(layoutVariant);
         root.Children.Add(new Border
         {
             Background = Brush(p.FooterBackground),
@@ -883,6 +885,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return root;
     }
 
+    /// <summary>
+    /// Returns the control map variant for a device card whose apps or title move out of the default order of
+    /// apps above the device and title below the slider, or null for that default.
+    /// </summary>
+    private string? DeviceLayoutVariant(bool appsBottom)
+    {
+        bool titleAbove = _settings.FlyoutDeviceTitlePosition == FlyoutDeviceTitlePosition.AboveSlider;
+        return (appsBottom, titleAbove) switch
+        {
+            (false, false) => null,
+            (false, true) => ControlMap.Variants.TitleAboveSlider,
+            (true, false) => ControlMap.Variants.AppsBelowDevice,
+            (true, true) => ControlMap.Variants.AppsBelowDeviceTitleAboveSlider
+        };
+    }
+
     private ScrollViewer BuildSliderDrawer(AudioDevice device, IReadOnlyList<AudioAppGroup> groups, FlyoutPalette p)
     {
         StackPanel stack = new() { Spacing = 0 };
@@ -926,7 +944,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Grid BuildAppSliderRow(AudioDevice device, AudioAppGroup group, FlyoutPalette p)
     {
-        Grid grid = new()
+        Grid grid = new Grid
         {
             Margin = Layout.AppSliderRowMargin,
             Opacity = ResolveAppOpacity(device, group),
@@ -936,7 +954,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto)
             }
-        };
+        }.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.ID);
 
         Control icon = BuildAppIcon(device, group, p, Layout.AppIconImageSize, Layout.AppIconGlyphSize,
             clickable: true);
@@ -950,10 +968,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             p,
             v => group.Volume = (float)(v / 100.0),
             immediate => _feedback?.PlayForApp(group, immediate));
+        slider.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.Volume);
         Grid.SetColumn(slider, value: 1);
         grid.Children.Add(slider);
 
         (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(group.Volume, p);
+        percent.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.EditPercent);
+        percentEdit.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.PercentEditor);
         WirePercentEditor(percent, percentEdit, slider, v =>
         {
             group.Volume = (float)(v / 100.0);
@@ -1145,13 +1166,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             root.PointerReleased += (_, e) =>
             {
                 if (e.InitialPressMouseButton != MouseButton.Left) return;
-                group.IsMuted = !group.IsMuted;
                 e.Handled = true;
-                Rebuild();
+                ToggleGroupMute();
             };
+            root.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.ToggleMute);
+            root.MapActivation(_ => ToggleGroupMute());
         }
 
         return root;
+
+        void ToggleGroupMute()
+        {
+            group.IsMuted = !group.IsMuted;
+            Rebuild();
+        }
     }
 
     private Grid BuildDeviceRow(AudioDevice device, IReadOnlyList<AudioAppGroup> groups, FlyoutPalette p)
@@ -1182,17 +1210,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Auto)
             }
         };
 
         string formatLine = DeviceFormatLine(device);
-        Grid nameStack = new() { Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center };
+        Grid nameStack = new Grid { Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center }
+            .MapTo(ControlMap.Flyout.Devices.Device.DeviceName);
         if (string.IsNullOrEmpty(formatLine))
             nameStack.RenderTransform = CloneTransform(Layout.DeviceTitleNameNoFormatTransform);
 
@@ -1206,6 +1230,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             BeginDeviceNameEdit(content, nameStack, device, p);
             e.Handled = true;
         };
+
+        // Keyboard activation renames like a double-click; the right-click format menu has no keyboard path
+        nameStack.MapActivation(_ => BeginDeviceNameEdit(content, nameStack, device, p));
         nameStack.Children.Add(name);
 
         TextBlock? format = null;
@@ -1235,13 +1262,23 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         row.Children.Add(nameStack);
 
-        int col = 1;
-        AddTitleButton(row, col++, BuildBatteryButton(device, p));
-        AddTitleButton(row, col++, BuildExclusiveButton(device, p));
-        AddTitleButton(row, col++, BuildEqualizerButton(device, p));
-        AddTitleButton(row, col++, BuildListenButton(device, p));
-        AddTitleButton(row, col++, BuildDeviceStateButton(device, p));
-        AddTitleButton(row, col, BuildDrawerButton(device, groups, p));
+        // The buttons share one panel so the toolbar's single tab stop does not take in the device name
+        StackPanel toolbar = new StackPanel { Orientation = Orientation.Horizontal }
+            .MapTo(ControlMap.Flyout.Devices.Device.Toolbar.ID);
+        Grid.SetColumn(toolbar, value: 1);
+        row.Children.Add(toolbar);
+        AddTitleButton(toolbar, BuildBatteryButton(device, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.ConnectBluetooth);
+        AddTitleButton(toolbar, BuildExclusiveButton(device, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.ToggleExclusiveMode);
+        AddTitleButton(toolbar, BuildEqualizerButton(device, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.ToggleEqualizerAPO);
+        AddTitleButton(toolbar, BuildListenButton(device, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.ToggleListen);
+        AddTitleButton(toolbar, BuildDeviceStateButton(device, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.SetDefault);
+        AddTitleButton(toolbar, BuildDrawerButton(device, groups, p),
+            ControlMap.Flyout.Devices.Device.Toolbar.ToggleAppDrawer);
 
         device.PropertyChanged += OnDeviceChanged;
         AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
@@ -1295,7 +1332,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }
         };
 
-        Border mute = BuildDeviceMuteButton(device, p);
+        Border mute = BuildDeviceMuteButton(device, p).MapTo(ControlMap.Flyout.Devices.Device.ToggleMute);
         Grid.SetColumn(mute, value: 0);
         row.Children.Add(mute);
 
@@ -1304,11 +1341,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             device.PeakValues,
             p,
             v => device.Volume = (float)(v / 100.0),
-            immediate => _feedback?.PlayForDevice(device, immediate));
+            immediate => _feedback?.PlayForDevice(device, immediate)).MapTo(ControlMap.Flyout.Devices.Device.Volume);
         Grid.SetColumn(slider, value: 1);
         row.Children.Add(slider);
 
         (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(device.Volume, p);
+        percent.MapTo(ControlMap.Flyout.Devices.Device.EditPercent);
+        percentEdit.MapTo(ControlMap.Flyout.Devices.Device.PercentEditor);
         WirePercentEditor(percent, percentEdit, slider, v =>
         {
             device.Volume = (float)(v / 100.0);
@@ -1478,6 +1517,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         label.PointerPressed += OnLabelPointerPressed;
         editor.KeyDown += OnEditorKeyDown;
         editor.LostFocus += OnEditorLostFocus;
+
+        // Keyboard activation of the percent label opens the editor like a double-click
+        label.MapActivation(_ => OpenEditor());
         BuildingContent.Resources.Add(() =>
         {
             label.PointerPressed -= OnLabelPointerPressed;
@@ -1491,14 +1533,19 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         void OnLabelPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (e.ClickCount != 2) return;
-            if (!slider.IsEnabled || !slider.IsVisible) return;
+            if (OpenEditor()) e.Handled = true;
+        }
+
+        bool OpenEditor()
+        {
+            if (!slider.IsEnabled || !slider.IsVisible) return false;
 
             editor.Text = label.Text;
             label.IsVisible = false;
             editor.IsVisible = true;
             editor.Focus();
             editor.SelectAll();
-            e.Handled = true;
+            return true;
         }
 
         void OnEditorKeyDown(object? sender, KeyEventArgs e)
@@ -1984,18 +2031,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return button;
     }
 
-    private static void AddTitleButton(Grid row, int column, Control? button)
+    private static void AddTitleButton(StackPanel toolbar, Control? button, ControlMapNodeID node)
     {
         if (button == null) return;
-        Grid.SetColumn(button, column);
-        row.Children.Add(button);
+        toolbar.Children.Add(button.MapTo(node));
     }
 
     private Border HeaderIconButton(Glyph? glyph, FlyoutPalette p, Action click, string? tooltip,
         bool enabled = true) =>
         HeaderIconButton(glyph, p, _ => click(), tooltip, enabled);
 
-    private Border HeaderIconButton(Glyph? glyph, FlyoutPalette p, Action<PointerReleasedEventArgs> click,
+    private Border HeaderIconButton(Glyph? glyph, FlyoutPalette p, Action<ControlActivation> click,
         string? tooltip, bool enabled = true)
     {
         Border button = IconButton(
@@ -2080,8 +2126,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private Border DeviceIconButton(
         Glyph? glyph,
         FlyoutPalette p,
-        Action<PointerReleasedEventArgs> click,
-        Action<PointerReleasedEventArgs>? rightClick = null,
+        Action<ControlActivation> click,
+        Action<ControlActivation>? rightClick = null,
         double? width = null,
         double? height = null,
         double? fontSize = null,
@@ -2103,7 +2149,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private Border IconButton(
         Glyph? glyph,
         FlyoutPalette p,
-        Action<PointerReleasedEventArgs> click,
+        Action<ControlActivation> click,
         double width,
         double height,
         double fontSize,
@@ -2112,7 +2158,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Color hover,
         Color pressed,
         string? tooltip,
-        Action<PointerReleasedEventArgs>? rightClick = null)
+        Action<ControlActivation>? rightClick = null)
     {
         Control content;
         if (glyph == null || fontSize <= 0)
@@ -2339,7 +2385,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             },
             SetPromptOpen = open => _isUpdateDialogOpen = open,
             SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation
+            PromptClosed = NotifyChildWindowClosedFromDeactivation,
+            Node = ControlMap.UpdatePrompt.ID
         });
     }
 
@@ -2372,13 +2419,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     bits,
                     rate),
                 isCurrent,
-                () => device.SetDeviceFormat(capturedChannels, capturedBits, capturedRate)));
+                () => device.SetDeviceFormat(capturedChannels, capturedBits, capturedRate),
+                ControlMap.FormatMenu.Format));
         }
 
         double maxHeight = formats.Count > Layout.FormatMenuMaxVisibleItems
             ? Layout.FormatMenuMaxVisibleItems * Layout.FormatMenuItemHeight + Layout.FormatMenuPaddingReserve
             : double.PositiveInfinity;
-        ShowFlyoutMenu(content, anchor, entries, p, maxHeight);
+        ShowFlyoutMenu(content, anchor, entries, ControlMap.FormatMenu.ID, p, maxHeight);
     }
 
     private static List<(int Channels, int Bits, int SampleRate)> BuildFallbackFormatMenu(
@@ -2404,7 +2452,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             new(
                 L(nameof(AppStrings.Flyout_ListenMenu_DefaultPlaybackDevice)),
                 currentTarget == null,
-                () => captureDevice.SetListenTarget(targetDeviceID: null, enable: true))
+                () => captureDevice.SetListenTarget(targetDeviceID: null, enable: true),
+                ControlMap.ListenTargetMenu.DefaultPlaybackDevice)
         ];
 
         List<AudioDevice> renderTargets = [];
@@ -2422,16 +2471,19 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             entries.Add(new FlyoutMenuEntry(
                 target.FriendlyName,
                 string.Equals(currentTarget, targetId, StringComparison.Ordinal),
-                () => captureDevice.SetListenTarget(targetId, enable: true)));
+                () => captureDevice.SetListenTarget(targetId, enable: true),
+                ControlMap.ListenTargetMenu.PlaybackDevice));
         }
 
-        ShowFlyoutMenu(content, anchor, entries, p);
+        ShowFlyoutMenu(content, anchor, entries, ControlMap.ListenTargetMenu.ID, p);
     }
 
+    /// <summary>Shows a flyout menu window tagged with the map surface it stands for.</summary>
     private void ShowFlyoutMenu(
         VolumeFlyoutContentGeneration content,
         Control anchor,
         IReadOnlyList<FlyoutMenuEntry> entries,
+        ControlMapNodeID surface,
         FlyoutPalette p,
         double maxHeight = double.PositiveInfinity)
     {
@@ -2452,6 +2504,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 _settings.EnableRoundedCorners,
                 maxHeight,
                 menuResources);
+            menu.MapTo(surface);
         }
         catch
         {
@@ -2501,7 +2554,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         content.DeviceNameEditInteraction.Clear();
 
-        TextBox editor = new()
+        TextBox editor = new TextBox
         {
             Text = device.FriendlyName,
             FontSize = Layout.InlineEditorFontSize,
@@ -2514,7 +2567,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
             ZIndex = Layout.InlineEditorZIndex
-        };
+        }.MapTo(ControlMap.Flyout.Devices.Device.NameEditor);
         ControlNames.Assign(editor, host);
         UIResourceScope interactionResources = new(
             ownerName: "VolumeFlyoutWindow.DeviceNameEdit",
@@ -2599,7 +2652,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         string body = L(nameof(AppStrings.EqualizerAPO_NotAvailable_Body));
         string download = L(nameof(AppStrings.EqualizerAPO_NotAvailable_DownloadButton));
         SettingsPalette palette = VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight());
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETUpdateConfirmationWindow dialog = new TrayAppDotNETUpdateConfirmationWindow(
             L(nameof(AppStrings.EqualizerAPO_NotAvailable_Title)),
             body,
             download,
@@ -2608,7 +2661,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             cancelText: L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)))
         {
             WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+        }.MapTo(ControlMap.EqualizerAPOUnavailable.ID);
 
         _ = ShowEqualizerDialogAsync(dialog);
         return;
@@ -3363,7 +3416,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private sealed record FlyoutMenuEntry(string MenuText, bool IsCurrent, Action Click);
+    private sealed record FlyoutMenuEntry(string MenuText, bool IsCurrent, Action Click, ControlMapNodeID Node);
 
     private sealed class FlyoutMenuWindow : Window
     {
@@ -3394,7 +3447,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             SizeToContent = SizeToContent.WidthAndHeight;
             WindowStartupLocation = WindowStartupLocation.Manual;
 
-            StackPanel items = controlNames.Assign(new StackPanel { Spacing = 0 }, parentName: "MenuItems");
+            StackPanel items = controlNames.Assign(new StackPanel { Spacing = 0 }, parentName: "MenuItems")
+                .MapTo(ControlMap.VolumeFlyoutMenu.Entries.ID);
             foreach (FlyoutMenuEntry entry in entries)
                 items.Children.Add(new FlyoutMenuRow(entry, palette, layout, fontSize, rounded, Close));
 
@@ -3428,14 +3482,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 _closedFromDeactivation = true;
                 Close();
             };
-            KeyDown += (_, e) =>
-            {
-                if (e.Key == Key.Escape)
-                {
-                    Close();
-                    e.Handled = true;
-                }
-            };
+            this.MapCommand(ControlMap.VolumeFlyoutMenu.Close, () => Close());
         }
 
         public void ShowAt(Control anchor)
@@ -3581,6 +3628,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
                 e.Handled = true;
             };
+
+            // Enter or Space on the focused row runs it like a click
+            this.MapTo(entry.Node);
+            this.MapActivation(_ =>
+            {
+                close();
+                entry.Click();
+            });
         }
 
         private void UpdateBackground(bool pressed)

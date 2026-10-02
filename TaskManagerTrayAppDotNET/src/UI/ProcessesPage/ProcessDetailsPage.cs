@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
@@ -140,20 +141,26 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _processCanvas.SetContextCopyPreview,
             reportMessage);
 
-        _runTaskButton = TrayAppDotNETSettingsUI.Button(text: "Run new task", palette);
+        HeaderActions.MapTo(ControlMap.Main.ProcessesPage.CommandBar.ID);
+        _runTaskButton = TrayAppDotNETSettingsUI.Button(text: "Run new task", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.CommandBar.RunNewTask);
         _runTaskButton.Click += OnRunTaskClick;
-        _restartExplorerButton = TrayAppDotNETSettingsUI.Button(text: "Restart explorer", palette);
+        _restartExplorerButton = TrayAppDotNETSettingsUI.Button(text: "Restart explorer", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.CommandBar.RestartExplorer);
         _restartExplorerButton.Click += OnRestartExplorerClick;
-        _columnsButton = TrayAppDotNETSettingsUI.Button(text: "Columns..", palette);
+        _columnsButton = TrayAppDotNETSettingsUI.Button(text: "Columns..", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.CommandBar.Columns);
         _columnsButton.Click += OnColumnsClick;
-        _endTaskButton = TrayAppDotNETSettingsUI.Button(text: "End task", palette);
+        _endTaskButton = TrayAppDotNETSettingsUI.Button(text: "End task", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.CommandBar.EndTask);
         _endTaskButton.IsEnabled = false;
         _endTaskButton.Click += OnEndTaskClick;
         _groupProcessesToggle = TrayAppDotNETSettingsUI.Toggle(
             palette,
             settings.GroupProcesses,
-            OnGroupProcessesChanged);
-        _moreActionsButton = TrayAppDotNETSettingsUI.Button(TaskManagerGlyphCatalog.MORE, palette);
+            OnGroupProcessesChanged).MapTo(ControlMap.Main.ProcessesPage.CommandBar.GroupProcesses);
+        _moreActionsButton = TrayAppDotNETSettingsUI.Button(TaskManagerGlyphCatalog.MORE, palette)
+            .MapTo(ControlMap.Main.ProcessesPage.CommandBar.MoreActions);
         _moreActionsButton.Width = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
         _moreActionsButton.Height = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
         _moreActionsButton.MinHeight = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
@@ -171,6 +178,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _searchBox.PlaceholderText = "Search by name, PID, or enter an expression";
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.TextChanged += OnSearchTextChanged;
+        _searchBox.MapTo(ControlMap.Main.ProcessesPage.Search.SearchText);
         TrayAppDotNETToolTip.SetTip(
             _searchBox,
             "Name/PID contains search is the default. Expressions support =, !=, <, <=, >, >=, &&, and ||.\n"
@@ -228,9 +236,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
         _runInput.PlaceholderText = "Executable, document, or URI";
         _runInput.KeyDown += OnRunInputKeyDown;
-        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette);
+        _runInput.MapTo(ControlMap.Main.ProcessesPage.RunPanel.CommandText);
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.RunPanel.Run);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+            .MapTo(ControlMap.Main.ProcessesPage.RunPanel.Cancel);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel(palette, resources);
         _runPanel.IsVisible = false;
@@ -258,7 +269,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             scrollBarStyle,
             scrollBarContextMenuOptions,
             _resizeGrip,
-            overlayVerticalScrollBar: true)
+            overlayVerticalScrollBar: true,
+            node: ControlMap.Main.ProcessesPage.TableViewport.ID)
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
@@ -743,14 +755,17 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
         CloseHeaderActionsMenu();
         ContextMenuEntryBuilder entries = new();
-        entries.Add(text: "Arrange buttons", ShowHeaderButtonArrangement);
+        entries.Add(new ContextMenuEntry(Text: "Arrange buttons", ShowHeaderButtonArrangement)
+        {
+            Node = ControlMap.ProcessMoreMenu.ArrangeButtons
+        });
         entries.AddSeparator();
         AddElevatedHelperMenuEntry(entries);
-        TaskManagerContextMenuWindow menuWindow = new(
+        TaskManagerContextMenuWindow menuWindow = new TaskManagerContextMenuWindow(
             entries.ToList(),
             _palette,
             _settings.EnableRoundedCorners,
-            _settings);
+            _settings).MapTo(ControlMap.ProcessMoreMenu.ID);
         _headerActionsMenuWindow = menuWindow;
         menuWindow.Closed += OnHeaderActionsMenuClosed;
         menuWindow.ShowOver(_moreActionsButton, _moreActionsButton, owner);
@@ -762,23 +777,33 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         switch (status.State)
         {
             case ElevatedHelperState.NotRequested:
-                entries.Add(text: "Enable elevated termination...", _requestElevatedTermination);
+                AddElevatedTerminationEntry(
+                    entries,
+                    text: "Enable elevated termination...",
+                    _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Declined:
             case ElevatedHelperState.Failed:
-                entries.Add(text: "Retry elevated termination...", _requestElevatedTermination);
+                AddElevatedTerminationEntry(
+                    entries,
+                    text: "Retry elevated termination...",
+                    _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Starting:
-                entries.Add(text: "Waiting for Windows approval", static () => { });
+                AddElevatedTerminationEntry(entries, text: "Waiting for Windows approval", static () => { });
                 break;
             case ElevatedHelperState.Ready:
-                entries.Add(text: "Elevated termination enabled", static () => { });
+                AddElevatedTerminationEntry(entries, text: "Elevated termination enabled", static () => { });
                 break;
             case ElevatedHelperState.Disposed:
-                entries.Add(text: "Elevated termination unavailable", static () => { });
+                AddElevatedTerminationEntry(entries, text: "Elevated termination unavailable", static () => { });
                 break;
         }
     }
+
+    // Every elevated helper state shows as the one ElevatedTermination row
+    private static void AddElevatedTerminationEntry(ContextMenuEntryBuilder entries, string text, Action click) =>
+        entries.Add(new ContextMenuEntry(text, click) { Node = ControlMap.ProcessMoreMenu.ElevatedTermination });
 
     private void CloseHeaderActionsMenu()
     {

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 
@@ -109,6 +110,25 @@ public sealed class FlyoutUndockButtonController : IDisposable
         Button.PointerMoved += OnPointerMoved;
         Button.PointerReleased += OnPointerReleased;
         Button.PointerCaptureLost += OnPointerCaptureLost;
+        Button.MapActivation(_ => ToggleFromActivation());
+    }
+
+    /// <summary>
+    /// Toggles docking from Enter, Space, or an accelerator exactly as a click that did not drag does.
+    /// </summary>
+    private void ToggleFromActivation()
+    {
+        if (_disposed || !Button.IsEnabled || IsPointerCaptured) return;
+        if (_canStartInteraction?.Invoke() == false) return;
+
+        try
+        {
+            _docking.ToggleUndocked();
+        }
+        finally
+        {
+            _interactionCompleted?.Invoke(null);
+        }
     }
 
     private void OnPointerEntered(object? sender, PointerEventArgs e)

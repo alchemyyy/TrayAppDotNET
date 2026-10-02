@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using VolumeHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using VolumeHotkeyApplyResult = TrayAppDotNETCommon.Services.HotkeyApplyResult;
@@ -19,7 +20,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p,
             new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240);
+        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240)
+            .MapTo(ControlMap.Settings.HotkeysPage.Search);
         ControlNames.Assign(searchBox, nameof(VolumeSettingsPage.Hotkeys));
         StackPanel searchRow = new()
         {
@@ -78,19 +80,22 @@ public sealed partial class VolumeSettingsWindow
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkey.Modifiers);
         ControlNames.Assign(modifiers, $"{action}Modifiers");
         OwnPageResource(modifiers);
         modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkey.KeyCapture);
         ControlNames.Assign(keyBox, $"{action}Key");
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkey.AddBinding);
         ControlNames.Assign(addButton, $"{action}Add");
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
@@ -174,7 +179,7 @@ public sealed partial class VolumeSettingsWindow
         Grid.SetColumnSpan(entries, value: 2);
         grid.Children.Add(entries);
 
-        Border card = RawCard(grid, p, searchKeywords);
+        Border card = RawCard(grid, p, searchKeywords).MapTo(ControlMap.Settings.HotkeysPage.Hotkey.ID);
         rows.Add((card, title + "\n" + description + "\n" + string.Join(separator: "\n", searchKeywords)));
         stack.Children.Add(card);
         Refresh();
@@ -247,7 +252,8 @@ public sealed partial class VolumeSettingsWindow
         else if (binding.IsBound)
             TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkey.DeleteBinding);
         ControlNames.Assign(delete, $"{action}Delete");
         delete.Width = 32;
         delete.Height = 29;

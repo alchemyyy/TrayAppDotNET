@@ -3,12 +3,12 @@ using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
@@ -64,12 +64,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         Closing += OnClosing;
-        KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-            Hide();
-            e.Handled = true;
-        };
+        this.MapTo(ControlMap.MapPicker.ID);
 
         _map = _controlNames.Assign(
             new EnvironmentalMapPickerCanvas(palette, theme.EnvironmentalMapPin.For(isLight))
@@ -78,7 +73,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             },
-            parentName: "MapViewport");
+            parentName: "MapViewport").MapTo(ControlMap.MapPicker.Map.ID);
         _map.CoordinateChanged += (_, _) => UpdateCoordinateText();
 
         _coordinateText = _controlNames.Assign(
@@ -105,6 +100,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Grid titleBar = new() { Background = Brushes.Transparent, Height = TitleBarHeight };
+        titleBar.MapTo(ControlMap.MapPicker.TitleBar.ID);
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         titleBar.PointerPressed += (_, e) =>
@@ -127,7 +123,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 Padding = new Thickness(0),
                 Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
             },
-            parentName: "TitleBar");
+            parentName: "TitleBar").MapTo(ControlMap.MapPicker.TitleBar.Close);
         BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
         close.Click += (_, _) => Hide();
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Common_Close)));
@@ -196,13 +192,15 @@ public sealed class EnvironmentalMapPickerWindow : Window
                 L(nameof(AppStrings.Settings_MapPicker_Apply_Button)),
                 p,
                 new CornerRadius(4)),
-            parentName: "CoordinateHUD");
+            parentName: "CoordinateHUD").MapTo(ControlMap.MapPicker.Coordinate.Apply);
+
+        // Escape anywhere in the window activates Abort through the control map
         SettingsButton abort = _controlNames.Assign(
             TrayAppDotNETSettingsCards.Button(
                 L(nameof(AppStrings.Settings_MapPicker_Abort_Button)),
                 p,
                 new CornerRadius(4)),
-            parentName: "CoordinateHUD");
+            parentName: "CoordinateHUD").MapTo(ControlMap.MapPicker.Coordinate.Abort);
         apply.MinWidth = 64;
         abort.MinWidth = 64;
         apply.Margin = new Thickness(left: 0, top: 0, right: 6, bottom: 0);
@@ -242,13 +240,20 @@ public sealed class EnvironmentalMapPickerWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(6)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        AddHudGlyphButton(grid, p, action: "Up", static () => GlyphCatalog.CHEVRON_UP, row: 0, column: 1);
-        AddHudGlyphButton(grid, p, action: "Left", static () => GlyphCatalog.CHEVRON_LEFT, row: 1, column: 0);
-        AddHudGlyphButton(grid, p, action: "Right", static () => GlyphCatalog.CHEVRON_RIGHT, row: 1, column: 2);
-        AddHudGlyphButton(grid, p, action: "Down", static () => GlyphCatalog.CHEVRON_DOWN, row: 2, column: 1);
-        AddHudButton(grid, p, action: "ZoomIn", text: "+", row: 0, column: 4, useIconFont: false);
-        AddHudButton(grid, p, action: "ZoomOut", text: "-", row: 1, column: 4, useIconFont: false);
-        AddHudGlyphButton(grid, p, action: "Center", static () => GlyphCatalog.MAP_CENTER, row: 2, column: 4);
+        AddHudGlyphButton(grid, p, action: "Up", static () => GlyphCatalog.CHEVRON_UP, row: 0, column: 1,
+            ControlMap.MapPicker.MapHUD.PanUp);
+        AddHudGlyphButton(grid, p, action: "Left", static () => GlyphCatalog.CHEVRON_LEFT, row: 1, column: 0,
+            ControlMap.MapPicker.MapHUD.PanLeft);
+        AddHudGlyphButton(grid, p, action: "Right", static () => GlyphCatalog.CHEVRON_RIGHT, row: 1, column: 2,
+            ControlMap.MapPicker.MapHUD.PanRight);
+        AddHudGlyphButton(grid, p, action: "Down", static () => GlyphCatalog.CHEVRON_DOWN, row: 2, column: 1,
+            ControlMap.MapPicker.MapHUD.PanDown);
+        AddHudButton(grid, p, action: "ZoomIn", text: "+", row: 0, column: 4, ControlMap.MapPicker.MapHUD.ZoomIn,
+            useIconFont: false);
+        AddHudButton(grid, p, action: "ZoomOut", text: "-", row: 1, column: 4, ControlMap.MapPicker.MapHUD.ZoomOut,
+            useIconFont: false);
+        AddHudGlyphButton(grid, p, action: "Center", static () => GlyphCatalog.MAP_CENTER, row: 2, column: 4,
+            ControlMap.MapPicker.MapHUD.CenterPin);
 
         return new Border
         {
@@ -259,7 +264,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(HudPadding),
             Child = grid
-        };
+        }.MapTo(ControlMap.MapPicker.MapHUD.ID);
     }
 
     private void AddHudGlyphButton(
@@ -268,10 +273,11 @@ public sealed class EnvironmentalMapPickerWindow : Window
         string action,
         Func<Glyph> resolveGlyph,
         int row,
-        int column)
+        int column,
+        ControlMapNodeID node)
     {
         Glyph glyph = resolveGlyph();
-        SettingsButton button = AddHudButton(grid, palette, action, glyph.Text, row, column);
+        SettingsButton button = AddHudButton(grid, palette, action, glyph.Text, row, column, node);
         BindGlyph(button, resolveGlyph);
     }
 
@@ -282,11 +288,12 @@ public sealed class EnvironmentalMapPickerWindow : Window
         string text,
         int row,
         int column,
+        ControlMapNodeID node,
         bool useIconFont = true)
     {
         SettingsButton button = _controlNames.Assign(
             TrayAppDotNETSettingsCards.Button(text, p, new CornerRadius(4)),
-            $"MapHUD{action}");
+            $"MapHUD{action}").MapTo(node);
         button.Width = HudButtonSize;
         button.Height = HudButtonSize;
         button.Padding = new Thickness(0);

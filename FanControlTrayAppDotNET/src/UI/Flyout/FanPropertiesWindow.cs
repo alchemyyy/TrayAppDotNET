@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -97,6 +98,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         {
             InitializeComponent();
             InitializeComponentState();
+            this.MapTo(ControlMap.FanProperties.ID);
 
             _palette = FanSettingsWindow.CreatePalette(
                 AppServices.Theme,
@@ -115,7 +117,8 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             _fanIDText = ControlNames.Assign(ValueText(palette), parentName: "FanID");
             _sensorControllerText = ControlNames.Assign(ValueText(palette), parentName: "SensorController");
             _nameBox = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth),
+                TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth)
+                    .MapTo(ControlMap.FanProperties.Fields.DisplayName),
                 parentName: "FanName");
             _nameBox.HorizontalAlignment = HorizontalAlignment.Left;
             _groupCombo = _windowResources.Own(
@@ -123,7 +126,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.TextBoxWidth,
-                        autoSizeToText: false),
+                        autoSizeToText: false).MapTo(ControlMap.FanProperties.Fields.Group),
                     parentName: "FanGroup"));
             _groupCombo.HorizontalAlignment = HorizontalAlignment.Left;
             _curveCombo = _windowResources.Own(
@@ -131,12 +134,18 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
                         Layout.CurveComboBoxWidth,
-                        autoSizeToText: false),
+                        autoSizeToText: false).MapTo(ControlMap.FanProperties.CurveAssignment.AssignedCurve),
                     parentName: "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
-            _curveModeRadio = ControlNames.Assign(CompactRadio(text: "Curve", palette), parentName: "FanMode");
-            _manualModeRadio = ControlNames.Assign(CompactRadio(text: "Manual", palette), parentName: "FanMode");
-            _detachedModeRadio = ControlNames.Assign(CompactRadio(text: "Detached", palette), parentName: "FanMode");
+            _curveModeRadio = ControlNames.Assign(
+                CompactRadio(text: "Curve", palette).MapTo(ControlMap.FanProperties.Fields.Mode.CurveMode),
+                parentName: "FanMode");
+            _manualModeRadio = ControlNames.Assign(
+                CompactRadio(text: "Manual", palette).MapTo(ControlMap.FanProperties.Fields.Mode.ManualMode),
+                parentName: "FanMode");
+            _detachedModeRadio = ControlNames.Assign(
+                CompactRadio(text: "Detached", palette).MapTo(ControlMap.FanProperties.Fields.Mode.DetachedMode),
+                parentName: "FanMode");
             _jumpstartBox = _windowResources.Own(
                 ControlNames.Assign(
                     Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
@@ -166,11 +175,16 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix),
                     parentName: "Offset"));
             _editCurveButton = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.Button(text: "Edit curve", palette),
+                TrayAppDotNETSettingsUI.Button(text: "Edit curve", palette)
+                    .MapTo(ControlMap.FanProperties.CurveAssignment.EditCurve),
                 parentName: "FanCurve");
 
-            _pinButton = ControlNames.Assign(CaptionButton(GlyphCatalog.PIN, palette), parentName: "TitleBar");
-            _closeButton = ControlNames.Assign(CaptionButton(GlyphCatalog.EXIT, palette), parentName: "TitleBar");
+            _pinButton = ControlNames.Assign(
+                CaptionButton(GlyphCatalog.PIN, palette).MapTo(ControlMap.FanProperties.TitleBar.Pin),
+                parentName: "TitleBar");
+            _closeButton = ControlNames.Assign(
+                CaptionButton(GlyphCatalog.EXIT, palette).MapTo(ControlMap.FanProperties.TitleBar.Close),
+                parentName: "TitleBar");
             _pinButton.Click += (_, _) => IsPinned = !IsPinned;
             _closeButton.Click += (_, _) => RequestClose();
 
@@ -321,12 +335,13 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 
     private Grid BuildTitleBar(SettingsPalette p, SettingsButton pinButton, SettingsButton closeButton)
     {
-        Grid titleBar = new()
+        // TitleBar scope container; the caption buttons are its only focus targets
+        Grid titleBar = new Grid
         {
             Background = TrayAppDotNETSettingsUI.Brush(
                 (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(_settings,
                     AppTheme.ResolveEffectiveIsLightTheme(_settings)))
-        };
+        }.MapTo(ControlMap.FanProperties.TitleBar.ID);
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         titleBar.PointerPressed += (_, e) =>
@@ -371,18 +386,24 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             {
                 Orientation = Orientation.Horizontal,
                 Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
-            }, p));
+            }.MapTo(ControlMap.FanProperties.Fields.Mode.ID), p));
         left.Children.Add(Row(label: "ID", _fanIDText, p));
         left.Children.Add(Row(label: "Sensor", _sensorControllerText, p, bottomMargin: 6));
         left.Children.Add(RPMModeHeaderRow(p));
-        left.Children.Add(NumberRow(label: "Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed, p));
-        left.Children.Add(NumberRow(label: "Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh, p));
-        left.Children.Add(NumberRow(label: "Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow, p));
-        left.Children.Add(NumberRow(label: "Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow, p));
-        left.Children.Add(NumberRow(label: "Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh, p));
-        left.Children.Add(NumberRow(label: "Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax, p));
-        left.Children.Add(NumberRow(label: "Offset", _offsetBox, FanPropertyUnitKind.Offset, p,
-            Layout.OffsetRowBottomMargin));
+        left.Children.Add(NumberRow(label: "Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed,
+            ControlMap.FanProperties.Fields.StartupSpeed.ID, p));
+        left.Children.Add(NumberRow(label: "Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh,
+            ControlMap.FanProperties.Fields.ClampHigh.ID, p));
+        left.Children.Add(NumberRow(label: "Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow,
+            ControlMap.FanProperties.Fields.ClampLow.ID, p));
+        left.Children.Add(NumberRow(label: "Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow,
+            ControlMap.FanProperties.Fields.WarnLow.ID, p));
+        left.Children.Add(NumberRow(label: "Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh,
+            ControlMap.FanProperties.Fields.WarnHigh.ID, p));
+        left.Children.Add(NumberRow(label: "Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax,
+            ControlMap.FanProperties.Fields.DeltaMax.ID, p));
+        left.Children.Add(NumberRow(label: "Offset", _offsetBox, FanPropertyUnitKind.Offset,
+            ControlMap.FanProperties.Fields.Offset.ID, p, Layout.OffsetRowBottomMargin));
 
         ScrollViewer scroll = new()
         {
@@ -435,8 +456,10 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         Grid footer = new() { Margin = Layout.FooterMargin };
         footer.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.BodyLeftColumnWidth)));
         footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        SettingsButton reset = TrayAppDotNETSettingsUI.Button(text: "Reset to defaults", p);
-        SettingsButton save = TrayAppDotNETSettingsUI.Button(text: "Save", p);
+        SettingsButton reset = TrayAppDotNETSettingsUI.Button(text: "Reset to defaults", p)
+            .MapTo(ControlMap.FanProperties.Footer.ResetToDefaults);
+        SettingsButton save = TrayAppDotNETSettingsUI.Button(text: "Save", p)
+            .MapTo(ControlMap.FanProperties.Footer.Save);
         reset.Margin = Layout.ResetButtonMargin;
         reset.Click += (_, _) => ResetToDefaults();
         save.Click += (_, _) => SaveFromControls();
@@ -824,20 +847,23 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         return grid;
     }
 
+    /// <summary>Builds one UnitNumberRow; the instance id tells its template leaves apart from the other rows.</summary>
     private Grid NumberRow(
         string label,
         SettingsNumberBox value,
         FanPropertyUnitKind unitKind,
+        ControlMapNodeID instance,
         SettingsPalette p,
         double? bottomMargin = null)
     {
         TextBlock labelBlock = RowLabel(label, p);
-        SettingsToggle rpmModeToggle = BuildRPMModeToggle(p);
+        value.MapTo(ControlMap.UnitNumberRow.Value);
+        SettingsToggle rpmModeToggle = BuildRPMModeToggle(p).MapTo(ControlMap.UnitNumberRow.RPMMode);
         FanPropertyUnitBinding binding = new(unitKind, value, rpmModeToggle);
         rpmModeToggle.CheckedChanged += (_, isChecked) => OnRPMModeToggleChanged(binding, isChecked);
         _propertyUnitBindings.Add(binding);
 
-        Grid grid = NumberRowGrid(bottomMargin ?? Layout.RowBottomMargin);
+        Grid grid = NumberRowGrid(bottomMargin ?? Layout.RowBottomMargin).MapTo(instance);
         grid.Children.Add(labelBlock);
         Grid.SetColumn(value, value: 1);
         grid.Children.Add(value);

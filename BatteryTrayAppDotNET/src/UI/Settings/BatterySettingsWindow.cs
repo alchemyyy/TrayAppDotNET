@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Settings;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
@@ -292,13 +293,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             TriggerConditionOptions(),
             trigger.Condition,
             value => trigger.Condition = value,
-            p);
+            p).MapTo(ControlMap.Settings.TriggersPage.Trigger.Condition);
         SettingsComboBox action = BuildNullableTriggerCombo(
             L(nameof(AppStrings.Settings_Triggers_Action_Placeholder)),
             TriggerActionOptions(),
             trigger.Action,
             value => trigger.Action = value,
-            p);
+            p).MapTo(ControlMap.Settings.TriggersPage.Trigger.Action);
 
         TextBlock arrow = TrayAppDotNETSettingsUI.Text(text: "->", p, fontSize: 14, FontWeight.SemiBold);
         arrow.HorizontalAlignment = HorizontalAlignment.Center;
@@ -340,6 +341,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Cursor = TrayAppDotNETCursors.Hand
         };
         ControlNames.Assign(card, parentName: "TriggerCard");
+        card.MapTo(ControlMap.Settings.TriggersPage.Trigger.ID);
+        card.MapCommand(ControlMap.Settings.TriggersPage.Trigger.MoveUp, () => MoveTrigger(trigger, offset: -1));
+        card.MapCommand(ControlMap.Settings.TriggersPage.Trigger.MoveDown, () => MoveTrigger(trigger, offset: 1));
 
         bool pointerOver = false;
         bool pointerPressed = false;
@@ -411,23 +415,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             pointerPressed = false;
             EndTriggerDrag(null);
         };
-        card.KeyDown += (_, e) =>
-        {
-            if ((e.KeyModifiers & KeyModifiers.Control) == 0) return;
-            if (e.Key is not (Key.Up or Key.Down)) return;
-
-            int currentIndex = _settings.Triggers.IndexOf(trigger);
-            int nextIndex = e.Key == Key.Up ? currentIndex - 1 : currentIndex + 1;
-            if (currentIndex >= 0 && nextIndex >= 0 && nextIndex < _settings.Triggers.Count)
-            {
-                _settings.Triggers.RemoveAt(currentIndex);
-                _settings.Triggers.Insert(nextIndex, trigger);
-                Save();
-                RenderTriggerCards();
-            }
-
-            e.Handled = true;
-        };
 
         TrayAppDotNETToolTip.SetTip(
             card,
@@ -435,6 +422,19 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         Border registeredCard = TrayAppDotNETSettingsCards.RegisterSearchCard(card);
         ControlNames.AssignLogicalSubtree(registeredCard, parentName: "TriggerCard");
         return registeredCard;
+    }
+
+    /// <summary>Moves a trigger one place up or down; the map runs this for Ctrl+Up and Ctrl+Down on its card.</summary>
+    private void MoveTrigger(BatteryTriggerEntry trigger, int offset)
+    {
+        int currentIndex = _settings.Triggers.IndexOf(trigger);
+        int nextIndex = currentIndex + offset;
+        if (currentIndex < 0 || nextIndex < 0 || nextIndex >= _settings.Triggers.Count) return;
+
+        _settings.Triggers.RemoveAt(currentIndex);
+        _settings.Triggers.Insert(nextIndex, trigger);
+        Save();
+        RenderTriggerCards();
     }
 
     private SettingsComboBox BuildNullableTriggerCombo<TEnum>(
@@ -701,7 +701,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.FlyoutPage.RestoreFlyoutUndockedOnStartup));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
@@ -714,7 +715,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 () => RebuildShell(BatterySettingsPage.Flyout),
                 [
                     L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.FlyoutPage.AllowFlyoutUndock));
 
             if (_settings.AllowFlyoutUndock)
             {
@@ -727,7 +729,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     searchKeywords:
                     [
                         L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
-                    ]));
+                    ],
+                    node: ControlMap.Settings.FlyoutPage.ClampUndockedFlyoutToScreen));
             }
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -741,7 +744,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.FlyoutPage.FlyoutHeaderAtBottom));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Flyout_BatteryEstimates_Header)), p));
@@ -756,7 +760,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Flyout_DischargeEstimateChecks_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.FlyoutPage.DischargeEstimateChecks));
             stack.Children.Add(DoubleCard(
                 L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_Title)),
                 L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_Description)),
@@ -768,7 +773,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Flyout_DischargeEstimateHalfLifeChecks_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.FlyoutPage.DischargeEstimateHalfLifeChecks));
 
             return stack;
         });
@@ -800,7 +806,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.TrayIconPage.ContextMenuPosition));
 
             return stack;
         });
@@ -815,7 +822,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-            TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240);
+            TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240)
+                .MapTo(ControlMap.Settings.HotkeysPage.Search);
             StackPanel searchRow = new()
             {
                 Orientation = Orientation.Horizontal,
@@ -837,6 +845,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 HotkeyAction.OpenFlyout,
                 L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
                 L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
+                new HotkeyRowNodes(
+                    ControlMap.Settings.HotkeysPage.OpenFlyoutHotkey.Modifiers,
+                    ControlMap.Settings.HotkeysPage.OpenFlyoutHotkey.VirtualKey,
+                    ControlMap.Settings.HotkeysPage.OpenFlyoutHotkey.Add,
+                    ControlMap.Settings.HotkeysPage.OpenFlyoutHotkey.Delete),
                 p);
             AddHotkeyRow(
                 stack,
@@ -844,6 +857,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 HotkeyAction.OpenSettings,
                 L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
                 L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
+                new HotkeyRowNodes(
+                    ControlMap.Settings.HotkeysPage.OpenSettingsHotkey.Modifiers,
+                    ControlMap.Settings.HotkeysPage.OpenSettingsHotkey.VirtualKey,
+                    ControlMap.Settings.HotkeysPage.OpenSettingsHotkey.Add,
+                    ControlMap.Settings.HotkeysPage.OpenSettingsHotkey.Delete),
                 p);
 
             searchBox.TextChanged += (_, _) =>
@@ -865,22 +883,23 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         HotkeyAction action,
         string title,
         string description,
+        HotkeyRowNodes nodes,
         SettingsPalette p)
     {
         StackPanel entries = new() { Spacing = 0 };
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170).MapTo(nodes.Modifiers);
         modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in TrayAppDotNETHotkeyModifierOptions.Create(L))
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60).MapTo(nodes.VirtualKey);
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p).MapTo(nodes.Add);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -1001,7 +1020,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             foreach (HotkeyBinding binding in _settings.Hotkeys
                          .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty))
                          .OrderBy(h => h.BindingID))
-                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
+                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, nodes.Delete, p));
             entries.IsVisible = entries.Children.Count > 0;
             UpdateAddButtonState();
         }
@@ -1012,6 +1031,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         HotkeyBinding binding,
         HotkeyApplyResult? applyResult,
         Action refresh,
+        ControlMapNodeID deleteNode,
         SettingsPalette p)
     {
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
@@ -1042,7 +1062,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
         }
 
-        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p).MapTo(deleteNode);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
@@ -1092,6 +1112,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         return string.IsNullOrEmpty(modifiers) ? key : modifiers + " + " + key;
     }
 
+    /// <summary>Control map leaves of one hotkey row, whose scope differs per action.</summary>
+    private sealed record HotkeyRowNodes(
+        ControlMapNodeID Modifiers,
+        ControlMapNodeID VirtualKey,
+        ControlMapNodeID Add,
+        ControlMapNodeID Delete);
+
     private StackPanel BuildThemePage() =>
         (StackPanel)BuildSettingsPage(() =>
         {
@@ -1112,7 +1139,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.ContextMenuFontSize));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
@@ -1135,7 +1163,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.ThemeMode));
             stack.Children.Add(BoolCard(
                 L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
                 L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
@@ -1145,7 +1174,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 () => RebuildShell(BatterySettingsPage.Theme),
                 [
                     L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.UseWindows11SettingsNavigation));
             stack.Children.Add(VariantColorCard(
                 name: "Text",
                 L(nameof(AppStrings.Settings_Theme_TextColor_Title)),
@@ -1158,7 +1188,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 [
                     L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.TextColor.ID));
             stack.Children.Add(VariantColorCard(
                 name: "Background",
                 L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
@@ -1171,7 +1202,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 [
                     L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.BackgroundColor.ID));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
@@ -1187,7 +1219,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 [
                     L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.FlyoutBackgroundColor.ID));
             stack.Children.Add(VariantColorCard(
                 name: "FlyoutTitleBarBackground",
                 L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title)),
@@ -1200,7 +1233,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 [
                     L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.FlyoutTitleBarBackgroundColor.ID));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_Window_Header)), p));
@@ -1213,7 +1247,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 () => RebuildShell(BatterySettingsPage.Theme),
                 [
                     L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.EnableRoundedCorners));
             stack.Children.Add(ComboCard(
                 L(nameof(AppStrings.Settings_Theme_Animations_Title)),
                 L(nameof(AppStrings.Settings_Theme_Animations_Description)),
@@ -1240,7 +1275,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.AnimationMode));
             stack.Children.Add(IntCard(
                 L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
                 L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
@@ -1257,7 +1293,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 suffix: " ms",
                 [
                     L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.ToolTipShowDelayMs));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
@@ -1273,7 +1310,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 [
                     L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
-                ]));
+                ],
+                node: ControlMap.Settings.ThemePage.TrayIconColor.ID));
 
             return stack;
         });

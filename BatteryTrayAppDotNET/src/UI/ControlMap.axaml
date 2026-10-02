@@ -1,0 +1,177 @@
+<ControlMap
+    x:Class="BatteryTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Surface ID="TrayIcon" Kind="Tray" Source="BatteryAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="BatteryAvaloniaApp.OnTrayLeftClick" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
+              Source="BatteryAvaloniaApp.OnTrayRightClick"
+              Description="Also raised by the shell keyboard menu request (WM_CONTEXTMENU)" />
+        <Leaf ID="OpenSettings" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
+              Source="BatteryAvaloniaApp.OnTrayLeftDoubleClick" />
+        <Leaf ID="ShowUpdate" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="BatteryAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Update balloon click; opens Settings at the About page" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="BatteryAvaloniaApp.CreateTrayMenuWindow">
+        <Leaf ID="OpenPowerOptions" Kind="ListItem" Event="MenuEntry"
+              Source="BatteryTrayMenuWindow.BuildEntries" />
+        <Leaf ID="OpenBatteryReport" Kind="ListItem" Event="MenuEntry"
+              Source="BatteryTrayMenuWindow.BuildEntries" />
+        <Leaf ID="OpenSettings" Kind="ListItem" Event="MenuEntry"
+              Source="BatteryTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry"
+              Source="BatteryTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <!-- Default layout (FlyoutHeaderAtBottom and AllowFlyoutUndock on): Undock floats top right and Header is last.
+         HeaderOnTop (FlyoutHeaderAtBottom off) puts Header first and moves Undock to the right end of its row -->
+    <Surface ID="Flyout" Kind="Popup" Source="BatteryFlyoutWindow.BuildContentGeneration">
+        <Variant ID="HeaderOnTop" Order="Move Header PowerMode"
+                 Description="Header on top, holding Header.Undock instead of the floating Undock" />
+        <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+              Source="BatteryFlyoutWindow.BuildContentGeneration"
+              Description="Drags the flyout by its frame while undocked" />
+        <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
+              Source="FlyoutUndockButtonController.WireButton"
+              Description="Floats top right while the header is at the bottom; toggles docking; dragging moves the
+                           flyout" />
+        <Leaf ID="PowerMode" Kind="Slider" Pointer="Click;Drag;Wheel" Event="ValueChanged"
+              Source="BatteryFlyoutWindow.BuildPowerControls"
+              Description="PowerSaver, Balanced, Ultimate; applied on UserAdjustmentCompleted" />
+        <Scope ID="Header" Tab="Once" Arrows="Horizontal" Source="BatteryFlyoutWindow.BuildHeader">
+            <Variant ID="HeaderOnTop" Order="EnergySaver OpenSettings ShowBatteryHealth OpenPowerSettings Undock" />
+            <Leaf ID="EnergySaver" Kind="Toggle" Event="PointerReleased"
+                  Source="BatteryFlyoutWindow.BuildEnergySaverButton"
+                  Description="Sets Energy Saver to Always or Never" />
+            <Leaf ID="ShowBatteryHealth" Kind="Button" Event="PointerReleased"
+                  Source="BatteryFlyoutWindow.BuildHeaderActions" Description="Opens the BatteryHealth dialog" />
+            <Leaf ID="OpenPowerSettings" Kind="Button" Event="PointerReleased"
+                  Source="BatteryFlyoutWindow.BuildHeaderActions" Description="Opens ms-settings:powersleep" />
+            <Leaf ID="OpenSettings" Kind="Button" Event="PointerReleased"
+                  Source="BatteryFlyoutWindow.BuildHeaderActions" />
+            <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
+                  Source="FlyoutUndockButtonController.WireButton"
+                  Description="Right end of the row while the header is on top; same action as Flyout.Undock" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="BatteryHealth" Source="BatteryHealthWindow.RebuildContent">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="BatteryHealthWindow.BatteryHealthWindow" Description="Closes the dialog, like Close" />
+        <Leaf ID="Close" Kind="Button" Event="Click" Source="BatteryHealthWindow.RebuildContent" />
+    </Surface>
+
+    <Surface ID="Settings" Template="SettingsShell" Source="BatterySettingsWindow.CreatePageDescriptors">
+        <Scope ID="GeneralPage" Source="BatterySettingsWindow.BuildGeneralPage">
+            <Scope ID="General" Template="GeneralSection" Source="BatterySettingsWindow.CreateGeneralSettingsSection"
+                   Description="Startup and install cards; Uninstall opens the Uninstaller surface" />
+            <Scope ID="Rendering" Template="RenderingSection"
+                   Source="BatterySettingsWindow.CreateRenderingSettingsSection" />
+        </Scope>
+        <Scope ID="TriggersPage" Source="BatterySettingsWindow.BuildTriggersPage">
+            <Scope ID="Trigger" IsFocusable="True" IsRepeated="True" Source="BatterySettingsWindow.BuildTriggerCard">
+                <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                      Source="BatterySettingsWindow.BuildTriggerCard" />
+                <Leaf ID="MoveUp" Kind="Command" Keys="Ctrl+Up" Event="MapCommand"
+                      Source="BatterySettingsWindow.BuildTriggerCard" />
+                <Leaf ID="MoveDown" Kind="Command" Keys="Ctrl+Down" Event="MapCommand"
+                      Source="BatterySettingsWindow.BuildTriggerCard" />
+                <Leaf ID="Condition" Kind="Select" Event="SelectionChanged"
+                      Source="BatterySettingsWindow.BuildNullableTriggerCombo" />
+                <Leaf ID="Action" Kind="Select" Event="SelectionChanged"
+                      Source="BatterySettingsWindow.BuildNullableTriggerCombo" />
+            </Scope>
+        </Scope>
+        <Scope ID="FlyoutPage" Source="BatterySettingsWindow.BuildFlyoutPage">
+            <Leaf ID="RestoreFlyoutUndockedOnStartup" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="AllowFlyoutUndock" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildFlyoutPage" Description="Shows the flyout undock button" />
+            <Leaf ID="ClampUndockedFlyoutToScreen" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildFlyoutPage"
+                  Description="Present only while AllowFlyoutUndock is on" />
+            <Leaf ID="FlyoutHeaderAtBottom" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DischargeEstimateChecks" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="BatterySettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DischargeEstimateHalfLifeChecks" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="BatterySettingsWindow.BuildFlyoutPage" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="BatterySettingsWindow.BuildTrayIconPage">
+            <Leaf ID="ContextMenuPosition" Kind="Select" Event="Callback"
+                  Source="BatterySettingsWindow.BuildTrayIconPage" />
+        </Scope>
+        <Scope ID="HotkeysPage" Source="BatterySettingsWindow.BuildHotkeysPage">
+            <Leaf ID="Search" Kind="Text" Event="TextChanged"
+                  Source="BatterySettingsWindow.BuildHotkeysPage"
+                  Description="Filters the hotkey cards; Enter leaves the box" />
+            <Scope ID="OpenFlyoutHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
+                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
+                      Source="BatterySettingsWindow.AddHotkeyRow" />
+                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="BatterySettingsWindow.AddHotkeyRow"
+                      Description="Read-only; records the next key press, Tab and Enter included" />
+                <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
+                <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="BatterySettingsWindow.BuildHotkeyEntryCard" />
+            </Scope>
+            <Scope ID="OpenSettingsHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
+                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
+                      Source="BatterySettingsWindow.AddHotkeyRow" />
+                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="BatterySettingsWindow.AddHotkeyRow"
+                      Description="Read-only; records the next key press, Tab and Enter included" />
+                <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
+                <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="BatterySettingsWindow.BuildHotkeyEntryCard" />
+            </Scope>
+        </Scope>
+        <Scope ID="ThemePage" Source="BatterySettingsWindow.BuildThemePage">
+            <Leaf ID="ContextMenuFontSize" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="BatterySettingsWindow.BuildThemePage" />
+            <Leaf ID="ThemeMode" Kind="Select" Event="Callback"
+                  Source="BatterySettingsWindow.BuildThemePage" />
+            <Leaf ID="UseWindows11SettingsNavigation" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="TextColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="FlyoutBackgroundColor" Template="VariantColorCard"
+                   Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="FlyoutTitleBarBackgroundColor" Template="VariantColorCard"
+                   Source="BatterySettingsWindow.BuildThemePage" />
+            <Leaf ID="EnableRoundedCorners" Kind="Toggle" Event="Callback"
+                  Source="BatterySettingsWindow.BuildThemePage" />
+            <Leaf ID="AnimationMode" Kind="Select" Event="Callback"
+                  Source="BatterySettingsWindow.BuildThemePage" />
+            <Leaf ID="ToolTipShowDelayMs" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="TrayIconColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="BatterySettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"
+             Description="Opened by the ThemePage color swatches" />
+
+    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation" Source="TrayAppDotNETAboutPage.InstallUpdateAsync"
+             Description="Install and backdate prompts from the About page" />
+
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="BatteryAvaloniaApp.ShowUninstallerWindow"
+             Description="Opened by the General page install cards and in uninstaller mode" />
+
+    <Surface ID="Installer" Template="Installer" Source="BatteryAvaloniaApp.OnFrameworkInitializationCompleted"
+             Description="Installer mode only" />
+
+    <Surface ID="Global" Kind="Global" Source="BatteryAvaloniaApp.StartServices">
+        <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="BatteryAvaloniaApp.HandleHotkey"
+              Description="Shows the flyout without toggling; no default binding" />
+        <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="BatteryAvaloniaApp.HandleHotkey"
+              Description="No default binding" />
+    </Surface>
+</ControlMap>

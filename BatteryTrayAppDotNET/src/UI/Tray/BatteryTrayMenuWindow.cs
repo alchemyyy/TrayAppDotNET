@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace BatteryTrayAppDotNET.UI.Tray;
 
@@ -24,9 +25,8 @@ public sealed class BatteryTrayMenuWindow : ContextMenuWindow
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
                 ScrollToBottom = true
-            })
-    {
-    }
+            }) =>
+        this.MapTo(ControlMap.TrayMenu.ID);
 
     internal void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
@@ -41,12 +41,18 @@ public sealed class BatteryTrayMenuWindow : ContextMenuWindow
         Action exit)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(text: "Power options", openPowerOptions);
-        entries.Add(text: "Battery report", openBatteryReport);
+        entries.Add(new ContextMenuEntry(Text: "Power options", openPowerOptions)
+        {
+            Node = ControlMap.TrayMenu.OpenPowerOptions
+        });
+        entries.Add(new ContextMenuEntry(Text: "Battery report", openBatteryReport)
+        {
+            Node = ControlMap.TrayMenu.OpenBatteryReport
+        });
         entries.AddSeparator();
-        entries.Add(text: "Settings", openSettings);
+        entries.Add(new ContextMenuEntry(Text: "Settings", openSettings) { Node = ControlMap.TrayMenu.OpenSettings });
         entries.AddSeparator();
-        entries.Add(text: "Exit", exit);
+        entries.Add(new ContextMenuEntry(Text: "Exit", exit) { Node = ControlMap.TrayMenu.Exit });
         return entries.ToList();
     }
 

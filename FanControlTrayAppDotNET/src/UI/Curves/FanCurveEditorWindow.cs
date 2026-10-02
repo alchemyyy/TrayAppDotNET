@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
@@ -74,6 +75,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         {
             InitializeComponent();
             InitializeComponentState();
+            this.MapTo(ControlMap.CurveEditor.ID);
 
             _palette = FanSettingsWindow.CreatePalette(
                 AppServices.Theme,
@@ -118,39 +120,45 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
             _dataSourceList = _windowResources.Own(
                 ControlNames.Assign(DataSourceList(), parentName: "DataSource"));
             _rpmModeToggle = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged),
+                TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged)
+                    .MapTo(ControlMap.CurveEditor.Options.RPMModeCard.RPMMode),
                 parentName: "RPMMode");
             _maxRPMBox = _windowResources.Own(ControlNames.Assign(Number(
                 _curve.MaxRPM,
                 min: 1,
                 Math.Max(val1: 10000, _curve.MaxRPM),
                 suffix: "RPM",
-                Layout.MaxRPMNumberBoxMinWidth), parentName: "MaxRPM"));
+                Layout.MaxRPMNumberBoxMinWidth,
+                ControlMap.CurveEditor.Options.MaxRPM), parentName: "MaxRPM"));
             _minRPMBox = _windowResources.Own(ControlNames.Assign(Number(
                 _curve.MinRPM,
                 min: 0,
                 Math.Max(val1: 10000, _curve.MaxRPM),
                 suffix: "RPM",
-                Layout.MinRPMNumberBoxMinWidth), parentName: "MinRPM"));
+                Layout.MinRPMNumberBoxMinWidth,
+                ControlMap.CurveEditor.Options.MinRPM), parentName: "MinRPM"));
             _maxDutyBox = _windowResources.Own(
                 ControlNames.Assign(
-                    Number(_curve.MaxDutyCycle, min: 1, max: 100, suffix: "%", Layout.MaxDutyNumberBoxMinWidth),
+                    Number(_curve.MaxDutyCycle, min: 1, max: 100, suffix: "%", Layout.MaxDutyNumberBoxMinWidth,
+                        ControlMap.CurveEditor.Options.MaxDuty),
                     parentName: "MaxDuty"));
             _minDutyBox = _windowResources.Own(
                 ControlNames.Assign(
-                    Number(_curve.MinDutyCycle, min: 0, max: 100, suffix: "%", Layout.MinDutyNumberBoxMinWidth),
+                    Number(_curve.MinDutyCycle, min: 0, max: 100, suffix: "%", Layout.MinDutyNumberBoxMinWidth,
+                        ControlMap.CurveEditor.Options.MinDuty),
                     parentName: "MinDuty"));
             _smoothnessBox = _windowResources.Own(ControlNames.Assign(Number(
                 _curve.SmoothingFactor,
                 SmoothnessMin,
                 SmoothnessMax,
                 string.Empty,
-                Layout.SmoothnessNumberBoxMinWidth), parentName: "Smoothness"));
+                Layout.SmoothnessNumberBoxMinWidth,
+                ControlMap.CurveEditor.Options.Smoothness), parentName: "Smoothness"));
             _preventDecreasingToggle = ControlNames.Assign(
                 TrayAppDotNETSettingsUI.Toggle(
                     _palette,
                     _curve.PreventDecreasing,
-                    OnPreventDecreasingChanged),
+                    OnPreventDecreasingChanged).MapTo(ControlMap.CurveEditor.Options.Monotonic),
                 parentName: "Monotonic");
             _rescaleCurveButton = ControlNames.Assign(RescaleCurveButton(), parentName: "RescaleCurve");
             _rescaleCurveButton.Click += (_, _) => ApplyPendingNodeRescale();
@@ -353,7 +361,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     /// </summary>
     private Border DataSourceSelectionBox(TextBlock text)
     {
-        Border box = new()
+        Border box = new Border
         {
             Height = Layout.DataSourceSelectionBoxHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -363,13 +371,14 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
                 : Layout.ZeroCornerRadius,
             Padding = Layout.DataSourceSelectionBoxPadding,
             Child = text
-        };
+        }.MapTo(ControlMap.CurveEditor.DataSourcePicker.Selection);
         box.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(box).Properties.IsLeftButtonPressed) return;
             _dataSourceList.FocusSearch();
             e.Handled = true;
         };
+        box.MapActivation(_ => _dataSourceList.FocusSearch());
         return box;
     }
 
@@ -552,9 +561,16 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
             Child = content
         };
 
-    private SettingsNumberBox Number(int value, int min, int max, string suffix, double minimumWidth)
+    private SettingsNumberBox Number(
+        int value,
+        int min,
+        int max,
+        string suffix,
+        double minimumWidth,
+        ControlMapNodeID node)
     {
-        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(_palette, value, min, max, minimumWidth, suffix);
+        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(_palette, value, min, max, minimumWidth, suffix)
+            .MapTo(node);
         box.HandleMouseWheelWhenMouseOver = true;
         return box;
     }
@@ -564,7 +580,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     /// </summary>
     private SettingsButton RescaleCurveButton()
     {
-        SettingsButton button = TrayAppDotNETSettingsUI.Button(text: "Rescale Curve", _palette);
+        SettingsButton button = TrayAppDotNETSettingsUI.Button(text: "Rescale Curve", _palette)
+            .MapTo(ControlMap.CurveEditor.Options.RPMModeCard.RescaleCurve);
         button.MinHeight = Layout.RescaleCurveButtonHeight;
         button.Height = Layout.RescaleCurveButtonHeight;
         button.Padding = Layout.RescaleCurveButtonPadding;

@@ -1,4 +1,5 @@
 using Avalonia;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -13,6 +14,7 @@ internal sealed class TaskManagerTrayMenuWindow : ContextMenuWindow
             BuildEntries(openTaskManager, exitApplication),
             CreateOptions(settings, palette))
     {
+        this.MapTo(ControlMap.TrayMenu.ID);
 #if DEBUG
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
         Closed += OnWindowClosed;
@@ -46,9 +48,12 @@ internal sealed class TaskManagerTrayMenuWindow : ContextMenuWindow
     private static List<ContextMenuEntry> BuildEntries(Action openTaskManager, Action exitApplication)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(text: "Open Task Manager", openTaskManager);
+        entries.Add(new ContextMenuEntry(Text: "Open Task Manager", openTaskManager)
+        {
+            Node = ControlMap.TrayMenu.OpenTaskManager
+        });
         entries.AddSeparator();
-        entries.Add(text: "Exit", exitApplication);
+        entries.Add(new ContextMenuEntry(Text: "Exit", exitApplication) { Node = ControlMap.TrayMenu.Exit });
         return entries.ToList();
     }
 }

@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -102,6 +103,7 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
             Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         };
+        this.MapActivation(_ => Click?.Invoke(this, EventArgs.Empty));
     }
 
     public event EventHandler? Click;

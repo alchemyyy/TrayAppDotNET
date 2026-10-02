@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -33,6 +34,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         Func<string, bool> startProcess)
         : base(
             title: "App history",
+            ControlMap.Main.AppHistoryPage.ID,
             CreateSchema(resources),
             processIconService,
             settings,
@@ -54,6 +56,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         {
             HorizontalAlignment = HorizontalAlignment.Left, Padding = resources.AxamlTaskManagerTable.LinkButtonPadding
         };
+        _deleteHistoryButton.MapTo(ControlMap.Main.AppHistoryPage.DeleteUsageHistory);
         _deleteHistoryButton.Click += OnDeleteHistoryClick;
         _historyDescription = TrayAppDotNETSettingsUI.DescriptionText(string.Empty, palette);
         StackPanel information = new()
@@ -64,7 +67,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         SetInformationContent(information);
         UpdateHistoryDescription();
 
-        _moreButton = AddMoreAction(OnMoreClick);
+        _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.AppHistoryPage.More);
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -224,14 +227,17 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh));
+        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh)
+        {
+            Node = ControlMap.AppHistoryMoreMenu.Refresh
+        });
         entries.Add(new ContextMenuEntry(Text: "Delete usage history", () =>
         {
             _historyStore.DeleteHistory();
             UpdateHistoryDescription();
             _ = RefreshHistoryAsync(false);
-        }));
-        ShowActionMenu(_moreButton, entries.ToList());
+        }) { Node = ControlMap.AppHistoryMoreMenu.DeleteUsageHistory });
+        ShowActionMenu(_moreButton, ControlMap.AppHistoryMoreMenu.ID, entries.ToList());
     }
 
     public override void Dispose()

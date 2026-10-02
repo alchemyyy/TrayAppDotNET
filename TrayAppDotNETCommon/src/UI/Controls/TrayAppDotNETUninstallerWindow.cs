@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -68,8 +69,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         _keepSettings = CreateChoiceRadio(true);
         _deleteSettings = CreateChoiceRadio(false);
 
-        KeyDown += OnWindowKeyDown;
-        _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        this.MapTo(ControlMap.Uninstaller.ID);
+        this.MapCommand(ControlMap.Uninstaller.Dismiss, OnDismiss);
         Closed += OnWindowClosed;
         _windowResources.Add(() => Closed -= OnWindowClosed);
 
@@ -133,11 +134,11 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
     private Grid BuildTitleBar(UIResourceScope resources)
     {
-        Grid titleBar = new()
+        Grid titleBar = new Grid
         {
             Background = Brushes.Transparent,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
-        };
+        }.MapTo(ControlMap.Uninstaller.TitleBar.ID);
         titleBar.PointerPressed += OnTitleBarPointerPressed;
         resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
 
@@ -149,7 +150,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         title.Margin = TrayAppDotNETDialogChromeLayout.TitleMargin;
         titleBar.Children.Add(title);
 
-        TrayAppDotNETCaptionCloseButton close = new(Options.Palette);
+        TrayAppDotNETCaptionCloseButton close = new TrayAppDotNETCaptionCloseButton(Options.Palette)
+            .MapTo(ControlMap.Uninstaller.TitleBar.Close);
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Uninstaller_Caption_Close)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
@@ -179,12 +181,13 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         Grid.SetRow(description, value: 1);
         body.Children.Add(description);
 
-        StackPanel choices = new();
+        StackPanel choices = new StackPanel().MapTo(ControlMap.Uninstaller.SettingsChoice.ID);
         choices.Children.Add(BuildOptionCard(
             _keepSettings!,
             L(nameof(CommonStrings.Uninstaller_KeepSettings_Title)),
             L(nameof(CommonStrings.Uninstaller_KeepSettings_Description)),
-            resources));
+            resources,
+            ControlMap.Uninstaller.SettingsChoice.KeepSettings));
         choices.Children.Add(BuildOptionCard(
             _deleteSettings!,
             L(nameof(CommonStrings.Uninstaller_DeleteSettings_Title)),
@@ -192,7 +195,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
                 CultureInfo.CurrentCulture,
                 L(nameof(CommonStrings.Uninstaller_DeleteSettings_Description_Format)),
                 Options.SettingsDirectory),
-            resources));
+            resources,
+            ControlMap.Uninstaller.SettingsChoice.DeleteSettings));
         Grid.SetRow(choices, value: 2);
         body.Children.Add(choices);
 
@@ -206,12 +210,12 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
     {
         SettingsButton uninstall = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Uninstaller_UninstallButton)),
-            Options.Palette);
+            Options.Palette).MapTo(ControlMap.Uninstaller.Actions.Uninstall);
         uninstall.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Uninstaller_Cancel)),
-            Options.Palette);
+            Options.Palette).MapTo(ControlMap.Uninstaller.Actions.Cancel);
         cancel.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
 
@@ -245,7 +249,8 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         RadioButton radio,
         string title,
         string description,
-        UIResourceScope resources)
+        UIResourceScope resources,
+        ControlMapNodeID node)
     {
         StackPanel text = new()
         {
@@ -281,15 +286,21 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         };
         card.PointerPressed += pointerPressed;
         resources.Add(() => card.PointerPressed -= pointerPressed);
+
+        // The card is the option; Enter or Space on it checks its radio like a press
+        card.MapTo(node);
+        card.MapActivation(_ =>
+        {
+            if (!_closed) radio.IsChecked = true;
+        });
         return card;
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    /// <summary>Closes without uninstalling, like Cancel; the control map runs it on Escape.</summary>
+    private void OnDismiss()
     {
-        if (_closed || e.Key != Key.Escape) return;
-
+        if (_closed) return;
         Close();
-        e.Handled = true;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)

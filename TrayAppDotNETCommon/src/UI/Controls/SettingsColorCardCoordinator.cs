@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Models;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -31,13 +32,17 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         Action save,
         Action refreshPalette,
         Func<bool> isClosing,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
-        SettingsSwatch light = new(palette) { Tag = "Light", Name = name + "LightSwatch" };
-        SettingsSwatch dark = new(palette) { Tag = "Dark", Name = name + "DarkSwatch" };
+        SettingsSwatch light = new SettingsSwatch(palette) { Tag = "Light", Name = name + "LightSwatch" }
+            .MapTo(ControlMap.CoordinatorColorCard.PickLightColor);
+        SettingsSwatch dark = new SettingsSwatch(palette) { Tag = "Dark", Name = name + "DarkSwatch" }
+            .MapTo(ControlMap.CoordinatorColorCard.PickDarkColor);
         TrayAppDotNETToolTip.SetTip(light, lightTooltip);
         TrayAppDotNETToolTip.SetTip(dark, darkTooltip);
-        SettingsButton reset = TrayAppDotNETSettingsCards.Button(resetText, palette, buttonRadius);
+        SettingsButton reset = TrayAppDotNETSettingsCards.Button(resetText, palette, buttonRadius)
+            .MapTo(ControlMap.CoordinatorColorCard.Reset);
 
         light.Click += (_, _) =>
         {
@@ -83,13 +88,15 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         Update();
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
         row.Tag = "ColorRow";
+
+        // A CoordinatorColorCard instance; the caller's id tells its instances apart
         return TrayAppDotNETSettingsCards.Card(
             title,
             description,
             row,
             palette,
             cardRadius,
-            searchKeywords);
+            searchKeywords).MapTo(node);
 
         void Update()
         {

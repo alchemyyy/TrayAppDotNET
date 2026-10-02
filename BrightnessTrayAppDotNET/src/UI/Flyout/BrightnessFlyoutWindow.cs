@@ -20,6 +20,7 @@ using BrightnessTrayAppDotNET.Utils;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
@@ -34,6 +35,44 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     ITrayAppDotNETWarmResourceOwner
 {
     private static readonly FontFamily FlyoutFont = new("Segoe UI");
+
+    // Digit N selects profile N; index 0 is the 1 key
+    private static readonly ControlMapNodeID[] ProfileNumberCommands =
+    [
+        ControlMap.Flyout.SelectProfile1,
+        ControlMap.Flyout.SelectProfile2,
+        ControlMap.Flyout.SelectProfile3,
+        ControlMap.Flyout.SelectProfile4,
+        ControlMap.Flyout.SelectProfile5,
+        ControlMap.Flyout.SelectProfile6,
+        ControlMap.Flyout.SelectProfile7,
+        ControlMap.Flyout.SelectProfile8,
+        ControlMap.Flyout.SelectProfile9
+    ];
+
+    private static readonly FlyoutRowNodes MonitorRowNodes = new(
+        ControlMap.Flyout.Displays.Monitor.ID,
+        ControlMap.Flyout.Displays.Monitor.Enabled,
+        ControlMap.Flyout.Displays.Monitor.StopwatchMinutes,
+        ControlMap.Flyout.Displays.Monitor.Stopwatch,
+        ControlMap.Flyout.Displays.Monitor.CurveMode,
+        ControlMap.Flyout.Displays.Monitor.Brightness);
+
+    private static readonly FlyoutRowNodes MasterRowNodes = new(
+        Row: null,
+        ControlMap.Flyout.Displays.Master.Sync,
+        ControlMap.Flyout.Displays.Master.StopwatchMinutes,
+        ControlMap.Flyout.Displays.Master.Stopwatch,
+        ControlMap.Flyout.Displays.Master.CurveMode,
+        ControlMap.Flyout.Displays.Master.Brightness);
+
+    private static readonly FlyoutRowNodes NightLightRowNodes = new(
+        Row: null,
+        ControlMap.Flyout.Displays.NightLight.Enabled,
+        ControlMap.Flyout.Displays.NightLight.StopwatchMinutes,
+        ControlMap.Flyout.Displays.NightLight.Stopwatch,
+        ControlMap.Flyout.Displays.NightLight.CurveMode,
+        ControlMap.Flyout.Displays.NightLight.Strength);
 
     private readonly BrightnessFlyoutSession _session;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
@@ -224,8 +263,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 OnCurveToggleStateChanged(true);
             RestoreCurveStopwatchesFromSettings();
 
-            KeyDown += OnWindowKeyDown;
-            WindowResources.Add(() => KeyDown -= OnWindowKeyDown);
+            this.MapTo(ControlMap.Flyout.ID);
+            this.MapCommand(ControlMap.Flyout.Close, () => Hide());
             InitializeComponentState();
             NotifyUpdateStateChanged();
         }
@@ -768,6 +807,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             candidateResources.Add(() => candidate.RootCard.PointerReleased -= OnRootPointerReleased);
             candidate.RootCard.PointerCaptureLost += OnRootPointerCaptureLost;
             candidateResources.Add(() => candidate.RootCard.PointerCaptureLost -= OnRootPointerCaptureLost);
+            MapProfileNumberCommands(candidate.RootCard);
 
             ControlNames.AssignLogicalSubtree(candidate.RootCard, nameof(BrightnessFlyoutWindow));
 
@@ -982,8 +1022,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             },
             RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
+        FlyoutRowNodes nodes = monitor switch
+        {
+            { IsMaster: true } => MasterRowNodes,
+            { IsNightLight: true } => NightLightRowNodes,
+            _ => MonitorRowNodes
+        };
 
-        Border icon = BuildRowIconButton(monitor, palette);
+        Border icon = BuildRowIconButton(monitor, palette).MapTo(nodes.Icon);
         Grid.SetColumn(icon, value: 0);
         grid.Children.Add(icon);
 
@@ -1014,8 +1060,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Margin = stopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
-                stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, resources));
-            stopwatch.Children.Add(BuildCurveStopwatchButton(monitor, palette));
+                stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, resources).MapTo(nodes.StopwatchMinutes));
+            stopwatch.Children.Add(BuildCurveStopwatchButton(monitor, palette).MapTo(nodes.Stopwatch));
             TrayAppDotNETToolTip.SetTip(stopwatch, monitor.CurveStopwatchToolTip);
             Grid.SetColumn(stopwatch, placeStopwatchInPowerButtonArea ? 3 : 2);
             grid.Children.Add(stopwatch);
@@ -1033,6 +1079,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 monitor.IsNightLight
                     ? L(nameof(AppStrings.Flyout_NightLightCurve))
                     : L(nameof(AppStrings.Flyout_BrightnessCurve)));
+            curve.MapTo(monitor.IsNightLight
+                ? ControlMap.Flyout.Displays.NightLight.Curve
+                : ControlMap.Flyout.Displays.Master.Curve);
             curve.Opacity = RowCurveEnabled(monitor) ? 1.0 : 0.4;
             Grid.SetColumn(curve, value: 3);
             grid.Children.Add(curve);
@@ -1051,7 +1100,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 && (!monitor.IsReadDegraded
                     || _settings?.AllowBlindDDCWritesDuringDegradedState == true),
                 Layout.RowPowerButtonMargin,
-                L(nameof(AppStrings.Flyout_TurnOffDisplay)));
+                L(nameof(AppStrings.Flyout_TurnOffDisplay))).MapTo(ControlMap.Flyout.Displays.Monitor.Power);
             Grid.SetColumn(power, value: 3);
             grid.Children.Add(power);
         }
@@ -1059,7 +1108,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool showCurveModeButton =
             ShouldShowCurveModeButton(RowCurveEnabled(monitor), monitor.SliderState);
         Border? curveModeButton = showCurveModeButton
-            ? BuildCurveModeButton(monitor, palette)
+            ? BuildCurveModeButton(monitor, palette).MapTo(nodes.CurveMode)
             : null;
 
         Grid sliderRow = new()
@@ -1070,7 +1119,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
-        FlyoutSlider slider = CreateSlider(monitor, palette, resources);
+        FlyoutSlider slider = CreateSlider(monitor, palette, resources).MapTo(nodes.Slider);
         Grid.SetColumn(slider, value: 0);
         sliderRow.Children.Add(slider);
 
@@ -1107,6 +1156,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Background = Brushes.Transparent, Margin = rowMargin, Child = rowContent, Opacity = RowOpacity(monitor)
         };
+        row.MapTo(nodes.Row);
         string rowParentName = monitor.IsMaster
             ? "MasterBrightnessRow"
             : monitor.IsNightLight
@@ -1133,10 +1183,19 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
+        profiles.MapTo(ControlMap.Flyout.Footer.Profiles.ID);
         foreach (ProfileButtonItem item in ProfileButtons)
-            profiles.Children.Add(BuildProfileFooterButton(item, palette, resources));
+        {
+            Border profileButton = BuildProfileFooterButton(item, palette, resources);
+            profiles.Children.Add(profileButton.MapTo(ControlMap.Flyout.Footer.Profiles.Profile));
+        }
+
         if (_settings?.Autosave == false)
-            profiles.Children.Add(BuildSaveProfileButton(palette));
+        {
+            Border saveButton = BuildSaveProfileButton(palette);
+            profiles.Children.Add(saveButton.MapTo(ControlMap.Flyout.Footer.Profiles.SaveProfile));
+        }
+
         Grid.SetColumn(profiles, value: 0);
         grid.Children.Add(profiles);
 
@@ -1144,35 +1203,39 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
+        actions.MapTo(ControlMap.Flyout.Footer.Actions.ID);
         if (_settings?.ShowEnvironmentalCurvesButton ?? true)
         {
-            actions.Children.Add(BuildCurveIconButton(palette, ToggleEnvironmentalCurves,
+            Border curvesButton = BuildCurveIconButton(palette, ToggleEnvironmentalCurves,
                 Layout.FooterCurveIconButtonWidth, Layout.FooterCurveIconButtonHeight, Layout.FooterCurveIconSize,
                 tooltip: L(nameof(AppStrings.Flyout_EnvironmentalCurves)),
-                opacity: IsBrightnessCurveEnabled || IsNightLightCurveEnabled ? 1.0 : 0.4));
+                opacity: IsBrightnessCurveEnabled || IsNightLightCurveEnabled ? 1.0 : 0.4);
+            actions.Children.Add(curvesButton.MapTo(ControlMap.Flyout.Footer.Actions.EnvironmentalCurves));
         }
 
         if ((_settings?.ShowFlyoutFooterPowerButton ?? false)
             && Monitors.Any(static m => m.SupportsPowerControl))
         {
-            actions.Children.Add(BuildFooterIconButton(_theme.GlyphPower, palette, PowerOffFooterTargets,
-                L(nameof(AppStrings.Flyout_TurnOffAllDisplays))));
+            Border powerButton = BuildFooterIconButton(_theme.GlyphPower, palette, PowerOffFooterTargets,
+                L(nameof(AppStrings.Flyout_TurnOffAllDisplays)));
+            actions.Children.Add(powerButton.MapTo(ControlMap.Flyout.Footer.Actions.PowerOffAllDisplays));
         }
 
         if (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
         {
-            actions.Children.Add(BuildFooterIconButton(
+            Border displaySettingsButton = BuildFooterIconButton(
                 new Glyph(_theme.GlyphDisplaySettings, GlyphCatalog.DISPLAY_SETTINGS.Font),
                 palette,
                 OpenDisplaySettings,
-                L(nameof(AppStrings.Flyout_DisplaySettings))));
+                L(nameof(AppStrings.Flyout_DisplaySettings)));
+            actions.Children.Add(displaySettingsButton.MapTo(ControlMap.Flyout.Footer.Actions.OpenDisplaySettings));
         }
 
         Border settingsButton = BuildFooterIconButton(
             new Glyph(_theme.GlyphSettings, GlyphCatalog.SETTINGS.Font),
             palette,
             () => SettingsRequested?.Invoke(),
-            L(nameof(AppStrings.Tray_Settings)));
+            L(nameof(AppStrings.Tray_Settings))).MapTo(ControlMap.Flyout.Footer.Actions.OpenSettings);
         ControlNames.Assign(settingsButton, parentName: "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
@@ -1454,7 +1517,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 L(nameof(CommonStrings.Flyout_Update_ButtonText)),
                 palette,
                 ShowUpdateConfirmation,
-                Layout.UpdateButtonFontSize, Layout.UpdateButtonPadding);
+                Layout.UpdateButtonFontSize, Layout.UpdateButtonPadding).MapTo(ControlMap.Flyout.Update);
             update.Width = Layout.UpdateButtonWidth;
             update.Height = Layout.UpdateButtonHeight;
             update.HorizontalAlignment = HorizontalAlignment.Right;
@@ -1569,7 +1632,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         TextOptions.SetTextHintingMode(controller.Glyph, TextHintingMode.Unspecified);
         TextOptions.SetBaselinePixelAlignment(controller.Glyph, BaselinePixelAlignment.Unspecified);
         candidate.UndockButtonController = controller;
-        return controller.Button;
+        return controller.Button.MapTo(ControlMap.Flyout.Undock);
     }
 
     private Border BuildConfirmOverlay(SettingsPalette palette, bool rounded, FlyoutVisualState candidate)
@@ -1582,8 +1645,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.ConfirmMessageFontSize, color: palette.SecondaryForeground);
         candidate.ConfirmMessage.TextWrapping = TextWrapping.Wrap;
 
-        SettingsButton confirmOK = TrayAppDotNETSettingsUI.Button(text: "OK", palette);
-        SettingsButton confirmCancel = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        SettingsButton confirmOK = TrayAppDotNETSettingsUI.Button(text: "OK", palette)
+            .MapTo(ControlMap.Flyout.ConfirmOverlay.Confirm);
+        SettingsButton confirmCancel = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+            .MapTo(ControlMap.Flyout.ConfirmOverlay.Cancel);
         candidate.ConfirmOK = confirmOK;
         candidate.ConfirmCancel = confirmCancel;
         StackPanel buttons = new()
@@ -1619,7 +1684,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 TrayAppDotNETFlyoutUI.Brush(
                     _theme.FlyoutOverlayBackdrop.For(BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings))),
             Child = box
-        };
+        }.MapTo(ControlMap.Flyout.ConfirmOverlay.ID);
     }
 
     private async void ShowUpdateConfirmation()
@@ -3586,32 +3651,24 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ApplyWorkAreaMaxHeight();
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    /// <summary>
+    /// Registers unmodified digits 1 through 9 on a content generation while NumberKeysSwitchProfile is on, one per
+    /// profile button. Settings and profile list changes rebuild the generation, so the registrations stay current.
+    /// </summary>
+    private void MapProfileNumberCommands(Control generationRoot)
     {
-        if (e.Key == Key.Escape)
-        {
-            Hide();
-            e.Handled = true;
-            return;
-        }
+        // NOTE: a map command handler cannot decline its key, so a digit that selects nothing gets no handler and
+        // still reaches the focused control, such as the stopwatch minutes box
+        if (_settings?.FlyoutNumberKeysSwitchProfile != true) return;
 
-        if (_settings?.FlyoutNumberKeysSwitchProfile != true || e.KeyModifiers != KeyModifiers.None) return;
-        int index = e.Key switch
+        int profileCount = Math.Min(ProfileButtons.Count, ProfileNumberCommands.Length);
+        for (int profileIndex = 0; profileIndex < profileCount; profileIndex++)
         {
-            Key.D1 or Key.NumPad1 => 0,
-            Key.D2 or Key.NumPad2 => 1,
-            Key.D3 or Key.NumPad3 => 2,
-            Key.D4 or Key.NumPad4 => 3,
-            Key.D5 or Key.NumPad5 => 4,
-            Key.D6 or Key.NumPad6 => 5,
-            Key.D7 or Key.NumPad7 => 6,
-            Key.D8 or Key.NumPad8 => 7,
-            Key.D9 or Key.NumPad9 => 8,
-            _ => -1
-        };
-        if (index < 0 || index >= ProfileButtons.Count) return;
-        SelectProfileApplyingMode(index);
-        e.Handled = true;
+            int selectedIndex = profileIndex;
+            generationRoot.MapCommand(
+                ProfileNumberCommands[profileIndex],
+                () => SelectProfileApplyingMode(selectedIndex));
+        }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -3858,6 +3915,18 @@ internal sealed record ProfilePreviewRowVisuals(
     Border Row,
     TextBlock Value,
     Border? CurveModeButton);
+
+/// <summary>
+/// Control map nodes of one display row kind. Only the repeated display rows tag their row; the master and night
+/// light rows exist once each, so their controls resolve without one.
+/// </summary>
+internal sealed record FlyoutRowNodes(
+    ControlMapNodeID? Row,
+    ControlMapNodeID Icon,
+    ControlMapNodeID StopwatchMinutes,
+    ControlMapNodeID Stopwatch,
+    ControlMapNodeID CurveMode,
+    ControlMapNodeID Slider);
 
 internal sealed class FlyoutVisualState
 {

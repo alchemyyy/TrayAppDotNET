@@ -1,4 +1,5 @@
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -26,6 +27,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         Action<string, string> reportMessage)
         : base(
             title: "Startup apps",
+            ControlMap.Main.StartupAppsPage.ID,
             CreateSchema(resources),
             processIconService,
             settings,
@@ -36,10 +38,13 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
     {
         _startupAppsService = startupAppsService;
         _reportMessage = reportMessage;
-        _enableButton = AddHeaderAction(label: "Enable", OnEnableClick, isEnabled: false);
-        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false);
-        _propertiesButton = AddHeaderAction(label: "Properties", OnPropertiesClick, isEnabled: false);
-        _moreButton = AddMoreAction(OnMoreClick);
+        _enableButton = AddHeaderAction(label: "Enable", OnEnableClick, isEnabled: false)
+            .MapTo(ControlMap.Main.StartupAppsPage.Enable);
+        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false)
+            .MapTo(ControlMap.Main.StartupAppsPage.Disable);
+        _propertiesButton = AddHeaderAction(label: "Properties", OnPropertiesClick, isEnabled: false)
+            .MapTo(ControlMap.Main.StartupAppsPage.Properties);
+        _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.StartupAppsPage.More);
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -251,16 +256,41 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         {
             StartupAppActionEligibility eligibility = entry.ActionEligibility;
             if (!_operationPending && eligibility.CanEnable)
-                entries.Add(text: "Enable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Enabled));
+            {
+                entries.Add(new ContextMenuEntry(
+                    Text: "Enable",
+                    () => _ = ChangeStatusAsync(entry, StartupAppStatus.Enabled))
+                {
+                    Node = ControlMap.StartupAppsMoreMenu.Enable
+                });
+            }
+
             if (!_operationPending && eligibility.CanDisable)
-                entries.Add(text: "Disable", () => _ = ChangeStatusAsync(entry, StartupAppStatus.Disabled));
+            {
+                entries.Add(new ContextMenuEntry(
+                    Text: "Disable",
+                    () => _ = ChangeStatusAsync(entry, StartupAppStatus.Disabled))
+                {
+                    Node = ControlMap.StartupAppsMoreMenu.Disable
+                });
+            }
+
             if (!_operationPending && eligibility.CanShowProperties)
-                entries.Add(text: "Properties", () => ShowProperties(entry));
+            {
+                entries.Add(new ContextMenuEntry(Text: "Properties", () => ShowProperties(entry))
+                {
+                    Node = ControlMap.StartupAppsMoreMenu.Properties
+                });
+            }
+
             if (entries.Count > 0) entries.AddSeparator();
         }
 
-        entries.Add(text: "Refresh", () => _ = RefreshAsync(true));
-        ShowActionMenu(_moreButton, entries.ToList());
+        entries.Add(new ContextMenuEntry(Text: "Refresh", () => _ = RefreshAsync(true))
+        {
+            Node = ControlMap.StartupAppsMoreMenu.Refresh
+        });
+        ShowActionMenu(_moreButton, ControlMap.StartupAppsMoreMenu.ID, entries.ToList());
     }
 
     public override void Dispose()

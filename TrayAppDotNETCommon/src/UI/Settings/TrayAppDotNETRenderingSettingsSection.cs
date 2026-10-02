@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
@@ -60,7 +61,8 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
                     L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Title)),
                     L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Description)),
                     warmWindowSettings.KeepFlyoutWarm,
-                    value => warmWindowSettings.KeepFlyoutWarm = value));
+                    value => warmWindowSettings.KeepFlyoutWarm = value,
+                    ControlMap.RenderingSection.Performance.KeepFlyoutWarm));
             }
 
             if (options.SupportsTrayContextMenuWarmWindow)
@@ -69,7 +71,8 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
                     L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Title)),
                     L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Description)),
                     warmWindowSettings.KeepTrayContextMenuWarm,
-                    value => warmWindowSettings.KeepTrayContextMenuWarm = value));
+                    value => warmWindowSettings.KeepTrayContextMenuWarm = value,
+                    ControlMap.RenderingSection.Performance.KeepTrayContextMenuWarm));
             }
         }
 
@@ -97,7 +100,8 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             options.CardRadius,
             options.Save,
             suffix: " ms",
-            [L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_SearchKeywords))]);
+            [L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_SearchKeywords))],
+            ControlMap.RenderingSection.TrayMenu.SubmenuOpenDelay);
         submenuDelayCard.IsVisible = !trayMenuSettings.UseSystemSubmenuShowDelay;
 
         stack.Children.Add(TrayAppDotNETSettingsCards.BoolCard(
@@ -112,7 +116,8 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             palette,
             options.CardRadius,
             options.Save,
-            searchKeywords: [L(nameof(CommonStrings.Settings_General_UseSystemSubmenuDelay_SearchKeywords))]));
+            searchKeywords: [L(nameof(CommonStrings.Settings_General_UseSystemSubmenuDelay_SearchKeywords))],
+            node: ControlMap.RenderingSection.TrayMenu.UseSystemSubmenuDelay));
         stack.Children.Add(submenuDelayCard);
     }
 
@@ -123,7 +128,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             options.Palette,
             RenderingBackendComboWidth,
             autoSizeToText: true,
-            SettingsComboBoxAutoSizeMode.SelectedItem);
+            SettingsComboBoxAutoSizeMode.SelectedItem).MapTo(ControlMap.RenderingSection.RenderingBackend);
         foreach ((TrayAppDotNETRenderingBackend backend, string text) in RenderingBackendOptions())
             combo.Items.Add(new SettingsComboBoxItem(backend.ToString(), text, options.Palette));
 
@@ -150,13 +155,13 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
     }
 
     /// <summary>Builds a boolean keep-warm setting card.</summary>
-    private Border BuildCard(string title, string description, bool value, Action<bool> set)
+    private Border BuildCard(string title, string description, bool value, Action<bool> set, ControlMapNodeID node)
     {
         SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(options.Palette, value, (_, enabled) =>
         {
             set(enabled);
             options.Save();
-        });
+        }).MapTo(node);
 
         return TrayAppDotNETSettingsCards.MutableCard(
             title,

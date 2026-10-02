@@ -18,6 +18,7 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
@@ -801,6 +802,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             PowerOffMonitor,
             OpenSettings,
             ExitApplication);
+        menuWindow.MapTo(UI.ControlMap.TrayMenu.ID);
 
         _trayMenuWindow = menuWindow;
         menuWindow.Closed += OnTrayMenuClosed;

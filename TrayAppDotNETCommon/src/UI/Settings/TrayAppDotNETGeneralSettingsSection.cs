@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
@@ -79,7 +80,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             _options.Save();
             RefreshStartupDescription();
             startMinimizedCheckBox?.IsEnabled = enabled;
-        });
+        }).MapTo(ControlMap.StartupCard.RunOnStartup);
 
         List<string> searchKeywords = [L(nameof(CommonStrings.Settings_General_RunOnStartup_SearchKeywords))];
         if (startMinimizedCheckBox != null)
@@ -104,7 +105,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         if (_options.GetStartMinimized == null || _options.SetStartMinimized == null) return null;
 
         Action<bool> setStartMinimized = _options.SetStartMinimized;
-        CheckBox checkBox = new()
+        CheckBox checkBox = new CheckBox
         {
             Content = TrayAppDotNETSettingsUI.Text(L(nameof(CommonStrings.Settings_General_StartMinimized_Title)), palette),
             IsChecked = _options.GetStartMinimized(),
@@ -112,7 +113,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = SettingsCardsLayout.SubOptionMargin
-        };
+        }.MapTo(ControlMap.StartupCard.StartMinimized);
         TrayAppDotNETToolTip.SetTip(checkBox, L(nameof(CommonStrings.Settings_General_StartMinimized_Description)));
         checkBox.IsCheckedChanged += (_, _) =>
         {
@@ -161,8 +162,10 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     private Border BuildInstallCard(TrayAppDotNETInstallCardOptions entry)
     {
         SettingsPalette p = _options.Palette;
-        SettingsButton installButton = Button(L(nameof(CommonStrings.Common_Install)));
-        SettingsButton uninstallButton = Button(L(nameof(CommonStrings.Settings_General_Uninstall_Button)));
+        SettingsButton installButton = Button(L(nameof(CommonStrings.Common_Install)))
+            .MapTo(ControlMap.InstallationSection.InstallCard.Install);
+        SettingsButton uninstallButton = Button(L(nameof(CommonStrings.Settings_General_Uninstall_Button)))
+            .MapTo(ControlMap.InstallationSection.InstallCard.Uninstall);
         installButton.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(installButton, uninstallButton);
 
@@ -183,7 +186,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             _options.CardRadius,
             out TextBlock description,
             [L(nameof(CommonStrings.Settings_General_Installation_SearchKeywords))],
-            belowDescription: progressRow);
+            belowDescription: progressRow).MapTo(ControlMap.InstallationSection.InstallCard.ID);
 
         // Per-card operation state; every access happens on the UI thread
         bool operationInProgress = false;

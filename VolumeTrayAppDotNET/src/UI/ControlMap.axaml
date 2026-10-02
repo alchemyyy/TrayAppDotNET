@@ -1,0 +1,384 @@
+<ControlMap
+    x:Class="VolumeTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- App-private popup menu window; the device format and listen target menus instantiate it -->
+    <Template ID="VolumeFlyoutMenu" Source="FlyoutMenuWindow.FlyoutMenuWindow">
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="KeyDown" Source="FlyoutMenuWindow.FlyoutMenuWindow"
+              Description="Closes the menu" />
+        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="FlyoutMenuWindow.FlyoutMenuWindow">
+            <Slot />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="FlyoutMenuWindow.FlyoutMenuWindow" Description="Entry scroll host; no handler" />
+    </Template>
+
+    <Surface ID="TrayIcon" Kind="Tray" Source="VolumeAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayLeftClick" Description="Shows the flyout, or hides it when visible" />
+        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Opens settings when TrayDoubleClickAction is OpenSettings, else shows the flyout" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayRightClick"
+              Description="Also fired by WM_CONTEXTMENU from the keyboard-focused notification icon" />
+        <Leaf ID="AdjustVolume" Kind="Command" Pointer="Wheel;Ctrl+Wheel;Alt+Wheel" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayScrolled"
+              Description="Raw-input wheel steps the default device per TrayWheelAction and its Ctrl, Alt variants" />
+        <Leaf ID="AdjustVolumeByTouchpad" Kind="Command" Pointer="Wheel" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayPrecisionTouchpadScrolled"
+              Description="Precision touchpad two-finger scroll steps the default device by 1 percent" />
+        <Leaf ID="OpenFlyoutFromBalloon" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Update balloon click shows the flyout while an update is available" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="VolumeTrayMenuWindow.BuildEntries">
+        <Leaf ID="OpenDeviceProperties" Kind="ListItem" IsRepeated="True" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries"
+              Description="One entry per flyout device while ShowTrayMenuDeviceLinks is on" />
+        <Leaf ID="OpenPlaybackDevices" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries" Description="Sound control panel, Playback tab" />
+        <Leaf ID="OpenRecordingDevices" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries" Description="Recording tab; ShowTrayMenuRecordingLink" />
+        <Leaf ID="OpenSounds" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries" Description="Sounds tab; ShowTrayMenuSoundsLink" />
+        <Leaf ID="OpenCommunications" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries"
+              Description="Communications tab; ShowTrayMenuCommunicationsLink" />
+        <Leaf ID="OpenBluetooth" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries" Description="Windows Bluetooth quick settings" />
+        <Leaf ID="OpenSettings" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="VolumeTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Pointer="Click" Event="MenuEntry" Source="VolumeTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <Surface ID="Flyout" Kind="Popup" Source="VolumeFlyoutWindow.BuildContentGeneration">
+        <Variant ID="HeaderAtBottom" Order="Close MoveWindow Devices Header" />
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="KeyDown" Source="VolumeFlyoutWindow.VolumeFlyoutWindow"
+              Description="Hides the flyout" />
+        <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+              Source="VolumeFlyoutWindow.OnChromePointerPressed"
+              Description="Drags the undocked flyout from non-interactive frame areas" />
+        <Scope ID="Header" Tab="Once" Arrows="Horizontal" Source="VolumeFlyoutWindow.BuildHeader"
+               Description="Docked at the bottom when FlyoutHeaderAtBottom is on">
+            <Leaf ID="OpenSettings" Kind="Button" Pointer="Click" Event="PointerReleased"
+                  Source="VolumeFlyoutWindow.BuildHeader" />
+            <Leaf ID="OpenSoundSettings" Kind="Button" Pointer="Click" Event="PointerReleased"
+                  Source="VolumeFlyoutWindow.BuildHeader"
+                  Description="Opens the legacy Sound panel or Windows Settings per SoundSettingsTarget" />
+            <Leaf ID="ToggleDisabledDevices" Kind="Toggle" Pointer="Click" Event="PointerReleased"
+                  Source="VolumeFlyoutWindow.BuildHeader"
+                  Description="Shows or hides disabled playback and recording devices" />
+            <Leaf ID="ToggleBluetoothRadio" Kind="Toggle" Pointer="Ctrl+Click" Event="PointerReleased"
+                  Source="VolumeFlyoutWindow.BuildHeader"
+                  Description="Gesture from FlyoutBluetoothRadioButtonClickGesture; default Ctrl+Click" />
+            <Leaf ID="ToggleCommunicationsDucking" Kind="Toggle" Pointer="Click;Ctrl+Click;Alt+Click"
+                  Event="PointerReleased" Source="VolumeFlyoutWindow.BuildHeader"
+                  Description="Click toggles mute-others ducking; Ctrl+Click reduces 80 percent, Alt+Click 50" />
+            <Leaf ID="InstallUpdate" Kind="Button" Pointer="Click" Event="PointerReleased"
+                  Source="VolumeFlyoutWindow.BuildHeader" Description="Opens the update confirmation prompt" />
+            <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
+                  Source="FlyoutUndockButtonController.WireButton"
+                  Description="Click undocks or redocks; dragging undocks and moves the flyout" />
+        </Scope>
+        <Scope ID="Devices" Source="VolumeFlyoutWindow.BuildContentGeneration">
+            <Scope ID="Device" IsRepeated="True" Source="VolumeFlyoutWindow.BuildCell"
+                   Description="Child order matches the AppsAboveDevice and BelowSlider defaults; variants cover the rest">
+                <Variant ID="TitleAboveSlider"
+                         Order="AppDrawer DeviceName NameEditor Toolbar ToggleMute Volume EditPercent PercentEditor" />
+                <Variant ID="AppsBelowDevice"
+                         Order="ToggleMute Volume EditPercent PercentEditor DeviceName NameEditor Toolbar AppDrawer" />
+                <Variant ID="AppsBelowDeviceTitleAboveSlider"
+                         Order="DeviceName NameEditor Toolbar ToggleMute Volume EditPercent PercentEditor AppDrawer" />
+                <Scope ID="AppDrawer" Source="VolumeFlyoutWindow.BuildSliderDrawer"
+                       Description="Expanded app rows; recording devices default to a display-only icon grid">
+                    <Scope ID="App" IsRepeated="True" Source="VolumeFlyoutWindow.BuildAppSliderRow"
+                           Description="One row per audio app group">
+                        <Leaf ID="ToggleMute" Kind="Toggle" Pointer="Click" Event="PointerReleased"
+                              Source="VolumeFlyoutWindow.BuildAppIcon" Description="App icon; playback devices only" />
+                        <Leaf ID="Volume" Kind="Slider" Pointer="Click;Drag;Wheel" Event="ValueChanged"
+                              Source="VolumeFlyoutWindow.BuildVolumeSlider" />
+                        <Leaf ID="EditPercent" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                              Source="VolumeFlyoutWindow.WirePercentEditor" Description="Opens the percent editor" />
+                        <Leaf ID="PercentEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                              Source="VolumeFlyoutWindow.WirePercentEditor"
+                              Description="Enter or focus loss commits, Escape cancels" />
+                    </Scope>
+                    <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                          Source="VolumeFlyoutWindow.BuildSliderDrawer"
+                          Description="Drawer ScrollViewer; no handler" />
+                </Scope>
+                <Leaf ID="ToggleMute" Kind="Toggle" Pointer="Click" Event="PointerReleased"
+                      Source="VolumeFlyoutWindow.BuildDeviceMuteButton" />
+                <Leaf ID="Volume" Kind="Slider" Pointer="Click;Drag;Wheel" Event="ValueChanged"
+                      Source="VolumeFlyoutWindow.BuildVolumeSlider" />
+                <Leaf ID="EditPercent" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                      Source="VolumeFlyoutWindow.WirePercentEditor" Description="Opens the percent editor" />
+                <Leaf ID="PercentEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="VolumeFlyoutWindow.WirePercentEditor"
+                      Description="Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="DeviceName" Kind="Button" Pointer="DoubleClick;RightClick" Event="PointerPressed"
+                      Source="VolumeFlyoutWindow.BuildDeviceTitleRow"
+                      Description="Double-click renames; right-click, a PointerReleased hook, opens the format menu" />
+                <Leaf ID="NameEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="VolumeFlyoutWindow.BeginDeviceNameEdit"
+                      Description="Enter, focus loss or a click outside commits; Escape cancels" />
+                <Scope ID="Toolbar" Tab="Once" Arrows="Horizontal" Source="VolumeFlyoutWindow.BuildDeviceTitleRow">
+                    <Leaf ID="ConnectBluetooth" Kind="Button" Pointer="Click;Ctrl+Click" Event="PointerReleased"
+                          Source="VolumeFlyoutWindow.BuildBatteryButton"
+                          Description="Battery glyph; Click connects or retries, Ctrl+Click disconnects" />
+                    <Leaf ID="ToggleExclusiveMode" Kind="Toggle" Pointer="Click" Event="PointerReleased"
+                          Source="VolumeFlyoutWindow.BuildExclusiveButton" />
+                    <Leaf ID="ToggleEqualizerAPO" Kind="Toggle" Pointer="Click;Ctrl+Click;RightClick"
+                          Event="PointerReleased" Source="VolumeFlyoutWindow.BuildEqualizerButton"
+                          Description="Ctrl+Click or right-click opens the configuration editor" />
+                    <Leaf ID="ToggleListen" Kind="Toggle" Pointer="Click;Ctrl+Click;RightClick"
+                          Event="PointerReleased" Source="VolumeFlyoutWindow.BuildListenButton"
+                          Description="Recording only; Ctrl+Click uses default playback, right-click picks one" />
+                    <Leaf ID="SetDefault" Kind="Button" Pointer="Click;Shift+Click;Ctrl+Click;RightClick"
+                          Event="PointerReleased" Source="VolumeFlyoutWindow.BuildDeviceStateButton"
+                          Description="Shift: default comms; Ctrl: enable or disable; right-click: properties" />
+                    <Leaf ID="ToggleAppDrawer" Kind="Toggle" Pointer="Click" Event="PointerReleased"
+                          Source="VolumeFlyoutWindow.BuildDrawerButton" />
+                </Scope>
+            </Scope>
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="VolumeFlyoutWindow.BuildContentGeneration"
+                  Description="Device list ScrollViewer; no handler" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="FormatMenu" Kind="Popup" Template="VolumeFlyoutMenu"
+             Source="VolumeFlyoutWindow.ShowDefaultFormatMenu">
+        <Leaf ID="Format" Kind="ListItem" IsRepeated="True" Pointer="Click" Event="PointerReleased"
+              Source="VolumeFlyoutWindow.ShowDefaultFormatMenu"
+              Description="Sets the device default format; the current one is marked" />
+    </Surface>
+
+    <Surface ID="ListenTargetMenu" Kind="Popup" Template="VolumeFlyoutMenu"
+             Source="VolumeFlyoutWindow.ShowListenTargetMenu">
+        <Leaf ID="DefaultPlaybackDevice" Kind="ListItem" Pointer="Click" Event="PointerReleased"
+              Source="VolumeFlyoutWindow.ShowListenTargetMenu" />
+        <Leaf ID="PlaybackDevice" Kind="ListItem" IsRepeated="True" Pointer="Click" Event="PointerReleased"
+              Source="VolumeFlyoutWindow.ShowListenTargetMenu" Description="Active playback devices by name" />
+    </Surface>
+
+    <Surface ID="UpdatePrompt" Template="UpdateConfirmation" Source="VolumeFlyoutWindow.ShowUpdateConfirmation"
+             Description="Also the About page's install and backdate prompts, through UpdatePromptNode" />
+
+    <Surface ID="EqualizerAPOUnavailable" Template="UpdateConfirmation"
+             Source="VolumeFlyoutWindow.ShowEqualizerAPONotAvailableDialog"
+             Description="Equalizer APO download prompt on the update confirmation dialog" />
+
+    <Surface ID="Settings" Template="SettingsShell" Source="VolumeSettingsWindow.CreatePageDescriptors">
+        <Scope ID="GeneralPage" Source="VolumeSettingsWindow.BuildGeneralPage">
+            <Scope ID="Common" Template="GeneralSection" Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Scope ID="Rendering" Template="RenderingSection" Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="PlayDeviceVolumeChangeSound" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="PlayTrayScrollVolumeChangeSound" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="PlayAppVolumeChangeSound" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="SuppressDeviceVolumeChangeSoundWhenAudioPlaying" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="DingSuppressionPeakThreshold" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="LogarithmicVolumeScale" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="WheelVolumeStepPercent" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildGeneralPage" />
+        </Scope>
+        <Scope ID="FlyoutPage" Source="VolumeSettingsWindow.BuildFlyoutPage">
+            <Leaf ID="RestoreUndockState" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowUndockButton" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ClampUndockedToScreen" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="CommunicationsButtonVisibility" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowRecordingDevices" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DisconnectedBluetoothDevices" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowBluetoothDevicesOnlyWhenOn" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowBluetoothRadioButton" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="BluetoothRadioButtonClickGesture" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="UseDynamicPlaybackVolumeGlyph" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowDeviceFormatText" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowDeviceCodecText" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="SoundSettingsTarget" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DeviceLayout" Kind="Select" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DeviceTitlePosition" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="DeviceSort" Kind="Select" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="IntermixRecording" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="HeaderAtBottom" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="UnifiedPeakMeter" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="UnifiedMeterBias" Kind="Number" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="MeterPeakFps" Kind="Number" Event="Callback" Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="MeterPeakSampleRate" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="MeterPeakChangeCeiling" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
+        </Scope>
+        <Scope ID="DevicesPage" Source="VolumeSettingsWindow.BuildDevicesPage">
+            <Leaf ID="SetDefaultCommsToDefault" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Leaf ID="ShowNotPresent" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Leaf ID="ActivateRecordingDevicesForPeakMeters" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowRecording" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage"
+                   Description="Recording column only" />
+            <Scope ID="ShowDisabled" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowDefaultEvenIfDisabled" Template="PairToggleCard"
+                   Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowDefaultCommsEvenIfDisabled" Template="PairToggleCard"
+                   Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowDisconnected" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowLockButton" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowEqualizerAPOButton" Template="PairToggleCard"
+                   Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowDefaultDeviceButton" Template="PairToggleCard"
+                   Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowBatteryButton" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage" />
+            <Scope ID="ShowListenButton" Template="PairToggleCard" Source="VolumeSettingsWindow.BuildDevicesPage"
+                   Description="Recording column only" />
+        </Scope>
+        <Scope ID="DeviceAppDrawersPage" Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage">
+            <Leaf ID="DefaultAppDrawerExpanded" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconRetryInterval" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="PlaybackSlidersMaxApps" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="RecordingDisplayType" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="RecordingSlidersMaxApps" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="RecordingIconsMaxRows" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="CaptureActivityIndicator" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconsCenterMode" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconsCenterSoftMax" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconScale" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconStackDirection" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconsPerRow" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage" />
+            <Leaf ID="IconsPerColumn" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildDeviceAppDrawersPage"
+                  Description="Edits AppDrawerIconsPerRow for vertical stack directions" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="VolumeSettingsWindow.BuildTrayIconPage">
+            <Leaf ID="MouseWheel" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="WheelVolumeStepPercent" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" Description="Hidden while MouseWheel is off" />
+            <Leaf ID="WheelVolumeStepFinePercent" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" Description="Hidden while MouseWheel is off" />
+            <Leaf ID="WheelVolumeStepCoarsePercent" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" Description="Hidden while MouseWheel is off" />
+            <Leaf ID="PrecisionTouchpadScroll" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" Description="Hidden while MouseWheel is off" />
+            <Leaf ID="PrecisionTouchpadUnitsPerScrollStep" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage"
+                  Description="Hidden unless MouseWheel and PrecisionTouchpadScroll are on" />
+            <Leaf ID="MenuPosition" Kind="Select" Event="Callback" Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="PlaybackDeviceName" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddDeviceNameStyleCard" />
+            <Leaf ID="RecordingDeviceName" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddDeviceNameStyleCard" />
+            <Leaf ID="DeviceNameMaxLength" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowRecordingLink" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowSoundsLink" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowCommunicationsLink" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowDeviceLinks" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="WheelAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayWheelActionCard" Description="Disabled while MouseWheel is off" />
+            <Leaf ID="CtrlWheelAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayWheelActionCard" Description="Disabled while MouseWheel is off" />
+            <Leaf ID="AltWheelAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayWheelActionCard" Description="Disabled while MouseWheel is off" />
+            <Leaf ID="CtrlLeftClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltLeftClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlRightClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltRightClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="DoubleLeftClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlDoubleLeftClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltDoubleLeftClickAction" Kind="Select" Event="Callback"
+                  Source="VolumeSettingsWindow.AddTrayClickActionCard" />
+        </Scope>
+        <Scope ID="HotkeysPage" Source="VolumeSettingsWindow.BuildHotkeysPage">
+            <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="VolumeSettingsWindow.BuildHotkeysPage"
+                  Description="Filters the hotkey cards" />
+            <Scope ID="Hotkey" IsRepeated="True" Source="VolumeSettingsWindow.AddHotkeyRow"
+                   Description="One card per action: OpenFlyout, then OpenSettings">
+                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
+                      Source="VolumeSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="VolumeSettingsWindow.AddHotkeyRow"
+                      Description="Read-only; records the next non-modifier key, including Tab and Enter" />
+                <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="VolumeSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="VolumeSettingsWindow.BuildHotkeyEntryCard" />
+            </Scope>
+        </Scope>
+        <Scope ID="ThemePage" Source="VolumeSettingsWindow.BuildThemePage">
+            <Leaf ID="ContextMenuFontSize" Kind="Number" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="ThemeStyle" Kind="Select" Event="Callback" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildThemePage" />
+            <Scope ID="TextColor" Template="VariantColorCard" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="Animations" Kind="Select" Event="Callback" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="ToolTipShowDelay" Kind="Number" Event="Callback" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Leaf ID="SliderIndicator" Kind="Select" Event="SelectionChanged"
+                  Source="VolumeSettingsWindow.BuildThemePage" />
+            <Scope ID="TrayIconColor" Template="VariantColorCard" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Scope ID="MeterPeakColor" Template="SingleColorCard" Source="VolumeSettingsWindow.BuildThemePage" />
+            <Scope ID="MeterPeakStereoColor" Template="SingleColorCard" Source="VolumeSettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="VolumeSettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"
+             Description="Opened by the Theme page color swatches; SingleColorCard opens it too" />
+
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="VolumeUninstallerWindow.CreateOptions"
+             Description="Opened by the General page install cards and in --uninstall mode" />
+
+    <Surface ID="Installer" Template="Installer" Source="VolumeAvaloniaApp.OnFrameworkInitializationCompleted"
+             Description="Installer mode window" />
+
+    <Surface ID="Global" Kind="Global" Source="VolumeAvaloniaApp.StartServices">
+        <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="VolumeAvaloniaApp.HandleHotkey"
+              Description="RegisterHotKey for HotkeyAction.OpenFlyout; user configured, no default binding" />
+        <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="VolumeAvaloniaApp.HandleHotkey"
+              Description="RegisterHotKey for HotkeyAction.OpenSettings; user configured, no default binding" />
+    </Surface>
+</ControlMap>

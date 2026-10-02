@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
 
@@ -196,7 +197,8 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 
     private RowEntry AttachRow(PerformanceDeviceColumnRow row)
     {
-        Grid host = new() { Background = Brushes.Transparent, Focusable = true };
+        Grid host = new Grid { Background = Brushes.Transparent, Focusable = true }
+            .MapTo(ControlMap.Main.PerformancePage.DeviceList.Device);
         host.Children.Add(row.Content);
         RowEntry entry = new(row.StableID, row.Content, host);
 
@@ -205,7 +207,16 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         host.PointerReleased += OnRowPointerReleased;
         host.PointerCaptureLost += OnRowPointerCaptureLost;
         host.KeyDown += OnRowKeyDown;
+        host.MapActivation(_ => SelectRow(entry));
         return entry;
+    }
+
+    /// <summary>Selects the row's device, as a click does, unless a pointer gesture is active.</summary>
+    private void SelectRow(RowEntry row)
+    {
+        if (_disposed || _capturedPointer != null) return;
+
+        _selectionRequested(row.StableID);
     }
 
     private void DetachRow(RowEntry row)

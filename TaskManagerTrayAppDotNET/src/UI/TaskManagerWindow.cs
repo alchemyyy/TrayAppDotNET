@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI.Performance;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -129,6 +130,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             OnWindowPointerPressed,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+
+        // A SettingsShell instance like the Settings window; tagged before the shell builds so its controls resolve
+        this.MapTo(ControlMap.Main.ID);
         InitializeSettingsShell();
 #if DEBUG
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
@@ -291,6 +295,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             useWindows11Style: true,
             customNavigationIcon: caretIcon,
             navigationIconTransform: new RotateTransform(SidebarCaretRotationDegrees));
+        sidebarCollapseButton.MapTo(ControlMap.Main.ToggleSidebar);
         sidebarCollapseButton.Click += OnSidebarCollapseButtonClick;
         return [sidebarCollapseButton];
     }
@@ -307,6 +312,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         {
             IsVisible = AppServices.UpdateCheckService?.AvailableUpdate != null
         };
+        updateButton.MapTo(ControlMap.Main.Update);
         updateButton.Click += OnUpdateSidebarButtonClick;
         return [updateButton];
     }
@@ -436,7 +442,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 {
                     _isUpdateDownloadInFlight = isInFlight;
                     RefreshUpdateSidebarButton();
-                }
+                },
+                Node = ControlMap.MainUpdateConfirmation.ID
             });
     }
 

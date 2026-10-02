@@ -53,6 +53,10 @@ internal static class AXAMLProvenanceGenerator
         XElement? root = document.Root;
         if (root == null) return null;
 
+        // Control maps describe focus structure, not visuals, so the hover inspector has nothing to trace to them
+        if (string.Equals(root.Name.NamespaceName, ControlMapParser.ControlMapNamespace, StringComparison.Ordinal))
+            return null;
+
         XName classAttributeName = XName.Get(localName: "Class", XamlNamespace);
         string? ownerTypeName = root.Attribute(classAttributeName)?.Value;
         if (!IsQualifiedNamespace(ownerTypeName)) return null;

@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
@@ -83,6 +84,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(columnsChanged);
 
+        // A ReorderDialog instance; the surface id tells it from the header button arrangement dialog
+        this.MapTo(ControlMap.ProcessColumnChooser.ID);
         _settings = settings;
         _hideUnusedColumns = hideUnusedColumns;
 #if DEBUG
@@ -126,14 +129,14 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     }
 #endif
 
-    private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette, bool isChecked) => new()
+    private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette, bool isChecked) => new CheckBox
     {
         Content = "Hide unused columns",
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
         IsChecked = isChecked,
         HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Center
-    };
+    }.MapTo(ControlMap.ProcessColumnChooser.HideUnusedColumns);
 
     private void OnHideUnusedColumnsChanged(object? sender, RoutedEventArgs eventArgs)
     {
@@ -171,13 +174,13 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         Action itemChanged)
     {
         ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
-        CheckBox visibility = new()
+        CheckBox visibility = new CheckBox
         {
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             IsChecked = setting.Visible,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center
-        };
+        }.MapTo(ControlMap.ProcessColumnChooser.Visible);
         visibility.IsCheckedChanged += (_, _) =>
         {
             bool isVisible = visibility.IsChecked == true;
@@ -273,6 +276,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             Palette,
             RoundedCornersEnabled,
             cancelText: "Cancel") { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        confirmation.MapTo(ControlMap.ProcessColumnResetConfirmation.ID);
         TrayAppDotNETUpdatePromptResult result =
             await confirmation.ShowDialog<TrayAppDotNETUpdatePromptResult>(this);
         return result == TrayAppDotNETUpdatePromptResult.Confirmed;

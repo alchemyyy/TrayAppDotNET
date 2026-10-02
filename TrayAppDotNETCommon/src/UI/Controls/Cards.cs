@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
@@ -67,14 +68,15 @@ public static class TrayAppDotNETSettingsCards
         CornerRadius cardRadius,
         Action save,
         Action? afterSave = null,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
         SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(palette, value, (_, enabled) =>
         {
             set(enabled);
             save();
             afterSave?.Invoke();
-        });
+        }).MapTo(node);
         return Card(title, description, toggle, palette, cardRadius, searchKeywords);
     }
 
@@ -89,7 +91,8 @@ public static class TrayAppDotNETSettingsCards
         CornerRadius cardRadius,
         Action save,
         string suffix = "",
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
         SettingsNumberBox input = TrayAppDotNETSettingsUI.NumberBox(
             palette,
@@ -97,7 +100,7 @@ public static class TrayAppDotNETSettingsCards
             min,
             max,
             SettingsCardsLayout.NumberBoxWidth,
-            suffix);
+            suffix).MapTo(node);
         input.ValueChanged += (_, e) =>
         {
             if (!e.NewValue.HasValue) return;
@@ -120,16 +123,17 @@ public static class TrayAppDotNETSettingsCards
         string suffix = "",
         IReadOnlyList<string>? searchKeywords = null,
         int decimalPlaces = 1,
-        double step = 0.1)
+        double step = 0.1,
+        ControlMapNodeID? node = null)
     {
-        SettingsNumberBox input = new(
+        SettingsNumberBox input = new SettingsNumberBox(
             palette,
             value,
             min,
             max,
             SettingsCardsLayout.NumberBoxWidth,
             suffix,
-            decimalPlaces) { Step = step, WheelStep = step };
+            decimalPlaces) { Step = step, WheelStep = step }.MapTo(node);
         input.ValueChanged += (_, eventArgs) =>
         {
             if (!eventArgs.NewValue.HasValue) return;
@@ -160,7 +164,8 @@ public static class TrayAppDotNETSettingsCards
         string suffix = "",
         IReadOnlyList<string>? searchKeywords = null,
         int decimalPlaces = 1,
-        double step = 0.1)
+        double step = 0.1,
+        ControlMapNodeID? node = null)
     {
         ArgumentNullException.ThrowIfNull(read);
         ArgumentNullException.ThrowIfNull(set);
@@ -175,7 +180,9 @@ public static class TrayAppDotNETSettingsCards
             SettingsCardsLayout.NumberBoxWidth,
             suffix,
             decimalPlaces) { Step = step, WheelStep = step };
-        SettingsButton resetButton = Button(resetText, palette, buttonRadius);
+        input.MapTo(ControlMap.ResettableNumberCard.Value);
+        SettingsButton resetButton = Button(resetText, palette, buttonRadius)
+            .MapTo(ControlMap.ResettableNumberCard.Reset);
         SettingsResettableNumber number = new(input, resetButton, read, readResetValue, decimalPlaces);
         input.ValueChanged += (_, eventArgs) =>
         {
@@ -200,7 +207,9 @@ public static class TrayAppDotNETSettingsCards
             Spacing = SettingsCardsLayout.ResetButtonSpacing,
             Children = { input, resetButton }
         };
-        return Card(title, description, controls, palette, cardRadius, searchKeywords);
+
+        // A ResettableNumberCard instance; the caller's id tells its instances apart
+        return Card(title, description, controls, palette, cardRadius, searchKeywords).MapTo(node);
     }
 
     public static Border ComboCard(
@@ -215,12 +224,13 @@ public static class TrayAppDotNETSettingsCards
         Action? afterSave = null,
         bool autoSizeToText = false,
         SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem,
-        IReadOnlyList<string>? searchKeywords = null)
+        IReadOnlyList<string>? searchKeywords = null,
+        ControlMapNodeID? node = null)
     {
         SettingsComboBox combo = TrayAppDotNETSettingsUI.ComboBox(
             palette,
             autoSizeToText: autoSizeToText,
-            autoSizeMode: autoSizeMode);
+            autoSizeMode: autoSizeMode).MapTo(node);
         foreach ((string tag, string text) in items)
             combo.Items.Add(TrayAppDotNETSettingsUI.ComboItem(tag, text, palette));
         TrayAppDotNETSettingsUI.SelectComboByTag(combo, selectedTag);

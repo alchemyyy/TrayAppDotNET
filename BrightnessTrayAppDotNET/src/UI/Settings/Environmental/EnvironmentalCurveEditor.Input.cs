@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Input;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
@@ -199,22 +200,57 @@ public sealed partial class EnvironmentalCurveEditor
         InvalidateVisual();
     }
 
+    // Tab stays here because Avalonia's Tab navigation handles Tab before the control map can dispatch it
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (!IsEnabled || _previewMode) return;
-        if (_dragPoint != null || _draggingLimit || _dragDisabledPin != null) return;
+        if (e.Key != Key.Tab || !CanHandleKeys) return;
 
-        bool ctrl = (e.KeyModifiers & KeyModifiers.Control) != 0;
-        bool shift = (e.KeyModifiers & KeyModifiers.Shift) != 0;
+        NavigateSelection((e.KeyModifiers & KeyModifiers.Shift) != 0 ? -1 : 1);
+        e.Handled = true;
+    }
+
+    /// <summary>Registers the editor's keyboard commands, which the control map dispatches while it has focus.</summary>
+    private void MapKeyboardCommands()
+    {
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.NudgeNodeUp,
+            activation => NudgeSelected(activation, horizontalDirection: 0, verticalDirection: 1));
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.NudgeNodeDown,
+            activation => NudgeSelected(activation, horizontalDirection: 0, verticalDirection: -1));
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.NudgeNodeLeft,
+            activation => NudgeSelected(activation, horizontalDirection: -1, verticalDirection: 0));
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.NudgeNodeRight,
+            activation => NudgeSelected(activation, horizontalDirection: 1, verticalDirection: 0));
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.InsertNode, () =>
+        {
+            if (CanHandleKeys) InsertNodeNearSelected();
+        });
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.DeleteNode, () =>
+        {
+            if (CanHandleKeys) DeleteSelected();
+        });
+        this.MapCommand(ControlMap.Settings.EnvironmentalPage.CurveEditor.ClearSelection, () =>
+        {
+            if (!CanHandleKeys) return;
+
+            _selectedPoint = null;
+            InvalidateVisual();
+        });
+    }
+
+    // Shift moves one minute or one value unit, Ctrl a coarse step, and no modifier a fine step
+    private void NudgeSelected(ControlActivation activation, int horizontalDirection, int verticalDirection)
+    {
+        if (!CanHandleKeys) return;
+
         double xStep;
         double yStep;
-        if (shift)
+        if ((activation.KeyModifiers & KeyModifiers.Shift) != 0)
         {
             xStep = KeyboardStepOneMinute;
             yStep = _offsetMode ? KeyboardStepOneYUnitOffset : KeyboardStepOneYUnitAbsolute;
         }
-        else if (ctrl)
+        else if ((activation.KeyModifiers & KeyModifiers.Control) != 0)
         {
             xStep = KeyboardStepCoarse;
             yStep = KeyboardStepCoarse;
@@ -225,44 +261,11 @@ public sealed partial class EnvironmentalCurveEditor
             yStep = KeyboardStepFine;
         }
 
-        switch (e.Key)
-        {
-            case Key.Tab:
-                NavigateSelection(shift ? -1 : 1);
-                e.Handled = true;
-                break;
-            case Key.Up:
-                AdjustSelected(dx: 0.0, yStep);
-                e.Handled = true;
-                break;
-            case Key.Down:
-                AdjustSelected(dx: 0.0, -yStep);
-                e.Handled = true;
-                break;
-            case Key.Left:
-                AdjustSelected(-xStep, dy: 0.0);
-                e.Handled = true;
-                break;
-            case Key.Right:
-                AdjustSelected(xStep, dy: 0.0);
-                e.Handled = true;
-                break;
-            case Key.Space:
-                InsertNodeNearSelected();
-                e.Handled = true;
-                break;
-            case Key.Delete:
-            case Key.Back:
-                DeleteSelected();
-                e.Handled = true;
-                break;
-            case Key.Escape:
-                _selectedPoint = null;
-                InvalidateVisual();
-                e.Handled = true;
-                break;
-        }
+        AdjustSelected(horizontalDirection * xStep, verticalDirection * yStep);
     }
+
+    // Keys are inactive while previewing another date or dragging
+    private bool CanHandleKeys => IsEnabled && !_previewMode && !IsDragging;
 
     private bool IsDragging => _dragPoint != null || _draggingLimit || _dragDisabledPin != null;
 }

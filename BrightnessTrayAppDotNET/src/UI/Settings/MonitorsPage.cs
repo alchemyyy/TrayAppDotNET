@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
@@ -21,7 +22,8 @@ public sealed partial class BrightnessSettingsWindow
             v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_BrightnessRate_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.BrightnessRate));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title)),
             L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Description)),
             _settings.ValidationDwellMs,
@@ -31,14 +33,16 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationDwell_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.ValidationDwell));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title)),
             L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Description)),
             _settings.ValidationAttempts, min: 1, max: 20, v => _settings.ValidationAttempts = v, p,
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.ValidationAttempts));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title)),
             L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Description)),
             _settings.DDCOperationTimeoutMs,
@@ -48,7 +52,8 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.DDCOperationTimeout));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_Title)),
             L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_Description)),
@@ -58,14 +63,16 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.AllowBlindDDCWrites));
         stack.Children.Add(StringComboCard(L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Title)),
             L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Description)),
             PowerOffOptions(), _settings.PowerOffMode, v => _settings.PowerOffMode = v, p,
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_PowerOffMode_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.PowerOffMode));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Title)),
             L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Description)),
@@ -81,7 +88,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.IdentityStrategy));
         stack.Children.Add(ComboCard(
             L(nameof(AppStrings.Settings_Monitors_DefaultSort_Title)),
             description: "",
@@ -97,9 +105,11 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_DefaultSort_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.MonitorsPage.DefaultSort));
 
-        SettingsButton clear = Button(L(nameof(AppStrings.Settings_Monitors_ClearDisplays_Button)), p);
+        SettingsButton clear = Button(L(nameof(AppStrings.Settings_Monitors_ClearDisplays_Button)), p)
+            .MapTo(ControlMap.Settings.MonitorsPage.ClearDisplays);
         clear.Click += async (_, _) =>
         {
             bool ok = await ConfirmAsync(
@@ -145,37 +155,50 @@ public sealed partial class BrightnessSettingsWindow
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         AddTextOverride(controls, row: 0, column: 0, L(nameof(AppStrings.Settings_Monitors_Name_Label)),
             row.Override.Name,
-            text => UpdateMonitorOverride(row.EDIDKey, o => o.Name = text.Trim()));
+            text => UpdateMonitorOverride(row.EDIDKey, o => o.Name = text.Trim()),
+            ControlMap.Settings.MonitorsPage.Display.Name);
         AddNumberOverride(controls, row: 0, column: 2,
             L(nameof(AppStrings.Settings_Monitors_MinBrightnessOverride_Label)),
             row.Override.MinBrightness, min: 0, max: 100,
-            value => UpdateMonitorOverride(row.EDIDKey, o => o.MinBrightness = value));
+            value => UpdateMonitorOverride(row.EDIDKey, o => o.MinBrightness = value),
+            ControlMap.Settings.MonitorsPage.Display.MinBrightnessOverride);
         AddNumberOverride(controls, row: 1, column: 0,
             L(nameof(AppStrings.Settings_Monitors_MaxBrightnessOverride_Label)),
             row.Override.MaxBrightness, min: 0, max: 100,
-            value => UpdateMonitorOverride(row.EDIDKey, o => o.MaxBrightness = value));
+            value => UpdateMonitorOverride(row.EDIDKey, o => o.MaxBrightness = value),
+            ControlMap.Settings.MonitorsPage.Display.MaxBrightnessOverride);
         AddNumberOverride(controls, row: 1, column: 2,
             L(nameof(AppStrings.Settings_Monitors_ValidationDwellOverride_Label)),
             row.Override.ValidationDwellMs, min: -1, max: 10_000,
-            value => UpdateMonitorOverride(row.EDIDKey, o => o.ValidationDwellMs = value));
+            value => UpdateMonitorOverride(row.EDIDKey, o => o.ValidationDwellMs = value),
+            ControlMap.Settings.MonitorsPage.Display.ValidationDwellOverride);
         AddNumberOverride(controls, row: 2, column: 0,
             L(nameof(AppStrings.Settings_Monitors_BrightnessDwellOverride_Label)),
             row.Override.BrightnessDwellMs, min: -1, max: 10_000,
-            value => UpdateMonitorOverride(row.EDIDKey, o => o.BrightnessDwellMs = value));
+            value => UpdateMonitorOverride(row.EDIDKey, o => o.BrightnessDwellMs = value),
+            ControlMap.Settings.MonitorsPage.Display.BrightnessDwellOverride);
         AddTextOverride(controls, row: 2, column: 2, L(nameof(AppStrings.Settings_Monitors_PowerOffVcpOverride_Label)),
             row.Override.PowerOffVcpOverride,
-            text => UpdateMonitorOverride(row.EDIDKey, o => o.PowerOffVcpOverride = text.Trim()));
+            text => UpdateMonitorOverride(row.EDIDKey, o => o.PowerOffVcpOverride = text.Trim()),
+            ControlMap.Settings.MonitorsPage.Display.PowerOffVCPOverride);
         content.Children.Add(controls);
-        return RawCard(content, p);
+        return RawCard(content, p).MapTo(ControlMap.Settings.MonitorsPage.Display.ID);
     }
 
-    private void AddTextOverride(Grid grid, int row, int column, string label, string value, Action<string> set)
+    private void AddTextOverride(
+        Grid grid,
+        int row,
+        int column,
+        string label,
+        string value,
+        Action<string> set,
+        ControlMapNodeID node)
     {
         SettingsPalette p = Palette;
         StackPanel cell = new();
         cell.Children.Add(
             TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(left: 0, top: 0, right: 0, bottom: 4)));
-        TextBox box = TrayAppDotNETSettingsUI.TextBox(p, double.NaN, value);
+        TextBox box = TrayAppDotNETSettingsUI.TextBox(p, double.NaN, value).MapTo(node);
         box.HorizontalAlignment = HorizontalAlignment.Stretch;
         box.LostFocus += (_, _) =>
         {
@@ -189,13 +212,13 @@ public sealed partial class BrightnessSettingsWindow
     }
 
     private void AddNumberOverride(Grid grid, int row, int column, string label, int value, int min, int max,
-        Action<int> set)
+        Action<int> set, ControlMapNodeID node)
     {
         SettingsPalette p = Palette;
         StackPanel cell = new();
         cell.Children.Add(
             TrayAppDotNETSettingsUI.DescriptionText(label, p, new Thickness(left: 0, top: 0, right: 0, bottom: 4)));
-        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(p, value, min, max, width: 96);
+        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(p, value, min, max, width: 96).MapTo(node);
         box.ValueChanged += (_, e) =>
         {
             if (!e.NewValue.HasValue) return;

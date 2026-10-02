@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using NetworkTrayAppDotNET.Models;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 
@@ -18,7 +19,8 @@ public sealed partial class NetworkSettingsWindow
             Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p,
             new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240);
+        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 240)
+            .MapTo(ControlMap.Settings.HotkeysPage.SearchText);
         ControlNames.Assign(searchBox, nameof(NetworkSettingsPage.Hotkeys));
         StackPanel searchRow = new()
         {
@@ -38,6 +40,11 @@ public sealed partial class NetworkSettingsWindow
         AddHotkeyRow(stack, rows, HotkeyAction.OpenFlyout,
             L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
             L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
+            new HotkeyRowNodes(
+                ControlMap.Settings.HotkeysPage.OpenFlyout.BindingModifiers,
+                ControlMap.Settings.HotkeysPage.OpenFlyout.BindingKey,
+                ControlMap.Settings.HotkeysPage.OpenFlyout.AddBinding,
+                ControlMap.Settings.HotkeysPage.OpenFlyout.DeleteBinding),
             p,
             [
                 L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_SearchKeywords))
@@ -45,6 +52,11 @@ public sealed partial class NetworkSettingsWindow
         AddHotkeyRow(stack, rows, HotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
+            new HotkeyRowNodes(
+                ControlMap.Settings.HotkeysPage.OpenSettings.BindingModifiers,
+                ControlMap.Settings.HotkeysPage.OpenSettings.BindingKey,
+                ControlMap.Settings.HotkeysPage.OpenSettings.AddBinding,
+                ControlMap.Settings.HotkeysPage.OpenSettings.DeleteBinding),
             p,
             [
                 L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_SearchKeywords))
@@ -69,6 +81,7 @@ public sealed partial class NetworkSettingsWindow
         HotkeyAction action,
         string title,
         string description,
+        HotkeyRowNodes nodes,
         SettingsPalette p,
         IReadOnlyList<string> searchKeywords)
     {
@@ -77,18 +90,19 @@ public sealed partial class NetworkSettingsWindow
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170).MapTo(nodes.BindingModifiers);
         ControlNames.Assign(modifiers, $"{action}Modifiers");
         modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60).MapTo(nodes.BindingKey);
         ControlNames.Assign(keyBox, $"{action}Key");
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p)
+            .MapTo(nodes.AddBinding);
         ControlNames.Assign(addButton, $"{action}Add");
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
@@ -207,7 +221,11 @@ public sealed partial class NetworkSettingsWindow
             entries.Children.Clear();
             foreach (HotkeyBinding binding in _settings.Hotkeys
                          .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty)).OrderBy(h => h.BindingID))
-                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
+            {
+                entries.Children.Add(
+                    BuildHotkeyEntryCard(action, binding, applyResult, Refresh, nodes.DeleteBinding, p));
+            }
+
             entries.IsVisible = entries.Children.Count > 0;
             UpdateAddButtonState();
         }
@@ -218,6 +236,7 @@ public sealed partial class NetworkSettingsWindow
         HotkeyBinding binding,
         HotkeyApplyResult? applyResult,
         Action refresh,
+        ControlMapNodeID deleteNode,
         SettingsPalette p)
     {
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
@@ -245,7 +264,7 @@ public sealed partial class NetworkSettingsWindow
         else if (binding.IsBound)
             TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p).MapTo(deleteNode);
         ControlNames.Assign(delete, $"{action}Delete");
         delete.Width = 32;
         delete.Height = 29;
@@ -296,4 +315,11 @@ public sealed partial class NetworkSettingsWindow
 
     private static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> HotkeyModifierOptions =>
         TrayAppDotNETHotkeyModifierOptions.Create(Loc);
+
+    /// <summary>Control map leaves of one hotkey row, whose scope differs per action.</summary>
+    private sealed record HotkeyRowNodes(
+        ControlMapNodeID BindingModifiers,
+        ControlMapNodeID BindingKey,
+        ControlMapNodeID AddBinding,
+        ControlMapNodeID DeleteBinding);
 }

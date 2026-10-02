@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
@@ -18,7 +19,8 @@ public sealed partial class VolumeSettingsWindow
             RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_MouseWheel_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.MouseWheel));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Description)),
@@ -30,7 +32,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             [
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.TrayIconPage.WheelVolumeStepPercent)));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepFinePercent_Title)),
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepFinePercent_Description)),
@@ -42,7 +45,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             [
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepFinePercent_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.TrayIconPage.WheelVolumeStepFinePercent)));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepCoarsePercent_Title)),
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepCoarsePercent_Description)),
@@ -54,7 +58,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             [
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepCoarsePercent_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.TrayIconPage.WheelVolumeStepCoarsePercent)));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
             Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Description)),
@@ -64,7 +69,8 @@ public sealed partial class VolumeSettingsWindow
             RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.TrayIconPage.PrecisionTouchpadScroll)));
         stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true },
             IntCard(
                 Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title)),
@@ -77,7 +83,8 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Common_PercentSuffix)),
                 [
                     Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
-                ])));
+                ],
+                node: ControlMap.Settings.TrayIconPage.PrecisionTouchpadUnitsPerScrollStep)));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
@@ -94,19 +101,22 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.MenuPosition));
         AddDeviceNameStyleCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_Description)),
             _settings.TrayMenuPlaybackDeviceNameStyle, v => _settings.TrayMenuPlaybackDeviceNameStyle = v, p,
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_SearchKeywords))
-            ]);
+            ],
+            node: ControlMap.Settings.TrayIconPage.PlaybackDeviceName);
         AddDeviceNameStyleCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_Description)),
             _settings.TrayMenuRecordingDeviceNameStyle, v => _settings.TrayMenuRecordingDeviceNameStyle = v, p,
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_SearchKeywords))
-            ]);
+            ],
+            node: ControlMap.Settings.TrayIconPage.RecordingDeviceName);
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_TrayIcon_DeviceNameMaxLength_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_DeviceNameMaxLength_Description)),
@@ -118,35 +128,40 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_DeviceNameMaxLength_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.DeviceNameMaxLength));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_Description)),
             _settings.ShowTrayMenuRecordingLink, v => _settings.ShowTrayMenuRecordingLink = v, p,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.ShowRecordingLink));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_Description)),
             _settings.ShowTrayMenuSoundsLink, v => _settings.ShowTrayMenuSoundsLink = v, p,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.ShowSoundsLink));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_Description)),
             _settings.ShowTrayMenuCommunicationsLink, v => _settings.ShowTrayMenuCommunicationsLink = v, p,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.ShowCommunicationsLink));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_Description)),
             _settings.ShowTrayMenuDeviceLinks, v => _settings.ShowTrayMenuDeviceLinks = v, p,
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.ShowDeviceLinks));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header)),
@@ -157,41 +172,51 @@ public sealed partial class VolumeSettingsWindow
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title)),
             _settings.TrayWheelAction,
             v => _settings.TrayWheelAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.WheelAction);
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlMouseWheel_Title)),
             _settings.TrayCtrlWheelAction,
             v => _settings.TrayCtrlWheelAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.CtrlWheelAction);
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltMouseWheel_Title)),
             _settings.TrayAltWheelAction,
             v => _settings.TrayAltWheelAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.AltWheelAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlLeftClick_Title)),
             _settings.TrayCtrlLeftClickAction,
             v => _settings.TrayCtrlLeftClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.CtrlLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltLeftClick_Title)),
             _settings.TrayAltLeftClickAction,
             v => _settings.TrayAltLeftClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.AltLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlRightClick_Title)),
             _settings.TrayCtrlRightClickAction,
             v => _settings.TrayCtrlRightClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.CtrlRightClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltRightClick_Title)),
             _settings.TrayAltRightClickAction,
             v => _settings.TrayAltRightClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.AltRightClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_DoubleLeftClick_Title)),
             _settings.TrayDoubleClickAction,
             v => _settings.TrayDoubleClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.DoubleLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlDoubleLeftClick_Title)),
             _settings.TrayCtrlDoubleLeftClickAction, v => _settings.TrayCtrlDoubleLeftClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.CtrlDoubleLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title)),
             _settings.TrayAltDoubleLeftClickAction, v => _settings.TrayAltDoubleLeftClickAction = v, p,
-            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))],
+            node: ControlMap.Settings.TrayIconPage.AltDoubleLeftClickAction);
 
         ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.TrayIcon));
         return stack;
@@ -204,7 +229,8 @@ public sealed partial class VolumeSettingsWindow
         TrayMenuDeviceNameStyle selected,
         Action<TrayMenuDeviceNameStyle> set,
         SettingsPalette p,
-        IReadOnlyList<string> searchKeywords) =>
+        IReadOnlyList<string> searchKeywords,
+        ControlMapNodeID node) =>
         stack.Children.Add(StringComboCard(
             title,
             description,
@@ -217,7 +243,8 @@ public sealed partial class VolumeSettingsWindow
             selected,
             set,
             p,
-            searchKeywords: searchKeywords));
+            searchKeywords: searchKeywords,
+            node: node));
 
     private void AddTrayWheelActionCard(
         StackPanel stack,
@@ -225,7 +252,8 @@ public sealed partial class VolumeSettingsWindow
         TrayWheelVolumeStep selected,
         Action<TrayWheelVolumeStep> set,
         SettingsPalette p,
-        IReadOnlyList<string> searchKeywords)
+        IReadOnlyList<string> searchKeywords,
+        ControlMapNodeID node)
     {
         Border card = StringComboCard(
             title,
@@ -240,7 +268,8 @@ public sealed partial class VolumeSettingsWindow
             selected,
             set,
             p,
-            searchKeywords: searchKeywords);
+            searchKeywords: searchKeywords,
+            node: node);
         card.IsEnabled = _settings.TrayScrollEnabled;
         stack.Children.Add(card);
     }
@@ -251,7 +280,8 @@ public sealed partial class VolumeSettingsWindow
         TrayClickAction selected,
         Action<TrayClickAction> set,
         SettingsPalette p,
-        IReadOnlyList<string> searchKeywords) =>
+        IReadOnlyList<string> searchKeywords,
+        ControlMapNodeID node) =>
         stack.Children.Add(StringComboCard(
             title,
             string.Empty,
@@ -261,5 +291,6 @@ public sealed partial class VolumeSettingsWindow
             selected,
             set,
             p,
-            searchKeywords: searchKeywords));
+            searchKeywords: searchKeywords,
+            node: node));
 }

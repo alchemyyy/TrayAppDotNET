@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
@@ -41,6 +42,19 @@ public sealed class FanCurveEditor : Control, IDisposable
             _selectedNode = null;
             InvalidateVisual();
         };
+
+        // The control map dispatches the point keys while focus is in the graph
+        this.MapTo(ControlMap.CurveEditor.Graph.ID);
+        this.MapCommand(ControlMap.CurveEditor.Graph.MovePointLeft,
+            activation => NudgeSelected(horizontalDirection: -1, verticalDirection: 0, activation.KeyModifiers));
+        this.MapCommand(ControlMap.CurveEditor.Graph.MovePointRight,
+            activation => NudgeSelected(horizontalDirection: 1, verticalDirection: 0, activation.KeyModifiers));
+        this.MapCommand(ControlMap.CurveEditor.Graph.MovePointUp,
+            activation => NudgeSelected(horizontalDirection: 0, verticalDirection: 1, activation.KeyModifiers));
+        this.MapCommand(ControlMap.CurveEditor.Graph.MovePointDown,
+            activation => NudgeSelected(horizontalDirection: 0, verticalDirection: -1, activation.KeyModifiers));
+        this.MapCommand(ControlMap.CurveEditor.Graph.DeletePoint, DeleteSelectedFromKeyboard);
+        this.MapCommand(ControlMap.CurveEditor.Graph.ClearSelection, ClearSelectionFromKeyboard);
     }
 
     public event Action? CurveChanged;
@@ -260,54 +274,14 @@ public sealed class FanCurveEditor : Control, IDisposable
         InvalidateVisual();
     }
 
+    // Tab stays here because the window's tab navigation consumes it before the control map dispatches keys
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (_curve == null || _selectedNode == null || _dragNode != null) return;
+        if (e.Key != Key.Tab || !IsKeyboardEditable) return;
 
-        double xRange = XMaximum - XMinimum;
-        double yRange = YMaximum - YMinimum;
-        double xStep = xRange / Math.Max(val1: 1.0, PlotRect().Width) * Layout.GraphKeyboardStepFinePixels;
-        double yStep = yRange / Math.Max(val1: 1.0, PlotRect().Height) * Layout.GraphKeyboardStepFinePixels;
-        if ((e.KeyModifiers & KeyModifiers.Control) != 0)
-        {
-            xStep *= Layout.GraphKeyboardStepCoarsePixels;
-            yStep *= Layout.GraphKeyboardStepCoarsePixels;
-        }
-
-        switch (e.Key)
-        {
-            case Key.Tab:
-                NavigateSelection((e.KeyModifiers & KeyModifiers.Shift) != 0 ? -1 : 1);
-                e.Handled = true;
-                break;
-            case Key.Left:
-                MoveSelected(-xStep, dy: 0.0);
-                e.Handled = true;
-                break;
-            case Key.Right:
-                MoveSelected(xStep, dy: 0.0);
-                e.Handled = true;
-                break;
-            case Key.Up:
-                MoveSelected(dx: 0.0, yStep);
-                e.Handled = true;
-                break;
-            case Key.Down:
-                MoveSelected(dx: 0.0, -yStep);
-                e.Handled = true;
-                break;
-            case Key.Delete:
-            case Key.Back:
-                DeleteSelected();
-                e.Handled = true;
-                break;
-            case Key.Escape:
-                _selectedNode = null;
-                InvalidateVisual();
-                e.Handled = true;
-                break;
-        }
+        NavigateSelection((e.KeyModifiers & KeyModifiers.Shift) != 0 ? -1 : 1);
+        e.Handled = true;
     }
 
     private void DrawGrid(DrawingContext context, Rect plot, Rect bounds)
@@ -535,6 +509,39 @@ public sealed class FanCurveEditor : Control, IDisposable
         node.X = ClampNodeXToNeighbours(node, FromScreenX(pos.X, plot));
         node.Y = Math.Clamp(FromScreenY(pos.Y, plot), YMinimum, YMaximum);
         FinishGraphEdit();
+    }
+
+    // Keyboard edits apply only to a selected point and never during a pointer drag
+    private bool IsKeyboardEditable => _curve != null && _selectedNode != null && _dragNode == null;
+
+    /// <summary>Moves the selected point one keyboard step; Ctrl uses the coarse step.</summary>
+    private void NudgeSelected(int horizontalDirection, int verticalDirection, KeyModifiers modifiers)
+    {
+        if (!IsKeyboardEditable) return;
+
+        Rect plot = PlotRect();
+        double xStep = (XMaximum - XMinimum) / Math.Max(val1: 1.0, plot.Width) * Layout.GraphKeyboardStepFinePixels;
+        double yStep = (YMaximum - YMinimum) / Math.Max(val1: 1.0, plot.Height) * Layout.GraphKeyboardStepFinePixels;
+        if ((modifiers & KeyModifiers.Control) != 0)
+        {
+            xStep *= Layout.GraphKeyboardStepCoarsePixels;
+            yStep *= Layout.GraphKeyboardStepCoarsePixels;
+        }
+
+        MoveSelected(horizontalDirection * xStep, verticalDirection * yStep);
+    }
+
+    private void DeleteSelectedFromKeyboard()
+    {
+        if (!IsKeyboardEditable) return;
+        DeleteSelected();
+    }
+
+    private void ClearSelectionFromKeyboard()
+    {
+        if (!IsKeyboardEditable) return;
+        _selectedNode = null;
+        InvalidateVisual();
     }
 
     private void MoveSelected(double dx, double dy)

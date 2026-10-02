@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Hotkeys;
 using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;
@@ -13,6 +14,20 @@ namespace BrightnessTrayAppDotNET.UI.Settings;
 
 public sealed partial class BrightnessSettingsWindow
 {
+    private static readonly HotkeyRowNodes ActionHotkeyRowNodes = new(
+        ControlMap.Settings.HotkeysPage.Hotkey.ID,
+        ControlMap.Settings.HotkeysPage.Hotkey.Modifiers,
+        ControlMap.Settings.HotkeysPage.Hotkey.Key,
+        ControlMap.Settings.HotkeysPage.Hotkey.Add,
+        ControlMap.Settings.HotkeysPage.Hotkey.DeleteBinding);
+
+    private static readonly HotkeyRowNodes MonitorOffHotkeyRowNodes = new(
+        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.ID,
+        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Modifiers,
+        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Key,
+        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Add,
+        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.DeleteBinding);
+
     private StackPanel BuildHotkeysPage()
     {
         SettingsPalette p = Palette;
@@ -22,7 +37,8 @@ public sealed partial class BrightnessSettingsWindow
             p,
             new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
 
-        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 260);
+        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 260)
+            .MapTo(ControlMap.Settings.HotkeysPage.Search);
         StackPanel searchRow = new()
         {
             Orientation = Orientation.Horizontal,
@@ -123,7 +139,8 @@ public sealed partial class BrightnessSettingsWindow
     private void AddMonitorOffBindingButton(StackPanel stack, SettingsPalette p)
     {
         IReadOnlyList<(string Value, string Label)> targets = BuildMonitorTargetOptions();
-        SettingsButton add = Button(L(nameof(AppStrings.Settings_Hotkeys_AddMonitorOffBinding_Button)), p);
+        SettingsButton add = Button(L(nameof(AppStrings.Settings_Hotkeys_AddMonitorOffBinding_Button)), p)
+            .MapTo(ControlMap.Settings.HotkeysPage.AddMonitorOffBinding);
         add.HorizontalAlignment = HorizontalAlignment.Left;
         add.Margin = new Thickness(left: 0, top: 8, right: 0, bottom: 0);
         add.IsEnabled = targets.Count > 0
@@ -162,24 +179,26 @@ public sealed partial class BrightnessSettingsWindow
         uint selectedVirtualKey = 0;
         string currentParameter = parameter;
         SettingsComboBox? targetCombo = null;
+        HotkeyRowNodes nodes = removableMonitorTarget ? MonitorOffHotkeyRowNodes : ActionHotkeyRowNodes;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170);
+        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170).MapTo(nodes.Modifiers);
         modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60);
+        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60).MapTo(nodes.Key);
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p).MapTo(nodes.Add);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
         SettingsButton? removeTarget = null;
         if (removableMonitorTarget)
         {
-            removeTarget = Button(L(nameof(AppStrings.Settings_Hotkeys_Remove_Button)), p);
+            removeTarget = Button(L(nameof(AppStrings.Settings_Hotkeys_Remove_Button)), p)
+                .MapTo(ControlMap.Settings.HotkeysPage.MonitorOffHotkey.RemoveTarget);
             removeTarget.Click += (_, _) =>
             {
                 _settings.Hotkeys.RemoveAll(b => b.Matches(action, currentParameter));
@@ -190,7 +209,8 @@ public sealed partial class BrightnessSettingsWindow
 
         if (removableMonitorTarget)
         {
-            targetCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 240);
+            targetCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 240)
+                .MapTo(ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Target);
             foreach ((string value, string label) in BuildMonitorTargetOptions())
                 targetCombo.Items.Add(new SettingsComboBoxItem(value, label, p));
             if (!string.IsNullOrWhiteSpace(currentParameter)
@@ -359,7 +379,7 @@ public sealed partial class BrightnessSettingsWindow
             content = grid;
         }
 
-        Border card = RawCard(content, p);
+        Border card = RawCard(content, p).MapTo(nodes.Row);
         rows.Add((card, title + "\n" + description));
         stack.Children.Add(card);
         Refresh();
@@ -395,7 +415,17 @@ public sealed partial class BrightnessSettingsWindow
             foreach (BrightnessHotkeyBinding binding in _settings.Hotkeys
                          .Where(h => !h.RemovedByUser && h.Matches(action, currentParameter) && h.IsBound)
                          .OrderBy(h => h.BindingID))
-                entries.Children.Add(BuildHotkeyEntryCard(action, currentParameter, binding, applyResult, Refresh, p));
+            {
+                entries.Children.Add(BuildHotkeyEntryCard(
+                    action,
+                    currentParameter,
+                    binding,
+                    applyResult,
+                    Refresh,
+                    nodes.DeleteBinding,
+                    p));
+            }
+
             entries.IsVisible = entries.Children.Count > 0;
             UpdateAddButtonState();
         }
@@ -407,6 +437,7 @@ public sealed partial class BrightnessSettingsWindow
         BrightnessHotkeyBinding binding,
         HotkeyApplyResult<BrightnessHotkeyAction, BrightnessHotkeyBinding>? applyResult,
         Action refresh,
+        ControlMapNodeID deleteNode,
         SettingsPalette p)
     {
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
@@ -432,7 +463,7 @@ public sealed partial class BrightnessSettingsWindow
         else if (binding.IsBound)
             TrayAppDotNETToolTip.SetTip(status, L(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button(GlyphCatalog.CLOSE, p);
+        SettingsButton delete = Button(GlyphCatalog.CLOSE, p).MapTo(deleteNode);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
@@ -548,4 +579,12 @@ public sealed partial class BrightnessSettingsWindow
 
     private static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> HotkeyModifierOptions =>
         TrayAppDotNETHotkeyModifierOptions.Create(L);
+
+    /// <summary>Control map nodes of one hotkey row; action rows and display power-off rows are separate scopes.</summary>
+    private sealed record HotkeyRowNodes(
+        ControlMapNodeID Row,
+        ControlMapNodeID Modifiers,
+        ControlMapNodeID Key,
+        ControlMapNodeID Add,
+        ControlMapNodeID DeleteBinding);
 }

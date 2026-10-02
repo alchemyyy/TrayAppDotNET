@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -35,6 +36,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         Action<string, string> reportMessage)
         : base(
             title: "Services",
+            ControlMap.Main.ServicesPage.ID,
             CreateSchema(resources),
             processIconService,
             settings,
@@ -47,12 +49,17 @@ internal sealed class ServicesPage : TaskManagerTablePage
         _startProcess = startProcess;
         _confirmDisable = confirmDisable;
         _reportMessage = reportMessage;
-        _startButton = AddHeaderAction(label: "Start", OnStartClick, isEnabled: false);
-        _stopButton = AddHeaderAction(label: "Stop", OnStopClick, isEnabled: false);
-        _restartButton = AddHeaderAction(label: "Restart", OnRestartClick, isEnabled: false);
-        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false);
-        _openServicesButton = AddHeaderAction(label: "Open Services", OnOpenServicesClick);
-        _moreButton = AddMoreAction(OnMoreClick);
+        _startButton = AddHeaderAction(label: "Start", OnStartClick, isEnabled: false)
+            .MapTo(ControlMap.Main.ServicesPage.Start);
+        _stopButton = AddHeaderAction(label: "Stop", OnStopClick, isEnabled: false)
+            .MapTo(ControlMap.Main.ServicesPage.Stop);
+        _restartButton = AddHeaderAction(label: "Restart", OnRestartClick, isEnabled: false)
+            .MapTo(ControlMap.Main.ServicesPage.Restart);
+        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false)
+            .MapTo(ControlMap.Main.ServicesPage.Disable);
+        _openServicesButton = AddHeaderAction(label: "Open Services", OnOpenServicesClick)
+            .MapTo(ControlMap.Main.ServicesPage.OpenServices);
+        _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.ServicesPage.More);
 
         _refreshTimer = new DispatcherTimer { Interval = RefreshInterval };
         _refreshTimer.Tick += OnRefreshTimerTick;
@@ -311,21 +318,69 @@ internal sealed class ServicesPage : TaskManagerTablePage
         {
             WindowsServiceActionState state = WindowsServiceState.GetActionState(service);
             if (!_operationPending && state.CanStart)
-                entries.Add(text: "Start", () => _ = RunActionAsync(WindowsServiceAction.Start, service));
+            {
+                AddServiceActionEntry(
+                    entries,
+                    text: "Start",
+                    WindowsServiceAction.Start,
+                    service,
+                    ControlMap.ServicesMoreMenu.Start);
+            }
+
             if (!_operationPending && state.CanStop)
-                entries.Add(text: "Stop", () => _ = RunActionAsync(WindowsServiceAction.Stop, service));
+            {
+                AddServiceActionEntry(
+                    entries,
+                    text: "Stop",
+                    WindowsServiceAction.Stop,
+                    service,
+                    ControlMap.ServicesMoreMenu.Stop);
+            }
+
             if (!_operationPending && state.CanRestart)
-                entries.Add(text: "Restart", () => _ = RunActionAsync(WindowsServiceAction.Restart, service));
+            {
+                AddServiceActionEntry(
+                    entries,
+                    text: "Restart",
+                    WindowsServiceAction.Restart,
+                    service,
+                    ControlMap.ServicesMoreMenu.Restart);
+            }
+
             if (!_operationPending && state.CanDisable)
-                entries.Add(text: "Disable", () => _ = RunActionAsync(WindowsServiceAction.Disable, service));
+            {
+                AddServiceActionEntry(
+                    entries,
+                    text: "Disable",
+                    WindowsServiceAction.Disable,
+                    service,
+                    ControlMap.ServicesMoreMenu.Disable);
+            }
+
             if (entries.Count > 0) entries.AddSeparator();
         }
 
-        entries.Add(text: "Refresh", () =>
-            _ = RefreshAsync(reportFailure: true, refreshConfiguration: true));
-        entries.Add(text: "Open Services", () => _ = _startProcess("services.msc"));
-        ShowActionMenu(_moreButton, entries.ToList());
+        entries.Add(new ContextMenuEntry(
+            Text: "Refresh",
+            () => _ = RefreshAsync(reportFailure: true, refreshConfiguration: true))
+        {
+            Node = ControlMap.ServicesMoreMenu.Refresh
+        });
+        entries.Add(new ContextMenuEntry(Text: "Open Services", () => _ = _startProcess("services.msc"))
+        {
+            Node = ControlMap.ServicesMoreMenu.OpenServices
+        });
+        ShowActionMenu(_moreButton, ControlMap.ServicesMoreMenu.ID, entries.ToList());
     }
+
+    /// <summary>Adds a More menu entry that runs one action on the selected service.</summary>
+    private void AddServiceActionEntry(
+        ContextMenuEntryBuilder entries,
+        string text,
+        WindowsServiceAction action,
+        WindowsServiceSnapshot service,
+        ControlMapNodeID node) =>
+        entries.Add(new ContextMenuEntry(text, () => _ = RunActionAsync(action, service)) { Node = node });
 
     public override void Dispose()
     {

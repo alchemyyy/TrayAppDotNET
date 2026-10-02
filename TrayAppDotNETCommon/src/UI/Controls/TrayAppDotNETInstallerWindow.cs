@@ -7,6 +7,7 @@ using Avalonia.Media;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -55,15 +56,19 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         _options = options;
         _selectedScope = options.InitialScope;
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETInstallerWindow));
-        _localLocationButton = BuildLocationButton(L(nameof(CommonStrings.Installer_LocalLocation)));
-        _systemLocationButton = BuildLocationButton(L(nameof(CommonStrings.Installer_SystemLocation)));
+        _localLocationButton = BuildLocationButton(L(nameof(CommonStrings.Installer_LocalLocation)))
+            .MapTo(ControlMap.Installer.Location.LocalLocation);
+        _systemLocationButton = BuildLocationButton(L(nameof(CommonStrings.Installer_SystemLocation)))
+            .MapTo(ControlMap.Installer.Location.SystemLocation);
         _installPath = BuildInstallPathText();
         _desktopShortcut = BuildShortcutCheckBox(
-            L(nameof(CommonStrings.Installer_DesktopShortcut)),
-            options.InitialInstallOptions.CreateDesktopShortcut);
+                L(nameof(CommonStrings.Installer_DesktopShortcut)),
+                options.InitialInstallOptions.CreateDesktopShortcut)
+            .MapTo(ControlMap.Installer.Shortcuts.DesktopShortcut);
         _startMenuShortcut = BuildShortcutCheckBox(
-            L(nameof(CommonStrings.Installer_StartMenuShortcut)),
-            options.InitialInstallOptions.CreateStartMenuShortcut);
+                L(nameof(CommonStrings.Installer_StartMenuShortcut)),
+                options.InitialInstallOptions.CreateStartMenuShortcut)
+            .MapTo(ControlMap.Installer.Shortcuts.StartMenuShortcut);
 
         Title = FormatApplicationName(nameof(CommonStrings.Installer_Title_Format));
         Width = TrayAppDotNETDialogChromeLayout.InstallerWindowWidth;
@@ -78,8 +83,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Icon = options.Icon;
 
-        KeyDown += OnWindowKeyDown;
-        _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        this.MapTo(ControlMap.Installer.ID);
+        this.MapCommand(ControlMap.Installer.Dismiss, OnDismiss);
         Closed += OnWindowClosed;
         _windowResources.Add(() => Closed -= OnWindowClosed);
 
@@ -147,11 +152,11 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
 
     private Grid BuildTitleBar(UIResourceScope resources)
     {
-        Grid titleBar = new()
+        Grid titleBar = new Grid
         {
             Background = Brushes.Transparent,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
-        };
+        }.MapTo(ControlMap.Installer.TitleBar.ID);
         titleBar.PointerPressed += OnTitleBarPointerPressed;
         resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
 
@@ -163,7 +168,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         title.Margin = TrayAppDotNETDialogChromeLayout.TitleMargin;
         titleBar.Children.Add(title);
 
-        TrayAppDotNETCaptionCloseButton close = new(_options.Palette);
+        TrayAppDotNETCaptionCloseButton close = new TrayAppDotNETCaptionCloseButton(_options.Palette)
+            .MapTo(ControlMap.Installer.TitleBar.Close);
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Installer_Caption_Close)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
@@ -218,11 +224,11 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
             _options.Palette);
         title.Margin = TrayAppDotNETDialogChromeLayout.InstallerLocationTitleMargin;
 
-        Grid buttons = new()
+        Grid buttons = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
             Margin = TrayAppDotNETDialogChromeLayout.InstallerLocationButtonsMargin
-        };
+        }.MapTo(ControlMap.Installer.Location.ID);
         _localLocationButton.Margin = TrayAppDotNETDialogChromeLayout.InstallerLocationButtonGap;
         _localLocationButton.Click += OnLocalLocationClick;
         resources.Add(() => _localLocationButton.Click -= OnLocalLocationClick);
@@ -251,14 +257,14 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
     {
         SettingsButton install = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Installer_InstallButton)),
-            _options.Palette);
+            _options.Palette).MapTo(ControlMap.Installer.Actions.Install);
         install.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
         install.Click += OnInstallClick;
         resources.Add(() => install.Click -= OnInstallClick);
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Installer_Cancel)),
-            _options.Palette);
+            _options.Palette).MapTo(ControlMap.Installer.Actions.Cancel);
         cancel.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
         cancel.Click += OnCancelClick;
@@ -362,12 +368,11 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         Close();
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    /// <summary>Closes without installing, like Cancel; the control map runs it on Escape.</summary>
+    private void OnDismiss()
     {
-        if (_closed || e.Key != Key.Escape) return;
-
+        if (_closed) return;
         Close();
-        e.Handled = true;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)

@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.UI.Settings.Environmental;
 using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
@@ -289,6 +290,7 @@ public sealed partial class BrightnessSettingsWindow
             Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 8),
             Palette = BuildEnvironmentalEditorPalette(p)
         });
+        curveEditor.MapTo(ControlMap.Settings.EnvironmentalPage.CurveEditor.ID);
         _environmentalCurveEditor = curveEditor;
         stack.Children.Add(curveEditor);
 

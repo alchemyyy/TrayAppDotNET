@@ -14,6 +14,7 @@ public sealed partial class VolumeSettingsWindow
                 ButtonRadius = RadiusMedium,
                 CardRadius = RadiusLarge,
                 UpdatePromptOwnerBackdrop = ConfirmOverlayBackdrop,
+                UpdatePromptNode = ControlMap.UpdatePrompt.ID,
                 L = L,
                 Save = Save,
                 ApplicationName = Constants.ApplicationName,

@@ -1,4 +1,5 @@
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -34,6 +35,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         Action<string, string> reportMessage)
         : base(
             title: "Users",
+            ControlMap.Main.UsersPage.ID,
             CreateSchema(resources),
             processIconService,
             settings,
@@ -49,9 +51,11 @@ internal sealed class UsersPage : TaskManagerTablePage
         _schema = ProcessDataSchema.Create(
             [],
             UserSnapshotBuilder.RequiredColumnMask);
-        _disconnectButton = AddHeaderAction(label: "Disconnect", OnDisconnectClick, isEnabled: false);
-        _manageUsersButton = AddHeaderAction(label: "Manage user accounts", OnManageUsersClick);
-        _moreButton = AddMoreAction(OnMoreClick);
+        _disconnectButton = AddHeaderAction(label: "Disconnect", OnDisconnectClick, isEnabled: false)
+            .MapTo(ControlMap.Main.UsersPage.Disconnect);
+        _manageUsersButton = AddHeaderAction(label: "Manage user accounts", OnManageUsersClick)
+            .MapTo(ControlMap.Main.UsersPage.ManageUserAccounts);
+        _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.UsersPage.More);
     }
 
     private static TaskManagerTableSchema CreateSchema(TaskManagerWindowResources resources) =>
@@ -381,7 +385,10 @@ internal sealed class UsersPage : TaskManagerTablePage
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh));
+        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh)
+        {
+            Node = ControlMap.UsersMoreMenu.Refresh
+        });
         UserGroupSnapshot? group = SelectedRow?.Tag as UserGroupSnapshot;
         if (!_disconnectPending && group?.CanDisconnect == true)
         {
@@ -389,13 +396,16 @@ internal sealed class UsersPage : TaskManagerTablePage
             {
                 if (SelectedRow?.Tag is UserGroupSnapshot selectedGroup)
                     _ = DisconnectAsync(selectedGroup);
-            }));
+            }) { Node = ControlMap.UsersMoreMenu.Disconnect });
         }
 
         entries.Add(new ContextMenuEntry(
             Text: "Manage user accounts",
-            () => _ = _startProcess("ms-settings:otherusers")));
-        ShowActionMenu(_moreButton, entries.ToList());
+            () => _ = _startProcess("ms-settings:otherusers"))
+        {
+            Node = ControlMap.UsersMoreMenu.ManageUserAccounts
+        });
+        ShowActionMenu(_moreButton, ControlMap.UsersMoreMenu.ID, entries.ToList());
     }
 
     public override void Dispose()

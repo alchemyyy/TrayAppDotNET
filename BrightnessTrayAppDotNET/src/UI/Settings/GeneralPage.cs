@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
@@ -34,7 +35,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.ApplyBrightnessOnStartup));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_Autosave_Title)),
             L(nameof(AppStrings.Settings_General_Autosave_Description)),
@@ -44,7 +46,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_Autosave_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.Autosave));
         stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
         commonSection.AddInstallationSection(stack,
@@ -95,7 +98,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_ShowNightLightSlider_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.ShowNightLightSlider));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Title)),
             L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Description)),
@@ -105,7 +109,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_InvertNightLightSlider_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.InvertNightLightSlider));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_Title)),
             L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_Description)),
@@ -115,7 +120,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.TurnOffNightLightAtZero));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_General_NightLightBackend_Title)),
             L(nameof(AppStrings.Settings_General_NightLightBackend_Description)),
@@ -131,7 +137,8 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_General_NightLightBackend_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.NightLightBackend));
         stack.Children.Add(IntCard(
             L(nameof(AppStrings.Settings_General_PDBTimeout_Title)),
             L(nameof(AppStrings.Settings_General_PDBTimeout_Description)),
@@ -143,7 +150,8 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Common_SecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_General_PDBTimeout_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.PDBTimeout));
         stack.Children.Add(IntCard(
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Title)),
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Description)),
@@ -155,7 +163,8 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_General_EnvironmentalTick_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.EnvironmentalTick));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Profiles_Header)), p));
@@ -202,7 +211,8 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.AutoEngageEnvironmentalCurveDelayMinSeconds,
             TimeConstants.AutoEngageEnvironmentalCurveDelayMaxSeconds,
             AutoEngageEnvironmentalCurveDelayBoxWidth,
-            L(nameof(AppStrings.Common_SecondsSuffix)));
+            L(nameof(AppStrings.Common_SecondsSuffix)))
+            .MapTo(ControlMap.Settings.GeneralPage.AutoEngageEnvironmentalCurve.DelaySeconds);
         delayBox.IsVisible = _settings.AutoEngageEnvironmentalCurveEnabled;
         delayBox.Margin = new Thickness(left: 0, top: 0, AutoEngageEnvironmentalCurveControlSpacing, bottom: 0);
         delayBox.ValueChanged += (_, e) =>
@@ -220,7 +230,7 @@ public sealed partial class BrightnessSettingsWindow
                 _settings.AutoEngageEnvironmentalCurveEnabled = enabled;
                 delayBox.IsVisible = enabled;
                 Save();
-            });
+            }).MapTo(ControlMap.Settings.GeneralPage.AutoEngageEnvironmentalCurve.Enabled);
 
         StackPanel controls = TrayAppDotNETSettingsUI.Horizontal(delayBox, toggle);
         return Card(
@@ -268,10 +278,13 @@ public sealed partial class BrightnessSettingsWindow
         TextBlock label = TrayAppDotNETSettingsUI.TitleText((index + 1).ToString(CultureInfo.InvariantCulture), p);
         label.Width = 28;
         label.VerticalAlignment = VerticalAlignment.Center;
-        TextBox nameBox = TrayAppDotNETSettingsUI.TextBox(p, width: 220, entry.Name);
+        TextBox nameBox = TrayAppDotNETSettingsUI.TextBox(p, width: 220, entry.Name)
+            .MapTo(ControlMap.Settings.GeneralPage.ProfileSlot.Name);
         nameBox.LostFocus += (_, _) => CommitProfileName(entry, nameBox.Text);
-        SettingsButton up = Button(GlyphCatalog.CHEVRON_UP.Text, p);
-        SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN.Text, p);
+        SettingsButton up = Button(GlyphCatalog.CHEVRON_UP.Text, p)
+            .MapTo(ControlMap.Settings.GeneralPage.ProfileSlot.MoveUp);
+        SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN.Text, p)
+            .MapTo(ControlMap.Settings.GeneralPage.ProfileSlot.MoveDown);
         up.Width = 32;
         down.Width = 32;
         up.Padding = new Thickness(0);
@@ -283,6 +296,7 @@ public sealed partial class BrightnessSettingsWindow
         up.Click += (_, _) => MoveProfileSlot(index, delta: -1);
         down.Click += (_, _) => MoveProfileSlot(index, delta: 1);
         Grid row = new() { Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 6) };
+        row.MapTo(ControlMap.Settings.GeneralPage.ProfileSlot.ID);
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -129,6 +130,11 @@ public sealed class SettingsMiniToggle : Border
             if (e.Property == IsEnabledProperty)
                 UpdateVisual();
         };
+
+        this.MapActivation(_ =>
+        {
+            if (IsEnabled) IsChecked = !IsChecked;
+        });
 
         UpdateVisual();
     }

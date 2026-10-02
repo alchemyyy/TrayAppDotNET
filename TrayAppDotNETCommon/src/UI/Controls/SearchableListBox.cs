@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Utils;
 using TrayAppDotNETCommon.Visuals;
 
@@ -65,11 +66,16 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     private long _rowGenerationID;
     private int _disposed;
 
-    public SettingsSearchableListBox(SettingsPalette palette)
+    /// <summary>
+    /// Creates the list; node tags it with the SearchableListBox instance it stands for, and the template root
+    /// stands in when an owner has a single instance.
+    /// </summary>
+    public SettingsSearchableListBox(SettingsPalette palette, ControlMapNodeID? node = null)
     {
         _palette = palette;
         _items = new SettingsSearchableListBoxItemCollection(this);
         _rowResources = new UIResourceScope($"{nameof(SettingsSearchableListBox)}.Rows");
+        this.MapTo(node ?? ControlMap.SearchableListBox.ID);
         Width = SearchableListBoxLayout.Width;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
@@ -99,9 +105,10 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             TrayAppDotNETSettingsUI.Brush(palette.Hover),
             TrayAppDotNETSettingsUI.Brush(palette.TextBoxFocused));
-        _searchBox.KeyDown += OnKeyboardNavigation;
+        _searchBox.MapTo(ControlMap.SearchableListBox.Search.SearchText);
 
-        _clearButton = TrayAppDotNETSettingsUI.Button(GlyphCatalog.CHROME_CLOSE, palette);
+        _clearButton = TrayAppDotNETSettingsUI.Button(GlyphCatalog.CHROME_CLOSE, palette)
+            .MapTo(ControlMap.SearchableListBox.Search.ClearSearch);
         _clearButton.Width = SearchableListBoxLayout.ClearButtonWidth;
         _clearButton.Height = SearchableListBoxLayout.ClearButtonHeight;
         _clearButton.MinHeight = SearchableListBoxLayout.ClearButtonHeight;
@@ -120,8 +127,11 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         Children.Add(_searchRow);
 
         _itemsPanel = new StackPanel();
-        _scrollHost =
-            TrayAppDotNETSettingsUI.ScrollHost(_itemsPanel, palette, SearchableListBoxLayout.ScrollHostPadding);
+        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
+            _itemsPanel,
+            palette,
+            SearchableListBoxLayout.ScrollHostPadding,
+            ControlMap.SearchableListBox.ScrollBar.ID);
         _scrollHost.Height = SearchableListBoxLayout.ListHeight;
         _scrollHost.VerticalAlignment = VerticalAlignment.Stretch;
 
@@ -140,7 +150,9 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         Children.Add(_listBorder);
 
         _searchBox.TextChanged += OnSearchTextChanged;
-        KeyDown += OnKeyboardNavigation;
+        this.MapCommand(ControlMap.SearchableListBox.HighlightPrevious, () => MoveActiveItem(-1));
+        this.MapCommand(ControlMap.SearchableListBox.HighlightNext, () => MoveActiveItem(1));
+        this.MapCommand(ControlMap.SearchableListBox.CommitHighlighted, CommitActiveItem);
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         UpdateClearButton();
         RebuildItems();
@@ -391,7 +403,8 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             candidateVisibleItems,
             selectedItem,
             activeItem);
-        StackPanel candidatePanel = new() { Margin = _listContentMargin };
+        StackPanel candidatePanel = new StackPanel { Margin = _listContentMargin }
+            .MapTo(ControlMap.SearchableListBox.Results.ID);
         UIResourceScope candidateResources = new($"{nameof(SettingsSearchableListBox)}.Rows");
         candidateResources.Add(candidatePanel.Children.Clear);
 
@@ -468,29 +481,12 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     }
 
     /// <summary>
-    /// Handles list and search keyboard selection.
+    /// Commits the keyboard-highlighted row, the map's Enter command for the list and its search box.
     /// </summary>
-    private void OnKeyboardNavigation(object? sender, KeyEventArgs e)
+    private void CommitActiveItem()
     {
-        switch (e.Key)
-        {
-            case Key.Down:
-                MoveActiveItem(1);
-                e.Handled = true;
-                break;
-            case Key.Up:
-                MoveActiveItem(-1);
-                e.Handled = true;
-                break;
-            case Key.Enter:
-                if (_activeItem != null)
-                {
-                    CommitItem(_activeItem);
-                    e.Handled = true;
-                }
-
-                break;
-        }
+        if (_activeItem != null)
+            CommitItem(_activeItem);
     }
 
     /// <summary>
@@ -581,8 +577,6 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
-        KeyDown -= OnKeyboardNavigation;
-        _searchBox.KeyDown -= OnKeyboardNavigation;
         _searchBox.TextChanged -= OnSearchTextChanged;
         _clearButton.Click -= OnClearButtonClick;
 
@@ -772,6 +766,10 @@ internal sealed class SettingsSearchableListBoxItemRow : Border, IDisposable
         PointerExited += OnPointerExited;
         PointerPressed += OnPointerPressed;
         KeyDown += OnKeyDown;
+
+        // Keyboard activation commits like Enter; a single click only highlights
+        this.MapTo(ControlMap.SearchableListBox.Results.Item);
+        this.MapActivation(_ => _owner.CommitItem(_item));
 
         UpdateVisual();
     }

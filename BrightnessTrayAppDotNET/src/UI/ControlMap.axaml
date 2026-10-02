@@ -1,0 +1,589 @@
+<ControlMap
+    x:Class="BrightnessTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Surface ID="TrayIcon" Kind="Tray" Source="BrightnessAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click;Ctrl+Click;Alt+Click" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnTrayLeftClick"
+              Description="Shows or hides the flyout; Ctrl and Alt run the configured click actions (default none)" />
+        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick;Ctrl+DoubleClick;Alt+DoubleClick"
+              Event="TrayMessage" Source="BrightnessAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Configured double-click action (default none); the first click still toggles the flyout" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps"
+              Pointer="RightClick;Ctrl+RightClick;Alt+RightClick" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnTrayRightClick"
+              Description="Opens the tray menu unless Ctrl or Alt has a configured action; the keys arrive as
+                           WM_CONTEXTMENU while the notification-area icon has keyboard focus" />
+        <Leaf ID="WheelAction" Kind="Command" Pointer="Wheel;Ctrl+Wheel;Alt+Wheel" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnTrayScrolled"
+              Description="Steps the configured target; defaults are brightness, Ctrl night light, Alt nothing" />
+        <Leaf ID="TouchpadScrollAction" Kind="Command" Pointer="Wheel;Ctrl+Wheel;Alt+Wheel" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnTrayPrecisionTouchpadScrolled"
+              Description="Precision touchpad scroll, WheelAction targets; one step per configured unit count" />
+        <Leaf ID="OpenUpdate" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Clicking the update balloon shows the flyout and its update prompt" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="BrightnessAvaloniaApp.CreateTrayMenuWindow">
+        <Leaf ID="Profile" Kind="ListItem" IsRepeated="True" Event="MenuEntry"
+              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Description="Selects the profile and checks the active one; only with ShowProfileSelectorsInMenu" />
+        <Leaf ID="PowerOffAllDisplays" Kind="ListItem" Event="MenuEntry"
+              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Description="Only with ShowAllDisplaysPowerButton and a power-capable display" />
+        <Leaf ID="PowerOffDisplay" Kind="ListItem" IsRepeated="True" Event="MenuEntry"
+              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Description="One per power-capable display; only with ShowMonitorPowerButtons" />
+        <Leaf ID="OpenSettings" Kind="ListItem" Event="MenuEntry" Source="BrightnessTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="BrightnessTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <!-- Each SelectProfileN command is its own leaf because a map command handler receives no key. The handlers
+         exist only while NumberKeysSwitchProfile is on and profile N exists, so other digits reach the focused
+         control -->
+    <Surface ID="Flyout" Kind="Popup" Source="BrightnessFlyoutWindow.RebuildVisualCore">
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.BrightnessFlyoutWindow"
+              Description="Hides the flyout, also while the confirmation overlay is open" />
+        <Leaf ID="SelectProfile1" Kind="Command" Keys="D1;NumPad1" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands"
+              Description="Applies Footer.Profiles.Profile 1 while NumberKeysSwitchProfile is on" />
+        <Leaf ID="SelectProfile2" Kind="Command" Keys="D2;NumPad2" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile3" Kind="Command" Keys="D3;NumPad3" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile4" Kind="Command" Keys="D4;NumPad4" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile5" Kind="Command" Keys="D5;NumPad5" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile6" Kind="Command" Keys="D6;NumPad6" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile7" Kind="Command" Keys="D7;NumPad7" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile8" Kind="Command" Keys="D8;NumPad8" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="SelectProfile9" Kind="Command" Keys="D9;NumPad9" Event="MapCommand"
+              Source="BrightnessFlyoutWindow.MapProfileNumberCommands" />
+        <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+              Source="BrightnessFlyoutWindow.OnRootPointerPressed"
+              Description="Dragging a non-interactive part of the frame moves the flyout while undocked" />
+        <Leaf ID="Update" Kind="Button" Event="Callback" Source="BrightnessFlyoutWindow.AddFloatingButtons"
+              Description="Floats over the top-right corner of the first display row, left of Undock; only while an
+                           update is available and shown in the flyout" />
+        <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
+              Source="FlyoutUndockButtonController.OnPointerReleased"
+              Description="Floats over the top-right corner; click undocks or redocks, drag undocks and moves; hidden
+                           without AllowFlyoutUndock" />
+        <Scope ID="Displays" Source="BrightnessFlyoutWindow.BuildRows"
+               Description="Scrolling rows: displays (with ShowIndividualSliders), then master, then night light">
+            <Scope ID="Monitor" IsRepeated="True" Source="BrightnessFlyoutWindow.BuildRow">
+                <Leaf ID="Enabled" Kind="Toggle" Pointer="Click;Ctrl+Click" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildRowIconButton"
+                      Description="Display icon; turns the slider on or off; Ctrl+Click hard-powers-off a failed or
+                                   degraded DDC display after a one-time warning" />
+                <Leaf ID="StopwatchMinutes" Kind="Number" Pointer="Wheel" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchNumberBox"
+                      Description="Minutes until the curve re-engages; only while the stopwatch runs" />
+                <Leaf ID="Stopwatch" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchButton"
+                      Description="Re-engage timer for a manual curve override; shown only during an override" />
+                <Leaf ID="Power" Kind="Button" Event="Callback" Source="BrightnessFlyoutWindow.BuildRow"
+                      Description="Toggles DDC power; only with ShowFlyoutMonitorPowerButtons on a capable display" />
+                <Leaf ID="CurveMode" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveModeButton"
+                      Description="Toggles curve control versus manual override; shown while the curve is on" />
+                <Leaf ID="Brightness" Kind="Slider" Pointer="Drag;Wheel;Ctrl+Wheel;DoubleClick" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.CreateSlider"
+                      Description="Ctrl+Wheel takes the coarse step; double-click re-engages a released curve" />
+            </Scope>
+            <Scope ID="Master" Source="BrightnessFlyoutWindow.BuildRow" Description="Only with ShowMasterSlider">
+                <Leaf ID="Sync" Kind="Button" Pointer="Click;Ctrl+Click" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildRowIconButton"
+                      Description="Master icon; syncs displays to master, Ctrl+Click to the brightest display" />
+                <Leaf ID="StopwatchMinutes" Kind="Number" Pointer="Wheel" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchNumberBox" />
+                <Leaf ID="Stopwatch" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchButton" />
+                <Leaf ID="Curve" Kind="Toggle" Event="Callback" Source="BrightnessFlyoutWindow.BuildRow"
+                      Description="Turns the brightness curve on or off" />
+                <Leaf ID="CurveMode" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveModeButton" />
+                <Leaf ID="Brightness" Kind="Slider" Pointer="Drag;Wheel;Ctrl+Wheel;DoubleClick" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.CreateSlider"
+                      Description="Moves every participating display, keeping its offset" />
+            </Scope>
+            <Scope ID="NightLight" Source="BrightnessFlyoutWindow.BuildRow"
+                   Description="Only with ShowNightLightSlider">
+                <Leaf ID="Enabled" Kind="Toggle" Event="Callback" Source="BrightnessFlyoutWindow.BuildRowIconButton"
+                      Description="Bulb icon; turns Night Light on or off; disabled when unsupported" />
+                <Leaf ID="StopwatchMinutes" Kind="Number" Pointer="Wheel" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchNumberBox" />
+                <Leaf ID="Stopwatch" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveStopwatchButton" />
+                <Leaf ID="Curve" Kind="Toggle" Event="Callback" Source="BrightnessFlyoutWindow.BuildRow"
+                      Description="Turns the night light curve on or off" />
+                <Leaf ID="CurveMode" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildCurveModeButton" />
+                <Leaf ID="Strength" Kind="Slider" Pointer="Drag;Wheel;Ctrl+Wheel;DoubleClick" Event="ValueChanged"
+                      Source="BrightnessFlyoutWindow.CreateSlider" />
+            </Scope>
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="BrightnessFlyoutWindow.BuildRows"
+                  Description="ScrollViewer with no app handler; its vertical bar shows when the rows overflow" />
+        </Scope>
+        <Scope ID="Footer" Source="BrightnessFlyoutWindow.BuildFooter">
+            <Scope ID="Profiles" Tab="Once" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
+                <Leaf ID="Profile" Kind="Option" IsRepeated="True" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildProfileFooterButton"
+                      Description="Applies the profile and its slider mode; hovering previews it on the sliders" />
+                <Leaf ID="SaveProfile" Kind="Button" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildSaveProfileButton"
+                      Description="After the profile buttons in their row; only when Autosave is off; dimmed without
+                                   unsaved changes" />
+            </Scope>
+            <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
+                <Leaf ID="EnvironmentalCurves" Kind="Toggle" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildFooter"
+                      Description="Turns both curves on or off; only with ShowEnvironmentalCurvesButton" />
+                <Leaf ID="PowerOffAllDisplays" Kind="Button" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildFooter"
+                      Description="Only with ShowFlyoutFooterPowerButton and a power-capable display" />
+                <Leaf ID="OpenDisplaySettings" Kind="Button" Event="Callback"
+                      Source="BrightnessFlyoutWindow.BuildFooter"
+                      Description="Opens ms-settings:display; only with ShowFlyoutDisplaySettingsButton" />
+                <Leaf ID="OpenSettings" Kind="Button" Event="Callback" Source="BrightnessFlyoutWindow.BuildFooter" />
+            </Scope>
+        </Scope>
+        <Scope ID="ConfirmOverlay" Tab="Cycle" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildConfirmOverlay"
+               Description="Modal hard power-off warning and result; Cancel is hidden for the result message">
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="BrightnessFlyoutWindow.ShowConfirmOverlay" />
+            <Leaf ID="Confirm" Kind="Button" Event="Click" Source="BrightnessFlyoutWindow.ShowConfirmOverlay" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="Settings" Template="SettingsShell" Source="BrightnessSettingsWindow.CreatePageDescriptors">
+        <Scope ID="GeneralPage" Source="BrightnessSettingsWindow.BuildGeneralPage">
+            <Scope ID="Startup" Template="StartupCard" Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="ApplyBrightnessOnStartup" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="Autosave" Kind="Toggle" Event="Callback" Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Scope ID="AutoEngageEnvironmentalCurve"
+                   Source="BrightnessSettingsWindow.BuildAutoEngageEnvironmentalCurveCard">
+                <Leaf ID="DelaySeconds" Kind="Number" Event="ValueChanged"
+                      Source="BrightnessSettingsWindow.BuildAutoEngageEnvironmentalCurveCard"
+                      Description="Visible only while auto-engage is on" />
+                <Leaf ID="Enabled" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildAutoEngageEnvironmentalCurveCard" />
+            </Scope>
+            <Scope ID="Installation" Template="InstallationSection"
+                   Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Scope ID="Rendering" Template="RenderingSection" Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="ShowNightLightSlider" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="InvertNightLightSlider" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="TurnOffNightLightAtZero" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="NightLightBackend" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="PDBTimeout" Kind="Number" Event="Callback" Source="BrightnessSettingsWindow.BuildGeneralPage"
+                  Description="Night Light symbol download timeout in seconds" />
+            <Leaf ID="EnvironmentalTick" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildGeneralPage"
+                  Description="Environmental curve evaluation interval in milliseconds" />
+            <Scope ID="ProfileSlot" IsRepeated="True" Source="BrightnessSettingsWindow.BuildProfileSlotRow"
+                   Description="One row per profile in the Profiles card">
+                <Leaf ID="Name" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.BuildProfileSlotRow"
+                      Description="Enter or focus loss commits the profile name" />
+                <Leaf ID="MoveUp" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.BuildProfileSlotRow" />
+                <Leaf ID="MoveDown" Kind="Button" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildProfileSlotRow" />
+            </Scope>
+        </Scope>
+        <Scope ID="FlyoutPage" Source="BrightnessSettingsWindow.BuildFlyoutPage">
+            <Leaf ID="RestoreUndockState" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowUndockButton" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ClampUndockedToScreen" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage"
+                  Description="Visible only with ShowUndockButton" />
+            <Leaf ID="ShowMonitorPowerButtons" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowDisplayNumberBadge" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowDisplaySettingsButton" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowPowerButton" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowMasterSlider" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowIndividualSliders" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowEnvironmentalCurvesButton" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowNightLightKelvinLabel" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="PowerButtonOnlyEnabled" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="NumberKeysSwitchProfile" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="MasterSliderTracking" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="PreserveSliderOffsets" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="MouseWheelStep" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildFlyoutPage" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="BrightnessSettingsWindow.BuildTrayIconPage">
+            <Leaf ID="MouseWheel" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="MouseWheelStep" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage"
+                  Description="Same setting as FlyoutPage.MouseWheelStep; visible only with MouseWheel" />
+            <Leaf ID="PrecisionTouchpadScroll" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage"
+                  Description="Visible only with MouseWheel" />
+            <Leaf ID="PrecisionTouchpadUnitsPerScrollStep" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage"
+                  Description="Visible only with MouseWheel and PrecisionTouchpadScroll" />
+            <Leaf ID="ShowProfileSelectors" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowIndividualPowerSelectors" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ShowAllDisplaysPowerSelector" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="MenuPosition" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="WheelAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddWheelActionCard"
+                  Description="Disabled while MouseWheel is off" />
+            <Leaf ID="CtrlWheelAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddWheelActionCard" />
+            <Leaf ID="AltWheelAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddWheelActionCard" />
+            <Leaf ID="CtrlLeftClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltLeftClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlRightClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltRightClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="DoubleClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="CtrlDoubleClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+            <Leaf ID="AltDoubleClickAction" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.AddTrayClickActionCard" />
+        </Scope>
+        <Scope ID="MonitorsPage" Source="BrightnessSettingsWindow.BuildMonitorsPage">
+            <Leaf ID="BrightnessRate" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="ValidationDwell" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="ValidationAttempts" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="DDCOperationTimeout" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="AllowBlindDDCWrites" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="PowerOffMode" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="IdentityStrategy" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="DefaultSort" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildMonitorsPage" />
+            <Leaf ID="ClearDisplays" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.BuildMonitorsPage"
+                  Description="Confirms, then forgets display order, overrides and known displays" />
+            <Scope ID="Display" IsRepeated="True" Source="BrightnessSettingsWindow.BuildMonitorOverrideCard"
+                   Description="One override card per live, known or overridden display">
+                <Leaf ID="Name" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.AddTextOverride"
+                      Description="Enter or focus loss commits" />
+                <Leaf ID="MinBrightnessOverride" Kind="Number" Event="ValueChanged"
+                      Source="BrightnessSettingsWindow.AddNumberOverride" />
+                <Leaf ID="MaxBrightnessOverride" Kind="Number" Event="ValueChanged"
+                      Source="BrightnessSettingsWindow.AddNumberOverride" />
+                <Leaf ID="ValidationDwellOverride" Kind="Number" Event="ValueChanged"
+                      Source="BrightnessSettingsWindow.AddNumberOverride" />
+                <Leaf ID="BrightnessDwellOverride" Kind="Number" Event="ValueChanged"
+                      Source="BrightnessSettingsWindow.AddNumberOverride" />
+                <Leaf ID="PowerOffVCPOverride" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.AddTextOverride"
+                      Description="Enter or focus loss commits" />
+            </Scope>
+        </Scope>
+        <Scope ID="HotkeysPage" Source="BrightnessSettingsWindow.BuildHotkeysPage">
+            <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="BrightnessSettingsWindow.BuildHotkeysPage"
+                  Description="Filters the hotkey cards by title and description" />
+            <Scope ID="Hotkey" IsRepeated="True" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                   Description="One card per fixed action and per profile slot">
+                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
+                      Source="BrightnessSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                      Description="Read-only capture box; a press records the key; modifier keys, Escape and F12 are
+                                   swallowed; Tab and Enter are captured as keys" />
+                <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                      Description="Enabled once a modifier and a key are chosen and the binding is new" />
+                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildHotkeyEntryCard"
+                      Description="One per bound hotkey; deleting a default leaves a tombstone" />
+            </Scope>
+            <Scope ID="MonitorOffHotkey" IsRepeated="True" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                   Description="One card per display power-off target">
+                <Leaf ID="Target" Kind="Select" Event="SelectionChanged" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                      Description="Display number or EDID target; choosing a target already in use reverts" />
+                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
+                      Source="BrightnessSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                      Description="Same capture behavior as Hotkey.Key" />
+                <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow" />
+                <Leaf ID="RemoveTarget" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                      Description="Removes the target with all of its bindings" />
+                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildHotkeyEntryCard" />
+            </Scope>
+            <Leaf ID="AddMonitorOffBinding" Kind="Button" Event="Click"
+                  Source="BrightnessSettingsWindow.AddMonitorOffBindingButton"
+                  Description="Adds a MonitorOffHotkey card for the first unused target" />
+        </Scope>
+        <Scope ID="EnvironmentalPage" Source="BrightnessSettingsWindow.BuildEnvironmentalPageCandidate">
+            <Scope ID="CurveEditor" IsFocusable="True"
+                   Source="BrightnessSettingsWindow.BuildEnvironmentalPageCandidate"
+                   Description="Painted 24-hour curve editor; focus selects the first node; keys are inactive while
+                                previewing another date or dragging">
+                <Leaf ID="DisabledPeriodStart" Kind="Region" IsTabStop="False" Pointer="Drag" Event="OnPointerPressed"
+                      Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Pin above the plot; only while the disabled period is on" />
+                <Leaf ID="DisabledPeriodEnd" Kind="Region" IsTabStop="False" Pointer="Drag" Event="OnPointerPressed"
+                      Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Pin above the plot; only while the disabled period is on" />
+                <Leaf ID="LimitLine" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Drag"
+                      Event="OnPointerPressed" Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Offset mode minimum and maximum line and label per visible series" />
+                <Leaf ID="Node" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Drag;RightClick"
+                      Event="OnPointerPressed" Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Curve node; drag moves it, right-click deletes it unless it is an endpoint" />
+                <Leaf ID="Plot" Kind="Region" IsTabStop="False" Pointer="Click;Drag" Event="OnPointerPressed"
+                      Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Empty plot area; a press adds a node to the nearest visible curve and drags it" />
+                <Leaf ID="ExitPreview" Kind="Region" IsTabStop="False" Pointer="Click" Event="OnPointerPressed"
+                      Source="EnvironmentalCurveEditor.OnPointerPressed"
+                      Description="Painted bottom-right button while previewing another date; returns to today" />
+                <Leaf ID="SelectNextNode" Kind="Command" FocusKeys="Tab" Event="OnKeyDown"
+                      Source="EnvironmentalCurveEditor.OnKeyDown"
+                      Description="Wraps around and never lets Tab leave the editor; the editor handles Tab itself
+                                   because Avalonia's Tab navigation runs before the map" />
+                <Leaf ID="SelectPreviousNode" Kind="Command" FocusKeys="Shift+Tab" Event="OnKeyDown"
+                      Source="EnvironmentalCurveEditor.OnKeyDown" />
+                <Leaf ID="NudgeNodeUp" Kind="Command" Keys="Up;Shift+Up;Ctrl+Up" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands"
+                      Description="Fine step; Shift one value unit; Ctrl coarse step. One leaf per direction because a
+                                   map command handler receives the modifiers but not the key" />
+                <Leaf ID="NudgeNodeDown" Kind="Command" Keys="Down;Shift+Down;Ctrl+Down" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands" />
+                <Leaf ID="NudgeNodeLeft" Kind="Command" Keys="Left;Shift+Left;Ctrl+Left" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands"
+                      Description="Fine step; Shift one minute; Ctrl coarse step; endpoints move only vertically" />
+                <Leaf ID="NudgeNodeRight" Kind="Command" Keys="Right;Shift+Right;Ctrl+Right" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands" />
+                <Leaf ID="InsertNode" Kind="Command" Keys="Space" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands"
+                      Description="Adds a node beside the selected one" />
+                <Leaf ID="DeleteNode" Kind="Command" Keys="Delete;Back" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands"
+                      Description="Deletes the selected node unless it is an endpoint" />
+                <Leaf ID="ClearSelection" Kind="Command" Keys="Escape" Event="MapCommand"
+                      Source="EnvironmentalCurveEditor.MapKeyboardCommands" />
+            </Scope>
+            <Leaf ID="Profile" Kind="Select" Event="SelectionChanged"
+                  Source="BrightnessSettingsWindow.BuildEnvironmentalProfileRow"
+                  Description="Profile whose curve the editor shows" />
+            <Scope ID="Mode" Source="BrightnessSettingsWindow.BuildEnvironmentalModeRows">
+                <Leaf ID="OffsetMode" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalModeRows" />
+                <Leaf ID="FollowTheSun" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalModeRows" />
+                <Leaf ID="UseDaylightSavings" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalModeRows" />
+            </Scope>
+            <Scope ID="DisabledPeriod" Source="BrightnessSettingsWindow.BuildEnvironmentalDisabledPeriodRows">
+                <Leaf ID="Enabled" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalDisabledPeriodRows" />
+                <Leaf ID="FollowTheSun" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalDisabledPeriodRows" />
+                <Leaf ID="Start" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalDisabledPeriodRows"
+                      Description="Start time; Enter or focus loss commits" />
+                <Leaf ID="End" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalDisabledPeriodRows"
+                      Description="End time; Enter or focus loss commits" />
+            </Scope>
+            <Leaf ID="ResetCurves" Kind="Button" Event="Click"
+                  Source="BrightnessSettingsWindow.BuildEnvironmentalResetButton"
+                  Description="Confirms, then restores the default curves" />
+            <Scope ID="Visibility" Source="BrightnessSettingsWindow.BuildEnvironmentalVisibilityRows">
+                <Leaf ID="ShowBrightnessCurve" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalVisibilityRows" />
+                <Leaf ID="ShowNightLightCurve" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalVisibilityRows" />
+                <Leaf ID="ShowSunOverlay" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalVisibilityRows" />
+                <Leaf ID="ShowCursorReadout" Kind="Toggle" Event="Callback"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalVisibilityRows" />
+            </Scope>
+            <Scope ID="PreviewDate" Source="BrightnessSettingsWindow.BuildEnvironmentalDateRow">
+                <Leaf ID="Date" Kind="Text" FocusKeys="Up;Down;Ctrl+Up;Ctrl+Down" Pointer="Wheel;Ctrl+Wheel"
+                      Event="LostFocus" Source="BrightnessSettingsWindow.BuildEnvironmentalDateRow"
+                      Description="Up and Down step a day, with Ctrl a month; the wheel steps only while focused;
+                                   Enter or focus loss commits a typed date" />
+                <Leaf ID="PickDate" Kind="Button" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalDateRow"
+                      Description="Opens or closes the PreviewDateCalendar popup" />
+            </Scope>
+            <Leaf ID="PreviewSweep" Kind="Button" Event="Click"
+                  Source="BrightnessSettingsWindow.BuildEnvironmentalPreviewControls"
+                  Description="Starts or cancels a 24-hour sweep on the displays; enabled while a curve is on" />
+            <Leaf ID="Smoothness" Kind="Number" Pointer="Wheel" Event="ValueChanged"
+                  Source="BrightnessSettingsWindow.BuildEnvironmentalSmoothnessCard" />
+            <Scope ID="GeoLocation" Source="BrightnessSettingsWindow.BuildEnvironmentalLocationCard">
+                <Leaf ID="ApproxFromIP" Kind="Button" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalLocationCard"
+                      Description="Looks up an approximate location over the network" />
+                <Leaf ID="PickOnMap" Kind="Button" Event="Click"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalLocationCard"
+                      Description="Opens the MapPicker window" />
+                <Leaf ID="Latitude" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalLocationCard"
+                      Description="Enter or focus loss commits both coordinates" />
+                <Leaf ID="Longitude" Kind="Text" Event="LostFocus"
+                      Source="BrightnessSettingsWindow.BuildEnvironmentalLocationCard"
+                      Description="Enter or focus loss commits both coordinates" />
+            </Scope>
+        </Scope>
+        <Scope ID="ThemePage" Source="BrightnessSettingsWindow.BuildThemePage">
+            <Leaf ID="ContextMenuFontSize" Kind="Number" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="ThemeStyle" Kind="Select" Event="Callback" Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="TextColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="SliderIndicator" Kind="Select" Event="SelectionChanged"
+                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="FooterBackgroundColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="TrayIconStyle" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Leaf ID="DynamicIconTracking" Kind="Select" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage"
+                  Description="Only with the dynamic tray icon style" />
+            <Leaf ID="TrackEnabledOnly" Kind="Toggle" Event="Callback"
+                  Source="BrightnessSettingsWindow.BuildThemePage"
+                  Description="Only with the dynamic tray icon style" />
+            <Scope ID="StaticIconColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage"
+                   Description="Only with the static tray icon style" />
+            <Scope ID="BrightColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage"
+                   Description="Dynamic style; tray icon color at full brightness" />
+            <Scope ID="DimColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage"
+                   Description="Dynamic style; tray icon color at zero brightness" />
+            <Scope ID="BrightnessCurveColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="NightLightCurveColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="CurrentTimeMarkerColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="TwilightBackdropColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="NightBackdropColor" Template="VariantColorCard"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="GridLineColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="BrightnessSettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="PreviewDateCalendar" Kind="Popup"
+             Source="BrightnessSettingsWindow.BuildEnvironmentalSunOverlayDatePopup"
+             Description="Light-dismiss popup anchored to Settings.EnvironmentalPage.PreviewDate.PickDate">
+        <Leaf ID="Calendar" Kind="Select" Pointer="Click" Event="SelectedDatesChanged"
+              Source="BrightnessSettingsWindow.BuildEnvironmentalSunOverlayCalendar"
+              Description="Avalonia Calendar; a selection previews the date; Enter or a day click applies and closes,
+                           Escape closes; both return focus to the date box" />
+    </Surface>
+
+    <Surface ID="MapPicker" Source="EnvironmentalMapPickerWindow.BuildContent"
+             Description="Owned window opened by Settings.EnvironmentalPage.GeoLocation.PickOnMap; closing hides it">
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="EnvironmentalMapPickerWindow.BuildContent">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="EnvironmentalMapPickerWindow.BuildContent" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.BuildContent" />
+        </Scope>
+        <Scope ID="Map" IsFocusable="True" Source="EnvironmentalMapPickerWindow.BuildMapViewport"
+               Description="Painted world map; focusable but without key handling">
+            <Leaf ID="Pin" Kind="Region" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="EnvironmentalMapPickerCanvas.OnPointerPressed"
+                  Description="Dragging the pin moves it; near the edges the map auto-pans" />
+            <Leaf ID="Viewport" Kind="Region" IsTabStop="False" Pointer="Click;Drag;Wheel" Event="PointerPressed"
+                  Source="EnvironmentalMapPickerCanvas.OnPointerPressed"
+                  Description="Click places the pin, right-button drag pans, the wheel zooms at the cursor" />
+        </Scope>
+        <Scope ID="Coordinate" Source="EnvironmentalMapPickerWindow.BuildCoordinateHud">
+            <Leaf ID="Apply" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.BuildCoordinateHud"
+                  Description="Applies the pin's coordinate to the Environmental page and hides the window" />
+            <Leaf ID="Abort" Kind="Button" Keys="Escape" KeyScope="MapPicker" Event="Click"
+                  Source="EnvironmentalMapPickerWindow.BuildCoordinateHud"
+                  Description="Hides without applying; Escape anywhere in the window runs this button" />
+        </Scope>
+        <Scope ID="MapHUD" Tab="Once" Arrows="Spatial" Source="EnvironmentalMapPickerWindow.BuildMapHud">
+            <Leaf ID="PanUp" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="ZoomIn" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="PanLeft" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="PanRight" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="ZoomOut" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="PanDown" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton" />
+            <Leaf ID="CenterPin" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.AddHudButton"
+                  Description="Moves the pin to the viewport center" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation"
+             Source="BrightnessFlyoutWindow.ShowUpdateConfirmation"
+             Description="Opened by Flyout.Update, TrayIcon.OpenUpdate and the About page" />
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"
+             Description="Opened by the VariantColorCard swatches on the Theme page" />
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="BrightnessAvaloniaApp.ShowUninstallerWindow" />
+    <Surface ID="Installer" Template="Installer" Source="BrightnessAvaloniaApp.OnFrameworkInitializationCompleted"
+             Description="Installer mode only" />
+
+    <Surface ID="Global" Kind="Global" Source="BrightnessAvaloniaApp.HandleHotkey"
+             Description="RegisterHotKey actions in Hotkeys page order; every binding is user configured">
+        <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey" />
+        <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey" />
+        <Leaf ID="FullBright" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Sets participating displays to 100 percent, a repeat restores; default Ctrl+Alt+Win+F" />
+        <Leaf ID="FullDim" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Sets participating displays to 0 percent, a repeat restores them" />
+        <Leaf ID="IncrementMasterBrightness" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Steps every display up by 2" />
+        <Leaf ID="DecrementMasterBrightness" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Steps every display down by 2" />
+        <Leaf ID="NormalizeBrightnesses" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Sets participating displays to the master value" />
+        <Leaf ID="ToggleNightLight" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey" />
+        <Leaf ID="IncrementNightLight" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Steps night light strength up by 2" />
+        <Leaf ID="DecrementNightLight" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey"
+              Description="Steps night light strength down by 2" />
+        <Leaf ID="PowerOffAllMonitors" Kind="Command" Event="Hotkey" Source="BrightnessAvaloniaApp.HandleHotkey" />
+        <Leaf ID="ProfileSelect" Kind="Command" IsRepeated="True" Event="Hotkey"
+              Source="BrightnessAvaloniaApp.HandleHotkey" Description="One per profile slot" />
+        <Leaf ID="MonitorOff" Kind="Command" IsRepeated="True" Event="Hotkey"
+              Source="BrightnessAvaloniaApp.HandleHotkey" Description="One per display number or EDID target" />
+    </Surface>
+</ControlMap>

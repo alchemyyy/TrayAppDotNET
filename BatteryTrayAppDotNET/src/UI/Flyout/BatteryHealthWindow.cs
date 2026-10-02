@@ -1,9 +1,9 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using BatteryTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace BatteryTrayAppDotNET.UI.Flyout;
 
@@ -34,6 +34,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
         ShowInTaskbar = false;
         Background = Brushes.Transparent;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        this.MapTo(ControlMap.BatteryHealth.ID);
+        this.MapCommand(ControlMap.BatteryHealth.Dismiss, () => Close());
 
         try
         {
@@ -76,7 +78,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
         body.Children.Add(metrics);
 
         SettingsButton close = TrayAppDotNETSettingsUI.Button(
-            LocalizationManager.Instance[nameof(CommonStrings.UpdateDialog_Close)], palette);
+            LocalizationManager.Instance[nameof(CommonStrings.UpdateDialog_Close)], palette)
+            .MapTo(ControlMap.BatteryHealth.Close);
         close.HorizontalAlignment = HorizontalAlignment.Right;
         if (!_settings.EnableRoundedCorners) close.CornerRadius = default;
         close.Click += OnCloseClick;
@@ -151,14 +154,6 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     {
         base.OnOpened(e);
         _closeButton?.Focus();
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-        if (e.Key != Key.Escape) return;
-        e.Handled = true;
-        Close();
     }
 
     protected override void OnClosed(EventArgs e)

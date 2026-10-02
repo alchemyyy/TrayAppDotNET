@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -120,6 +121,14 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
 
         ClipToBounds = true;
         Focusable = true;
+        this.MapTo(ControlMap.TaskManagerTablePage.TableViewport.Table.ID);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.CollapseGroup, CollapseSelectedGroup);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.ExpandGroup, ExpandSelectedGroup);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.SelectPreviousRow, SelectPreviousRow);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.SelectNextRow, SelectNextRow);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.SelectFirstRow, SelectFirstRow);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.SelectLastRow, SelectLastRow);
+        this.MapCommand(ControlMap.TaskManagerTablePage.TableViewport.Table.ActivateRow, ActivateSelectedRow);
     }
 
     public event Action<TaskManagerTableRow?>? SelectedRowChanged;
@@ -454,50 +463,63 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         InvalidateVisual();
     }
 
-    protected override void OnKeyDown(KeyEventArgs eventArgs)
+    /// <summary>Selects the previous visible row, or the first when none is selected.</summary>
+    private void SelectPreviousRow()
     {
-        base.OnKeyDown(eventArgs);
-        if (eventArgs.Handled || _visibleRows.Count == 0) return;
+        if (_visibleRows.Count == 0) return;
 
         int selectedIndex = FindVisibleRowIndex(_selectedRowKey);
-        switch (eventArgs.Key)
-        {
-            case Key.Up:
-                SelectVisibleIndex(Math.Max(val1: 0, selectedIndex < 0 ? 0 : selectedIndex - 1));
-                break;
-            case Key.Down:
-                SelectVisibleIndex(Math.Min(
-                    _visibleRows.Count - 1,
-                    selectedIndex < 0 ? 0 : selectedIndex + 1));
-                break;
-            case Key.Home:
-                SelectVisibleIndex(0);
-                break;
-            case Key.End:
-                SelectVisibleIndex(_visibleRows.Count - 1);
-                break;
-            case Key.Left:
-                if (SelectedRow is not { IsGroup: true } leftGroup) return;
-                _collapsedGroupKeys.Add(leftGroup.Key);
-                RebuildProjection(false);
-                break;
-            case Key.Right:
-                if (SelectedRow is not { IsGroup: true } rightGroup) return;
-                _collapsedGroupKeys.Remove(rightGroup.Key);
-                RebuildProjection(false);
-                break;
-            case Key.Enter:
-                if (SelectedRow is not { } selectedRow) return;
-                if (selectedRow.IsGroup)
-                    ToggleGroup(selectedRow.Key);
-                else
-                    RowActivated?.Invoke(selectedRow);
-                break;
-            default:
-                return;
-        }
+        SelectVisibleIndex(Math.Max(val1: 0, selectedIndex < 0 ? 0 : selectedIndex - 1));
+    }
 
-        eventArgs.Handled = true;
+    /// <summary>Selects the next visible row, or the first when none is selected.</summary>
+    private void SelectNextRow()
+    {
+        if (_visibleRows.Count == 0) return;
+
+        int selectedIndex = FindVisibleRowIndex(_selectedRowKey);
+        SelectVisibleIndex(Math.Min(_visibleRows.Count - 1, selectedIndex < 0 ? 0 : selectedIndex + 1));
+    }
+
+    private void SelectFirstRow()
+    {
+        if (_visibleRows.Count == 0) return;
+
+        SelectVisibleIndex(0);
+    }
+
+    private void SelectLastRow()
+    {
+        if (_visibleRows.Count == 0) return;
+
+        SelectVisibleIndex(_visibleRows.Count - 1);
+    }
+
+    private void CollapseSelectedGroup()
+    {
+        if (_visibleRows.Count == 0 || SelectedRow is not { IsGroup: true } group) return;
+
+        _collapsedGroupKeys.Add(group.Key);
+        RebuildProjection(false);
+    }
+
+    private void ExpandSelectedGroup()
+    {
+        if (_visibleRows.Count == 0 || SelectedRow is not { IsGroup: true } group) return;
+
+        _collapsedGroupKeys.Remove(group.Key);
+        RebuildProjection(false);
+    }
+
+    /// <summary>Toggles a selected group row; any other selected row raises RowActivated for the page.</summary>
+    private void ActivateSelectedRow()
+    {
+        if (_visibleRows.Count == 0 || SelectedRow is not { } selectedRow) return;
+
+        if (selectedRow.IsGroup)
+            ToggleGroup(selectedRow.Key);
+        else
+            RowActivated?.Invoke(selectedRow);
     }
 
     protected override void ApplyTaskManagerGridMetrics(double fontSize, double rowHeight)

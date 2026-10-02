@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
@@ -55,6 +56,8 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         Background = Brushes.Transparent;
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        this.MapTo(ControlMap.ProcessColumnProperties.ID);
+        this.MapCommand(ControlMap.ProcessColumnProperties.Dismiss, Dismiss);
 
         ContentStack = new StackPanel();
         _nicknameTextBox = TrayAppDotNETSettingsUI.TextBox(
@@ -63,6 +66,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
             Setting.Nickname);
         _nicknameTextBox.PlaceholderText = definition.Title;
         _nicknameTextBox.TextChanged += OnNicknameTextChanged;
+        _nicknameTextBox.MapTo(ControlMap.ProcessColumnProperties.Nickname);
         AddCard(
             title: "Column nickname",
             description: "Leave blank to use the original column name.",
@@ -78,19 +82,21 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
                 {
                     Setting.ShowLiveTotal = isChecked;
                     Publish();
-                });
+                }).MapTo(ControlMap.ProcessColumnProperties.ShowLiveTotal);
             AddCard(
                 title: "Show live total",
                 description: "Show the live aggregate for all processes before the column name.",
                 liveTotalToggle);
         }
 
-        _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
+        _closeButton = new TrayAppDotNETCaptionCloseButton(palette)
+            .MapTo(ControlMap.ProcessColumnProperties.TitleBar.Close);
         _closeButton.Click += OnCloseClick;
         TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
 
-        _titleBar = BuildTitleBar(definition.Title, palette, WindowResources, _closeButton);
+        _titleBar = BuildTitleBar(definition.Title, palette, WindowResources, _closeButton)
+            .MapTo(ControlMap.ProcessColumnProperties.TitleBar.ID);
         _titleBar.PointerPressed += OnTitleBarPointerPressed;
 
         Border rootBorder = BuildRoot(
@@ -106,7 +112,6 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         _body = (Border)_chrome.Children[1];
         _titleText = (TextBlock)_titleBar.Children[0];
 #endif
-        KeyDown += OnWindowKeyDown;
         Closed += OnClosed;
     }
 
@@ -295,12 +300,10 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         if (Volatile.Read(ref _disposed) == 0) Close();
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
+    // Escape anywhere in the window, like Close; the control map dispatches it
+    private void Dismiss()
     {
-        if (Volatile.Read(ref _disposed) != 0 || eventArgs.Key != Key.Escape) return;
-
-        Close();
-        eventArgs.Handled = true;
+        if (Volatile.Read(ref _disposed) == 0) Close();
     }
 
     private void OnClosed(object? sender, EventArgs eventArgs) => Dispose();
@@ -310,7 +313,6 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
         Closed -= OnClosed;
-        KeyDown -= OnWindowKeyDown;
         _titleBar.PointerPressed -= OnTitleBarPointerPressed;
         _closeButton.Click -= OnCloseClick;
         _nicknameTextBox.TextChanged -= OnNicknameTextChanged;
@@ -347,7 +349,7 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
             {
                 Setting.ShowPercentSuffix = isChecked;
                 Publish();
-            });
+            }).MapTo(ControlMap.ProcessColumnProperties.ShowPercentSuffix);
         AddCard(
             title: "Show % suffix",
             description: "Append a percent sign to CPU usage values.",
@@ -360,7 +362,7 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
             {
                 Setting.ShowDecimalUsage = isChecked;
                 Publish();
-            });
+            }).MapTo(ControlMap.ProcessColumnProperties.ShowDecimalUsage);
         AddCard(
             title: "Show decimal usage",
             description: "Show one digit after the decimal point for CPU usage.",
@@ -385,7 +387,8 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
 
         _unitComboBox = TrayAppDotNETSettingsUI.ComboBox(
             palette,
-            WindowResources.AxamlProcessColumnProperties.ControlWidth);
+            WindowResources.AxamlProcessColumnProperties.ControlWidth)
+            .MapTo(ControlMap.ProcessColumnProperties.MemoryUnit);
         AddUnit(ProcessMemoryUnit.Kilobytes, label: "Kilobytes");
         AddUnit(ProcessMemoryUnit.Megabytes, label: "Megabytes");
         AddUnit(ProcessMemoryUnit.Gigabytes, label: "Gigabytes");
@@ -401,7 +404,7 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
         _suffixTextBox = TrayAppDotNETSettingsUI.TextBox(
             palette,
             WindowResources.AxamlProcessColumnProperties.ControlWidth,
-            Setting.MemorySuffix);
+            Setting.MemorySuffix).MapTo(ControlMap.ProcessColumnProperties.MemorySuffix);
         _suffixTextBox.TextChanged += OnSuffixTextChanged;
         AddCard(
             title: "Memory suffix",
@@ -475,7 +478,8 @@ internal sealed class StatusProcessColumnPropertiesWindow : ProcessColumnPropert
 
         _displayModeComboBox = TrayAppDotNETSettingsUI.ComboBox(
             palette,
-            WindowResources.AxamlProcessColumnProperties.ControlWidth);
+            WindowResources.AxamlProcessColumnProperties.ControlWidth)
+            .MapTo(ControlMap.ProcessColumnProperties.StatusDisplay);
         AddDisplayMode(ProcessStatusDisplayMode.Glyph, label: "Glyphs");
         AddDisplayMode(ProcessStatusDisplayMode.Text, label: "Text");
         SelectDisplayMode(Setting.StatusDisplayMode);
@@ -493,7 +497,7 @@ internal sealed class StatusProcessColumnPropertiesWindow : ProcessColumnPropert
             {
                 Setting.CenterStatusGlyphs = isChecked;
                 Publish();
-            });
+            }).MapTo(ControlMap.ProcessColumnProperties.CenterGlyphs);
         _centerGlyphsToggle.IsEnabled = Setting.StatusDisplayMode == ProcessStatusDisplayMode.Glyph;
         AddCard(
             title: "Center glyphs",
@@ -547,7 +551,7 @@ internal sealed class UserNameProcessColumnPropertiesWindow : ProcessColumnPrope
             {
                 Setting.ShowUserNamePrefix = isChecked;
                 Publish();
-            });
+            }).MapTo(ControlMap.ProcessColumnProperties.ShowAccountPrefix);
         AddCard(
             title: "Show account prefix",
             description: "Include the domain or authority before the account name.",

@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 
@@ -40,6 +41,9 @@ public sealed record EditableContextMenuEntry(string Text, Action Click)
     public EditableContextMenuInlineTextEdit? InlineTextEdit { get; init; }
     public Action<bool>? HoverChanged { get; init; }
     public bool IsEnabled { get; init; } = true;
+
+    // The control map node this entry's row represents, an EditableMenuEntry instance in the app's map
+    public ControlMapNodeID? Node { get; init; }
 }
 
 /// <summary>Configures editable-menu behavior layered over the common context-menu shell.</summary>
@@ -72,7 +76,11 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
-        _items = new StackPanel();
+
+        // Replaces the base window's ContextMenu tag; an app with several such menus tags each with its surface id
+        this.MapTo(ControlMap.EditableContextMenu.ID);
+        this.MapCommand(ControlMap.EditableContextMenu.Dismiss, DismissForWarmCache);
+        _items = new StackPanel().MapTo(ControlMap.EditableContextMenu.Entries.ID);
         _contentResources = new UIResourceScope($"{nameof(EditableContextMenuWindow)}.Content");
         _entryResources = _contentResources.CreateChild($"{nameof(EditableContextMenuWindow)}.Entries");
         AddEntryControls(_items, BuildEntryControls(entries, _entryResources));
@@ -128,13 +136,15 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         List<EditableMenuItemControl> controls = [];
         foreach (EditableContextMenuEntry entry in entries)
         {
-            controls.Add(resources.Own(new EditableMenuItemControl(
+            EditableMenuItemControl control = resources.Own(new EditableMenuItemControl(
                 entry,
                 _options,
                 OnItemInvoked,
                 OnItemHoverChanged,
                 OnEntryButtonInvoked,
-                OnInlineEditStateChanged)));
+                OnInlineEditStateChanged));
+            control.MapTo(entry.Node);
+            controls.Add(control);
         }
 
         return controls;
@@ -294,7 +304,9 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             _inlineEditStateChanged = inlineEditStateChanged;
             Background = Brushes.Transparent;
             Cursor = entry.IsEnabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
-            Focusable = entry.IsEnabled;
+
+            // The row is the entry's map instance; its item border is the focusable Item leaf, and keys bubble here
+            Focusable = false;
             Opacity = entry.IsEnabled ? 1 : Math.Clamp(options.DisabledItemOpacity, min: 0, max: 1);
 
             (_primaryLabel, _leadingButton, _trailingButton, _inlineEditor, Control content) =
@@ -307,9 +319,18 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
                 Margin = options.ItemMargin,
                 MinHeight = double.IsFinite(options.ItemHeight) ? options.ItemHeight : 0,
                 MinWidth = options.ItemMinWidth,
+                Focusable = entry.IsEnabled,
                 Child = content
             };
             Child = _itemBorder;
+            if (entry.IsEnabled)
+            {
+                _itemBorder.MapTo(ControlMap.EditableMenuEntry.Item);
+                _itemBorder.MapActivation(_ =>
+                {
+                    if (!_disposed && !_isInlineEditing) _invoke(this, _entry);
+                });
+            }
 
             PointerEntered += OnPointerEntered;
             PointerExited += OnPointerExited;
@@ -357,7 +378,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             secondaryLabel.Opacity = Math.Clamp(entry.SecondaryTextOpacity, min: 0, max: 1);
             secondaryLabel.IsVisible = !string.IsNullOrEmpty(entry.SecondaryText);
 
-            TextBox? inlineEditor = CreateInlineEditor(entry, options);
+            TextBox? inlineEditor = CreateInlineEditor(entry, options)?.MapTo(ControlMap.EditableMenuEntry.InlineText);
             Grid primaryHost = new();
             primaryHost.Children.Add(primaryLabel);
             if (inlineEditor != null)
@@ -378,8 +399,10 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             Grid.SetColumn(secondaryLabel, value: 2);
             textContent.Children.Add(secondaryLabel);
 
-            SettingsButton? leadingButton = CreateEntryButton(entry.LeadingButton, options);
-            SettingsButton? trailingButton = CreateEntryButton(entry.TrailingButton, options);
+            SettingsButton? leadingButton = CreateEntryButton(entry.LeadingButton, options)
+                ?.MapTo(ControlMap.EditableMenuEntry.LeadingButton);
+            SettingsButton? trailingButton = CreateEntryButton(entry.TrailingButton, options)
+                ?.MapTo(ControlMap.EditableMenuEntry.TrailingButton);
             Grid content = new()
             {
                 ColumnDefinitions =
@@ -531,7 +554,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             _primaryLabel.IsVisible = true;
             SetActionButtonsVisible(_isPointerOver);
             _inlineEditStateChanged(this, arg2: false);
-            Focus();
+            _itemBorder.Focus();
         }
 
         private void UpdateVisual()

@@ -47,12 +47,18 @@ public sealed class NetworkTrayMenuWindow(
         Action exit)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(networkSettingsText, openNetworkSettings);
-        entries.Add(adapterSettingsText, openAdapterSettings);
+        entries.Add(new ContextMenuEntry(networkSettingsText, openNetworkSettings)
+        {
+            Node = ControlMap.TrayMenu.OpenNetworkSettings
+        });
+        entries.Add(new ContextMenuEntry(adapterSettingsText, openAdapterSettings)
+        {
+            Node = ControlMap.TrayMenu.OpenAdapterSettings
+        });
         entries.AddSeparator();
-        entries.Add(settingsText, openSettings);
+        entries.Add(new ContextMenuEntry(settingsText, openSettings) { Node = ControlMap.TrayMenu.OpenSettings });
         entries.AddSeparator();
-        entries.Add(exitText, exit);
+        entries.Add(new ContextMenuEntry(exitText, exit) { Node = ControlMap.TrayMenu.Exit });
         return entries.ToList();
     }
 

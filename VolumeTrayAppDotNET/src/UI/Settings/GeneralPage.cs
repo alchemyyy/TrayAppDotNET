@@ -69,7 +69,8 @@ public sealed partial class VolumeSettingsWindow
             RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.PlayDeviceVolumeChangeSound));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
             Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Description)),
@@ -79,7 +80,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.GeneralPage.PlayTrayScrollVolumeChangeSound)));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
             Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Description)),
@@ -89,7 +91,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.PlayAppVolumeChangeSound));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
             Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description)),
@@ -99,7 +102,8 @@ public sealed partial class VolumeSettingsWindow
             RefreshCurrentPage,
             [
                 Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.GeneralPage.SuppressDeviceVolumeChangeSoundWhenAudioPlaying)));
         stack.Children.Add(Maybe(
             _settings is { PlayDeviceVolumeChangeSound: true, SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true },
             IntCard(
@@ -113,7 +117,8 @@ public sealed partial class VolumeSettingsWindow
                 searchKeywords:
                 [
                     Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_SearchKeywords))
-                ])));
+                ],
+                node: ControlMap.Settings.GeneralPage.DingSuppressionPeakThreshold)));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
@@ -126,7 +131,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.LogarithmicVolumeScale));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Description)),
@@ -138,7 +144,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             [
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.GeneralPage.WheelVolumeStepPercent));
 
         ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.General));
         return stack;

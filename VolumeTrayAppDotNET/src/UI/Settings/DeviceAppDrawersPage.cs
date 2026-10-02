@@ -18,7 +18,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_DeviceAppDrawers_DefaultAppDrawerExpanded_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.DefaultAppDrawerExpanded));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_General_IconRetryInterval_Title)),
             Loc(nameof(AppStrings.Settings_General_IconRetryInterval_Description)),
@@ -30,7 +31,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_IconRetryInterval_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconRetryInterval));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_PlaybackDrawer_Header)), p));
@@ -45,7 +47,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.PlaybackSlidersMaxApps));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_RecordingDrawer_Header)),
@@ -66,7 +69,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_RecordingAppDrawerDisplayType_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.RecordingDisplayType));
         stack.Children.Add(Maybe(_settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Sliders, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Description)),
@@ -78,7 +82,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.RecordingSlidersMaxApps)));
         stack.Children.Add(Maybe(_settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Icons, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Icons_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Icons_Description)),
@@ -90,7 +95,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Icons_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.RecordingIconsMaxRows)));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Title)),
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Description)),
@@ -109,7 +115,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.CaptureActivityIndicator));
 
         bool icons = _settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Icons;
         stack.Children.Add(Maybe(icons, StringComboCard(
@@ -129,7 +136,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCentered_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconsCenterMode)));
         stack.Children.Add(Maybe(_settings.AppDrawerIconsCenterMode == AppDrawerIconsCenterMode.CenteredSoftMax,
             IntCard(
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterSoftMax_Title)),
@@ -142,7 +150,8 @@ public sealed partial class VolumeSettingsWindow
                 searchKeywords:
                 [
                     Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterSoftMax_SearchKeywords))
-                ])));
+                ],
+                node: ControlMap.Settings.DeviceAppDrawersPage.IconsCenterSoftMax)));
         stack.Children.Add(Maybe(icons, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconScale_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconScale_Description)),
@@ -154,7 +163,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconScale_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconScale)));
         stack.Children.Add(Maybe(icons, StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Description)),
@@ -176,7 +186,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconStackDirection)));
         bool vertical =
             _settings.AppDrawerStackDirection is AppDrawerStackDirection.LeftRight or AppDrawerStackDirection.RightLeft;
         stack.Children.Add(Maybe(icons && !vertical, IntCard(
@@ -190,7 +201,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerRow_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconsPerRow)));
         stack.Children.Add(Maybe(icons && vertical, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_Description)),
@@ -202,7 +214,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_SearchKeywords))
-            ])));
+            ],
+            node: ControlMap.Settings.DeviceAppDrawersPage.IconsPerColumn)));
 
         ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.DeviceAppDrawers));
         return stack;

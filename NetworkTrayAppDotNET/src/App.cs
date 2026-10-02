@@ -16,6 +16,7 @@ using NetworkTrayAppDotNET.Models;
 using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 
@@ -527,6 +528,7 @@ internal sealed class NetworkAvaloniaApp : Application
             OpenAdapterSettings,
             () => OpenSettings(),
             ExitApplication);
+        menuWindow.MapTo(UI.ControlMap.TrayMenu.ID);
         _trayMenuWindow = menuWindow;
         menuWindow.Closed += OnTrayMenuClosed;
         return menuWindow;

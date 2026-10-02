@@ -1,0 +1,453 @@
+<ControlMap
+    x:Class="TrayAppDotNETCommon.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Settings shell -->
+
+    <Template ID="SettingsShell" Source="SettingsWindowCommon.BuildRoot"
+              Description="Settings window chrome; also the Task Manager main window">
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="SettingsWindowCommon.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag;DoubleClick" Event="PointerPressed"
+                  Source="SettingsWindowCommon.AttachTitleBarDrag"
+                  Description="Title bar background; drag moves the window, double-click toggles maximize" />
+            <Leaf ID="Minimize" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar" />
+            <Leaf ID="Maximize" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar"
+                  Description="Toggles between maximized and restored" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar" />
+        </Scope>
+        <Scope ID="Sidebar" Source="SettingsWindowCommon.BuildRoot">
+            <Scope ID="Navigation" Tab="Once" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
+                   Description="Rows an app builds in CreateSidebarNavigationActions fill NavigationActions">
+                <Slot ID="NavigationActions" />
+                <Leaf ID="Page" Kind="Navigation" IsRepeated="True" Event="Click"
+                      Source="SettingsWindowCommon.AddNavItem"
+                      Description="One row per page descriptor; the current page's row scrolls it to the top" />
+            </Scope>
+            <Scope ID="FooterNavigation" Tab="Once" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
+                   Description="Rows an app builds in CreateSidebarFooterActions fill FooterActions">
+                <Slot ID="FooterActions" />
+                <Leaf ID="FooterPage" Kind="Navigation" IsRepeated="True" Event="Click"
+                      Source="SettingsWindowCommon.AddNavItem"
+                      Description="Rows for the pages IsFooterNavigationPage moves into the footer" />
+            </Scope>
+            <Scope ID="Search" Source="SettingsWindowCommon.BuildRoot"
+                   Description="Bottom of the sidebar footer; only while ShowSettingsSearchBox is true">
+                <Leaf ID="SearchText" Kind="Text" FocusKeys="Escape" Event="SearchTextChanged"
+                      Source="SettingsWindowCommon.BuildRoot"
+                      Description="Filters every page into stitched results; Escape clears non-empty text" />
+                <Leaf ID="ClearSearch" Kind="Button" Event="Click" Source="SettingsSearchBox.OnClearButtonClick"
+                      Description="Visible only while the search box has text" />
+            </Scope>
+        </Scope>
+        <Leaf ID="ResizeSidebar" Kind="Handle" IsTabStop="False" Pointer="Ctrl+Drag;Ctrl+RightClick"
+              Event="PointerPressed" Source="SettingsSidebarResizeHandle.OnPointerPressed"
+              Description="Ctrl-gated sidebar edge grip, only with SidebarWidthSettings; Ctrl+right-click resets" />
+        <Scope ID="Content" Source="SettingsWindowCommon.BuildRoot"
+               Description="Page host; while searching, every page is rebuilt into one filtered results page">
+            <Slot />
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel" Event="OnPointerWheelChanged"
+                  Source="SettingsScrollHost.OnPointerWheelChanged"
+                  Description="Wheel scrolls the page; the ScrollViewer itself has no handler" />
+            <Scope ID="ScrollBar" Template="ScrollBar" Source="SettingsScrollHost.SettingsScrollHost" />
+        </Scope>
+        <Scope ID="ConfirmOverlay" Tab="Cycle" Arrows="Horizontal" Source="SettingsWindowCommon.BuildConfirmOverlay"
+               Description="Modal ConfirmAsync overlay; opens on Confirm and swallows all other keys while shown">
+            <Variant ID="ProminentConfirmOverlay" Order="Confirm Cancel" />
+            <Leaf ID="Cancel" Kind="Button" Keys="Escape" KeyScope="SettingsShell" Event="Click"
+                  Source="SettingsWindowCommon.BuildConfirmOverlay"
+                  Description="Escape anywhere in the window while shown; the prominent variant puts it on the right" />
+            <Leaf ID="Confirm" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildConfirmOverlay" />
+        </Scope>
+    </Template>
+
+    <Template ID="ScrollBar" Source="SettingsScrollBar.OnPointerPressed"
+              Description="TADN-painted scroll bar; never takes focus">
+        <Leaf ID="LineBackward" Kind="Region" IsTabStop="False" Pointer="Click" Event="OnPointerPressed"
+              Source="SettingsScrollBar.OnPointerPressed"
+              Description="Start arrow, one line; only when the style shows buttons on hover" />
+        <Leaf ID="Thumb" Kind="Handle" IsTabStop="False" Pointer="Drag;Click" Event="OnPointerPressed"
+              Source="SettingsScrollBar.OnPointerPressed"
+              Description="Thumb drag; a track press centers the thumb on the pointer and starts the drag" />
+        <Leaf ID="LineForward" Kind="Region" IsTabStop="False" Pointer="Click" Event="OnPointerPressed"
+              Source="SettingsScrollBar.OnPointerPressed"
+              Description="End arrow, one line; only when the style shows buttons on hover" />
+        <Leaf ID="OpenMenu" Kind="Command" Pointer="RightClick" Event="OnPointerPressed"
+              Source="SettingsScrollBar.ShowContextMenu" Description="Opens the ScrollBarMenu popup" />
+    </Template>
+
+    <Template ID="VerticalScrollViewport" Source="SettingsVerticalScrollViewport.SettingsVerticalScrollViewport"
+              Description="Scroll viewport with a reserved right track; the Slot receives its content">
+        <Slot />
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel" Event="OnPointerWheelChanged"
+              Source="SettingsVerticalScrollViewport.OnPointerWheelChanged" />
+        <Scope ID="VerticalScrollBar" Template="ScrollBar"
+               Source="SettingsVerticalScrollViewport.SettingsVerticalScrollViewport" />
+    </Template>
+
+    <Template ID="ScrollViewport" Source="SettingsScrollViewport.SettingsScrollViewport"
+              Description="Two-axis scroll viewport; the Slot receives its content">
+        <Slot />
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Shift+Wheel" Event="OnPointerWheelChanged"
+              Source="SettingsScrollViewport.OnPointerWheelChanged"
+              Description="Wheel scrolls vertically; Shift or a horizontal wheel scrolls horizontally" />
+        <Scope ID="VerticalScrollBar" Template="ScrollBar" Source="SettingsScrollViewport.SettingsScrollViewport" />
+        <Scope ID="HorizontalScrollBar" Template="ScrollBar"
+               Source="SettingsScrollViewport.SettingsScrollViewport" />
+    </Template>
+
+    <!-- Settings pages and sections -->
+
+    <Template ID="GeneralSection"
+              Description="BuildStartupCard then AddInstallationSection of TrayAppDotNETGeneralSettingsSection">
+        <Scope ID="Startup" Template="StartupCard" Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard" />
+        <Scope ID="Installation" Template="InstallationSection"
+               Source="TrayAppDotNETGeneralSettingsSection.AddInstallationSection" />
+    </Template>
+
+    <Template ID="StartupCard" Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard">
+        <Leaf ID="RunOnStartup" Kind="Toggle" Event="Callback"
+              Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard" />
+        <Leaf ID="StartMinimized" Kind="Toggle" Event="IsCheckedChanged"
+              Source="TrayAppDotNETGeneralSettingsSection.BuildStartMinimizedCheckBox"
+              Description="Check box under the description; only with start-minimized delegates" />
+    </Template>
+
+    <Template ID="InstallationSection" Source="TrayAppDotNETGeneralSettingsSection.AddInstallationSection"
+              Description="One card per install scope, then an optional store card with no controls">
+        <Scope ID="InstallCard" IsRepeated="True" Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard">
+            <Leaf ID="Install" Kind="Button" Event="Click"
+                  Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard"
+                  Description="Install or Update; confirms in the shell overlay, then offers a restart" />
+            <Leaf ID="Uninstall" Kind="Button" Event="Click"
+                  Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard"
+                  Description="Hidden while not installed" />
+        </Scope>
+    </Template>
+
+    <Template ID="RenderingSection" Source="TrayAppDotNETRenderingSettingsSection.AddCards"
+              Description="AdditionalCards, unused by the apps, would follow RenderingBackend">
+        <Leaf ID="RenderingBackend" Kind="Select" Event="SelectionChanged"
+              Source="TrayAppDotNETRenderingSettingsSection.BuildRenderingBackendCard"
+              Description="Saves, then offers a restart through the shell confirm overlay" />
+        <Scope ID="Performance" Source="TrayAppDotNETRenderingSettingsSection.AddCards"
+               Description="Only with WarmWindowSettings and at least one supported keep-warm option">
+            <Leaf ID="KeepFlyoutWarm" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETRenderingSettingsSection.BuildCard"
+                  Description="Only when SupportsFlyoutWarmWindow" />
+            <Leaf ID="KeepTrayContextMenuWarm" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETRenderingSettingsSection.BuildCard"
+                  Description="Only when SupportsTrayContextMenuWarmWindow" />
+        </Scope>
+        <Scope ID="TrayMenu" Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards"
+               Description="Only with TrayMenuSettings">
+            <Leaf ID="UseSystemSubmenuDelay" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards" />
+            <Leaf ID="SubmenuOpenDelay" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards"
+                  Description="Hidden while UseSystemSubmenuDelay is on" />
+        </Scope>
+    </Template>
+
+    <Template ID="AboutPage" Source="TrayAppDotNETAboutPage.Build">
+        <Leaf ID="OpenGitHub" Kind="Button" Pointer="Click" Event="PointerPressed"
+              Source="TrayAppDotNETAboutPage.AboutRow"
+              Description="Underlined GitHub row value; opens HelpLink; a TextBlock with no keyboard path" />
+        <Leaf ID="OpenSettingsFolder" Kind="Button" Event="Click"
+              Source="TrayAppDotNETAboutPage.BuildSettingsFolderCard" />
+        <Scope ID="Updates" Source="TrayAppDotNETAboutPage.AddUpdatesSection"
+               Description="Only when the app supplies UpdateSettings">
+            <Scope ID="UpdateCard" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard">
+                <Leaf ID="CheckForUpdates" Kind="Button" Event="Click"
+                      Source="TrayAppDotNETAboutPage.BuildUpdateActionCard" />
+                <Leaf ID="SkipUpdate" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
+                      Description="Visible only while an update is available" />
+                <Leaf ID="InstallUpdate" Kind="Button" Event="Click"
+                      Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
+                      Description="Opens the UpdateConfirmation window; enabled only while an update is available" />
+            </Scope>
+            <Leaf ID="UpdateInterval" Kind="Number"
+                  Pointer="Wheel"
+                  Event="Callback" Source="TrayAppDotNETAboutPage.AddUpdatesSection" />
+            <Leaf ID="CheckForUpdatesEnabled" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETAboutPage.AddUpdatesSection" Description="Rebuilds the About page" />
+            <Leaf ID="ShowUpdateNotifications" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETAboutPage.AddUpdatesSection" />
+            <Leaf ID="ShowUpdateButton" Kind="Toggle" Event="Callback"
+                  Source="TrayAppDotNETAboutPage.AddUpdatesSection"
+                  Description="Flyout update button; only when SupportsFlyoutUpdateButton" />
+            <Leaf ID="Backdate" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildBackdateCard"
+                  Description="Opens the UpdateConfirmation window for the previous release" />
+        </Scope>
+    </Template>
+
+    <!-- Settings cards with more than one control -->
+
+    <Template ID="ResettableNumberCard" Source="TrayAppDotNETSettingsCards.ResettableDoubleCard">
+        <Leaf ID="Value" Kind="Number"
+              Pointer="Wheel" Event="ValueChanged" Source="TrayAppDotNETSettingsCards.ResettableDoubleCard" />
+        <Leaf ID="Reset" Kind="Button" Event="Click" Source="TrayAppDotNETSettingsCards.ResettableDoubleCard"
+              Description="Enabled only while the value differs from the reset target" />
+    </Template>
+
+    <Template ID="PairToggleCard" Source="SettingsWindowCommon.PairBoolCard"
+              Description="Two toggles in the PairColumnHeader columns; each only when its value and setter exist">
+        <Leaf ID="Left" Kind="Toggle" Event="Callback" Source="SettingsWindowCommon.PairBoolCard"
+              Description="Left column, Playback in Volume" />
+        <Leaf ID="Right" Kind="Toggle" Event="Callback" Source="SettingsWindowCommon.PairBoolCard"
+              Description="Right column, Recording in Volume" />
+    </Template>
+
+    <Template ID="SingleColorCard" Source="SettingsWindowCommon.SingleColorCard">
+        <Leaf ID="PickColor" Kind="Button" Event="Click" Source="SettingsWindowCommon.SingleColorCard"
+              Description="Swatch; opens a ColorPicker window" />
+        <Leaf ID="Reset" Kind="Button" Event="Click" Source="SettingsWindowCommon.SingleColorCard" />
+    </Template>
+
+    <Template ID="VariantColorCard" Source="SettingsWindowCommon.VariantColorCard"
+              Description="Only the swatch for the effective theme is visible">
+        <Leaf ID="PickLightColor" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
+              Description="Light swatch; opens a ColorPicker window" />
+        <Leaf ID="PickDarkColor" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
+              Description="Dark swatch; opens a ColorPicker window" />
+        <Leaf ID="Reset" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
+              Description="Clears both variants" />
+    </Template>
+
+    <Template ID="CoordinatorColorCard" Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
+              Description="Same row as VariantColorCard; one picker per variant stays open and is reactivated">
+        <Leaf ID="PickLightColor" Kind="Button" Event="Click"
+              Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
+              Description="Light swatch; opens a ColorPicker window" />
+        <Leaf ID="PickDarkColor" Kind="Button" Event="Click"
+              Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
+              Description="Dark swatch; opens a ColorPicker window" />
+        <Leaf ID="Reset" Kind="Button" Event="Click" Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
+              Description="Clears both variants" />
+    </Template>
+
+    <!-- Common dialogs -->
+
+    <Template ID="UpdateConfirmation" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+              Description="Modal; the update prompt uses the modal layout, every other prompt the standard one">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown"
+              Source="TrayAppDotNETUpdateConfirmationWindow.OnWindowKeyDown"
+              Description="Closes with Cancelled, like Cancel and the caption Close" />
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal"
+               Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar" Description="Standard layout only">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar"
+                  Description="Caption close; closes with Cancelled" />
+        </Scope>
+        <Scope ID="Links" Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalLinks"
+               Description="Modal layout with release details only; top right, the dialog stays open">
+            <Leaf ID="OpenWebsite" Kind="Button" Pointer="Click" Event="PointerPressed"
+                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalHyperlink" />
+            <Leaf ID="OpenReleases" Kind="Button" Pointer="Click" Event="PointerPressed"
+                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalHyperlink" />
+        </Scope>
+        <Scope ID="Actions" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+               Description="Modal layout row in this order; the standard column puts Cancel above Confirm">
+            <Variant ID="StandardUpdateConfirmation" Order="Alternate Cancel Confirm" />
+            <Leaf ID="Alternate" Kind="Button" Event="Click"
+                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+                  Description="Only with alternate text, such as Skip release or No" />
+            <Leaf ID="Confirm" Kind="Button" Event="Click"
+                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent" />
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+                  Description="Only with cancel text" />
+        </Scope>
+    </Template>
+
+    <Template ID="ColorPicker" Source="TrayAppDotNETColorPickerWindow.BuildContent"
+              Description="Owned, non-modal; closing commits the edited color; no window-level keys">
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="TrayAppDotNETColorPickerWindow.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TrayAppDotNETColorPickerWindow.BuildTitleBar" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETColorPickerWindow.BuildTitleBar"
+                  Description="Closes the picker, which commits the edited color" />
+        </Scope>
+        <Scope ID="Channels" Source="TrayAppDotNETColorPickerWindow.BuildPickerGrid">
+            <Leaf ID="SaturationValue" Kind="Handle" IsTabStop="False" Pointer="Click;Drag" Event="SelectionChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents"
+                  Description="Painted saturation and value plane; focusable but handles no keys" />
+            <Leaf ID="Hue" Kind="Slider" Pointer="Click;Drag;Wheel;Ctrl+Wheel" Event="ValueChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents" />
+            <Leaf ID="Alpha" Kind="Slider" Pointer="Click;Drag;Wheel;Ctrl+Wheel" Event="ValueChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents"
+                  Description="Reversed, so Up moves the thumb down; disabled without alpha" />
+            <Leaf ID="Red" Kind="Slider" Pointer="Click;Drag;Wheel;Ctrl+Wheel" Event="ValueChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents" />
+            <Leaf ID="Green" Kind="Slider" Pointer="Click;Drag;Wheel;Ctrl+Wheel" Event="ValueChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents" />
+            <Leaf ID="Blue" Kind="Slider" Pointer="Click;Drag;Wheel;Ctrl+Wheel" Event="ValueChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents" />
+        </Scope>
+        <Scope ID="Footer" Source="TrayAppDotNETColorPickerWindow.BuildFooterGrid">
+            <Leaf ID="RgbaHex" Kind="Text" Event="TextChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents"
+                  Description="Applies RRGGBB or RRGGBBAA as typed; Enter on key up clears focus" />
+            <Leaf ID="ArgbHex" Kind="Text" Event="TextChanged"
+                  Source="TrayAppDotNETColorPickerWindow.WireEvents"
+                  Description="Applies AARRGGBB as typed; Enter on key up clears focus" />
+            <Leaf ID="ApplyDefault" Kind="Button" Event="Click" Source="TrayAppDotNETColorPickerWindow.BuildFooterGrid"
+                  Description="Applies the default color" />
+            <Leaf ID="Reset" Kind="Button" Event="Click" Source="TrayAppDotNETColorPickerWindow.BuildFooterGrid"
+                  Description="Restores the color the picker opened with" />
+        </Scope>
+    </Template>
+
+    <Template ID="Installer" Source="TrayAppDotNETInstallerWindow.BuildRoot"
+              Description="Unowned installer-mode main window">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown"
+              Source="TrayAppDotNETInstallerWindow.OnWindowKeyDown"
+              Description="Closes without installing, like Cancel" />
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="TrayAppDotNETInstallerWindow.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TrayAppDotNETInstallerWindow.BuildTitleBar" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETInstallerWindow.BuildTitleBar" />
+        </Scope>
+        <Scope ID="Location" Tab="Once" Arrows="Horizontal" Source="TrayAppDotNETInstallerWindow.BuildLocationSelector"
+               Description="Radio-like button pair; the chosen one gets an accent border and sets the path">
+            <Leaf ID="LocalLocation" Kind="Option" Event="Click"
+                  Source="TrayAppDotNETInstallerWindow.BuildLocationSelector" />
+            <Leaf ID="SystemLocation" Kind="Option" Event="Click"
+                  Source="TrayAppDotNETInstallerWindow.BuildLocationSelector" />
+        </Scope>
+        <Scope ID="Shortcuts" Source="TrayAppDotNETInstallerWindow.BuildBody"
+               Description="Check boxes with no handler; Install reads them">
+            <Leaf ID="DesktopShortcut" Kind="Toggle" Source="TrayAppDotNETInstallerWindow.BuildShortcutCheckBox" />
+            <Leaf ID="StartMenuShortcut" Kind="Toggle" Source="TrayAppDotNETInstallerWindow.BuildShortcutCheckBox" />
+        </Scope>
+        <Scope ID="Actions" Source="TrayAppDotNETInstallerWindow.BuildButtons">
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETInstallerWindow.BuildButtons" />
+            <Leaf ID="Install" Kind="Button" Event="Click" Source="TrayAppDotNETInstallerWindow.BuildButtons"
+                  Description="Records the choices and closes; the runner then installs" />
+        </Scope>
+    </Template>
+
+    <Template ID="Uninstaller" Source="TrayAppDotNETUninstallerWindow.BuildRoot"
+              Description="Non-modal; per-app subclasses supply the options">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown"
+              Source="TrayAppDotNETUninstallerWindow.OnWindowKeyDown"
+              Description="Closes without uninstalling, like Cancel" />
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="TrayAppDotNETUninstallerWindow.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="TrayAppDotNETUninstallerWindow.BuildTitleBar" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETUninstallerWindow.BuildTitleBar" />
+        </Scope>
+        <Scope ID="SettingsChoice" Tab="Once" Arrows="Vertical" Source="TrayAppDotNETUninstallerWindow.BuildBody"
+               Description="Cards holding RadioButtons with no handler; pressing a card checks its radio">
+            <Leaf ID="KeepSettings" Kind="Option" Pointer="Click" Event="PointerPressed"
+                  Source="TrayAppDotNETUninstallerWindow.BuildOptionCard" />
+            <Leaf ID="DeleteSettings" Kind="Option" Pointer="Click" Event="PointerPressed"
+                  Source="TrayAppDotNETUninstallerWindow.BuildOptionCard" />
+        </Scope>
+        <Scope ID="Actions" Source="TrayAppDotNETUninstallerWindow.BuildButtons">
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETUninstallerWindow.BuildButtons" />
+            <Leaf ID="Uninstall" Kind="Button" Event="Click" Source="TrayAppDotNETUninstallerWindow.BuildButtons"
+                  Description="Runs the uninstaller with the chosen settings option, then closes" />
+        </Scope>
+    </Template>
+
+    <!-- Menus and lists -->
+
+    <Template ID="ContextMenu" Source="ContextMenuWindow.InitializeMenuContent"
+              Description="Menu popup that deactivation dismisses; each submenu is another ContextMenu popup">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="ContextMenuWindow.OnKeyDown"
+              Description="Closes the root menu and every open submenu" />
+        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="ContextMenuWindow.InitializeStandardMenu"
+               Description="Rows run on Enter, Space or a click; Right also runs a submenu row">
+            <Slot />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="ContextMenuWindow.InitializeMenuContent"
+              Description="Avalonia ScrollViewer with no handler; its scroll bar shows on overflow" />
+    </Template>
+
+    <Template ID="EditableContextMenu" Source="EditableContextMenuWindow.EditableContextMenuWindow"
+              Description="ContextMenu with editable rows and no submenus">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="ContextMenuWindow.OnKeyDown"
+              Description="Closes the menu; an open inline edit takes Escape first" />
+        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="EditableContextMenuWindow.BuildEntryControls"
+               Description="Each row is an IsRepeated scope instantiating EditableMenuEntry">
+            <Slot />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="ContextMenuWindow.InitializeMenuContent"
+              Description="Avalonia ScrollViewer with no handler; its scroll bar shows on overflow" />
+    </Template>
+
+    <Template ID="EditableMenuEntry" Source="EditableContextMenuWindow.BuildEntryControls"
+              Description="One EditableContextMenu row; both buttons are hidden until the row is hovered">
+        <Leaf ID="LeadingButton" Kind="Button" Event="Click" Source="EditableMenuItemControl.OnLeadingButtonClick"
+              Description="Optional; starts the inline edit instead when the entry has InlineTextEdit" />
+        <Leaf ID="Item" Kind="ListItem" Pointer="Click" Event="MenuEntry"
+              Source="EditableContextMenuWindow.OnItemInvoked"
+              Description="The row; runs the entry and closes the menu" />
+        <Leaf ID="InlineText" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+              Source="EditableMenuItemControl.OnInlineEditorKeyDown"
+              Description="Editor over the label; Enter, focus loss or an outside press commits, Escape cancels" />
+        <Leaf ID="TrailingButton" Kind="Button" Event="Click" Source="EditableMenuItemControl.OnTrailingButtonClick"
+              Description="Optional; DismissMenuOnClick false keeps the menu open" />
+    </Template>
+
+    <Template ID="SearchableListBox" Source="SettingsSearchableListBox.SettingsSearchableListBox"
+              Description="Instantiate on an IsFocusable scope; the Grid takes focus when a row is clicked">
+        <Leaf ID="HighlightPrevious" Kind="Command" Keys="Up" Event="KeyDown"
+              Source="SettingsSearchableListBox.OnKeyboardNavigation" Description="Moves the highlight up; clamps" />
+        <Leaf ID="HighlightNext" Kind="Command" Keys="Down" Event="KeyDown"
+              Source="SettingsSearchableListBox.OnKeyboardNavigation" Description="Moves the highlight down; clamps" />
+        <Leaf ID="CommitHighlighted" Kind="Command" Keys="Enter" Event="KeyDown"
+              Source="SettingsSearchableListBox.OnKeyboardNavigation"
+              Description="Commits the highlighted row, which raises SelectionChanged" />
+        <Scope ID="Search" Source="SettingsSearchableListBox.SettingsSearchableListBox">
+            <Leaf ID="SearchText" Kind="Text" Event="TextChanged"
+                  Source="SettingsSearchableListBox.OnSearchTextChanged"
+                  Description="Filters and re-ranks the rows as typed" />
+            <Leaf ID="ClearSearch" Kind="Button" Event="Click" Source="SettingsSearchableListBox.OnClearButtonClick"
+                  Description="Enabled only while there is text; refocuses the search box" />
+        </Scope>
+        <Scope ID="Results" Tab="Once" Source="SettingsSearchableListBox.RebuildItems"
+               Description="Rows rebuilt on every change; Up and Down move the highlight, not focus">
+            <Leaf ID="Item" Kind="ListItem" IsRepeated="True" Pointer="Click;DoubleClick" Event="PointerPressed"
+                  Source="SettingsSearchableListBoxItemRow.OnPointerPressed"
+                  Description="Click highlights; double-click or Enter commits" />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel" Event="OnPointerWheelChanged"
+              Source="SettingsScrollHost.OnPointerWheelChanged"
+              Description="Wheel scrolls the rows; the ScrollViewer itself has no handler" />
+        <Scope ID="ScrollBar" Template="ScrollBar" Source="SettingsScrollHost.SettingsScrollHost" />
+    </Template>
+
+    <!-- A common surface, not a template: every app's scroll bars open it, and instantiating ContextMenu here
+         would make each app's own ContextMenu instance ambiguous at runtime -->
+    <Surface ID="ScrollBarMenu" Kind="Popup" Source="SettingsScrollBar.ShowContextMenu"
+             Description="ScrollBar.OpenMenu popup shaped like ContextMenu; horizontal bars use left and right labels">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="SettingsScrollBar.ShowContextMenu"
+              Description="Closes the menu" />
+        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="ContextMenuWindow.InitializeStandardMenu"
+               Description="Rows run on Enter, Space or a click">
+            <Leaf ID="ScrollHere" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries"
+                  Description="Centers the thumb where the menu was opened" />
+            <Leaf ID="ScrollToStart" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Top or Left Edge" />
+            <Leaf ID="ScrollToEnd" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Bottom or Right Edge" />
+            <Leaf ID="PageBackward" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Page Up or Page Left" />
+            <Leaf ID="PageForward" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Page Down or Page Right" />
+            <Leaf ID="LineBackward" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Scroll Up or Scroll Left" />
+            <Leaf ID="LineForward" Kind="ListItem" Event="MenuEntry"
+                  Source="SettingsScrollBar.BuildContextMenuEntries" Description="Scroll Down or Scroll Right" />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="ContextMenuWindow.InitializeMenuContent"
+              Description="Avalonia ScrollViewer with no handler; its scroll bar shows on overflow" />
+    </Surface>
+</ControlMap>

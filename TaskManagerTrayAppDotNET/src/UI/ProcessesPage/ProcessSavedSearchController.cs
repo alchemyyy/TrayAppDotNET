@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
@@ -72,6 +73,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
+        _clearButton.MapTo(ControlMap.Main.ProcessesPage.Search.Clear);
         _clearButton.Click += OnClearClick;
         TrayAppDotNETToolTip.SetTip(_clearButton, tip: "Clear search");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_clearButton);
@@ -86,6 +88,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
+        _saveButton.MapTo(ControlMap.Main.ProcessesPage.Search.Save);
         _saveButton.Click += OnSaveClick;
         TrayAppDotNETToolTip.SetTip(_saveButton, SaveSearchTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_saveButton);
@@ -283,7 +286,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 LeadingButton = renameButton,
                 TrailingButton = deleteButton,
                 InlineTextEdit =
-                    new EditableContextMenuInlineTextEdit(name => RenameSavedSearch(capturedSearchIndex, name))
+                    new EditableContextMenuInlineTextEdit(name => RenameSavedSearch(capturedSearchIndex, name)),
+                Node = ControlMap.ProcessSavedSearchMenu.SavedSearch.ID
             });
         }
 

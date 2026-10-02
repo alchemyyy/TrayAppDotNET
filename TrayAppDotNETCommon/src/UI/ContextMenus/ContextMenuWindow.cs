@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
@@ -29,6 +30,15 @@ public sealed record ContextMenuEntry(string Text, Action Click)
     public Action<bool>? HoverChanged { get; init; }
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
+
+    // The control map leaf this entry's row represents
+    public ControlMapNodeID? Node { get; init; }
+
+    /// <summary>
+    /// Gets the app's ContextMenu surface the submenu window is tagged with. Without it the submenu takes its
+    /// parent menu's node.
+    /// </summary>
+    public ControlMapNodeID? SubmenuNode { get; init; }
 }
 
 public sealed class ContextMenuEntryBuilder
@@ -126,6 +136,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private readonly UIResourceScope _windowResources;
     private readonly ContextMenuWindow? _parentMenu;
     private UIContentGeneration? _contentGeneration;
+    private StackPanel? _standardEntries;
     private ScrollViewer? _scrollViewer;
     private DispatcherTimer? _submenuHoverTimer;
     private ContextMenuWindow? _childMenu;
@@ -181,16 +192,29 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
+        // An app whose map instantiates the template more than once tags each menu with its surface id
+        this.MapTo(ControlMap.ContextMenu.ID);
+        this.MapCommand(ControlMap.ContextMenu.Dismiss, DismissForWarmCache);
         Deactivated += OnDeactivated;
-        KeyDown += OnKeyDown;
-        _windowResources.Add(() => KeyDown -= OnKeyDown);
         _windowResources.Add(() => Deactivated -= OnDeactivated);
+    }
+
+    /// <summary>
+    /// Retags a standard menu for a common surface that mirrors the ContextMenu template instead of instantiating it,
+    /// such as the scroll bar menu, so every app map keeps its own count of ContextMenu instances.
+    /// </summary>
+    internal void MapToSurface(ControlMapNodeID surface, ControlMapNodeID entries, ControlMapNodeID dismiss)
+    {
+        this.MapTo(surface);
+        _standardEntries?.MapTo(entries);
+        this.MapCommand(dismiss, DismissForWarmCache);
     }
 
     private void InitializeStandardMenu(IReadOnlyList<ContextMenuEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        StackPanel items = new();
+        StackPanel items = new StackPanel().MapTo(ControlMap.ContextMenu.Entries.ID);
+        _standardEntries = items;
         bool hasSubmenus = false;
         UIResourceScope contentResources = new($"{GetType().Name}.Content");
         foreach (ContextMenuEntry entry in entries)
@@ -201,6 +225,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 _options,
                 OnItemInvoked,
                 OnItemHoverChanged));
+            item.MapTo(entry.Node);
             items.Children.Add(item);
         }
 
@@ -493,6 +518,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         if (submenuEntries.Count == 0) return;
 
         ContextMenuWindow childMenu = new(submenuEntries, _options, this) { ShowActivated = false };
+        childMenu.MapTo(entry.SubmenuNode ?? ControlMapBinding.GetNode(this));
         _childMenu = childMenu;
         _childMenuOwner = owner;
         owner.SetSubmenuOpen(true);
@@ -890,14 +916,6 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     /// <summary>Lets derived menu controls retain ownership during a deferred deactivation check.</summary>
     protected virtual bool ShouldDismissAfterDeactivation() => true;
 
-    private void OnKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape) return;
-
-        DismissForWarmCache();
-        e.Handled = true;
-    }
-
     private static int ResolveSystemSubmenuShowDelayMilliseconds()
     {
         if (OperatingSystem.IsWindows() &&
@@ -984,6 +1002,12 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             PointerPressed += OnPointerPressed;
             PointerReleased += OnPointerReleased;
             KeyDown += OnKeyDown;
+
+            // Accelerators on the entry's leaf run it like a click
+            this.MapActivation(_ =>
+            {
+                if (!_disposed) _invoke(this, _entry);
+            });
         }
 
         private static Control BuildContent(ContextMenuEntry entry, ContextMenuWindowOptions options)

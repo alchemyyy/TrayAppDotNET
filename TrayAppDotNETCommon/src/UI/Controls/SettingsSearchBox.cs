@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -19,7 +20,9 @@ public sealed class SettingsSearchBox : Grid, IDisposable
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
-        _textBox = TrayAppDotNETSettingsUI.SearchTextBox(palette, double.NaN);
+        // The settings shell's sidebar search is the only user of this control
+        _textBox = TrayAppDotNETSettingsUI.SearchTextBox(palette, double.NaN)
+            .MapTo(ControlMap.SettingsShell.Sidebar.Search.SearchText);
         _textBox.HorizontalAlignment = HorizontalAlignment.Stretch;
         _textBox.PlaceholderText = placeholderText;
         _textBox.PropertyChanged += OnTextBoxPropertyChanged;
@@ -38,7 +41,7 @@ public sealed class SettingsSearchBox : Grid, IDisposable
             MinHeight = SearchableListBoxLayout.ClearButtonHeight,
             Padding = SearchableListBoxLayout.ClearButtonPadding,
             Label = { FontSize = SearchableListBoxLayout.ClearButtonFontSize }
-        };
+        }.MapTo(ControlMap.SettingsShell.Sidebar.Search.ClearSearch);
         _clearButton.Click += OnClearButtonClick;
         SetColumn(_clearButton, value: 1);
         Children.Add(_clearButton);

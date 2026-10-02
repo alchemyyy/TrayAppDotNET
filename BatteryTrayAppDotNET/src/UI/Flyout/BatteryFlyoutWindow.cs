@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using BatteryTrayAppDotNET.Services;
 using FlyoutPowerMode = BatteryTrayAppDotNET.Models.BatteryPowerMode;
 using Microsoft.Win32;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -98,6 +99,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         });
 
         SetFixedFlyoutWidth(Layout.WindowWidth);
+        this.MapTo(ControlMap.Flyout.ID);
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
@@ -415,7 +417,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             if (_settings is { FlyoutHeaderAtBottom: true, AllowFlyoutUndock: true })
             {
                 undockButtonController = BuildUndockButton(fp, resources, UndockButtonFloatingMargin);
-                Border floatingUndock = undockButtonController.Button;
+                Border floatingUndock = undockButtonController.Button.MapTo(ControlMap.Flyout.Undock);
                 floatingUndock.HorizontalAlignment = HorizontalAlignment.Right;
                 floatingUndock.VerticalAlignment = VerticalAlignment.Top;
                 content.Children.Add(floatingUndock);
@@ -427,6 +429,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 p.Border,
                 _settings.EnableRoundedCorners);
             ControlNames.Assign(frame, parentName: "FlyoutFrame");
+            frame.MapVariant(ControlMap.Variants.HeaderOnTop, !_settings.FlyoutHeaderAtBottom);
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -592,7 +595,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             if (_settings.AllowFlyoutUndock)
             {
                 undockButtonController = BuildUndockButton(p, resources);
-                Border undock = undockButtonController.Button;
+                Border undock = undockButtonController.Button.MapTo(ControlMap.Flyout.Header.Undock);
                 undock.HorizontalAlignment = HorizontalAlignment.Right;
                 undock.VerticalAlignment = VerticalAlignment.Center;
                 grid.Children.Add(undock);
@@ -607,6 +610,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Padding = HeaderPadding,
             Child = grid
         };
+        header.MapTo(ControlMap.Flyout.Header.ID);
         return (ControlNames.Assign(header, parentName: "FlyoutHeader"), undockButtonController, energySaver);
     }
 
@@ -617,7 +621,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             HeaderIconButtonFontSize,
             _openSettings,
-            L(nameof(AppStrings.Flyout_Settings_Tooltip)));
+            L(nameof(AppStrings.Flyout_Settings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenSettings);
         ControlNames.Assign(settingsButton, parentName: "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
 
@@ -626,7 +630,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             HeaderPowerIconButtonFontSize,
             OpenModernPowerSettings,
-            L(nameof(AppStrings.Flyout_PowerSettings_Tooltip)));
+            L(nameof(AppStrings.Flyout_PowerSettings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenPowerSettings);
         ControlNames.Assign(powerButton, parentName: "PowerSettingsButton");
 
         Border healthButton = BuildHeaderIconButton(
@@ -634,7 +638,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             HeaderIconButtonFontSize,
             ShowBatteryHealth,
-            "Battery health");
+            "Battery health").MapTo(ControlMap.Flyout.Header.ShowBatteryHealth);
         ControlNames.Assign(healthButton, parentName: "BatteryHealthButton");
         healthButton.Focusable = true;
         AutomationProperties.SetName(healthButton, "Battery health");
@@ -685,6 +689,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Rounded(HeaderIconButtonCornerRadius),
             ToggleEnergySaver);
         ControlNames.Assign(button.Button, parentName: "EnergySaverButton");
+        button.Button.MapTo(ControlMap.Flyout.Header.EnergySaver);
         return button;
     }
 
@@ -1277,6 +1282,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             HitTestVerticalPadding = Layout.SliderHitTestVerticalPadding
         });
         ControlNames.Assign(slider, parentName: "PowerModeSlider");
+        slider.MapTo(ControlMap.Flyout.PowerMode);
         AutomationProperties.SetName(slider, powerModeTitle);
         TrayAppDotNETToolTip.SuppressWhileEngaged(slider);
         FlyoutPowerMode? requestedMode = null;

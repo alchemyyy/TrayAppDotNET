@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -185,8 +186,11 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-        KeyDown += OnWindowKeyDown;
-        _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        // An app whose map instantiates the template more than once tags each prompt with its surface id
+        this.MapTo(ControlMap.UpdateConfirmation.ID);
+        this.MapCommand(
+            ControlMap.UpdateConfirmation.Dismiss,
+            () => Complete(TrayAppDotNETUpdatePromptResult.Cancelled));
         Closed += OnWindowClosed;
         _windowResources.Add(() => Closed -= OnWindowClosed);
 #if DEBUG
@@ -422,14 +426,16 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         List<SettingsButton> actionButtons = [];
 
-        SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
+        SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette)
+            .MapTo(ControlMap.UpdateConfirmation.Actions.Confirm);
         install.Padding = UpdateConfirmationLayout.ActionButtonPadding;
         install.Click += OnConfirmClick;
         resources.Add(() => install.Click -= OnConfirmClick);
 
         if (!string.IsNullOrWhiteSpace(alternateText))
         {
-            SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette);
+            SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette)
+                .MapTo(ControlMap.UpdateConfirmation.Actions.Alternate);
             alternate.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             if (!_useModalContentLayout)
                 alternate.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
@@ -441,7 +447,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         SettingsButton? cancel = null;
         if (!string.IsNullOrWhiteSpace(cancelText))
         {
-            cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
+            cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette)
+                .MapTo(ControlMap.UpdateConfirmation.Actions.Cancel);
             cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             if (!_useModalContentLayout)
                 cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
@@ -498,6 +505,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             buttons = standardButtons;
         }
 
+        // The standard column puts Cancel above Confirm; the modal row puts it last
+        buttons.MapVariant(ControlMap.Variants.StandardUpdateConfirmation, !_useModalContentLayout);
         Grid.SetRow(buttons, actionButtonsRow);
         body.Children.Add(buttons);
 
@@ -559,12 +568,14 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             details.WebsiteLinkText,
             TrayAppDotNETWebsitePageURI,
             palette,
-            resources));
+            resources,
+            ControlMap.UpdateConfirmation.Links.OpenWebsite));
         links.Children.Add(BuildModalHyperlink(
             details.ReleasesLinkText,
             details.ReleasesPageURI,
             palette,
-            resources));
+            resources,
+            ControlMap.UpdateConfirmation.Links.OpenReleases));
         return links;
     }
 
@@ -585,7 +596,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         string text,
         Uri pageURI,
         SettingsPalette palette,
-        UIResourceScope resources)
+        UIResourceScope resources,
+        ControlMapNodeID node)
     {
         TextBlock link = TrayAppDotNETSettingsUI.Text(
             text,
@@ -602,6 +614,11 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         resources.Add(() => link.PointerPressed -= OnPointerPressed);
         link.KeyDown += OnKeyDown;
         resources.Add(() => link.KeyDown -= OnKeyDown);
+        link.MapTo(node);
+        link.MapActivation(_ =>
+        {
+            if (!_closed) OpenPage(pageURI);
+        });
         return link;
 
         void OnPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
@@ -634,18 +651,19 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
     private Grid BuildTitleBar(string title, SettingsPalette palette, UIResourceScope resources)
     {
-        Grid bar = new()
+        Grid bar = new Grid
         {
             Background = Brushes.Transparent,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
-        };
+        }.MapTo(ControlMap.UpdateConfirmation.TitleBar.ID);
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, palette, fontSize: 13);
         titleText.VerticalAlignment = VerticalAlignment.Center;
         titleText.Margin = UpdateConfirmationLayout.TitleMargin;
         bar.Children.Add(titleText);
 
-        TrayAppDotNETCaptionCloseButton close = new(palette);
+        TrayAppDotNETCaptionCloseButton close = new TrayAppDotNETCaptionCloseButton(palette)
+            .MapTo(ControlMap.UpdateConfirmation.TitleBar.Close);
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.UpdateDialog_CaptionClose_Tooltip)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
@@ -657,14 +675,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         resources.Add(() => bar.PointerPressed -= OnTitleBarPointerPressed);
 
         return bar;
-    }
-
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (_closed || e.Key != Key.Escape) return;
-
-        Complete(TrayAppDotNETUpdatePromptResult.Cancelled);
-        e.Handled = true;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)

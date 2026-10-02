@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -121,12 +122,14 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
+        // An app whose map instantiates the template more than once tags each picker with its surface id
+        this.MapTo(ControlMap.ColorPicker.ID);
         _svPicker = new TrayAppDotNETSaturationValuePicker(palette)
         {
             Width = ColorPickerLayout.PickerPlaneWidth,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
-        };
+        }.MapTo(ControlMap.ColorPicker.Channels.SaturationValue);
         _hueSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Hue, palette)
         {
             Width = ColorPickerLayout.PrimarySliderWidth,
@@ -134,7 +137,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
             Maximum = 360,
             SmallChange = 1,
             LargeChange = 30
-        };
+        }.MapTo(ControlMap.ColorPicker.Channels.Hue);
         _alphaSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Alpha, palette)
         {
             Width = ColorPickerLayout.PrimarySliderWidth,
@@ -144,15 +147,15 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
             LargeChange = 16,
             IsDirectionReversed = true,
             IsEnabled = hasAlpha
-        };
-        _rSlider = CreateChannelSlider();
-        _gSlider = CreateChannelSlider();
-        _bSlider = CreateChannelSlider();
+        }.MapTo(ControlMap.ColorPicker.Channels.Alpha);
+        _rSlider = CreateChannelSlider().MapTo(ControlMap.ColorPicker.Channels.Red);
+        _gSlider = CreateChannelSlider().MapTo(ControlMap.ColorPicker.Channels.Green);
+        _bSlider = CreateChannelSlider().MapTo(ControlMap.ColorPicker.Channels.Blue);
         _rValueLabel = ChannelValueLabel("0");
         _gValueLabel = ChannelValueLabel("0");
         _bValueLabel = ChannelValueLabel("0");
-        _rgbaBox = HexBox();
-        _argbBox = HexBox();
+        _rgbaBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.RgbaHex);
+        _argbBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.ArgbHex);
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETColorPickerWindow));
 
         _notifyTimer = new DispatcherTimer
@@ -236,7 +239,8 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
     private Grid BuildTitleBar(string title, UIResourceScope resources)
     {
-        Grid titleBar = new() { Background = Brushes.Transparent, Height = ColorPickerLayout.TitleBarHeight };
+        Grid titleBar = new Grid { Background = Brushes.Transparent, Height = ColorPickerLayout.TitleBarHeight }
+            .MapTo(ControlMap.ColorPicker.TitleBar.ID);
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         titleBar.PointerPressed += OnTitleBarPointerPressed;
@@ -248,7 +252,8 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         Grid.SetColumn(titleText, value: 0);
         titleBar.Children.Add(titleText);
 
-        TrayAppDotNETCaptionCloseButton close = new(_palette);
+        TrayAppDotNETCaptionCloseButton close = new TrayAppDotNETCaptionCloseButton(_palette)
+            .MapTo(ControlMap.ColorPicker.TitleBar.Close);
         TrayAppDotNETToolTip.SetTip(close, _strings.CloseTooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCloseClick;
@@ -337,8 +342,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ActionButtonGapWidth)));
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        SettingsButton defaultButton = TrayAppDotNETSettingsUI.Button(_strings.DefaultButton, _palette);
-        SettingsButton resetButton = TrayAppDotNETSettingsUI.Button(_strings.ResetButton, _palette);
+        SettingsButton defaultButton = TrayAppDotNETSettingsUI.Button(_strings.DefaultButton, _palette)
+            .MapTo(ControlMap.ColorPicker.Footer.ApplyDefault);
+        SettingsButton resetButton = TrayAppDotNETSettingsUI.Button(_strings.ResetButton, _palette)
+            .MapTo(ControlMap.ColorPicker.Footer.Reset);
         defaultButton.Padding = ColorPickerLayout.ActionButtonPadding;
         resetButton.Padding = ColorPickerLayout.ActionButtonPadding;
         defaultButton.HorizontalAlignment = HorizontalAlignment.Stretch;

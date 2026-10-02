@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
@@ -116,7 +117,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,
-                settings));
+                settings),
+            node: ControlMap.Main.PerformancePage.DeviceList.ID);
         Border deviceColumnFrame = new()
         {
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
@@ -339,6 +341,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
+        HeaderActions.MapTo(ControlMap.Main.PerformancePage.ArchitectureSimulations.ID);
         AddCPUArchitectureSimulationButton(
             text: "Live CPU",
             simulation: null,
@@ -376,7 +379,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         CPUArchitectureSimulation? simulation,
         string tip)
     {
-        SettingsButton button = TrayAppDotNETSettingsUI.Button(text, _palette);
+        SettingsButton button = TrayAppDotNETSettingsUI.Button(text, _palette)
+            .MapTo(ControlMap.Main.PerformancePage.ArchitectureSimulations.Simulation);
         button.Tag = simulation;
         button.BorderThickness = _resources.AxamlTaskManagerPerformance.SimulationButtonBorderThickness;
         button.Click += OnCPUArchitectureSimulationClick;
@@ -1215,7 +1219,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                                     == CPUPerformanceGraphView.LogicalProcessors
                 ? TaskManagerGlyphCatalog.SELECTED
-                : null
+                : null,
+            Node = ControlMap.CPUGraphMenu.LogicalProcessors
         });
         entries.Add(new ContextMenuEntry(
             Text: "Overall utilization",
@@ -1224,7 +1229,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                                     == CPUPerformanceGraphView.OverallUtilization
                 ? TaskManagerGlyphCatalog.SELECTED
-                : null
+                : null,
+            Node = ControlMap.CPUGraphMenu.OverallUtilization
         });
         entries.Add(new ContextMenuEntry(
             Text: "Detailed view",
@@ -1233,14 +1239,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                                     == CPUPerformanceGraphView.DetailedView
                 ? TaskManagerGlyphCatalog.SELECTED
-                : null
+                : null,
+            Node = ControlMap.CPUGraphMenu.DetailedView
         });
 
-        TaskManagerContextMenuWindow menuWindow = new(
+        TaskManagerContextMenuWindow menuWindow = new TaskManagerContextMenuWindow(
             entries.ToList(),
             _palette,
             _settings.EnableRoundedCorners,
-            _settings);
+            _settings).MapTo(ControlMap.CPUGraphMenu.ID);
         _cpuGraphContextMenuWindow = menuWindow;
         menuWindow.Closed += OnCPUGraphContextMenuClosed;
         menuWindow.ShowAt(owner, screenPosition);

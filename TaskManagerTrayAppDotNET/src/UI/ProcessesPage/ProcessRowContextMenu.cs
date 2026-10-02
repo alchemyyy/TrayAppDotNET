@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -17,6 +18,17 @@ internal readonly record struct ProcessAffinityTarget(
 /// <summary>Owns transient row menus and dispatches process actions away from the UI thread.</summary>
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
+    // ProcessPriorityMenu rows, top to bottom; Low is the Idle class
+    private static readonly (string Label, ProcessPriorityLevel Priority, ControlMapNodeID Node)[] PriorityEntries =
+    [
+        ("Realtime", ProcessPriorityLevel.Realtime, ControlMap.ProcessPriorityMenu.Realtime),
+        ("High", ProcessPriorityLevel.High, ControlMap.ProcessPriorityMenu.High),
+        ("Above normal", ProcessPriorityLevel.AboveNormal, ControlMap.ProcessPriorityMenu.AboveNormal),
+        ("Normal", ProcessPriorityLevel.Normal, ControlMap.ProcessPriorityMenu.Normal),
+        ("Below normal", ProcessPriorityLevel.BelowNormal, ControlMap.ProcessPriorityMenu.BelowNormal),
+        ("Low", ProcessPriorityLevel.Idle, ControlMap.ProcessPriorityMenu.Low)
+    ];
+
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
     private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
@@ -84,19 +96,29 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         ContextMenuEntryBuilder entries = new();
         entries.Add(new ContextMenuEntry(Text: "Copy", () => ExecuteCopy(request.CellCopyText))
         {
-            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered)
+            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered),
+            Node = ControlMap.ProcessRowMenu.Copy
         });
         entries.Add(new ContextMenuEntry(
             Text: isMultiple ? "Copy rows" : "Copy row",
             () => ExecuteCopy(request.RowCopyText))
         {
-            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered)
+            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered),
+            Node = ControlMap.ProcessRowMenu.CopyRow
         });
         entries.AddSeparator();
-        entries.Add(text: isMultiple ? "End tasks" : "End task", () => _requestEndTask(request.EndTaskRequest));
-        entries.Add(
-            text: isMultiple ? "End process trees" : "End process tree",
-            () => ExecuteEndProcessTrees(processes));
+        entries.Add(new ContextMenuEntry(
+            Text: isMultiple ? "End tasks" : "End task",
+            () => _requestEndTask(request.EndTaskRequest))
+        {
+            Node = ControlMap.ProcessRowMenu.EndTask
+        });
+        entries.Add(new ContextMenuEntry(
+            Text: isMultiple ? "End process trees" : "End process tree",
+            () => ExecuteEndProcessTrees(processes))
+        {
+            Node = ControlMap.ProcessRowMenu.EndProcessTree
+        });
         entries.AddSeparator();
         // Mark priority and affinity with the UAC shield when any target needs elevation to modify
         Glyph? elevationGlyph = ProcessesRequireElevationToModify(processes)
@@ -107,47 +129,53 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             static () => { })
         {
             SubmenuFactory = () => BuildPriorityEntries(processes),
-            LeadingGlyph = elevationGlyph
+            LeadingGlyph = elevationGlyph,
+            Node = ControlMap.ProcessRowMenu.SetPriority,
+            SubmenuNode = ControlMap.ProcessPriorityMenu.ID
         });
         entries.Add(new ContextMenuEntry(
             isMultiple ? "Set affinities" : "Set affinity",
             () => ShowAffinityWindow(processes))
         {
-            LeadingGlyph = elevationGlyph
+            LeadingGlyph = elevationGlyph,
+            Node = ControlMap.ProcessRowMenu.SetAffinity
         });
         if (isMultiple) return entries.ToList();
 
         entries.AddSeparator();
-        entries.Add(text: "Create memory dump file", () => ExecuteCreateMemoryDump(target));
-        entries.Add(text: "Open file location", () => ExecuteBackground(
+        entries.Add(new ContextMenuEntry(Text: "Create memory dump file", () => ExecuteCreateMemoryDump(target))
+        {
+            Node = ControlMap.ProcessRowMenu.CreateMemoryDump
+        });
+        entries.Add(new ContextMenuEntry(Text: "Open file location", () => ExecuteBackground(
             failureTitle: "Open file location failed",
             target,
-            ProcessNativeActions.TryOpenFileLocation));
-        entries.Add(text: "Properties", () => ExecuteBackground(
+            ProcessNativeActions.TryOpenFileLocation)) { Node = ControlMap.ProcessRowMenu.OpenFileLocation });
+        entries.Add(new ContextMenuEntry(Text: "Properties", () => ExecuteBackground(
             failureTitle: "Properties failed",
             target,
-            ProcessNativeActions.TryOpenProperties));
+            ProcessNativeActions.TryOpenProperties)) { Node = ControlMap.ProcessRowMenu.Properties });
 
         // Window discovery occurs only when the user opens a row menu.
         if (ProcessNativeActions.HasTopLevelWindow(target.ProcessID))
         {
             entries.AddSeparator();
-            entries.Add(text: "Switch to", () => ExecuteWindowAction(
+            entries.Add(new ContextMenuEntry(Text: "Switch to", () => ExecuteWindowAction(
                 failureTitle: "Switch to failed",
                 target,
-                ProcessNativeActions.TrySwitchToWindow));
-            entries.Add(text: "Bring to front", () => ExecuteWindowAction(
+                ProcessNativeActions.TrySwitchToWindow)) { Node = ControlMap.ProcessRowMenu.SwitchTo });
+            entries.Add(new ContextMenuEntry(Text: "Bring to front", () => ExecuteWindowAction(
                 failureTitle: "Bring to front failed",
                 target,
-                ProcessNativeActions.TryBringWindowToFront));
-            entries.Add(text: "Minimize", () => ExecuteWindowAction(
+                ProcessNativeActions.TryBringWindowToFront)) { Node = ControlMap.ProcessRowMenu.BringToFront });
+            entries.Add(new ContextMenuEntry(Text: "Minimize", () => ExecuteWindowAction(
                 failureTitle: "Minimize failed",
                 target,
-                ProcessNativeActions.TryMinimizeWindow));
-            entries.Add(text: "Maximize", () => ExecuteWindowAction(
+                ProcessNativeActions.TryMinimizeWindow)) { Node = ControlMap.ProcessRowMenu.Minimize });
+            entries.Add(new ContextMenuEntry(Text: "Maximize", () => ExecuteWindowAction(
                 failureTitle: "Maximize failed",
                 target,
-                ProcessNativeActions.TryMaximizeWindow));
+                ProcessNativeActions.TryMaximizeWindow)) { Node = ControlMap.ProcessRowMenu.Maximize });
         }
 
         return entries.ToList();
@@ -227,12 +255,8 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
 
         ContextMenuEntryBuilder entries = new();
-        AddPriorityEntry(entries, label: "Realtime", ProcessPriorityLevel.Realtime, currentPriority, processes);
-        AddPriorityEntry(entries, label: "High", ProcessPriorityLevel.High, currentPriority, processes);
-        AddPriorityEntry(entries, label: "Above normal", ProcessPriorityLevel.AboveNormal, currentPriority, processes);
-        AddPriorityEntry(entries, label: "Normal", ProcessPriorityLevel.Normal, currentPriority, processes);
-        AddPriorityEntry(entries, label: "Below normal", ProcessPriorityLevel.BelowNormal, currentPriority, processes);
-        AddPriorityEntry(entries, label: "Low", ProcessPriorityLevel.Idle, currentPriority, processes);
+        foreach ((string label, ProcessPriorityLevel priority, ControlMapNodeID node) in PriorityEntries)
+            AddPriorityEntry(entries, label, priority, node, currentPriority, processes);
         return entries.ToList();
     }
 
@@ -240,6 +264,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         ContextMenuEntryBuilder entries,
         string label,
         ProcessPriorityLevel priority,
+        ControlMapNodeID node,
         ProcessPriorityLevel? currentPriority,
         IReadOnlyList<ProcessEndTaskItem> processes)
     {
@@ -249,7 +274,8 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         {
             TrailingGlyphMetadata = priority == currentPriority
                 ? TaskManagerGlyphCatalog.SELECTED
-                : null
+                : null,
+            Node = node
         });
     }
 
@@ -622,11 +648,11 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (owner == null) return;
 
         CloseMenu();
-        TaskManagerContextMenuWindow menuWindow = new(
+        TaskManagerContextMenuWindow menuWindow = new TaskManagerContextMenuWindow(
             entries,
             _palette,
             _enableRoundedCorners,
-            _trayMenuSettings);
+            _trayMenuSettings).MapTo(ControlMap.ProcessRowMenu.ID);
         _menuWindow = menuWindow;
         menuWindow.Closed += OnMenuClosed;
         menuWindow.ShowAt(owner, _menuPosition);
@@ -755,6 +781,7 @@ internal sealed class ProcessAffinityWindow : Window
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
+        this.MapTo(ControlMap.ProcessAffinity.ID);
         Content = BuildContent(palette, resources, out _applyButton);
     }
 
@@ -830,16 +857,17 @@ internal sealed class ProcessAffinityWindow : Window
                 Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
                 VerticalAlignment = VerticalAlignment.Center
             };
+            processorCheck.MapTo(ControlMap.ProcessAffinity.Processors.Processor);
             _processorChecks.Add(processorCheck);
             processorPanel.Children.Add(processorCheck);
         }
 
-        ScrollViewer processorScroll = new()
+        ScrollViewer processorScroll = new ScrollViewer
         {
             Content = processorPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
+        }.MapTo(ControlMap.ProcessAffinity.Processors.ID);
         Grid.SetRow(processorScroll, value: 1);
         root.Children.Add(processorScroll);
 
@@ -855,13 +883,16 @@ internal sealed class ProcessAffinityWindow : Window
                 new ColumnDefinition(GridLength.Auto)
             }
         };
+        actions.MapTo(ControlMap.ProcessAffinity.Actions.ID);
 #if DEBUG
         _actions = actions;
 #endif
-        SettingsButton selectAllButton = TrayAppDotNETSettingsUI.Button(text: "Select all", palette);
+        SettingsButton selectAllButton = TrayAppDotNETSettingsUI.Button(text: "Select all", palette)
+            .MapTo(ControlMap.ProcessAffinity.Actions.SelectAll);
         selectAllButton.Click += OnSelectAllClick;
         actions.Children.Add(selectAllButton);
-        SettingsButton clearButton = TrayAppDotNETSettingsUI.Button(text: "Clear", palette);
+        SettingsButton clearButton = TrayAppDotNETSettingsUI.Button(text: "Clear", palette)
+            .MapTo(ControlMap.ProcessAffinity.Actions.Clear);
         clearButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
             top: 0,
@@ -873,11 +904,13 @@ internal sealed class ProcessAffinityWindow : Window
 #endif
         Grid.SetColumn(clearButton, value: 1);
         actions.Children.Add(clearButton);
-        SettingsButton cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        SettingsButton cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+            .MapTo(ControlMap.ProcessAffinity.Actions.Cancel);
         cancelButton.Click += OnCancelClick;
         Grid.SetColumn(cancelButton, value: 3);
         actions.Children.Add(cancelButton);
-        applyButton = TrayAppDotNETSettingsUI.Button(text: "Apply", palette);
+        applyButton = TrayAppDotNETSettingsUI.Button(text: "Apply", palette)
+            .MapTo(ControlMap.ProcessAffinity.Actions.Apply);
         applyButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
             top: 0,

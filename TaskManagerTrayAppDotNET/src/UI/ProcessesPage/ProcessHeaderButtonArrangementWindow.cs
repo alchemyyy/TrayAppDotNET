@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
@@ -58,6 +59,9 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(orderChanged);
+
+        // A ReorderDialog instance; the surface id tells it from the column chooser
+        this.MapTo(ControlMap.ProcessHeaderButtonArrangement.ID);
     }
 
 #if DEBUG

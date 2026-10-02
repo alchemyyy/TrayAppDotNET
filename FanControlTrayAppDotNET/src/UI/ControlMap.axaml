@@ -1,0 +1,454 @@
+<ControlMap
+    x:Class="FanControlTrayAppDotNET.UI.ControlMap"
+    xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Surface ID="TrayIcon" Kind="Tray" Source="FanAvaloniaApp.CreateTrayIcon">
+        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click;Ctrl+Click;Alt+Click" Event="TrayMessage"
+              Source="FanAvaloniaApp.OnTrayLeftClick"
+              Description="Toggles the flyout; Ctrl or Alt runs the configured modifier action, default Nothing" />
+        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick;Ctrl+DoubleClick;Alt+DoubleClick"
+              Event="TrayMessage" Source="FanAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Runs the configured action, default Open settings; Nothing shows the flyout" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick;Ctrl+RightClick;Alt+RightClick"
+              Event="TrayMessage" Source="FanAvaloniaApp.OnTrayRightClick"
+              Description="Opens the tray menu unless a Ctrl or Alt modifier action is configured" />
+        <Leaf ID="OpenAbout" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="FanAvaloniaApp.OnUpdateBalloonClicked"
+              Description="Clicking the update balloon opens Settings on the About page" />
+    </Surface>
+
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="FanTrayMenuWindow.BuildEntries">
+        <Leaf ID="Settings" Kind="ListItem" Event="MenuEntry" Source="FanTrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="FanTrayMenuWindow.BuildEntries" />
+    </Surface>
+
+    <Surface ID="Flyout" Kind="Popup" Source="FanFlyoutWindow.BuildVisualGeneration">
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FanFlyoutWindow.FanFlyoutWindow"
+              Description="Hides the flyout, also while the confirmation overlay is open" />
+        <Scope ID="Header" Source="FanFlyoutWindow.BuildHeader">
+            <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
+                <Leaf ID="Settings" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader" />
+                <Leaf ID="CurveEditor" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader"
+                      Description="Edits the first fan with a curve, or opens Fan Properties settings if none" />
+                <Leaf ID="NonFunctioningFans" Kind="Toggle" Pointer="Click;Ctrl+Click" Event="PointerReleased"
+                      Source="FanFlyoutWindow.BuildHeader"
+                      Description="Shows or hides non-functioning fans; Ctrl+Click sorts fans by hardware name" />
+                <Leaf ID="AddItem" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.AddItemButton"
+                      Description="Opens the add-item menu" />
+                <Leaf ID="DragDebug" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader"
+                      Description="DEBUG builds only; shows fan drag debug visuals" />
+            </Scope>
+            <Scope ID="Profiles" Tab="Once" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
+                <Leaf ID="Profile1" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />
+                <Leaf ID="Profile2" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />
+                <Leaf ID="Profile3" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />
+            </Scope>
+            <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
+                  Source="FlyoutUndockButtonController.OnPointerReleased"
+                  Description="Click toggles undocking, drag moves the flyout; shown only when undocking is allowed" />
+        </Scope>
+        <Scope ID="Cards" IsArranged="True" Source="FanFlyoutWindow.BuildCellList"
+               Description="Card order follows persisted display order; fan, group and probe cards interleave">
+            <Leaf ID="InstallUpdate" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildUpdateCard"
+                  Description="Update card action, shown when an update is available" />
+            <Scope ID="FanCard" IsRepeated="True" Source="FanFlyoutWindow.BuildCell">
+                <Leaf ID="OpenProperties" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildFanRow"
+                      Description="Opens or closes the Fan Properties window" />
+                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
+                      Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
+                      Description="Double-click renames; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="ControlMode" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildFanRow"
+                      Description="Switches between manual and curve control" />
+                <Leaf ID="Speed" Kind="Slider" Event="ValueChanged" Source="FanFlyoutWindow.BuildFanRow" />
+                <Leaf ID="SpeedValue" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
+                      Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
+                      Description="Double-click types a manual speed; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                      Source="FanFlyoutWindow.WireFanDrag"
+                      Description="Drags the card to reorder it or drop the fan into a group" />
+            </Scope>
+            <Scope ID="GroupCard" IsRepeated="True" Source="FanFlyoutWindow.BuildCell">
+                <Leaf ID="Icon" Kind="Button" IsTabStop="False" Event="PointerReleased"
+                      Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Group glyph drawn as an icon button; its click does nothing" />
+                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
+                      Event="PointerPressed" Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Double-click renames the group; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="Expanded" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Collapses or expands the grouped fan rows" />
+                <Leaf ID="Delete" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Confirms, then deletes the group and ungroups its fans" />
+                <Leaf ID="ControlMode" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Switches every fan in the group between manual and curve control" />
+                <Leaf ID="Speed" Kind="Slider" Event="ValueChanged" Source="FanFlyoutWindow.BuildGroupHeader" />
+                <Scope ID="GroupedFan" IsRepeated="True" Source="FanFlyoutWindow.BuildFanRow"
+                       Description="Fan rows inside the group, shown while it is expanded">
+                    <Leaf ID="OpenProperties" Kind="Button" Event="PointerReleased"
+                          Source="FanFlyoutWindow.BuildFanRow"
+                          Description="Opens or closes the Fan Properties window" />
+                    <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
+                          Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
+                          Description="Double-click renames; Enter or focus loss commits, Escape cancels" />
+                    <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                          Source="FanFlyoutWindow.WireFanDrag"
+                          Description="Drags the fan within or out of the group" />
+                </Scope>
+                <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                      Source="FanFlyoutWindow.WireGroupDrag" Description="Drags the group card to reorder it" />
+            </Scope>
+            <Scope ID="ProbeCard" IsRepeated="True" Source="FanFlyoutWindow.BuildProbeCard">
+                <Leaf ID="OpenEditor" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
+                      Description="Opens the Probe Card Editor" />
+                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
+                      Event="PointerPressed" Source="FanFlyoutWindow.BuildProbeHeader"
+                      Description="Double-click renames the card; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="Expanded" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
+                      Description="Collapses or expands the probe value rows" />
+                <Leaf ID="Delete" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
+                      Description="Confirms, then deletes the probe card" />
+                <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                      Source="FanFlyoutWindow.WireProbeDrag" Description="Drags the probe card to reorder it" />
+            </Scope>
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="FanFlyoutWindow.BuildCellList" Description="Card list ScrollViewer; no handler" />
+        </Scope>
+        <Scope ID="ConfirmOverlay" Tab="Cycle" Arrows="Horizontal" Source="FanFlyoutWindow.BuildConfirmOverlay"
+               Description="Delete confirmation for groups and probe cards">
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="FanFlyoutWindow.BuildConfirmOverlay" />
+            <Leaf ID="Confirm" Kind="Button" Event="Click" Source="FanFlyoutWindow.BuildConfirmOverlay" />
+        </Scope>
+        <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+              Source="FanFlyoutWindow.OnRootPointerPressed"
+              Description="Drags the undocked flyout from any non-interactive area" />
+    </Surface>
+
+    <Surface ID="AddItemMenu" Kind="Popup" Template="ContextMenu" Source="FanFlyoutWindow.ShowAddItemMenu">
+        <Leaf ID="AddGroupCard" Kind="ListItem" Event="MenuEntry" Source="FanFlyoutWindow.ShowAddItemMenu" />
+        <Leaf ID="AddProbeCard" Kind="ListItem" Event="MenuEntry" Source="FanFlyoutWindow.ShowAddItemMenu" />
+    </Surface>
+
+    <Surface ID="ProbeDataSelector" Source="ProbeDataSelectorWindow.AttachSelectorInputHandlers"
+             Description="Probe Card Editor; Tab moves between the tab strip and the page, arrows within each">
+        <Scope ID="Tabs" Tab="Once" Arrows="Horizontal" Source="ProbeDataSelectorWindow.BuildTabRow"
+               Description="Arrows move between the tabs; Enter or Space opens the focused tab">
+            <Leaf ID="Home" Kind="Navigation" Event="PointerPressed" Source="ProbeDataSelectorWindow.BuildTab" />
+            <Leaf ID="Temperatures" Kind="Navigation" Event="PointerPressed"
+                  Source="ProbeDataSelectorWindow.BuildTab" />
+            <Leaf ID="Power" Kind="Navigation" Event="PointerPressed" Source="ProbeDataSelectorWindow.BuildTab" />
+            <Leaf ID="Load" Kind="Navigation" Event="PointerPressed" Source="ProbeDataSelectorWindow.BuildTab" />
+            <Leaf ID="Clocks" Kind="Navigation" Event="PointerPressed" Source="ProbeDataSelectorWindow.BuildTab" />
+            <Leaf ID="Voltages" Kind="Navigation" Event="PointerPressed" Source="ProbeDataSelectorWindow.BuildTab" />
+        </Scope>
+        <Scope ID="HomePage" Tab="Once" Arrows="Spatial" Source="ProbeDataSelectorWindow.BuildHomeBody"
+               Description="Tab walks the focused card or section, then leaves; arrows reach the nearest control anywhere">
+            <Leaf ID="ProfileVisibility" Kind="Toggle" IsRepeated="True" Event="IsCheckedChanged"
+                  Source="ProbeDataSelectorWindow.BuildProfileVisibilityRow"
+                  Description="Shows the probe card on one fan profile; at least one profile stays checked" />
+            <Scope ID="SelectedProbes" Source="ProbeDataSelectorWindow.BuildSelectedProbesSection">
+                <Leaf ID="ClearDeadSensors" Kind="Button" Event="Click"
+                      Source="ProbeDataSelectorWindow.BuildSelectedProbesHeader" />
+                <Scope ID="SelectedProbe" Template="ProbeChoiceCard" IsRepeated="True"
+                       Source="ProbeDataSelectorWindow.BuildSelectedProbesSection"
+                       Description="Missing probes use BuildMissingProbeCard and omit the transform controls">
+                    <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                          Source="ProbeDataSelectorWindow.WireSelectedProbeDrag"
+                          Description="Dragging the card body reorders the card" />
+                    <Leaf ID="MoveUp" Kind="Command" Keys="Ctrl+Up" Event="MapCommand"
+                          Source="ProbeDataSelectorWindow.BuildSelectedProbesSection"
+                          Description="Moves the card up while any of its controls has focus" />
+                    <Leaf ID="MoveDown" Kind="Command" Keys="Ctrl+Down" Event="MapCommand"
+                          Source="ProbeDataSelectorWindow.BuildSelectedProbesSection"
+                          Description="Moves the card down while any of its controls has focus" />
+                </Scope>
+                <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                      Source="ProbeDataSelectorWindow.BuildVerticalScrollHost"
+                      Description="SettingsScrollHost; no handler" />
+                <Scope ID="ScrollBar" Template="ScrollBar" Source="ProbeDataSelectorWindow.BuildVerticalScrollHost" />
+            </Scope>
+            <Scope ID="DeviceNicknames" Template="NicknameSection"
+                   Source="ProbeDataSelectorWindow.BuildDeviceNicknamesSection" />
+            <Scope ID="ProbeNicknames" Template="NicknameSection"
+                   Source="ProbeDataSelectorWindow.BuildProbeNicknamesSection" />
+        </Scope>
+        <Scope ID="TypePage" Tab="Once" Arrows="Spatial" Source="ProbeDataSelectorWindow.BuildTypeBody"
+               Description="Shared by the Temperatures, Power, Load, Clocks and Voltages tabs; Tab leaves after a card">
+            <Scope ID="Probe" Template="ProbeChoiceCard" IsRepeated="True"
+                   Source="ProbeDataSelectorWindow.BuildTypeBody" />
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="ProbeDataSelectorWindow.BuildBodyHost" Description="SettingsScrollHost; no handler" />
+            <Scope ID="ScrollBar" Template="ScrollBar" Source="ProbeDataSelectorWindow.BuildBodyHost" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="FanProperties" Source="FanPropertiesWindow.FanPropertiesWindow">
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="FanPropertiesWindow.BuildTitleBar">
+            <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="FanPropertiesWindow.BuildTitleBar" Description="Drags the window by its title bar" />
+            <Leaf ID="Pin" Kind="Toggle" Event="Click" Source="FanPropertiesWindow.FanPropertiesWindow"
+                  Description="Pinned windows survive flyout dismissal and refuse Close" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="FanPropertiesWindow.FanPropertiesWindow"
+                  Description="Closes the window unless it is pinned" />
+        </Scope>
+        <Scope ID="Fields" Source="FanPropertiesWindow.BuildBody">
+            <Leaf ID="DisplayName" Kind="Text" Source="FanPropertiesWindow.BuildBody"
+                  Description="No handler; read on Save" />
+            <Leaf ID="Group" Kind="Select" Source="FanPropertiesWindow.BuildBody"
+                  Description="No handler; read on Save" />
+            <Scope ID="Mode" Tab="Once" Arrows="Horizontal" Source="FanPropertiesWindow.BuildBody"
+                   Description="Radio buttons with no handlers; read on Save">
+                <Leaf ID="CurveMode" Kind="Option" Source="FanPropertiesWindow.BuildBody" />
+                <Leaf ID="ManualMode" Kind="Option" Source="FanPropertiesWindow.BuildBody" />
+                <Leaf ID="DetachedMode" Kind="Option" Source="FanPropertiesWindow.BuildBody" />
+            </Scope>
+            <Scope ID="StartupSpeed" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody"
+                   Description="Jumpstart speed row" />
+            <Scope ID="ClampHigh" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody"
+                   Description="Max Duty clamp row" />
+            <Scope ID="ClampLow" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody"
+                   Description="Min Duty clamp row" />
+            <Scope ID="WarnLow" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody" />
+            <Scope ID="WarnHigh" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody" />
+            <Scope ID="DeltaMax" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody"
+                   Description="Max Delta rate row" />
+            <Scope ID="Offset" Template="UnitNumberRow" Source="FanPropertiesWindow.BuildBody" />
+            <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+                  Source="FanPropertiesWindow.BuildBody" Description="Left-column ScrollViewer; no handler" />
+        </Scope>
+        <Scope ID="CurveAssignment" Source="FanPropertiesWindow.BuildBody">
+            <Leaf ID="AssignedCurve" Kind="Select" Event="SelectionChanged"
+                  Source="FanPropertiesWindow.FanPropertiesWindow"
+                  Description="Selection refreshes the RPM unit ranges; applied on Save" />
+            <Leaf ID="EditCurve" Kind="Button" Event="Click" Source="FanPropertiesWindow.BuildBody"
+                  Description="Applies the fields, then opens the curve editor" />
+        </Scope>
+        <Scope ID="Footer" Source="FanPropertiesWindow.BuildFooter">
+            <Leaf ID="ResetToDefaults" Kind="Button" Event="Click" Source="FanPropertiesWindow.BuildFooter" />
+            <Leaf ID="Save" Kind="Button" Event="Click" Source="FanPropertiesWindow.BuildFooter" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="CurveEditor" Source="FanCurveEditorWindow.FanCurveEditorWindow">
+        <Scope ID="DataSourcePicker" Source="FanCurveEditorWindow.DataSourceBlock">
+            <Leaf ID="Selection" Kind="Button" IsTabStop="False" Pointer="Click" Event="PointerPressed"
+                  Source="FanCurveEditorWindow.DataSourceSelectionBox"
+                  Description="Shows the selected source; clicking focuses the search box" />
+            <Scope ID="Sources" Template="SearchableListBox" IsFocusable="True"
+                   Source="FanCurveEditorWindow.DataSourceList"
+                   Description="SelectionChanged, wired in WireControls, rebinds the curve to the source" />
+        </Scope>
+        <Scope ID="Graph" IsFocusable="True" Source="FanCurveEditor.FanCurveEditor"
+               Description="Painted editor; focus selects the first point and losing focus clears the selection">
+            <Leaf ID="Plot" Kind="Region" IsTabStop="False" Pointer="Click;Drag" Event="OnPointerPressed"
+                  Source="FanCurveEditor.OnPointerPressed"
+                  Description="Clicking empty plot space adds a point and drags it" />
+            <Leaf ID="CurvePoint" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="Click;Drag;RightClick"
+                  Event="OnPointerPressed" Source="FanCurveEditor.OnPointerPressed"
+                  Description="Click selects and drags a point; right-click deletes it" />
+            <Leaf ID="SelectNextPoint" Kind="Command" Event="OnKeyDown" Source="FanCurveEditor.OnKeyDown"
+                  Description="OnKeyDown handles Tab and Shift+Tab: Avalonia's tab navigation runs before the map" />
+            <Leaf ID="MovePointLeft" Kind="Command" Keys="Left;Ctrl+Left" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor"
+                  Description="Moves the selected point left; Ctrl uses the coarse step" />
+            <Leaf ID="MovePointRight" Kind="Command" Keys="Right;Ctrl+Right" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor"
+                  Description="Moves the selected point right; Ctrl uses the coarse step" />
+            <Leaf ID="MovePointUp" Kind="Command" Keys="Up;Ctrl+Up" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor"
+                  Description="Moves the selected point up; Ctrl uses the coarse step" />
+            <Leaf ID="MovePointDown" Kind="Command" Keys="Down;Ctrl+Down" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor"
+                  Description="Moves the selected point down; Ctrl uses the coarse step" />
+            <Leaf ID="DeletePoint" Kind="Command" Keys="Delete;Back" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor"
+                  Description="Deletes the selected point, keeping at least two" />
+            <Leaf ID="ClearSelection" Kind="Command" Keys="Escape" Event="MapCommand"
+                  Source="FanCurveEditor.FanCurveEditor" Description="Clears the point selection" />
+        </Scope>
+        <Scope ID="Options" Source="FanCurveEditorWindow.BuildControlGrid">
+            <Scope ID="RPMModeCard" Source="FanCurveEditorWindow.BuildRPMModeRow">
+                <Leaf ID="RPMMode" Kind="Toggle" Event="Callback" Source="FanCurveEditorWindow.FanCurveEditorWindow" />
+                <Leaf ID="RescaleCurve" Kind="Button" Event="Click" Source="FanCurveEditorWindow.FanCurveEditorWindow"
+                      Description="Rescales point heights after an axis maximum change; enabled only while pending" />
+            </Scope>
+            <Leaf ID="MinRPM" Kind="Number" Event="ValueChanged" Source="FanCurveEditorWindow.WireControls" />
+            <Leaf ID="MaxRPM" Kind="Number" Event="ValueChanged" Source="FanCurveEditorWindow.WireControls"
+                  Description="Shown in RPM mode only" />
+            <Leaf ID="MinDuty" Kind="Number" Event="ValueChanged" Source="FanCurveEditorWindow.WireControls" />
+            <Leaf ID="MaxDuty" Kind="Number" Event="ValueChanged" Source="FanCurveEditorWindow.WireControls" />
+            <Leaf ID="Smoothness" Kind="Number" Event="ValueChanged" Source="FanCurveEditorWindow.WireControls" />
+            <Leaf ID="Monotonic" Kind="Toggle" Event="Callback" Source="FanCurveEditorWindow.FanCurveEditorWindow"
+                  Description="Prevents the curve from decreasing" />
+        </Scope>
+    </Surface>
+
+    <Surface ID="Settings" Template="SettingsShell" Source="FanSettingsWindow.CreatePageDescriptors">
+        <Scope ID="GeneralPage" Source="FanSettingsWindow.BuildGeneralPage">
+            <Scope ID="Common" Template="GeneralSection" Source="FanSettingsWindow.BuildGeneralPage"
+                   Description="Startup card and installation cards" />
+            <Scope ID="Rendering" Template="RenderingSection" Source="FanSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="DefaultToRPMMode" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildGeneralPage" />
+        </Scope>
+        <Scope ID="FanPropertiesPage" Source="FanSettingsWindow.BuildFanPropertiesPage">
+            <Leaf ID="DefaultJumpstartDutyCycle" Kind="Number" Event="Callback"
+                  Source="FanSettingsWindow.BuildFanPropertiesPage" />
+            <Leaf ID="DefaultDeltaMaxDutyCycle" Kind="Number" Event="Callback"
+                  Source="FanSettingsWindow.BuildFanPropertiesPage" />
+            <Leaf ID="DefaultAssignedCurve" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildFanPropertiesPage" />
+            <Scope ID="FanSlots" Source="FanSettingsWindow.BuildFanPropertiesPage"
+                   Description="Reassigns fan settings between physical fans">
+                <Leaf ID="FanSlot" Kind="ListItem" IsRepeated="True" FocusKeys="Ctrl+Up;Ctrl+Down" Pointer="Drag"
+                      Event="PointerPressed" Source="FanSettingsWindow.BuildFanSlotRow"
+                      Description="Focusable row; drag or the keys reorder the slot" />
+                <Leaf ID="ApplyFanSwaps" Kind="Button" Event="Click"
+                      Source="FanSettingsWindow.BuildFanPropertiesPage" />
+            </Scope>
+            <Leaf ID="ForcedNonFunctioning" Kind="Toggle" IsRepeated="True" Event="Callback"
+                  Source="FanSettingsWindow.BuildFanPropertiesPage"
+                  Description="One card per live fan in a two-column grid" />
+        </Scope>
+        <Scope ID="FlyoutPage" Source="FanSettingsWindow.BuildFlyoutPage">
+            <Leaf ID="RestoreUndockedOnStartup" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="AllowUndock" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage"
+                  Description="Shows the flyout undock button and rebuilds the page" />
+            <Leaf ID="ClampUndockedToScreen" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage"
+                  Description="Shown only while undocking is allowed" />
+            <Leaf ID="ShowNonFunctioningFans" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="ShowMultipleSliderValues" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="CardSpacing" Kind="Number" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="CardHorizontalInset" Kind="Number" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="TitleBarCardSpacing" Kind="Number" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="CardBorders" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="HoveredCardBorders" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="HideGroupedFanCardBorders" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="GroupedFanCardBackground" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="SquareTitleBarCorners" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildFlyoutPage" />
+        </Scope>
+        <Scope ID="TrayIconPage" Source="FanSettingsWindow.BuildTrayIconPage">
+            <Leaf ID="TrayScroll" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildTrayIconPage"
+                  Description="Gates tray wheel input; this app subscribes no wheel handler" />
+            <Leaf ID="CPUTemperatureTooltip" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="GPUTemperatureTooltip" Kind="Toggle" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="ContextMenuPosition" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="DoubleClickAction" Kind="Select" Event="Callback" Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="CtrlLeftClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="AltLeftClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="CtrlRightClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="AltRightClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="CtrlDoubleClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+            <Leaf ID="AltDoubleClickAction" Kind="Select" Event="Callback"
+                  Source="FanSettingsWindow.BuildTrayIconPage" />
+        </Scope>
+        <Scope ID="HotkeysPage" Source="FanSettingsWindow.BuildHotkeysPage">
+            <Scope ID="OpenFlyout" Template="HotkeyRow" Source="FanSettingsWindow.BuildHotkeysPage" />
+            <Scope ID="OpenSettings" Template="HotkeyRow" Source="FanSettingsWindow.BuildHotkeysPage" />
+        </Scope>
+        <Scope ID="ThemePage" Source="FanSettingsWindow.BuildThemePage">
+            <Leaf ID="ContextMenuFontSize" Kind="Number" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
+            <Leaf ID="ThemeMode" Kind="Select" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
+            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
+            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="TextColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="FlyoutBackgroundColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="FlyoutTitleBarColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="FanCardColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="GroupCardColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="CardBorderColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="TrayIconColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Leaf ID="SliderThumb" Kind="Select" Event="SelectionChanged" Source="FanSettingsWindow.BuildThemePage" />
+            <Leaf ID="CurveSliderThumb" Kind="Select" Event="SelectionChanged"
+                  Source="FanSettingsWindow.BuildThemePage" />
+        </Scope>
+        <Scope ID="AboutPage" Template="AboutPage" Source="FanSettingsWindow.BuildAboutPage" />
+    </Surface>
+
+    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation" Source="FanFlyoutWindow.ShowUpdateConfirmation" />
+
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker" />
+
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="FanUninstallerWindow.CreateOptions" />
+
+    <Surface ID="Installer" Template="Installer" Source="FanAvaloniaApp.OnFrameworkInitializationCompleted" />
+
+    <Surface ID="Global" Kind="Global" Source="FanAvaloniaApp.StartServices">
+        <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="FanAvaloniaApp.HandleHotkey"
+              Description="User-configured RegisterHotKey binding; no default" />
+        <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="FanAvaloniaApp.HandleHotkey"
+              Description="User-configured RegisterHotKey binding; default Ctrl+Alt+Win+S" />
+    </Surface>
+
+    <!-- Local templates for app builders that repeat; candidates for the common map where noted -->
+
+    <Template ID="ProbeChoiceCard" Source="ProbeDataSelectorWindow.BuildProbeChoiceCard">
+        <Leaf ID="Card" Kind="Region" IsTabStop="False" Pointer="DoubleClick" Event="PointerPressed"
+              Source="ProbeDataSelectorWindow.WireProbeCardDoubleClick"
+              Description="Double-clicking the card body selects or deselects the probe; Enabled is the keyboard path" />
+        <Leaf ID="TransformExpression" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+              Source="ProbeDataSelectorWindow.BuildTransformControls"
+              Description="Shown while the transform editor is open; Enter, Escape or focus loss commits" />
+        <Leaf ID="ToggleTransform" Kind="Button" Event="Click" Source="ProbeDataSelectorWindow.BuildProbeChoiceCard"
+              Description="Gear button; shows or hides the transform editor" />
+        <Leaf ID="Enabled" Kind="Toggle" Event="CheckedChanged"
+              Source="ProbeDataSelectorWindow.BuildLabeledMiniToggle" />
+        <Leaf ID="TruncateValue" Kind="Toggle" Event="CheckedChanged"
+              Source="ProbeDataSelectorWindow.BuildLabeledMiniToggle" />
+        <Slot />
+    </Template>
+
+    <Template ID="NicknameSection" Source="ProbeDataSelectorWindow.BuildNicknameSection">
+        <Leaf ID="LoadDefaults" Kind="Button" Event="Click" Source="ProbeDataSelectorWindow.BuildNicknameSection" />
+        <Leaf ID="AddRule" Kind="Button" Event="Click" Source="ProbeDataSelectorWindow.BuildNicknameSection" />
+        <Scope ID="Rule" IsRepeated="True" Source="ProbeDataSelectorWindow.BuildNicknameRuleCard"
+               Description="Rule order sets replacement precedence">
+            <Leaf ID="Target" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                  Source="ProbeDataSelectorWindow.BuildNicknameRuleCard"
+                  Description="Match pattern; Enter, Escape or focus loss commits" />
+            <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="ProbeDataSelectorWindow.WireNicknameRuleDrag" Description="Arrow glyph drag handle" />
+            <Leaf ID="Replacement" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                  Source="ProbeDataSelectorWindow.BuildNicknameRuleCard"
+                  Description="Replacement text; Enter, Escape or focus loss commits" />
+            <Leaf ID="DeleteRule" Kind="Button" Event="Click" Source="ProbeDataSelectorWindow.BuildNicknameRuleCard" />
+            <Leaf ID="MoveUp" Kind="Command" Keys="Ctrl+Up" Event="MapCommand"
+                  Source="ProbeDataSelectorWindow.BuildNicknameRuleCard"
+                  Description="Moves the rule up while any of its controls has focus" />
+            <Leaf ID="MoveDown" Kind="Command" Keys="Ctrl+Down" Event="MapCommand"
+                  Source="ProbeDataSelectorWindow.BuildNicknameRuleCard"
+                  Description="Moves the rule down while any of its controls has focus" />
+        </Scope>
+        <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="ProbeDataSelectorWindow.BuildVerticalScrollHost" Description="SettingsScrollHost; no handler" />
+        <Scope ID="ScrollBar" Template="ScrollBar" Source="ProbeDataSelectorWindow.BuildVerticalScrollHost" />
+    </Template>
+
+    <Template ID="UnitNumberRow" Source="FanPropertiesWindow.NumberRow">
+        <Leaf ID="Value" Kind="Number" Source="FanPropertiesWindow.NumberRow" Description="No handler; read on Save" />
+        <Leaf ID="RPMMode" Kind="Toggle" Event="CheckedChanged" Source="FanPropertiesWindow.NumberRow"
+              Description="Switches the value between percent and RPM and converts it" />
+    </Template>
+
+    <Template ID="HotkeyRow" Source="FanSettingsWindow.AddHotkeyRow">
+        <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged" Source="FanSettingsWindow.AddHotkeyRow" />
+        <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="FanSettingsWindow.AddHotkeyRow"
+              Description="Read-only box that records the next non-modifier key; Escape and F12 are ignored" />
+        <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="FanSettingsWindow.AddHotkeyRow" />
+        <Leaf ID="RemoveBinding" Kind="Button" IsRepeated="True" Event="Click"
+              Source="FanSettingsWindow.BuildHotkeyEntryCard" Description="One per registered binding" />
+    </Template>
+</ControlMap>

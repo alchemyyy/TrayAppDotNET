@@ -3,6 +3,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using NetworkTrayAppDotNET.Models;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 
@@ -33,7 +34,8 @@ public sealed partial class NetworkSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.TrayIconPage.ContextMenuPosition));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header)), p));
@@ -43,25 +45,27 @@ public sealed partial class NetworkSettingsWindow
 
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlLeftClick_Title)),
             _settings.TrayCtrlLeftClickAction,
-            v => _settings.TrayCtrlLeftClickAction = v, p);
+            v => _settings.TrayCtrlLeftClickAction = v, p, ControlMap.Settings.TrayIconPage.CtrlLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltLeftClick_Title)),
             _settings.TrayAltLeftClickAction,
-            v => _settings.TrayAltLeftClickAction = v, p);
+            v => _settings.TrayAltLeftClickAction = v, p, ControlMap.Settings.TrayIconPage.AltLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlRightClick_Title)),
             _settings.TrayCtrlRightClickAction,
-            v => _settings.TrayCtrlRightClickAction = v, p);
+            v => _settings.TrayCtrlRightClickAction = v, p, ControlMap.Settings.TrayIconPage.CtrlRightClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltRightClick_Title)),
             _settings.TrayAltRightClickAction,
-            v => _settings.TrayAltRightClickAction = v, p);
+            v => _settings.TrayAltRightClickAction = v, p, ControlMap.Settings.TrayIconPage.AltRightClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_DoubleLeftClick_Title)),
             _settings.TrayDoubleClickAction,
-            v => _settings.TrayDoubleClickAction = v, p);
+            v => _settings.TrayDoubleClickAction = v, p, ControlMap.Settings.TrayIconPage.DoubleClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlDoubleLeftClick_Title)),
             _settings.TrayCtrlDoubleLeftClickAction,
-            v => _settings.TrayCtrlDoubleLeftClickAction = v, p);
+            v => _settings.TrayCtrlDoubleLeftClickAction = v, p,
+            ControlMap.Settings.TrayIconPage.CtrlDoubleLeftClickAction);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title)),
             _settings.TrayAltDoubleLeftClickAction,
-            v => _settings.TrayAltDoubleLeftClickAction = v, p);
+            v => _settings.TrayAltDoubleLeftClickAction = v, p,
+            ControlMap.Settings.TrayIconPage.AltDoubleLeftClickAction);
         ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.TrayIcon));
         return stack;
     }
@@ -71,7 +75,8 @@ public sealed partial class NetworkSettingsWindow
         string title,
         TrayClickAction selected,
         Action<TrayClickAction> set,
-        SettingsPalette p)
+        SettingsPalette p,
+        ControlMapNodeID node)
     {
         stack.Children.Add(ComboCard(
             title,
@@ -93,6 +98,7 @@ public sealed partial class NetworkSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))
-            ]));
+            ],
+            node: node));
     }
 }

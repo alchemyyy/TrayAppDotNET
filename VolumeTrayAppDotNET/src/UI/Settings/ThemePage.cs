@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
@@ -27,7 +28,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.ContextMenuFontSize));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
@@ -46,7 +48,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.ThemeStyle));
         stack.Children.Add(BoolCard(
             Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
             Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
@@ -56,7 +59,8 @@ public sealed partial class VolumeSettingsWindow
             () => RebuildShell(VolumeSettingsPage.Theme),
             [
                 Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.Windows11Navigation));
         stack.Children.Add(VariantColorCard(
             name: "Text",
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
@@ -69,7 +73,8 @@ public sealed partial class VolumeSettingsWindow
             p,
             [
                 Loc(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.TextColor.ID));
         stack.Children.Add(VariantColorCard(
             name: "Background",
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
@@ -82,7 +87,8 @@ public sealed partial class VolumeSettingsWindow
             p,
             [
                 Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.BackgroundColor.ID));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
@@ -95,7 +101,8 @@ public sealed partial class VolumeSettingsWindow
             () => RebuildShell(VolumeSettingsPage.Theme),
             [
                 Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.RoundedCorners));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Theme_Animations_Title)),
             Loc(nameof(AppStrings.Settings_Theme_Animations_Description)),
@@ -116,7 +123,8 @@ public sealed partial class VolumeSettingsWindow
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.Animations));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
             Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
@@ -133,12 +141,14 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             [
                 Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.ToolTipShowDelay));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
             p,
             autoSizeToText: true,
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
+        sliderThumbCombo.MapTo(ControlMap.Settings.ThemePage.SliderIndicator);
         OwnPageResource(sliderThumbCombo);
         foreach (SliderThumbGlyphOption option in _settings.SliderThumbOptions)
         {
@@ -181,7 +191,8 @@ public sealed partial class VolumeSettingsWindow
             p,
             [
                 Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.TrayIconColor.ID));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
@@ -201,7 +212,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip)),
             [
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.MeterPeakColor.ID));
         stack.Children.Add(SingleColorCard(
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Description)),
@@ -219,7 +231,8 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip)),
             [
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
-            ]));
+            ],
+            node: ControlMap.Settings.ThemePage.MeterPeakStereoColor.ID));
 
         ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Theme));
         return stack;

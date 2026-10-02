@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -130,20 +131,24 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             _searchBox.HorizontalAlignment = HorizontalAlignment.Center;
             _searchBox.Margin = resources.AxamlTaskManagerReorderDialog.SearchMargin;
             _searchBox.TextChanged += OnSearchTextChanged;
+            _searchBox.MapTo(ControlMap.ReorderDialog.Search);
         }
 
-        _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
+        _closeButton = new TrayAppDotNETCaptionCloseButton(palette).MapTo(ControlMap.ReorderDialog.TitleBar.Close);
         _closeButton.Click += OnCancelClick;
         TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
         _titleBar = BuildTitleBar(title, palette, resources, _closeButton);
         _titleBar.PointerPressed += OnTitleBarPointerPressed;
 
-        _resetButton = TrayAppDotNETSettingsUI.Button(text: "Reset", palette);
+        _resetButton = TrayAppDotNETSettingsUI.Button(text: "Reset", palette)
+            .MapTo(ControlMap.ReorderDialog.Footer.Reset);
         _resetButton.Click += OnResetClick;
-        _cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette);
+        _cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+            .MapTo(ControlMap.ReorderDialog.Footer.Cancel);
         _cancelButton.Click += OnCancelClick;
-        _doneButton = TrayAppDotNETSettingsUI.Button(text: "Done", palette);
+        _doneButton = TrayAppDotNETSettingsUI.Button(text: "Done", palette)
+            .MapTo(ControlMap.ReorderDialog.Footer.Done);
         _doneButton.Click += OnDoneClick;
 
         Control listHost;
@@ -154,7 +159,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
                 resources.AxamlTaskManagerReorderDialog.ListPadding,
                 background,
                 style,
-                scrollBarContextMenuOptions!);
+                scrollBarContextMenuOptions!,
+                node: ControlMap.ReorderDialog.Items.ID);
             _reorderList.AttachScrollViewport(_scrollViewport);
             listHost = _scrollViewport;
         }
@@ -209,7 +215,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             palette.Border,
             enableRoundedCorners);
 
-        KeyDown += OnWindowKeyDown;
+        this.MapCommand(ControlMap.ReorderDialog.Dismiss, Dismiss);
         Opened += OnOpened;
         Closed += OnClosed;
     }
@@ -282,13 +288,13 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         SettingsButton cancelButton,
         SettingsButton doneButton)
     {
-        StackPanel buttons = new()
+        StackPanel buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             Spacing = resources.AxamlTaskManagerReorderDialog.FooterButtonSpacing,
             Children = { resetButton, cancelButton, doneButton }
-        };
+        }.MapTo(ControlMap.ReorderDialog.Footer.ID);
         return new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(background),
@@ -386,12 +392,10 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         eventArgs.Handled = true;
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
+    // Escape anywhere in the dialog; the control map dispatches it
+    private void Dismiss()
     {
-        if (Volatile.Read(ref _disposed) != 0 || eventArgs.Key != Key.Escape) return;
-
-        Close();
-        eventArgs.Handled = true;
+        if (Volatile.Read(ref _disposed) == 0) Close();
     }
 
     private void OnOpened(object? sender, EventArgs eventArgs)
@@ -430,7 +434,6 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
         Closed -= OnClosed;
         Opened -= OnOpened;
-        KeyDown -= OnWindowKeyDown;
         _titleBar.PointerPressed -= OnTitleBarPointerPressed;
         _closeButton.Click -= OnCancelClick;
         _resetButton.Click -= OnResetClick;
