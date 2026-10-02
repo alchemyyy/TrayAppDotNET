@@ -1078,9 +1078,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         // Drag ghosts reuse this builder and stay out of the control map
         if (!interactive) return row;
 
-        // The name grid holds the inline rename box, which becomes a tab stop while it is shown
+        // The name and its inline rename box take turns; Enter or Space on the focused name renames, as a double-click
+        // does, and the box is a tab stop while it is shown
         probeButton.MapTo(ControlMap.Flyout.Cards.ProbeCard.OpenEditor);
-        nameGrid.MapTo(ControlMap.Flyout.Cards.ProbeCard.DisplayName);
+        name.MapTo(ControlMap.Flyout.Cards.ProbeCard.DisplayName)
+            .MapActivation(_ => BeginInlineEdit(name, probeCard, probeCard.DisplayName));
+        edit.MapTo(ControlMap.Flyout.Cards.ProbeCard.NameEditor);
         expand.MapTo(ControlMap.Flyout.Cards.ProbeCard.Expanded);
         delete.MapTo(ControlMap.Flyout.Cards.ProbeCard.Delete);
         return row;
@@ -1284,7 +1287,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutSlider? slider = null;
         TextBlock? modeGlyph = null;
         Border? mode = null;
-        Grid? valueGrid = null;
+        Viewbox? valueDisplay = null;
+        TextBox? valueEdit = null;
         if (!grouped)
         {
             mode = IconButton(
@@ -1366,7 +1370,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             };
             sliderRow.Children.Add(slider);
 
-            valueGrid = new Grid
+            Grid valueGrid = new()
             {
                 Width = fan.FanDisplayedValueSlotWidth,
                 Height = Layout.SliderRowHeight,
@@ -1378,7 +1382,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             valueText.HorizontalAlignment = HorizontalAlignment.Right;
             valueText.VerticalAlignment = VerticalAlignment.Center;
             ApplyFanRelinquishedControlVisual(fan, name, valueText, slider);
-            Viewbox valueDisplay = new()
+            valueDisplay = new Viewbox
             {
                 Stretch = Stretch.Uniform,
                 StretchDirection = StretchDirection.DownOnly,
@@ -1388,7 +1392,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Child = valueText
             };
             valueDisplay.PointerPressed += FanValueTextPointerPressed;
-            TextBox valueEdit = InlineTextBox(FanSliderValueText(fan, curveSliderValue, sliderRange), p);
+            valueEdit = InlineTextBox(FanSliderValueText(fan, curveSliderValue, sliderRange), p);
             ControlNames.Assign(valueEdit, parentName: "FanDisplayedValueEdit");
             valueEdit.IsVisible = false;
             valueEdit.KeyDown += FanValueEditKeyDown;
@@ -1414,20 +1418,31 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         // Drag ghosts reuse this builder and stay out of the control map
         if (!interactive) return row;
 
-        // The name and value grids hold the inline edit boxes, which become tab stops while they are shown
+        // The name and value displays take turns with their inline edit boxes; Enter or Space on a focused display
+        // starts editing, as a double-click does, and each box is a tab stop while it is shown
         if (grouped)
         {
             row.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.ID);
             fanButton.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.OpenProperties);
-            nameGrid.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.DisplayName);
+            name.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.DisplayName)
+                .MapActivation(_ => BeginInlineEdit(name, fan, fan.DisplayName));
+            edit.MapTo(ControlMap.Flyout.Cards.GroupCard.GroupedFan.NameEditor);
             return row;
         }
 
         fanButton.MapTo(ControlMap.Flyout.Cards.FanCard.OpenProperties);
-        nameGrid.MapTo(ControlMap.Flyout.Cards.FanCard.DisplayName);
+        name.MapTo(ControlMap.Flyout.Cards.FanCard.DisplayName)
+            .MapActivation(_ => BeginInlineEdit(name, fan, fan.DisplayName));
+        edit.MapTo(ControlMap.Flyout.Cards.FanCard.NameEditor);
         mode?.MapTo(ControlMap.Flyout.Cards.FanCard.ControlMode);
         slider?.MapTo(ControlMap.Flyout.Cards.FanCard.Speed);
-        valueGrid?.MapTo(ControlMap.Flyout.Cards.FanCard.SpeedValue);
+        if (valueDisplay is { } speedDisplay)
+        {
+            speedDisplay.MapTo(ControlMap.Flyout.Cards.FanCard.SpeedValue)
+                .MapActivation(_ => BeginFanValueEdit(speedDisplay, fan));
+        }
+
+        valueEdit?.MapTo(ControlMap.Flyout.Cards.FanCard.SpeedEditor);
         return row;
     }
 
@@ -1618,9 +1633,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         // Drag ghosts reuse this builder and stay out of the control map
         if (!registerVisual) return row;
 
-        // The name grid holds the inline rename box, which becomes a tab stop while it is shown
+        // The name and its inline rename box take turns; Enter or Space on the focused name renames, as a double-click
+        // does, and the box is a tab stop while it is shown
         groupIcon.MapTo(ControlMap.Flyout.Cards.GroupCard.Icon);
-        nameGrid.MapTo(ControlMap.Flyout.Cards.GroupCard.DisplayName);
+        name.MapTo(ControlMap.Flyout.Cards.GroupCard.DisplayName)
+            .MapActivation(_ => BeginInlineEdit(name, cell, cell.GroupName));
+        edit.MapTo(ControlMap.Flyout.Cards.GroupCard.NameEditor);
         expand.MapTo(ControlMap.Flyout.Cards.GroupCard.Expanded);
         delete.MapTo(ControlMap.Flyout.Cards.GroupCard.Delete);
         mode.MapTo(ControlMap.Flyout.Cards.GroupCard.ControlMode);
@@ -4685,31 +4703,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void FanNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.ClickCount != 2 || sender is not TextBlock { Tag: Fan fan } text) return;
-        if (text.Parent is not Grid grid) return;
-        TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
-        if (box == null) return;
-        box.Tag = fan;
-        box.Text = fan.DisplayName;
-        text.IsVisible = false;
-        box.IsVisible = true;
-        box.Focus();
-        box.SelectAll();
-        e.Handled = true;
+        if (BeginInlineEdit(text, fan, fan.DisplayName)) e.Handled = true;
     }
 
     private void GroupNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.ClickCount != 2 || sender is not TextBlock { Tag: FanFlyoutCell cell } text) return;
-        if (text.Parent is not Grid grid) return;
-        TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
-        if (box == null) return;
-        box.Tag = cell;
-        box.Text = cell.GroupName;
-        text.IsVisible = false;
-        box.IsVisible = true;
-        box.Focus();
-        box.SelectAll();
-        e.Handled = true;
+        if (BeginInlineEdit(text, cell, cell.GroupName)) e.Handled = true;
     }
 
     /// <summary>
@@ -4718,33 +4718,62 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void ProbeNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.ClickCount != 2 || sender is not TextBlock { Tag: ProbeCard probeCard } text) return;
-        if (text.Parent is not Grid grid) return;
-        TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
-        if (box == null) return;
-        box.Tag = probeCard;
-        box.Text = probeCard.DisplayName;
-        text.IsVisible = false;
-        box.IsVisible = true;
-        box.Focus();
-        box.SelectAll();
-        e.Handled = true;
+        if (BeginInlineEdit(text, probeCard, probeCard.DisplayName)) e.Handled = true;
     }
 
     private void FanValueTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.ClickCount != 2 || sender is not Visual visual) return;
-        if (sender is not Control { Tag: Fan fan }) return;
-        Grid? grid = FindVisualAncestor<Grid>(visual);
-        TextBox? box = grid?.Children.OfType<TextBox>().FirstOrDefault();
-        if (box == null) return;
-        box.Tag = fan;
+        if (e.ClickCount != 2 || sender is not Control { Tag: Fan fan } display) return;
+        if (BeginFanValueEdit(display, fan)) e.Handled = true;
+    }
+
+    /// <summary>Starts typing a manual speed into the edit box beside a fan's speed display.</summary>
+    private static bool BeginFanValueEdit(Control display, Fan fan)
+    {
         SpeedSliderRange sliderRange = ResolveFanSliderRange(fan);
-        box.Text = FanSliderValueText(fan, ResolveFanCurveSliderValue(fan, sliderRange), sliderRange);
-        if (sender is Control control) control.IsVisible = false;
+        return BeginInlineEdit(
+            display,
+            fan,
+            FanSliderValueText(fan, ResolveFanCurveSliderValue(fan, sliderRange), sliderRange));
+    }
+
+    /// <summary>
+    /// Swaps a name or speed display for the inline edit box that shares its grid and focuses the box. A double-click
+    /// and Enter or Space on the focused display both start editing here.
+    /// </summary>
+    private static bool BeginInlineEdit(Control display, object editedItem, string? text)
+    {
+        Grid? grid = FindVisualAncestor<Grid>(display);
+        TextBox? box = grid?.Children.OfType<TextBox>().FirstOrDefault();
+        if (box == null) return false;
+
+        box.Tag = editedItem;
+        box.Text = text;
+        display.IsVisible = false;
         box.IsVisible = true;
         box.Focus();
         box.SelectAll();
-        e.Handled = true;
+        return true;
+    }
+
+    // Commits rebuild the cards, and a commit that saves settings queues one more rebuild, so an edit committed from
+    // the keyboard returns focus once the queued rebuilds have run, to the display that replaced the edited one
+    private void FocusRebuiltDisplay(Func<Control, bool> isDisplay)
+    {
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (cancellationToken.IsCancellationRequested || !IsVisible) return;
+
+            foreach (Visual visual in this.GetVisualDescendants())
+            {
+                if (visual is not Control { Focusable: true, IsEffectivelyVisible: true } control) continue;
+                if (!isDisplay(control)) continue;
+
+                control.Focus(NavigationMethod.Directional);
+                return;
+            }
+        }, DispatcherPriority.ContextIdle);
     }
 
     private void FanNameEditKeyDown(object? sender, KeyEventArgs e)
@@ -4843,28 +4872,42 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void CommitFanNameEdit(TextBox box)
     {
-        if (box.Tag is Fan fan)
+        bool returnsFocus = box.IsKeyboardFocusWithin;
+        Fan? editedFan = box.Tag as Fan;
+        if (editedFan != null)
         {
             string trimmed = (box.Text ?? string.Empty).Trim();
-            fan.UserDefinedName =
-                string.Equals(trimmed, fan.FansName, StringComparison.Ordinal) ? string.Empty : trimmed;
+            editedFan.UserDefinedName =
+                string.Equals(trimmed, editedFan.FansName, StringComparison.Ordinal) ? string.Empty : trimmed;
             AppServices.LHMService?.PersistLiveState();
         }
 
         CancelInlineEdit(box);
         ExecuteFanRebuild(false);
+        if (returnsFocus && editedFan != null)
+            FocusRebuiltDisplay(control => control is TextBlock { Tag: Fan fan } && ReferenceEquals(fan, editedFan));
     }
 
     private void CommitGroupNameEdit(TextBox box)
     {
+        bool returnsFocus = box.IsKeyboardFocusWithin;
+        string? renamedGroup = null;
         if (box.Tag is FanFlyoutCell cell && !string.IsNullOrWhiteSpace(cell.GroupName))
         {
             string trimmed = (box.Text ?? string.Empty).Trim();
             if (trimmed.Length > 0 && !string.Equals(trimmed, cell.GroupName, StringComparison.Ordinal))
-                RenameGroup(cell.GroupName, CreateUniqueGroupName(trimmed, cell.GroupName));
+            {
+                renamedGroup = CreateUniqueGroupName(trimmed, cell.GroupName);
+                RenameGroup(cell.GroupName, renamedGroup);
+            }
         }
 
         CancelInlineEdit(box);
+        if (returnsFocus && renamedGroup != null)
+        {
+            FocusRebuiltDisplay(control => control is TextBlock { Tag: FanFlyoutCell { GroupName: { } groupName } }
+                                           && string.Equals(groupName, renamedGroup, StringComparison.Ordinal));
+        }
     }
 
     /// <summary>
@@ -4872,34 +4915,45 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private void CommitProbeNameEdit(TextBox box)
     {
-        if (box.Tag is ProbeCard probeCard)
+        bool returnsFocus = box.IsKeyboardFocusWithin;
+        ProbeCard? editedProbeCard = box.Tag as ProbeCard;
+        if (editedProbeCard != null)
         {
             string trimmed = (box.Text ?? string.Empty).Trim();
-            if (trimmed.Length > 0 && !string.Equals(trimmed, probeCard.Name, StringComparison.Ordinal))
-                probeCard.Name = CreateUniqueProbeCardName(trimmed, probeCard.Name);
+            if (trimmed.Length > 0 && !string.Equals(trimmed, editedProbeCard.Name, StringComparison.Ordinal))
+                editedProbeCard.Name = CreateUniqueProbeCardName(trimmed, editedProbeCard.Name);
             SaveProbeCardChanges();
         }
 
         CancelInlineEdit(box);
         RebuildVisual();
+        if (returnsFocus && editedProbeCard != null)
+        {
+            FocusRebuiltDisplay(control => control is TextBlock { Tag: ProbeCard probeCard }
+                                           && ReferenceEquals(probeCard, editedProbeCard));
+        }
     }
 
     private void CommitFanValueEdit(TextBox box)
     {
-        if (box.Tag is Fan fan)
+        bool returnsFocus = box.IsKeyboardFocusWithin;
+        Fan? editedFan = box.Tag as Fan;
+        if (editedFan != null)
         {
-            bool wasRelinquished = IsFanControlRelinquished(fan);
-            SpeedSliderRange sliderRange = ResolveFanSliderRange(fan);
-            if (TryParseFanDisplayedValue(box.Text, fan, sliderRange, wasRelinquished, out int value))
+            bool wasRelinquished = IsFanControlRelinquished(editedFan);
+            SpeedSliderRange sliderRange = ResolveFanSliderRange(editedFan);
+            if (TryParseFanDisplayedValue(box.Text, editedFan, sliderRange, wasRelinquished, out int value))
             {
-                fan.CurrentControlMode = FanControlMode.Manual;
-                fan.FanDisplayedValue = value;
+                editedFan.CurrentControlMode = FanControlMode.Manual;
+                editedFan.FanDisplayedValue = value;
                 AppServices.LHMService?.PersistLiveState();
             }
         }
 
         CancelInlineEdit(box);
         RebuildVisual();
+        if (returnsFocus && editedFan != null)
+            FocusRebuiltDisplay(control => control is Viewbox { Tag: Fan fan } && ReferenceEquals(fan, editedFan));
     }
 
     /// <summary>
@@ -4936,15 +4990,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private static void CancelInlineEdit(TextBox box)
     {
+        // Leaving the box with Escape or Enter returns focus to the display it covered
+        bool returnsFocus = box.IsKeyboardFocusWithin;
         box.Tag = null;
         box.IsVisible = false;
-        if (box.Parent is Grid grid)
+        if (box.Parent is not Grid grid) return;
+
+        foreach (Control control in grid.Children)
         {
-            foreach (Control control in grid.Children)
-            {
-                if (control is TextBlock or Viewbox)
-                    control.IsVisible = true;
-            }
+            if (control is not (TextBlock or Viewbox)) continue;
+
+            control.IsVisible = true;
+            if (returnsFocus)
+                control.Focus(NavigationMethod.Directional);
         }
     }
 

@@ -43,6 +43,26 @@ Use this for tray icon flicker, stale tooltip, hover scroll failures, shell noti
 - Tooltip state can update locally immediately, but avoid high-frequency shell `NIM_MODIFY` calls unless the icon changes or tooltip sync is needed.
 - When clicks still work but hover scroll, tooltip, or icon are frozen, suspect shell notification/message-window state rather than the whole app being dead.
 
+## Shell Callback Messages
+
+Read from the disassembly of Windows 11 build 26200's XAML notification area (`SystemTray.dll`, `taskbar.dll`). Every
+callback arrives through `SendNotifyMessageW` with NOTIFYICON_VERSION_4 packing: the anchor point in wParam, the
+notification in LOWORD(lParam).
+
+| Input | Notifications, in order |
+|---|---|
+| Left click; Enter or Space on the keyboard-focused icon (Win+B) | `WM_LBUTTONDOWN`, `WM_LBUTTONUP`, `NIN_SELECT`, all sent after the release |
+| Double click | The click triplet, then `WM_LBUTTONDBLCLK`, `WM_LBUTTONUP`, `NIN_SELECT` |
+| Right click; Shift+F10 or the Apps key on the focused icon | `WM_RBUTTONDOWN`, `WM_RBUTTONUP`, `WM_CONTEXTMENU` |
+
+- Each gesture carries both its button release and its version 4 notification, so `TrayAppDotNETShellTrayIcon` raises
+  one event per gesture: `LeftClick` on the release, dropping the `NIN_SELECT` behind it, and `RightClick` on the
+  release, dropping the `WM_CONTEXTMENU` behind it.
+- This area never sends `NIN_KEYSELECT`. The classic notification area sends it for Enter or Space, reportedly twice
+  for Enter, and sends a keyboard menu request as `WM_CONTEXTMENU` alone; the icon raises those as `KeySelect` and
+  `RightClick`, and apps answer `KeySelect` by showing their UI, never by toggling it.
+- Holding Shift+F10 repeats the right-click triplet on every key repeat.
+
 ## Render-Thread Cursor-Sampled Hover
 
 Use this pattern only for transient, decorative feedback that must continue updating while the Avalonia UI thread is

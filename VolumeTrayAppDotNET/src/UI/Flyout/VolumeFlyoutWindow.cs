@@ -2668,8 +2668,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         async Task ShowEqualizerDialogAsync(TrayAppDotNETUpdateConfirmationWindow prompt)
         {
-            bool accepted = await prompt.ShowDialog<bool>(this);
-            if (!accepted) return;
+            // The prompt closes with its own result enum, so the dialog must be awaited with that type
+            TrayAppDotNETUpdatePromptResult result =
+                await prompt.ShowDialog<TrayAppDotNETUpdatePromptResult>(this);
+            if (result != TrayAppDotNETUpdatePromptResult.Confirmed) return;
             try
             {
                 using Process? _ = Process.Start(new ProcessStartInfo
@@ -3422,6 +3424,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         private readonly double _maxHeight;
         private readonly FlyoutAxamlProperties _layout;
+        private readonly Border _menuChrome;
         private bool _closedFromDeactivation;
 
         public bool ClosedFromDeactivation => _closedFromDeactivation;
@@ -3471,8 +3474,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 {
                     OffsetY = layout.MenuShadowOffsetY, Blur = layout.MenuShadowBlur, Color = palette.MenuShadow
                 }),
-                Child = scroll
+                Child = scroll,
+                Focusable = true
             };
+
+            // The chrome holds focus until a row is selected, so Avalonia does not take the first arrow key to focus
+            // the first row; Up then selects the last row, as in ContextMenuWindow
+            KeyboardNavigation.SetIsTabStop(menuChrome, false);
+            _menuChrome = menuChrome;
             controlNames.Assign(menuChrome, parentName: "MenuChrome");
             controlNames.AssignLogicalSubtree(menuChrome, this);
             Content = menuChrome;
@@ -3483,6 +3492,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Close();
             };
             this.MapCommand(ControlMap.VolumeFlyoutMenu.Close, () => Close());
+            this.MapCommand(ControlMap.VolumeFlyoutMenu.SelectPrevious,
+                () => MoveSelection(items, MenuSelectionMove.Previous));
+            this.MapCommand(ControlMap.VolumeFlyoutMenu.SelectNext, () => MoveSelection(items, MenuSelectionMove.Next));
+            this.MapCommand(ControlMap.VolumeFlyoutMenu.SelectFirst, () => MoveSelection(items, MenuSelectionMove.First));
+            this.MapCommand(ControlMap.VolumeFlyoutMenu.SelectLast, () => MoveSelection(items, MenuSelectionMove.Last));
+        }
+
+        // The row under the pointer gives up its highlight to the keyboard selection until the pointer moves again
+        private static void MoveSelection(StackPanel items, MenuSelectionMove move)
+        {
+            Control? target = MenuKeyboardSelection.Move(items.Children, move);
+            if (target == null) return;
+
+            foreach (Control child in items.Children)
+            {
+                if (child is FlyoutMenuRow row && !ReferenceEquals(row, target))
+                    row.ClearPointerHover();
+            }
         }
 
         public void ShowAt(Control anchor)
@@ -3528,6 +3555,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Position = new PixelPoint(left, top);
                 Opacity = 1;
                 Activate();
+                if (!IsKeyboardFocusWithin)
+                    _menuChrome.Focus();
             }, DispatcherPriority.Loaded);
         }
 
@@ -3563,6 +3592,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         private readonly FlyoutPalette _palette;
         private bool _isPointerOver;
+        private bool _isKeyboardSelected;
 
         public FlyoutMenuRow(FlyoutMenuEntry entry, FlyoutPalette palette, FlyoutAxamlProperties layout, int fontSize,
             bool rounded, Action close)
@@ -3573,6 +3603,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Margin = layout.MenuRowMargin;
             Padding = layout.MenuRowPadding;
             Cursor = TrayAppDotNETCursors.Hand;
+
+            // The focused row is the menu's keyboard selection
+            Focusable = true;
 
             Grid row = new()
             {
@@ -3599,14 +3632,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
             Child = row;
 
-            PointerEntered += (_, _) =>
+            PointerEntered += (_, _) => Hover();
+
+            // A row the keyboard selection took the highlight from hovers again once the pointer moves
+            PointerMoved += (_, _) =>
             {
-                _isPointerOver = true;
+                if (!_isPointerOver) Hover();
+            };
+            PointerExited += (_, _) => ClearPointerHover();
+            GotFocus += (_, e) =>
+            {
+                if (!ReferenceEquals(e.Source, this)) return;
+                _isKeyboardSelected = MenuKeyboardSelection.IsKeyboardNavigation(e.NavigationMethod);
                 UpdateBackground(false);
             };
-            PointerExited += (_, _) =>
+            LostFocus += (_, _) =>
             {
-                _isPointerOver = false;
+                if (!_isKeyboardSelected) return;
+                _isKeyboardSelected = false;
                 UpdateBackground(false);
             };
             PointerPressed += (_, e) =>
@@ -3638,11 +3681,29 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             });
         }
 
+        /// <summary>Drops the hover highlight after the keyboard selected another row.</summary>
+        public void ClearPointerHover()
+        {
+            if (!_isPointerOver) return;
+
+            _isPointerOver = false;
+            UpdateBackground(false);
+        }
+
+        // The hovered row takes the selection while the menu is active, so the keys continue from it
+        private void Hover()
+        {
+            _isPointerOver = true;
+            UpdateBackground(false);
+            if (TopLevel.GetTopLevel(this) is WindowBase { IsActive: true })
+                Focus(NavigationMethod.Pointer);
+        }
+
         private void UpdateBackground(bool pressed)
         {
             Background = pressed
                 ? Brush(_palette.ButtonPressed)
-                : _isPointerOver
+                : _isPointerOver || _isKeyboardSelected
                     ? Brush(_palette.ButtonHover)
                     : Brushes.Transparent;
         }

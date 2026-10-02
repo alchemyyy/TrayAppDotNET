@@ -354,12 +354,27 @@
 
     <!-- Menus and lists -->
 
+    <!-- Menu selection follows Win32 popup menus: the focused row is the selection, Up and Down wrap, and with no
+         row selected Down and Home select the first row while Up and End select the last. A hovered row takes the
+         selection while its menu is active -->
     <Template ID="ContextMenu" Source="ContextMenuWindow.InitializeMenuContent"
               Description="Menu popup that deactivation dismisses; each submenu is another ContextMenu popup">
-        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="ContextMenuWindow.OnKeyDown"
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand" Source="ContextMenuWindow.ContextMenuWindow"
               Description="Closes the root menu and every open submenu" />
-        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="ContextMenuWindow.InitializeStandardMenu"
-               Description="Rows run on Enter, Space or a click; Right also runs a submenu row">
+        <Leaf ID="SelectPrevious" Kind="Command" Keys="Up" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" Description="Previous row, wrapping to the last" />
+        <Leaf ID="SelectNext" Kind="Command" Keys="Down" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" Description="Next row, wrapping to the first" />
+        <Leaf ID="SelectFirst" Kind="Command" Keys="Home" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" />
+        <Leaf ID="SelectLast" Kind="Command" Keys="End" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" />
+        <Leaf ID="CloseSubmenu" Kind="Command" Keys="Left" Event="MapCommand"
+              Source="ContextMenuWindow.ContextMenuWindow"
+              Description="In a submenu, closes it and selects its row in the parent menu" />
+        <Scope ID="Entries" Tab="Once" Source="ContextMenuWindow.InitializeStandardMenu"
+               Description="Rows run on Enter, Space or a click; Enter or Right on a submenu row opens the submenu and
+                            selects its first row">
             <Slot />
         </Scope>
         <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
@@ -368,10 +383,19 @@
     </Template>
 
     <Template ID="EditableContextMenu" Source="EditableContextMenuWindow.EditableContextMenuWindow"
-              Description="ContextMenu with editable rows and no submenus">
-        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="ContextMenuWindow.OnKeyDown"
+              Description="ContextMenu with editable rows and no submenus; selection keys as in ContextMenu">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="EditableContextMenuWindow.EditableContextMenuWindow"
               Description="Closes the menu; an open inline edit takes Escape first" />
-        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="EditableContextMenuWindow.BuildEntryControls"
+        <Leaf ID="SelectPrevious" Kind="Command" Keys="Up" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" Description="Previous enabled row, wrapping to the last" />
+        <Leaf ID="SelectNext" Kind="Command" Keys="Down" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" Description="Next enabled row, wrapping to the first" />
+        <Leaf ID="SelectFirst" Kind="Command" Keys="Home" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" />
+        <Leaf ID="SelectLast" Kind="Command" Keys="End" Event="MapCommand"
+              Source="ContextMenuWindow.MapSelectionCommands" />
+        <Scope ID="Entries" Tab="Once" Source="EditableContextMenuWindow.BuildEntryControls"
                Description="Each row is an IsRepeated scope instantiating EditableMenuEntry">
             <Slot />
         </Scope>
@@ -426,9 +450,17 @@
          would make each app's own ContextMenu instance ambiguous at runtime -->
     <Surface ID="ScrollBarMenu" Kind="Popup" Source="SettingsScrollBar.ShowContextMenu"
              Description="ScrollBar.OpenMenu popup shaped like ContextMenu; horizontal bars use left and right labels">
-        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown" Source="SettingsScrollBar.ShowContextMenu"
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand" Source="SettingsScrollBar.ShowContextMenu"
               Description="Closes the menu" />
-        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="ContextMenuWindow.InitializeStandardMenu"
+        <Leaf ID="SelectPrevious" Kind="Command" Keys="Up" Event="MapCommand"
+              Source="SettingsScrollBar.ShowContextMenu" Description="Previous row, wrapping to the last" />
+        <Leaf ID="SelectNext" Kind="Command" Keys="Down" Event="MapCommand"
+              Source="SettingsScrollBar.ShowContextMenu" Description="Next row, wrapping to the first" />
+        <Leaf ID="SelectFirst" Kind="Command" Keys="Home" Event="MapCommand"
+              Source="SettingsScrollBar.ShowContextMenu" />
+        <Leaf ID="SelectLast" Kind="Command" Keys="End" Event="MapCommand"
+              Source="SettingsScrollBar.ShowContextMenu" />
+        <Scope ID="Entries" Tab="Once" Source="ContextMenuWindow.InitializeStandardMenu"
                Description="Rows run on Enter, Space or a click">
             <Leaf ID="ScrollHere" Kind="ListItem" Event="MenuEntry"
                   Source="SettingsScrollBar.BuildContextMenuEntries"

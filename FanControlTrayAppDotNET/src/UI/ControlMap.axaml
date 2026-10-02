@@ -10,6 +10,10 @@
         <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick;Ctrl+DoubleClick;Alt+DoubleClick"
               Event="TrayMessage" Source="FanAvaloniaApp.OnTrayLeftDoubleClick"
               Description="Runs the configured action, default Open settings; Nothing shows the flyout" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="FanAvaloniaApp.OnTrayKeySelect"
+              Description="NIN_KEYSELECT from the classic notification area shows the flyout; Windows 11 reports these
+                           keys as a click" />
         <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick;Ctrl+RightClick;Alt+RightClick"
               Event="TrayMessage" Source="FanAvaloniaApp.OnTrayRightClick"
               Description="Opens the tray menu unless a Ctrl or Alt modifier action is configured" />
@@ -55,15 +59,20 @@
             <Scope ID="FanCard" IsRepeated="True" Source="FanFlyoutWindow.BuildCell">
                 <Leaf ID="OpenProperties" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildFanRow"
                       Description="Opens or closes the Fan Properties window" />
-                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
-                      Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
-                      Description="Double-click renames; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="DisplayName" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                      Source="FanFlyoutWindow.BuildFanRow" Description="Double-click, Enter or Space renames" />
+                <Leaf ID="NameEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="FanFlyoutWindow.FanNameEditKeyDown"
+                      Description="Replaces DisplayName while renaming; Enter or focus loss commits, Escape cancels" />
                 <Leaf ID="ControlMode" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildFanRow"
                       Description="Switches between manual and curve control" />
                 <Leaf ID="Speed" Kind="Slider" Event="ValueChanged" Source="FanFlyoutWindow.BuildFanRow" />
-                <Leaf ID="SpeedValue" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
-                      Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
-                      Description="Double-click types a manual speed; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="SpeedValue" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                      Source="FanFlyoutWindow.BuildFanRow"
+                      Description="Double-click, Enter or Space types a manual speed" />
+                <Leaf ID="SpeedEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="FanFlyoutWindow.FanValueEditKeyDown"
+                      Description="Replaces SpeedValue while typing; Enter or focus loss commits, Escape cancels" />
                 <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
                       Source="FanFlyoutWindow.WireFanDrag"
                       Description="Drags the card to reorder it or drop the fan into a group" />
@@ -72,9 +81,12 @@
                 <Leaf ID="Icon" Kind="Button" IsTabStop="False" Event="PointerReleased"
                       Source="FanFlyoutWindow.BuildGroupHeader"
                       Description="Group glyph drawn as an icon button; its click does nothing" />
-                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
-                      Event="PointerPressed" Source="FanFlyoutWindow.BuildGroupHeader"
-                      Description="Double-click renames the group; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="DisplayName" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                      Source="FanFlyoutWindow.BuildGroupHeader"
+                      Description="Double-click, Enter or Space renames the group" />
+                <Leaf ID="NameEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="FanFlyoutWindow.GroupNameEditKeyDown"
+                      Description="Replaces DisplayName while renaming; Enter or focus loss commits, Escape cancels" />
                 <Leaf ID="Expanded" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildGroupHeader"
                       Description="Collapses or expands the grouped fan rows" />
                 <Leaf ID="Delete" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildGroupHeader"
@@ -87,9 +99,12 @@
                     <Leaf ID="OpenProperties" Kind="Button" Event="PointerReleased"
                           Source="FanFlyoutWindow.BuildFanRow"
                           Description="Opens or closes the Fan Properties window" />
-                    <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
-                          Event="PointerPressed" Source="FanFlyoutWindow.BuildFanRow"
-                          Description="Double-click renames; Enter or focus loss commits, Escape cancels" />
+                    <Leaf ID="DisplayName" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                          Source="FanFlyoutWindow.BuildFanRow" Description="Double-click, Enter or Space renames" />
+                    <Leaf ID="NameEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                          Source="FanFlyoutWindow.FanNameEditKeyDown"
+                          Description="Replaces DisplayName while renaming; Enter or focus loss commits, Escape
+                                       cancels" />
                     <Leaf ID="Reorder" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
                           Source="FanFlyoutWindow.WireFanDrag"
                           Description="Drags the fan within or out of the group" />
@@ -100,9 +115,12 @@
             <Scope ID="ProbeCard" IsRepeated="True" Source="FanFlyoutWindow.BuildProbeCard">
                 <Leaf ID="OpenEditor" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
                       Description="Opens the Probe Card Editor" />
-                <Leaf ID="DisplayName" Kind="Text" FocusKeys="Escape" Pointer="DoubleClick"
-                      Event="PointerPressed" Source="FanFlyoutWindow.BuildProbeHeader"
-                      Description="Double-click renames the card; Enter or focus loss commits, Escape cancels" />
+                <Leaf ID="DisplayName" Kind="Button" Pointer="DoubleClick" Event="PointerPressed"
+                      Source="FanFlyoutWindow.BuildProbeHeader"
+                      Description="Double-click, Enter or Space renames the card" />
+                <Leaf ID="NameEditor" Kind="Text" FocusKeys="Escape" Event="KeyDown"
+                      Source="FanFlyoutWindow.ProbeNameEditKeyDown"
+                      Description="Replaces DisplayName while renaming; Enter or focus loss commits, Escape cancels" />
                 <Leaf ID="Expanded" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
                       Description="Collapses or expands the probe value rows" />
                 <Leaf ID="Delete" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildProbeHeader"
@@ -445,8 +463,9 @@
 
     <Template ID="HotkeyRow" Source="FanSettingsWindow.AddHotkeyRow">
         <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged" Source="FanSettingsWindow.AddHotkeyRow" />
-        <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="FanSettingsWindow.AddHotkeyRow"
-              Description="Read-only box that records the next non-modifier key; Escape and F12 are ignored" />
+        <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+              Description="Read-only box that records the next non-modifier key; Tab moves focus; Escape and F12 are
+                           ignored" />
         <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="FanSettingsWindow.AddHotkeyRow" />
         <Leaf ID="RemoveBinding" Kind="Button" IsRepeated="True" Event="Click"
               Source="FanSettingsWindow.BuildHotkeyEntryCard" Description="One per registered binding" />

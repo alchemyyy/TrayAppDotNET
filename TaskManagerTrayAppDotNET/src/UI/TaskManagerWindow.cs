@@ -149,8 +149,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
 
-    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) =>
-        pageKey != TaskManagerPage.Settings;
+    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => true;
 
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
         pageRoot is TaskManagerPageLayout page ? page.PageOverlay : null;
@@ -462,7 +461,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             TaskManagerGlyphCatalog.STARTUP_APPS),
         new(TaskManagerPage.Users, Label: "Users", BuildUsersPage, TaskManagerGlyphCatalog.USERS),
         new(TaskManagerPage.Services, Label: "Services", BuildServicesPage, TaskManagerGlyphCatalog.SERVICES),
-        new(TaskManagerPage.Settings, Label: "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
+
+        // Only the footer row: HandleNavigationRequest opens TaskManagerSettingsWindow, so this page never builds
+        new(TaskManagerPage.Settings, Label: "Settings", static () => new StackPanel(),
+            SettingsNavigationGlyphs.Settings)
     ];
 
     protected override void Save() => _settings.Save();
@@ -985,106 +987,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     /// </remarks>
     internal static bool IsInteractiveHeaderControlAt(IInputElement root, Point position) =>
         IsInteractiveHeaderControl(root.InputHitTest(position, enabledElementsOnly: false));
-
-    private StackPanel BuildSettingsPage()
-    {
-        SettingsPalette palette = Palette;
-        StackPanel stack = PageStack(title: "Settings", palette);
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
-        Border semanticSubgroupRootCard = BoolCard(
-            title: "Apply to subgroups",
-            description:
-            "Give every process with child processes the same layout. Its row shows the totals of its subtree, and "
-            + "its first entry, Root, shows its own usage.",
-            _settings.UseRootProcessForSemanticSubgroups,
-            value => _settings.UseRootProcessForSemanticSubgroups = value,
-            palette);
-        semanticSubgroupRootCard.IsVisible =
-            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic
-            && _settings.UseRootProcessForSemanticGroups;
-        Border semanticGroupRootCard = BoolCard(
-            title: "Use root process as group row",
-            description:
-            "Show each semantic application group as its root process instead of a synthetic group row. The root "
-            + "process shows the group's totals, and its first entry, Root, shows the root process's own usage.",
-            _settings.UseRootProcessForSemanticGroups,
-            value =>
-            {
-                _settings.UseRootProcessForSemanticGroups = value;
-                semanticSubgroupRootCard.IsVisible = value;
-            },
-            palette);
-        semanticGroupRootCard.IsVisible =
-            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic;
-        Border windowsProcessesCard = BoolCard(
-            title: "Group Windows processes",
-            description:
-            "List Windows system processes in their own Windows processes section, as Task Manager does. When off, "
-            + "they appear under Apps or Background processes like any other process.",
-            _settings.GroupWindowsProcesses,
-            value => _settings.GroupWindowsProcesses = value,
-            palette);
-        windowsProcessesCard.IsVisible =
-            _settings.ProcessGroupingStyle == ProcessGroupingStyle.Semantic;
-        stack.Children.Add(ComboCard(
-            title: "Process grouping style",
-            description:
-            "Choose how processes are organized when Group processes is enabled on the Processes page.",
-            [
-                (nameof(ProcessGroupingStyle.ParentProcess), "Parent process"),
-                (nameof(ProcessGroupingStyle.Semantic), "Semantic application")
-            ],
-            _settings.ProcessGroupingStyle.ToString(),
-            tag =>
-            {
-                if (!Enum.TryParse(tag, out ProcessGroupingStyle value)) return;
-
-                _settings.ProcessGroupingStyle = value;
-                semanticGroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic;
-                semanticSubgroupRootCard.IsVisible = value == ProcessGroupingStyle.Semantic
-                                                     && _settings.UseRootProcessForSemanticGroups;
-                windowsProcessesCard.IsVisible = value == ProcessGroupingStyle.Semantic;
-            },
-            palette));
-        stack.Children.Add(semanticGroupRootCard);
-        stack.Children.Add(semanticSubgroupRootCard);
-        stack.Children.Add(windowsProcessesCard);
-        Border semanticSectionExemptionCard = BoolCard(
-            title: "Keep semantic sections expanded",
-            description:
-            "Keep Apps, Background processes, and Windows processes expanded when other process trees start collapsed.",
-            _settings.ExpandSemanticSectionsByDefault,
-            value => _settings.ExpandSemanticSectionsByDefault = value,
-            palette);
-        semanticSectionExemptionCard.IsVisible =
-            _settings.ProcessTreeDefaultState == ProcessTreeDefaultState.Collapsed;
-        stack.Children.Add(ComboCard(
-            title: "Default process tree state",
-            description: "Choose whether newly displayed process trees start collapsed or expanded.",
-            [
-                (nameof(ProcessTreeDefaultState.Collapsed), "Collapsed"),
-                (nameof(ProcessTreeDefaultState.Expanded), "Expanded")
-            ],
-            _settings.ProcessTreeDefaultState.ToString(),
-            tag =>
-            {
-                if (!Enum.TryParse(tag, out ProcessTreeDefaultState value)) return;
-
-                _settings.ProcessTreeDefaultState = value;
-                semanticSectionExemptionCard.IsVisible =
-                    value == ProcessTreeDefaultState.Collapsed;
-            },
-            palette));
-        stack.Children.Add(semanticSectionExemptionCard);
-        stack.Children.Add(BoolCard(
-            title: "Live column resizing",
-            description:
-            "Update Processes column widths and positions while dragging a divider. Turn this off to show a resize guide and apply the width on release.",
-            _settings.EnableLiveDetailsColumnResizing,
-            enabled => _settings.EnableLiveDetailsColumnResizing = enabled,
-            palette));
-        return stack;
-    }
 
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);

@@ -286,7 +286,8 @@ public sealed partial class VolumeSettingsWindow
             title,
             string.Empty,
             [
-                (TrayClickAction.Nothing, Loc(nameof(AppStrings.Settings_TrayIcon_ClickAction_Nothing)))
+                (TrayClickAction.Nothing, Loc(nameof(AppStrings.Settings_TrayIcon_ClickAction_Nothing))),
+                (TrayClickAction.OpenSettings, Loc(nameof(AppStrings.Settings_TrayIcon_ClickAction_OpenSettings)))
             ],
             selected,
             set,

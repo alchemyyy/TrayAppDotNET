@@ -6,6 +6,10 @@
     <Surface ID="TrayIcon" Kind="Tray" Source="BatteryAvaloniaApp.CreateTrayIcon">
         <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click" Event="TrayMessage"
               Source="BatteryAvaloniaApp.OnTrayLeftClick" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="BatteryAvaloniaApp.OnTrayKeySelect"
+              Description="NIN_KEYSELECT from the classic notification area shows the flyout; Windows 11 reports these
+                           keys as a click" />
         <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
               Source="BatteryAvaloniaApp.OnTrayRightClick"
               Description="Also raised by the shell keyboard menu request (WM_CONTEXTMENU)" />
@@ -114,8 +118,8 @@
             <Scope ID="OpenFlyoutHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
                 <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
                       Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="BatterySettingsWindow.AddHotkeyRow"
-                      Description="Read-only; records the next key press, Tab and Enter included" />
+                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                      Description="Read-only; records the next key press, Enter included; Tab moves focus" />
                 <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
                 <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
                       Source="BatterySettingsWindow.BuildHotkeyEntryCard" />
@@ -123,8 +127,8 @@
             <Scope ID="OpenSettingsHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
                 <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
                       Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="BatterySettingsWindow.AddHotkeyRow"
-                      Description="Read-only; records the next key press, Tab and Enter included" />
+                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                      Description="Read-only; records the next key press, Enter included; Tab moves focus" />
                 <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
                 <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
                       Source="BatterySettingsWindow.BuildHotkeyEntryCard" />

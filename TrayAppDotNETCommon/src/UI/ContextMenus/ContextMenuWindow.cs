@@ -138,6 +138,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private UIContentGeneration? _contentGeneration;
     private StackPanel? _standardEntries;
     private ScrollViewer? _scrollViewer;
+    private Border? _menuRoot;
     private DispatcherTimer? _submenuHoverTimer;
     private ContextMenuWindow? _childMenu;
     private ContextMenuItemControl? _childMenuOwner;
@@ -148,6 +149,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private bool _closedFromSelection;
     private bool _deactivationCheckPending;
     private bool _hasRetainedFrame;
+    private bool _selectsFirstRowOnShow;
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
     public bool ClosedFromDeactivation => _closedFromDeactivation;
@@ -195,6 +197,14 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         // An app whose map instantiates the template more than once tags each menu with its surface id
         this.MapTo(ControlMap.ContextMenu.ID);
         this.MapCommand(ControlMap.ContextMenu.Dismiss, DismissForWarmCache);
+        MapSelectionCommands(
+            ControlMap.ContextMenu.SelectPrevious,
+            ControlMap.ContextMenu.SelectNext,
+            ControlMap.ContextMenu.SelectFirst,
+            ControlMap.ContextMenu.SelectLast);
+        this.MapCommand(ControlMap.ContextMenu.CloseSubmenu, CloseSubmenuFromKeyboard);
+        Activated += OnActivated;
+        _windowResources.Add(() => Activated -= OnActivated);
         Deactivated += OnDeactivated;
         _windowResources.Add(() => Deactivated -= OnDeactivated);
     }
@@ -208,6 +218,66 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         this.MapTo(surface);
         _standardEntries?.MapTo(entries);
         this.MapCommand(dismiss, DismissForWarmCache);
+    }
+
+    /// <summary>Registers the Up, Down, Home, and End selection commands of the surface this menu is tagged with.</summary>
+    protected internal void MapSelectionCommands(
+        ControlMapNodeID previous,
+        ControlMapNodeID next,
+        ControlMapNodeID first,
+        ControlMapNodeID last)
+    {
+        this.MapCommand(previous, () => MoveKeyboardSelection(MenuSelectionMove.Previous));
+        this.MapCommand(next, () => MoveKeyboardSelection(MenuSelectionMove.Next));
+        this.MapCommand(first, () => MoveKeyboardSelection(MenuSelectionMove.First));
+        this.MapCommand(last, () => MoveKeyboardSelection(MenuSelectionMove.Last));
+    }
+
+    /// <summary>Gets the rows the selection keys move between, in display order.</summary>
+    protected virtual IEnumerable<Control> SelectionRows =>
+        _standardEntries?.Children ?? Enumerable.Empty<Control>();
+
+    /// <summary>Moves the keyboard selection, the focused row, as a Win32 popup menu does.</summary>
+    protected void MoveKeyboardSelection(MenuSelectionMove move)
+    {
+        if (_closed) return;
+
+        Control? target = MenuKeyboardSelection.Move(SelectionRows, move);
+        if (target != null)
+            OnKeyboardSelectionMoved(target);
+    }
+
+    /// <summary>Keeps a single selected row once the keyboard selection lands on a row.</summary>
+    protected virtual void OnKeyboardSelectionMoved(Control target)
+    {
+        // Win32 closes an open submenu once the selection leaves the row that owns it
+        if (_childMenu != null && !ReferenceEquals(target, _childMenuOwner))
+            CloseChildMenu();
+
+        // The row under the pointer gives up its highlight until the pointer moves again
+        if (_hoveredItem != null && !ReferenceEquals(_hoveredItem, target))
+            _hoveredItem.ClearPointerHover();
+    }
+
+    /// <summary>Activates a submenu the keyboard opened and selects its first row.</summary>
+    private void EnterFromKeyboard()
+    {
+        if (_closed || !IsVisible) return;
+
+        Activate();
+        MoveKeyboardSelection(MenuSelectionMove.First);
+    }
+
+    /// <summary>Left in a submenu closes it and selects its row in the parent menu; the root menu ignores it.</summary>
+    private void CloseSubmenuFromKeyboard()
+    {
+        ContextMenuWindow? parentMenu = _parentMenu;
+        if (parentMenu == null || !ReferenceEquals(parentMenu._childMenu, this)) return;
+
+        ContextMenuItemControl? owner = parentMenu._childMenuOwner;
+        parentMenu.Activate();
+        parentMenu.CloseChildMenu();
+        owner?.Focus(NavigationMethod.Directional);
     }
 
     private void InitializeStandardMenu(IReadOnlyList<ContextMenuEntry> entries)
@@ -272,8 +342,14 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             BorderThickness = _options.RootBorderThickness,
             CornerRadius = ResolveCornerRadius(_options.RootCornerRadius),
             Padding = _options.RootPadding,
-            Child = _scrollViewer
+            Child = _scrollViewer,
+            Focusable = true
         };
+
+        // The root holds focus while no row is selected. With nothing focused, Avalonia answers every arrow key by
+        // focusing the first row, so Up could not select the last row as it does in a Win32 menu
+        KeyboardNavigation.SetIsTabStop(root, false);
+        _menuRoot = root;
 
         if (_options.ShadowColor is { } shadowColor)
         {
@@ -433,11 +509,11 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             new PixelSize(menuWidth, menuHeight));
     }
 
-    private void OnItemInvoked(ContextMenuItemControl item, ContextMenuEntry entry)
+    private void OnItemInvoked(ContextMenuItemControl item, ContextMenuEntry entry, bool isFromKeyboard)
     {
         if (entry.SubmenuFactory != null)
         {
-            SwitchSubmenu(item, entry);
+            SwitchSubmenu(item, entry, isFromKeyboard);
             return;
         }
 
@@ -451,6 +527,11 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             _hoveredItem = item;
             _hoveredEntry = entry;
+
+            // The hovered row is the selection, so the keys continue from it and Enter runs it
+            if (IsActive)
+                item.Focus(NavigationMethod.Pointer);
+
             if (ReferenceEquals(item, _childMenuOwner))
             {
                 submenuHoverTimer?.Stop();
@@ -467,7 +548,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             int submenuShowDelayMilliseconds = ResolveSubmenuShowDelayMilliseconds();
             if (submenuShowDelayMilliseconds <= 0)
             {
-                SwitchSubmenu(item, entry);
+                SwitchSubmenu(item, entry, enterSubmenu: false);
                 return;
             }
 
@@ -491,12 +572,21 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         ContextMenuEntry? hoveredEntry = _hoveredEntry;
         if (hoveredItem == null || hoveredEntry == null) return;
 
-        SwitchSubmenu(hoveredItem, hoveredEntry);
+        SwitchSubmenu(hoveredItem, hoveredEntry, enterSubmenu: false);
     }
 
-    private void SwitchSubmenu(ContextMenuItemControl owner, ContextMenuEntry entry)
+    /// <summary>
+    /// Opens an entry's submenu. A submenu opened from the keyboard takes activation and selects its first row, as Right
+    /// and Enter do in Win32 menus; one opened by hover stays inactive.
+    /// </summary>
+    private void SwitchSubmenu(ContextMenuItemControl owner, ContextMenuEntry entry, bool enterSubmenu)
     {
-        if (ReferenceEquals(owner, _childMenuOwner) && _childMenu is { IsVisible: true }) return;
+        if (ReferenceEquals(owner, _childMenuOwner) && _childMenu is { IsVisible: true } openChildMenu)
+        {
+            if (enterSubmenu)
+                openChildMenu.EnterFromKeyboard();
+            return;
+        }
 
         CloseChildMenu();
         Func<IReadOnlyList<ContextMenuEntry>?>? submenuFactory = entry.SubmenuFactory;
@@ -517,7 +607,10 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         if (submenuEntries.Count == 0) return;
 
-        ContextMenuWindow childMenu = new(submenuEntries, _options, this) { ShowActivated = false };
+        ContextMenuWindow childMenu = new(submenuEntries, _options, this)
+        {
+            ShowActivated = false, _selectsFirstRowOnShow = enterSubmenu
+        };
         childMenu.MapTo(entry.SubmenuNode ?? ControlMapBinding.GetNode(this));
         _childMenu = childMenu;
         _childMenuOwner = owner;
@@ -572,6 +665,10 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 new PixelSize(menuWidth, menuHeight),
                 _options.EdgePadding);
             Opacity = 1;
+            if (!_selectsFirstRowOnShow) return;
+
+            _selectsFirstRowOnShow = false;
+            EnterFromKeyboard();
         }, DispatcherPriority.Loaded);
     }
 
@@ -890,10 +987,20 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             contentGeneration?.Dispose();
             _scrollViewer = null;
+            _menuRoot = null;
             _windowResources.Dispose();
             WarmDismissed = null;
             base.OnClosed(e);
         }
+    }
+
+    // An activated menu with no selected row parks focus on its root, so the first selection key reaches the map
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        Border? menuRoot = _menuRoot;
+        if (menuRoot == null || IsKeyboardFocusWithin) return;
+
+        menuRoot.Focus();
     }
 
     private void OnDeactivated(object? sender, EventArgs e)
@@ -941,17 +1048,20 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         private readonly ContextMenuEntry _entry;
         private readonly ContextMenuWindowOptions _options;
         private readonly Border _itemBorder;
-        private readonly Action<ContextMenuItemControl, ContextMenuEntry> _invoke;
+
+        // Runs the entry; the flag is true for a key press, which also enters a submenu
+        private readonly Action<ContextMenuItemControl, ContextMenuEntry, bool> _invoke;
         private readonly Action<ContextMenuItemControl, ContextMenuEntry, bool> _itemHoverChanged;
         private readonly Action<bool>? _hoverChanged;
         private bool _isPointerOver;
         private bool _isSubmenuOpen;
+        private bool _isKeyboardSelected;
         private bool _disposed;
 
         public ContextMenuItemControl(
             ContextMenuEntry entry,
             ContextMenuWindowOptions options,
-            Action<ContextMenuItemControl, ContextMenuEntry> invoke,
+            Action<ContextMenuItemControl, ContextMenuEntry, bool> invoke,
             Action<ContextMenuItemControl, ContextMenuEntry, bool> itemHoverChanged)
         {
             _entry = entry;
@@ -998,15 +1108,18 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             Child = layout;
 
             PointerEntered += OnPointerEntered;
+            PointerMoved += OnPointerMoved;
             PointerExited += OnPointerExited;
             PointerPressed += OnPointerPressed;
             PointerReleased += OnPointerReleased;
             KeyDown += OnKeyDown;
+            GotFocus += OnGotFocus;
+            LostFocus += OnLostFocus;
 
-            // Accelerators on the entry's leaf run it like a click
+            // Accelerators on the entry's leaf run it like a key press
             this.MapActivation(_ =>
             {
-                if (!_disposed) _invoke(this, _entry);
+                if (!_disposed) _invoke(this, _entry, arg3: true);
             });
         }
 
@@ -1076,7 +1189,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         private void UpdateVisual()
         {
-            Color background = _isPointerOver || _isSubmenuOpen
+            Color background = _isPointerOver || _isSubmenuOpen || _isKeyboardSelected
                 ? _options.Palette.Hover
                 : Colors.Transparent;
             _itemBorder.Background = TrayAppDotNETSettingsUI.Brush(background);
@@ -1090,6 +1203,17 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             UpdateVisual();
         }
 
+        /// <summary>Drops the hover highlight after the keyboard selected another row.</summary>
+        public void ClearPointerHover()
+        {
+            if (_disposed || !_isPointerOver) return;
+
+            _isPointerOver = false;
+            UpdateVisual();
+            _itemHoverChanged(this, _entry, arg3: false);
+            _hoverChanged?.Invoke(false);
+        }
+
         private void OnPointerEntered(object? sender, PointerEventArgs e)
         {
             if (_disposed) return;
@@ -1099,21 +1223,20 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             _hoverChanged?.Invoke(true);
         }
 
-        private void OnPointerExited(object? sender, PointerEventArgs e)
+        // A row the keyboard selection took the highlight from hovers again once the pointer moves
+        private void OnPointerMoved(object? sender, PointerEventArgs e)
         {
-            if (_disposed) return;
-            _isPointerOver = false;
-            UpdateVisual();
-            _itemHoverChanged(this, _entry, arg3: false);
-            _hoverChanged?.Invoke(false);
+            if (!_isPointerOver) OnPointerEntered(sender, e);
         }
+
+        private void OnPointerExited(object? sender, PointerEventArgs e) => ClearPointerHover();
 
         private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (_disposed || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
             if (!_options.InvokeOnPointerReleased)
-                _invoke(this, _entry);
+                _invoke(this, _entry, arg3: false);
 
             e.Handled = true;
         }
@@ -1124,7 +1247,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 return;
 
             if (_isPointerOver)
-                _invoke(this, _entry);
+                _invoke(this, _entry, arg3: false);
 
             e.Handled = true;
         }
@@ -1136,8 +1259,25 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                                 (e.Key == Key.Right && _entry.SubmenuFactory != null);
             if (!invokesEntry) return;
 
-            _invoke(this, _entry);
+            _invoke(this, _entry, arg3: true);
             e.Handled = true;
+        }
+
+        // Keyboard focus is the menu's selection; focus taken by the pointer shows through the hover highlight
+        private void OnGotFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (_disposed || !ReferenceEquals(e.Source, this)) return;
+
+            _isKeyboardSelected = MenuKeyboardSelection.IsKeyboardNavigation(e.NavigationMethod);
+            UpdateVisual();
+        }
+
+        private void OnLostFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (_disposed || !_isKeyboardSelected) return;
+
+            _isKeyboardSelected = false;
+            UpdateVisual();
         }
 
         public void Dispose()
@@ -1152,11 +1292,15 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
             _isPointerOver = false;
             _isSubmenuOpen = false;
+            _isKeyboardSelected = false;
             PointerEntered -= OnPointerEntered;
+            PointerMoved -= OnPointerMoved;
             PointerExited -= OnPointerExited;
             PointerPressed -= OnPointerPressed;
             PointerReleased -= OnPointerReleased;
             KeyDown -= OnKeyDown;
+            GotFocus -= OnGotFocus;
+            LostFocus -= OnLostFocus;
             Cursor = null;
             Child = null;
         }

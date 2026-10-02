@@ -262,6 +262,7 @@ internal sealed class FanAvaloniaApp : Application
         _trayIcon.LeftMouseDown += OnTrayLeftMouseDown;
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
+        _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
@@ -493,6 +494,9 @@ internal sealed class FanAvaloniaApp : Application
         if (!TryDispatchTrayAction(action))
             ShowFanFlyout();
     }
+
+    // The classic notification area may report one Enter twice, so the keyboard only shows the flyout
+    private void OnTrayKeySelect() => ShowFanFlyout();
 
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() =>

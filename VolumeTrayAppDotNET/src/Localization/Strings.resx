@@ -1003,6 +1003,9 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
     <value>Nothing</value>
   </data>
+  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
   <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
     <value>Ctrl + double left click</value>
   </data>

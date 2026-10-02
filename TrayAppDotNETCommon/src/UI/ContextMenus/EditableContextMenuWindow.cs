@@ -80,6 +80,11 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         // Replaces the base window's ContextMenu tag; an app with several such menus tags each with its surface id
         this.MapTo(ControlMap.EditableContextMenu.ID);
         this.MapCommand(ControlMap.EditableContextMenu.Dismiss, DismissForWarmCache);
+        MapSelectionCommands(
+            ControlMap.EditableContextMenu.SelectPrevious,
+            ControlMap.EditableContextMenu.SelectNext,
+            ControlMap.EditableContextMenu.SelectFirst,
+            ControlMap.EditableContextMenu.SelectLast);
         _items = new StackPanel().MapTo(ControlMap.EditableContextMenu.Entries.ID);
         _contentResources = new UIResourceScope($"{nameof(EditableContextMenuWindow)}.Content");
         _entryResources = _contentResources.CreateChild($"{nameof(EditableContextMenuWindow)}.Entries");
@@ -191,6 +196,17 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         button.Click();
     }
 
+    // Each enabled row's focusable item border is the row the selection keys move between
+    protected override IEnumerable<Control> SelectionRows =>
+        _items.Children.OfType<EditableMenuItemControl>().Select(static item => item.SelectionTarget);
+
+    protected override void OnKeyboardSelectionMoved(Control target)
+    {
+        base.OnKeyboardSelectionMoved(target);
+        if (_hoveredItem != null && !ReferenceEquals(_hoveredItem.SelectionTarget, target))
+            _hoveredItem.ClearPointerHover();
+    }
+
     private void OnItemHoverChanged(EditableMenuItemControl item, bool isHovered)
     {
         if (!isHovered)
@@ -204,6 +220,10 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         _hoveredItem = item;
         if (previousItem != null && !ReferenceEquals(previousItem, item))
             previousItem.ClearPointerHover();
+
+        // The hovered row is the selection, unless focusing it would commit an open inline edit
+        if (IsActive && _inlineEditingItem == null)
+            item.SelectionTarget.Focus(NavigationMethod.Pointer);
     }
 
     private void OnInlineEditStateChanged(EditableMenuItemControl item, bool isEditing)
@@ -285,6 +305,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         private readonly Action<EditableContextMenuEntryButton> _invokeButton;
         private readonly Action<EditableMenuItemControl, bool> _inlineEditStateChanged;
         private bool _isPointerOver;
+        private bool _isKeyboardSelected;
         private bool _isInlineEditing;
         private bool _disposed;
 
@@ -333,10 +354,13 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             }
 
             PointerEntered += OnPointerEntered;
+            PointerMoved += OnPointerMoved;
             PointerExited += OnPointerExited;
             PointerPressed += OnPointerPressed;
             PointerReleased += OnPointerReleased;
             KeyDown += OnKeyDown;
+            _itemBorder.GotFocus += OnItemBorderGotFocus;
+            _itemBorder.LostFocus += OnItemBorderLostFocus;
             if (_leadingButton != null)
                 _leadingButton.Click += OnLeadingButtonClick;
             if (_trailingButton != null)
@@ -349,6 +373,9 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         }
 
         public bool IsInlineEditing => _isInlineEditing;
+
+        /// <summary>Gets the item border that takes focus while the row is the menu's selection.</summary>
+        public Control SelectionTarget => _itemBorder;
 
         private static (
             TextBlock PrimaryLabel,
@@ -560,7 +587,7 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         private void UpdateVisual()
         {
             SettingsPaletteColor hoverColor = _options.ItemHoverColor ?? _options.Palette.Hover;
-            _itemBorder.Background = _isPointerOver
+            _itemBorder.Background = _isPointerOver || _isKeyboardSelected
                 ? TrayAppDotNETSettingsUI.Brush(hoverColor)
                 : Brushes.Transparent;
             SetActionButtonsVisible(_isPointerOver && !_isInlineEditing);
@@ -588,6 +615,29 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             UpdateVisual();
             _itemHoverChanged(this, arg2: true);
             _entry.HoverChanged?.Invoke(true);
+        }
+
+        // A row the keyboard selection took the highlight from hovers again once the pointer moves
+        private void OnPointerMoved(object? sender, PointerEventArgs eventArgs)
+        {
+            if (!_isPointerOver) OnPointerEntered(sender, eventArgs);
+        }
+
+        // Keyboard focus on the item border is the menu's selection; pointer focus shows through the hover highlight
+        private void OnItemBorderGotFocus(object? sender, FocusChangedEventArgs eventArgs)
+        {
+            if (_disposed || !ReferenceEquals(eventArgs.Source, _itemBorder)) return;
+
+            _isKeyboardSelected = MenuKeyboardSelection.IsKeyboardNavigation(eventArgs.NavigationMethod);
+            UpdateVisual();
+        }
+
+        private void OnItemBorderLostFocus(object? sender, FocusChangedEventArgs eventArgs)
+        {
+            if (_disposed || !_isKeyboardSelected) return;
+
+            _isKeyboardSelected = false;
+            UpdateVisual();
         }
 
         private void OnPointerExited(object? sender, PointerEventArgs eventArgs)
@@ -693,12 +743,16 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             }
 
             _isPointerOver = false;
+            _isKeyboardSelected = false;
             _isInlineEditing = false;
             PointerEntered -= OnPointerEntered;
+            PointerMoved -= OnPointerMoved;
             PointerExited -= OnPointerExited;
             PointerPressed -= OnPointerPressed;
             PointerReleased -= OnPointerReleased;
             KeyDown -= OnKeyDown;
+            _itemBorder.GotFocus -= OnItemBorderGotFocus;
+            _itemBorder.LostFocus -= OnItemBorderLostFocus;
             if (_inlineEditor != null)
             {
                 _inlineEditor.KeyDown -= OnInlineEditorKeyDown;

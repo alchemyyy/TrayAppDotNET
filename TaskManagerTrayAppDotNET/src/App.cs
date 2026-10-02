@@ -264,6 +264,9 @@ internal sealed class TaskManagerAvaloniaApp : Application
             Program.ApplicationName + ".TrayIcon");
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += RevealTaskManagerFromTray;
+
+        // The classic notification area may report one Enter twice, so the keyboard only reveals the window
+        _trayIcon.KeySelect += RevealTaskManagerFromTray;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RefreshTrayIcon;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;

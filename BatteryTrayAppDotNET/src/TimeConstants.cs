@@ -13,4 +13,7 @@ public abstract class TimeConstants : CommonTimeConstants
 
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
     public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
+
+    // Longest wait for powercfg to write the battery report before opening whatever file it produced
+    public const int BatteryReportTimeoutMs = 10_000;
 }

@@ -602,6 +602,10 @@
         <Leaf ID="ShowWindow" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
               Source="TaskManagerAvaloniaApp.RevealTaskManagerFromTray"
               Description="Shows the window in place after the first click toggled it" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="TaskManagerAvaloniaApp.RevealTaskManagerFromTray"
+              Description="NIN_KEYSELECT from the classic notification area shows the window; Windows 11 reports these
+                           keys as a click" />
         <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
               Source="TaskManagerAvaloniaApp.OnTrayRightClick"
               Description="Opens TrayMenu; the keys arrive as WM_CONTEXTMENU while the icon has shell focus" />

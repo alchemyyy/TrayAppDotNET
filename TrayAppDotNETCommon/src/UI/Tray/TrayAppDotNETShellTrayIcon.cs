@@ -41,6 +41,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _isVisible;
     private bool _disposed;
     private bool _hasProcessedButtonUp;
+    private bool _hasProcessedRightButtonUp;
     private bool _isScrollEnabled = true;
     private bool _isPrecisionTouchpadScrollEnabled = true;
     private bool _isListeningForInput;
@@ -73,6 +74,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     public event Action? LeftMouseDown;
     public event Action? LeftClick;
     public event Action? LeftDoubleClick;
+
+    /// <summary>
+    /// Raised when Enter or Space selects the keyboard-focused icon in the classic notification area (NIN_KEYSELECT).
+    /// That area is reported to send Enter twice, so handlers show their UI instead of toggling it. Windows 11's XAML
+    /// notification area never sends NIN_KEYSELECT; it reports both keys as a left click.
+    /// </summary>
+    public event Action? KeySelect;
     public event Action<Point>? RightClick;
     public event Action<int>? Scrolled;
     public event Action<int>? PrecisionTouchpadScrolled;
@@ -696,8 +704,26 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             case User32.WM_LBUTTONDBLCLK:
                 PostEvent(LeftDoubleClick, nameof(LeftDoubleClick));
                 break;
+            case (short)Shell32.NotifyIconNotification.NIN_KEYSELECT:
+                PostEvent(KeySelect, nameof(KeySelect));
+                break;
+            // NOTIFYICON_VERSION_4 follows each right click and Shift+F10 or Apps press with WM_CONTEXTMENU, and the
+            // classic notification area sends a keyboard menu request as WM_CONTEXTMENU alone, so the context menu
+            // that closes a button release is the same request
+            case User32.WM_RBUTTONDOWN:
+                _hasProcessedRightButtonUp = false;
+                break;
             case User32.WM_RBUTTONUP:
+                _hasProcessedRightButtonUp = true;
+                PostEvent(RightClick, ExtractScreenPoint(wParam), nameof(RightClick));
+                break;
             case User32.WM_CONTEXTMENU:
+                if (_hasProcessedRightButtonUp)
+                {
+                    _hasProcessedRightButtonUp = false;
+                    break;
+                }
+
                 PostEvent(RightClick, ExtractScreenPoint(wParam), nameof(RightClick));
                 break;
             case User32.WM_MOUSEMOVE:

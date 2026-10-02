@@ -400,6 +400,54 @@ public sealed class FanUIProfileTests
         }
     });
 
+    [Fact]
+    public void ProbeCardRenamesFromTheKeyboardAndKeepsFocusOnItsName() => RunUI(() =>
+    {
+        ProbeCard card = new() { Name = "Sensors", DisplayProfileMask = 1 };
+        AppSettings settings = new() { ProbeCards = [card] };
+        FanFlyoutWindow window = new(null, settings, static _ => { });
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            TextBlock name = ProbeCardName(window, card);
+            Assert.True(name.Focus(NavigationMethod.Tab));
+
+            // Enter on the focused name opens its rename box; Escape cancels back to the name
+            PressKey(window, Key.Enter, PhysicalKey.Enter);
+            TextBox editor = Assert.IsType<TextBox>(window.FocusManager?.GetFocusedElement());
+            Assert.False(name.IsVisible);
+            PressKey(window, Key.Escape, PhysicalKey.Escape);
+            Assert.False(editor.IsVisible);
+            Assert.Same(name, window.FocusManager?.GetFocusedElement());
+            Assert.Equal("Sensors", card.Name);
+
+            // Space opens it too; Enter commits, the cards rebuild, and focus lands on the renamed card's name
+            PressKey(window, Key.Space, PhysicalKey.Space);
+            Assert.Same(editor, window.FocusManager?.GetFocusedElement());
+            editor.Text = "Temperatures";
+            PressKey(window, Key.Enter, PhysicalKey.Enter);
+            Assert.Equal("Temperatures", card.Name);
+            Assert.Same(ProbeCardName(window, card), window.FocusManager?.GetFocusedElement());
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static TextBlock ProbeCardName(Window window, ProbeCard card) =>
+        window.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Single(text => ReferenceEquals(text.Tag, card) && text.IsEffectivelyVisible);
+
+    private static void PressKey(Window window, Key key, PhysicalKey physicalKey)
+    {
+        window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
+        window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     private static void PressTab(Window window)
     {
         window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);

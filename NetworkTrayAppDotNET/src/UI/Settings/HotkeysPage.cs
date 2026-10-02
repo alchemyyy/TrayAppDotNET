@@ -2,7 +2,6 @@
 
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.ControlMapping;
@@ -112,27 +111,11 @@ public sealed partial class NetworkSettingsWindow
             selectedModifiers = modifiers.SelectedItem is { Tag: uint mods } ? mods : 0;
             UpdateAddButtonState();
         };
-        keyBox.KeyDown += (_, e) =>
+        TrayAppDotNETHotkeyKeys.AttachKeyCapture(keyBox, virtualKey =>
         {
-            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
-                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.Escape)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            uint vk = TrayAppDotNETHotkeyKeys.VirtualKeyFromKey(e.Key);
-            if (vk is 0 or 0x7B)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            selectedVk = vk;
-            keyBox.Text = TrayAppDotNETHotkeyKeys.KeyName(vk);
+            selectedVk = virtualKey;
             UpdateAddButtonState();
-            e.Handled = true;
-        };
+        });
         addButton.Click += (_, _) =>
         {
             if (!addButton.IsEnabled || selectedModifiers == 0 || selectedVk == 0) return;

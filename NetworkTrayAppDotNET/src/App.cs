@@ -246,6 +246,9 @@ internal sealed class NetworkAvaloniaApp : Application
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
+
+        // Enter or Space on the keyboard-focused icon opens the same network UI a click does
+        _trayIcon.KeySelect += OpenNetworkFlyout;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;

@@ -2080,6 +2080,11 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
             ControlMap.ScrollBarMenu.ID,
             ControlMap.ScrollBarMenu.Entries.ID,
             ControlMap.ScrollBarMenu.Dismiss);
+        menuWindow.MapSelectionCommands(
+            ControlMap.ScrollBarMenu.SelectPrevious,
+            ControlMap.ScrollBarMenu.SelectNext,
+            ControlMap.ScrollBarMenu.SelectFirst,
+            ControlMap.ScrollBarMenu.SelectLast);
         _contextMenuWindow = menuWindow;
         menuWindow.Closed += OnContextMenuClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
@@ -2259,6 +2264,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
     private readonly Func<Control>? _contentFactory;
     private Control? _itemContent;
     private bool _isPointerOver;
+    private bool _isKeyboardFocused;
     private bool _isSelected;
     private int _disposed;
 
@@ -2309,9 +2315,12 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         Child = _inner;
 
         PointerEntered += OnPointerEntered;
+        PointerMoved += OnPointerMoved;
         PointerExited += OnPointerExited;
         PointerPressed += OnPointerPressed;
         KeyDown += OnKeyDown;
+        GotFocus += OnGotFocus;
+        LostFocus += OnLostFocus;
     }
 
     public event EventHandler? Pressed;
@@ -2355,9 +2364,18 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
 
     private void UpdateVisual()
     {
-        _inner.Background =
-            TrayAppDotNETSettingsUI.Brush(_isPointerOver || _isSelected ? _palette.Hover : Colors.Transparent);
+        _inner.Background = TrayAppDotNETSettingsUI.Brush(
+            _isPointerOver || _isKeyboardFocused || _isSelected ? _palette.Hover : Colors.Transparent);
         _selectionBar.Background = TrayAppDotNETSettingsUI.Brush(_isSelected ? _palette.Accent : Colors.Transparent);
+    }
+
+    /// <summary>Drops the hover highlight after the keyboard focused another item.</summary>
+    internal void ClearPointerHover()
+    {
+        if (!_isPointerOver) return;
+
+        _isPointerOver = false;
+        UpdateVisual();
     }
 
     private Control CreateContent()
@@ -2377,9 +2395,12 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
 
         TextBlockLayoutLifetime.ReleaseForRetirement(this);
         PointerEntered -= OnPointerEntered;
+        PointerMoved -= OnPointerMoved;
         PointerExited -= OnPointerExited;
         PointerPressed -= OnPointerPressed;
         KeyDown -= OnKeyDown;
+        GotFocus -= OnGotFocus;
+        LostFocus -= OnLostFocus;
         Pressed = null;
         _inner.Child = null;
         Child = null;
@@ -2392,6 +2413,16 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
     {
         _isPointerOver = true;
         UpdateVisual();
+
+        // While the keyboard works the open list, the hovered item takes focus so the keys continue from it
+        if (Parent is Panel { IsKeyboardFocusWithin: true })
+            Focus(NavigationMethod.Pointer);
+    }
+
+    // An item the keyboard took the highlight from hovers again once the pointer moves
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isPointerOver) OnPointerEntered(sender, e);
     }
 
     private void OnPointerExited(object? sender, PointerEventArgs e)
@@ -2414,6 +2445,23 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         if (e.Key is not (Key.Enter or Key.Space)) return;
         Pressed?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
+    }
+
+    // Focus from the keyboard highlights the item; focus taken by the pointer shows through the hover highlight
+    private void OnGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.Source, this)) return;
+
+        _isKeyboardFocused = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
+        UpdateVisual();
+    }
+
+    private void OnLostFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (!_isKeyboardFocused) return;
+
+        _isKeyboardFocused = false;
+        UpdateVisual();
     }
 }
 
@@ -2438,6 +2486,9 @@ public sealed class SettingsComboBox : Grid, IDisposable
     private bool _isPointerOver;
     private bool _isPressed;
     private bool _isDropDownOpen;
+
+    // Whether the open list is driven by the keyboard, which decides how focus moves into and out of it
+    private bool _isKeyboardInteraction;
     private SettingsComboBoxItem? _selectedItem;
     private Control? _selectionContent;
     private Thickness _contentPadding = SettingsUILayout.ComboContentPadding;
@@ -2520,9 +2571,21 @@ public sealed class SettingsComboBox : Grid, IDisposable
         KeyDown += OnKeyDown;
         this.MapActivation(_ =>
         {
-            if (IsEnabled) IsDropDownOpen = true;
+            if (!IsEnabled) return;
+            _isKeyboardInteraction = true;
+            IsDropDownOpen = true;
         });
         _popup.PropertyChanged += OnPopupPropertyChanged;
+        _popup.Opened += OnPopupOpened;
+
+        // Keys in the open list route to its focused item, then bubble through the combo box to the window, so the
+        // list handles its own navigation keys before anything outside sees them
+        _popupBorder.AddHandler(KeyDownEvent, OnPopupKeyDown, RoutingStrategies.Tunnel);
+        _popupBorder.AddHandler(
+            PointerPressedEvent,
+            OnPopupPointerPressed,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         DetachedFromVisualTree += OnDetachedFromVisualTree;
 
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, disabledOpacity: 0.4);
@@ -2687,7 +2750,106 @@ public sealed class SettingsComboBox : Grid, IDisposable
     {
         if (sender is not SettingsComboBoxItem item) return;
         SelectedItem = item;
+        CloseDropDownToComboBox();
+    }
+
+    /// <summary>Closes the list and gives focus back to the combo box when the list held it.</summary>
+    private void CloseDropDownToComboBox()
+    {
+        // Focus moves first, so closing the list does not drop focus onto the window
+        if (_popupBorder.IsKeyboardFocusWithin)
+            Focus(_isKeyboardInteraction ? NavigationMethod.Directional : NavigationMethod.Pointer);
+
         IsDropDownOpen = false;
+    }
+
+    // A list opened from the keyboard focuses the selected item, as Win32 and Avalonia's ComboBox do, so the list keys
+    // work at once; a click leaves focus on the combo box until Down moves into the list
+    private void OnPopupOpened(object? sender, EventArgs e)
+    {
+        if (_isKeyboardInteraction)
+            FocusPopupItem(_selectedItem == null ? 0 : _itemsPanel.Children.IndexOf(_selectedItem));
+    }
+
+    private void OnPopupPointerPressed(object? sender, PointerPressedEventArgs e) => _isKeyboardInteraction = false;
+
+    // Up, Down, Home and End move focus without changing the selection, which Enter or Space commits; Escape
+    // cancels; Tab cancels and moves on from the combo box
+    private void OnPopupKeyDown(object? sender, KeyEventArgs e)
+    {
+        _isKeyboardInteraction = true;
+        switch (e.Key)
+        {
+            case Key.Up when e.KeyModifiers == KeyModifiers.None:
+                FocusPopupItem(FocusedPopupItemIndex() - 1);
+                e.Handled = true;
+                return;
+            case Key.Down when e.KeyModifiers == KeyModifiers.None:
+                FocusPopupItem(FocusedPopupItemIndex() + 1);
+                e.Handled = true;
+                return;
+            case Key.Home when e.KeyModifiers == KeyModifiers.None:
+                FocusPopupItem(0);
+                e.Handled = true;
+                return;
+            case Key.End when e.KeyModifiers == KeyModifiers.None:
+                FocusPopupItem(_itemsPanel.Children.Count - 1);
+                e.Handled = true;
+                return;
+            case Key.Escape:
+                CloseDropDownToComboBox();
+                e.Handled = true;
+                return;
+            case Key.Tab:
+                CloseDropDownToComboBox();
+                MoveFocusFromComboBox(
+                    (e.KeyModifiers & KeyModifiers.Shift) != 0 ? NavigationDirection.Previous : NavigationDirection.Next,
+                    e.KeyModifiers);
+                e.Handled = true;
+                return;
+        }
+    }
+
+    private int FocusedPopupItemIndex()
+    {
+        for (int index = 0; index < _itemsPanel.Children.Count; index++)
+        {
+            if (_itemsPanel.Children[index].IsKeyboardFocusWithin)
+                return index;
+        }
+
+        return -1;
+    }
+
+    private SettingsComboBoxItem? PopupItemAt(int index) =>
+        index >= 0 && index < _itemsPanel.Children.Count ? _itemsPanel.Children[index] as SettingsComboBoxItem : null;
+
+    // The list stops at its ends, as a Windows list box does
+    private void FocusPopupItem(int index)
+    {
+        if (_itemsPanel.Children.Count == 0) return;
+
+        SettingsComboBoxItem? target = PopupItemAt(Math.Clamp(index, min: 0, _itemsPanel.Children.Count - 1));
+        if (target == null) return;
+
+        target.Focus(NavigationMethod.Directional);
+        target.BringIntoView();
+        foreach (Control child in _itemsPanel.Children)
+        {
+            if (child is SettingsComboBoxItem item && !ReferenceEquals(item, target))
+                item.ClearPointerHover();
+        }
+    }
+
+    private void MoveFocusFromComboBox(NavigationDirection direction, KeyModifiers keyModifiers)
+    {
+        if (TopLevel.GetTopLevel(this) is not { FocusManager: { } focusManager }) return;
+
+        IInputElement? next = focusManager.FindNextElement(
+            direction,
+            new FindNextElementOptions { FocusedElement = this });
+        if (next != null)
+            focusManager.Focus(next, NavigationMethod.Tab, keyModifiers);
     }
 
     private void RebuildPopupItems()
@@ -2757,6 +2919,9 @@ public sealed class SettingsComboBox : Grid, IDisposable
         PointerReleased -= OnPointerReleased;
         KeyDown -= OnKeyDown;
         _popup.PropertyChanged -= OnPopupPropertyChanged;
+        _popup.Opened -= OnPopupOpened;
+        _popupBorder.RemoveHandler(KeyDownEvent, OnPopupKeyDown);
+        _popupBorder.RemoveHandler(PointerPressedEvent, OnPopupPointerPressed);
         _isDropDownOpen = false;
         _popup.IsOpen = false;
         _itemsPanel.Children.Clear();
@@ -2796,6 +2961,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
         if (!IsEnabled) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         _isPressed = true;
+        _isKeyboardInteraction = false;
         IsDropDownOpen = !IsDropDownOpen;
         Focus();
         e.Handled = true;
@@ -2811,15 +2977,21 @@ public sealed class SettingsComboBox : Grid, IDisposable
         e.Handled = true;
     }
 
+    // Keys reach this handler only while the combo box itself has focus; the open list handles its own keys
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!IsEnabled) return;
+        if (!IsEnabled || !ReferenceEquals(e.Source, this)) return;
         switch (e.Key)
         {
             case Key.Enter:
             case Key.Space:
             case Key.Down:
-                IsDropDownOpen = true;
+            case Key.Up when IsDropDownOpen:
+                _isKeyboardInteraction = true;
+                if (IsDropDownOpen)
+                    FocusPopupItem(_selectedItem == null ? 0 : _itemsPanel.Children.IndexOf(_selectedItem));
+                else
+                    IsDropDownOpen = true;
                 e.Handled = true;
                 return;
 

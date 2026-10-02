@@ -257,6 +257,7 @@ internal sealed class VolumeAvaloniaApp : Application
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
+        _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.Scrolled += OnTrayScrolled;
         _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
@@ -595,6 +596,11 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnTrayLeftClick()
     {
+        if (TryDispatchModifiedTrayAction(
+                _settings?.TrayCtrlLeftClickAction ?? TrayClickAction.Nothing,
+                _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing))
+            return;
+
         if (_volumeFlyout is { IsVisible: true })
         {
             _volumeFlyout.Hide();
@@ -606,13 +612,49 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnTrayLeftDoubleClick()
     {
+        if (TryDispatchModifiedTrayAction(
+                _settings?.TrayCtrlDoubleLeftClickAction ?? TrayClickAction.Nothing,
+                _settings?.TrayAltDoubleLeftClickAction ?? TrayClickAction.Nothing))
+            return;
+
         TrayClickAction action = _settings?.TrayDoubleClickAction ?? TrayClickAction.Nothing;
-        if (action == TrayClickAction.OpenSettings) OpenSettings();
-        else ShowVolumeFlyout();
+        if (!TryDispatchTrayAction(action))
+            ShowVolumeFlyout();
     }
 
+    // The classic notification area may report one Enter twice, so the keyboard only shows the flyout
+    private void OnTrayKeySelect() => ShowVolumeFlyout();
+
     private void OnTrayRightClick(Point point) =>
-        Dispatcher.UIThread.Post(() => ShowTrayContextMenu(point));
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (TryDispatchModifiedTrayAction(
+                    _settings?.TrayCtrlRightClickAction ?? TrayClickAction.Nothing,
+                    _settings?.TrayAltRightClickAction ?? TrayClickAction.Nothing))
+                return;
+
+            ShowTrayContextMenu(point);
+        });
+
+    /// <summary>Runs the Ctrl or Alt variant of a tray click; Nothing falls through to the plain click.</summary>
+    private bool TryDispatchModifiedTrayAction(TrayClickAction controlAction, TrayClickAction altAction)
+    {
+        if (IsCtrlDown() && TryDispatchTrayAction(controlAction)) return true;
+        return IsAltDown() && TryDispatchTrayAction(altAction);
+    }
+
+    private bool TryDispatchTrayAction(TrayClickAction action)
+    {
+        switch (action)
+        {
+            case TrayClickAction.OpenSettings:
+                OpenSettings();
+                return true;
+            case TrayClickAction.Nothing:
+            default:
+                return false;
+        }
+    }
 
     private void OnTrayScrolled(int delta)
     {

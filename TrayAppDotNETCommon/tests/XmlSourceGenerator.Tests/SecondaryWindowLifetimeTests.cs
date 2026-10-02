@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -437,6 +438,34 @@ public sealed class SecondaryWindowLifetimeTests
         settingsWindow.Close();
     });
 
+    [Fact]
+    public void EnterOnAWindowOpeningButtonSuppressesTheNextAutoHideLikeAClick() => AvaloniaTestHost.Run(() =>
+    {
+        WindowOpeningFlyout flyout = new();
+        try
+        {
+            flyout.Show();
+            Assert.True(flyout.OpenWindowButton.Focus(NavigationMethod.Tab));
+
+            // A key that does not activate the button leaves the next hide alone
+            PressKey(flyout, Key.A, PhysicalKey.A);
+            flyout.HideFromCoordinator();
+            Assert.False(flyout.IsVisible);
+
+            flyout.Show();
+            Assert.True(flyout.OpenWindowButton.Focus(NavigationMethod.Tab));
+            PressKey(flyout, Key.Enter, PhysicalKey.Enter);
+            flyout.HideFromCoordinator();
+            Assert.True(flyout.IsVisible);
+            flyout.HideFromCoordinator();
+            Assert.False(flyout.IsVisible);
+        }
+        finally
+        {
+            flyout.Close();
+        }
+    });
+
     [Theory]
     [InlineData(true, false, false, true, true)]
     [InlineData(true, true, false, true, false)]
@@ -599,6 +628,25 @@ public sealed class SecondaryWindowLifetimeTests
     }
 
     private sealed class TestFlyoutCompanionWindow : FlyoutCompanionWindow;
+
+    // A flyout whose only control opens another window, as the header settings buttons do
+    private sealed class WindowOpeningFlyout : FlyoutWindowCommon
+    {
+        public WindowOpeningFlyout()
+        {
+            OpenWindowButton = new Border { Width = 20, Height = 20, Focusable = true };
+            SuppressNextAutoHideWhenPressed(OpenWindowButton);
+            Content = OpenWindowButton;
+        }
+
+        public Border OpenWindowButton { get; }
+    }
+
+    private static void PressKey(Window window, Key key, PhysicalKey physicalKey)
+    {
+        window.KeyPress(key, RawInputModifiers.None, physicalKey, keySymbol: null);
+        window.KeyRelease(key, RawInputModifiers.None, physicalKey, keySymbol: null);
+    }
 
     private sealed class FakeWarmWindow : Window, ITrayAppDotNETWarmWindow, ITrayAppDotNETWarmResourceOwner
     {

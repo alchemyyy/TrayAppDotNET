@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.ContextMenus;
+using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
@@ -17,6 +18,109 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class ContextMenuWindowTests
 {
+    [Theory]
+    [InlineData(3, -1, MenuSelectionMove.Next, 0)]
+    [InlineData(3, -1, MenuSelectionMove.Previous, 2)]
+    [InlineData(3, -1, MenuSelectionMove.First, 0)]
+    [InlineData(3, -1, MenuSelectionMove.Last, 2)]
+    [InlineData(3, 1, MenuSelectionMove.Next, 2)]
+    [InlineData(3, 1, MenuSelectionMove.Previous, 0)]
+    [InlineData(3, 2, MenuSelectionMove.Next, 0)]
+    [InlineData(3, 0, MenuSelectionMove.Previous, 2)]
+    [InlineData(1, 0, MenuSelectionMove.Next, 0)]
+    [InlineData(0, -1, MenuSelectionMove.Next, -1)]
+    public void MenuSelectionWrapsAndStartsFromTheEndsLikeWin32Menus(
+        int rowCount,
+        int currentIndex,
+        MenuSelectionMove move,
+        int expectedIndex) =>
+        Assert.Equal(expectedIndex, MenuKeyboardSelection.ResolveTargetIndex(rowCount, currentIndex, move));
+
+    [Fact]
+    public void SelectionKeysMoveTheFocusedRowAndWrapAroundTheMenu() => RunWithMenuMap(() =>
+    {
+        ContextMenuWindow menu = new(
+            [Entry("First"), Entry("Second"), Entry("Third")],
+            new ContextMenuWindowOptions { Palette = Palette() });
+
+        try
+        {
+            ShowActivated(menu);
+
+            // Nothing is selected when the menu opens; Down selects the first row and Up wraps past it
+            PressKey(menu, Key.Down, PhysicalKey.ArrowDown);
+            Assert.Equal(expected: "First", FocusedRowText(menu));
+            PressKey(menu, Key.Up, PhysicalKey.ArrowUp);
+            Assert.Equal(expected: "Third", FocusedRowText(menu));
+            PressKey(menu, Key.Down, PhysicalKey.ArrowDown);
+            Assert.Equal(expected: "First", FocusedRowText(menu));
+            PressKey(menu, Key.End, PhysicalKey.End);
+            Assert.Equal(expected: "Third", FocusedRowText(menu));
+            PressKey(menu, Key.Home, PhysicalKey.Home);
+            Assert.Equal(expected: "First", FocusedRowText(menu));
+        }
+        finally
+        {
+            menu.Close();
+        }
+    });
+
+    [Fact]
+    public void SelectionKeysStartFromAMenuOpenedWithNoSelectedRow() => RunWithMenuMap(() =>
+    {
+        ContextMenuWindow menu = new(
+            [Entry("First"), Entry("Second")],
+            new ContextMenuWindowOptions { Palette = Palette() });
+
+        try
+        {
+            ShowActivated(menu);
+
+            PressKey(menu, Key.Up, PhysicalKey.ArrowUp);
+            Assert.Equal(expected: "Second", FocusedRowText(menu));
+        }
+        finally
+        {
+            menu.Close();
+        }
+    });
+
+    [Fact]
+    public void RightEntersASubmenuAndLeftReturnsToItsRow() => RunWithMenuMap(() =>
+    {
+        ContextMenuWindow menu = new(
+            [
+                Entry("Open"),
+                new ContextMenuEntry(Text: "More", static () => { })
+                {
+                    SubmenuFactory = static () => [Entry("Inner one"), Entry("Inner two")]
+                }
+            ],
+            new ContextMenuWindowOptions { Palette = Palette() });
+
+        try
+        {
+            ShowActivated(menu);
+            PressKey(menu, Key.End, PhysicalKey.End);
+            Assert.Equal(expected: "More", FocusedRowText(menu));
+
+            // The submenu positions itself on a posted pass, then takes the selection on its first row
+            PressKey(menu, Key.Right, PhysicalKey.ArrowRight);
+            Dispatcher.UIThread.RunJobs();
+            ContextMenuWindow submenu = Assert.IsType<ContextMenuWindow>(Assert.Single(menu.OwnedWindows));
+            Assert.Equal(expected: "Inner one", FocusedRowText(submenu));
+            PressKey(submenu, Key.Down, PhysicalKey.ArrowDown);
+            Assert.Equal(expected: "Inner two", FocusedRowText(submenu));
+
+            PressKey(submenu, Key.Left, PhysicalKey.ArrowLeft);
+            Assert.False(submenu.IsVisible);
+            Assert.Equal(expected: "More", FocusedRowText(menu));
+        }
+        finally
+        {
+            menu.Close();
+        }
+    });
     [Fact]
     public void TrailingGlyphMetadataAppliesFontWeightAndTransform() =>
         AvaloniaTestHost.Run(() =>
@@ -575,6 +679,45 @@ public sealed class ContextMenuWindowTests
             }
         });
 
+    private static ContextMenuEntry Entry(string text) => new(text, static () => { });
+
+    // A key that closes its window, such as Left in a submenu, leaves no window to release the key in
+    private static void PressKey(Window window, Key key, PhysicalKey physicalKey)
+    {
+        window.KeyPress(key, RawInputModifiers.None, physicalKey, keySymbol: null);
+        if (window.IsVisible)
+            window.KeyRelease(key, RawInputModifiers.None, physicalKey, keySymbol: null);
+    }
+
+    // Shows a menu activated, as a tray menu opens, so it takes the keys the way it does on the desktop
+    private static void ShowActivated(ContextMenuWindow menu)
+    {
+        menu.Show();
+        menu.UpdateLayout();
+        menu.Activate();
+    }
+
+    // The focused row is the menu's selection; a row's only text block carries its entry text
+    private static string? FocusedRowText(TopLevel topLevel) =>
+        topLevel.FocusManager?.GetFocusedElement() is Visual focused
+            ? focused.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text
+            : null;
+
+    // A menu tags itself with the ContextMenu template root, which resolves only through an app map that instantiates
+    // the template, as every app's tray menu does
+    private static void RunWithMenuMap(Action test) => AvaloniaTestHost.Run(() =>
+    {
+        ControlMapCatalog.Register(new ContextMenuTestMap());
+        try
+        {
+            test();
+        }
+        finally
+        {
+            ControlMapCatalog.Unregister(ContextMenuTestMap.TestMapName);
+        }
+    });
+
     private static SettingsPalette Palette() => new(
         Colors.Black,
         Colors.White,
@@ -597,4 +740,13 @@ public sealed class ContextMenuWindowTests
         Colors.Red,
         Colors.DarkRed,
         Colors.White);
+
+    // An app map with one menu surface instantiating the common ContextMenu template
+    private sealed class ContextMenuTestMap : UI.ControlMapping.ControlMap
+    {
+        public const string TestMapName = "ContextMenuWindowTests";
+
+        public ContextMenuTestMap() : base(TestMapName) =>
+            Children.Add(new Surface { ID = "TrayMenu", Kind = SurfaceKind.Popup, Template = "ContextMenu" });
+    }
 }

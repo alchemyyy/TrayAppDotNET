@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
@@ -256,27 +255,11 @@ public sealed partial class BrightnessSettingsWindow
             };
         }
 
-        keyBox.KeyDown += (_, e) =>
+        TrayAppDotNETHotkeyKeys.AttachKeyCapture(keyBox, virtualKey =>
         {
-            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
-                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.Escape)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            uint virtualKey = TrayAppDotNETHotkeyKeys.VirtualKeyFromKey(e.Key);
-            if (virtualKey is 0 or 0x7B)
-            {
-                e.Handled = true;
-                return;
-            }
-
             selectedVirtualKey = virtualKey;
-            keyBox.Text = TrayAppDotNETHotkeyKeys.KeyName(virtualKey);
             UpdateAddButtonState();
-            e.Handled = true;
-        };
+        });
         addButton.Click += (_, _) =>
         {
             if (!addButton.IsEnabled || selectedModifiers == 0 || selectedVirtualKey == 0) return;

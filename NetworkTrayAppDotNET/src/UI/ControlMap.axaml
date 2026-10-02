@@ -32,6 +32,10 @@
         <Leaf ID="AltDoubleLeftClickAction" Kind="Command" Pointer="Alt+DoubleClick" Event="TrayMessage"
               Source="NetworkAvaloniaApp.OnTrayLeftDoubleClick"
               Description="Default Nothing, which falls back to DoubleClickAction" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="NetworkAvaloniaApp.OpenNetworkFlyout"
+              Description="NIN_KEYSELECT from the classic notification area opens the FlyoutStyle UI; Windows 11
+                           reports these keys as a click" />
         <Leaf ID="OpenUpdate" Kind="Command" Event="TrayMessage" Source="NetworkAvaloniaApp.OnUpdateBalloonClicked"
               Description="Update balloon click; opens Settings at the About page while an update is available" />
     </Surface>
@@ -83,9 +87,8 @@
             <Scope ID="OpenFlyout" Source="NetworkSettingsWindow.AddHotkeyRow">
                 <Leaf ID="BindingModifiers" Kind="Select" Event="SelectionChanged"
                       Source="NetworkSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="BindingKey" Kind="Text" FocusKeys="Tab;Shift+Tab;Escape" Event="KeyDown"
-                      Source="NetworkSettingsWindow.AddHotkeyRow"
-                      Description="Read-only capture box; consumes every key and stores most as the binding key" />
+                <Leaf ID="BindingKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                      Description="Read-only; records the next key press as the binding key; Tab moves focus" />
                 <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="NetworkSettingsWindow.AddHotkeyRow"
                       Description="Enabled only for a new modifier and key pair" />
                 <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
@@ -95,9 +98,8 @@
             <Scope ID="OpenSettings" Source="NetworkSettingsWindow.AddHotkeyRow">
                 <Leaf ID="BindingModifiers" Kind="Select" Event="SelectionChanged"
                       Source="NetworkSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="BindingKey" Kind="Text" FocusKeys="Tab;Shift+Tab;Escape" Event="KeyDown"
-                      Source="NetworkSettingsWindow.AddHotkeyRow"
-                      Description="Read-only capture box; consumes every key and stores most as the binding key" />
+                <Leaf ID="BindingKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                      Description="Read-only; records the next key press as the binding key; Tab moves focus" />
                 <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="NetworkSettingsWindow.AddHotkeyRow"
                       Description="Enabled only for a new modifier and key pair" />
                 <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"

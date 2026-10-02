@@ -4,10 +4,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- App-private popup menu window; the device format and listen target menus instantiate it -->
-    <Template ID="VolumeFlyoutMenu" Source="FlyoutMenuWindow.FlyoutMenuWindow">
-        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="KeyDown" Source="FlyoutMenuWindow.FlyoutMenuWindow"
+    <Template ID="VolumeFlyoutMenu" Source="FlyoutMenuWindow.FlyoutMenuWindow"
+              Description="Selection keys follow the common ContextMenu template, which documents them">
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FlyoutMenuWindow.FlyoutMenuWindow"
               Description="Closes the menu" />
-        <Scope ID="Entries" Tab="Once" Arrows="Vertical" Source="FlyoutMenuWindow.FlyoutMenuWindow">
+        <Leaf ID="SelectPrevious" Kind="Command" Keys="Up" Event="MapCommand"
+              Source="FlyoutMenuWindow.FlyoutMenuWindow" Description="Previous row, wrapping to the last" />
+        <Leaf ID="SelectNext" Kind="Command" Keys="Down" Event="MapCommand"
+              Source="FlyoutMenuWindow.FlyoutMenuWindow" Description="Next row, wrapping to the first" />
+        <Leaf ID="SelectFirst" Kind="Command" Keys="Home" Event="MapCommand"
+              Source="FlyoutMenuWindow.FlyoutMenuWindow" />
+        <Leaf ID="SelectLast" Kind="Command" Keys="End" Event="MapCommand"
+              Source="FlyoutMenuWindow.FlyoutMenuWindow" />
+        <Scope ID="Entries" Tab="Once" Source="FlyoutMenuWindow.FlyoutMenuWindow">
             <Slot />
         </Scope>
         <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
@@ -15,14 +24,21 @@
     </Template>
 
     <Surface ID="TrayIcon" Kind="Tray" Source="VolumeAvaloniaApp.CreateTrayIcon">
-        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click" Event="TrayMessage"
-              Source="VolumeAvaloniaApp.OnTrayLeftClick" Description="Shows the flyout, or hides it when visible" />
-        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick" Event="TrayMessage"
-              Source="VolumeAvaloniaApp.OnTrayLeftDoubleClick"
-              Description="Opens settings when TrayDoubleClickAction is OpenSettings, else shows the flyout" />
-        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick" Event="TrayMessage"
-              Source="VolumeAvaloniaApp.OnTrayRightClick"
-              Description="Also fired by WM_CONTEXTMENU from the keyboard-focused notification icon" />
+        <Leaf ID="ToggleFlyout" Kind="Command" Pointer="Click;Ctrl+Click;Alt+Click" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayLeftClick"
+              Description="Shows the flyout, or hides it when visible; Ctrl or Alt runs the configured modifier action,
+                           default Nothing" />
+        <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick;Ctrl+DoubleClick;Alt+DoubleClick"
+              Event="TrayMessage" Source="VolumeAvaloniaApp.OnTrayLeftDoubleClick"
+              Description="Runs TrayDoubleClickAction or its Ctrl or Alt variant; Nothing shows the flyout" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="VolumeAvaloniaApp.OnTrayKeySelect"
+              Description="NIN_KEYSELECT from the classic notification area shows the flyout; Windows 11 reports these
+                           keys as a click" />
+        <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick;Ctrl+RightClick;Alt+RightClick"
+              Event="TrayMessage" Source="VolumeAvaloniaApp.OnTrayRightClick"
+              Description="Shows TrayMenu unless a Ctrl or Alt modifier action is configured; the keys arrive as
+                           WM_CONTEXTMENU from the keyboard-focused notification icon" />
         <Leaf ID="AdjustVolume" Kind="Command" Pointer="Wheel;Ctrl+Wheel;Alt+Wheel" Event="TrayMessage"
               Source="VolumeAvaloniaApp.OnTrayScrolled"
               Description="Raw-input wheel steps the default device per TrayWheelAction and its Ctrl, Alt variants" />
@@ -339,8 +355,8 @@
                    Description="One card per action: OpenFlyout, then OpenSettings">
                 <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
                       Source="VolumeSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="VolumeSettingsWindow.AddHotkeyRow"
-                      Description="Read-only; records the next non-modifier key, including Tab and Enter" />
+                <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                      Description="Read-only; records the next non-modifier key, including Enter; Tab moves focus" />
                 <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="VolumeSettingsWindow.AddHotkeyRow" />
                 <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
                       Source="VolumeSettingsWindow.BuildHotkeyEntryCard" />

@@ -25,6 +25,7 @@ public static class Shell32
     public enum NotifyIconNotification
     {
         NIN_SELECT = 0x400,
+        NIN_KEYSELECT = 0x401,
         NIN_BALLOONSHOW = 0x402,
         NIN_BALLOONHIDE = 0x403,
         NIN_BALLOONTIMEOUT = 0x404,

@@ -327,6 +327,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
+        _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.Scrolled += OnTrayScrolled;
         _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
@@ -622,6 +623,9 @@ internal sealed class BrightnessAvaloniaApp : Application
             _settings.TrayAltDoubleLeftClickAction,
             _settings.TrayDoubleClickAction));
     }
+
+    // The classic notification area may report one Enter twice, so the keyboard only shows the flyout
+    private void OnTrayKeySelect() => ShowBrightnessFlyout();
 
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() =>

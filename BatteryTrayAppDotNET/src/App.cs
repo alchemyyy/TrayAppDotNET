@@ -64,6 +64,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private BatteryWatcherMonitor? _watcherMonitor;
     private UpdateCheckService? _updateCheckService;
     private int _lastNotifiedUpdateVersion;
+    private bool _isBatteryReportRunning;
     private bool _shuttingDown;
 
     public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
@@ -231,6 +232,7 @@ internal sealed class BatteryAvaloniaApp : Application
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
+        _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
@@ -446,6 +448,9 @@ internal sealed class BatteryAvaloniaApp : Application
 
     private void OnTrayLeftDoubleClick() => OpenSettings();
 
+    // The classic notification area may report one Enter twice, so the keyboard only shows the flyout
+    private void OnTrayKeySelect() => ShowBatteryFlyout();
+
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() => ShowTrayContextMenu(point));
 
@@ -592,8 +597,17 @@ internal sealed class BatteryAvaloniaApp : Application
         }
     }
 
-    private static void OpenBatteryReport()
+    private void OpenBatteryReport() => _ = OpenBatteryReportAsync();
+
+    /// <summary>
+    /// Writes the powercfg battery report and opens it. The wait for powercfg runs off the UI thread, and a request
+    /// made while a report is still being written is ignored, since both runs would write the same file.
+    /// </summary>
+    private async Task OpenBatteryReportAsync()
     {
+        if (_isBatteryReportRunning) return;
+
+        _isBatteryReportRunning = true;
         try
         {
             string reportsDir = Path.Combine(Program.AppLocalAppDataDirectory, path2: "reports");
@@ -608,18 +622,32 @@ internal sealed class BatteryAvaloniaApp : Application
             });
             if (process == null) return;
 
-            process.WaitForExit(10_000);
-            if (File.Exists(reportPath))
+            using CancellationTokenSource timeout = new(TimeConstants.BatteryReportTimeoutMs);
+            try
             {
-                using Process? _ = Process.Start(new ProcessStartInfo
-                {
-                    FileName = reportPath, UseShellExecute = true
-                });
+                await process.WaitForExitAsync(timeout.Token);
             }
+            catch (OperationCanceledException)
+            {
+                TADNLog.Log(
+                    "BatteryAvaloniaApp.OpenBatteryReport: powercfg did not exit within "
+                    + $"{TimeConstants.BatteryReportTimeoutMs} ms");
+            }
+
+            if (_shuttingDown || !File.Exists(reportPath)) return;
+
+            using Process? _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = reportPath, UseShellExecute = true
+            });
         }
         catch (Exception ex)
         {
             TADNLog.Log($"BatteryAvaloniaApp.OpenBatteryReport: {ex}");
+        }
+        finally
+        {
+            _isBatteryReportRunning = false;
         }
     }
 

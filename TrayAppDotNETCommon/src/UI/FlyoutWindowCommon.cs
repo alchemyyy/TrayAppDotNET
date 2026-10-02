@@ -161,6 +161,11 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         }
     }
 
+    /// <summary>
+    /// Keeps the deactivation caused by a control that opens another window from hiding the flyout. A left press
+    /// arms the suppression, and so do Enter and Space while the control has focus, which activate it through its
+    /// own key handler or the control map.
+    /// </summary>
     protected void SuppressNextAutoHideWhenPressed(Control control)
     {
         control.AddHandler(
@@ -170,6 +175,19 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
                 if (!control.IsEnabled) return;
                 if (e.GetCurrentPoint(control).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
                     return;
+
+                _suppressNextAutoHide = true;
+            },
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+
+        // Tunneling sees the key before the control's own handler and the map's window handler can open the window
+        control.AddHandler(
+            KeyDownEvent,
+            (_, e) =>
+            {
+                if (!control.IsEnabled || !ReferenceEquals(e.Source, control)) return;
+                if (e.Key is not (Key.Enter or Key.Space)) return;
 
                 _suppressNextAutoHide = true;
             },

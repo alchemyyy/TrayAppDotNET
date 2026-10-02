@@ -99,8 +99,17 @@ class, can only name template IDs. So:
 - A `KeyDown` handler on the control itself is `FocusKeys`. A handler on a window, page, or painted container that
   reacts wherever focus is inside it is `Keys` on the leaf it activates, with `KeyScope` naming that container when
   it is not the leaf's parent. A window-level Escape is a `Dismiss` command with `Keys="Escape"`.
-- The shared tray icon turns Shift+F10 and the Apps key into a right click, so every tray `OpenMenu` command carries
-  `Keys="Shift+F10;Apps"`.
+- The shared tray icon raises one right click for a mouse right click and for Shift+F10 or the Apps key on the
+  keyboard-focused icon, so every tray `OpenMenu` command carries `Keys="Shift+F10;Apps"`.
+- Enter and Space on the keyboard-focused icon (Win+B) arrive as a left click on the Windows 11 notification area and
+  as `NIN_KEYSELECT` on the classic one, which the icon raises as `KeySelect`. Every tray surface maps it as a
+  `KeySelect` command with `Keys="Enter;Space"`, and apps show their UI for it rather than toggle it, because the
+  classic area is reported to send Enter twice. `UI_TRAY_PLAYBOOK.md` lists the exact shell messages.
+- A control that captures key presses, such as a hotkey key box, leaves Tab unhandled so focus can leave it.
+  `TrayAppDotNETHotkeyKeys.AttachKeyCapture` does this for every app's key box.
+- With nothing focused in a window, Avalonia's own keyboard navigation, which sees keys before the map, answers any
+  arrow key by focusing the first tab stop. A surface whose arrow keys must reach the map from an empty selection
+  parks focus on a focusable element that is not a tab stop, as the menu windows do with their content root.
 - Two leaves may not claim the same `Keys` gesture in the same key scope.
 - Tab and Shift+Tab never reach the map, because Avalonia's keyboard navigation handles them first. Express Tab
   behavior with `Tab` modes. A control that handles Tab itself, such as a curve editor cycling its points, keeps that
@@ -123,12 +132,12 @@ rows). `FocusKeys` lists only keys beyond them.
 | `Button` | Performs an action | Enter, Space |
 | `Toggle` | Two-state switch or check box | Enter, Space |
 | `Option` | One choice in a mutually exclusive group | Enter, Space; arrows when the scope sets `Arrows` |
-| `Select` | Drop-down choice | Enter, Space, Down open it; Escape closes it while open |
+| `Select` | Drop-down choice | Enter, Space, Down open it and focus the selected item; in the open list Up, Down, Home, End move focus without selecting, Enter or Space selects, Escape closes, Tab closes and moves on |
 | `Slider` | Continuous value | Left, Right, Up, Down, PageUp, PageDown, Home, End |
 | `Number` | Numeric entry with spinners | Up, Down, with Ctrl and Ctrl+Shift for larger steps; Enter commits; Escape cancels; typing |
 | `Text` | Text entry | typing; Enter commits and leaves the box |
 | `Navigation` | Sidebar item or tab header that selects a page | Enter, Space |
-| `ListItem` | Row in a list or menu | Enter, Space; Right opens a submenu |
+| `ListItem` | Row in a list or menu | Enter, Space; Enter, Space, or Right on a submenu row opens the submenu and selects its first row |
 | `Region` | Hit-tested area inside a painted control, such as a header cell, row, or curve point | none |
 | `Handle` | Pointer manipulator, such as a resize grip, splitter, scroll bar, or drag handle | none |
 | `Command` | Keyboard-only or non-visual action, such as Escape closing a flyout | none |
@@ -148,7 +157,13 @@ Common map (`TrayAppDotNETCommon/src/UI/ControlMap.axaml`) templates, by owner:
 - Scrolling: `ScrollBar`, `ScrollViewport`, `VerticalScrollViewport` (the viewports slot their content). The scroll
   bar's right-click menu is the common-map surface `ScrollBarMenu`, not a template
 - Dialogs: `UpdateConfirmation`, `ColorPicker`, `Installer`, `Uninstaller`
-- Menus: `ContextMenu`, `EditableContextMenu` (their slot takes the app's entries), `EditableMenuEntry`
+- Menus: `ContextMenu`, `EditableContextMenu` (their slot takes the app's entries), `EditableMenuEntry`. Menus own
+  their selection keys as commands that follow Win32 popup menus: `SelectPrevious` (Up) and `SelectNext` (Down) wrap,
+  and with no row selected Down and Home select the first row while Up and End select the last; `SelectFirst` (Home),
+  `SelectLast` (End), and in `ContextMenu` also `CloseSubmenu` (Left). The focused row is the selection, and a hovered
+  row takes it while its menu is active. `ContextMenuWindow.MapSelectionCommands` registers them; surfaces that mirror
+  the template, `ScrollBarMenu` and Volume's `VolumeFlyoutMenu`, declare the same commands under their own ids, and
+  `MenuKeyboardSelection` holds the rule
 - `SearchableListBox`
 
 Single-control common widgets, such as the flyout undock button and the caption close button, are plain `Leaf`
@@ -294,6 +309,9 @@ enforces this.
   register the action with `MapCommand` instead. `FocusKeys` stay in the control's own handler.
 - Layout settings that reorder or remove children use a `Variant` on the affected container; code calls
   `MapVariant` with the generated name when it builds that layout.
+- A label that turns into an inline editor is two leaves: a `Button` on the label whose activation starts the edit,
+  and a `Text` leaf on the edit box, as Volume's `DeviceName` and `NameEditor` and Fan's `DisplayName` and
+  `NameEditor` are. A single `Text` leaf on a container holding a hidden box leaves no keyboard path into the edit.
 - `IsArranged="True"` on a scope whose children the user orders (a saved toolbar arrangement); the children keep the
   order code adds them in.
 - A control carries one node, and a tagged leaf owns everything inside it, both for resolution and for the drift

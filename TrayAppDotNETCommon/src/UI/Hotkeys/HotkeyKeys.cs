@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalonia.Controls;
 using Avalonia.Input;
 using TrayAppDotNETCommon.Interop;
 
@@ -6,6 +7,40 @@ namespace TrayAppDotNETCommon.UI.Hotkeys;
 
 public static class TrayAppDotNETHotkeyKeys
 {
+    // VK_F12 is reserved for the debugger at all times, so RegisterHotKey rejects it
+    private const uint DebuggerReservedVirtualKey = 0x7B;
+
+    /// <summary>
+    /// Makes a read-only key box record the next key press as a hotkey key and show its name. Tab and Shift+Tab stay
+    /// keyboard navigation, as in the Windows hotkey control, so focus can leave the box. Modifier keys, Escape, F12,
+    /// and keys with no virtual key are swallowed without being recorded.
+    /// </summary>
+    public static void AttachKeyCapture(TextBox keyBox, Action<uint> keyCaptured)
+    {
+        keyBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Tab) return;
+
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.Escape)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            uint virtualKey = VirtualKeyFromKey(e.Key);
+            if (virtualKey is 0 or DebuggerReservedVirtualKey)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            keyBox.Text = KeyName(virtualKey);
+            keyCaptured(virtualKey);
+            e.Handled = true;
+        };
+    }
+
     public static uint VirtualKeyFromKey(Key key)
     {
         if (key is >= Key.A and <= Key.Z) return (uint)('A' + (key - Key.A));

@@ -10,6 +10,10 @@
         <Leaf ID="DoubleClickAction" Kind="Command" Pointer="DoubleClick;Ctrl+DoubleClick;Alt+DoubleClick"
               Event="TrayMessage" Source="BrightnessAvaloniaApp.OnTrayLeftDoubleClick"
               Description="Configured double-click action (default none); the first click still toggles the flyout" />
+        <Leaf ID="KeySelect" Kind="Command" Keys="Enter;Space" Event="TrayMessage"
+              Source="BrightnessAvaloniaApp.OnTrayKeySelect"
+              Description="NIN_KEYSELECT from the classic notification area shows the flyout; Windows 11 reports these
+                           keys as a click" />
         <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps"
               Pointer="RightClick;Ctrl+RightClick;Alt+RightClick" Event="TrayMessage"
               Source="BrightnessAvaloniaApp.OnTrayRightClick"
@@ -324,9 +328,9 @@
                    Description="One card per fixed action and per profile slot">
                 <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
                       Source="BrightnessSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
                       Description="Read-only capture box; a press records the key; modifier keys, Escape and F12 are
-                                   swallowed; Tab and Enter are captured as keys" />
+                                   swallowed; Enter is captured as a key; Tab moves focus" />
                 <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
                       Description="Enabled once a modifier and a key are chosen and the binding is new" />
                 <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
@@ -339,7 +343,7 @@
                       Description="Display number or EDID target; choosing a target already in use reverts" />
                 <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
                       Source="BrightnessSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="BrightnessSettingsWindow.AddHotkeyRow"
+                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
                       Description="Same capture behavior as Hotkey.Key" />
                 <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow" />
                 <Leaf ID="RemoveTarget" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
