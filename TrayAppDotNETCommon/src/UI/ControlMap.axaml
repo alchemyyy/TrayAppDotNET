@@ -3,39 +3,43 @@
     xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Settings shell -->
+    <!-- Settings shell. Tab stays in one of two planes, the page list (Sidebar) or the page (Content): Space or Right
+         on a page row opens that page and moves into it, and Left or Escape in the page returns to its row -->
 
     <Template ID="SettingsShell" Source="SettingsWindowCommon.BuildRoot"
               Description="Settings window chrome; also the Task Manager main window">
-        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="SettingsWindowCommon.BuildTitleBar">
+        <Scope ID="TitleBar" Source="SettingsWindowCommon.BuildTitleBar"
+               Description="Caption buttons are pointer-only, so Tab stays in the page list or the page">
             <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag;DoubleClick" Event="PointerPressed"
                   Source="SettingsWindowCommon.AttachTitleBarDrag"
                   Description="Title bar background; drag moves the window, double-click toggles maximize" />
-            <Leaf ID="Minimize" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar" />
-            <Leaf ID="Maximize" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar"
-                  Description="Toggles between maximized and restored" />
-            <Leaf ID="Close" Kind="Button" Event="Click" Source="SettingsWindowCommon.BuildTitleBar" />
+            <Leaf ID="Minimize" Kind="Button" IsTabStop="False" Event="Click"
+                  Source="SettingsWindowCommon.BuildTitleBar" />
+            <Leaf ID="Maximize" Kind="Button" IsTabStop="False" Event="Click"
+                  Source="SettingsWindowCommon.BuildTitleBar" Description="Toggles between maximized and restored" />
+            <Leaf ID="Close" Kind="Button" IsTabStop="False" Event="Click" Source="SettingsWindowCommon.BuildTitleBar" />
         </Scope>
-        <Scope ID="Sidebar" Source="SettingsWindowCommon.BuildRoot">
-            <Scope ID="Navigation" Tab="Once" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
+        <Scope ID="Sidebar" Tab="Cycle" Source="SettingsWindowCommon.BuildRoot"
+               Description="Page list plane: Tab cycles here while it holds focus, and the shell takes it out of Tab order while the page does">
+            <Scope ID="Navigation" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
                    Description="Rows an app builds in CreateSidebarNavigationActions fill NavigationActions">
                 <Slot ID="NavigationActions" />
-                <Leaf ID="Page" Kind="Navigation" IsRepeated="True" Event="Click"
+                <Leaf ID="Page" Kind="Navigation" IsRepeated="True" FocusKeys="Space;Right" Event="Click"
                       Source="SettingsWindowCommon.AddNavItem"
-                      Description="One row per page descriptor; the current page's row scrolls it to the top" />
+                      Description="One row per page descriptor; the current page's row scrolls it to the top. Space or Right opens the page and moves focus into it" />
             </Scope>
-            <Scope ID="FooterNavigation" Tab="Once" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
+            <Scope ID="FooterNavigation" Arrows="Vertical" Source="SettingsWindowCommon.BuildRoot"
                    Description="Rows an app builds in CreateSidebarFooterActions fill FooterActions">
                 <Slot ID="FooterActions" />
-                <Leaf ID="FooterPage" Kind="Navigation" IsRepeated="True" Event="Click"
+                <Leaf ID="FooterPage" Kind="Navigation" IsRepeated="True" FocusKeys="Space;Right" Event="Click"
                       Source="SettingsWindowCommon.AddNavItem"
-                      Description="Rows for the pages IsFooterNavigationPage moves into the footer" />
+                      Description="Rows for the pages IsFooterNavigationPage moves into the footer; Space or Right opens the page and moves focus into it" />
             </Scope>
             <Scope ID="Search" Source="SettingsWindowCommon.BuildRoot"
                    Description="Bottom of the sidebar footer; only while ShowSettingsSearchBox is true">
-                <Leaf ID="SearchText" Kind="Text" FocusKeys="Escape" Event="SearchTextChanged"
+                <Leaf ID="SearchText" Kind="Text" FocusKeys="Escape;Enter" Event="SearchTextChanged"
                       Source="SettingsWindowCommon.BuildRoot"
-                      Description="Filters every page into stitched results; Escape clears non-empty text" />
+                      Description="Filters every page into stitched results; Escape clears non-empty text, and Enter moves focus into the results" />
                 <Leaf ID="ClearSearch" Kind="Button" Event="Click" Source="SettingsSearchBox.OnClearButtonClick"
                       Description="Visible only while the search box has text" />
             </Scope>
@@ -44,8 +48,11 @@
               Event="PointerPressed" Source="SettingsSidebarResizeHandle.OnPointerPressed"
               Description="Ctrl-gated sidebar edge grip, only with SidebarWidthSettings; Ctrl+right-click resets" />
         <Scope ID="Content" Source="SettingsWindowCommon.BuildRoot"
-               Description="Page host; while searching, every page is rebuilt into one filtered results page">
+               Description="Page plane, including any page overlay; while searching, every page is rebuilt into one filtered results page">
             <Slot />
+            <Leaf ID="ReturnToPageList" Kind="Command" Keys="Left;Escape" Event="MapCommand"
+                  Source="SettingsWindowCommon.SettingsWindowCommon"
+                  Description="Moves focus back to the current page's row when nothing in the page uses the key" />
             <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel" Event="OnPointerWheelChanged"
                   Source="SettingsScrollHost.OnPointerWheelChanged"
                   Description="Wheel scrolls the page; the ScrollViewer itself has no handler" />

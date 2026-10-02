@@ -120,6 +120,8 @@ class, can only name template IDs. So:
 - While an editable text box has focus, keys that type a character (letters, digits, symbols, Space, alone or with
   Shift) go to the box and their accelerators do not fire. Ctrl, Alt, and Win accelerators, Escape, and Enter still
   do. A command handler otherwise always consumes its key.
+- Avalonia's `TextBox` marks Left, Right, Up, Down, Home, and End handled even when the caret cannot move, so
+  those keys never leave a text box for an accelerator or arrow scope.
 
 ## Leaf Kinds
 
@@ -149,7 +151,11 @@ Common map (`TrayAppDotNETCommon/src/UI/ControlMap.axaml`) templates, by owner:
 - `SettingsShell` (`SettingsWindowCommon`): caption buttons, sidebar with search, page navigation, footer
   navigation, resize handle, page host, and confirm overlay. The unnamed slot takes the app's pages;
   `NavigationActions` and `FooterActions` take the rows an app builds in `CreateSidebarNavigationActions` and
-  `CreateSidebarFooterActions`. Task Manager's main window derives from the same shell
+  `CreateSidebarFooterActions`. Task Manager's main window derives from the same shell. Tab stays in one of two
+  planes, the page list (the sidebar) or the page with any page overlay: the shell takes the sidebar out of Tab
+  order while the page holds focus. Space or Right on a page row opens the page and focuses its first control in
+  map order; `Content.ReturnToPageList` (Left or Escape that nothing in the page uses) returns to the row. Caption
+  buttons are pointer-only
 - `GeneralSection` = `StartupCard` then `InstallationSection` (`TrayAppDotNETGeneralSettingsSection`). Apps that put
   their own cards between `BuildStartupCard` and `AddInstallationSection` instantiate the two halves separately
 - `RenderingSection`, `AboutPage`
@@ -314,6 +320,9 @@ enforces this.
   `NameEditor` are. A single `Text` leaf on a container holding a hidden box leaves no keyboard path into the edit.
 - `IsArranged="True"` on a scope whose children the user orders (a saved toolbar arrangement); the children keep the
   order code adds them in.
+- Button bars, such as flyout headers and footers, keep the default `Tab` so Tab visits each button, with `Arrows`
+  for moving along the bar. `Tab="Once"` hides every button but one from Tab; keep it for groups where one stop
+  is the point, such as menu entries or a toolbar repeated per item.
 - A control carries one node, and a tagged leaf owns everything inside it, both for resolution and for the drift
   check. Leaves therefore cannot nest: a clickable card that contains other leaves is a scope, or a pointer-only
   `Region` whose children give the keyboard path. Leave a `Handle` untagged when its control contains tagged

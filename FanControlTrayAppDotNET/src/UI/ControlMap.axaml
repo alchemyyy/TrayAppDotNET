@@ -31,7 +31,7 @@
         <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FanFlyoutWindow.FanFlyoutWindow"
               Description="Hides the flyout, also while the confirmation overlay is open" />
         <Scope ID="Header" Source="FanFlyoutWindow.BuildHeader">
-            <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
+            <Scope ID="Actions" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
                 <Leaf ID="Settings" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader" />
                 <Leaf ID="CurveEditor" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader"
                       Description="Edits the first fan with a curve, or opens Fan Properties settings if none" />
@@ -43,7 +43,7 @@
                 <Leaf ID="DragDebug" Kind="Toggle" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader"
                       Description="DEBUG builds only; shows fan drag debug visuals" />
             </Scope>
-            <Scope ID="Profiles" Tab="Once" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
+            <Scope ID="Profiles" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
                 <Leaf ID="Profile1" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />
                 <Leaf ID="Profile2" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />
                 <Leaf ID="Profile3" Kind="Option" Event="PointerReleased" Source="FanFlyoutWindow.AddProfileButton" />

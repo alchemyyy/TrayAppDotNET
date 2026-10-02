@@ -487,6 +487,70 @@ public sealed class SettingsWindowLifetimeTests
     });
 
     [Fact]
+    public void TabStaysInThePageListOrThePageAndKeysSwitchBetweenThem() => RunWithShellMap(() =>
+    {
+        PageOverlaySettingsWindow window = new();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            SettingsNavItem pageRow = Assert.Single(
+                window.GetVisualDescendants().OfType<SettingsNavItem>(),
+                static row => row.IsSelected);
+
+            // With nothing focused, Tab starts in the page list
+            PressKey(window, Key.Tab, PhysicalKey.Tab);
+            Assert.Same(pageRow, FocusedElement(window));
+
+            // Right on the page's row moves into the page at its first control in map order, here in the overlay
+            PressKey(window, Key.Right, PhysicalKey.ArrowRight);
+            Assert.Same(window.OverlaySearch, FocusedElement(window));
+
+            // Tab cycles the page plane without reaching the page list
+            PressKey(window, Key.Tab, PhysicalKey.Tab);
+            Assert.Same(window.PageAction, FocusedElement(window));
+            PressKey(window, Key.Tab, PhysicalKey.Tab);
+            Assert.Same(window.OverlaySearch, FocusedElement(window));
+
+            // Escape that nothing in the page uses returns to the row, and Tab then cycles the page list only
+            PressKey(window, Key.Escape, PhysicalKey.Escape);
+            Assert.Same(pageRow, FocusedElement(window));
+            for (int press = 0; press < 3; press++)
+            {
+                PressKey(window, Key.Tab, PhysicalKey.Tab);
+                Assert.False(IsInPage(FocusedElement(window)));
+            }
+
+            // Space enters the page too, and Left from a control that does not use it returns to the row
+            Assert.True(pageRow.Focus(NavigationMethod.Tab));
+            PressKey(window, Key.Space, PhysicalKey.Space);
+            Assert.Same(window.OverlaySearch, FocusedElement(window));
+            Assert.True(window.PageAction.Focus(NavigationMethod.Tab));
+            PressKey(window, Key.Left, PhysicalKey.ArrowLeft);
+            Assert.Same(pageRow, FocusedElement(window));
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        return;
+
+        bool IsInPage(IInputElement? element) =>
+            ReferenceEquals(element, window.OverlaySearch) || ReferenceEquals(element, window.PageAction);
+
+        static IInputElement? FocusedElement(Window target) => target.FocusManager?.GetFocusedElement();
+
+        static void PressKey(Window target, Key key, PhysicalKey physicalKey)
+        {
+            string? keySymbol = key == Key.Space ? " " : null;
+            target.KeyPress(key, RawInputModifiers.None, physicalKey, keySymbol);
+            target.KeyRelease(key, RawInputModifiers.None, physicalKey, keySymbol);
+            Dispatcher.UIThread.RunJobs();
+        }
+    });
+
+    [Fact]
     public void CtrlDragPersistsSidebarWidthAndCtrlRightClickResetsIt() => AvaloniaTestHost.Run(() =>
     {
         SidebarResizeSettingsWindow window = new();

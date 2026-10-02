@@ -240,6 +240,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         // A derived window whose app map instantiates the shell more than once tags itself with its surface id
         this.MapTo(ControlMap.SettingsShell.ID);
+        this.MapCommand(ControlMap.SettingsShell.Content.ReturnToPageList, ReturnToPageList);
         Resources.MergedDictionaries.Add(_settingsResources);
         Resources.MergedDictionaries.Add(_commonBindingResources);
         _wndProcHook = WndProcHook;
@@ -252,9 +253,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         AddHandler(PointerMovedEvent, OnWindowPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(GotFocusEvent, OnShellGotFocus, RoutingStrategies.Bubble, handledEventsToo: true);
 #if DEBUG
         _windowResources.Add(DetachHotReloadSubscriptions);
 #endif
+        _windowResources.Add(() => RemoveHandler(GotFocusEvent, OnShellGotFocus));
         _windowResources.Add(() => RemoveHandler(KeyUpEvent, OnWindowKeyUp));
         _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnWindowKeyDown));
         _windowResources.Add(() => RemoveHandler(PointerMovedEvent, OnWindowPointerMoved));
@@ -912,13 +915,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Grid.SetRowSpan(body, value: 2);
         root.Children.Add(body);
 
-        _sidebar = BuildSidebar();
+        _sidebar = BuildSidebar().MapTo(ControlMap.SettingsShell.Sidebar.ID);
         _sidebar.Background = Brushes.Transparent;
         _sidebar.Margin = PageContentExtendsIntoTitleBar
             ? new Thickness(left: 0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, right: 0, bottom: 0)
             : default;
         Grid.SetColumn(_sidebar, value: 0);
         body.Children.Add(_sidebar);
+
+        // A new shell starts in the page list plane
+        ApplyTabPlanes(pagePlaneActive: false);
 
         TextBlock headerTitle = TrayAppDotNETSettingsUI.Text(
             HeaderText,
@@ -952,6 +958,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 palette,
                 L(nameof(CommonStrings.SettingsWindow_SearchPlaceholder)));
             _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
+
+            // Space and Right type in the box, so Enter is how the keyboard moves from the box into the results
+            _settingsSearchBox.SubmitRequested += OnSettingsSearchSubmitRequested;
 
             // Below the footer rows but outside their focus group, so Tab still reaches the search box
             _sidebar.FooterHost.Children.Add(_settingsSearchBox);
@@ -1258,8 +1267,88 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             if (!HandleNavigationRequest(page.Key))
                 NavigateToSettingsPage(page.Key);
         };
+
+        // Tunneling, so Space reaches the row before the row's own Enter and Space click handling
+        item.AddHandler(
+            KeyDownEvent,
+            (_, eventArgs) => OnPageRowKeyDown(item, page.Key, eventArgs),
+            RoutingStrategies.Tunnel);
         _navItems[page.Key] = item;
         navigationPanel.Children.Add(item);
+    }
+
+    // Space or Right on a page row opens that page and moves focus into it; Enter only selects, as a click does
+    private void OnPageRowKeyDown(SettingsNavItem item, TPageKey pageKey, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Handled || eventArgs.KeyModifiers != KeyModifiers.None || !item.IsEnabled) return;
+        if (eventArgs.Key is not (Key.Space or Key.Right)) return;
+
+        eventArgs.Handled = true;
+        bool isShowingPage = item.IsSelected && !_isShowingSettingsSearch;
+        if (!isShowingPage)
+        {
+            // The app opened something other than a page, so there is no page to move into
+            if (HandleNavigationRequest(pageKey)) return;
+
+            NavigateToSettingsPage(pageKey);
+        }
+
+        EnterPagePlane();
+    }
+
+    private void OnSettingsSearchSubmitRequested(object? sender, EventArgs eventArgs)
+    {
+        if (_isShowingSettingsSearch)
+            EnterPagePlane();
+    }
+
+    // The page's first control in map order, which can sit in the page overlay rather than the page itself
+    private void EnterPagePlane()
+    {
+        ApplyTabPlanes(pagePlaneActive: true);
+        if (!ControlMapNavigator.FocusFirstWithin(this, ControlMap.SettingsShell.Content.ID))
+            ApplyTabPlanes(pagePlaneActive: false);
+    }
+
+    // Left or Escape that nothing in the page used: back to the current page's row, or to the search box whose
+    // results the page shows
+    private void ReturnToPageList()
+    {
+        Control? target = _isShowingSettingsSearch
+            ? _settingsSearchBox
+            : _navItems.GetValueOrDefault(CurrentPageKey);
+        if (target is not { IsEffectivelyVisible: true })
+            target = _sidebar;
+        if (target == null) return;
+
+        ApplyTabPlanes(pagePlaneActive: false);
+        IInputElement? focusTarget = target.Focusable
+            ? target
+            : Avalonia.Input.FocusManager.FindFirstFocusableElement(target);
+        focusTarget?.Focus(NavigationMethod.Tab);
+    }
+
+    // Tab stays in one plane: while the page holds focus the page list leaves Tab order, so Tab cycles the page and
+    // any page overlay, and while the page list holds focus it cycles itself
+    private void ApplyTabPlanes(bool pagePlaneActive)
+    {
+        if (_sidebar == null) return;
+
+        KeyboardNavigation.SetTabNavigation(
+            _sidebar,
+            pagePlaneActive ? KeyboardNavigationMode.None : KeyboardNavigationMode.Cycle);
+    }
+
+    // Focus that arrives by pointer or by code switches the plane too
+    private void OnShellGotFocus(object? sender, FocusChangedEventArgs eventArgs)
+    {
+        if (eventArgs.Source is not Visual focused || _sidebar == null) return;
+
+        if (_sidebar.IsVisualAncestorOf(focused))
+            ApplyTabPlanes(pagePlaneActive: false);
+        else if (_scrollHost?.IsVisualAncestorOf(focused) == true
+                 || _pageOverlayHost?.IsVisualAncestorOf(focused) == true)
+            ApplyTabPlanes(pagePlaneActive: true);
     }
 
     private void ShowPage(TPageKey key, bool force = false)

@@ -51,6 +51,9 @@ public sealed class SettingsSearchBox : Grid, IDisposable
 
     public event EventHandler? SearchTextChanged;
 
+    /// <summary>Raised by Enter in a non-empty search box, so the shell can move focus into the results.</summary>
+    public event EventHandler? SubmitRequested;
+
     public string SearchText
     {
         get => _textBox.Text ?? string.Empty;
@@ -67,6 +70,7 @@ public sealed class SettingsSearchBox : Grid, IDisposable
         _textBox.KeyDown -= OnKeyDown;
         _textBox.PropertyChanged -= OnTextBoxPropertyChanged;
         SearchTextChanged = null;
+        SubmitRequested = null;
     }
 
     private void OnTextBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs eventArgs)
@@ -79,10 +83,19 @@ public sealed class SettingsSearchBox : Grid, IDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
-        if (eventArgs.Key != Key.Escape || string.IsNullOrEmpty(SearchText)) return;
+        if (string.IsNullOrEmpty(SearchText)) return;
 
-        Clear();
-        eventArgs.Handled = true;
+        switch (eventArgs.Key)
+        {
+            case Key.Escape:
+                Clear();
+                eventArgs.Handled = true;
+                return;
+            case Key.Enter:
+                SubmitRequested?.Invoke(this, EventArgs.Empty);
+                eventArgs.Handled = true;
+                return;
+        }
     }
 
     private void OnClearButtonClick(object? sender, EventArgs eventArgs) => Clear();

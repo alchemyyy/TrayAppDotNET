@@ -138,7 +138,7 @@
                   Description="ScrollViewer with no app handler; its vertical bar shows when the rows overflow" />
         </Scope>
         <Scope ID="Footer" Source="BrightnessFlyoutWindow.BuildFooter">
-            <Scope ID="Profiles" Tab="Once" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
+            <Scope ID="Profiles" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
                 <Leaf ID="Profile" Kind="Option" IsRepeated="True" Event="Callback"
                       Source="BrightnessFlyoutWindow.BuildProfileFooterButton"
                       Description="Applies the profile and its slider mode; hovering previews it on the sliders" />
@@ -147,7 +147,7 @@
                       Description="After the profile buttons in their row; only when Autosave is off; dimmed without
                                    unsaved changes" />
             </Scope>
-            <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
+            <Scope ID="Actions" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildFooter">
                 <Leaf ID="EnvironmentalCurves" Kind="Toggle" Event="Callback"
                       Source="BrightnessFlyoutWindow.BuildFooter"
                       Description="Turns both curves on or off; only with ShowEnvironmentalCurvesButton" />

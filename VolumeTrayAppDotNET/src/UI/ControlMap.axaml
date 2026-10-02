@@ -77,7 +77,7 @@
         <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
               Source="VolumeFlyoutWindow.OnChromePointerPressed"
               Description="Drags the undocked flyout from non-interactive frame areas" />
-        <Scope ID="Header" Tab="Once" Arrows="Horizontal" Source="VolumeFlyoutWindow.BuildHeader"
+        <Scope ID="Header" Arrows="Horizontal" Source="VolumeFlyoutWindow.BuildHeader"
                Description="Docked at the bottom when FlyoutHeaderAtBottom is on">
             <Leaf ID="OpenSettings" Kind="Button" Pointer="Click" Event="PointerReleased"
                   Source="VolumeFlyoutWindow.BuildHeader" />

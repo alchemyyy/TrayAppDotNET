@@ -46,7 +46,7 @@
         <Leaf ID="PowerMode" Kind="Slider" Pointer="Click;Drag;Wheel" Event="ValueChanged"
               Source="BatteryFlyoutWindow.BuildPowerControls"
               Description="PowerSaver, Balanced, Ultimate; applied on UserAdjustmentCompleted" />
-        <Scope ID="Header" Tab="Once" Arrows="Horizontal" Source="BatteryFlyoutWindow.BuildHeader">
+        <Scope ID="Header" Arrows="Horizontal" Source="BatteryFlyoutWindow.BuildHeader">
             <Variant ID="HeaderOnTop" Order="EnergySaver OpenSettings ShowBatteryHealth OpenPowerSettings Undock" />
             <Leaf ID="EnergySaver" Kind="Toggle" Event="PointerReleased"
                   Source="BatteryFlyoutWindow.BuildEnergySaverButton"

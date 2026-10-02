@@ -38,6 +38,40 @@ internal sealed class ControlMapNavigator
     public static ExpandedNode? NodeOf(Control control) =>
         Bindings.TryGetValue(control, out BoundControl? bound) ? bound.Node : null;
 
+    /// <summary>
+    /// Focuses the first tab stop the map orders inside a scope of the window's own map instance, wherever that
+    /// stop's control sits in the window, and returns whether a control took focus.
+    /// </summary>
+    public static bool FocusFirstWithin(Control window, ControlMapNodeID scope)
+    {
+        if (NodeOf(window) is not { } windowNode || FindExpanded(windowNode, scope) is not { } scopeNode) return false;
+
+        foreach (Control member in Members(window, windowNode, excludeNestedArrowScopes: false))
+        {
+            if (NodeOf(member) is not { } memberNode || !memberNode.IsWithin(scopeNode)) continue;
+            if (FocusTarget(member).Focus(NavigationMethod.Tab)) return true;
+        }
+
+        return false;
+    }
+
+    // The expanded node standing for a schema node inside one instance's subtree
+    private static ExpandedNode? FindExpanded(ExpandedNode root, ControlMapNodeID id)
+    {
+        Stack<ExpandedNode> pending = new();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            ExpandedNode node = pending.Pop();
+            if (node.Node.NodeID == id) return node;
+
+            foreach (ExpandedNode child in node.Children)
+                pending.Push(child);
+        }
+
+        return null;
+    }
+
     /// <summary>Resolves a tagged control and applies the navigation its node describes.</summary>
     public void Bind(Control control)
     {
