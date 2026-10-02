@@ -16,6 +16,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
     // Shorter than the 250 ms the replace retries span, so a retrying writer outlasts the reader
     private static readonly TimeSpan SiblingReaderHoldAfterStaging = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan SiblingReaderStagingTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ManifestCacheWatcherTimeout = TimeSpan.FromSeconds(10);
 
     private readonly string _testDirectory = Path.Combine(
         Path.GetTempPath(),
@@ -253,6 +254,72 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UnskipReleaseAsync_ClearsTheSkipAndOffersTheReleaseAgain()
+    {
+        int skippedUpdateVersion = 0;
+        using ManifestMessageHandler messageHandler = new(200);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            () => skippedUpdateVersion,
+            version => skippedUpdateVersion = version);
+        UpdateInfo? availableUpdate = await service.CheckNowAsync();
+        Assert.NotNull(availableUpdate);
+        await service.SkipReleaseAsync(availableUpdate);
+        Assert.Null(service.AvailableUpdate);
+
+        int stateChangeCount = 0;
+        service.StateChanged += () => stateChangeCount++;
+        await service.UnskipReleaseAsync();
+
+        Assert.Equal(expected: 0, skippedUpdateVersion);
+        Assert.Equal(expected: 0, service.SkippedUpdateVersion);
+        Assert.Equal(availableUpdate, service.AvailableUpdate);
+        Assert.Equal(expected: 1, stateChangeCount);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ManifestCacheWatcher_OffersAReleaseAnotherAppFetchedWithoutARequest()
+    {
+        const int fetchedVersion = 200;
+        using ManifestMessageHandler fetchingHandler = new(fetchedVersion);
+        using UpdateCheckService fetchingApp = CreateService(fetchingHandler, static () => 0, static _ => { });
+        using ManifestMessageHandler watchingHandler = new(999);
+        using UpdateCheckService watchingApp = CreateService(watchingHandler, static () => 0, static _ => { });
+        Task offered = WaitForStateAsync(watchingApp, static service => service.AvailableUpdate != null);
+        watchingApp.Start();
+
+        await fetchingApp.CheckNowAsync();
+        await offered;
+
+        Assert.Equal(fetchedVersion, watchingApp.AvailableUpdate?.Version);
+        Assert.Equal(UpdateCheckResult.Success, watchingApp.LastResult);
+        Assert.Equal(expected: 0, watchingHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ManifestCacheWatcher_KeepsTheSkippedReleaseWithheld()
+    {
+        const int skippedVersion = 200;
+        using ManifestMessageHandler fetchingHandler = new(skippedVersion);
+        using UpdateCheckService fetchingApp = CreateService(fetchingHandler, static () => 0, static _ => { });
+        using ManifestMessageHandler watchingHandler = new(999);
+        using UpdateCheckService watchingApp = CreateService(
+            watchingHandler,
+            static () => skippedVersion,
+            static _ => { });
+        Task checkedCache = WaitForStateAsync(watchingApp, static service => service.LastCheckTimeUtc != null);
+        watchingApp.Start();
+
+        await fetchingApp.CheckNowAsync();
+        await checkedCache;
+
+        Assert.Null(watchingApp.AvailableUpdate);
+        Assert.Equal(skippedVersion, watchingApp.SkippedUpdateVersion);
+        Assert.Equal(expected: 0, watchingHandler.RequestCount);
+    }
+
+    [Fact]
     public async Task GetPreviousReleaseAsync_UsesThePreviousIndexedTagWithoutListingReleases()
     {
         using PreviousReleaseMessageHandler messageHandler = new(true);
@@ -419,9 +486,22 @@ public sealed class UpdateCheckServiceTests : IDisposable
                 },
                 AssetDownloadMaxAttempts = 3,
                 AssetDownloadInitialBackoff = TimeSpan.FromMilliseconds(1),
-                GetCurrentUTCTime = getCurrentUTCTime ?? (static () => DateTime.UtcNow)
+                GetCurrentUTCTime = getCurrentUTCTime ?? (static () => DateTime.UtcNow),
+                // Start only arms the manifest cache watcher here; the first scheduled poll never comes due
+                StartupDelay = TimeSpan.FromHours(1)
             },
             messageHandler);
+
+    // Completes on the first state change that satisfies the condition
+    private static Task WaitForStateAsync(UpdateCheckService service, Func<UpdateCheckService, bool> condition)
+    {
+        TaskCompletionSource stateReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StateChanged += () =>
+        {
+            if (condition(service)) stateReached.TrySetResult();
+        };
+        return stateReached.Task.WaitAsync(ManifestCacheWatcherTimeout);
+    }
 
     private void WriteCachedManifest(int version, DateTime writeTimeUTC)
     {

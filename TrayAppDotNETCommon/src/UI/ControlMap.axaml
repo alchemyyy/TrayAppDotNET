@@ -169,7 +169,9 @@
                 <Leaf ID="CheckForUpdates" Kind="Button" Event="Click"
                       Source="TrayAppDotNETAboutPage.BuildUpdateActionCard" />
                 <Leaf ID="SkipUpdate" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
-                      Description="Visible only while an update is available" />
+                      Description="Visible only while an update is available; skips after an UpdateConfirmation window" />
+                <Leaf ID="UndoSkip" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
+                      Description="Takes SkipUpdate's place while a skipped release is withheld; offers it again" />
                 <Leaf ID="InstallUpdate" Kind="Button" Event="Click"
                       Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
                       Description="Opens the UpdateConfirmation window; enabled only while an update is available" />

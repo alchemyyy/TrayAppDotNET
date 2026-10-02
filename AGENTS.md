@@ -7,6 +7,7 @@ These companion files can be found in the `.agents` folder. Read them only when 
 - `AXAML_PLAYBOOK.md` for Avalonia resource extraction and visual tuning.
 - `AXAML_HOT_RELOAD_PLAYBOOK.md` for making AXAML edits update already-open UI and auditing reload gaps.
 - `CONTROL_MAP_PLAYBOOK.md` for control maps: interactive control inventory, tab order, scopes, and key bindings.
+- `HEADLESS_TEST_LIMITATIONS.md` for Avalonia headless UI tests that behave differently from a real session.
 - `NATIVE_AOT_DUMP_ANALYSIS_TOOLING.md` special case toolkit for debugging native aot builds
 - `PYTHON_TOOLING.md` for Python linting and formatting commands.
 

@@ -161,6 +161,7 @@ public sealed class UpdateCheckService : IDisposable
     private UpdateInfo? _previousRelease;
     private bool _isPreviousReleaseResolved;
     private long _cachedManifestWriteTimeUTCTicks;
+    private DebouncedFileWatcher? _manifestCacheWatcher;
     private bool _disposed;
 
     public UpdateCheckService(UpdateCheckOptions options)
@@ -220,10 +221,13 @@ public sealed class UpdateCheckService : IDisposable
         CancellationTokenSource cts = new();
         _loopCts = cts;
         _loopTask = Task.Run(() => RunLoopAsync(cts.Token), cts.Token);
+        StartManifestCacheWatcher();
     }
 
     public void Stop()
     {
+        Safe.Dispose(Interlocked.Exchange(ref _manifestCacheWatcher, value: null));
+
         CancellationTokenSource? cts = Interlocked.Exchange(ref _loopCts, value: null);
         Task? loopTask = Interlocked.Exchange(ref _loopTask, value: null);
         if (cts == null) return;
@@ -308,6 +312,23 @@ public sealed class UpdateCheckService : IDisposable
             TADNLog.Log($"UpdateCheckService.SkipReleaseAsync: skipping build {info.Version}");
             if (_available?.Version == info.Version)
                 _available = null;
+            StateChanged?.Invoke();
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>Clears the persisted skipped release and offers the latest known release again.</summary>
+    public async Task UnskipReleaseAsync()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await InvokeIfRunningAsync(() =>
+        {
+            int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
+            if (skippedUpdateVersion <= _options.CurrentBuild) return;
+
+            _options.PersistSkippedUpdateVersion(0);
+            _available = OfferedRelease(_latestRelease, skippedUpdateVersion: 0);
+            TADNLog.Log($"UpdateCheckService.UnskipReleaseAsync: build {skippedUpdateVersion} is no longer skipped");
             StateChanged?.Invoke();
         }).ConfigureAwait(false);
     }
@@ -545,16 +566,20 @@ public sealed class UpdateCheckService : IDisposable
         try
         {
             UpdateInfo? info = await FetchLatestAsync(token, bypassLatestManifestCache).ConfigureAwait(false);
-            UpdateInfo? newer = info != null && info.Version > _options.CurrentBuild ? info : null;
             await InvokeIfRunningAsync(() =>
             {
                 int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
                 _latestRelease = info;
-                _available = newer?.Version == skippedUpdateVersion ? null : newer;
+                _available = OfferedRelease(info, skippedUpdateVersion);
                 _lastCheckTimeUtc = _options.GetCurrentUTCTime();
                 _lastResult = UpdateCheckResult.Success;
                 // Only manual checks bypass the shared manifest cache
-                LogCheckOutcome(info, isManualCheck: bypassLatestManifestCache, skippedUpdateVersion);
+                string checkKind = bypassLatestManifestCache ? "manual" : "scheduled";
+                string source = DescribeManifestSource(Interlocked.Read(ref _cachedManifestWriteTimeUTCTicks));
+                LogCheckOutcome(
+                    info,
+                    $"UpdateCheckService.PollOnceAsync: {checkKind} check of {source}",
+                    skippedUpdateVersion);
             }).ConfigureAwait(false);
             result = UpdateCheckResult.Success;
         }
@@ -584,20 +609,13 @@ public sealed class UpdateCheckService : IDisposable
     }
 
     /// <summary>Logs which manifest a completed check read and how its offer compares with the running build.</summary>
-    private void LogCheckOutcome(UpdateInfo? info, bool isManualCheck, int skippedUpdateVersion)
+    private void LogCheckOutcome(UpdateInfo? info, string checkDescription, int skippedUpdateVersion)
     {
-        string checkKind = isManualCheck ? "manual" : "scheduled";
-        long cacheWriteTimeUTCTicks = Interlocked.Read(ref _cachedManifestWriteTimeUTCTicks);
-        string source = cacheWriteTimeUTCTicks > 0
-            ? "the shared cache written " + new DateTime(cacheWriteTimeUTCTicks, DateTimeKind.Utc)
-                .ToLocalTime()
-                .ToString(CacheWriteTimeLogFormat, CultureInfo.InvariantCulture)
-            : _options.VersionsManifestUrl.ToString();
         if (info == null)
         {
             TADNLog.Log(
-                $"UpdateCheckService.PollOnceAsync: {checkKind} check of {source} offers no "
-                + $"{_options.ApplicationName} release to running build {_options.CurrentBuild}");
+                $"{checkDescription} offers no {_options.ApplicationName} release to running build "
+                + _options.CurrentBuild);
             return;
         }
 
@@ -610,9 +628,23 @@ public sealed class UpdateCheckService : IDisposable
             _ => "update available"
         };
         TADNLog.Log(
-            $"UpdateCheckService.PollOnceAsync: {checkKind} check of {source} offers build {info.Version} "
-            + $"from {info.TagName} to running build {_options.CurrentBuild}; {verdict}");
+            $"{checkDescription} offers build {info.Version} from {info.TagName} to running build "
+            + $"{_options.CurrentBuild}; {verdict}");
     }
+
+    /// <summary>Names the manifest a check read: the shared cache by its write time, otherwise the endpoint.</summary>
+    private string DescribeManifestSource(long cacheWriteTimeUTCTicks) =>
+        cacheWriteTimeUTCTicks > 0
+            ? "the shared cache written " + new DateTime(cacheWriteTimeUTCTicks, DateTimeKind.Utc)
+                .ToLocalTime()
+                .ToString(CacheWriteTimeLogFormat, CultureInfo.InvariantCulture)
+            : _options.VersionsManifestUrl.ToString();
+
+    // Offers a release only when it is newer than the running build and not the one the user skipped
+    private UpdateInfo? OfferedRelease(UpdateInfo? release, int skippedUpdateVersion) =>
+        release != null && release.Version > _options.CurrentBuild && release.Version != skippedUpdateVersion
+            ? release
+            : null;
 
     private async Task SetCheckingAsync(bool value)
     {
@@ -675,18 +707,12 @@ public sealed class UpdateCheckService : IDisposable
         TimeSpan pollInterval,
         CancellationToken token)
     {
-        string cachePath = _options.VersionsManifestCachePath;
         try
         {
-            if (!File.Exists(cachePath)) return null;
+            if (await ReadFreshManifestCacheAsync(pollInterval, token).ConfigureAwait(false) is not { } cache)
+                return null;
 
-            DateTime cacheWriteTimeUTC = File.GetLastWriteTimeUtc(cachePath);
-            TimeSpan cacheAge = _options.GetCurrentUTCTime() - cacheWriteTimeUTC;
-            if (cacheAge < TimeSpan.Zero || cacheAge >= pollInterval) return null;
-
-            byte[] manifestBytes = await File.ReadAllBytesAsync(cachePath, token).ConfigureAwait(false);
-            VersionsManifest manifest = ReadVersionsManifest(manifestBytes);
-            UpdateInfo? cachedRelease = CreateUpdateInfoFromManifest(manifest, pinnedTagName: null);
+            UpdateInfo? cachedRelease = CreateUpdateInfoFromManifest(cache.Manifest, pinnedTagName: null);
             if (cachedRelease == null)
             {
                 TADNLog.Log(
@@ -695,7 +721,7 @@ public sealed class UpdateCheckService : IDisposable
                 return null;
             }
 
-            Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, cacheWriteTimeUTC.Ticks);
+            Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, cache.WriteTimeUTC.Ticks);
             return cachedRelease;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -705,9 +731,92 @@ public sealed class UpdateCheckService : IDisposable
         catch (Exception exception)
         {
             TADNLog.Log(
-                $"UpdateCheckService.TryReadCachedLatestManifestAsync: could not use {cachePath}: "
-                + exception.Message);
+                $"UpdateCheckService.TryReadCachedLatestManifestAsync: could not use "
+                + $"{_options.VersionsManifestCachePath}: {exception.Message}");
             return null;
+        }
+    }
+
+    /// <summary>Reads the shared manifest cache unless it is missing or at least one poll interval old.</summary>
+    private async Task<(VersionsManifest Manifest, DateTime WriteTimeUTC)?> ReadFreshManifestCacheAsync(
+        TimeSpan pollInterval,
+        CancellationToken token)
+    {
+        string cachePath = _options.VersionsManifestCachePath;
+        if (!File.Exists(cachePath)) return null;
+
+        DateTime cacheWriteTimeUTC = File.GetLastWriteTimeUtc(cachePath);
+        TimeSpan cacheAge = _options.GetCurrentUTCTime() - cacheWriteTimeUTC;
+        if (cacheAge < TimeSpan.Zero || cacheAge >= pollInterval) return null;
+
+        byte[] manifestBytes = await File.ReadAllBytesAsync(cachePath, token).ConfigureAwait(false);
+        return (ReadVersionsManifest(manifestBytes), cacheWriteTimeUTC);
+    }
+
+    /// <summary>Watches the shared manifest cache so releases other apps fetch arrive before the next poll.</summary>
+    private void StartManifestCacheWatcher()
+    {
+        DebouncedFileWatcher watcher = new(
+            _options.VersionsManifestCachePath,
+            TimeSpan.FromMilliseconds(TimeConstants.UpdateManifestCacheChangeQuietPeriodMs),
+            () => _ = ApplyManifestCacheChangeAsync());
+        try
+        {
+            watcher.Start();
+        }
+        catch (Exception exception)
+        {
+            watcher.Dispose();
+            TADNLog.Log(
+                $"UpdateCheckService.StartManifestCacheWatcher: could not watch {_options.VersionsManifestCachePath}: "
+                + $"{exception.Message}; releases other apps fetch arrive with scheduled checks only");
+            return;
+        }
+
+        Safe.Dispose(Interlocked.Exchange(ref _manifestCacheWatcher, watcher));
+    }
+
+    /// <summary>Adopts the release in a rewritten shared manifest cache without waiting for the next poll.</summary>
+    private async Task ApplyManifestCacheChangeAsync()
+    {
+        // With automatic checks off, releases are offered only when the user asks
+        if (_disposed || !_options.IsEnabled()) return;
+
+        try
+        {
+            TimeSpan pollInterval = NormalizedInterval(_options.PollInterval());
+            if (await ReadFreshManifestCacheAsync(pollInterval, CancellationToken.None).ConfigureAwait(false)
+                is not { } cache)
+                return;
+
+            string checkDescription = "UpdateCheckService.ApplyManifestCacheChangeAsync: "
+                                      + DescribeManifestSource(cache.WriteTimeUTC.Ticks);
+            UpdateInfo? cachedRelease = CreateUpdateInfoFromManifest(cache.Manifest, pinnedTagName: null);
+            if (cachedRelease == null)
+            {
+                LogCheckOutcome(info: null, checkDescription, _options.GetSkippedUpdateVersion());
+                return;
+            }
+
+            await InvokeIfRunningAsync(() =>
+            {
+                // This app's own writes and rewrites of an unchanged manifest leave the state alone
+                if (_disposed || cachedRelease == _latestRelease) return;
+
+                int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
+                _latestRelease = cachedRelease;
+                _available = OfferedRelease(cachedRelease, skippedUpdateVersion);
+                _lastCheckTimeUtc = _options.GetCurrentUTCTime();
+                _lastResult = UpdateCheckResult.Success;
+                LogCheckOutcome(cachedRelease, checkDescription, skippedUpdateVersion);
+                StateChanged?.Invoke();
+            }).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.ApplyManifestCacheChangeAsync: could not use "
+                + $"{_options.VersionsManifestCachePath}: {exception.Message}");
         }
     }
 

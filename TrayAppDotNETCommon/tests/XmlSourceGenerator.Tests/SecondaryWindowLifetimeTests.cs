@@ -138,8 +138,12 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.True(double.IsNaN(websiteLink.LineHeight));
         Assert.Equal(HorizontalAlignment.Right, releasesLink.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Right, websiteLink.HorizontalAlignment);
-        Assert.Same(TextDecorations.Underline, releasesLink.TextDecorations);
-        Assert.Same(TextDecorations.Underline, websiteLink.TextDecorations);
+        Assert.Equal(
+            TextDecorationLocation.Underline,
+            Assert.Single(Assert.IsType<TextDecorationCollection>(releasesLink.TextDecorations)).Location);
+        Assert.Equal(
+            TextDecorationLocation.Underline,
+            Assert.Single(Assert.IsType<TextDecorationCollection>(websiteLink.TextDecorations)).Location);
         Assert.Same(TrayAppDotNETCursors.Hand, releasesLink.Cursor);
         Assert.Same(TrayAppDotNETCursors.Hand, websiteLink.Cursor);
         Assert.True(releasesLink.Focusable);

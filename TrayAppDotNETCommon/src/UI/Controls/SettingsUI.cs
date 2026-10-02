@@ -3765,6 +3765,13 @@ public static class TrayAppDotNETSettingsUI
 
     public static IBrush Brush(SettingsPaletteColor color) => color.Brush;
 
+    /// <summary>
+    /// Creates an underline for one text block. Avalonia's shared TextDecorations.Underline belongs to the dispatcher
+    /// that first touches it, so a headless test session on another dispatcher thread cannot render it.
+    /// </summary>
+    public static TextDecorationCollection Underline() =>
+        [new TextDecoration { Location = TextDecorationLocation.Underline }];
+
     public static TextBlock Text(string text, SettingsPalette palette, double fontSize = 14, FontWeight? weight = null)
     {
         return new TextBlock

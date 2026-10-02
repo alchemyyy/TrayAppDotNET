@@ -58,6 +58,10 @@ public abstract class TimeConstants
     protected internal const int UpdateNetworkTimeoutMs = 30_000;
     protected internal const int UpdateManualCheckTimeoutMs = 45_000;
 
+    // Quiet period after the last change to the shared versions manifest before a watching app reads it. One atomic
+    // replace raises several watcher events, and waiting for them to settle turns them into a single read.
+    protected internal const int UpdateManifestCacheChangeQuietPeriodMs = 250;
+
     // Short delay before kicking the very first check on startup so it doesn't compete with app startup work.
     protected internal const int UpdateCheckStartupDelayMs = 5_000;
     protected internal const int UpdateAssetDownloadMaxAttempts = 3;

@@ -111,6 +111,9 @@
   <data name="Settings_About_SkipUpdate_Button" xml:space="preserve">
     <value>Skip this release</value>
   </data>
+  <data name="Settings_About_UndoSkip_Button" xml:space="preserve">
+    <value>Undo skip</value>
+  </data>
   <data name="Settings_About_UpdateActions_SearchKeywords" xml:space="preserve">
     <value>upgrade download install release version GitHub new build</value>
   </data>
@@ -617,6 +620,15 @@ Restart from the installed copy now?</value>
     <value>Uninstalling...</value>
   </data>
   <data name="UpdateDialog_SkipRelease" xml:space="preserve">
+    <value>Skip release</value>
+  </data>
+  <data name="SkipDialog_TitleFormat" xml:space="preserve">
+    <value>Skip release {0}?</value>
+  </data>
+  <data name="SkipDialog_DescriptionFormat" xml:space="preserve">
+    <value>Release {0} won't be offered again. Newer releases will still be offered, and Undo skip on the About settings page reverses this.</value>
+  </data>
+  <data name="SkipDialog_Confirm" xml:space="preserve">
     <value>Skip release</value>
   </data>
   <data name="UpdateDialog_Close" xml:space="preserve">

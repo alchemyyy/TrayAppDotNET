@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -72,6 +73,7 @@ public sealed class TrayAppDotNETAboutPageOptions
 public sealed class TrayAppDotNETAboutPage : IDisposable
 {
     private const string DevelopmentBuildLabel = "dev";
+    private const string FocusVisiblePseudoClass = ":focus-visible";
 
     private static TrayAppDotNETAboutPageResources LayoutResources =>
         TrayAppDotNETAboutPageResources.Current;
@@ -82,6 +84,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private TextBlock? _updateStatusText;
     private SettingsButton? _checkForUpdatesButton;
     private SettingsButton? _skipUpdateButton;
+    private SettingsButton? _undoSkipButton;
     private SettingsButton? _installUpdateButton;
     private TextBlock? _backdateDescriptionText;
     private SettingsButton? _backdateButton;
@@ -205,6 +208,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         _updateStatusText = null;
         _checkForUpdatesButton = null;
         _skipUpdateButton = null;
+        _undoSkipButton = null;
         _installUpdateButton = null;
         _backdateDescriptionText = null;
         _backdateButton = null;
@@ -272,13 +276,17 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             .MapTo(ControlMap.AboutPage.Updates.UpdateCard.CheckForUpdates);
         SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button)), p)
             .MapTo(ControlMap.AboutPage.Updates.UpdateCard.SkipUpdate);
+        SettingsButton undoSkip = Button(L(nameof(CommonStrings.Settings_About_UndoSkip_Button)), p)
+            .MapTo(ControlMap.AboutPage.Updates.UpdateCard.UndoSkip);
         SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p)
             .MapTo(ControlMap.AboutPage.Updates.UpdateCard.InstallUpdate);
         check.Margin = layout.UpdateCheckButtonMargin;
         skip.Margin = layout.UpdateCheckButtonMargin;
+        undoSkip.Margin = layout.UpdateCheckButtonMargin;
 
         check.Click += async (_, _) => await CheckForUpdatesAsync();
         skip.Click += async (_, _) => await SkipUpdateAsync();
+        undoSkip.Click += async (_, _) => await UnskipUpdateAsync();
         install.Click += async (_, _) => await InstallUpdateAsync();
 
         Grid grid = new();
@@ -292,11 +300,11 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         text.Children.Add(description);
         grid.Children.Add(text);
 
-        StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(check, skip, install);
+        StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(check, skip, undoSkip, install);
         Grid.SetColumn(buttons, value: 1);
         grid.Children.Add(buttons);
 
-        StartUpdateRefresh(description, check, skip, install);
+        StartUpdateRefresh(description, check, skip, undoSkip, install);
         return TrayAppDotNETSettingsCards.RawCard(
             grid,
             p,
@@ -407,32 +415,22 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             return;
         }
 
+        NavigationMethod? focusMethod = FocusMethodOf(_installUpdateButton);
         _installInProgress = true;
         RefreshUpdateUI();
         RefreshBackdateUI();
         try
         {
-            _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(
-                new TrayAppDotNETUpdatePromptOptions
+            _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(CreatePromptOptions(
+                owner,
+                service,
+                info,
+                inFlight =>
                 {
-                    Owner = owner,
-                    Service = service,
-                    UpdateInfo = info,
-                    Palette = _options.Palette,
-                    OwnerBackdrop = _options.UpdatePromptOwnerBackdrop,
-                    EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
-                    L = L,
-                    Shutdown = _options.Shutdown,
-                    FlushLog = _options.FlushLog,
-                    Log = _options.Log,
-                    SetDownloadInFlight = inFlight =>
-                    {
-                        _installInProgress = inFlight;
-                        RefreshUpdateUI();
-                        RefreshBackdateUI();
-                    },
-                    Node = _options.UpdatePromptNode
-                });
+                    _installInProgress = inFlight;
+                    RefreshUpdateUI();
+                    RefreshBackdateUI();
+                }));
         }
         catch (Exception exception)
         {
@@ -443,6 +441,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _installInProgress = false;
             RefreshUpdateUI();
             RefreshBackdateUI();
+            RestoreFocus(focusMethod, _installUpdateButton);
         }
     }
 
@@ -459,32 +458,22 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             return;
         }
 
+        NavigationMethod? focusMethod = FocusMethodOf(_backdateButton);
         _backdateInProgress = true;
         RefreshUpdateUI();
         RefreshBackdateUI();
         try
         {
-            _ = await TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync(
-                new TrayAppDotNETUpdatePromptOptions
+            _ = await TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync(CreatePromptOptions(
+                owner,
+                service,
+                previousRelease,
+                inFlight =>
                 {
-                    Owner = owner,
-                    Service = service,
-                    UpdateInfo = previousRelease,
-                    Palette = _options.Palette,
-                    OwnerBackdrop = _options.UpdatePromptOwnerBackdrop,
-                    EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
-                    L = L,
-                    Shutdown = _options.Shutdown,
-                    FlushLog = _options.FlushLog,
-                    Log = _options.Log,
-                    SetDownloadInFlight = inFlight =>
-                    {
-                        _backdateInProgress = inFlight;
-                        RefreshUpdateUI();
-                        RefreshBackdateUI();
-                    },
-                    Node = _options.UpdatePromptNode
-                });
+                    _backdateInProgress = inFlight;
+                    RefreshUpdateUI();
+                    RefreshBackdateUI();
+                }));
         }
         catch (Exception exception)
         {
@@ -495,6 +484,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _backdateInProgress = false;
             RefreshUpdateUI();
             RefreshBackdateUI();
+            RestoreFocus(focusMethod, _backdateButton);
         }
     }
 
@@ -504,12 +494,21 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null || _skipInProgress) return;
 
+        Window? owner = _options.PromptOwner();
+        if (owner == null)
+        {
+            _options.Log("SettingsAboutPage.SkipUpdate: update prompt owner unavailable.");
+            return;
+        }
+
+        NavigationMethod? focusMethod = FocusMethodOf(_skipUpdateButton);
         _skipInProgress = true;
         RefreshUpdateUI();
         RefreshBackdateUI();
         try
         {
-            await service.SkipReleaseAsync(info);
+            _ = await TrayAppDotNETUpdatePromptPresenter.ShowSkipReleaseAsync(
+                CreatePromptOptions(owner, service, info, setDownloadInFlight: null));
         }
         catch (Exception ex)
         {
@@ -520,13 +519,89 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _skipInProgress = false;
             RefreshUpdateUI();
             RefreshBackdateUI();
+
+            // Undo skip takes the hidden Skip button's place once the release is skipped
+            RestoreFocus(focusMethod, _skipUpdateButton, _undoSkipButton);
         }
     }
+
+    private async Task UnskipUpdateAsync()
+    {
+        UpdateCheckService? service = CurrentService;
+        if (service == null || service.SkippedUpdateVersion == 0 || _skipInProgress) return;
+
+        NavigationMethod? focusMethod = FocusMethodOf(_undoSkipButton);
+        _skipInProgress = true;
+        RefreshUpdateUI();
+        RefreshBackdateUI();
+        try
+        {
+            await service.UnskipReleaseAsync();
+        }
+        catch (Exception exception)
+        {
+            _options.Log($"SettingsAboutPage.UnskipUpdate: {exception.Message}");
+        }
+        finally
+        {
+            _skipInProgress = false;
+            RefreshUpdateUI();
+            RefreshBackdateUI();
+            RestoreFocus(focusMethod, _undoSkipButton, _skipUpdateButton);
+        }
+    }
+
+    // A focus ring shows only for keyboard focus, so restoring focus reuses the way the button held it
+    private static NavigationMethod? FocusMethodOf(SettingsButton? button)
+    {
+        if (button is not { IsFocused: true }) return null;
+
+        return button.Classes.Contains(FocusVisiblePseudoClass) ? NavigationMethod.Tab : NavigationMethod.Pointer;
+    }
+
+    /// <summary>
+    /// Puts focus back on the first candidate still shown after an action disabled or hid its focused button. Hiding a
+    /// focused control clears focus, and a prompt's owner cannot hand focus back to a control that is still disabled.
+    /// </summary>
+    private static void RestoreFocus(NavigationMethod? focusMethod, params ReadOnlySpan<SettingsButton?> candidates)
+    {
+        if (focusMethod is not { } method) return;
+
+        foreach (SettingsButton? candidate in candidates)
+        {
+            if (candidate is not { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }) continue;
+
+            candidate.Focus(method);
+            return;
+        }
+    }
+
+    private TrayAppDotNETUpdatePromptOptions CreatePromptOptions(
+        Window owner,
+        UpdateCheckService service,
+        UpdateInfo info,
+        Action<bool>? setDownloadInFlight) =>
+        new()
+        {
+            Owner = owner,
+            Service = service,
+            UpdateInfo = info,
+            Palette = _options.Palette,
+            OwnerBackdrop = _options.UpdatePromptOwnerBackdrop,
+            EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
+            L = L,
+            Shutdown = _options.Shutdown,
+            FlushLog = _options.FlushLog,
+            Log = _options.Log,
+            SetDownloadInFlight = setDownloadInFlight,
+            Node = _options.UpdatePromptNode
+        };
 
     private void StartUpdateRefresh(
         TextBlock statusText,
         SettingsButton checkButton,
         SettingsButton skipButton,
+        SettingsButton undoSkipButton,
         SettingsButton installButton)
     {
         StopUpdateRefresh();
@@ -535,6 +610,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         _updateStatusText = statusText;
         _checkForUpdatesButton = checkButton;
         _skipUpdateButton = skipButton;
+        _undoSkipButton = undoSkipButton;
         _installUpdateButton = installButton;
         _updateService = _options.UpdateService();
         if (_updateService != null)
@@ -565,9 +641,17 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
     private void OnRootDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        StopUpdateRefresh();
-        if (ReferenceEquals(sender, _root))
+        if (sender is not StackPanel root || !ReferenceEquals(root, _root)) return;
+
+        // An update prompt's owner backdrop moves the window content and attaches it again in the same dispatcher
+        // job, so the page stops refreshing only when it is still detached after that job
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_disposed || !ReferenceEquals(root, _root) || TopLevel.GetTopLevel(root) != null) return;
+
+            StopUpdateRefresh();
             SetRoot(null);
+        });
     }
 
     private void OnUpdateStateChanged()
@@ -592,17 +676,23 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     {
         if (_disposed) return;
         if (_updateStatusText == null || _checkForUpdatesButton == null || _skipUpdateButton == null
-            || _installUpdateButton == null)
+            || _undoSkipButton == null || _installUpdateButton == null)
             return;
 
         UpdateCheckService? service = CurrentService;
         bool isUpdateAvailable = service?.AvailableUpdate != null;
+
+        // A newer release than the skipped one is offered as usual, so the skip only matters while nothing is
+        bool isSkipWithholdingRelease = !isUpdateAvailable && service?.SkippedUpdateVersion > 0;
         _updateStatusText.Text = UpdateStatusText(service);
         _checkForUpdatesButton.IsEnabled = service != null && !_manualCheckInProgress && !_skipInProgress
                                            && !_installInProgress && !_backdateInProgress;
         _skipUpdateButton.IsVisible = isUpdateAvailable;
         _skipUpdateButton.IsEnabled = isUpdateAvailable && !_manualCheckInProgress && !_skipInProgress
                                       && !_installInProgress && !_backdateInProgress;
+        _undoSkipButton.IsVisible = isSkipWithholdingRelease;
+        _undoSkipButton.IsEnabled = isSkipWithholdingRelease && !_manualCheckInProgress && !_skipInProgress
+                                    && !_installInProgress && !_backdateInProgress;
         _installUpdateButton.Text = UpdateInstallButtonText(service);
         _installUpdateButton.IsEnabled = isUpdateAvailable && !_skipInProgress && !_installInProgress
                                          && !_backdateInProgress;
@@ -784,7 +874,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         valueBlock.TextWrapping = TextWrapping.Wrap;
         if (!string.IsNullOrEmpty(openUrl))
         {
-            valueBlock.TextDecorations = TextDecorations.Underline;
+            valueBlock.TextDecorations = TrayAppDotNETSettingsUI.Underline();
             valueBlock.Cursor = TrayAppDotNETCursors.Hand;
             valueBlock.PointerPressed += (sender, eventArgs) =>
             {

@@ -47,33 +47,55 @@ public static class TrayAppDotNETUpdatePromptPresenter
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        TrayAppDotNETUpdatePromptResult promptResult = await ShowConfirmationAsync(options);
-        switch (promptResult)
+        while (true)
         {
-            case TrayAppDotNETUpdatePromptResult.Cancelled:
-                return false;
-            case TrayAppDotNETUpdatePromptResult.Alternate:
-                try
-                {
-                    await options.Service.SkipReleaseAsync(options.UpdateInfo);
-                }
-                catch (Exception ex)
-                {
-                    options.Log($"TrayAppDotNETUpdatePromptPresenter.SkipReleaseAsync: {ex.Message}");
-                }
+            TrayAppDotNETUpdatePromptResult promptResult = await ShowConfirmationAsync(options);
+            switch (promptResult)
+            {
+                case TrayAppDotNETUpdatePromptResult.Confirmed:
+                    return await StageAndShutdownAsync(
+                        options,
+                        operationName: "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
+                        L(options, nameof(CommonStrings.UpdateDialog_FailedTitle)),
+                        L(options, nameof(CommonStrings.UpdateDialog_DownloadFailed)));
+                case TrayAppDotNETUpdatePromptResult.Alternate:
+                    if (await ShowSkipConfirmationAsync(options) == TrayAppDotNETUpdatePromptResult.Confirmed)
+                    {
+                        await SkipReleaseAsync(options);
+                        return false;
+                    }
 
-                return false;
-            case TrayAppDotNETUpdatePromptResult.Confirmed:
-                break;
-            default:
-                return false;
+                    // Declining the skip returns to the update prompt while its release is still the one offered
+                    if (options.Service.AvailableUpdate != options.UpdateInfo) return false;
+                    continue;
+                case TrayAppDotNETUpdatePromptResult.Cancelled:
+                default:
+                    return false;
+            }
         }
+    }
 
-        return await StageAndShutdownAsync(
-            options,
-            operationName: "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
-            L(options, nameof(CommonStrings.UpdateDialog_FailedTitle)),
-            L(options, nameof(CommonStrings.UpdateDialog_DownloadFailed)));
+    /// <summary>Confirms and persists skipping a release; returns whether the release is now skipped.</summary>
+    public static async Task<bool> ShowSkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (await ShowSkipConfirmationAsync(options) != TrayAppDotNETUpdatePromptResult.Confirmed) return false;
+        return await SkipReleaseAsync(options);
+    }
+
+    private static async Task<bool> SkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options)
+    {
+        try
+        {
+            await options.Service.SkipReleaseAsync(options.UpdateInfo);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            options.Log($"TrayAppDotNETUpdatePromptPresenter.SkipReleaseAsync: {exception.Message}");
+            return false;
+        }
     }
 
     /// <summary>Confirms and installs an older release, including the current-version skip choice.</summary>
@@ -185,6 +207,30 @@ public static class TrayAppDotNETUpdatePromptPresenter
                 websiteLinkText),
             restartNotice,
             useModalContentLayout: true) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        return await ShowPromptAsync(options, dialog);
+    }
+
+    private static async Task<TrayAppDotNETUpdatePromptResult> ShowSkipConfirmationAsync(
+        TrayAppDotNETUpdatePromptOptions options)
+    {
+        string title = string.Format(
+            CultureInfo.CurrentCulture,
+            L(options, nameof(CommonStrings.SkipDialog_TitleFormat)),
+            options.UpdateInfo.Version);
+        string description = string.Format(
+            CultureInfo.CurrentCulture,
+            L(options, nameof(CommonStrings.SkipDialog_DescriptionFormat)),
+            options.UpdateInfo.Version);
+        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+            title,
+            description,
+            L(options, nameof(CommonStrings.SkipDialog_Confirm)),
+            options.Palette,
+            options.EnableRoundedCorners,
+            cancelText: L(options, nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)))
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
         return await ShowPromptAsync(options, dialog);
     }
 

@@ -604,7 +604,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             palette,
             SettingsUILayout.DescriptionFontSize);
         link.Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent);
-        link.TextDecorations = TextDecorations.Underline;
+        link.TextDecorations = TrayAppDotNETSettingsUI.Underline();
         link.Cursor = TrayAppDotNETCursors.Hand;
         link.Focusable = true;
         link.HorizontalAlignment = HorizontalAlignment.Right;
