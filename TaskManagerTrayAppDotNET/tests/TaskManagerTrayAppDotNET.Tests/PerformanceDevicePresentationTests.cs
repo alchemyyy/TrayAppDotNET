@@ -251,7 +251,6 @@ public sealed class PerformanceDevicePresentationTests
             64 * Gibibyte)
         {
             Details = new GPUPerformanceDetailsSnapshot(
-                HasDetailData: true,
                 ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
                 HasTemperatureData: true,
                 TemperatureCelsius: 32,

@@ -126,25 +126,16 @@ internal sealed class SemanticProcessTreeState
 }
 
 /// <summary>Immutable semantic groups plus exact-instance lookup and next retained state.</summary>
-internal sealed class SemanticProcessForest
+internal sealed class SemanticProcessForest(
+    SemanticProcessGroup[] groups,
+    Dictionary<ProcessInstanceKey, SemanticProcessNode> nodesByInstance,
+    SemanticProcessTreeState retainedState)
 {
-    private readonly Dictionary<ProcessInstanceKey, SemanticProcessNode> _nodesByInstance;
-
-    public SemanticProcessForest(
-        SemanticProcessGroup[] groups,
-        Dictionary<ProcessInstanceKey, SemanticProcessNode> nodesByInstance,
-        SemanticProcessTreeState retainedState)
-    {
-        Groups = groups;
-        _nodesByInstance = nodesByInstance;
-        RetainedState = retainedState;
-    }
-
-    public SemanticProcessGroup[] Groups { get; }
-    public SemanticProcessTreeState RetainedState { get; }
+    public SemanticProcessGroup[] Groups { get; } = groups;
+    public SemanticProcessTreeState RetainedState { get; } = retainedState;
 
     public bool TryGetNode(
         ProcessInstanceKey instanceKey,
         out SemanticProcessNode? node) =>
-        _nodesByInstance.TryGetValue(instanceKey, out node);
+        nodesByInstance.TryGetValue(instanceKey, out node);
 }

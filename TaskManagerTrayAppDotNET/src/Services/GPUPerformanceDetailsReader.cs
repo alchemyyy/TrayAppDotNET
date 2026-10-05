@@ -76,11 +76,7 @@ internal sealed class GPUPerformanceDetailsReader
             out double temperatureCelsius);
         error = cachedMetadata.Error;
 
-        bool hasDetailData = metadata.HasMetadata
-                             || engines.Length > 0
-                             || hasTemperatureData;
         return new GPUPerformanceDetailsSnapshot(
-            hasDetailData,
             engines,
             hasTemperatureData,
             temperatureCelsius,

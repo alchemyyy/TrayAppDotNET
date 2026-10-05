@@ -177,7 +177,7 @@ public sealed class BatteryTimeEstimator
         // Learned usage describes the machine, not the power source, so a charging or full battery still reports
         // how long its current charge would last once unplugged.
         TimeSpan? predictedLife = Duration(remainingWh, LearnedDischargeRate());
-        if (_snapshot.IsOnExternalPower && _snapshot.IsFullyCharged)
+        if (_snapshot is { IsOnExternalPower: true, IsFullyCharged: true })
             return new BatteryTimeEstimates(predictedLife, null, TimeSpan.Zero);
 
         if (_mode == BatteryMode.Discharging)

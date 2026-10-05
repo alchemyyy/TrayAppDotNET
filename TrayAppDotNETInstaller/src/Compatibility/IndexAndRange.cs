@@ -46,17 +46,11 @@ namespace System
     }
 
     /// <summary>A start and end position describing a sub-range of a collection.</summary>
-    internal readonly struct Range : IEquatable<Range>
+    internal readonly struct Range(Index start, Index end) : IEquatable<Range>
     {
-        public Range(Index start, Index end)
-        {
-            Start = start;
-            End = end;
-        }
+        public Index Start { get; } = start;
 
-        public Index Start { get; }
-
-        public Index End { get; }
+        public Index End { get; } = end;
 
         public static Range All => new Range(Index.Start, Index.End);
 

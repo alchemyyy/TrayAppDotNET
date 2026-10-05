@@ -57,8 +57,12 @@ public sealed class CurveOverridePersistenceTests
     public void FailedRowReengageEndsOnlyReleaseCarriedIntoFailure()
     {
         MonitorInfo released = new() { SliderState = SliderState.CurveReleased };
-        MonitorInfo failedReleased = new() { Brightness = 34, CurveTargetBrightness = 19 };
-        failedReleased.SliderState = SliderState.CurveReleased;
+        MonitorInfo failedReleased = new()
+        {
+            Brightness = 34,
+            CurveTargetBrightness = 19,
+            SliderState = SliderState.CurveReleased
+        };
         failedReleased.SliderState = SliderState.Failed;
         MonitorInfo failedDisabled = new() { SliderState = SliderState.Disabled };
         failedDisabled.SliderState = SliderState.Failed;

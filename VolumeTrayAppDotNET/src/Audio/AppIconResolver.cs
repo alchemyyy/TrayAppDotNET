@@ -67,7 +67,7 @@ internal static class AppIconResolver
     {
         public IImage Bitmap = null!;
         public long ContentHash;
-        public LinkedList<string> IdentityKeys = [];
+        public readonly LinkedList<string> IdentityKeys = [];
         public int RefCount;
         public LinkedListNode<CacheEntry>? LRUNode;
         public bool IsRetired;

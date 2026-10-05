@@ -131,7 +131,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         this.MapTo(ControlMap.Flyout.ID);
-        this.MapCommand(ControlMap.Flyout.Close, () => Hide());
+        this.MapCommand(ControlMap.Flyout.Close, Hide);
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);

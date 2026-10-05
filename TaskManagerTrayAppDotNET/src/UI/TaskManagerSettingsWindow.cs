@@ -657,8 +657,14 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
                    + "instead of Windows Task Manager, even when this app is not already running. "
                    + "Changing this needs administrator approval.";
         if (state.PointsElsewhere)
-            return "Windows Task Manager is currently redirected to another program. Turning this on points it "
+        {
+            // Name the program another tool registered; a path with no file name keeps the generic wording
+            string redirectTarget = Path.GetFileName(state.RegisteredExecutable?.Trim()) is { Length: > 0 } fileName
+                ? fileName
+                : "another program";
+            return $"Windows Task Manager is currently redirected to {redirectTarget}. Turning this on points it "
                    + "at this app instead and needs administrator approval.";
+        }
         return "Redirect every Windows Task Manager launch to this app system-wide, so it opens even when this "
                + "app is not running. Applies to all users on this PC and needs administrator approval.";
     }

@@ -264,7 +264,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             RestoreCurveStopwatchesFromSettings();
 
             this.MapTo(ControlMap.Flyout.ID);
-            this.MapCommand(ControlMap.Flyout.Close, () => Hide());
+            this.MapCommand(ControlMap.Flyout.Close, Hide);
             InitializeComponentState();
             NotifyUpdateStateChanged();
         }

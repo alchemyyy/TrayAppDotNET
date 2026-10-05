@@ -53,7 +53,7 @@ public sealed class BatteryPowerModeServiceTests
         final.Complete(true);
         await Finished(latest);
         Assert.False(service.IsApplying);
-        Assert.Equal(new[] { BatteryPowerMode.PowerSaver, BatteryPowerMode.Ultimate }, backend.AppliedModes.ToArray());
+        Assert.Equal([BatteryPowerMode.PowerSaver, BatteryPowerMode.Ultimate], backend.AppliedModes.ToArray());
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class BatteryPowerModeServiceTests
     {
         using FakeBackend backend = new();
         using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
-        await ObserveAsync(service, backend, new(true, BatteryPowerMode.Balanced));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
 
         Task request = service.RequestAsync(BatteryPowerMode.Balanced);
         ApplyCall apply = await backend.NextApplyAsync();
@@ -94,7 +94,7 @@ public sealed class BatteryPowerModeServiceTests
     {
         using FakeBackend backend = new();
         using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
-        await ObserveAsync(service, backend, new(true, BatteryPowerMode.Balanced));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         Task refresh = service.RefreshAsync();
         ReadCall stale = await backend.NextReadAsync();
 
@@ -103,7 +103,7 @@ public sealed class BatteryPowerModeServiceTests
         Assert.Equal(BatteryPowerMode.Balanced, apply.Mode);
         apply.Complete(true);
         await Finished(request);
-        stale.Complete(new(true, BatteryPowerMode.PowerSaver));
+        stale.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.PowerSaver));
         await Finished(refresh);
 
         Assert.Equal(BatteryPowerMode.Balanced, service.DisplayMode);
@@ -117,7 +117,7 @@ public sealed class BatteryPowerModeServiceTests
     {
         using FakeBackend backend = new();
         using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
-        await ObserveAsync(service, backend, new(true, BatteryPowerMode.Balanced));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         Task away = service.RequestAsync(BatteryPowerMode.Ultimate);
         ApplyCall active = await backend.NextApplyAsync();
         Task back = service.RequestAsync(BatteryPowerMode.Balanced);
@@ -162,7 +162,7 @@ public sealed class BatteryPowerModeServiceTests
         ReadCall stale = await backend.NextReadAsync();
         Task request = service.RequestAsync(BatteryPowerMode.Ultimate);
         ApplyCall active = await backend.NextApplyAsync();
-        stale.Complete(new(true, BatteryPowerMode.Balanced));
+        stale.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         await Finished(refresh);
 
         Assert.Equal(BatteryPowerMode.Ultimate, service.DisplayMode);
@@ -181,7 +181,7 @@ public sealed class BatteryPowerModeServiceTests
         Task request = service.RequestAsync(BatteryPowerMode.Ultimate);
         (await backend.NextApplyAsync()).Complete(true);
         await Finished(request);
-        stale.Complete(new(true, BatteryPowerMode.Balanced));
+        stale.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         await Finished(refresh);
 
         Assert.Equal(BatteryPowerMode.Ultimate, service.DisplayMode);
@@ -205,7 +205,7 @@ public sealed class BatteryPowerModeServiceTests
         ReadCall read = await backend.NextReadAsync();
         Task second = service.RefreshAsync();
         Assert.Same(first, second);
-        read.Complete(new(true, BatteryPowerMode.PowerSaver));
+        read.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.PowerSaver));
         await Finished(Task.WhenAll(first, second));
         Assert.Equal(1, backend.ReadCount);
         Assert.Equal(BatteryPowerMode.PowerSaver, service.DisplayMode);
@@ -222,7 +222,7 @@ public sealed class BatteryPowerModeServiceTests
 
         Assert.Equal(BatteryPowerMode.Ultimate, service.DisplayMode);
         Assert.True(service.IsApplying);
-        readback.Complete(new(true, BatteryPowerMode.Balanced));
+        readback.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         await Finished(request);
         Assert.Equal(BatteryPowerMode.Balanced, service.DisplayMode);
         Assert.True(service.IsStateAvailable);
@@ -234,10 +234,10 @@ public sealed class BatteryPowerModeServiceTests
     {
         using FakeBackend backend = new();
         using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
-        await ObserveAsync(service, backend, new(true, BatteryPowerMode.PowerSaver));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(true,BatteryPowerMode.PowerSaver));
         Task request = service.RequestAsync(BatteryPowerMode.Ultimate);
         (await backend.NextApplyAsync()).Complete(false);
-        (await backend.NextReadAsync()).Complete(new(false, null));
+        (await backend.NextReadAsync()).Complete(new BatteryPowerModeReadResult(false,null));
         await Finished(request);
 
         Assert.Null(service.DisplayMode);
@@ -260,7 +260,7 @@ public sealed class BatteryPowerModeServiceTests
         (await backend.NextApplyAsync()).Complete(false);
         ReadCall oldReadback = await backend.NextReadAsync();
         Task latest = service.RequestAsync(BatteryPowerMode.PowerSaver);
-        oldReadback.Complete(new(true, BatteryPowerMode.Balanced));
+        oldReadback.Complete(new BatteryPowerModeReadResult(true,BatteryPowerMode.Balanced));
         ApplyCall final = await backend.NextApplyAsync();
         await Finished(first);
 
@@ -277,11 +277,11 @@ public sealed class BatteryPowerModeServiceTests
         using FakeBackend backend = new();
         using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
         Assert.False(service.IsStateAvailable);
-        await ObserveAsync(service, backend, new(true, null));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(true,null));
         Assert.Null(service.DisplayMode);
         Assert.True(service.IsStateAvailable);
 
-        await ObserveAsync(service, backend, new(false, null));
+        await ObserveAsync(service, backend, new BatteryPowerModeReadResult(false,null));
         Assert.Null(service.DisplayMode);
         Assert.False(service.IsStateAvailable);
     }
@@ -311,6 +311,8 @@ public sealed class BatteryPowerModeServiceTests
         Task activeTask = service.RequestAsync(BatteryPowerMode.Ultimate);
         ApplyCall active = await backend.NextApplyAsync();
         Task pendingTask = service.RequestAsync(BatteryPowerMode.PowerSaver);
+        // Early disposal is the behavior under test
+        // ReSharper disable once DisposeOnUsingVariable
         service.Dispose();
         int afterDispose = Volatile.Read(ref notifications);
         BatteryPowerMode? displayedAfterDispose = service.DisplayMode;
@@ -338,9 +340,11 @@ public sealed class BatteryPowerModeServiceTests
         service.StateChanged += () => Interlocked.Increment(ref notifications);
         Task refresh = service.RefreshAsync();
         ReadCall read = await backend.NextReadAsync();
+        // Early disposal is the behavior under test
+        // ReSharper disable once DisposeOnUsingVariable
         service.Dispose();
         Assert.True(read.Token.IsCancellationRequested);
-        read.Complete(new(true, BatteryPowerMode.Ultimate));
+        read.Complete(new BatteryPowerModeReadResult(true, BatteryPowerMode.Ultimate));
         await Finished(refresh);
 
         Assert.Null(service.DisplayMode);
@@ -356,8 +360,11 @@ public sealed class BatteryPowerModeServiceTests
             using FakeBackend backend = new();
             using BatteryPowerModeService service = new(backend.ApplyAsync, backend.ReadAsync);
             Task request = service.RequestAsync(BatteryPowerMode.Ultimate);
+            // Early disposal is the behavior under test
+            // ReSharper disable DisposeOnUsingVariable
             service.Dispose();
             backend.Dispose();
+            // ReSharper restore DisposeOnUsingVariable
             await Finished(request);
             Assert.False(service.IsApplying);
         }
@@ -371,7 +378,7 @@ public sealed class BatteryPowerModeServiceTests
         Task refresh = CallWithContext(service.RefreshAsync);
         ReadCall read = await backend.NextReadAsync();
         Assert.Null(read.Context);
-        read.Complete(new(true, BatteryPowerMode.Balanced));
+        read.Complete(new BatteryPowerModeReadResult(true, BatteryPowerMode.Balanced));
         await Finished(refresh);
 
         Task request = CallWithContext(() => service.RequestAsync(BatteryPowerMode.Ultimate));

@@ -17,8 +17,12 @@ public sealed class AppLauncherTests
     public void FormatArguments_QuotesAnArgumentWithSpaces()
     {
         string[] arguments = [AppLauncher.HiddenArgument, @"C:\Program Files\TrayAppDotNET"];
+        const string expected =
+            """
+            --hidden "C:\Program Files\TrayAppDotNET"
+            """;
 
-        Assert.Equal(@"--hidden ""C:\Program Files\TrayAppDotNET""", AppLauncher.FormatArguments(arguments));
+        Assert.Equal(expected, AppLauncher.FormatArguments(arguments));
     }
 
     [Fact]

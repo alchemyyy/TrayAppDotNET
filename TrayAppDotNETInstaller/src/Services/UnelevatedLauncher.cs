@@ -110,7 +110,7 @@ internal static class UnelevatedLauncher
                 application,
                 [executablePath, arguments, workingDirectory, string.Empty, ShowNormal],
                 CultureInfo.InvariantCulture);
-            if (result is int errorCode && errorCode is > 0 and <= LastShellExecuteErrorCode)
+            if (result is int errorCode and > 0 and <= LastShellExecuteErrorCode)
             {
                 failure = $"ShellExecute failed with {errorCode}";
                 return false;

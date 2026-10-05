@@ -32,7 +32,8 @@ public sealed class AppThemeDefaultsTests
     [Fact]
     public void ExplicitMapHudAlphaOverridesTheAxamlDefault()
     {
-        using AppTheme theme = new() { EnvironmentalMapHudBackdropAlpha = 128 };
+        using AppTheme theme = new();
+        theme.EnvironmentalMapHudBackdropAlpha = 128;
 
         Assert.Equal(expected: 128, theme.EnvironmentalMapHudBackdropAlpha);
     }

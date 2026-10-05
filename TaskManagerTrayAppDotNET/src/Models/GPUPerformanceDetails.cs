@@ -9,7 +9,6 @@ internal readonly record struct GPUPerformanceDetailEngineSnapshot(
 
 /// <summary>Additional dynamic and static values shown by the GPU device detail page.</summary>
 internal sealed record GPUPerformanceDetailsSnapshot(
-    bool HasDetailData,
     ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot> Engines,
     bool HasTemperatureData,
     double TemperatureCelsius,
@@ -22,7 +21,6 @@ internal sealed record GPUPerformanceDetailsSnapshot(
     ulong HardwareReservedMemoryBytes)
 {
     public static GPUPerformanceDetailsSnapshot Empty { get; } = new(
-        HasDetailData: false,
         ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
         HasTemperatureData: false,
         TemperatureCelsius: 0,

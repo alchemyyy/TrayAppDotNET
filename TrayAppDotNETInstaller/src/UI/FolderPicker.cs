@@ -44,8 +44,7 @@ internal static class FolderPicker
             dialog = CreateDialog(out failureMessage);
             if (dialog == null) return null;
 
-            uint options;
-            int result = dialog.GetOptions(out options);
+            int result = dialog.GetOptions(out uint options);
             if (result != HResultOK) return Failed(result, "GetOptions", out failureMessage);
 
             result = dialog.SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
@@ -59,8 +58,7 @@ internal static class FolderPicker
             if (result == HResultCancelled) return null;
             if (result != HResultOK) return Failed(result, "Show", out failureMessage);
 
-            IShellItem? selectedItem;
-            result = dialog.GetResult(out selectedItem);
+            result = dialog.GetResult(out IShellItem? selectedItem);
             if (result != HResultOK || selectedItem == null) return Failed(result, "GetResult", out failureMessage);
 
             return ReadFileSystemPath(selectedItem, out failureMessage);

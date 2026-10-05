@@ -1180,7 +1180,7 @@ public sealed class MonitorService : IDisposable
                     existingInfo.PropertyChanged += OnMonitorPropertyChanged;
                     Monitors.Add(existingInfo);
                     _disconnectedMonitors.Remove(existingInfo);
-                    if (existingInfo.IsFailed && existingInfo.WasEverDDCCapable)
+                    if (existingInfo is { IsFailed: true, WasEverDDCCapable: true })
                         DDCRecoveryRequested?.Invoke(existingInfo.ID);
                 }
 

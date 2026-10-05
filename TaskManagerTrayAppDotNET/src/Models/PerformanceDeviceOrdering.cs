@@ -83,7 +83,7 @@ internal static class PerformanceDeviceOrdering
         HashSet<string> used = new(StringComparer.Ordinal);
         if (deviceIDs == null) return normalized;
 
-        foreach (string? deviceID in deviceIDs)
+        foreach (string deviceID in deviceIDs)
         {
             string? normalizedID = NormalizeDeviceID(deviceID);
             if (normalizedID == null || !used.Add(normalizedID)) continue;

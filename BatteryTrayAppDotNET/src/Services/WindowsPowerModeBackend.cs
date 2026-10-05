@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using BatteryTrayAppDotNET.Models;
 
 namespace BatteryTrayAppDotNET.Services;
 
@@ -72,7 +71,8 @@ internal static class WindowsPowerModeBackend
         try
         {
             CommandResult result = await RunAsync(["/getactivescheme"], cancellationToken).ConfigureAwait(false);
-            if (!result.Success || ExtractGuid(result.Output) == null) return new(false, null);
+            if (!result.Success || ExtractGuid(result.Output) == null)
+                return new BatteryPowerModeReadResult(false, null);
 
             BatteryPowerMode? mode = result.Output.Contains(UltimateGuid, StringComparison.OrdinalIgnoreCase)
                                      || result.Output.Contains($"({UltimateName})", StringComparison.OrdinalIgnoreCase)
@@ -82,7 +82,7 @@ internal static class WindowsPowerModeBackend
                     : result.Output.Contains(PowerSaverGuid, StringComparison.OrdinalIgnoreCase)
                         ? BatteryPowerMode.PowerSaver
                         : null;
-            return new(true, mode);
+            return new BatteryPowerModeReadResult(true, mode);
         }
         finally
         {
@@ -95,31 +95,36 @@ internal static class WindowsPowerModeBackend
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (mode != BatteryPowerMode.Ultimate)
+            switch (mode)
             {
-                string guid = mode switch
-                {
-                    BatteryPowerMode.Balanced => BalancedGuid,
-                    BatteryPowerMode.PowerSaver => PowerSaverGuid,
-                    _ => throw new ArgumentOutOfRangeException(nameof(mode))
-                };
-                return await ActivateAsync(guid, cancellationToken).ConfigureAwait(false);
+                case BatteryPowerMode.Ultimate:
+                    return await ApplyUltimateAsync(cancellationToken).ConfigureAwait(false);
+                case BatteryPowerMode.Balanced:
+                    return await ActivateAsync(BalancedGuid, cancellationToken).ConfigureAwait(false);
+                case BatteryPowerMode.PowerSaver:
+                    return await ActivateAsync(PowerSaverGuid, cancellationToken).ConfigureAwait(false);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
-
-            string? ultimate = await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
-            if (ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false))
-                return true;
-
-            CommandResult created = await RunAsync(["/duplicatescheme", UltimateGuid], cancellationToken)
-                .ConfigureAwait(false);
-            ultimate = created.Success ? ExtractGuid(created.Output) : null;
-            ultimate ??= await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
-            return ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             Gate.Release();
         }
+    }
+
+    /// <summary>Activates an Ultimate Performance scheme, duplicating the hidden built-in one when none exists.</summary>
+    private static async Task<bool> ApplyUltimateAsync(CancellationToken cancellationToken)
+    {
+        string? ultimate = await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
+        if (ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false))
+            return true;
+
+        CommandResult created = await RunAsync(["/duplicatescheme", UltimateGuid], cancellationToken)
+            .ConfigureAwait(false);
+        ultimate = created.Success ? ExtractGuid(created.Output) : null;
+        ultimate ??= await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
+        return ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<bool> ActivateAsync(string scheme, CancellationToken cancellationToken)
@@ -214,10 +219,11 @@ internal static class WindowsPowerModeBackend
             CreateNoWindow = true
         };
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
-        using Process process = new() { StartInfo = start };
+        using Process process = new();
+        process.StartInfo = start;
         try
         {
-            if (!process.Start()) return new(false, string.Empty);
+            if (!process.Start()) return new CommandResult(false, string.Empty);
 
             // Drain both pipes concurrently with a cancellable exit wait so neither pipe can bypass the timeout.
             Task<string> output = process.StandardOutput.ReadToEndAsync(timeout.Token);
@@ -225,20 +231,20 @@ internal static class WindowsPowerModeBackend
             await Task.WhenAll(output, error, process.WaitForExitAsync(timeout.Token)).ConfigureAwait(false);
             if (process.ExitCode != 0)
                 TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: exit {process.ExitCode}");
-            return new(process.ExitCode == 0, await output.ConfigureAwait(false));
+            return new CommandResult(process.ExitCode == 0, await output.ConfigureAwait(false));
         }
         catch (OperationCanceledException)
         {
             TryKill(process);
             cancellationToken.ThrowIfCancellationRequested();
             TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: timed out");
-            return new(false, string.Empty);
+            return new CommandResult(false, string.Empty);
         }
         catch (Exception ex)
         {
             TryKill(process);
             TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: {ex.Message}");
-            return new(false, string.Empty);
+            return new CommandResult(false, string.Empty);
         }
     }
 

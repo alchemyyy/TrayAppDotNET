@@ -297,7 +297,7 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         """;
 }
 
-internal sealed class AxamlGeneratorHost
+internal static class AxamlGeneratorHost
 {
     private static readonly MetadataReference[] References = CreateReferences();
 
@@ -313,7 +313,7 @@ internal sealed class AxamlGeneratorHost
 
         pe.Position = 0;
         Assembly assembly = AssemblyLoadContext.Default.LoadFromStream(pe);
-        return new AxamlGeneratedAssembly(assembly, result.RunResult);
+        return new AxamlGeneratedAssembly(assembly);
     }
 
     public static AxamlGeneratorResult RunGenerator(
@@ -444,7 +444,7 @@ internal sealed record AxamlGeneratorResult(
     GeneratorDriverRunResult RunResult,
     ImmutableArray<Diagnostic> CompilationDiagnostics);
 
-internal sealed record AxamlGeneratedAssembly(Assembly Assembly, GeneratorDriverRunResult RunResult);
+internal sealed record AxamlGeneratedAssembly(Assembly Assembly);
 
 internal static class AxamlAssemblyExtensions
 {

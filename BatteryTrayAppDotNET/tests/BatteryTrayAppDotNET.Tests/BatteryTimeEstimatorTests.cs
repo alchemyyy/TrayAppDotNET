@@ -36,7 +36,7 @@ public sealed class BatteryTimeEstimatorTests
         estimator.Observe(Discharging(watts: 30), At(5));
         BatteryTimeEstimates estimates = estimator.Observe(Discharging(watts: 30), At(15));
 
-        double weightedRate = (10 * 0.125 + 30 * 0.25 + 30) / (0.125 + 0.25 + 1);
+        const double weightedRate = (10 * 0.125 + 30 * 0.25 + 30) / (0.125 + 0.25 + 1);
         Hours(20 / weightedRate, estimates.PresentDischarge);
     }
 
@@ -124,7 +124,7 @@ public sealed class BatteryTimeEstimatorTests
         estimator.Observe(Discharging(watts: 30), At(65));
         BatteryTimeEstimates estimates = estimator.Observe(Discharging(watts: 30), At(120));
 
-        double learnedRate = (10 * 10.0 + 30 * 110.0) / 120;
+        const double learnedRate = (10 * 10.0 + 30 * 110.0) / 120;
         Hours(20 / learnedRate, estimates.PredictedLife);
         Assert.NotEqual(estimates.PredictedLife, estimates.PresentDischarge);
     }

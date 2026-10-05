@@ -232,7 +232,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             {
                 _ddcRecoveryService = new DDCRecoveryService(_monitorService);
                 _ddcRecoveryService.Start();
-                AppServices.DDCRecoveryService = _ddcRecoveryService;
             }
             catch (Exception ex)
             {
@@ -1338,7 +1337,6 @@ internal sealed class BrightnessAvaloniaApp : Application
 
             Safe.Dispose(_ddcRecoveryService);
             _ddcRecoveryService = null;
-            AppServices.DDCRecoveryService = null;
 
             TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.NormalShutdownDrainTimeoutMs));
 

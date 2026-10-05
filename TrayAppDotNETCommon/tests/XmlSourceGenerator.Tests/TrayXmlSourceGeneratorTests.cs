@@ -279,7 +279,7 @@ internal static class GeneratorHost
 
         pe.Position = 0;
         Assembly assembly = AssemblyLoadContext.Default.LoadFromStream(pe);
-        return new GeneratedAssembly(assembly, result.RunResult);
+        return new GeneratedAssembly(assembly);
     }
 
     public static GeneratorResult RunGenerator(string source)
@@ -369,7 +369,7 @@ internal sealed record GeneratorResult(
     GeneratorDriverRunResult RunResult,
     ImmutableArray<Diagnostic> CompilationDiagnostics);
 
-internal sealed record GeneratedAssembly(Assembly Assembly, GeneratorDriverRunResult RunResult);
+internal sealed record GeneratedAssembly(Assembly Assembly);
 
 internal static class AssemblyExtensions
 {
