@@ -7,18 +7,21 @@ namespace NetworkTrayAppDotNET.Services;
 /// Watches Windows network connectivity via WinRT and surfaces a single rolled-up
 /// NetworkIconState plus a per-connection tooltip string. Fires NetworkStateChanged
 /// only when the rolled-up state actually changes (callers Dispatcher-marshal).
+/// While no connection reaches the internet, the Wi-Fi adapter state from WLAN AutoConfig
+/// picks between the Wi-Fi connecting, Wi-Fi disconnected and no network states.
 /// </summary>
 public sealed class NetworkMonitor : IDisposable
 {
     private readonly NetworkStatusChangedEventHandler _networkHandler;
+    private readonly WifiAdapterMonitor _wifiAdapters = new();
+    private readonly Lock _refreshGate = new();
+    private int _refreshPending;
     private int _disposed;
     private int _initialized;
 
     public event Action<NetworkIconState>? NetworkStateChanged;
 
     public NetworkIconState CurrentState { get; private set; } = NetworkIconState.NoNetwork;
-    public int WifiSignalBars { get; private set; }
-    public string CurrentNetworkName { get; private set; } = string.Empty;
     public List<(string Name, bool IsWifi, bool HasInternet)> AllConnections { get; private set; } = [];
 
     public NetworkMonitor() => _networkHandler = _ => RefreshState();
@@ -31,6 +34,7 @@ public sealed class NetworkMonitor : IDisposable
         try
         {
             NetworkInformation.NetworkStatusChanged += _networkHandler;
+            _wifiAdapters.StateChanged += OnWifiAdapterStateChanged;
             RefreshState();
         }
         catch (Exception ex)
@@ -41,6 +45,7 @@ public sealed class NetworkMonitor : IDisposable
                 TADNLog.Log($"NetworkMonitor.Initialize unsubscribe: {unsubscribeException.Message}");
             }
 
+            _wifiAdapters.StateChanged -= OnWifiAdapterStateChanged;
             Interlocked.Exchange(ref _initialized, value: 0);
             TADNLog.Log($"NetworkMonitor.Initialize: {ex.Message}");
             throw;
@@ -49,19 +54,38 @@ public sealed class NetworkMonitor : IDisposable
 
     public void RefreshState()
     {
+        // Poll ticks, NetworkStatusChanged and Wi-Fi notifications never wait on each other: a request that arrives
+        // while a refresh runs is picked up by that refresh before it releases the gate
+        Interlocked.Exchange(ref _refreshPending, value: 1);
+        while (Volatile.Read(ref _refreshPending) != 0 && _refreshGate.TryEnter())
+        {
+            try
+            {
+                while (Interlocked.Exchange(ref _refreshPending, value: 0) != 0)
+                    RefreshSnapshot();
+            }
+            finally
+            {
+                _refreshGate.Exit();
+            }
+        }
+    }
+
+    private void RefreshSnapshot()
+    {
         if (Volatile.Read(ref _disposed) != 0) return;
 
         NetworkIconState previousState = CurrentState;
 
         try
         {
-            NetworkSnapshot snapshot = BuildSnapshot();
-            UpdateState(snapshot.State, snapshot.Bars, snapshot.Name, snapshot.Connections, previousState);
+            NetworkSnapshot snapshot = BuildSnapshot(_wifiAdapters);
+            UpdateState(snapshot.State, snapshot.Connections, previousState);
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NetworkMonitor.RefreshState: {ex.Message}");
-            UpdateState(NetworkIconState.NoNetwork, bars: 0, string.Empty, [], previousState);
+            UpdateState(NetworkIconState.NoNetwork, [], previousState);
         }
         finally
         {
@@ -69,17 +93,24 @@ public sealed class NetworkMonitor : IDisposable
         }
     }
 
-    private static NetworkSnapshot BuildSnapshot()
+    private static NetworkSnapshot BuildSnapshot(WifiAdapterMonitor wifiAdapters)
     {
         List<(string Name, bool IsWifi, bool HasInternet)> connections = [];
         ConnectionProfile? profile = NetworkInformation.GetInternetConnectionProfile();
         if (profile == null)
-            return new NetworkSnapshot(NetworkIconState.NoNetwork, Bars: 0, string.Empty, connections);
+        {
+            NetworkIconState adapterState = wifiAdapters.ReadActivity() switch
+            {
+                WifiAdapterActivity.Connecting => NetworkIconState.WifiConnecting,
+                WifiAdapterActivity.Disconnected => NetworkIconState.WifiDisconnected,
+                _ => NetworkIconState.NoNetwork
+            };
+            return new NetworkSnapshot(adapterState, connections);
+        }
 
         NetworkConnectivityLevel connectivity = profile.GetNetworkConnectivityLevel();
-        string networkName = profile.ProfileName?.Trim() ?? string.Empty;
 
-        // GetSignalBars returns 1-5 for Wi-Fi, null for non-Wi-Fi such as Ethernet
+        // GetSignalBars returns 0-5 for Wi-Fi, null for non-Wi-Fi such as Ethernet
         byte? signalBars = profile.GetSignalBars();
 
         // Build per-connection list for tooltip display
@@ -96,7 +127,8 @@ public sealed class NetworkMonitor : IDisposable
 
         if (signalBars != null)
         {
-            int bars = Math.Clamp((int)signalBars.Value, min: 1, max: 4);
+            // The icon ladders end at 4 bars, so a 5-bar reading shows as full signal
+            int bars = Math.Clamp((int)signalBars.Value, min: 0, max: 4);
             bool hasInternet = connectivity == NetworkConnectivityLevel.InternetAccess;
             NetworkIconState state = (hasInternet, bars) switch
             {
@@ -111,7 +143,7 @@ public sealed class NetworkMonitor : IDisposable
                 (false, 3) => NetworkIconState.Wifi3BarsNoInternet,
                 _ => NetworkIconState.Wifi4BarsNoInternet
             };
-            return new NetworkSnapshot(state, bars, networkName, connections);
+            return new NetworkSnapshot(state, connections);
         }
 
         // No signal bars = Ethernet or other wired connection
@@ -122,7 +154,7 @@ public sealed class NetworkMonitor : IDisposable
                 or NetworkConnectivityLevel.ConstrainedInternetAccess => NetworkIconState.EthernetNoInternet,
             _ => NetworkIconState.EthernetDisconnected
         };
-        return new NetworkSnapshot(ethernetState, Bars: 0, networkName, connections);
+        return new NetworkSnapshot(ethernetState, connections);
     }
 
     /// <summary>
@@ -139,15 +171,21 @@ public sealed class NetworkMonitor : IDisposable
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
     }
 
-    private void UpdateState(NetworkIconState state, int bars, string name,
-        List<(string, bool, bool)> connections, NetworkIconState previous)
+    private void UpdateState(NetworkIconState state, List<(string, bool, bool)> connections,
+        NetworkIconState previous)
     {
         CurrentState = state;
-        WifiSignalBars = bars;
-        CurrentNetworkName = name;
         AllConnections = connections;
         if (state != previous) NetworkStateChanged?.Invoke(state);
     }
+
+    // WLAN AutoConfig raises notifications on its own callback thread, which must not run a refresh
+    private void OnWifiAdapterStateChanged() =>
+        ThreadPool.QueueUserWorkItem(static monitor =>
+        {
+            try { monitor.RefreshState(); }
+            catch (Exception ex) { TADNLog.Log($"NetworkMonitor Wi-Fi notification refresh: {ex.Message}"); }
+        }, this, preferLocal: false);
 
     public string GetTooltipText()
     {
@@ -180,12 +218,12 @@ public sealed class NetworkMonitor : IDisposable
             }
         }
 
+        _wifiAdapters.StateChanged -= OnWifiAdapterStateChanged;
+        _wifiAdapters.Dispose();
         NetworkStateChanged = null;
     }
 
     private readonly record struct NetworkSnapshot(
         NetworkIconState State,
-        int Bars,
-        string Name,
         List<(string Name, bool IsWifi, bool HasInternet)> Connections);
 }
