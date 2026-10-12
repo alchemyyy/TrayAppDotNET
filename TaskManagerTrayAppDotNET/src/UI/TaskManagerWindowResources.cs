@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -33,6 +34,22 @@ public sealed partial class TaskManagerWindowResources : ResourceDictionary
 #endif
         }
     }
+
+    internal Color GridBackgroundColor(bool isLightTheme) => isLightTheme
+        ? AxamlProcessTable.LightGridBackgroundColor
+        : AxamlProcessTable.DarkGridBackgroundColor;
+
+    internal Color ScrollHoverThumbColor(bool isLightTheme) => isLightTheme
+        ? AxamlProcessTable.LightScrollHoverThumbColor
+        : AxamlProcessTable.DarkScrollHoverThumbColor;
+
+    internal Color GraphBackgroundColor(bool isLightTheme) => isLightTheme
+        ? AxamlTaskManagerPerformance.LightGraphBackgroundColor
+        : AxamlTaskManagerPerformance.DarkGraphBackgroundColor;
+
+    internal Color GraphHoverLineColor(bool isLightTheme) => isLightTheme
+        ? AxamlTaskManagerPerformance.LightGraphHoverLineColor
+        : AxamlTaskManagerPerformance.DarkGraphHoverLineColor;
 
 #if DEBUG
     /// <summary>Notifies code-created Task Manager controls after a successful AXAML reload.</summary>

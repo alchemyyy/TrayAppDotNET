@@ -9,12 +9,6 @@ namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 /// <summary>Configures Processes-column visibility and left-to-right ordering.</summary>
 internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<ProcessColumnSetting>
 {
-    private const int RedLuminanceWeight = 299;
-    private const int GreenLuminanceWeight = 587;
-    private const int BlueLuminanceWeight = 114;
-    private const int LuminanceDivisor = 1000;
-    private const int LightSurfaceThreshold = 128;
-
     private readonly AppSettings _settings;
     private readonly CheckBox _hideUnusedColumns;
 #if DEBUG
@@ -25,6 +19,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : this(
             ProcessColumnSettings.CloneList(
@@ -32,7 +27,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             settings,
             palette ?? throw new ArgumentNullException(nameof(palette)),
             resources ?? throw new ArgumentNullException(nameof(resources)),
-            ResolveBackground(palette),
+            isLightTheme,
+            ResolveBackground(resources, isLightTheme),
             CreateHideUnusedColumnsCheckBox(palette, settings.HideUnusedProcessColumns),
             columnsChanged)
     {
@@ -43,6 +39,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Color background,
         CheckBox hideUnusedColumns,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
@@ -72,7 +69,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             resources.AxamlTaskManagerReorderDialog.ColumnWindowMinHeight,
             showSearch: true,
             searchPlaceholder: "Search columns",
-            CreateScrollBarStyle(resources, background),
+            CreateScrollBarStyle(resources, background, isLightTheme),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,
@@ -282,21 +279,15 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         return result == TrayAppDotNETUpdatePromptResult.Confirmed;
     }
 
-    private static Color ResolveBackground(SettingsPalette palette)
-    {
-        Color paletteBackground = palette.Background;
-        int luminance = (paletteBackground.R * RedLuminanceWeight
-                         + paletteBackground.G * GreenLuminanceWeight
-                         + paletteBackground.B * BlueLuminanceWeight)
-                        / LuminanceDivisor;
-        return luminance >= LightSurfaceThreshold
-            ? TaskManagerWindowResources.Current.AxamlProcessColumnChooser.LightBackgroundColor
-            : TaskManagerWindowResources.Current.AxamlProcessColumnChooser.DarkBackgroundColor;
-    }
+    private static Color ResolveBackground(TaskManagerWindowResources resources, bool isLightTheme) =>
+        isLightTheme
+            ? resources.AxamlProcessColumnChooser.LightBackgroundColor
+            : resources.AxamlProcessColumnChooser.DarkBackgroundColor;
 
     private static SettingsScrollBarStyle CreateScrollBarStyle(
         TaskManagerWindowResources resources,
-        Color background) =>
+        Color background,
+        bool isLightTheme) =>
         new(
             resources.AxamlProcessTable.ScrollBarTrackThickness,
             resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
@@ -305,8 +296,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
             background,
             resources.AxamlProcessTable.ScrollThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.ScrollHoverThumbColor(isLightTheme),
+            resources.ScrollHoverThumbColor(isLightTheme),
+            resources.ScrollHoverThumbColor(isLightTheme),
             ShowButtonsOnHover: true);
 }

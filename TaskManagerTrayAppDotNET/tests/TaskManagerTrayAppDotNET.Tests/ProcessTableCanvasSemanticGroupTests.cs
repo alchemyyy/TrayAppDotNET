@@ -450,7 +450,8 @@ public sealed class ProcessTableCanvasSemanticGroupTests
             AppSettings.GridRowSpacingDefault,
             ProcessLiveTotalAppearance.Default,
             CreatePalette(),
-            new TaskManagerWindowResources());
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
         try
         {
             ProcessSnapshotBuffer sourceSnapshot = GetPrivateField<ProcessSnapshotBuffer>(canvas, "_sourceSnapshot");

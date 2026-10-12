@@ -100,7 +100,8 @@ public sealed class ProcessTableCanvasLiveTotalHeaderTests
             AppSettings.GridRowSpacingDefault,
             ProcessLiveTotalAppearance.Default with { ShowAboveColumnNames = showTotalsAboveColumnNames },
             CreatePalette(),
-            resources);
+            resources,
+            isLightTheme: false);
     }
 
     private static ProcessColumnSetting WithLiveTotal(

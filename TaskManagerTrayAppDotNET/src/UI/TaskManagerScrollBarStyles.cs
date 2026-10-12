@@ -4,7 +4,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal static class TaskManagerScrollBarStyles
 {
     /// <summary>Creates the process-grid scrollbar appearance.</summary>
-    internal static SettingsScrollBarStyle CreateProcessGrid(TaskManagerWindowResources resources)
+    internal static SettingsScrollBarStyle CreateProcessGrid(TaskManagerWindowResources resources, bool isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(resources);
         return new SettingsScrollBarStyle(
@@ -13,11 +13,11 @@ internal static class TaskManagerScrollBarStyles
             resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
             resources.AxamlProcessTable.ScrollBarThumbEndMargin,
             resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            resources.AxamlProcessTable.GridBackgroundColor,
+            resources.GridBackgroundColor(isLightTheme),
             resources.AxamlProcessTable.ScrollThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.ScrollHoverThumbColor(isLightTheme),
+            resources.ScrollHoverThumbColor(isLightTheme),
+            resources.ScrollHoverThumbColor(isLightTheme),
             ShowButtonsOnHover: true);
     }
 }

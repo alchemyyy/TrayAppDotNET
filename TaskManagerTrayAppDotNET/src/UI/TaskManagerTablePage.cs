@@ -54,9 +54,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Func<string, bool> startProcess,
         string searchPlaceholder)
-        : base(title, palette, resources)
+        : base(title, palette, resources, isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(processIconService);
@@ -122,7 +123,8 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             processIconService,
             settings,
             palette,
-            resources);
+            resources,
+            isLightTheme);
         _table.SelectedRowChanged += OnSelectedRowChanged;
         _table.RowActivated += OnRowActivated;
         _table.GridZoomRequested += OnGridZoomRequested;
@@ -140,12 +142,12 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _emptyMessage.IsHitTestVisible = false;
         tableSurface.Children.Add(_emptyMessage);
 
-        TaskManagerResizeGrip resizeGrip = new(resources);
+        TaskManagerResizeGrip resizeGrip = new(resources, isLightTheme);
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             padding: default,
-            resources.AxamlProcessTable.GridBackgroundColor,
-            TaskManagerScrollBarStyles.CreateProcessGrid(resources),
+            resources.GridBackgroundColor(isLightTheme),
+            TaskManagerScrollBarStyles.CreateProcessGrid(resources, isLightTheme),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,

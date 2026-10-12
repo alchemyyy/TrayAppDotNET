@@ -39,15 +39,15 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         Func<double, string> metricFormatter,
         Color accent,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
     {
         _primaryHistory = primaryHistory;
         _secondaryHistory = secondaryHistory;
         _primaryLabel = primaryLabel;
         _secondaryLabel = secondaryLabel;
         _metricFormatter = metricFormatter;
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlTaskManagerPerformance.GraphBackgroundColor);
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(resources.GraphBackgroundColor(isLightTheme));
         _borderPen = new Pen(
             TrayAppDotNETSettingsUI.Brush(palette.Border),
             resources.AxamlTaskManagerPerformance.GraphBorderThickness);
@@ -79,8 +79,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 accent,
                 resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
                 resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
-        Color configuredHoverLineColor =
-            resources.AxamlTaskManagerPerformance.GraphHoverLineColor;
+        Color configuredHoverLineColor = resources.GraphHoverLineColor(isLightTheme);
         byte hoverLineAlpha = (byte)Math.Round(
             configuredHoverLineColor.A * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,

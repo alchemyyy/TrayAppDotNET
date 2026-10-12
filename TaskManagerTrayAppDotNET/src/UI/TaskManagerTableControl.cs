@@ -66,7 +66,8 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         ProcessIconService processIconService,
         AppSettings settings,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(processIconService);
@@ -100,8 +101,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
 
         _sortColumnIndex = 0;
         _sortDescending = schema.Columns[0].SortDescendingByDefault;
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlProcessTable.GridBackgroundColor);
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(resources.GridBackgroundColor(isLightTheme));
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _headerHoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);

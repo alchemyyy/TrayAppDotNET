@@ -31,6 +31,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Func<string, bool> startProcess,
         Func<WindowsServiceSnapshot, Task<bool>> confirmDisable,
         Action<string, string> reportMessage)
@@ -42,6 +43,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
             settings,
             palette,
             resources,
+            isLightTheme,
             startProcess,
             searchPlaceholder: "Search services")
     {

@@ -68,6 +68,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Action<ProcessTerminationTarget?> armTerminationTarget,
         TryTerminateProcessAction terminateProcess,
         Func<ElevatedHelperStatus> getElevatedHelperStatus,
@@ -78,7 +79,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         Func<Task<ExplorerRestartResult>> restartExplorer,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
-        : base(title: "Processes", palette, resources)
+        : base(title: "Processes", palette, resources, isLightTheme)
     {
         _snapshotService = snapshotService;
         _settings = settings;
@@ -114,7 +115,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.GridRowSpacing,
             ProcessLiveTotalAppearance.FromSettings(settings),
             palette,
-            resources);
+            resources,
+            isLightTheme);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged += OnRowHoverGeometryChanged;
         _processCanvas.ViewportAnchorAdjustmentRequested += OnViewportAnchorAdjustmentRequested;
@@ -248,7 +250,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
         MainContent.Children.Add(_runPanel);
 
-        SettingsScrollBarStyle scrollBarStyle = TaskManagerScrollBarStyles.CreateProcessGrid(resources);
+        SettingsScrollBarStyle scrollBarStyle = TaskManagerScrollBarStyles.CreateProcessGrid(resources, isLightTheme);
         ContextMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
             palette,
             settings.EnableRoundedCorners,
@@ -260,12 +262,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             tableSurface.Children.Add(renderLayer);
         tableSurface.Children.Add(_processCanvas);
 
-        _resizeGrip = new TaskManagerResizeGrip(resources);
+        _resizeGrip = new TaskManagerResizeGrip(resources, isLightTheme);
         // Preserve the fractional anchor correction instead of pixel-rounding -Offset after each reorder
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             padding: default,
-            resources.AxamlProcessTable.GridBackgroundColor,
+            resources.GridBackgroundColor(isLightTheme),
             scrollBarStyle,
             scrollBarContextMenuOptions,
             _resizeGrip,
@@ -535,10 +537,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
 
         _tableScrollViewport.Margin = resources.AxamlTaskManagerDetails.TableMargin;
-        _tableScrollViewport.Background = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlProcessTable.GridBackgroundColor);
+        _tableScrollViewport.Background = TrayAppDotNETSettingsUI.Brush(resources.GridBackgroundColor(IsLightTheme));
 
-        _tableScrollViewport.SetScrollBarStyle(TaskManagerScrollBarStyles.CreateProcessGrid(resources));
+        _tableScrollViewport.SetScrollBarStyle(TaskManagerScrollBarStyles.CreateProcessGrid(resources, IsLightTheme));
         ApplyColumnHeaderGeometry();
         _resizeGrip.ApplyResources(resources);
 
@@ -875,6 +876,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _settings,
             _palette,
             _resources,
+            IsLightTheme,
             UpdateColumnSettings);
         _columnChooserWindow.Closed += OnColumnChooserClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)

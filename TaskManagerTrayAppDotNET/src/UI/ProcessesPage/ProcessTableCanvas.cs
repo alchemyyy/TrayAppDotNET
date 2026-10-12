@@ -85,6 +85,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private readonly ProcessIconService _processIconService;
     private ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
+    private readonly bool _isLightTheme;
     private readonly TaskManagerGridFontWeight _baseTableFontWeight;
     private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
@@ -263,7 +264,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         double gridRowSpacing,
         ProcessLiveTotalAppearance liveTotalAppearance,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(processIconService);
         ArgumentNullException.ThrowIfNull(schema);
@@ -275,6 +277,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         _processIconService = processIconService;
         _schema = schema;
         _resources = resources;
+        _isLightTheme = isLightTheme;
         _baseTableFontWeight = gridFontWeight;
         _tableFontWeight = CalculateTableFontWeight(gridFontSize);
         _tableTypeface = CreateTableTypeface(_tableFontWeight);
@@ -319,12 +322,12 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         _totalPhysicalMemoryBytes = NativeProcessInfo.ReadTotalPhysicalMemoryBytes();
         _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
 
+        Color backgroundColor = resources.GridBackgroundColor(_isLightTheme);
 #if DEBUG
-        _backgroundColor = resources.AxamlProcessTable.GridBackgroundColor;
+        _backgroundColor = backgroundColor;
 #endif
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlProcessTable.GridBackgroundColor);
-        _statusGlyphBrushes = new StatusGlyphBrushes(CreateStatusGlyphColors(resources));
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(backgroundColor);
+        _statusGlyphBrushes = new StatusGlyphBrushes(CreateStatusGlyphColors(resources, _isLightTheme));
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _selectionBackgroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected);
@@ -2092,8 +2095,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         ProcessTableAXAMLColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
         Thickness nextSelectionBorderThickness =
             _resources.AxamlProcessTable.SelectionBorderThickness;
-        Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
-        StatusGlyphColors nextStatusGlyphColors = CreateStatusGlyphColors(_resources);
+        Color nextBackgroundColor = _resources.GridBackgroundColor(_isLightTheme);
+        StatusGlyphColors nextStatusGlyphColors = CreateStatusGlyphColors(_resources, _isLightTheme);
         bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
         bool statusGlyphColorsChanged = nextStatusGlyphColors != _statusGlyphBrushes.Colors;
         bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
@@ -5214,11 +5217,18 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         return measurement.Height / AppSettings.GridFontSizeDefault;
     }
 
-    private static StatusGlyphColors CreateStatusGlyphColors(TaskManagerWindowResources resources) =>
-        new(
-            resources.AxamlProcessTable.StatusSuspendedGlyphColor,
-            resources.AxamlProcessTable.StatusEfficiencyModeGlyphColor,
-            resources.AxamlProcessTable.StatusNotRespondingGlyphColor);
+    private static StatusGlyphColors CreateStatusGlyphColors(
+        TaskManagerWindowResources resources,
+        bool isLightTheme) =>
+        isLightTheme
+            ? new StatusGlyphColors(
+                resources.AxamlProcessTable.LightStatusSuspendedGlyphColor,
+                resources.AxamlProcessTable.LightStatusEfficiencyModeGlyphColor,
+                resources.AxamlProcessTable.LightStatusNotRespondingGlyphColor)
+            : new StatusGlyphColors(
+                resources.AxamlProcessTable.DarkStatusSuspendedGlyphColor,
+                resources.AxamlProcessTable.DarkStatusEfficiencyModeGlyphColor,
+                resources.AxamlProcessTable.DarkStatusNotRespondingGlyphColor);
 
     private static ProcessTableVisualMetrics CreateVisualMetrics(
         TaskManagerWindowResources resources) =>

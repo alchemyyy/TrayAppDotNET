@@ -31,6 +31,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Func<string, bool> startProcess)
         : base(
             title: "App history",
@@ -40,6 +41,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             settings,
             palette,
             resources,
+            isLightTheme,
             startProcess,
             searchPlaceholder: "Search app history")
     {

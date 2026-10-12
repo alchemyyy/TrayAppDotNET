@@ -27,8 +27,10 @@ internal class TaskManagerPageLayout : Grid
     internal TaskManagerPageLayout(
         string title,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
     {
+        IsLightTheme = isLightTheme;
         RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
@@ -96,8 +98,7 @@ internal class TaskManagerPageLayout : Grid
 
         Border pageSurface = new()
         {
-            Background = TrayAppDotNETSettingsUI.Brush(
-                resources.AxamlProcessTable.GridBackgroundColor),
+            Background = TrayAppDotNETSettingsUI.Brush(resources.GridBackgroundColor(isLightTheme)),
             CornerRadius = resources.AxamlTaskManagerPage.SurfaceCornerRadius,
             ClipToBounds = true,
             Child = surfaceLayout
@@ -114,6 +115,8 @@ internal class TaskManagerPageLayout : Grid
 
     /// <summary>Gets the full-height content host below the shared header.</summary>
     internal Grid MainContent { get; }
+
+    protected bool IsLightTheme { get; }
 
     /// <summary>Gets the control rendered in the shell-level title-bar overlay.</summary>
     internal virtual Control? PageOverlay => null;
@@ -136,8 +139,7 @@ internal class TaskManagerPageLayout : Grid
             top: 0,
             right: 0,
             resources.AxamlProcessTable.GridLineThickness);
-        _pageSurface.Background = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlProcessTable.GridBackgroundColor);
+        _pageSurface.Background = TrayAppDotNETSettingsUI.Brush(resources.GridBackgroundColor(IsLightTheme));
         _pageSurface.CornerRadius = resources.AxamlTaskManagerPage.SurfaceCornerRadius;
     }
 #endif

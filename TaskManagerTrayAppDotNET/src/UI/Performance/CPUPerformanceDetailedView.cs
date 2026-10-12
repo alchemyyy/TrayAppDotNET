@@ -15,6 +15,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
 {
     private readonly SettingsPalette _palette;
     private readonly TaskManagerWindowResources _resources;
+    private readonly bool _isLightTheme;
     private readonly List<PerformanceHistory> _groupHistories = [];
     private readonly List<PerformanceHistoryGraph> _graphs = [];
     private IReadOnlyList<CPUDetailedGraphGroup> _groups = [];
@@ -24,13 +25,15 @@ internal sealed class CPUPerformanceDetailedView : Grid
 
     public CPUPerformanceDetailedView(
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
 
         _palette = palette;
         _resources = resources;
+        _isLightTheme = isLightTheme;
         Background = Brushes.Transparent;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
@@ -351,6 +354,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             accent,
             _palette,
             _resources,
+            _isLightTheme,
             hoverMetricProvider)
         {
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch

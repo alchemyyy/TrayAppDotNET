@@ -38,6 +38,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
     public GPUPerformanceDetailsView(
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         int historyLengthMinutes,
         int sampleIntervalMilliseconds)
     {
@@ -65,7 +66,8 @@ internal sealed class GPUPerformanceDetailsView : Grid
                 _engineHistories[engineIndex],
                 accent,
                 palette,
-                resources)
+                resources,
+                isLightTheme)
             {
                 MinHeight = resources.AxamlTaskManagerPerformance.GPUDetailEngineGraphMinimumHeight,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -94,7 +96,8 @@ internal sealed class GPUPerformanceDetailsView : Grid
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
             palette,
-            resources)
+            resources,
+            isLightTheme)
         {
             Height = resources.AxamlTaskManagerPerformance.GPUDetailMemoryGraphHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch
@@ -117,7 +120,8 @@ internal sealed class GPUPerformanceDetailsView : Grid
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
             palette,
-            resources)
+            resources,
+            isLightTheme)
         {
             Height = resources.AxamlTaskManagerPerformance.GPUDetailMemoryGraphHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch

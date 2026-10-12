@@ -8,14 +8,16 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Paints and handles the southeast resize grip in the process-table scrollbar corner.</summary>
 internal sealed class TaskManagerResizeGrip : Control
 {
+    private readonly bool _isLightTheme;
     private IBrush _backgroundBrush = Brushes.Transparent;
     private IBrush _dotBrush = Brushes.Transparent;
     private double _dotSize;
     private double _dotStep;
     private int _dotRows;
 
-    public TaskManagerResizeGrip(TaskManagerWindowResources resources)
+    public TaskManagerResizeGrip(TaskManagerWindowResources resources, bool isLightTheme)
     {
+        _isLightTheme = isLightTheme;
         ApplyResources(resources);
         Cursor = TrayAppDotNETCursors.BottomRightCorner;
         Focusable = false;
@@ -25,8 +27,7 @@ internal sealed class TaskManagerResizeGrip : Control
     public void ApplyResources(TaskManagerWindowResources resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
-            resources.AxamlProcessTable.GridBackgroundColor);
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(resources.GridBackgroundColor(_isLightTheme));
         _dotBrush = TrayAppDotNETSettingsUI.Brush(resources.AxamlProcessTable.ResizeGripColor);
         _dotSize = resources.AxamlProcessTable.ResizeGripDotSize;
         _dotStep = resources.AxamlProcessTable.ResizeGripDotStep;

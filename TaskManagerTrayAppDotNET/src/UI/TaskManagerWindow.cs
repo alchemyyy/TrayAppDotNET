@@ -654,6 +654,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settings,
             Palette,
             _taskManagerResources,
+            ResolveEffectiveIsLight(),
             _processTerminationService.Arm,
             TryTerminateProcess,
             _processTerminationService.GetElevatedHelperStatus,
@@ -673,6 +674,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settings,
             Palette,
             _taskManagerResources,
+            ResolveEffectiveIsLight(),
             _performanceSnapshotService,
             _selectedPerformanceDeviceID);
         return RegisterPage(page);
@@ -685,6 +687,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _settings,
         Palette,
         _taskManagerResources,
+        ResolveEffectiveIsLight(),
         StartProcess));
 
     private Control BuildStartupAppsPage() => RegisterPage(new StartupAppsPage(
@@ -693,6 +696,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _settings,
         Palette,
         _taskManagerResources,
+        ResolveEffectiveIsLight(),
         StartProcess,
         ReportMessage));
 
@@ -703,6 +707,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _settings,
         Palette,
         _taskManagerResources,
+        ResolveEffectiveIsLight(),
         StartProcess,
         ReportMessage));
 
@@ -712,6 +717,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _settings,
         Palette,
         _taskManagerResources,
+        ResolveEffectiveIsLight(),
         StartProcess,
         ConfirmDisableServiceAsync,
         ReportMessage));

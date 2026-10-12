@@ -141,10 +141,12 @@
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">0.75</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineOpacity">0.3607843137254902</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
-  <Color x:Key="TaskManagerPerformance.GraphBackgroundColor">#191919</Color>
+  <Color x:Key="TaskManagerPerformance.DarkGraphBackgroundColor">#191919</Color>
+  <Color x:Key="TaskManagerPerformance.LightGraphBackgroundColor">#F9F9F9</Color>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineOpacity">0.58</sys:Double>
-  <Color x:Key="TaskManagerPerformance.GraphHoverLineColor">#FFFFFF</Color>
+  <Color x:Key="TaskManagerPerformance.DarkGraphHoverLineColor">#FFFFFF</Color>
+  <Color x:Key="TaskManagerPerformance.LightGraphHoverLineColor">#000000</Color>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineDashGapLength">2</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineClipPadding">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverTextCursorGap">7</sys:Double>
@@ -252,10 +254,13 @@
   <!-- Root line chevron glyph size along each axis, in font size units. Its stroke is 0.145 em, so a width of 8.64 matches the 1.25 unit tree expander line; its ink spans 0.75 of the width and 0.44 of the height -->
   <sys:Double x:Key="ProcessTable.RootLineGlyphWidth">8.64</sys:Double>
   <sys:Double x:Key="ProcessTable.RootLineGlyphHeight">10.1</sys:Double>
-  <!-- Task Manager's dark-theme Status glyph colors (Fluent caution and success); not responding uses Fluent critical -->
-  <Color x:Key="ProcessTable.StatusSuspendedGlyphColor">#FCE100</Color>
-  <Color x:Key="ProcessTable.StatusEfficiencyModeGlyphColor">#6CCB5F</Color>
-  <Color x:Key="ProcessTable.StatusNotRespondingGlyphColor">#FF99A4</Color>
+  <!-- Task Manager's Status glyph colors (Fluent caution and success); not responding uses Fluent critical -->
+  <Color x:Key="ProcessTable.DarkStatusSuspendedGlyphColor">#FCE100</Color>
+  <Color x:Key="ProcessTable.LightStatusSuspendedGlyphColor">#9D5D00</Color>
+  <Color x:Key="ProcessTable.DarkStatusEfficiencyModeGlyphColor">#6CCB5F</Color>
+  <Color x:Key="ProcessTable.LightStatusEfficiencyModeGlyphColor">#0F7B0F</Color>
+  <Color x:Key="ProcessTable.DarkStatusNotRespondingGlyphColor">#FF99A4</Color>
+  <Color x:Key="ProcessTable.LightStatusNotRespondingGlyphColor">#C42B1C</Color>
   <sys:Double x:Key="ProcessTable.TreeIndentWidth">18</sys:Double>
   <sys:Double x:Key="ProcessTable.SemanticSectionChildIndent">6</sys:Double>
   <sys:Double x:Key="ProcessTable.SemanticSectionHeaderSizeOffset">6</sys:Double>
@@ -284,9 +289,14 @@
   <sys:Double x:Key="ProcessTable.ResizeGripDotSize">2</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotStep">4</sys:Double>
   <sys:Int32 x:Key="ProcessTable.ResizeGripDotRows">3</sys:Int32>
-  <Color x:Key="ProcessTable.GridBackgroundColor">#191919</Color>
+  <!-- Page, table, and scrollbar track surface; the window background around it comes from the app theme -->
+  <Color x:Key="ProcessTable.DarkGridBackgroundColor">#191919</Color>
+  <Color x:Key="ProcessTable.LightGridBackgroundColor">#F9F9F9</Color>
+  <!-- The idle thumb and the grip dots sit about 112 levels from either surface, so one gray serves both themes -->
   <Color x:Key="ProcessTable.ScrollThumbColor">#8A8A8A</Color>
-  <Color x:Key="ProcessTable.ScrollHoverThumbColor">#A6A6A6</Color>
+  <!-- The hovered thumb sits 141 levels from the surface in both themes: 25 + 141 = 166 dark, 249 - 141 = 108 light -->
+  <Color x:Key="ProcessTable.DarkScrollHoverThumbColor">#A6A6A6</Color>
+  <Color x:Key="ProcessTable.LightScrollHoverThumbColor">#6C6C6C</Color>
   <Color x:Key="ProcessTable.ResizeGripColor">#8A8A8A</Color>
   <Thickness x:Key="ProcessTable.SelectionBorderThickness">3,0,0,0</Thickness>
 

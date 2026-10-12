@@ -31,7 +31,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
                 TaskManagerTableControlHotReloadState state = new(
                     SelectedRowKey: "process-b",
                     SortColumnIndex: 1,
@@ -76,7 +77,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
                 TaskManagerTableControlHotReloadState previousState =
                     previousTable.CaptureHotReloadState() with
                     {
@@ -89,7 +91,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
                 rebuiltTable.RestoreHotReloadState(previousState);
 
                 TaskManagerTableControlHotReloadState restoredState =
@@ -121,7 +124,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
 
                 TaskManagerTableControlHotReloadState state = table.CaptureHotReloadState();
                 Assert.Equal([minimumColumnWidth], state.ColumnWidths);
@@ -147,7 +151,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
                 Window window = new() { Width = 360, Height = 240, Content = page };
 
                 try
@@ -220,7 +225,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     processIconService,
                     new AppSettings(),
                     CreatePalette(),
-                    new TaskManagerWindowResources());
+                    new TaskManagerWindowResources(),
+                    isLightTheme: false);
                 Window window = new() { Width = 360, Height = 240, Content = page };
 
                 try
@@ -343,7 +349,8 @@ public sealed class TaskManagerTableHotReloadStateTests
         ProcessIconService processIconService,
         AppSettings settings,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        bool isLightTheme)
         : TaskManagerTablePage(
             title: "Test",
             UI.ControlMap.Main.AppHistoryPage.ID,
@@ -352,6 +359,7 @@ public sealed class TaskManagerTableHotReloadStateTests
             settings,
             palette,
             resources,
+            isLightTheme,
             static _ => false,
             searchPlaceholder: "Search")
     {

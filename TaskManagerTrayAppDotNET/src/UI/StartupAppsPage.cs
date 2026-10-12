@@ -23,6 +23,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Func<string, bool> startProcess,
         Action<string, string> reportMessage)
         : base(
@@ -33,6 +34,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             settings,
             palette,
             resources,
+            isLightTheme,
             startProcess,
             searchPlaceholder: "Search startup apps and publishers")
     {

@@ -31,6 +31,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         Func<string, bool> startProcess,
         Action<string, string> reportMessage)
         : base(
@@ -41,6 +42,7 @@ internal sealed class UsersPage : TaskManagerTablePage
             settings,
             palette,
             resources,
+            isLightTheme,
             startProcess,
             searchPlaceholder: "Search users and processes")
     {

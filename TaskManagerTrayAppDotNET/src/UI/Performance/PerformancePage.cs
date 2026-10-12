@@ -85,9 +85,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         PerformanceSnapshotService snapshotService,
         string? initialSelectedDeviceID)
-        : base(title: "Performance", palette, resources)
+        : base(title: "Performance", palette, resources, isLightTheme)
     {
         _settings = settings;
         _palette = palette;
@@ -112,8 +113,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _deviceScrollViewport = new SettingsVerticalScrollViewport(
             _deviceColumn,
             resources.AxamlTaskManagerPerformance.DeviceColumnPadding,
-            resources.AxamlProcessTable.GridBackgroundColor,
-            TaskManagerScrollBarStyles.CreateProcessGrid(resources),
+            resources.GridBackgroundColor(isLightTheme),
+            TaskManagerScrollBarStyles.CreateProcessGrid(resources, isLightTheme),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,
@@ -196,6 +197,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU),
             palette,
             resources,
+            isLightTheme,
             FormatDetailGraphHoverMetric)
         {
             MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
@@ -209,10 +211,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             VerticalAlignment = VerticalAlignment.Stretch,
             IsVisible = false
         };
-        _cpuDetailedView = new CPUPerformanceDetailedView(palette, resources);
+        _cpuDetailedView = new CPUPerformanceDetailedView(palette, resources, isLightTheme);
         _gpuPerformanceDetailsView = new GPUPerformanceDetailsView(
             palette,
             resources,
+            isLightTheme,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
         _graphSurface = new Grid
@@ -269,6 +272,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _diskPerformanceDetailsView = new DiskPerformanceDetailsView(
             palette,
             resources,
+            isLightTheme,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
         SetRow(_diskPerformanceDetailsView, value: 2);
@@ -753,6 +757,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     history,
                     _palette,
                     _resources,
+                    IsLightTheme,
                     sampleTimestamp => FormatDeviceColumnGraphHoverMetric(
                         deviceID,
                         sampleTimestamp));
@@ -1109,7 +1114,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         for (int processorIndex = 0; processorIndex < processorCount; processorIndex++)
         {
             PerformanceHistory history = CreateHistory();
-            PerformanceHistoryGraph graph = new(history, accent, _palette, _resources)
+            PerformanceHistoryGraph graph = new(history, accent, _palette, _resources, IsLightTheme)
             {
                 HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch
             };
@@ -1573,6 +1578,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceHistory history,
             SettingsPalette palette,
             TaskManagerWindowResources resources,
+            bool isLightTheme,
             Func<long, string?> hoverMetricProvider)
         {
             _palette = palette;
@@ -1590,6 +1596,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 device.Accent,
                 palette,
                 resources,
+                isLightTheme,
                 hoverMetricProvider)
             {
                 Width = resources.AxamlTaskManagerPerformance.DeviceGraphWidth,

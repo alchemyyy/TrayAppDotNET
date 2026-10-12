@@ -22,6 +22,7 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
     public DiskPerformanceDetailsView(
         SettingsPalette palette,
         TaskManagerWindowResources resources,
+        bool isLightTheme,
         int historyLengthMinutes,
         int sampleIntervalMilliseconds)
     {
@@ -56,7 +57,8 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
             PerformanceDevicePresentationFactory.FormatBytesPerSecond,
             accent,
             palette,
-            resources)
+            resources,
+            isLightTheme)
         {
             Height = resources.AxamlTaskManagerPerformance.DiskTransferGraphHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch
