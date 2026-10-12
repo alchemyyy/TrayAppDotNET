@@ -450,6 +450,9 @@ class PublishScriptTests(unittest.TestCase):
                     ),
                     mock.patch.object(PUBLISH, "require_ancestor"),
                     mock.patch.object(
+                        PUBLISH, "published_app_build_commit", return_value="base"
+                    ),
+                    mock.patch.object(
                         PUBLISH,
                         "has_changes_since",
                         side_effect=lambda base, target, included, excluded: any(
@@ -466,8 +469,12 @@ class PublishScriptTests(unittest.TestCase):
                     self.assertEqual("10", Path(first_app.buildnumber).read_text(encoding="utf-8"))
                     self.assertEqual("build", outputs["first_action"])
                     self.assertEqual("11", outputs["first_version"])
-                    self.assertEqual("skip", outputs["second_action"])
-                    self.assertEqual("", outputs["second_version"])
+                    # Skip outranks force and carries the published package forward
+                    self.assertEqual("reuse", outputs["second_action"])
+                    self.assertEqual("7", outputs["second_version"])
+                    self.assertEqual(
+                        f"{first_app.name},{second_app.name}", outputs["included_apps"]
+                    )
                     self.assertEqual("target", outputs["source_sha"])
 
                     outputs.clear()
@@ -480,7 +487,7 @@ class PublishScriptTests(unittest.TestCase):
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
                     self.assertEqual("build", outputs["first_action"])
                     self.assertEqual("10", outputs["first_version"])
-                    self.assertEqual("skip", outputs["second_action"])
+                    self.assertEqual("reuse", outputs["second_action"])
 
                     arguments.force_apps = ""
                     outputs.clear()
@@ -570,7 +577,7 @@ class PublishScriptTests(unittest.TestCase):
             finally:
                 os.chdir(original_directory)
 
-    def test_unchanged_common_checks_each_app_from_its_own_release(self) -> None:
+    def test_unchanged_common_checks_each_app_from_its_build_commit(self) -> None:
         first_app = PUBLISH.App(
             "FirstTrayAppDotNET",
             "first",
@@ -620,6 +627,10 @@ class PublishScriptTests(unittest.TestCase):
 
                 outputs: dict[str, str] = {}
                 change_results = iter([False, True, False])
+                build_commits = {
+                    "TrayAppDotNET_100": "base",
+                    "TrayAppDotNET_99": "older-base",
+                }
                 with (
                     mock.patch.object(PUBLISH, "APPS", [first_app, second_app]),
                     mock.patch.object(PUBLISH, "published_releases", return_value=releases),
@@ -629,6 +640,13 @@ class PublishScriptTests(unittest.TestCase):
                         side_effect=lambda reference: "target" if reference == "HEAD" else "base",
                     ),
                     mock.patch.object(PUBLISH, "require_ancestor"),
+                    mock.patch.object(
+                        PUBLISH,
+                        "published_app_build_commit",
+                        side_effect=lambda repository, asset, app, profile: build_commits[
+                            asset.release_tag
+                        ],
+                    ),
                     mock.patch.object(
                         PUBLISH,
                         "has_changes_since",
@@ -663,7 +681,7 @@ class PublishScriptTests(unittest.TestCase):
                             [first_app.buildnumber],
                         ),
                         mock.call(
-                            "base",
+                            "older-base",
                             "target",
                             [second_app.name, *PUBLISH.SHARED_RELEASE_INPUT_PATHS],
                             [second_app.buildnumber],
@@ -673,6 +691,213 @@ class PublishScriptTests(unittest.TestCase):
                 )
             finally:
                 os.chdir(original_directory)
+
+    def test_plan_counts_changes_from_the_build_commit_of_a_carried_forward_package(
+        self,
+    ) -> None:
+        app = PUBLISH.App(
+            "FirstTrayAppDotNET",
+            "first",
+            "First",
+            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
+            "FirstTrayAppDotNET/buildnumber.txt",
+        )
+        # Release 101 skipped the app, so its package from release 100 was carried into it
+        releases = [
+            {
+                "tag_name": "TrayAppDotNET_101",
+                "assets": [
+                    {"name": "TrayAppDotNET_101.zip"},
+                    {"name": "FirstTrayAppDotNET_10.zip"},
+                ],
+            },
+            {
+                "tag_name": "TrayAppDotNET_100",
+                "assets": [
+                    {"name": "TrayAppDotNET_100.zip"},
+                    {"name": "FirstTrayAppDotNET_10.zip"},
+                ],
+            },
+        ]
+        arguments = SimpleNamespace(
+            force_apps="",
+            skip_apps="",
+            target="HEAD",
+            repo="owner/repository",
+            force_rebuild=False,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            original_directory = Path.cwd()
+            os.chdir(temporary_directory)
+            try:
+                buildnumber_path = Path(app.buildnumber)
+                buildnumber_path.parent.mkdir(parents=True, exist_ok=True)
+                buildnumber_path.write_text("10", encoding="utf-8")
+
+                outputs: dict[str, str] = {}
+                with (
+                    mock.patch.object(PUBLISH, "APPS", [app]),
+                    mock.patch.object(PUBLISH, "published_releases", return_value=releases),
+                    mock.patch.object(
+                        PUBLISH,
+                        "resolve_git_commit",
+                        side_effect=lambda reference: "target" if reference == "HEAD" else "commit-101",
+                    ),
+                    mock.patch.object(PUBLISH, "require_ancestor"),
+                    mock.patch.object(
+                        PUBLISH, "published_app_build_commit", return_value="commit-100"
+                    ) as published_app_build_commit,
+                    # The skipped changes landed between releases 100 and 101
+                    mock.patch.object(
+                        PUBLISH,
+                        "has_changes_since",
+                        side_effect=lambda base, target, included, excluded: (
+                            base == "commit-100" and app.name in included
+                        ),
+                    ) as has_changes,
+                    mock.patch.object(
+                        PUBLISH,
+                        "set_github_output",
+                        side_effect=lambda name, value: outputs.__setitem__(name, value),
+                    ),
+                ):
+                    self.assertEqual(0, PUBLISH.plan_publish(arguments))
+
+                self.assertEqual(
+                    "TrayAppDotNET_101",
+                    published_app_build_commit.call_args.args[1].release_tag,
+                )
+                self.assertEqual("build", outputs["first_action"])
+                self.assertEqual("11", outputs["first_version"])
+                self.assertEqual(
+                    mock.call(
+                        "commit-100",
+                        "target",
+                        [app.name, *PUBLISH.SHARED_RELEASE_INPUT_PATHS],
+                        [app.buildnumber],
+                    ),
+                    has_changes.call_args_list[-1],
+                )
+            finally:
+                os.chdir(original_directory)
+
+    def test_plan_carries_skipped_apps_forward_and_omits_unpublished_ones(self) -> None:
+        published_app = PUBLISH.App(
+            "FirstTrayAppDotNET",
+            "first",
+            "First",
+            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
+            "FirstTrayAppDotNET/buildnumber.txt",
+        )
+        unpublished_app = PUBLISH.App(
+            "SecondTrayAppDotNET",
+            "second",
+            "Second",
+            "SecondTrayAppDotNET/src/SecondTrayAppDotNET.csproj",
+            "SecondTrayAppDotNET/buildnumber.txt",
+        )
+        built_app = PUBLISH.App(
+            "ThirdTrayAppDotNET",
+            "third",
+            "Third",
+            "ThirdTrayAppDotNET/src/ThirdTrayAppDotNET.csproj",
+            "ThirdTrayAppDotNET/buildnumber.txt",
+        )
+        releases = [
+            {
+                "tag_name": "TrayAppDotNET_100",
+                "assets": [
+                    {"name": "TrayAppDotNET_100.zip"},
+                    {"name": "FirstTrayAppDotNET_10.zip"},
+                    {"name": "ThirdTrayAppDotNET_4.zip"},
+                ],
+            }
+        ]
+        arguments = SimpleNamespace(
+            force_apps="",
+            skip_apps=f"{published_app.name},{unpublished_app.name}",
+            target="HEAD",
+            repo="owner/repository",
+            force_rebuild=False,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            original_directory = Path.cwd()
+            os.chdir(temporary_directory)
+            try:
+                for app in (published_app, unpublished_app, built_app):
+                    buildnumber_path = Path(app.buildnumber)
+                    buildnumber_path.parent.mkdir(parents=True, exist_ok=True)
+                    buildnumber_path.write_text("0", encoding="utf-8")
+
+                outputs: dict[str, str] = {}
+                with (
+                    mock.patch.object(
+                        PUBLISH, "APPS", [published_app, unpublished_app, built_app]
+                    ),
+                    mock.patch.object(PUBLISH, "published_releases", return_value=releases),
+                    mock.patch.object(
+                        PUBLISH,
+                        "resolve_git_commit",
+                        side_effect=lambda reference: "target" if reference == "HEAD" else "base",
+                    ),
+                    mock.patch.object(PUBLISH, "require_ancestor"),
+                    mock.patch.object(PUBLISH, "has_changes_since", return_value=True),
+                    mock.patch.object(
+                        PUBLISH,
+                        "set_github_output",
+                        side_effect=lambda name, value: outputs.__setitem__(name, value),
+                    ),
+                ):
+                    self.assertEqual(0, PUBLISH.plan_publish(arguments))
+
+                    arguments.skip_apps = ",".join(
+                        app.name for app in (published_app, unpublished_app, built_app)
+                    )
+                    with self.assertRaisesRegex(SystemExit, r"cannot skip every app"):
+                        PUBLISH.plan_publish(arguments)
+
+                self.assertEqual("reuse", outputs["first_action"])
+                self.assertEqual("10", outputs["first_version"])
+                self.assertEqual("skip", outputs["second_action"])
+                self.assertEqual("", outputs["second_version"])
+                self.assertEqual("build", outputs["third_action"])
+                self.assertEqual("5", outputs["third_version"])
+                self.assertEqual(
+                    f"{published_app.name},{built_app.name}", outputs["included_apps"]
+                )
+            finally:
+                os.chdir(original_directory)
+
+    def test_published_app_build_commit_falls_back_to_the_release_tag(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+        asset = PUBLISH.PublishedAppAsset("TrayAppDotNET_101", 10, f"{app.name}_10.zip", "")
+        recorded_commit = "c" * 40
+        known_commits = {recorded_commit: recorded_commit, "TrayAppDotNET_101": "d" * 40}
+
+        with (
+            mock.patch.object(
+                PUBLISH, "published_app_commit_hash", return_value=recorded_commit
+            ),
+            mock.patch.object(
+                PUBLISH,
+                "try_resolve_git_commit",
+                side_effect=lambda reference: known_commits.get(reference, ""),
+            ),
+        ):
+            self.assertEqual(
+                recorded_commit,
+                PUBLISH.published_app_build_commit("owner/repository", asset, app, profile),
+            )
+
+            # A recorded commit missing from the clone falls back to the release tag
+            del known_commits[recorded_commit]
+            self.assertEqual(
+                "d" * 40,
+                PUBLISH.published_app_build_commit("owner/repository", asset, app, profile),
+            )
 
     def test_reuse_takes_precedence_over_force_rebuild(self) -> None:
         expected_package = mock.sentinel.package
@@ -828,7 +1053,7 @@ class PublishScriptTests(unittest.TestCase):
                 rows,
                 "owner/repository",
                 {"tag_name": "TrayAppDotNET_100"},
-                [],
+                PUBLISH.release_note_sections([], {}),
                 pull_requests,
             )
             notes = notes_path.read_text(encoding="utf-8")
@@ -880,7 +1105,7 @@ class PublishScriptTests(unittest.TestCase):
                 rows,
                 "owner/repository",
                 None,
-                commits,
+                PUBLISH.release_note_sections(commits, {}),
                 [],
             )
             notes = notes_path.read_text(encoding="utf-8")
@@ -915,10 +1140,13 @@ class PublishScriptTests(unittest.TestCase):
             ),
         )
 
+        commits = [common_commit, multi_app_commit, global_commit]
         sections = "\n".join(
             PUBLISH.commit_sections(
                 "owner/repository",
-                [common_commit, multi_app_commit, global_commit],
+                PUBLISH.release_note_sections(
+                    commits, {app.name: commits for app in PUBLISH.APPS}
+                ),
             )
         )
 
@@ -953,6 +1181,115 @@ class PublishScriptTests(unittest.TestCase):
         )
         self.assertIn("Change every app and common", global_section)
         self.assertNotIn("Change every app and common", common_section)
+
+    def test_release_notes_list_no_commits_for_carried_forward_apps(self) -> None:
+        withheld_commit = PUBLISH.CommitEntry(
+            "a" * 40,
+            "a" * 7,
+            "Change network only",
+            ("NetworkTrayAppDotNET/src/Network.cs",),
+        )
+        shared_commit = PUBLISH.CommitEntry(
+            "b" * 40,
+            "b" * 7,
+            "Change battery, volume and common",
+            (
+                "BatteryTrayAppDotNET/src/Battery.cs",
+                "VolumeTrayAppDotNET/src/Volume.cs",
+                "TrayAppDotNETCommon/src/Common.cs",
+            ),
+        )
+        workflow_commit = PUBLISH.CommitEntry(
+            "c" * 40,
+            "c" * 7,
+            "Change the publish workflow",
+            (".github/workflows/publish.yml",),
+        )
+        # Volume was skipped by the previous release, so its commits reach back past it
+        held_back_commit = PUBLISH.CommitEntry(
+            "d" * 40,
+            "d" * 7,
+            "Change volume before the previous release",
+            ("VolumeTrayAppDotNET/src/Volume.cs",),
+        )
+        commits = [withheld_commit, shared_commit, workflow_commit]
+
+        sections = PUBLISH.release_note_sections(
+            commits,
+            {"VolumeTrayAppDotNET": [*commits, held_back_commit]},
+        )
+        subjects_by_heading = {
+            heading: [commit.subject for commit in section_commits]
+            for heading, section_commits in sections
+        }
+
+        self.assertEqual(["Change battery, volume and common"], subjects_by_heading["Common"])
+        self.assertEqual([], subjects_by_heading["BatteryTrayAppDotNET"])
+        self.assertEqual([], subjects_by_heading["NetworkTrayAppDotNET"])
+        self.assertEqual(
+            [
+                "Change battery, volume and common",
+                "Change volume before the previous release",
+            ],
+            subjects_by_heading["VolumeTrayAppDotNET"],
+        )
+        self.assertEqual(
+            [shared_commit, held_back_commit, workflow_commit],
+            PUBLISH.pull_request_commits(commits, sections),
+        )
+
+    def test_released_app_commits_reach_back_to_the_replaced_build(self) -> None:
+        recent_commit = PUBLISH.CommitEntry(
+            "a" * 40, "a" * 7, "Recent", ("BatteryTrayAppDotNET/src/Battery.cs",)
+        )
+        held_back_commit = PUBLISH.CommitEntry(
+            "b" * 40, "b" * 7, "Held back", ("BatteryTrayAppDotNET/src/Battery.cs",)
+        )
+        groups = {
+            "release": {
+                "apps": [
+                    {"appId": "BatteryTrayAppDotNET", "source": "built-windows-native-aot"},
+                    {"appId": "BrightnessTrayAppDotNET", "source": "built-windows-native-aot"},
+                    {"appId": "VolumeTrayAppDotNET", "source": "reused-TrayAppDotNET_101"},
+                ]
+            }
+        }
+        releases = [
+            {
+                "tag_name": "TrayAppDotNET_101",
+                "assets": [
+                    {"name": "TrayAppDotNET_101.zip"},
+                    {"name": "BatteryTrayAppDotNET_7.zip"},
+                    {"name": "VolumeTrayAppDotNET_4.zip"},
+                ],
+            }
+        ]
+
+        with (
+            mock.patch.object(PUBLISH, "published_releases", return_value=releases),
+            mock.patch.object(
+                PUBLISH, "published_app_build_commit", return_value="commit-100"
+            ) as published_app_build_commit,
+            mock.patch.object(
+                PUBLISH, "commit_log", return_value=[recent_commit, held_back_commit]
+            ) as commit_log,
+        ):
+            app_commits = PUBLISH.released_app_commits(
+                "owner/repository", groups, [recent_commit], "target"
+            )
+
+        # Brightness has no published package, so it falls back to the commits since the previous release
+        self.assertEqual(
+            {
+                "BatteryTrayAppDotNET": [recent_commit, held_back_commit],
+                "BrightnessTrayAppDotNET": [recent_commit],
+            },
+            app_commits,
+        )
+        self.assertEqual(
+            "BatteryTrayAppDotNET", published_app_build_commit.call_args.args[2].name
+        )
+        commit_log.assert_called_once_with("commit-100..target")
 
     def test_commits_since_release_collects_changed_paths(self) -> None:
         result = SimpleNamespace(
@@ -1746,6 +2083,7 @@ class PublishScriptTests(unittest.TestCase):
                     PUBLISH, "latest_reachable_release_tag", return_value=""
                 ),
                 mock.patch.object(PUBLISH, "commits_since_release", return_value=[]),
+                mock.patch.object(PUBLISH, "published_releases", return_value=[]),
                 mock.patch.object(
                     PUBLISH, "pull_requests_for_commits", return_value=[]
                 ),

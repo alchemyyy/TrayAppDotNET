@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -171,6 +172,9 @@ INSTALLER_FACTORY_EXECUTABLE_NAME = INSTALLER_FACTORY_ASSEMBLY_NAME + ".exe"
 # is what actually proves the payload archive is intact.
 INSTALLER_MINIMUM_SIZE_BYTES = 64 * 1024
 BUNDLE_INSTALLER_NAME = "TrayAppDotNET"
+# A package carried forward from an earlier release records "reused-<release tag>" as its source
+REUSED_PACKAGE_SOURCE_PREFIX = "reused-"
+COMMON_RELEASE_NOTES_ROOT = "TrayAppDotNETCommon"
 REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES = (
     "av_libglesv2.dll",
     "libHarfBuzzSharp.dll",
@@ -457,10 +461,8 @@ def latest_reachable_release_tag(target: str) -> str:
     return max(candidates)[1]
 
 
-def commits_since_release(previous_release: dict | None, target: str) -> list[CommitEntry]:
-    target_ref = target.strip() or "HEAD"
-    base_ref = release_target_ref(previous_release)
-    revision_range = f"{base_ref}..{target_ref}" if base_ref else target_ref
+def commit_log(revision_range: str) -> list[CommitEntry] | None:
+    """Lists the commits in a revision range with their changed paths, or None when Git fails."""
     result = run(
         [
             "git",
@@ -472,25 +474,8 @@ def commits_since_release(previous_release: dict | None, target: str) -> list[Co
         capture=True,
         check=False,
     )
-    if result.returncode != 0 and base_ref:
-        fallback_ref = str(previous_release.get("tag_name", "") if previous_release else "").strip()
-        if fallback_ref and fallback_ref != base_ref:
-            revision_range = f"{fallback_ref}..{target_ref}"
-            result = run(
-                [
-                    "git",
-                    "log",
-                    "--name-only",
-                    "--pretty=format:%x1e%H%x09%h%x09%s",
-                    revision_range,
-                ],
-                capture=True,
-                check=False,
-            )
-
     if result.returncode != 0:
-        print(f"Warning: could not determine commits for {revision_range}.")
-        return []
+        return None
 
     commits: list[CommitEntry] = []
     for record in result.stdout.split("\x1e"):
@@ -502,6 +487,23 @@ def commits_since_release(previous_release: dict | None, target: str) -> list[Co
             commits.append(
                 CommitEntry(parts[0], parts[1], parts[2], tuple(record_lines[1:]))
             )
+    return commits
+
+
+def commits_since_release(previous_release: dict | None, target: str) -> list[CommitEntry]:
+    target_ref = target.strip() or "HEAD"
+    base_ref = release_target_ref(previous_release)
+    revision_range = f"{base_ref}..{target_ref}" if base_ref else target_ref
+    commits = commit_log(revision_range)
+    if commits is None and base_ref:
+        fallback_ref = str(previous_release.get("tag_name", "") if previous_release else "").strip()
+        if fallback_ref and fallback_ref != base_ref:
+            revision_range = f"{fallback_ref}..{target_ref}"
+            commits = commit_log(revision_range)
+
+    if commits is None:
+        print(f"Warning: could not determine commits for {revision_range}.")
+        return []
     return commits
 
 
@@ -1186,6 +1188,23 @@ def published_app_commit_hash(
     return commit_hash or try_resolve_git_commit(asset.release_tag)
 
 
+def published_app_build_commit(
+    repo: str,
+    asset: PublishedAppAsset,
+    app: App,
+    profile: Profile,
+) -> str:
+    """Resolves the commit a published app package was built from, or returns an empty string."""
+    with tempfile.TemporaryDirectory() as scratch_directory:
+        recorded_commit = published_app_commit_hash(
+            repo, asset, app, profile, Path(scratch_directory)
+        )
+    # A carried-forward package records the commit it was built from in versions.xml,
+    # while its release tag points at the newer release that re-attached it
+    build_commit = try_resolve_git_commit(recorded_commit) if recorded_commit else ""
+    return build_commit or try_resolve_git_commit(asset.release_tag)
+
+
 def download_published_app(
     repo: str,
     output_root: Path,
@@ -1248,7 +1267,7 @@ def download_published_app(
         profile,
         asset.version,
         zip_path,
-        f"reused-{asset.release_tag}",
+        f"{REUSED_PACKAGE_SOURCE_PREFIX}{asset.release_tag}",
         commit_hash,
     )
 
@@ -1426,15 +1445,13 @@ def resolve_git_commit(reference: str) -> str:
     return commit_hash
 
 
-def require_ancestor(base_commit: str, target_commit: str, release_tag: str) -> None:
+def require_ancestor(base_commit: str, target_commit: str, description: str) -> None:
     result = run(
         ["git", "merge-base", "--is-ancestor", base_commit, target_commit],
         check=False,
     )
     if result.returncode != 0:
-        raise SystemExit(
-            f"Release tag '{release_tag}' is not an ancestor of target {target_commit}."
-        )
+        raise SystemExit(f"{description} is not an ancestor of target {target_commit}.")
 
 
 def has_changes_since(
@@ -1479,17 +1496,17 @@ def plan_publish(args: argparse.Namespace) -> int:
             allow_empty=True,
         )
     }
-    included_apps = [app for app in APPS if app.name not in skipped_apps]
-    if not included_apps:
+    if all(app.name in skipped_apps for app in APPS):
         raise SystemExit("Publish cannot skip every app.")
 
     target_reference = args.target.strip() or "HEAD"
     target_commit = resolve_git_commit(target_reference)
     releases = published_releases(args.repo)
-    release_commits: dict[str, str] = {}
+    omitted_apps: set[str] = set()
 
     previous_tray_release = latest_published_tray_release(releases, profile)
     previous_tray_tag = ""
+    tray_base_commit = ""
     shared_inputs_changed = previous_tray_release is None
     shared_change_reason = "no prior aggregate TrayAppDotNET release exists"
     if previous_tray_release is None:
@@ -1497,8 +1514,9 @@ def plan_publish(args: argparse.Namespace) -> int:
     else:
         previous_tray_tag = str(previous_tray_release["tag_name"]).strip()
         tray_base_commit = resolve_git_commit(previous_tray_tag)
-        require_ancestor(tray_base_commit, target_commit, previous_tray_tag)
-        release_commits[previous_tray_tag] = tray_base_commit
+        require_ancestor(
+            tray_base_commit, target_commit, f"Release tag '{previous_tray_tag}'"
+        )
         shared_inputs_changed = has_changes_since(
             tray_base_commit,
             target_commit,
@@ -1517,15 +1535,28 @@ def plan_publish(args: argparse.Namespace) -> int:
     for app in APPS:
         action_output_name = f"{app.workflow_key}_action"
         version_output_name = f"{app.workflow_key}_version"
+        previous_asset = latest_published_app_asset(releases, app, profile)
         if app.name in skipped_apps:
-            print(f"{app.name}: skipped by workflow input.")
-            set_github_output(action_output_name, "skip")
-            set_github_output(version_output_name, "")
+            if previous_asset is None:
+                print(
+                    f"{app.name}: skipped by workflow input; no published package exists to carry forward."
+                )
+                set_github_output(action_output_name, "skip")
+                set_github_output(version_output_name, "")
+                omitted_apps.add(app.name)
+                continue
+
+            # A skipped app keeps shipping the package it already has, so the release stays complete
+            print(
+                f"{app.name}: skipped by workflow input; carrying forward {previous_asset.file_name} "
+                f"from {previous_asset.release_tag}."
+            )
+            set_github_output(action_output_name, "reuse")
+            set_github_output(version_output_name, str(previous_asset.version))
             continue
 
         force_rebuild = args.force_rebuild or app.name in forced_apps
 
-        previous_asset = latest_published_app_asset(releases, app, profile)
         if previous_asset is None:
             tracked_version = read_buildnumber(Path(app.buildnumber))
             planned_version = max(tracked_version, INITIAL_RELEASE_VERSION)
@@ -1540,14 +1571,23 @@ def plan_publish(args: argparse.Namespace) -> int:
         change_reason = shared_change_reason
         unchanged_scope = "app"
         if not shared_inputs_changed:
-            base_commit = release_commits.get(previous_asset.release_tag)
-            if base_commit is None:
-                base_commit = resolve_git_commit(previous_asset.release_tag)
-                require_ancestor(base_commit, target_commit, previous_asset.release_tag)
-                release_commits[previous_asset.release_tag] = base_commit
+            # A skip carries a package into releases newer than the commit it was built from,
+            # so changes count from that build commit rather than from the release tag
+            base_commit = published_app_build_commit(
+                args.repo, previous_asset, app, profile
+            )
+            if not base_commit:
+                raise SystemExit(
+                    f"Failed to resolve the commit {previous_asset.file_name} was built from."
+                )
+            require_ancestor(
+                base_commit,
+                target_commit,
+                f"The {previous_asset.file_name} build commit {base_commit}",
+            )
 
             included_paths = [app.name]
-            if previous_asset.release_tag != previous_tray_tag:
+            if base_commit != tray_base_commit:
                 included_paths.extend(SHARED_RELEASE_INPUT_PATHS)
                 unchanged_scope = "app or shared release input"
 
@@ -1557,12 +1597,14 @@ def plan_publish(args: argparse.Namespace) -> int:
                 included_paths,
                 [app.buildnumber],
             )
-            change_reason = f"relevant changes found since {previous_asset.release_tag}"
+            change_reason = (
+                f"relevant changes found since {previous_asset.file_name} was built"
+            )
 
         if not has_relevant_changes and not force_rebuild:
             print(
-                f"{app.name}: no {unchanged_scope} changes since {previous_asset.release_tag}; "
-                f"reusing {previous_asset.file_name}."
+                f"{app.name}: no {unchanged_scope} changes since {previous_asset.file_name} was built; "
+                f"reusing it from {previous_asset.release_tag}."
             )
             set_github_output(action_output_name, "reuse")
             set_github_output(version_output_name, str(previous_asset.version))
@@ -1583,7 +1625,10 @@ def plan_publish(args: argparse.Namespace) -> int:
         set_github_output(version_output_name, str(planned_version))
 
     set_github_output("source_sha", target_commit)
-    set_github_output("included_apps", ",".join(app.name for app in included_apps))
+    set_github_output(
+        "included_apps",
+        ",".join(app.name for app in APPS if app.name not in omitted_apps),
+    )
     return 0
 
 
@@ -2175,24 +2220,126 @@ def commits_for_path(commits: list[CommitEntry], root_path: str) -> list[CommitE
     ]
 
 
-def commit_sections(repo: str, commits: list[CommitEntry]) -> list[str]:
-    sections: list[tuple[str, str]] = [("Common", "TrayAppDotNETCommon")]
-    sections.extend((app.name, app.name) for app in sorted(APPS, key=lambda app: app.name))
+def release_note_section_roots() -> list[str]:
+    return [COMMON_RELEASE_NOTES_ROOT, *sorted(app.name for app in APPS)]
+
+
+def release_note_sections(
+    commits: list[CommitEntry],
+    app_commits: dict[str, list[CommitEntry]],
+) -> list[tuple[str, list[CommitEntry]]]:
+    """Groups commits under Global, Common and every app.
+
+    Global and Common draw on the commits since the previous release.
+    Each app draws only on its app_commits entry, so an app whose package was carried forward lists none.
+    """
+    section_roots = release_note_section_roots()
     global_commits = [
         commit
         for commit in commits
-        if all(commit_affects_path(commit, root_path) for _, root_path in sections)
+        if all(commit_affects_path(commit, root_path) for root_path in section_roots)
     ]
+    global_shas = {commit.full_sha for commit in global_commits}
 
-    lines: list[str] = commit_section(repo, "Global", global_commits)
-    for heading, root_path in sections:
-        section_commits = [
-            commit
-            for commit in commits_for_path(commits, root_path)
-            if commit not in global_commits
-        ]
+    sections: list[tuple[str, list[CommitEntry]]] = [("Global", global_commits)]
+    sections.append(
+        (
+            "Common",
+            [
+                commit
+                for commit in commits_for_path(commits, COMMON_RELEASE_NOTES_ROOT)
+                if commit.full_sha not in global_shas
+            ],
+        )
+    )
+    for app_name in sorted(app.name for app in APPS):
+        sections.append(
+            (
+                app_name,
+                [
+                    commit
+                    for commit in commits_for_path(
+                        app_commits.get(app_name, []), app_name
+                    )
+                    if commit.full_sha not in global_shas
+                ],
+            )
+        )
+    return sections
+
+
+def commit_sections(
+    repo: str, sections: list[tuple[str, list[CommitEntry]]]
+) -> list[str]:
+    lines: list[str] = []
+    for heading, section_commits in sections:
         lines.extend(commit_section(repo, heading, section_commits))
     return lines
+
+
+def pull_request_commits(
+    commits: list[CommitEntry],
+    sections: list[tuple[str, list[CommitEntry]]],
+) -> list[CommitEntry]:
+    """Lists the commits whose pull requests the release notes name.
+
+    These are the listed commits plus those since the previous release that touch neither Common nor any app.
+    """
+    selected_commits: dict[str, CommitEntry] = {}
+    for _heading, section_commits in sections:
+        for commit in section_commits:
+            selected_commits.setdefault(commit.full_sha, commit)
+
+    section_roots = release_note_section_roots()
+    for commit in commits:
+        if not any(
+            commit_affects_path(commit, root_path) for root_path in section_roots
+        ):
+            selected_commits.setdefault(commit.full_sha, commit)
+    return list(selected_commits.values())
+
+
+def released_app_commits(
+    repo: str,
+    groups: dict[str, dict],
+    commits: list[CommitEntry],
+    target: str,
+) -> dict[str, list[CommitEntry]]:
+    """Maps each app built in this release to the commits since its replaced package was built.
+
+    A carried-forward package ships no new commits, so its app gets no entry.
+    For an app skipped in earlier releases, that reaches back past the previous release to its last build.
+    """
+    target_ref = target.strip() or "HEAD"
+    releases: list[dict] | None = None
+    commits_by_base: dict[str, list[CommitEntry] | None] = {}
+    app_commits: dict[str, list[CommitEntry]] = {}
+    for profile_id in sorted(groups):
+        profile = PROFILES[profile_id]
+        for app_data in groups[profile_id]["apps"]:
+            if str(app_data["source"]).startswith(REUSED_PACKAGE_SOURCE_PREFIX):
+                continue
+
+            app = app_by_name(str(app_data["appId"]))
+            if releases is None:
+                releases = published_releases(repo)
+            previous_asset = latest_published_app_asset(releases, app, profile)
+            base_commit = (
+                ""
+                if previous_asset is None
+                else published_app_build_commit(repo, previous_asset, app, profile)
+            )
+            if not base_commit:
+                app_commits[app.name] = commits
+                continue
+
+            if base_commit not in commits_by_base:
+                commits_by_base[base_commit] = commit_log(
+                    f"{base_commit}..{target_ref}"
+                )
+            base_commits = commits_by_base[base_commit]
+            app_commits[app.name] = commits if base_commits is None else base_commits
+    return app_commits
 
 
 def pull_request_list(pull_requests: list[PullRequestEntry]) -> list[str]:
@@ -2234,7 +2381,7 @@ def write_notes(
     rows: list[dict],
     repo: str,
     previous_release: dict | None,
-    commits: list[CommitEntry],
+    sections: list[tuple[str, list[CommitEntry]]],
     pull_requests: list[PullRequestEntry],
 ) -> None:
     lines = [
@@ -2250,7 +2397,7 @@ def write_notes(
         "",
         f"## Commits since {release_display_ref(previous_release)}",
         "",
-        *commit_sections(repo, commits),
+        *commit_sections(repo, sections),
     ]
     path.write_text(truncate_release_notes("\n".join(lines)), encoding="utf-8")
 
@@ -2384,8 +2531,16 @@ def publish_release(args: argparse.Namespace) -> int:
             release_notes_base = {"tag_name": previous_tag}
 
     commits = commits_since_release(release_notes_base, args.target)
-    pull_requests = pull_requests_for_commits(args.repo, commits)
-    write_notes(notes_path, rows, args.repo, release_notes_base, commits, pull_requests)
+    sections = release_note_sections(
+        commits,
+        released_app_commits(args.repo, groups, commits, args.target),
+    )
+    pull_requests = pull_requests_for_commits(
+        args.repo, pull_request_commits(commits, sections)
+    )
+    write_notes(
+        notes_path, rows, args.repo, release_notes_base, sections, pull_requests
+    )
     write_versions_manifest(versions_path, rows, tray_version, args.repo, release_tag)
     write_summary(rows)
 

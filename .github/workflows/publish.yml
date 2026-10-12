@@ -34,32 +34,32 @@ on:
         default: false
         type: boolean
       skip_battery:
-        description: Skip BatteryTrayAppDotNET
+        description: Skip building BatteryTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
       skip_brightness:
-        description: Skip BrightnessTrayAppDotNET
+        description: Skip building BrightnessTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
       skip_fan_control:
-        description: Skip FanControlTrayAppDotNET
+        description: Skip building FanControlTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
       skip_network:
-        description: Skip NetworkTrayAppDotNET
+        description: Skip building NetworkTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
       skip_task_manager:
-        description: Skip TaskManagerTrayAppDotNET
+        description: Skip building TaskManagerTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
       skip_volume:
-        description: Skip VolumeTrayAppDotNET
+        description: Skip building VolumeTrayAppDotNET and reuse its latest published package
         required: true
         default: false
         type: boolean
