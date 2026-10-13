@@ -9,6 +9,11 @@ public sealed class TaskManagerGridLayoutTests
 {
     private const double HeaderHeight = 32;
     private const double RowHeight = 26;
+    // Fixed curve so tests do not follow AXAML or settings tuning
+    private const double TestReferenceFontSize = 11.5;
+    private const int TestMinimumZoomFontWeight = 100;
+    private const int TestMaximumZoomFontWeight = 630;
+    private const double TestZoomFontWeightPerDoubling = 370;
 
     [Theory]
     [InlineData(0, -1)]
@@ -153,33 +158,56 @@ public sealed class TaskManagerGridLayoutTests
         TaskManagerGridFontWeight baseFontWeight,
         int expectedFontWeight)
     {
-        int fontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
-            baseFontWeight,
-            AppSettings.GridFontSizeDefault,
-            AppSettings.GridFontSizeDefault);
+        int fontWeight = CalculateZoomFontWeight(baseFontWeight, TestReferenceFontSize);
 
         Assert.Equal(expectedFontWeight, fontWeight);
     }
 
+    // Expected weights are 400 + headroom * tanh(370 * log2(size / 11.5) / headroom), where
+    // headroom is 230 above the reference size and -300 below it
     [Theory]
-    [InlineData(5.75, 158)]
-    [InlineData(8, 241)]
-    [InlineData(17.25, 610)]
-    [InlineData(20, TaskManagerGridLayout.MaximumZoomFontWeight)]
-    public void ZoomFontWeightUsesSigmoidResponse(
+    [InlineData(8, 229)]
+    [InlineData(10, 327)]
+    [InlineData(13, 464)]
+    [InlineData(17.25, 569)]
+    [InlineData(23, 612)]
+    [InlineData(32, 626)]
+    public void ZoomFontWeightUsesTanhResponse(
         double fontSize,
         int expectedFontWeight)
     {
-        int fontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
-            TaskManagerGridFontWeight.Normal,
-            AppSettings.GridFontSizeDefault,
-            fontSize);
+        int fontWeight = CalculateNormalFontWeight(fontSize);
 
         Assert.Equal(expectedFontWeight, fontWeight);
     }
 
     [Fact]
-    public void ZoomFontWeightSigmoidFlattensTowardBothClamps()
+    public void ZoomFontWeightRateScalesWeightChange()
+    {
+        const double ZoomedFontSize = 13;
+        int gentleFontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
+            TaskManagerGridFontWeight.Normal,
+            TestReferenceFontSize,
+            ZoomedFontSize,
+            TestMinimumZoomFontWeight,
+            TestMaximumZoomFontWeight,
+            TestZoomFontWeightPerDoubling / 2);
+        int steepFontWeight = CalculateNormalFontWeight(ZoomedFontSize);
+        int fixedFontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
+            TaskManagerGridFontWeight.Normal,
+            TestReferenceFontSize,
+            ZoomedFontSize,
+            TestMinimumZoomFontWeight,
+            TestMaximumZoomFontWeight,
+            fontWeightPerZoomDoubling: 0);
+
+        Assert.True(gentleFontWeight > (int)TaskManagerGridFontWeight.Normal);
+        Assert.True(gentleFontWeight < steepFontWeight);
+        Assert.Equal((int)TaskManagerGridFontWeight.Normal, fixedFontWeight);
+    }
+
+    [Fact]
+    public void ZoomFontWeightFlattensTowardBothLimits()
     {
         int lowerIncrement = CalculateNormalFontWeight(6) - CalculateNormalFontWeight(5);
         int middleIncrement = CalculateNormalFontWeight(13) - CalculateNormalFontWeight(12);
@@ -203,45 +231,105 @@ public sealed class TaskManagerGridLayoutTests
     public void ZoomFontWeightIsMonotonicAcrossSupportedZoomRange(
         TaskManagerGridFontWeight baseFontWeight)
     {
-        int previousFontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
+        int previousFontWeight = CalculateZoomFontWeight(
             baseFontWeight,
-            AppSettings.GridFontSizeDefault,
             AppSettings.GridFontSizeMinimum);
 
         for (double fontSize = AppSettings.GridFontSizeMinimum + 0.5;
              fontSize <= AppSettings.GridFontSizeMaximum;
              fontSize += 0.5)
         {
-            int fontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
-                baseFontWeight,
-                AppSettings.GridFontSizeDefault,
-                fontSize);
+            int fontWeight = CalculateZoomFontWeight(baseFontWeight, fontSize);
             Assert.True(fontWeight >= previousFontWeight);
             previousFontWeight = fontWeight;
         }
     }
 
     [Theory]
-    [InlineData(TaskManagerGridFontWeight.Normal, 2, TaskManagerGridLayout.MinimumZoomFontWeight)]
-    [InlineData(TaskManagerGridFontWeight.Normal, 20, TaskManagerGridLayout.MaximumZoomFontWeight)]
-    [InlineData(TaskManagerGridFontWeight.Thin, 0.01, TaskManagerGridLayout.MinimumZoomFontWeight)]
+    [InlineData(TaskManagerGridFontWeight.Normal, 0.01, TestMinimumZoomFontWeight)]
+    [InlineData(TaskManagerGridFontWeight.Normal, 10000, TestMaximumZoomFontWeight)]
+    [InlineData(TaskManagerGridFontWeight.Thin, 0.01, TestMinimumZoomFontWeight)]
+    [InlineData(TaskManagerGridFontWeight.Black, 0.01, TestMinimumZoomFontWeight)]
     [InlineData(TaskManagerGridFontWeight.Black, 100, (int)TaskManagerGridFontWeight.Black)]
-    public void ZoomFontWeightClampsToSupportedRange(
+    public void ZoomFontWeightStaysWithinLimits(
         TaskManagerGridFontWeight baseFontWeight,
         double fontSize,
         int expectedFontWeight)
     {
-        int fontWeight = TaskManagerGridLayout.CalculateZoomFontWeight(
-            baseFontWeight,
-            AppSettings.GridFontSizeDefault,
-            fontSize);
+        int fontWeight = CalculateZoomFontWeight(baseFontWeight, fontSize);
 
         Assert.Equal(expectedFontWeight, fontWeight);
     }
 
-    private static int CalculateNormalFontWeight(double fontSize) =>
-        TaskManagerGridLayout.CalculateZoomFontWeight(
+    [Theory]
+    [InlineData(TestMinimumZoomFontWeight, TestMinimumZoomFontWeight - 1, TestZoomFontWeightPerDoubling)]
+    [InlineData(0, TestMaximumZoomFontWeight, TestZoomFontWeightPerDoubling)]
+    [InlineData(TestMinimumZoomFontWeight, TestMaximumZoomFontWeight, -1)]
+    [InlineData(TestMinimumZoomFontWeight, TestMaximumZoomFontWeight, double.NaN)]
+    public void ZoomFontWeightRejectsInvalidCurve(
+        int minimumFontWeight,
+        int maximumFontWeight,
+        double fontWeightPerZoomDoubling)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            TaskManagerGridLayout.CalculateZoomFontWeight(
+                TaskManagerGridFontWeight.Normal,
+                TestReferenceFontSize,
+                TestReferenceFontSize,
+                minimumFontWeight,
+                maximumFontWeight,
+                fontWeightPerZoomDoubling));
+    }
+
+    // Segoe UI face weights between Light and Semibold
+    [Theory]
+    [InlineData(400, TaskManagerGridFontWeight.Normal, 400)]
+    [InlineData(399, TaskManagerGridFontWeight.Normal, 350)]
+    [InlineData(351, TaskManagerGridFontWeight.Normal, 350)]
+    [InlineData(349, TaskManagerGridFontWeight.Normal, 300)]
+    [InlineData(250, TaskManagerGridFontWeight.Normal, 300)]
+    [InlineData(301, TaskManagerGridFontWeight.Light, 350)]
+    [InlineData(401, TaskManagerGridFontWeight.Light, 600)]
+    [InlineData(800, TaskManagerGridFontWeight.Light, 600)]
+    [InlineData(500, TaskManagerGridFontWeight.Medium, 500)]
+    [InlineData(450, TaskManagerGridFontWeight.Medium, 400)]
+    public void ZoomFontWeightSnapsAwayFromConfiguredWeight(
+        int fontWeight,
+        TaskManagerGridFontWeight baseFontWeight,
+        int expectedFontWeight)
+    {
+        int[] availableFontWeights = [300, 350, 400, 600];
+
+        int snappedFontWeight = TaskManagerGridLayout.SnapZoomFontWeight(
+            fontWeight,
+            baseFontWeight,
+            availableFontWeights);
+
+        Assert.Equal(expectedFontWeight, snappedFontWeight);
+    }
+
+    [Fact]
+    public void ZoomFontWeightSnapKeepsWeightWithoutFaces()
+    {
+        int snappedFontWeight = TaskManagerGridLayout.SnapZoomFontWeight(
+            fontWeight: 386,
             TaskManagerGridFontWeight.Normal,
-            AppSettings.GridFontSizeDefault,
-            fontSize);
+            availableFontWeights: []);
+
+        Assert.Equal(expected: 386, snappedFontWeight);
+    }
+
+    private static int CalculateNormalFontWeight(double fontSize) =>
+        CalculateZoomFontWeight(TaskManagerGridFontWeight.Normal, fontSize);
+
+    private static int CalculateZoomFontWeight(
+        TaskManagerGridFontWeight baseFontWeight,
+        double fontSize) =>
+        TaskManagerGridLayout.CalculateZoomFontWeight(
+            baseFontWeight,
+            TestReferenceFontSize,
+            fontSize,
+            TestMinimumZoomFontWeight,
+            TestMaximumZoomFontWeight,
+            TestZoomFontWeightPerDoubling);
 }

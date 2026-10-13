@@ -7,7 +7,10 @@ namespace TrayAppDotNETCommon.Visuals;
 /// </summary>
 public static class TADNFontResolver
 {
-    public const string SegoeUIFamilyName = "Segoe UI Variable, Segoe UI";
+    // NOTE: Static Segoe UI on purpose. Through Avalonia's Skia font manager, "Segoe UI Variable"
+    // only matches 400 and renders 800 and 900 lighter than Bold, and a family list never
+    // matches "Segoe UI Variable Text"
+    public const string SegoeUIFamilyName = "Segoe UI";
     public const string SegoeFluentIconsFamilyName = "Segoe Fluent Icons";
     public const string SegoeMDL2AssetsFamilyName = "Segoe MDL2 Assets";
     public const string FanFontFamilyName = "avares://FanControlTrayAppDotNET/Visuals/FanFont.ttf#Untitled1";

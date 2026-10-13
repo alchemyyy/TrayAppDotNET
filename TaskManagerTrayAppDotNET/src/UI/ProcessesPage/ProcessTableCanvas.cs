@@ -87,6 +87,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private readonly TaskManagerWindowResources _resources;
     private readonly bool _isLightTheme;
     private readonly TaskManagerGridFontWeight _baseTableFontWeight;
+    private readonly int[] _availableTableFontWeights;
     private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
     private readonly Typeface _liveTotalTypeface;
@@ -279,6 +280,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         _resources = resources;
         _isLightTheme = isLightTheme;
         _baseTableFontWeight = gridFontWeight;
+        _availableTableFontWeights = TaskManagerGridLayout.ResolveAvailableFontWeights(
+            DefaultTableTypeface.FontFamily);
         _tableFontWeight = CalculateTableFontWeight(gridFontSize);
         _tableTypeface = CreateTableTypeface(_tableFontWeight);
         _liveTotalAppearance = NormalizeLiveTotalAppearance(liveTotalAppearance);
@@ -2101,6 +2104,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         bool statusGlyphColorsChanged = nextStatusGlyphColors != _statusGlyphBrushes.Colors;
         bool selectionBorderChanged = nextSelectionBorderThickness != _selectionBorderThickness;
         bool headerHeightChanged = nextMetrics.HeaderHeight != _metrics.HeaderHeight;
+        int nextTableFontWeight = CalculateTableFontWeight(nextFontSize);
+        bool rebuildTableTypeface = _tableFontWeight != nextTableFontWeight;
         _axamlFontSize = nextAXAMLFontSize;
         _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
@@ -2108,10 +2113,12 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             && nextColumnWidths == _axamlColumnWidths
             && !backgroundColorChanged
             && !statusGlyphColorsChanged
-            && !selectionBorderChanged)
+            && !selectionBorderChanged
+            && !rebuildTableTypeface)
             return null;
 
         bool rebuildRetainedRows = statusGlyphColorsChanged
+                                   || rebuildTableTypeface
                                    || RetainedRowGeometryChanged(
                                        _metrics,
                                        nextMetrics,
@@ -2119,8 +2126,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                                        nextVisualMetrics);
         bool rebuildCaretText = _visualMetrics.SortCaretFontSize
                                 != nextVisualMetrics.SortCaretFontSize;
-        int nextTableFontWeight = CalculateTableFontWeight(nextFontSize);
-        bool rebuildTableTypeface = _tableFontWeight != nextTableFontWeight;
         bool rebuildHeaderText = _metrics.HeaderFontSize != nextMetrics.HeaderFontSize
                                  || _metrics.CellPadding != nextMetrics.CellPadding
                                  || _visualMetrics.SortCaretRightMargin
@@ -5170,24 +5175,16 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     }
 
     private int CalculateTableFontWeight(double fontSize) =>
-        TaskManagerGridLayout.CalculateZoomFontWeight(
+        TaskManagerGridLayout.SnapZoomFontWeight(
+            TaskManagerGridLayout.CalculateZoomFontWeight(
+                _baseTableFontWeight,
+                _resources.AxamlProcessTable.FontSize,
+                fontSize,
+                _resources.AxamlProcessTable.ZoomFontWeightMinimum,
+                _resources.AxamlProcessTable.ZoomFontWeightMaximum,
+                _resources.AxamlProcessTable.ZoomFontWeightPerDoubling),
             _baseTableFontWeight,
-#if DEBUG
-            ResolveReferenceTableFontSize(),
-#else
-            AppSettings.GridFontSizeDefault,
-#endif
-            fontSize);
-
-#if DEBUG
-    private double ResolveReferenceTableFontSize()
-    {
-        double referenceFontSize = _resources.AxamlProcessTable.FontSize;
-        return double.IsFinite(referenceFontSize) && referenceFontSize > 0
-            ? referenceFontSize
-            : AppSettings.GridFontSizeDefault;
-    }
-#endif
+            _availableTableFontWeights);
 
     private static Typeface CreateTableTypeface(int fontWeight) =>
         new(

@@ -19,6 +19,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     private readonly TaskManagerWindowResources _resources;
     private readonly TaskManagerGridFontWeight _baseFontWeight;
     private readonly FontFamily _fontFamily;
+    private readonly int[] _availableFontWeights;
     private readonly double _rowTextHeightScale;
     private readonly IBrush _backgroundBrush;
     private readonly IBrush _foregroundBrush;
@@ -80,6 +81,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         _resources = resources;
         _baseFontWeight = settings.GridFontWeight;
         _fontFamily = new FontFamily(resources.AxamlTaskManagerTable.FontFamily);
+        _availableFontWeights = TaskManagerGridLayout.ResolveAvailableFontWeights(_fontFamily);
         _fontSize = settings.GridFontSize;
         _rowHeight = settings.GridRowHeight;
         _tableTypeface = CreateTypeface(CalculateFontWeight(_fontSize));
@@ -921,10 +923,16 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     }
 
     private int CalculateFontWeight(double fontSize) =>
-        TaskManagerGridLayout.CalculateZoomFontWeight(
+        TaskManagerGridLayout.SnapZoomFontWeight(
+            TaskManagerGridLayout.CalculateZoomFontWeight(
+                _baseFontWeight,
+                _resources.AxamlProcessTable.FontSize,
+                fontSize,
+                _resources.AxamlProcessTable.ZoomFontWeightMinimum,
+                _resources.AxamlProcessTable.ZoomFontWeightMaximum,
+                _resources.AxamlProcessTable.ZoomFontWeightPerDoubling),
             _baseFontWeight,
-            AppSettings.GridFontSizeDefault,
-            fontSize);
+            _availableFontWeights);
 
     private Typeface CreateTypeface(int fontWeight) =>
         new(_fontFamily, FontStyle.Normal, (FontWeight)fontWeight);

@@ -1,19 +1,17 @@
 using Avalonia;
+using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Provides fixed-row geometry and zoom typography shared by Task Manager grids.</summary>
 internal static class TaskManagerGridLayout
 {
-    public const int MinimumZoomFontWeight = 100;
-    public const int MaximumZoomFontWeight = 630;
-
     private const int ViewportOverscanRows = 1;
     private const int RetainedDrawingOverscanRows = 32;
-    private const int ReferenceMaximumZoomFontWeight = 900;
-    private const double ReferenceZoomFontWeightLinearCoefficient = 320;
-    private const double ReferenceZoomFontWeightCubicCoefficient = 80;
-    private const double ZoomFontWeightClampDistanceScale = 0.75;
+    // Large size so neighboring faces cannot round to the same layout width
+    private const double FaceFingerprintFontSize = 100;
+    private const string FaceFingerprintText = "Service Host: Local System 0123456789";
 
     public static double GetContentHeight(
         int rowCount,
@@ -108,14 +106,18 @@ internal static class TaskManagerGridLayout
     }
 
     /// <summary>
-    /// Resolves font weight with a monotonic smoothstep sigmoid.
-    /// The configured weight remains fixed at default zoom while the reduced output range is
-    /// stretched across the previous clamp span.
+    /// Resolves font weight for a zoomed font size.
+    /// The configured weight holds at the reference size, changes by
+    /// <paramref name="fontWeightPerZoomDoubling"/> per doubling of size near it, and eases toward
+    /// the minimum or maximum weight.
     /// </summary>
     public static int CalculateZoomFontWeight(
         TaskManagerGridFontWeight baseFontWeight,
         double referenceFontSize,
-        double fontSize)
+        double fontSize,
+        int minimumFontWeight,
+        int maximumFontWeight,
+        double fontWeightPerZoomDoubling)
     {
         if (!Enum.IsDefined(baseFontWeight))
             throw new ArgumentOutOfRangeException(nameof(baseFontWeight));
@@ -123,54 +125,87 @@ internal static class TaskManagerGridLayout
             throw new ArgumentOutOfRangeException(nameof(referenceFontSize));
         if (!double.IsFinite(fontSize) || fontSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(fontSize));
+        if (minimumFontWeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(minimumFontWeight));
+        if (maximumFontWeight < minimumFontWeight)
+            throw new ArgumentOutOfRangeException(nameof(maximumFontWeight));
+        if (!double.IsFinite(fontWeightPerZoomDoubling) || fontWeightPerZoomDoubling < 0)
+            throw new ArgumentOutOfRangeException(nameof(fontWeightPerZoomDoubling));
 
         int baseFontWeightValue = (int)baseFontWeight;
-        int effectiveMaximumFontWeight = Math.Max(
-            MaximumZoomFontWeight,
-            baseFontWeightValue);
-        double normalizedZoom = fontSize / referenceFontSize - 1;
-        double referenceLowerClampZoom = SolveReferenceZoom(
-            MinimumZoomFontWeight - baseFontWeightValue);
-        double referenceUpperClampZoom = SolveReferenceZoom(
-            ReferenceMaximumZoomFontWeight - baseFontWeightValue);
-        double clampZoomSpan = ZoomFontWeightClampDistanceScale
-                               * (referenceUpperClampZoom - referenceLowerClampZoom);
-        double baseWeightPosition = (double)(baseFontWeightValue - MinimumZoomFontWeight)
-                                    / (effectiveMaximumFontWeight - MinimumZoomFontWeight);
-        double baseSigmoidPosition = InverseSmoothstep(baseWeightPosition);
-        double lowerClampZoom = -baseSigmoidPosition * clampZoomSpan;
-        double upperClampZoom = lowerClampZoom + clampZoomSpan;
-        if (normalizedZoom <= lowerClampZoom) return MinimumZoomFontWeight;
-        if (normalizedZoom >= upperClampZoom) return effectiveMaximumFontWeight;
+        // Log scale so zooming in and out by the same factor changes weight at the same rate
+        double zoomDoublings = Math.Log2(fontSize / referenceFontSize);
+        // A configured weight outside the range widens that bound so the reference weight holds
+        int fontWeightLimit = zoomDoublings >= 0
+            ? Math.Max(maximumFontWeight, baseFontWeightValue)
+            : Math.Min(minimumFontWeight, baseFontWeightValue);
+        double headroom = fontWeightLimit - baseFontWeightValue;
+        if (headroom == 0) return baseFontWeightValue;
 
-        double sigmoidPosition = (normalizedZoom - lowerClampZoom) / clampZoomSpan;
-        double weightPosition = Smoothstep(sigmoidPosition);
-        double fontWeight = MinimumZoomFontWeight
-                            + weightPosition
-                            * (effectiveMaximumFontWeight - MinimumZoomFontWeight);
+        // tanh has slope 1 at the origin and approaches 1 asymptotically, so the reference rate
+        // holds near the configured weight and the curve never crosses the limit
+        double fontWeight = baseFontWeightValue
+                            + headroom
+                            * Math.Tanh(fontWeightPerZoomDoubling * zoomDoublings / headroom);
         return (int)Math.Round(fontWeight, MidpointRounding.AwayFromZero);
     }
 
-    private static double InverseSmoothstep(double position)
+    /// <summary>
+    /// Snaps a zoomed weight to a face the font has, rounding away from the configured weight.
+    /// Requested weights between faces would otherwise resolve to the configured face, so a
+    /// lighter request could never render lighter.
+    /// </summary>
+    /// <param name="availableFontWeights">Face weights sorted lightest first</param>
+    public static int SnapZoomFontWeight(
+        int fontWeight,
+        TaskManagerGridFontWeight baseFontWeight,
+        IReadOnlyList<int> availableFontWeights)
     {
-        if (position <= 0) return 0;
-        if (position >= 1) return 1;
+        ArgumentNullException.ThrowIfNull(availableFontWeights);
 
-        return 0.5 - Math.Sin(Math.Asin(1 - 2 * position) / 3);
+        int baseFontWeightValue = (int)baseFontWeight;
+        if (fontWeight == baseFontWeightValue || availableFontWeights.Count == 0) return fontWeight;
+
+        if (fontWeight < baseFontWeightValue)
+        {
+            for (int index = availableFontWeights.Count - 1; index >= 0; index--)
+            {
+                if (availableFontWeights[index] <= fontWeight) return availableFontWeights[index];
+            }
+
+            return availableFontWeights[0];
+        }
+
+        foreach (int availableFontWeight in availableFontWeights)
+        {
+            if (availableFontWeight >= fontWeight) return availableFontWeight;
+        }
+
+        return availableFontWeights[^1];
     }
 
-    private static double Smoothstep(double position) =>
-        position * position * (3 - 2 * position);
-
-    private static double SolveReferenceZoom(double weightOffset)
+    /// <summary>
+    /// Returns one requested weight per distinct face a family resolves to, lightest first.
+    /// Each value resolves back to its face, which is all snapping needs.
+    /// </summary>
+    public static int[] ResolveAvailableFontWeights(FontFamily fontFamily)
     {
-        // Retain the previous cubic response only as calibration for the clamp positions
-        double halfOffset = weightOffset / (2 * ReferenceZoomFontWeightCubicCoefficient);
-        double linearRatio = ReferenceZoomFontWeightLinearCoefficient
-                             / (3 * ReferenceZoomFontWeightCubicCoefficient);
-        double discriminantRoot = Math.Sqrt(
-            halfOffset * halfOffset + linearRatio * linearRatio * linearRatio);
-        return Math.Cbrt(halfOffset + discriminantRoot)
-               + Math.Cbrt(halfOffset - discriminantRoot);
+        ArgumentNullException.ThrowIfNull(fontFamily);
+
+        // Reported face weights are unreliable (variable font instances report 400), so faces are
+        // told apart by rendered width; weight-invariant widths in a variable font defeat this
+        Dictionary<double, int> fontWeightByWidth = [];
+        foreach (FontWeight requestedFontWeight in Enum.GetValues<FontWeight>().Distinct().Order())
+        {
+            Typeface typeface = new(fontFamily, FontStyle.Normal, requestedFontWeight);
+            using TextLayout measurement = new(
+                FaceFingerprintText,
+                typeface,
+                FaceFingerprintFontSize,
+                Brushes.White);
+            fontWeightByWidth.TryAdd(measurement.Width, (int)requestedFontWeight);
+        }
+
+        return [.. fontWeightByWidth.Values.Order()];
     }
 }

@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
@@ -135,7 +136,7 @@ public sealed partial class EnvironmentalCurveEditor
             text,
             new Typeface(monospace
                 ? new FontFamily("Consolas, Cascadia Mono, Segoe UI")
-                : new FontFamily("Segoe UI Variable, Segoe UI")),
+                : new FontFamily(TADNFontResolver.SegoeUIFamilyName)),
             size,
             Brush(color),
             textWrapping: TextWrapping.NoWrap,

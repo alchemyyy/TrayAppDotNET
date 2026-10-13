@@ -60,7 +60,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
             new TextBlock
             {
                 Text = displayNumber.ToString(CultureInfo.InvariantCulture),
-                FontFamily = new FontFamily("Segoe UI Variable, Segoe UI"),
+                FontFamily = new FontFamily(TrayAppDotNETCommon.Visuals.TADNFontResolver.SegoeUIFamilyName),
                 FontSize = 220,
                 FontWeight = FontWeight.SemiBold,
                 Foreground = Brush(theme.DisplayIdentifierForeground.For(isLightTheme)),

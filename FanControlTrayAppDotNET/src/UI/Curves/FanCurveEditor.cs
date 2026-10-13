@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.ControlMapping;
+using TrayAppDotNETCommon.Visuals;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
@@ -852,7 +853,7 @@ public sealed class FanCurveEditor : Control, IDisposable
             text,
             new Typeface(monospace
                 ? new FontFamily("Consolas, Cascadia Mono, Segoe UI")
-                : new FontFamily("Segoe UI Variable, Segoe UI")),
+                : new FontFamily(TADNFontResolver.SegoeUIFamilyName)),
             size,
             Brush(color),
             textWrapping: TextWrapping.NoWrap,

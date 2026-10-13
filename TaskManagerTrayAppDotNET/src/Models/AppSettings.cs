@@ -40,7 +40,7 @@ public enum TaskManagerGridFontWeight
 [XmlRoot("AppSettings")]
 public sealed class AppSettings : AppSettingsCommon
 {
-    public const double GridFontSizeDefault = 11.5;
+    public const double GridFontSizeDefault = 12;
     public const double GridFontSizeMinimum = 8.0;
     public const double GridFontSizeMaximum = 32.0;
     public const double GridRowSpacingDefault = 3.5;

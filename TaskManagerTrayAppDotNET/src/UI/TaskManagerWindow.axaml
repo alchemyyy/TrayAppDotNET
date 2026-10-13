@@ -61,7 +61,7 @@
   <Thickness x:Key="TaskManagerTable.InformationMargin">16,8,20,8</Thickness>
   <sys:Double x:Key="TaskManagerTable.InformationSpacing">2</sys:Double>
   <Thickness x:Key="TaskManagerTable.LinkButtonPadding">0,2</Thickness>
-  <sys:String x:Key="TaskManagerTable.FontFamily">Segoe UI Variable, Segoe UI</sys:String>
+  <sys:String x:Key="TaskManagerTable.FontFamily">Segoe UI</sys:String>
   <sys:Int32 x:Key="TaskManagerTable.GroupFontWeightMinimum">600</sys:Int32>
   <sys:Double x:Key="TaskManagerTable.MinimumColumnWidth">48</sys:Double>
   <sys:Double x:Key="TaskManagerTable.AppHistoryNameColumnWidth">280</sys:Double>
@@ -236,7 +236,11 @@
   <sys:Double x:Key="ProcessTable.RowSpacing">3.5</sys:Double>
   <sys:Double x:Key="ProcessTable.DefaultViewportHeight">900</sys:Double>
   <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
-  <sys:Double x:Key="ProcessTable.FontSize">11.5</sys:Double>
+  <sys:Double x:Key="ProcessTable.FontSize">12</sys:Double>
+  <!-- Zoomed table font weight: the configured weight holds at the default size, changes by PerDoubling weight units per doubling of font size near it, and eases toward Minimum and Maximum -->
+  <sys:Int32 x:Key="ProcessTable.ZoomFontWeightMinimum">50</sys:Int32>
+  <sys:Int32 x:Key="ProcessTable.ZoomFontWeightMaximum">400</sys:Int32>
+  <sys:Double x:Key="ProcessTable.ZoomFontWeightPerDoubling">220</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
   <sys:Double x:Key="ProcessTable.GridLineThickness">1</sys:Double>
   <sys:Double x:Key="ProcessTable.ColumnResizeHitRadius">4</sys:Double>
