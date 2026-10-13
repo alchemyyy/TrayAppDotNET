@@ -1223,12 +1223,13 @@ public sealed class MonitorRecoveryTests
         recoveryService.Start();
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
-        display.ConfigureRecoveryAfterTransportResets(DeviceID, resetCount: 3, current: 55, max: 100);
+        // The stuck transport recovers once its helper is replaced, which three failures in a row trigger
+        display.ConfigureRecoveryAfterTransportResets(DeviceID, resetCount: 1, current: 55, max: 100);
         service.Refresh();
 
         await WaitUntil(
             () => service.Monitors[0] is { IsHardwareFunctional: true, RoundedBrightness: 55 }
-                  && display.GetTransportResetCount(DeviceID) >= 3,
+                  && display.GetTransportResetCount(DeviceID) >= 1,
             timeoutMs: 3000);
 
         Assert.False(service.Monitors[0].IsReadDegraded);
@@ -1263,7 +1264,6 @@ public sealed class MonitorRecoveryTests
             () => monitor.IsHardwareFunctional && display.GetCurrentValue(DeviceID) == 70,
             timeoutMs: 3000);
 
-        Assert.True(display.GetTransportResetCount(DeviceID) >= 1);
         Assert.Null(monitor.LastDDCError);
     }
 
@@ -1518,8 +1518,9 @@ public sealed class MonitorRecoveryTests
 
         await WaitUntil(() => service.Monitors[0].IsFailed);
 
+        // Three failed read-backs in a row retire the helper once
         Assert.Equal(expected: 1, display.SetVcpCalls);
-        Assert.Equal(expected: 3, display.GetTransportResetCount(DeviceID));
+        Assert.Equal(expected: 1, display.GetTransportResetCount(DeviceID));
     }
 
     [Fact]
@@ -1534,10 +1535,11 @@ public sealed class MonitorRecoveryTests
         display.SetRead(HDMIID, ok: true, current: 50, max: 100);
         display.SetRead(DisplayPortID, ok: true, current: 50, max: 100);
 
+        // Three read attempts make the HDMI failure a streak long enough to retire its helper
         using MonitorService service = CreateService(
             display,
             MonitorIdentityStrategy.EDIDSerial,
-            validationAttempts: 1);
+            validationAttempts: 3);
         await WaitUntil(() => service.Monitors.Count == 2 && service.Monitors.All(m => m.IsHardwareFunctional));
 
         display.SetRead(HDMIID, ok: false, error: "simulated HDMI transport failure");
@@ -1746,6 +1748,399 @@ public sealed class MonitorRecoveryTests
         Assert.Same(monitor, Assert.Single(reengaged));
         Assert.Same(monitor, Assert.Single(service.Monitors));
         Assert.Equal(SliderState.CurveActive, monitor.SliderState);
+    }
+
+    [Fact]
+    public async Task TargetedRecoveryKeepsFailedRowOffThePanelNowHoldingItsNumber()
+    {
+        const string LeavingID = "DISPLAY\\SHIFT-LEAVING";
+        const string SilentID = "DISPLAY\\SHIFT-SILENT";
+        const string MovingID = "DISPLAY\\SHIFT-MOVING";
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            CreateMonitor(LeavingID, displayNumber: 1, serial: "SHIFT-LEAVING", name: @"\\.\DISPLAY1"),
+            CreateMonitor(SilentID, displayNumber: 2, serial: "SHIFT-SILENT", name: @"\\.\DISPLAY2"),
+            CreateMonitor(MovingID, displayNumber: 3, serial: "SHIFT-MOVING", name: @"\\.\DISPLAY3"));
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
+        await WaitUntil(() => service.Monitors.Count == 3 && service.Monitors.All(m => m.IsHardwareFunctional));
+        MonitorInfo silent = service.Monitors.Single(m => m.EDIDSerial == "SHIFT-SILENT");
+
+        // The silent panel stays enumerated while the first one leaves and Windows renumbers the other two
+        display.SetRead(SilentID, ok: false, error: "simulated silent panel");
+        display.SetMonitors(
+            CreateMonitor(SilentID, displayNumber: 1, serial: "SHIFT-SILENT", name: @"\\.\DISPLAY2"),
+            CreateMonitor(MovingID, displayNumber: 2, serial: "SHIFT-MOVING", name: @"\\.\DISPLAY3"));
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 2 && silent.IsFailed);
+
+        Assert.Equal("num:2", silent.ID);
+        service.TryRecoverMonitor(silent.ID);
+
+        Assert.Equal("SHIFT-SILENT", silent.EDIDSerial);
+        Assert.Single(service.Monitors, m => m.EDIDSerial == "SHIFT-MOVING");
+    }
+
+    [Fact]
+    public async Task NewRowDoesNotReuseAnIDAnotherRowStillHolds()
+    {
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            CreateMonitor("DISPLAY\\STICKY-KEPT", displayNumber: 1, serial: "STICKY-KEPT", name: @"\\.\DISPLAY1"),
+            CreateMonitor("DISPLAY\\STICKY-LEAVING", displayNumber: 2, serial: "STICKY-LEAVING", name: @"\\.\DISPLAY2"));
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
+        await WaitUntil(() => service.Monitors.Count == 2 && service.Monitors.All(m => m.IsHardwareFunctional));
+        MonitorInfo kept = service.Monitors.Single(m => m.EDIDSerial == "STICKY-KEPT");
+
+        // One panel leaves, the kept panel is renumbered 2 and an arriving panel takes number 1, the kept row's ID
+        display.SetMonitors(
+            CreateMonitor("DISPLAY\\STICKY-KEPT", displayNumber: 2, serial: "STICKY-KEPT", name: @"\\.\DISPLAY1"),
+            CreateMonitor("DISPLAY\\STICKY-ARRIVING", displayNumber: 1, serial: "STICKY-ARRIVING", name: @"\\.\DISPLAY3"));
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Any(m => m.EDIDSerial == "STICKY-ARRIVING"));
+
+        MonitorInfo arriving = service.Monitors.Single(m => m.EDIDSerial == "STICKY-ARRIVING");
+        Assert.Equal("num:1", kept.ID);
+        Assert.Equal("edid:STICKY-ARRIVING", arriving.ID);
+        Assert.Equal(service.Monitors.Count, service.Monitors.Select(m => m.ID).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public async Task DemotedReadDegradedMonitorStillGetsTheChecksumResynchronizingWrite()
+    {
+        const string DeviceID = "DISPLAY\\ADAPTER-WEDGE";
+        const string ChecksumError = "GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241845, 0xC026258B)";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 36, serial: "ADAPTER-WEDGE"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.HasReadValue(42));
+
+        // An adapter keeps accepting SETs for its dark panel while every read fails, so the row turns read-degraded
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(DeviceID, ok: false, error: "simulated adapter garbage");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsReadDegraded);
+
+        // The waking panel refuses a write, which demotes the row
+        display.WriteSucceeds = false;
+        monitor.Brightness = 44;
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(monitor.IsReadDegraded);
+
+        // An early read wedged its reply pipeline, which only an accepted SET resynchronizes
+        display.WriteSucceeds = true;
+        display.SetRead(DeviceID, ok: false, error: ChecksumError);
+        display.ConfigureWriteReadBack(true);
+        int writesBeforeRecovery = display.SetVcpCalls;
+
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(display.SetVcpCalls > writesBeforeRecovery);
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.False(monitor.IsReadDegraded);
+    }
+
+    [Fact]
+    public async Task BrightnessTargetQueuedDuringPowerOffNeverReachesThePanel()
+    {
+        const string DeviceID = "DISPLAY\\POWER-RACE";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 38, serial: "POWER-RACE"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        int brightnessWritesBefore = display.GetSetVCPFeatureCallCount(VCPConstants.Brightness);
+
+        // A curve tick arrives while the power-off write is still in flight
+        Task powerOff = service.SetPowerStateAsync(monitor, on: false);
+        service.EnqueueDirectBrightness(monitor, percent: 30);
+        await powerOff;
+        await Task.Delay(200);
+
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(brightnessWritesBefore, display.GetSetVCPFeatureCallCount(VCPConstants.Brightness));
+    }
+
+    [Fact]
+    public async Task MonitorThatNeverAnsweredStaysARecoveryCandidateUntilItDoes()
+    {
+        const string DeviceID = "DISPLAY\\DARK-AT-LAUNCH";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 39, serial: "DARK-AT-LAUNCH"));
+        display.SetRead(DeviceID, ok: false, error: "simulated dark panel");
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsFailed: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        Assert.False(monitor.WasEverDDCCapable);
+        Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.DoesNotContain(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+    }
+
+    [Fact]
+    public async Task RefusedPowerOnLetsRecoveryReachThePanel()
+    {
+        const string DeviceID = "DISPLAY\\HARD-OFF-WAKE";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 40, serial: "HARD-OFF-WAKE"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+
+        // A hard-off panel answers nothing, so the power-on command is refused
+        display.WriteSucceeds = false;
+        await service.SetPowerStateAsync(monitor, on: true);
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+    }
+
+    [Fact]
+    public async Task ChecksumResyncOfReadDegradedRowResendsItsNewestValue()
+    {
+        const string DeviceID = "DISPLAY\\RESYNC-NEWEST";
+        const string ChecksumError = "GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241845, 0xC026258B)";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 43, serial: "RESYNC-NEWEST"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 40;
+        await WaitUntil(() => display.HasReadValue(40));
+
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(DeviceID, ok: false, error: "simulated adapter garbage");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        service.TryRecoverMonitor(monitor.ID);
+        Assert.True(monitor.IsReadDegraded);
+
+        // Blind writes keep reaching the read-degraded row; 80 is accepted but cannot be confirmed
+        monitor.Brightness = 80;
+        await WaitUntil(() => display.GetLastSetValueForCode(VCPConstants.Brightness) == 80);
+        await Task.Delay(200);
+
+        display.SetRead(DeviceID, ok: false, error: ChecksumError);
+        display.ConfigureWriteReadBack(true);
+
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+        Assert.Equal((uint)80, display.GetLastSetValueForCode(VCPConstants.Brightness));
+    }
+
+    [Fact]
+    public async Task RecoveryRequestWakesASleepingWorkerAtOnce()
+    {
+        const string DeviceID = "DISPLAY\\WAKE-WORKER";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 44, serial: "WAKE-WORKER"));
+        display.SetRead(DeviceID, ok: false, error: "simulated dark panel");
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsFailed: true }]);
+        using DDCRecoveryService recoveryService = new(service, retryIntervalMs: 60_000);
+        recoveryService.Start();
+        await WaitUntil(() => display.DDCRecoveryEnumerationCalls >= 1);
+        await Task.Delay(100);
+        int probesBeforeRequest = display.DDCRecoveryEnumerationCalls;
+
+        service.RequestRecoveryOfUnavailableMonitors();
+
+        await WaitUntil(() => display.DDCRecoveryEnumerationCalls > probesBeforeRequest, timeoutMs: 1000);
+    }
+
+    [Fact]
+    public async Task SilentPanelRetiresItsHelperOnceItsFailuresPersist()
+    {
+        const string DeviceID = "DISPLAY\\SILENT-STREAK";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 41, serial: "SILENT-STREAK"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = false);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        display.SetRead(DeviceID, ok: false, error: "simulated dark panel");
+        service.Refresh();
+        await WaitUntil(() => service.Monitors[0].IsFailed);
+        for (int attempt = 0; attempt < 10; attempt++) service.TryRecoverMonitor(service.Monitors[0].ID);
+
+        Assert.Equal(expected: 1, display.GetTransportResetCount(DeviceID));
+    }
+
+    [Fact]
+    public async Task IsolatedFailedReadsKeepTheHelper()
+    {
+        const string DeviceID = "DISPLAY\\GARBLED-READ";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 52, serial: "GARBLED-READ"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, validationAttempts: 4);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        // An LG garbles a reply now and then; a later attempt reads cleanly
+        int readsBefore = display.GetVcpCalls;
+        display.SetReadFailuresBeforeSuccess(DeviceID, failuresBeforeSuccess: 2, current: 40, max: 100, error: "garbled");
+        service.Refresh();
+        await WaitUntil(() => display.GetVcpCalls >= readsBefore + 3);
+
+        Assert.True(service.Monitors[0].IsHardwareFunctional);
+        Assert.Equal(expected: 0, display.GetTransportResetCount(DeviceID));
+    }
+
+    [Fact]
+    public async Task PowerOnForAnUnavailableRowLiftsItsPowerOffIntent()
+    {
+        const string DeviceID = "DISPLAY\\OFF-THEN-FAILED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 46, serial: "OFF-THEN-FAILED"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        // The dark panel fails the next Refresh probe, which drops the row's entry
+        display.SetRead(DeviceID, ok: false, error: "simulated dark panel");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.DoesNotContain(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+
+        List<string> requested = [];
+        service.DDCRecoveryRequested += requested.Add;
+        await service.SetPowerStateAsync(monitor, on: true);
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Contains(monitor.ID, requested);
+        Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+    }
+
+    [Fact]
+    public async Task RowKeyedByItsAdapterNameKeepsItsStateWhenTheMonitorDeviceAttaches()
+    {
+        const string AdapterName = @"\\.\DISPLAY1";
+        const string AttachedDeviceID = @"MONITOR\TST0001\{4d36e96e-e325-11ce-bfc1-08002be10318}\0001";
+        FakeDisplayService display = new();
+
+        // Device attach lag: EnumDisplayDevices has no active monitor for the source yet, so no devnode or EDID
+        display.SetMonitors(CreateMonitor(AdapterName, displayNumber: 48, serial: string.Empty, AdapterName));
+        display.SetRead(AdapterName, ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        Assert.Equal("port:" + AdapterName, monitor.EDIDKey);
+        monitor.Brightness = 65;
+        await WaitUntil(() => display.HasReadValue(65));
+
+        display.SetRead(AttachedDeviceID, ok: true, current: 65, max: 100);
+        display.SetMonitors(CreateMonitor(AttachedDeviceID, displayNumber: 48, serial: "ATTACHED", AdapterName));
+        service.Refresh();
+        await WaitUntil(() => monitor.EDIDKey == "edid:ATTACHED");
+
+        Assert.Same(monitor, Assert.Single(service.Monitors));
+        Assert.Equal("edid:ATTACHED", monitor.ID);
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.Equal(expected: 65, monitor.RoundedBrightness);
+    }
+
+    [Fact]
+    public async Task PoweredOffRowThatEnumeratesAgainDropsItsPowerOffIntent()
+    {
+        const string DeviceID = "DISPLAY\\OFF-UNPLUGGED";
+        FakeDisplayService display = new();
+        DDCMonitor panel = CreateMonitor(DeviceID, displayNumber: 49, serial: "OFF-UNPLUGGED");
+        display.SetMonitors(panel);
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        // The panel drops off the bus while off, then its button brings it back with a wedged reply pipeline
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+        display.SetRead(DeviceID, ok: false, error: "simulated checksum wedge");
+        display.SetMonitors(panel);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 1);
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+    }
+
+    [Fact]
+    public async Task ReadDegradedRowThatDropsOffComesBackFailedNotDegraded()
+    {
+        const string DeviceID = "DISPLAY\\DEGRADED-UNPLUGGED";
+        FakeDisplayService display = new();
+        DDCMonitor panel = CreateMonitor(DeviceID, displayNumber: 51, serial: "DEGRADED-UNPLUGGED");
+        display.SetMonitors(panel);
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.HasReadValue(42));
+
+        // Writes still land while every read fails, so recovery leaves the row read-degraded
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(DeviceID, ok: false, error: "simulated adapter garbage");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsReadDegraded);
+
+        display.SetMonitors();
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 0);
+        display.SetMonitors(panel);
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Count == 1);
+
+        // A retained read-degraded flag would send recovery down the branch that never probes the write transport
+        Assert.True(monitor.IsFailed);
+        Assert.False(monitor.IsReadDegraded);
     }
 
     private static MonitorService CreateService(
@@ -2165,6 +2560,10 @@ public sealed class MonitorRecoveryTests
                 if (_readsAfterTransportRecovery.Remove(key, out VcpRead recoveredRead))
                     _reads[key] = recoveredRead;
             }
+        }
+
+        public void RetireDDCTransport(DDCMonitor monitor)
+        {
         }
 
         public bool RefreshHandle(DDCMonitor monitor)

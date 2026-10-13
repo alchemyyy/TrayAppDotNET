@@ -35,6 +35,13 @@ public static class TADNLog
     private static bool _shuttingDown;
 
     /// <summary>
+    /// Optional in-process observer that receives every message passed to <see cref="Log"/>, before any file
+    /// buffering. Simulation tests use it to interleave app log lines with their virtual timeline.
+    /// Called on the logging thread and must not throw.
+    /// </summary>
+    public static Action<string>? MessageObserver { get; set; }
+
+    /// <summary>
     /// Resolves log file paths and starts the periodic flush timer.
     /// Idempotent - safe to call from both <c>Program.Main</c> and UI startup; subsequent calls are no-ops.
     /// </summary>
@@ -67,6 +74,8 @@ public static class TADNLog
     {
         try
         {
+            MessageObserver?.Invoke(message ?? string.Empty);
+
             if (!_initialized) Initialize();
             if (!_initialized) return;
 

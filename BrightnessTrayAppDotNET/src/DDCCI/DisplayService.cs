@@ -30,12 +30,23 @@ public class DisplayService : IDisplayService, IDisposable
         HelperResolution
     }
 
+    // DISPLAY_DEVICE_ACTIVE on a monitor device: the GDI source currently presents it
+    internal const int DisplayDeviceActive = 0x1;
+
+    // EnumDisplayDevices lists one active monitor per source plus any attached but inactive ones
+    private const uint MaximumMonitorDevicesPerSource = 16;
+
     private readonly bool _useHelperProcess;
 
     // One helper process per stable monitor identity. A blocked driver call can therefore time out and kill only
     // that monitor's helper instead of holding the single pipe lock in front of every other panel.
     private readonly Dictionary<string, DDCHelperClient>? _helperClients;
     private readonly Lock _helperClientsGate = new();
+
+    // Keys whose helper was retired because the identity stopped enumerating or was superseded, until an enumeration
+    // shows them again. Guarded by _helperClientsGate. A command still aimed at one gets a helper that ends with it;
+    // a registered one would live until some later enumeration noticed it
+    private readonly HashSet<string> _retiredHelperClientKeys = new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _disposed;
 
     public DisplayService() : this(true) { }
@@ -76,12 +87,67 @@ public class DisplayService : IDisplayService, IDisposable
             helperClient.Dispose();
     }
 
-    public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
-        TryGetMonitorsCore(MonitorEnumerationPurpose.Full, out monitors, out error);
+    public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
+    {
+        if (!TryGetMonitorsCore(MonitorEnumerationPurpose.Full, out monitors, out error)) return false;
+
+        RetireHelpersOfVanishedMonitors(monitors);
+        return true;
+    }
 
     /// <inheritdoc />
-    public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error) =>
-        TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error);
+    public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
+    {
+        if (!TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error)) return false;
+
+        RetireHelpersOfVanishedMonitors(monitors);
+        return true;
+    }
+
+    /// <summary>
+    /// Retires helper processes whose monitor identity no longer enumerates. A replug or devnode change mints a new
+    /// helper key, and the old helper process used to live until the app exited. A helper busy with a command ends
+    /// when that command finishes; a later command for the same identity runs on a helper that ends with it, until an
+    /// enumeration shows the identity again.
+    /// </summary>
+    private void RetireHelpersOfVanishedMonitors(IReadOnlyList<DDCMonitor> enumerated)
+    {
+        List<(string Key, DDCHelperClient Client)> vanished = [];
+        lock (_helperClientsGate)
+        {
+            if (_disposed || _helperClients == null) return;
+
+            if (_retiredHelperClientKeys.Count > 0)
+                _retiredHelperClientKeys.IntersectWith(SelectStaleHelperClientKeys(_retiredHelperClientKeys, enumerated));
+
+            foreach (string key in SelectStaleHelperClientKeys(_helperClients.Keys, enumerated))
+            {
+                if (!_helperClients.Remove(key, out DDCHelperClient? client)) continue;
+
+                vanished.Add((key, client));
+                _retiredHelperClientKeys.Add(key);
+            }
+        }
+
+        foreach ((string key, DDCHelperClient client) in vanished)
+        {
+            TADNLog.Log($"DisplayService: retiring the helper of vanished monitor {key}");
+
+            // Ending the process waits on its exit; keep that off the caller, which can be the UI thread
+            _ = Task.Run(client.Retire);
+        }
+    }
+
+    /// <summary>Helper client keys that no monitor in <paramref name="enumerated"/> maps to.</summary>
+    internal static List<string> SelectStaleHelperClientKeys(
+        IEnumerable<string> clientKeys,
+        IReadOnlyList<DDCMonitor> enumerated)
+    {
+        HashSet<string> liveKeys = new(StringComparer.OrdinalIgnoreCase);
+        foreach (DDCMonitor monitor in enumerated) liveKeys.Add(BuildHelperClientKey(monitor));
+
+        return [.. clientKeys.Where(key => !liveKeys.Contains(key))];
+    }
 
     /// <summary>
     /// Enumerates the Win32 identity needed by the DDC helper without parent-only WMI, CCD, and profile work.
@@ -119,8 +185,7 @@ public class DisplayService : IDisplayService, IDisposable
             if (User32Monitor.GetMonitorInfo(new HandleRef(wrapper: null, monitor.Handle), monitorInfo))
             {
                 monitor.Name = new string(monitorInfo.szDevice).TrimEnd('\0');
-                monitor.DeviceID = ResolveDeviceID(monitor.Name);
-                monitor.DisplayInstancePath = ResolveDisplayInstancePath(monitor.Name);
+                (monitor.DeviceID, monitor.DisplayInstancePath) = ResolveMonitorDevice(monitor.Name);
                 if (!helperResolutionOnly)
                     monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
 
@@ -181,41 +246,68 @@ public class DisplayService : IDisplayService, IDisposable
     }
 
     /// <summary>
-    /// Queries <c>EnumDisplayDevices</c> for the monitor attached to the given adapter (e.g. <c>\\.\DISPLAY1</c>)
-    /// and returns its stable DeviceID.
-    /// Falls back to the adapter name so identity resolution never returns empty - callers can still key on it,
-    /// they just lose the "same monitor on same port" invariant.
+    /// Stable DeviceID and <c>DISPLAY\...\...</c> instance path of the monitor attached to an adapter (e.g.
+    /// <c>\\.\DISPLAY1</c>), both read from the device <see cref="SelectMonitorDeviceIndex"/> picks in one pass, so
+    /// they describe the same panel even while flags change mid-transient. Windows also lists attached but inactive
+    /// monitors under every source, sometimes first, so index 0 could describe another panel. The instance path has
+    /// the shape WmiMonitorBrightness.InstanceName uses before its trailing target suffix. The DeviceID falls back to
+    /// the adapter name so identity resolution never returns empty - callers can still key on it, they just lose the
+    /// "same monitor on same port" invariant.
     /// </summary>
-    private static string ResolveDeviceID(string adapterName)
+    private static (string DeviceID, string DisplayInstancePath) ResolveMonitorDevice(string adapterName)
     {
-        if (string.IsNullOrEmpty(adapterName)) return string.Empty;
+        if (string.IsNullOrEmpty(adapterName)) return (string.Empty, string.Empty);
 
-        User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
-        if (User32Monitor.EnumDisplayDevices(adapterName, iDevNum: 0, ref dd, dwFlags: 0) &&
-            !string.IsNullOrEmpty(dd.DeviceID))
-            return dd.DeviceID;
+        List<User32Monitor.DisplayDevice> devices = [];
+        List<string> interfacePaths = [];
+        for (uint index = 0; index < MaximumMonitorDevicesPerSource; index++)
+        {
+            User32Monitor.DisplayDevice device = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
+            if (!User32Monitor.EnumDisplayDevices(adapterName, index, ref device, dwFlags: 0)) break;
 
-        return adapterName;
+            // The interface-name form of the same index must still be the same device
+            User32Monitor.DisplayDevice withInterface = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
+            bool sameDevice = User32Monitor.EnumDisplayDevices(
+                                  adapterName,
+                                  index,
+                                  ref withInterface,
+                                  User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME)
+                              && string.Equals(withInterface.DeviceName, device.DeviceName, StringComparison.Ordinal);
+            devices.Add(device);
+            interfacePaths.Add(sameDevice ? withInterface.DeviceID : string.Empty);
+        }
+
+        int selected = SelectMonitorDeviceIndex([.. devices.Select(static device => device.StateFlags)]);
+        if (selected < 0) return (adapterName, string.Empty);
+
+        string deviceID = string.IsNullOrEmpty(devices[selected].DeviceID) ? adapterName : devices[selected].DeviceID;
+        return (deviceID, ParseDisplayInstancePath(interfacePaths[selected]));
     }
 
     /// <summary>
-    /// Returns the DISPLAY\...\... instance path for the monitor attached to an adapter.
-    /// This is the same shape WmiMonitorBrightness.InstanceName uses before its trailing target suffix.
+    /// Index of the monitor device that describes a source: the first one flagged <c>DISPLAY_DEVICE_ACTIVE</c>, or -1.
+    /// While a new monitor's device is still attaching, only other panels' inactive devices may be listed under the
+    /// source; none of them describes it, so the caller falls back to the adapter name.
     /// </summary>
-    private static string ResolveDisplayInstancePath(string adapterName)
+    internal static int SelectMonitorDeviceIndex(IReadOnlyList<int> stateFlags)
     {
-        if (string.IsNullOrEmpty(adapterName)) return string.Empty;
+        for (int index = 0; index < stateFlags.Count; index++)
+        {
+            if ((stateFlags[index] & DisplayDeviceActive) != 0) return index;
+        }
 
-        User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
-        if (!User32Monitor.EnumDisplayDevices(
-                adapterName, iDevNum: 0, ref dd, User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME))
-            return string.Empty;
+        return -1;
+    }
 
-        string interfacePath = dd.DeviceID;
+    /// <summary>
+    /// Converts a monitor device-interface path (<c>\\?\DISPLAY#hwid#instance#{GUID}</c>) to its
+    /// <c>DISPLAY\hwid\instance</c> instance path. Returns empty for any other shape.
+    /// </summary>
+    internal static string ParseDisplayInstancePath(string interfacePath)
+    {
         if (string.IsNullOrEmpty(interfacePath)) return string.Empty;
 
-        // Expected form: "\\?\DISPLAY#<hwid>#<instance>#{GUID}".
-        // Strip the "\\?\" prefix and trailing "#{GUID}", then swap '#' -> '\'.
+        // Strip the "\\?\" prefix and trailing "#{GUID}", then swap '#' -> '\'
         const string prefix = @"\\?\";
         if (!interfacePath.StartsWith(prefix, StringComparison.Ordinal)) return string.Empty;
 
@@ -448,6 +540,26 @@ public class DisplayService : IDisplayService, IDisposable
         helperClient.Dispose();
     }
 
+    /// <inheritdoc />
+    public void RetireDDCTransport(DDCMonitor monitor)
+    {
+        string helperClientKey = BuildHelperClientKey(monitor);
+        DDCHelperClient? helperClient;
+        lock (_helperClientsGate)
+        {
+            if (!_useHelperProcess || _helperClients == null || _disposed) return;
+
+            if (!_helperClients.Remove(helperClientKey, out helperClient)) return;
+
+            _retiredHelperClientKeys.Add(helperClientKey);
+        }
+
+        TADNLog.Log($"DisplayService: retiring the helper of superseded identity {helperClientKey}");
+
+        // MonitorService calls this from the UI thread; ending the process waits on its exit
+        _ = Task.Run(helperClient.Retire);
+    }
+
     private static bool TryGetWindowsBrightnessFeature(
         DDCMonitor monitor,
         byte code,
@@ -519,154 +631,181 @@ public class DisplayService : IDisplayService, IDisposable
         if (string.IsNullOrEmpty(monitor.Name)) return false;
 
         Dictionary<string, int> friendlyByAdapter = CCD.BuildFriendlyDisplayNumberMap();
-        string targetDeviceID = monitor.DeviceID;
-        string targetDisplayInstancePath = monitor.DisplayInstancePath;
-        string targetSerial = monitor.EDIDSerial;
-        string targetManufacturer = monitor.EDIDManufacturerID;
-        string targetProduct = monitor.EDIDProductCode;
-        MonitorBrightnessControlKind targetControlKind = monitor.BrightnessControlKind;
+        RefreshHandleIdentity targetIdentity = RefreshHandleIdentity.From(monitor);
+        List<(IntPtr Handle, IntPtr HDC, int Left, int Top, string FriendlyName, RefreshHandleIdentity Identity)>
+            candidates = [];
 
-        IntPtr updatedHandle = IntPtr.Zero;
-        IntPtr updatedHdc = IntPtr.Zero;
-        string updatedName = monitor.Name;
-        string updatedDeviceID = monitor.DeviceID;
-        string updatedDisplayInstancePath = monitor.DisplayInstancePath;
-        int updatedDisplayNumber = monitor.DisplayNumber;
-        int updatedX = monitor.X;
-        int updatedY = monitor.Y;
-        string updatedSerial = monitor.EDIDSerial;
-        string updatedFriendlyName = monitor.FriendlyName;
-        string updatedManufacturer = monitor.EDIDManufacturerID;
-        string updatedProduct = monitor.EDIDProductCode;
-        MonitorBrightnessControlKind updatedControlKind = monitor.BrightnessControlKind;
-        string updatedWindowsBrightnessInstanceName = monitor.WindowsBrightnessInstanceName;
-        string updatedWindowsBrightnessMethodPath = monitor.WindowsBrightnessMethodPath;
+        // Every monitor is read before choosing, so the strongest identity rule wins rather than the first match
+        _ = User32Monitor.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero);
 
-        if (!User32Monitor.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero))
+        int selected = SelectRefreshHandleCandidate(
+            targetIdentity,
+            [.. candidates.Select(static candidate => candidate.Identity)],
+            out RefreshHandleMatch match);
+        if (selected < 0) return false;
+
+        (IntPtr handle, IntPtr deviceContext, int left, int top, string friendlyName, RefreshHandleIdentity identity) =
+            candidates[selected];
+        if (match == RefreshHandleMatch.AdapterNameFallback)
         {
-            // EnumDisplayMonitors returns FALSE when the callback stops early (we do on match),
-            // so the real signal is whether freshHandle was assigned.
+            TADNLog.Log(
+                $"DisplayService.RefreshHandle: using adapter-name fallback for '{monitor.Name}' "
+                + $"(targetDevice='{targetIdentity.DeviceID}', newDevice='{identity.DeviceID}')");
         }
 
-        if (updatedHandle == IntPtr.Zero) return false;
+        // The WMI lookup is slow, so it runs before any field changes: a concurrent caller must never see a
+        // Windows-brightness panel described as DDC/CI under a different DeviceID (and DDC lock)
+        WindowsBrightnessTarget? windowsTarget = targetIdentity.ControlKind == MonitorBrightnessControlKind.Windows
+            ? FindWindowsBrightnessTarget(identity.DisplayInstancePath)
+            : null;
 
-        monitor.Handle = updatedHandle;
-        monitor.HDC = updatedHdc;
-        monitor.Name = updatedName;
-        monitor.DeviceID = updatedDeviceID;
-        monitor.DisplayInstancePath = updatedDisplayInstancePath;
-        monitor.DisplayNumber = updatedDisplayNumber;
-        monitor.X = updatedX;
-        monitor.Y = updatedY;
-        monitor.EDIDSerial = updatedSerial;
-        monitor.FriendlyName = updatedFriendlyName;
-        monitor.EDIDManufacturerID = updatedManufacturer;
-        monitor.EDIDProductCode = updatedProduct;
-        monitor.BrightnessControlKind = updatedControlKind;
-        monitor.WindowsBrightnessInstanceName = updatedWindowsBrightnessInstanceName;
-        monitor.WindowsBrightnessMethodPath = updatedWindowsBrightnessMethodPath;
+        monitor.Handle = handle;
+        monitor.HDC = deviceContext;
+        monitor.Name = identity.Name;
+        monitor.DeviceID = windowsTarget?.DisplayInstancePath ?? identity.DeviceID;
+        monitor.DisplayInstancePath = windowsTarget?.DisplayInstancePath ?? identity.DisplayInstancePath;
+        monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(identity.Name, friendlyByAdapter);
+        monitor.X = left;
+        monitor.Y = top;
+        monitor.EDIDSerial = identity.EDIDSerial;
+        monitor.FriendlyName = friendlyName;
+        monitor.EDIDManufacturerID = identity.EDIDManufacturerID;
+        monitor.EDIDProductCode = identity.EDIDProductCode;
+        monitor.BrightnessControlKind = windowsTarget == null
+            ? MonitorBrightnessControlKind.DdcCi
+            : MonitorBrightnessControlKind.Windows;
+        monitor.WindowsBrightnessInstanceName = windowsTarget?.InstanceName ?? string.Empty;
+        monitor.WindowsBrightnessMethodPath = windowsTarget?.MethodPath ?? string.Empty;
         DDCMonitorDatabase.ApplyProfile(monitor);
         return true;
 
-        bool Callback(IntPtr hMonitor, IntPtr hdc, ref User32Monitor.Rect rect, IntPtr data)
+        bool Callback(IntPtr hMonitor, IntPtr monitorHDC, ref User32Monitor.Rect rect, IntPtr data)
         {
             User32Monitor.MonitorInfoEx info = new();
             if (!User32Monitor.GetMonitorInfo(new HandleRef(wrapper: null, hMonitor), info)) return true;
 
             string adapterName = new string(info.szDevice).TrimEnd('\0');
-            string deviceID = ResolveDeviceID(adapterName);
-            string displayInstancePath = ResolveDisplayInstancePath(adapterName);
+            (string deviceID, string displayInstancePath) = ResolveMonitorDevice(adapterName);
             byte[]? edid = ReadEDID(displayInstancePath);
             string serial = edid == null ? string.Empty : EDIDParser.ExtractSerial(edid);
             string manufacturer = edid == null ? string.Empty : EDIDParser.ExtractManufacturerID(edid);
             string product = string.Empty;
-            string friendlyName = string.Empty;
+            string monitorName = string.Empty;
             if (edid != null)
             {
                 ushort productCode = EDIDParser.ExtractProductCode(edid);
                 product = productCode == 0
                     ? string.Empty
                     : productCode.ToString(format: "X4", CultureInfo.InvariantCulture);
-                friendlyName = EDIDParser.ExtractMonitorName(edid);
+                monitorName = EDIDParser.ExtractMonitorName(edid);
             }
 
-            bool stableDeviceMatch = HasStableDeviceID(targetDeviceID)
-                                     && HasStableDeviceID(deviceID)
-                                     && string.Equals(deviceID, targetDeviceID, StringComparison.Ordinal);
-            bool windowsDisplayInstanceMatch = targetControlKind == MonitorBrightnessControlKind.Windows
-                                               && !string.IsNullOrEmpty(targetDisplayInstancePath)
-                                               && !string.IsNullOrEmpty(displayInstancePath)
-                                               && string.Equals(
-                                                   displayInstancePath,
-                                                   targetDisplayInstancePath,
-                                                   StringComparison.OrdinalIgnoreCase);
-            bool EDIDMatch = !string.IsNullOrEmpty(targetSerial)
-                             && string.Equals(serial, targetSerial, StringComparison.Ordinal)
-                             && (string.IsNullOrEmpty(targetManufacturer)
-                                 || string.Equals(manufacturer, targetManufacturer, StringComparison.Ordinal))
-                             && (string.IsNullOrEmpty(targetProduct)
-                                 || string.Equals(product, targetProduct, StringComparison.Ordinal));
-            bool adapterFallbackMatch = string.Equals(adapterName, monitor.Name, StringComparison.Ordinal);
-
-            if (!stableDeviceMatch && !windowsDisplayInstanceMatch && !EDIDMatch && !adapterFallbackMatch)
-                return true;
-
-            if (adapterFallbackMatch && !stableDeviceMatch && !windowsDisplayInstanceMatch && !EDIDMatch)
-            {
-                TADNLog.Log(
-                    $"DisplayService.RefreshHandle: using adapter-name fallback for '{monitor.Name}' "
-                    + $"(targetDevice='{targetDeviceID}', newDevice='{deviceID}')");
-            }
-
-            updatedHandle = hMonitor;
-            updatedHdc = hdc;
-            updatedName = adapterName;
-            updatedDeviceID = deviceID;
-            updatedDisplayInstancePath = displayInstancePath;
-            updatedDisplayNumber = CCD.ResolveFriendlyDisplayNumber(adapterName, friendlyByAdapter);
-            updatedX = rect.left;
-            updatedY = rect.top;
-            updatedSerial = serial;
-            updatedFriendlyName = friendlyName;
-            updatedManufacturer = manufacturer;
-            updatedProduct = product;
-            if (targetControlKind == MonitorBrightnessControlKind.Windows)
-                ApplyWindowsBrightnessFromCurrentEnumeration();
-            else
-                ClearWindowsBrightnessTarget();
-            return false; // match found - stop enumeration
+            candidates.Add((
+                hMonitor,
+                monitorHDC,
+                rect.left,
+                rect.top,
+                monitorName,
+                new RefreshHandleIdentity(
+                    adapterName,
+                    deviceID,
+                    displayInstancePath,
+                    serial,
+                    manufacturer,
+                    product,
+                    MonitorBrightnessControlKind.DdcCi)));
+            return true;
         }
 
-        void ClearWindowsBrightnessTarget()
+        static WindowsBrightnessTarget? FindWindowsBrightnessTarget(string displayInstancePath)
         {
-            updatedControlKind = MonitorBrightnessControlKind.DdcCi;
-            updatedWindowsBrightnessInstanceName = string.Empty;
-            updatedWindowsBrightnessMethodPath = string.Empty;
-        }
-
-        void ApplyWindowsBrightnessFromCurrentEnumeration()
-        {
-            ClearWindowsBrightnessTarget();
-
             if (!WindowsBrightnessWmi.TryGetActiveTargets(
                     out IReadOnlyList<WindowsBrightnessTarget> targets,
                     out _))
-                return;
+                return null;
 
-            WindowsBrightnessTarget? target = targets.FirstOrDefault(t =>
-                string.Equals(t.DisplayInstancePath, updatedDisplayInstancePath, StringComparison.OrdinalIgnoreCase));
-            if (target == null) return;
-
-            updatedControlKind = MonitorBrightnessControlKind.Windows;
-            updatedDeviceID = target.DisplayInstancePath;
-            updatedDisplayInstancePath = target.DisplayInstancePath;
-            updatedWindowsBrightnessInstanceName = target.InstanceName;
-            updatedWindowsBrightnessMethodPath = target.MethodPath;
+            return targets.FirstOrDefault(t =>
+                string.Equals(t.DisplayInstancePath, displayInstancePath, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    /// <summary>
+    /// Index of the enumerated monitor <see cref="RefreshHandle"/> rebinds to, or -1 when none qualifies.
+    /// The strongest rule wins across all candidates and the earliest wins among equals, so a stable DeviceID match
+    /// on a later monitor beats an adapter-name match on an earlier one.
+    /// </summary>
+    internal static int SelectRefreshHandleCandidate(
+        RefreshHandleIdentity target,
+        IReadOnlyList<RefreshHandleIdentity> candidates,
+        out RefreshHandleMatch match)
+    {
+        int selected = -1;
+        match = RefreshHandleMatch.None;
+        for (int index = 0; index < candidates.Count; index++)
+        {
+            RefreshHandleMatch candidateMatch = MatchRefreshHandleCandidate(target, candidates[index]);
+            if (candidateMatch == RefreshHandleMatch.None) continue;
+            if (selected >= 0 && candidateMatch >= match) continue;
+
+            selected = index;
+            match = candidateMatch;
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Strongest identity rule one enumerated monitor satisfies for <see cref="RefreshHandle"/>; lower values are
+    /// stronger. An adapter-name match is refused when the EDID shows another panel: GDI names move between panels
+    /// on every topology change.
+    /// </summary>
+    internal static RefreshHandleMatch MatchRefreshHandleCandidate(
+        RefreshHandleIdentity target,
+        RefreshHandleIdentity candidate)
+    {
+        bool stableDeviceMatch = HasStableDeviceID(target.DeviceID)
+                                 && HasStableDeviceID(candidate.DeviceID)
+                                 && string.Equals(candidate.DeviceID, target.DeviceID, StringComparison.Ordinal);
+        if (stableDeviceMatch) return RefreshHandleMatch.StableDevice;
+
+        bool windowsDisplayInstanceMatch = target.ControlKind == MonitorBrightnessControlKind.Windows
+                                           && !string.IsNullOrEmpty(target.DisplayInstancePath)
+                                           && !string.IsNullOrEmpty(candidate.DisplayInstancePath)
+                                           && string.Equals(
+                                               candidate.DisplayInstancePath,
+                                               target.DisplayInstancePath,
+                                               StringComparison.OrdinalIgnoreCase);
+        if (windowsDisplayInstanceMatch) return RefreshHandleMatch.WindowsDisplayInstance;
+
+        bool EDIDMatch = !string.IsNullOrEmpty(target.EDIDSerial)
+                         && string.Equals(candidate.EDIDSerial, target.EDIDSerial, StringComparison.Ordinal)
+                         && (string.IsNullOrEmpty(target.EDIDManufacturerID)
+                             || string.Equals(
+                                 candidate.EDIDManufacturerID,
+                                 target.EDIDManufacturerID,
+                                 StringComparison.Ordinal))
+                         && (string.IsNullOrEmpty(target.EDIDProductCode)
+                             || string.Equals(
+                                 candidate.EDIDProductCode,
+                                 target.EDIDProductCode,
+                                 StringComparison.Ordinal));
+        if (EDIDMatch) return RefreshHandleMatch.EDID;
+
+        if (!string.Equals(candidate.Name, target.Name, StringComparison.Ordinal)) return RefreshHandleMatch.None;
+
+        bool EDIDContradicts = Differs(target.EDIDSerial, candidate.EDIDSerial)
+                               || Differs(target.EDIDManufacturerID, candidate.EDIDManufacturerID)
+                               || Differs(target.EDIDProductCode, candidate.EDIDProductCode);
+        return EDIDContradicts ? RefreshHandleMatch.None : RefreshHandleMatch.AdapterNameFallback;
 
         static bool HasStableDeviceID(string deviceID) =>
             !string.IsNullOrEmpty(deviceID)
             && !deviceID.StartsWith(value: @"\\.\", StringComparison.Ordinal);
+
+        static bool Differs(string first, string second) =>
+            !string.IsNullOrEmpty(first)
+            && !string.IsNullOrEmpty(second)
+            && !string.Equals(first, second, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -698,24 +837,33 @@ public class DisplayService : IDisplayService, IDisposable
         int timeoutMs = OperationTimeoutMs;
         if (_useHelperProcess && timeoutMs > 0 && _helperClients != null && helperOp != null)
         {
-            DDCHelperClient helperClient;
+            string helperClientKey = BuildHelperClientKey(monitor);
+            DDCHelperClient? helperClient = null;
             lock (_helperClientsGate)
             {
                 if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
-                string helperClientKey = BuildHelperClientKey(monitor);
-                if (!_helperClients.TryGetValue(helperClientKey, out helperClient!))
+                if (!_retiredHelperClientKeys.Contains(helperClientKey)
+                    && !_helperClients.TryGetValue(helperClientKey, out helperClient))
                 {
                     helperClient = new DDCHelperClient();
                     _helperClients.Add(helperClientKey, helperClient);
                 }
             }
 
-            try { return helperOp(helperClient, timeoutMs, ct); }
-            catch (Exception ex)
+            // A command for a retired identity, typically one already in flight when its row went away
+            if (helperClient == null) return RunOnOneShotHelper();
+
+            DDCCallOutcome<T> outcome = RunOnHelper(helperClient);
+            if (outcome.Success || outcome.Error != DDCHelperClient.RetiredBeforeSendError) return outcome;
+
+            // A helper retired between lookup and command refused it unsent. Its identity is going away, so the one
+            // retry runs on a helper that is never registered and ends with the command.
+            lock (_helperClientsGate)
             {
-                TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
-                return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
+                if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
             }
+
+            return RunOnOneShotHelper();
         }
 
         try
@@ -727,9 +875,26 @@ public class DisplayService : IDisplayService, IDisposable
             TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
             return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
         }
+
+        DDCCallOutcome<T> RunOnHelper(DDCHelperClient client)
+        {
+            try { return helperOp!(client, timeoutMs, ct); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
+                return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
+            }
+        }
+
+        DDCCallOutcome<T> RunOnOneShotHelper()
+        {
+            DDCHelperClient oneShotClient = new();
+            try { return RunOnHelper(oneShotClient); }
+            finally { _ = Task.Run(oneShotClient.Retire); }
+        }
     }
 
-    private static string BuildHelperClientKey(DDCMonitor monitor)
+    internal static string BuildHelperClientKey(DDCMonitor monitor)
     {
         if (!string.IsNullOrEmpty(monitor.DeviceID)) return "device:" + monitor.DeviceID;
         if (!string.IsNullOrEmpty(monitor.DisplayInstancePath)) return "instance:" + monitor.DisplayInstancePath;
@@ -807,4 +972,35 @@ internal readonly struct DDCCallOutcome<T>
     /// Fail outcome with the supplied error string; used by timeout/cancellation paths to stamp op label and duration.
     /// </summary>
     public static DDCCallOutcome<T> WithError(string error) => new(success: false, default!, error);
+}
+
+/// <summary>Identity fields <see cref="DisplayService.RefreshHandle"/> compares between a cached and a live monitor.</summary>
+internal readonly record struct RefreshHandleIdentity(
+    string Name,
+    string DeviceID,
+    string DisplayInstancePath,
+    string EDIDSerial,
+    string EDIDManufacturerID,
+    string EDIDProductCode,
+    MonitorBrightnessControlKind ControlKind)
+{
+    public static RefreshHandleIdentity From(DDCMonitor monitor) =>
+        new(
+            monitor.Name,
+            monitor.DeviceID,
+            monitor.DisplayInstancePath,
+            monitor.EDIDSerial,
+            monitor.EDIDManufacturerID,
+            monitor.EDIDProductCode,
+            monitor.BrightnessControlKind);
+}
+
+/// <summary>Strongest identity rule an enumerated monitor satisfied in <see cref="DisplayService.RefreshHandle"/>.</summary>
+internal enum RefreshHandleMatch
+{
+    None,
+    StableDevice,
+    WindowsDisplayInstance,
+    EDID,
+    AdapterNameFallback
 }

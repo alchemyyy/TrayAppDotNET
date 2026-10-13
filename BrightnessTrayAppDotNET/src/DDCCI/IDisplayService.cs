@@ -76,6 +76,13 @@ public interface IDisplayService
     void ResetDDCTransport(DDCMonitor monitor);
 
     /// <summary>
+    /// Releases the DDC transport of a monitor identity the caller no longer uses. Unlike
+    /// <see cref="ResetDDCTransport"/> a command already running on it finishes first. Implementations without
+    /// persistent transport state may treat this as a no-op.
+    /// </summary>
+    void RetireDDCTransport(DDCMonitor monitor);
+
+    /// <summary>
     /// Re-acquires the HMONITOR / HDC for an existing <see cref="DDCMonitor"/> by re-enumerating
     /// and matching stable identity first: <see cref="DDCMonitor.DeviceID"/>, then EDID identity,
     /// then adapter <see cref="DDCMonitor.Name"/> as a logged fallback.

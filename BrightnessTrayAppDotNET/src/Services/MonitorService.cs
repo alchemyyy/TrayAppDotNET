@@ -47,6 +47,10 @@ public sealed class MonitorService : IDisposable
     private readonly KnownDisplaysStore _knownDisplays;
     private readonly IMonitorServiceDispatcher _dispatcher;
 
+    // Every settle window, retry backoff, dwell and startup sweep is measured by this provider so simulation
+    // tests can run the DDC pipeline against virtual time
+    private readonly TimeProvider _timeProvider;
+
     private readonly ConcurrentDictionary<string, MonitorEntry> _entries = new(StringComparer.Ordinal);
 
     // Keep reconnect intent without publishing absent displays to the flyout or DDC recovery worker.
@@ -84,6 +88,13 @@ public sealed class MonitorService : IDisposable
     // operations serialized before they cross that monitor-specific process boundary.
     private readonly Dictionary<string, SemaphoreSlim> _ddcLocks = new(StringComparer.Ordinal);
     private readonly Lock _ddcLocksGate = new();
+
+    // Native failure streaks per helper transport: consecutive failures and when the helper was last retired.
+    // A successful read ends the streak.
+    private readonly Dictionary<string, (int Failures, DateTimeOffset LastRetirement)> _helperFailureStreaks =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Lock _helperFailureStreaksGate = new();
 
     // Live count of in-flight DDC ops, maintained by WithDDCLock entry/exit.
     // BeginDrainAsync polls this to know when shutdown can safely tear down the rest of the service.
@@ -166,11 +177,13 @@ public sealed class MonitorService : IDisposable
         IDisplayService display,
         AppSettings settings,
         KnownDisplaysStore? knownDisplays,
-        IMonitorServiceDispatcher dispatcher)
+        IMonitorServiceDispatcher dispatcher,
+        TimeProvider? timeProvider = null)
     {
         _display = display;
         _settings = settings;
         _dispatcher = dispatcher;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Optional injection: callers wired up before the displays.json extraction keep working with the
         // two-arg constructor.
@@ -186,9 +199,18 @@ public sealed class MonitorService : IDisposable
         _writeCooldownMs = Math.Max(val1: 0, settings.BrightnessUpdateRateMs);
         _validationDwellMs = Math.Max(val1: 0, settings.ValidationDwellMs);
         _display.OperationTimeoutMs = settings.DDCOperationTimeoutMs;
-        _writeThrottler = new AsyncThrottler<string>(_writeCooldownMs, StringComparer.Ordinal);
-        _immediateWriteThrottler = new AsyncThrottler<string>(cooldownMs: 0, StringComparer.Ordinal);
-        _refreshThrottler = new AsyncThrottler<string>(cooldownMs: 0, StringComparer.Ordinal);
+        _writeThrottler = new AsyncThrottler<string>(
+            _writeCooldownMs,
+            StringComparer.Ordinal,
+            timeProvider: _timeProvider);
+        _immediateWriteThrottler = new AsyncThrottler<string>(
+            cooldownMs: 0,
+            StringComparer.Ordinal,
+            timeProvider: _timeProvider);
+        _refreshThrottler = new AsyncThrottler<string>(
+            cooldownMs: 0,
+            StringComparer.Ordinal,
+            timeProvider: _timeProvider);
 
         // Re-sort the monitor list whenever the sort settings or manual override change.
         _settings.Changed += OnSettingsChanged;
@@ -670,7 +692,7 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     public void NotifyTopologyEvent()
     {
-        _lastTopologyEventUtc = DateTime.UtcNow;
+        _lastTopologyEventUtc = _timeProvider.GetUtcNow().UtcDateTime;
         RequestBrightnessReplayAfterRefresh();
     }
 
@@ -770,6 +792,8 @@ public sealed class MonitorService : IDisposable
         // this map the row would look dropped in Phase A and would be destroyed+recreated under the new
         // edid: key, losing SliderState / Offset / LastUserBrightness / subscriptions.
         Dictionary<string, DDCMonitor> latestByPortForm = new(StringComparer.Ordinal);
+        // GDI adapter name of every enumerated DDC, for rows keyed by that name during device attach lag
+        Dictionary<string, DDCMonitor> latestByAdapterName = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, MonitorOverrideEntry> monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
         foreach (DDCMonitor ddc in enumerated)
         {
@@ -785,6 +809,7 @@ public sealed class MonitorService : IDisposable
             if (!string.IsNullOrEmpty(EDIDKey)) latestByEDIDKey[EDIDKey] = ddc;
             string portForm = ComputePortFormKey(ddc);
             if (!string.IsNullOrEmpty(portForm)) latestByPortForm[portForm] = ddc;
+            if (!string.IsNullOrEmpty(ddc.Name)) latestByAdapterName[ddc.Name] = ddc;
         }
 
         // Persist a record of every unique display we've seen, keyed by EDIDKey.
@@ -822,6 +847,14 @@ public sealed class MonitorService : IDisposable
                 && EDIDKey.StartsWith(value: "port:", StringComparison.Ordinal)
                 && latestByPortForm.ContainsKey(EDIDKey))
                 stillPresent = true;
+            // Attach-lag rescue: a row minted while its source had no active monitor device is keyed by the GDI
+            // adapter name, which no later enumeration repeats once the device attaches. It stays while that source
+            // shows a panel no other row describes, and Phase B re-keys it in place
+            if (!stillPresent
+                && IsAdapterNamePortKey(existing.EDIDKey)
+                && latestByAdapterName.TryGetValue(existing.EDIDKey[PortKeyPrefix.Length..], out DDCMonitor? sameSource)
+                && !IsDescribedByAnotherRow(sameSource, existing))
+                stillPresent = true;
             if (stillPresent) continue;
 
             bool wasEverCapable = existing.WasEverDDCCapable
@@ -843,6 +876,9 @@ public sealed class MonitorService : IDisposable
                 // so a CurveActive panel power-cycled now still recovers as curve-driven and skips the
                 // hardware-sync of Brightness on the rebound.
                 existing.SliderState = SliderStateMachine.OnHardwareFailed();
+                // Failed and read-degraded are exclusive. A retained read-degraded flag sent the restored row down
+                // recovery's read-only branch, which never probes the write transport of a row without an entry
+                existing.IsReadDegraded = false;
                 existing.LastDDCError = "Monitor not currently enumerated.";
 
                 _disconnectedMonitors[existing] = (previousStrategy, true);
@@ -871,8 +907,8 @@ public sealed class MonitorService : IDisposable
         bool capturedStrategyChanged = strategyChanged;
         // ReSharper restore InlineTemporaryVariable
         long capturedBrightnessReplayGeneration = Volatile.Read(ref _brightnessReplayGeneration);
-        // latestByPortForm is consumed by Phase A above; Phase B computes its own per-DDC port form
-        // inline via ComputePortFormKey, so no capture is needed here.
+        // latestByPortForm and latestByAdapterName are consumed by Phase A above; Phase B computes its own per-DDC
+        // keys inline, so no capture is needed here.
         _ = latestByPortForm;
 
         // Event-gated settle: only delay Phase B if a topology event actually fired within the settle
@@ -880,7 +916,7 @@ public sealed class MonitorService : IDisposable
         // never call NotifyTopologyEvent so _lastTopologyEventUtc is MinValue (or stale by much more
         // than the settle window), and Phase B starts immediately below. No unconditional 1.5 s wait
         // on the user's launch path.
-        double elapsedMs = (DateTime.UtcNow - _lastTopologyEventUtc).TotalMilliseconds;
+        double elapsedMs = (_timeProvider.GetUtcNow().UtcDateTime - _lastTopologyEventUtc).TotalMilliseconds;
         int remainingSettleMs = TimeConstants.MonitorPostDetectionSettleDelayMs - (int)elapsedMs;
         int scheduledGen = Interlocked.Increment(ref _refreshGen);
         if (remainingSettleMs <= 0)
@@ -899,7 +935,7 @@ public sealed class MonitorService : IDisposable
 
         // The generation captured above lets the deferred continuation detect a fresher Refresh that
         // landed during the settle window and bail without running on a stale snapshot.
-        _ = Task.Delay(remainingSettleMs).ContinueWith(delayTask =>
+        _ = Task.Delay(TimeSpan.FromMilliseconds(remainingSettleMs), _timeProvider).ContinueWith(delayTask =>
         {
             if (!delayTask.IsCompletedSuccessfully) return;
             if (_disposed || _draining) return;
@@ -970,6 +1006,20 @@ public sealed class MonitorService : IDisposable
                 }
             }
 
+            // Attach-lag rescue, the counterpart of Phase A's: no row carries this panel's EDIDKey or port form, so
+            // a row keyed by the GDI name of the source now showing it takes the panel's real identity
+            if (existingInfo == null && !string.IsNullOrEmpty(ddc.Name))
+            {
+                string adapterNameKey = PortKeyPrefix + ddc.Name;
+                MonitorInfo? adapterNameMatch = Monitors.FirstOrDefault(m =>
+                    string.Equals(m.EDIDKey, adapterNameKey, StringComparison.Ordinal));
+                if (adapterNameMatch != null && !string.Equals(adapterNameKey, EDIDKey, StringComparison.Ordinal))
+                {
+                    existingInfo = adapterNameMatch;
+                    reKeyingFromPortForm = true;
+                }
+            }
+
             bool restoringDisconnected = false;
             bool disconnectedStrategyChanged = false;
             if (existingInfo == null)
@@ -997,7 +1047,7 @@ public sealed class MonitorService : IDisposable
                 {
                     // Another display can take the old number while this panel is absent. Its live bus
                     // entry belongs to that other display; restore this panel under an unused identity.
-                    existingInfo.ID = Monitors.Any(m => m.ID == id) ? EDIDKey : id;
+                    existingInfo.ID = ResolveUniqueMonitorID(id, EDIDKey, portForm, existingInfo);
                 }
 
                 // Re-key when the user explicitly changed identity strategy, OR when a port-form
@@ -1008,24 +1058,26 @@ public sealed class MonitorService : IDisposable
                 if (!restoringDisconnected && ((strategyChanged && existingInfo.ID != id) || reKeyingFromPortForm))
                 {
                     string oldID = existingInfo.ID;
-                    if (oldID != id && _entries.TryRemove(oldID, out MonitorEntry? movingEntry))
+                    string oldEDIDKey = existingInfo.EDIDKey;
+                    string newID = ResolveUniqueMonitorID(id, EDIDKey, portForm, existingInfo);
+                    if (oldID != newID && _entries.TryRemove(oldID, out MonitorEntry? movingEntry))
                     {
-                        movingEntry.ID = id;
+                        movingEntry.ID = newID;
                         movingEntry.EDIDKey = EDIDKey;
-                        _entries[id] = movingEntry;
+                        _entries[newID] = movingEntry;
                     }
 
-                    if (oldID != id
+                    if (oldID != newID
                         && _recoveryIdentities.TryRemove(oldID, out DDCRecoveryIdentity movingRecoveryIdentity))
-                        _recoveryIdentities[id] = movingRecoveryIdentity;
+                        _recoveryIdentities[newID] = movingRecoveryIdentity;
 
-                    existingInfo.ID = id;
+                    existingInfo.ID = newID;
                     if (reKeyingFromPortForm)
                     {
                         TADNLog.Log(
                             $"MonitorService: re-keyed '{existingInfo.Name}' from "
-                            + $"{(string.IsNullOrEmpty(oldID) ? "<empty>" : oldID)} -> {id} "
-                            + $"(EDIDKey upgrade {portForm} -> {EDIDKey})");
+                            + $"{(string.IsNullOrEmpty(oldID) ? "<empty>" : oldID)} -> {newID} "
+                            + $"(EDIDKey upgrade {oldEDIDKey} -> {EDIDKey})");
                     }
                 }
 
@@ -1053,7 +1105,9 @@ public sealed class MonitorService : IDisposable
                     // Never mutate a DDCMonitor that an in-flight helper command may be reading. Reference replacement
                     // lets that command finish against its coherent old identity while subsequent operations use this one.
                     entry.EDIDKey = EDIDKey;
+                    DDCMonitor previousDDC = Volatile.Read(ref entry.DDC);
                     Volatile.Write(ref entry.DDC, ddc);
+                    RetireSupersededTransport(previousDDC, ddc);
 
                     // Use the full retry mechanism (80/160/480 backoff + final-attempt RefreshHandle) so
                     // a single transient read failure (INVALID_DEVICE / INVALID_MESSAGE_CHECKSUM) doesn't
@@ -1180,6 +1234,16 @@ public sealed class MonitorService : IDisposable
                     existingInfo.PropertyChanged += OnMonitorPropertyChanged;
                     Monitors.Add(existingInfo);
                     _disconnectedMonitors.Remove(existingInfo);
+
+                    // A panel the app powered off that enumerates again was switched on some other way. A failed
+                    // first probe, such as a wedged reply pipeline after the wake, must not leave recovery suppressed
+                    if (existingInfo.SuppressDDCRecoveryForPowerIntent)
+                    {
+                        existingInfo.SuppressDDCRecoveryForPowerIntent = false;
+                        TADNLog.Log(
+                            $"MonitorService: '{existingInfo.Name}' enumerates again; dropping its power-off intent");
+                    }
+
                     if (existingInfo is { IsFailed: true, WasEverDDCCapable: true })
                         DDCRecoveryRequested?.Invoke(existingInfo.ID);
                 }
@@ -1207,9 +1271,14 @@ public sealed class MonitorService : IDisposable
                 ? InitialHardwareFunctionalSliderState()
                 : SliderState.Failed;
 
+            // Another row's sticky ID can hold this panel's current display number
+            string rowID = ResolveUniqueMonitorID(id, EDIDKey, portForm, owner: null);
+            if (!string.Equals(rowID, id, StringComparison.Ordinal))
+                TADNLog.Log($"MonitorService: '{ddc.Name}' takes ID {rowID}; {id} belongs to another row");
+
             MonitorInfo info = new()
             {
-                ID = id,
+                ID = rowID,
                 EDIDKey = EDIDKey,
                 OriginalName = ddc.FriendlyName,
                 EDIDSerial = ddc.EDIDSerial,
@@ -1236,13 +1305,16 @@ public sealed class MonitorService : IDisposable
 
             if (supported)
             {
-                _recoveryIdentities.TryRemove(id, out DDCRecoveryIdentity _);
+                _recoveryIdentities.TryRemove(rowID, out DDCRecoveryIdentity _);
                 LogProfileIfMatched(ddc);
-                _entries[id] = new MonitorEntry { ID = id, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax };
+                _entries[rowID] = new MonitorEntry
+                {
+                    ID = rowID, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax
+                };
             }
             else
             {
-                RememberRecoveryIdentity(id, ddc);
+                RememberRecoveryIdentity(rowID, ddc);
                 TADNLog.Log(
                     $"MonitorService: '{ddc.Name}' added as disabled (no DDC/CI response: "
                     + $"{error ?? "unknown error"})");
@@ -1272,8 +1344,7 @@ public sealed class MonitorService : IDisposable
         ReplayBrightnessTargetsAfterRefresh(brightnessReplayGeneration);
 
         // Record "DDC was observed" facts onto KnownDisplays before notifying listeners.
-        // The flag is sticky (never cleared) and drives DDCRecoveryService's candidate selection -
-        // only monitors whose hardware is known capable get poked indefinitely.
+        // The flag is sticky (never cleared) and drives the flyout's warning state and the startup sweep.
         // Doubles as a one-time backfill for users upgrading from a build without the flag
         // (KnownDisplays already populated, attribute defaults to false -
         // flips to true on first refresh that finds them DDC-up).
@@ -1470,6 +1541,8 @@ public sealed class MonitorService : IDisposable
         if (_entries.TryRemove(info.ID, out MonitorEntry? entry))
         {
             InvalidateBrightnessTarget(entry);
+            // A power command still verifying stops too, rather than start a helper for an identity that is gone
+            Interlocked.Increment(ref entry.PowerIntentGeneration);
             // Drop any queued write for this monitor -
             // its in-flight SetVCPFeature may still complete (and may fail, which is fine and logged)
             // but no new work will be picked up for this (now-removed) monitor.
@@ -1501,7 +1574,7 @@ public sealed class MonitorService : IDisposable
         {
             bool callOk =
                 _display.TryGetVCPFeature(ddc, ddc.BrightnessCode, out uint c, out uint m, out string? e);
-            if (!callOk) _display.ResetDDCTransport(ddc);
+            RecordDDCTransportResult(ddc, callOk, provesReplyPath: true);
             return (callOk, c, m, e);
         });
         current = cur;
@@ -1544,17 +1617,9 @@ public sealed class MonitorService : IDisposable
                 return false;
             }
 
-            int waitMs = ReadRetryBackoffMs(i);
-            if (waitMs > 0)
-            {
-                // RefreshProbePhaseAsync calls this via Task.Run so these retry backoffs do not block
-                // the dispatcher. Recovery callers already run on a worker thread.
-                try { Thread.Sleep(waitMs); }
-                catch
-                {
-                    /* interrupted - fall through to next attempt */
-                }
-            }
+            // RefreshProbePhaseAsync calls this via Task.Run so these retry backoffs do not block
+            // the dispatcher. Recovery callers already run on a worker thread.
+            SleepFor(ReadRetryBackoffMs(i));
 
             if (shouldContinue?.Invoke() == false)
             {
@@ -1587,6 +1652,23 @@ public sealed class MonitorService : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Blocks the calling worker thread for <paramref name="milliseconds"/> as measured by the service time provider.
+    /// The system provider keeps the plain <see cref="Thread.Sleep(int)"/>, which needs no timer callback thread.
+    /// </summary>
+    private void SleepFor(int milliseconds)
+    {
+        if (milliseconds <= 0) return;
+
+        if (ReferenceEquals(_timeProvider, TimeProvider.System))
+        {
+            Thread.Sleep(milliseconds);
+            return;
+        }
+
+        Task.Delay(TimeSpan.FromMilliseconds(milliseconds), _timeProvider).Wait();
     }
 
     /// <summary>
@@ -1673,6 +1755,56 @@ public sealed class MonitorService : IDisposable
     private static string ComputePortFormKey(DDCMonitor ddc) =>
         ComputeMonitorID(ddc, MonitorIdentityStrategy.HardwarePort);
 
+    private const string PortKeyPrefix = "port:";
+
+    /// <summary>
+    /// True for a <c>port:</c> key built from a GDI adapter name (<c>\\.\DISPLAYn</c>). Windows had no active monitor
+    /// device for the source when the row was minted, so the key names the source rather than the panel and changes
+    /// once the device attaches.
+    /// </summary>
+    private static bool IsAdapterNamePortKey(string EDIDKey) =>
+        EDIDKey.StartsWith(PortKeyPrefix + @"\\.\", StringComparison.Ordinal);
+
+    /// <summary>
+    /// True when a live or retained row other than <paramref name="row"/> carries the panel's EDIDKey or port form, or
+    /// its ID with no EDIDKey: the rules Phase B and the disconnected-row restore match before an adapter-name key.
+    /// </summary>
+    private bool IsDescribedByAnotherRow(DDCMonitor ddc, MonitorInfo row)
+    {
+        string EDIDKey = ComputeEDIDKey(ddc);
+        string portForm = ComputePortFormKey(ddc);
+        string id = ComputeMonitorID(ddc, _activeStrategy);
+        return Monitors.Concat(_disconnectedMonitors.Keys).Any(other =>
+            !ReferenceEquals(other, row)
+            && (string.IsNullOrEmpty(other.EDIDKey)
+                ? string.Equals(other.ID, id, StringComparison.Ordinal)
+                : string.Equals(other.EDIDKey, EDIDKey, StringComparison.Ordinal)
+                  || string.Equals(other.EDIDKey, portForm, StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// Returns <paramref name="preferredID"/> unless another live row already holds it, then the panel's EDIDKey,
+    /// then its port form, then a numbered variant. Row IDs key <see cref="_entries"/>, the write throttlers and
+    /// recovery state, so two live rows must never share one. With sticky <c>num:</c> IDs the clash is ordinary: a
+    /// row keeps its ID after Windows hands that display number to another panel.
+    /// </summary>
+    private string ResolveUniqueMonitorID(string preferredID, string EDIDKey, string portForm, MonitorInfo? owner)
+    {
+        foreach (string candidate in (string[])[preferredID, EDIDKey, portForm])
+        {
+            if (!string.IsNullOrEmpty(candidate) && !IsMonitorIDTaken(candidate, owner)) return candidate;
+        }
+
+        for (int suffix = 2;; suffix++)
+        {
+            string numbered = string.Create(CultureInfo.InvariantCulture, $"{preferredID}#{suffix}");
+            if (!IsMonitorIDTaken(numbered, owner)) return numbered;
+        }
+    }
+
+    private bool IsMonitorIDTaken(string id, MonitorInfo? owner) =>
+        Monitors.Any(m => !ReferenceEquals(m, owner) && string.Equals(m.ID, id, StringComparison.Ordinal));
+
     /// <summary>
     /// Adds any newly-seen displays to <see cref="KnownDisplaysStore"/>
     /// and refreshes the friendly-name/serial fields for displays already in the list.
@@ -1726,18 +1858,19 @@ public sealed class MonitorService : IDisposable
     /// <summary>
     /// Cold-boot panels (especially the corruption-prone one in this user's setup)
     /// can be slow enough to negotiate DDC and EDID that the constructor's first <see cref="Refresh"/>
-    /// catches them mid-handshake: registry EDID isn't populated yet, so EDIDSerial reads empty,
-    /// EDIDKey falls back to <c>port:</c>, and <see cref="GetStuckRecoveryCandidateIDs"/>
-    /// can't link the live monitor to its persisted <see cref="KnownDisplayEntry"/>.
-    /// The recovery service then short-circuits to "no candidates" and stays asleep until something
-    /// else triggers a Refresh (flyout open, hot-plug, etc).
+    /// catches them mid-handshake: registry EDID isn't populated yet, so EDIDSerial reads empty
+    /// and EDIDKey falls back to <c>port:</c>, which does not match the panel's persisted
+    /// <see cref="KnownDisplayEntry"/>.
     ///
     /// This sweep gives the panels a couple of seconds to catch up,
     /// then re-Refreshes - the second pass reads a populated registry EDID, reconciles the
     /// port-keyed MonitorInfo to its proper edid-keyed identity, and either lands DDC support
-    /// directly or qualifies the entry for the DDC fallback worker.
+    /// directly or leaves the row to the DDC fallback worker, which retries every unavailable row.
+    /// Rows minted before Windows attached their monitor device carry a GDI adapter name as identity even when their
+    /// panel answered DDC, so they keep the sweep running too: re-keying them now, before a topology change can hand
+    /// that name to another panel, is what lets the Refresh keep their state.
     /// Self-terminates as soon as every <see cref="KnownDisplayEntry.WasEverDDCCapable"/> panel
-    /// is currently DDC-supported, so warm-start launches don't pay anything beyond the gate check.
+    /// is currently DDC-supported and identified, so warm-start launches don't pay anything beyond the gate check.
     /// </summary>
     private void ScheduleStartupRecoverySweep()
     {
@@ -1748,12 +1881,12 @@ public sealed class MonitorService : IDisposable
             foreach (int delayMs in (int[])
                      [TimeConstants.MonitorStartupSweep1stDelayMs, TimeConstants.MonitorStartupSweep2ndDelayMs])
             {
-                try { await Task.Delay(delayMs).ConfigureAwait(false); }
+                try { await Task.Delay(TimeSpan.FromMilliseconds(delayMs), _timeProvider).ConfigureAwait(false); }
                 catch { return; }
 
                 if (_disposed || _draining) return;
 
-                if (AllKnownDDCCapableMonitorsAreSupported())
+                if (AllKnownDDCCapableMonitorsAreSupported() && !HasAdapterNameIdentity())
                 {
                     TADNLog.Log("MonitorService: startup recovery sweep skipped (all known DDC monitors supported)");
                     return;
@@ -1796,13 +1929,18 @@ public sealed class MonitorService : IDisposable
         }
     }
 
+    /// <summary>True when a live row is still keyed by the GDI adapter name of its source.</summary>
+    private bool HasAdapterNameIdentity() =>
+        InvokeOnDispatcher(() => !_disposed && Monitors.Any(m => IsAdapterNamePortKey(m.EDIDKey)));
+
     /// <summary>
     /// Returns the <see cref="MonitorInfo.ID"/> of every monitor that's a candidate for the DDC fallback worker:
-    /// currently DDC-unavailable, not explicitly powered off during this application lifetime,
-    /// and whose hardware was previously observed to support DDC/CI
-    /// (per <see cref="KnownDisplayEntry.WasEverDDCCapable"/>).
-    /// Self-marshals to the UI thread because <see cref="Monitors"/> is mutated there
-    /// (the <see cref="KnownDisplaysStore"/> is internally locked, so it's read off-thread safely).
+    /// currently DDC-unavailable or read-degraded, and not explicitly powered off during this application lifetime.
+    /// Rows that never acquired DDC are included. A panel that was dark at launch, garbled its first probe, or came
+    /// back under a different EDID key has no capability record to match, and powering it on is often invisible to
+    /// Windows, so nothing else would ever probe it again. <see cref="DDCRecoveryService"/> backs off per candidate,
+    /// which keeps a monitor without DDC/CI cheap to keep probing.
+    /// Self-marshals to the UI thread because <see cref="Monitors"/> is mutated there.
     /// </summary>
     public List<string> GetStuckRecoveryCandidateIDs()
     {
@@ -1813,15 +1951,6 @@ public sealed class MonitorService : IDisposable
         List<string> Snapshot()
         {
             if (_disposed) return [];
-
-            HashSet<string> capableKeys = _knownDisplays.Entries
-                .Where(k => k.WasEverDDCCapable && !string.IsNullOrEmpty(k.EDIDKey))
-                .Select(k => k.EDIDKey)
-                .ToHashSet(StringComparer.Ordinal);
-            HashSet<string> capableSerials = _knownDisplays.Entries
-                .Where(k => k.WasEverDDCCapable && !string.IsNullOrEmpty(k.EDIDSerial))
-                .Select(k => k.EDIDSerial)
-                .ToHashSet(StringComparer.Ordinal);
 
             List<string> result = [];
             foreach (MonitorInfo m in Monitors)
@@ -1836,19 +1965,86 @@ public sealed class MonitorService : IDisposable
                 // suppress recovery traffic.
                 if (m.SuppressDDCRecoveryForPowerIntent) continue;
 
-                bool knownCapable = m.WasEverDDCCapable
-                                    || (!string.IsNullOrEmpty(m.EDIDKey)
-                                        && capableKeys.Contains(m.EDIDKey))
-                                    || (!string.IsNullOrEmpty(m.EDIDSerial)
-                                        && capableSerials.Contains(m.EDIDSerial));
-                if (!knownCapable) continue;
-
                 result.Add(m.ID);
             }
 
             return result;
         }
     }
+
+    /// <summary>
+    /// Asks the recovery worker to probe every unavailable row now instead of waiting out its backoff.
+    /// The flyout calls this on open: a user looking at a locked slider is the best hint that a panel came back.
+    /// </summary>
+    public void RequestRecoveryOfUnavailableMonitors()
+    {
+        if (_disposed || _draining) return;
+
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.Post(RequestRecoveryOfUnavailableMonitors);
+            return;
+        }
+
+        foreach (MonitorInfo monitor in Monitors.ToList())
+        {
+            if (monitor is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
+            if (monitor.SuppressDDCRecoveryForPowerIntent) continue;
+
+            DDCRecoveryRequested?.Invoke(monitor.ID);
+        }
+    }
+
+    /// <summary>
+    /// Device-instance paths of the panels behind live rows, and how many live rows have none on record.
+    /// The display event scanner compares them with Device Manager to find monitors no row accounts for.
+    /// </summary>
+    internal MonitorPresence CaptureMonitorPresence()
+    {
+        if (_disposed) return new MonitorPresence(new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
+
+        return InvokeOnDispatcher(Snapshot);
+
+        MonitorPresence Snapshot()
+        {
+            HashSet<string> instancePaths = new(StringComparer.OrdinalIgnoreCase);
+            int rowsWithoutInstancePath = 0;
+            foreach (MonitorInfo monitor in Monitors)
+            {
+                string instancePath = string.Empty;
+                if (_entries.TryGetValue(monitor.ID, out MonitorEntry? entry))
+                    instancePath = Volatile.Read(ref entry.DDC).DisplayInstancePath;
+                else if (_recoveryIdentities.TryGetValue(monitor.ID, out DDCRecoveryIdentity identity))
+                    instancePath = identity.DisplayInstancePath;
+
+                if (string.IsNullOrEmpty(instancePath))
+                    rowsWithoutInstancePath++;
+                else
+                    instancePaths.Add(instancePath);
+            }
+
+            return new MonitorPresence(instancePaths, rowsWithoutInstancePath);
+        }
+    }
+
+    internal readonly record struct MonitorPresence(IReadOnlySet<string> DisplayInstancePaths, int RowsWithoutInstancePath);
+
+    /// <summary>
+    /// Snapshot of every live DDC binding: row ID, EDIDKey and the DDC identity its traffic resolves against.
+    /// Diagnostics and the DDC simulator use it to prove that no two rows drive the same panel.
+    /// </summary>
+    internal List<MonitorBinding> CaptureBindings() =>
+    [
+        .. _entries.Values.Select(static entry =>
+            new MonitorBinding(entry.ID, entry.EDIDKey, Volatile.Read(ref entry.DDC)))
+    ];
+
+    /// <summary>
+    /// Rows retained outside <see cref="Monitors"/> while their panel is absent. Dispatcher-owned, like the dictionary.
+    /// </summary>
+    internal List<MonitorInfo> CaptureDisconnectedMonitors() => [.. _disconnectedMonitors.Keys];
+
+    internal readonly record struct MonitorBinding(string ID, string EDIDKey, DDCMonitor DDC);
 
     private static bool IsKnownDDCCapable(MonitorInfo info, IReadOnlyList<KnownDisplayEntry> known)
     {
@@ -1893,20 +2089,27 @@ public sealed class MonitorService : IDisposable
         bool shouldAttemptWriteTransportProbe = false;
         bool mayAttemptChecksumRecoveryWrite = false;
         bool mayAttemptBlindRecoveryWrite = false;
+        bool mayResynchronizeDegradedRow = false;
         int writeTransportProbePercent = 0;
         int blindRecoveryWritePercent = 0;
+        int degradedResyncPercent = 0;
         uint lastKnownBrightnessMax = 100;
         string EDIDKey = string.Empty;
         string EDIDSerial = string.Empty;
         DDCRecoveryIdentity? recoveryIdentity = null;
         MonitorIdentityStrategy identityStrategy = MonitorIdentityStrategy.DisplayNumber;
         Dictionary<string, MonitorOverrideEntry> monitorOverridesByEDID = new(StringComparer.Ordinal);
+        List<DDCMonitor> panelsBoundToOtherRows = [];
+        HashSet<string> EDIDKeysOfOtherRows = new(StringComparer.Ordinal);
 
         InvokeOnDispatcher(() =>
         {
             if (_disposed) return;
 
-            info = Monitors.FirstOrDefault(m => m.ID == monitorID);
+            // Prefer the row that actually needs recovery should two rows ever share this ID
+            info = Monitors.FirstOrDefault(m =>
+                       m.ID == monitorID && m is not { IsHardwareFunctional: true, IsReadDegraded: false })
+                   ?? Monitors.FirstOrDefault(m => m.ID == monitorID);
             if (info == null) return;
 
             // IsReadDegraded monitors are technically "functional" (best-effort slider operable) but still need
@@ -1954,8 +2157,37 @@ public sealed class MonitorService : IDisposable
             mayAttemptBlindRecoveryWrite = _settings.AllowBlindDDCWritesDuringDegradedState
                                            && info.WasEverDDCCapable
                                            && !info.WasDisabledBeforeFailure;
+            // A read-degraded row may have accepted newer, unconfirmed SETs since its last confirmed bus value.
+            // Resending the newest one resynchronizes a checksum wedge without moving the panel backwards.
+            int? resyncPercent = lastConfirmedBusBrightness;
+            if (_entries.TryGetValue(monitorID, out MonitorEntry? degradedEntry))
+            {
+                lock (degradedEntry.BrightnessTargetGate)
+                {
+                    if (degradedEntry.UnverifiedBrightnessPercentage >= 0)
+                        resyncPercent = degradedEntry.UnverifiedBrightnessPercentage;
+                }
+            }
+
+            degradedResyncPercent = resyncPercent ?? 0;
+            mayResynchronizeDegradedRow = resyncPercent.HasValue
+                                          && info.SliderState != SliderState.Disabled
+                                          && !info.WasDisabledBeforeFailure;
             identityStrategy = _activeStrategy;
             monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
+            foreach (MonitorEntry otherEntry in _entries.Values)
+            {
+                if (!string.Equals(otherEntry.ID, monitorID, StringComparison.Ordinal))
+                    panelsBoundToOtherRows.Add(Volatile.Read(ref otherEntry.DDC));
+            }
+
+            // A panel whose EDID identity another row already carries belongs to that row, even while it is unbound
+            foreach (MonitorInfo otherRow in Monitors)
+            {
+                if (!ReferenceEquals(otherRow, info) && otherRow.EDIDKey.StartsWith(value: "edid:", StringComparison.Ordinal))
+                    EDIDKeysOfOtherRows.Add(otherRow.EDIDKey);
+            }
+
             canProbe = true;
         });
 
@@ -1978,7 +2210,9 @@ public sealed class MonitorService : IDisposable
             EDIDKey,
             EDIDSerial,
             recoveryIdentity,
-            identityStrategy);
+            identityStrategy,
+            panelsBoundToOtherRows,
+            EDIDKeysOfOtherRows);
         if (ddc == null) return false;
 
         // Full retry mechanism here: a single failed read isn't strong evidence the read half is broken,
@@ -1989,8 +2223,17 @@ public sealed class MonitorService : IDisposable
         if (!TryReadBrightnessWithRetry(ddc, out uint current, out uint max, out string? readError) || max == 0)
         {
             string capturedReadError = readError ?? "Monitor did not respond to DDC/CI.";
+            bool isChecksumRecovery = DDCNativeError.IsInvalidMessageChecksum(capturedReadError);
+            bool mayResynchronizeChecksum = isChecksumRecovery && mayAttemptChecksumRecoveryWrite;
             if (wasReadDegraded)
             {
+                // Writes already reach a read-degraded row, so the only probe worth sending is the SET that
+                // resynchronizes a checksum-wedged reply pipeline
+                if (isChecksumRecovery
+                    && mayResynchronizeDegradedRow
+                    && TryResynchronizeChecksumWedge(info, ddc, degradedResyncPercent, lastKnownBrightnessMax))
+                    return true;
+
                 MonitorInfo degradedInfo = info;
                 _dispatcher.Post(() =>
                 {
@@ -2005,9 +2248,7 @@ public sealed class MonitorService : IDisposable
             // pipelines, marginal cables, or driver bugs in the read ioctl frequently still accept writes.
             // If the write transport is accepted, retain the explicit best-effort compatibility state rather than
             // claiming application; the immediate post-write read below is the only route to confirmation.
-            bool isChecksumRecovery = DDCNativeError.IsInvalidMessageChecksum(capturedReadError);
-            bool shouldUseConfirmedProbe = shouldAttemptWriteTransportProbe
-                                           || (isChecksumRecovery && mayAttemptChecksumRecoveryWrite);
+            bool shouldUseConfirmedProbe = shouldAttemptWriteTransportProbe || mayResynchronizeChecksum;
             bool shouldUseBlindProbe = !shouldUseConfirmedProbe && mayAttemptBlindRecoveryWrite;
             bool shouldWriteProbe = shouldUseConfirmedProbe || shouldUseBlindProbe;
             int selectedProbePercent = shouldUseBlindProbe
@@ -2019,7 +2260,12 @@ public sealed class MonitorService : IDisposable
                                               selectedProbePercent,
                                               lastKnownBrightnessMax,
                                               ddc,
+                                              info,
                                               out writeProbeError);
+
+            // The app powered the monitor off while this probe ran; that intent wins over recovery
+            if (info.SuppressDDCRecoveryForPowerIntent) return false;
+
             if (shouldUseBlindProbe)
             {
                 TADNLog.Log(
@@ -2042,7 +2288,7 @@ public sealed class MonitorService : IDisposable
                 // send the owning manual or curve target through the normal verified pipeline; otherwise enter the
                 // best-effort compatibility state without claiming the probe landed.
                 if (isChecksumRecovery)
-                    Thread.Sleep(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
+                    SleepFor(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
 
                 if (TryReadBrightness(
                         ddc,
@@ -2050,19 +2296,16 @@ public sealed class MonitorService : IDisposable
                         out uint postWriteMax,
                         out string? postWriteReadError)
                     && postWriteMax > 0)
-                {
-                    DDCMonitor readableDDC = ddc;
-                    MonitorInfo readableInfo = info;
-                    InvokeOnDispatcher(() =>
-                        PromoteRecovered(readableInfo, readableDDC, postWriteCurrent, postWriteMax));
-                    return true;
-                }
+                    return PromoteRecoveredUnlessPoweredOff(info, ddc, postWriteCurrent, postWriteMax);
 
                 DDCMonitor capturedDDCForDegraded = ddc;
                 MonitorInfo capturedInfoForDegraded = info;
                 string degradedError = postWriteReadError ?? capturedReadError;
                 InvokeOnDispatcher(() =>
-                    PromoteReadDegraded(capturedInfoForDegraded, capturedDDCForDegraded, degradedError));
+                {
+                    if (!capturedInfoForDegraded.SuppressDDCRecoveryForPowerIntent)
+                        PromoteReadDegraded(capturedInfoForDegraded, capturedDDCForDegraded, degradedError);
+                });
                 return false;
             }
 
@@ -2104,33 +2347,57 @@ public sealed class MonitorService : IDisposable
 
         // Promote on the UI thread -
         // mutating Monitors / _entries / IsDDCCISupported off-thread would race with Refresh and UI bindings.
-        // Keep the dispatcher closure's recovery snapshot explicit
-        // ReSharper disable InlineTemporaryVariable
-        DDCMonitor capturedDDC = ddc;
-        MonitorInfo capturedInfo = info;
-        // ReSharper restore InlineTemporaryVariable
-        InvokeOnDispatcher(() => PromoteRecovered(capturedInfo, capturedDDC, current, max));
-        return true;
+        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max);
     }
 
+    /// <summary>
+    /// Promotes a recovered row on the dispatcher unless the app powered the monitor off while the probe ran.
+    /// Promotion clears power-off suppression and replays brightness, which must not override that fresh intent.
+    /// Returns true when the row is DDC-supported afterwards.
+    /// </summary>
+    private bool PromoteRecoveredUnlessPoweredOff(MonitorInfo info, DDCMonitor ddc, uint current, uint max) =>
+        InvokeOnDispatcher(() => !info.SuppressDDCRecoveryForPowerIntent && PromoteRecovered(info, ddc, current, max));
+
+    /// <summary>
+    /// Picks the live monitor a failed row should recover onto. An <c>edid:</c> key names the physical panel and is
+    /// tried first. Every weaker rule (retained devnode, port form, row ID, adapter name) only considers panels whose
+    /// EDID serial does not contradict the row's, that no other row's entry already drives, and whose EDID identity
+    /// no other row carries. A sticky <c>num:N</c> row ID names whichever panel Windows currently numbers N, so
+    /// matching it first used to copy another panel's identity onto the failed row and show one panel twice.
+    /// </summary>
     private static DDCMonitor? FindRecoveryTarget(
         IReadOnlyList<DDCMonitor> live,
         string requestedID,
         string EDIDKey,
         string EDIDSerial,
         DDCRecoveryIdentity? recoveryIdentity,
-        MonitorIdentityStrategy identityStrategy)
+        MonitorIdentityStrategy identityStrategy,
+        IReadOnlyCollection<DDCMonitor> panelsBoundToOtherRows,
+        HashSet<string> EDIDKeysOfOtherRows)
     {
         if (live.Count == 0) return null;
 
-        DDCMonitor? match = live.FirstOrDefault(d => ComputeMonitorID(d, identityStrategy) == requestedID);
-        if (match != null) return match;
+        DDCMonitor? match;
+        if (EDIDKey.StartsWith(value: "edid:", StringComparison.Ordinal))
+        {
+            match = live.FirstOrDefault(d => string.Equals(ComputeEDIDKey(d), EDIDKey, StringComparison.Ordinal));
+            if (match != null) return match;
+        }
+
+        string rowSerial = !string.IsNullOrEmpty(EDIDSerial) ? EDIDSerial : recoveryIdentity?.EDIDSerial ?? string.Empty;
+        List<DDCMonitor> eligible =
+        [
+            .. live.Where(d => !SerialsContradict(rowSerial, d.EDIDSerial)
+                               && !panelsBoundToOtherRows.Any(bound => DescribeSamePanel(bound, d))
+                               && !EDIDKeysOfOtherRows.Contains(ComputeEDIDKey(d)))
+        ];
+        if (eligible.Count == 0) return null;
 
         if (recoveryIdentity is { } remembered)
         {
             if (!string.IsNullOrEmpty(remembered.DisplayInstancePath))
             {
-                match = live.FirstOrDefault(d =>
+                match = eligible.FirstOrDefault(d =>
                     string.Equals(
                         d.DisplayInstancePath,
                         remembered.DisplayInstancePath,
@@ -2138,9 +2405,11 @@ public sealed class MonitorService : IDisposable
                 if (match != null) return match;
             }
 
-            if (!string.IsNullOrEmpty(remembered.DeviceID))
+            // An adapter-name fallback DeviceID is only the GDI name; the name rule below handles it
+            if (!string.IsNullOrEmpty(remembered.DeviceID)
+                && !remembered.DeviceID.StartsWith(value: @"\\.\", StringComparison.Ordinal))
             {
-                match = live.FirstOrDefault(d =>
+                match = eligible.FirstOrDefault(d =>
                     string.Equals(d.DeviceID, remembered.DeviceID, StringComparison.OrdinalIgnoreCase));
                 if (match != null) return match;
             }
@@ -2151,7 +2420,7 @@ public sealed class MonitorService : IDisposable
         // requestedID + EDID serial, leaving port-keyed rows permanently failed after EDID/display-number drift.
         if (!string.IsNullOrEmpty(EDIDKey))
         {
-            match = live.FirstOrDefault(d =>
+            match = eligible.FirstOrDefault(d =>
                 string.Equals(ComputeEDIDKey(d), EDIDKey, StringComparison.Ordinal)
                 || string.Equals(ComputePortFormKey(d), EDIDKey, StringComparison.Ordinal));
             if (match != null) return match;
@@ -2159,7 +2428,7 @@ public sealed class MonitorService : IDisposable
 
         if (!string.IsNullOrEmpty(EDIDSerial))
         {
-            match = live.FirstOrDefault(d =>
+            match = eligible.FirstOrDefault(d =>
                 !string.IsNullOrEmpty(d.EDIDSerial)
                 && string.Equals(d.EDIDSerial, EDIDSerial, StringComparison.Ordinal));
             if (match != null) return match;
@@ -2167,19 +2436,41 @@ public sealed class MonitorService : IDisposable
 
         if (requestedID.StartsWith(value: "port:", StringComparison.Ordinal))
         {
-            match = live.FirstOrDefault(d =>
+            match = eligible.FirstOrDefault(d =>
                 string.Equals(ComputePortFormKey(d), requestedID, StringComparison.Ordinal));
             if (match != null) return match;
         }
 
+        match = eligible.FirstOrDefault(d => ComputeMonitorID(d, identityStrategy) == requestedID);
+        if (match != null) return match;
+
         if (recoveryIdentity is { } adapterIdentity && !string.IsNullOrEmpty(adapterIdentity.Name))
         {
-            match = live.FirstOrDefault(d =>
+            match = eligible.FirstOrDefault(d =>
                 string.Equals(d.Name, adapterIdentity.Name, StringComparison.OrdinalIgnoreCase));
             if (match != null) return match;
         }
 
         return null;
+    }
+
+    /// <summary>True when both serials are known and differ, so the two descriptions are different panels.</summary>
+    private static bool SerialsContradict(string firstSerial, string secondSerial) =>
+        !string.IsNullOrEmpty(firstSerial)
+        && !string.IsNullOrEmpty(secondSerial)
+        && !string.Equals(firstSerial, secondSerial, StringComparison.Ordinal);
+
+    /// <summary>True when two enumerations share a devnode instance path or a stable DeviceID.</summary>
+    private static bool DescribeSamePanel(DDCMonitor first, DDCMonitor second)
+    {
+        if (!string.IsNullOrEmpty(first.DisplayInstancePath)
+            && string.Equals(first.DisplayInstancePath, second.DisplayInstancePath, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // An adapter-name fallback DeviceID belongs to the GDI source, not the panel
+        return !string.IsNullOrEmpty(first.DeviceID)
+               && !first.DeviceID.StartsWith(value: @"\\.\", StringComparison.Ordinal)
+               && string.Equals(first.DeviceID, second.DeviceID, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -2200,18 +2491,48 @@ public sealed class MonitorService : IDisposable
         int probePercent,
         uint lastKnownBrightnessMax,
         DDCMonitor ddc,
+        MonitorInfo info,
         out string? error)
     {
         uint probeRaw = ScaleBrightnessPercentToRaw(probePercent, lastKnownBrightnessMax);
 
         (bool ok, string? writeErr) = WithDDCLock(ddc, () =>
         {
+            // Rechecked under the DDC lock: a power-off queued on this lock while the probe read must land last
+            if (info.SuppressDDCRecoveryForPowerIntent) return (false, PowerOffIntentError);
+
             bool wrote = _display.TrySetVCPFeature(ddc, ddc.BrightnessCode, probeRaw, out string? e);
-            if (!wrote) _display.ResetDDCTransport(ddc);
+            RecordDDCTransportResult(ddc, wrote, provesReplyPath: false);
             return (wrote, e);
         });
         error = writeErr;
         return ok;
+    }
+
+    private const string PowerOffIntentError = "Recovery write skipped: the app powered the monitor off.";
+
+    /// <summary>
+    /// Resends the newest bus value a read-degraded row accepted to a panel whose reads fail with checksum errors, then
+    /// reads back once and promotes the row on success. A checksum-wedged reply pipeline only resynchronizes after
+    /// it accepts a SET, and a read-degraded row may be sent none (blind writes off, or a steady manual value).
+    /// </summary>
+    private bool TryResynchronizeChecksumWedge(
+        MonitorInfo info,
+        DDCMonitor ddc,
+        int busPercent,
+        uint lastKnownBrightnessMax)
+    {
+        bool accepted = TryDDCWriteTransportProbe(busPercent, lastKnownBrightnessMax, ddc, info, out string? writeError);
+        TADNLog.Log(
+            $"MonitorService: checksum recovery write probe for read-degraded '{ddc.Name}' "
+            + $"target={busPercent} result={accepted}"
+            + (writeError == null ? string.Empty : $" error={writeError}"));
+        if (!accepted) return false;
+
+        SleepFor(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
+        if (!TryReadBrightness(ddc, out uint current, out uint max, out _) || max == 0) return false;
+
+        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max);
     }
 
     private bool ShouldAttemptReadDegradedWriteTransportProbe(MonitorInfo info)
@@ -2238,6 +2559,8 @@ public sealed class MonitorService : IDisposable
 
         // Don't trample a fully-recovered or fully-functional monitor.
         if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
+
+        if (IsPanelDrivenByAnotherRow(info, ddc)) return;
 
         RefreshRecoveredMonitorMetadata(info, ddc);
 
@@ -2346,7 +2669,7 @@ public sealed class MonitorService : IDisposable
         (bool ok, string? writeErr) = WithDDCLock(target, () =>
         {
             bool wrote = _display.TrySetVCPFeature(target, powerCode, powerValue, out string? e);
-            if (!wrote) _display.ResetDDCTransport(target);
+            RecordDDCTransportResult(target, wrote, provesReplyPath: false);
             return (wrote, e);
         });
         if (!ok)
@@ -2372,14 +2695,16 @@ public sealed class MonitorService : IDisposable
     /// stamps <see cref="KnownDisplayEntry.WasEverDDCCapable"/>,
     /// and raises <see cref="MonitorsRefreshed"/> so the flyout/tray re-evaluate.
     /// </summary>
-    private void PromoteRecovered(MonitorInfo info, DDCMonitor ddc, uint current, uint max)
+    private bool PromoteRecovered(MonitorInfo info, DDCMonitor ddc, uint current, uint max)
     {
-        if (_disposed) return;
-        if (!Monitors.Contains(info)) return;
+        if (_disposed) return false;
+        if (!Monitors.Contains(info)) return false;
 
         // Another thread (Refresh, an interleaved recovery tick) may have already promoted this monitor -
         // check before clobbering.
-        if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
+        if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return true;
+
+        if (IsPanelDrivenByAnotherRow(info, ddc)) return false;
 
         RefreshRecoveredMonitorMetadata(info, ddc);
 
@@ -2394,6 +2719,7 @@ public sealed class MonitorService : IDisposable
         }
 
         _entries[info.ID] = new MonitorEntry { ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax };
+        if (replacedEntry != null) RetireSupersededTransport(Volatile.Read(ref replacedEntry.DDC), ddc);
         ApplyRecoveredBrightnessProjections(info);
         // Acquisition is read-only for slider intent: a hardware read may initialize rows that have
         // no explicit manual/profile value yet, but it must not overwrite a user-owned slider baseline
@@ -2421,6 +2747,23 @@ public sealed class MonitorService : IDisposable
 
         MonitorsRefreshed?.Invoke();
         ReplayRecoveredBrightnessIntent(info);
+        return true;
+    }
+
+    /// <summary>
+    /// True when another row's entry already drives the panel <paramref name="ddc"/> describes. Concurrent recovery
+    /// passes can resolve two unavailable rows to one panel; the first promotion wins and the other row stays
+    /// unavailable instead of showing that panel twice.
+    /// </summary>
+    private bool IsPanelDrivenByAnotherRow(MonitorInfo info, DDCMonitor ddc)
+    {
+        MonitorEntry? owner = _entries.Values.FirstOrDefault(entry =>
+            !string.Equals(entry.ID, info.ID, StringComparison.Ordinal)
+            && DescribeSamePanel(Volatile.Read(ref entry.DDC), ddc));
+        if (owner == null) return false;
+
+        TADNLog.Log($"MonitorService: not recovering '{info.Name}' onto '{ddc.Name}', which row {owner.ID} drives");
+        return true;
     }
 
     private void ApplyRecoveredBrightnessProjections(MonitorInfo info)
@@ -2499,6 +2842,19 @@ public sealed class MonitorService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Drops a power-off intent the app cannot act on and asks recovery to probe the row. Used when a power-on request
+    /// reaches a row with no usable transport, which would otherwise stay excluded from recovery for good.
+    /// </summary>
+    private void ReleasePowerOffIntent(MonitorInfo monitor)
+    {
+        if (!monitor.SuppressDDCRecoveryForPowerIntent) return;
+
+        monitor.SuppressDDCRecoveryForPowerIntent = false;
+        TADNLog.Log($"MonitorService: power-on request lifts the power-off intent of unavailable '{monitor.Name}'");
+        DDCRecoveryRequested?.Invoke(monitor.ID);
+    }
+
     private static void PublishRecoveredPowerAvailability(MonitorInfo info, string monitorName)
     {
         if (info.SuppressDDCRecoveryForPowerIntent)
@@ -2522,6 +2878,11 @@ public sealed class MonitorService : IDisposable
         bool shouldRekeyID = !string.IsNullOrEmpty(newID)
                              && !string.Equals(oldID, newID, StringComparison.Ordinal)
                              && (_activeStrategy != MonitorIdentityStrategy.DisplayNumber || EDIDUpgraded);
+        if (shouldRekeyID)
+        {
+            newID = ResolveUniqueMonitorID(newID, newEDIDKey, ComputePortFormKey(ddc), info);
+            shouldRekeyID = !string.Equals(oldID, newID, StringComparison.Ordinal);
+        }
 
         if (shouldRekeyID)
         {
@@ -2568,9 +2929,16 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed || _draining) return;
         if (!monitor.SupportsPowerControl) return;
-        if (monitor.IsReadDegraded && !_settings.AllowBlindDDCWritesDuringDegradedState) return;
 
-        if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
+        // A row that cannot carry the command still records a power-on as the user's intent. Otherwise an earlier
+        // off intent keeps recovery away from the panel for the rest of the session, even after its own button woke it
+        if ((monitor.IsReadDegraded && !_settings.AllowBlindDDCWritesDuringDegradedState)
+            || !_entries.TryGetValue(monitor.ID, out MonitorEntry? entry))
+        {
+            if (on) ReleasePowerOffIntent(monitor);
+            return;
+        }
+
         DDCMonitor ddc = Volatile.Read(ref entry.DDC);
         if (!ddc.SupportsVcpPower) return;
 
@@ -2578,10 +2946,18 @@ public sealed class MonitorService : IDisposable
         bool previousRecoverySuppression = monitor.SuppressDDCRecoveryForPowerIntent;
 
         // A queued brightness re-apply after an off command can wake some monitors or immediately fail and demote
-        // the row. Make every older brightness generation stale before sending power-down traffic.
+        // the row. Publish the power-off intent and make every older brightness generation stale under one target
+        // gate before sending power-down traffic: a target prepared after this point is refused, one prepared before
+        // it is stale. Publishing only once the write was accepted let a curve tick in between land a brightness SET
+        // on the dark panel. A failed write restores the previous intent below.
         if (!on)
         {
-            InvalidateBrightnessTarget(entry);
+            lock (entry.BrightnessTargetGate)
+            {
+                monitor.SuppressDDCRecoveryForPowerIntent = true;
+                InvalidateBrightnessTargetLocked(entry);
+            }
+
             DropQueuedBrightnessWrites(entry.ID);
         }
 
@@ -2613,16 +2989,30 @@ public sealed class MonitorService : IDisposable
             case PowerStateApplyOutcome.Superseded:
                 return;
             case PowerStateApplyOutcome.Failed:
-                monitor.SuppressDDCRecoveryForPowerIntent = previousRecoverySuppression;
+                // A refused power-on still records on-intent: the earlier off intent must not keep recovery away from a
+                // panel the user wants on, such as a hard-off panel that only its button can wake
+                monitor.SuppressDDCRecoveryForPowerIntent = !on && previousRecoverySuppression;
                 TADNLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {application.Error}");
-                if (!on)
+                if (on)
                 {
-                    // The panel remained on, but its queued brightness target was invalidated before the power attempt
-                    // to guarantee ordering. Re-acquire and replay that intent instead of silently losing it.
-                    RequestBrightnessReplayAfterRefresh();
-                    Refresh();
+                    // A refused power-on says little about the panel: its own button may have woken it at the same
+                    // moment, and a cold boot shows the panel's saved brightness instead of the target. Re-probe and
+                    // replay through the same settled boundary as an accepted wake; a panel that stays dark is demoted
+                    // there and recovery takes over.
+                    _dispatcher.Post(() =>
+                    {
+                        if (_disposed || _draining) return;
+
+                        NotifyTopologyEvent();
+                        Refresh();
+                    });
+                    return;
                 }
 
+                // The panel remained on, but its queued brightness target was invalidated before the power attempt
+                // to guarantee ordering. Re-acquire and replay that intent instead of silently losing it.
+                RequestBrightnessReplayAfterRefresh();
+                Refresh();
                 return;
             case PowerStateApplyOutcome.Applied:
                 break;
@@ -2674,9 +3064,9 @@ public sealed class MonitorService : IDisposable
                 initialWrite.Error ?? "TrySetVCPFeature failed");
         }
 
-        // Publish the recovery gate as soon as the write is accepted. Hard-off can remove the row before read-back
-        // completes; recovery must not race verification and send traffic that wakes the panel.
-        monitor.SuppressDDCRecoveryForPowerIntent = !on;
+        // Power-off intent was published before the write. Clear it as soon as a power-on write is accepted; an off
+        // intent that a newer slider change cleared in the meantime stays cleared.
+        if (on) monitor.SuppressDDCRecoveryForPowerIntent = false;
         bool latestWriteAccepted = true;
 
         int initialVerificationDwellMs = Math.Min(
@@ -2772,7 +3162,7 @@ public sealed class MonitorService : IDisposable
                 return new PowerWriteAttempt(WasAttempted: false, Success: false, ddc.Name, Error: null);
 
             bool success = _display.TrySetVCPFeature(ddc, code, value, out string? error);
-            if (!success) _display.ResetDDCTransport(ddc);
+            RecordDDCTransportResult(ddc, success, provesReplyPath: false);
             return new PowerWriteAttempt(WasAttempted: true, success, ddc.Name, error);
         }).ConfigureAwait(false);
     }
@@ -2811,7 +3201,7 @@ public sealed class MonitorService : IDisposable
         if (!IsPowerIntentCurrent(entry, powerIntentGeneration)) return false;
         if (delayMs <= 0) return true;
 
-        await Task.Delay(delayMs).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(delayMs), _timeProvider).ConfigureAwait(false);
         return IsPowerIntentCurrent(entry, powerIntentGeneration);
     }
 
@@ -2986,6 +3376,9 @@ public sealed class MonitorService : IDisposable
 
         lock (resolvedEntry.BrightnessTargetGate)
         {
+            // Rechecked under the gate SetPowerStateAsync publishes power-off intent under
+            if (monitor.SuppressDDCRecoveryForPowerIntent) return false;
+
             // A value is deduplicable only while the same target is still guaranteed to run, or after a matching
             // read-back completed. Enqueue-time state alone is not proof: a canceled handoff must remain retryable.
             if (!force
@@ -2995,7 +3388,16 @@ public sealed class MonitorService : IDisposable
                         && resolvedEntry.LastVerifiedBrightnessPercentage == clampedPercent)))
                 return false;
 
+            // A read-degraded row can never confirm a write, so its curve would resend the same value on every tick
+            if (!force
+                && monitor.IsReadDegraded
+                && resolvedEntry.UnverifiedBrightnessPercentage == clampedPercent
+                && _timeProvider.GetUtcNow() - resolvedEntry.UnverifiedBrightnessAcceptedAt
+                < TimeSpan.FromMilliseconds(TimeConstants.ReadDegradedRewriteIntervalMs))
+                return false;
+
             long generation = ++resolvedEntry.BrightnessTargetGeneration;
+            resolvedEntry.UnverifiedBrightnessPercentage = -1;
             resolvedEntry.PendingBrightnessPercentage = clampedPercent;
             // Once a different write is accepted, canceled, or fails verification, the old acknowledgement no
             // longer proves current hardware state. Only this generation's matching read-back restores deduplication.
@@ -3160,9 +3562,10 @@ public sealed class MonitorService : IDisposable
 
         if (!wrote) return;
 
+        // A newer target arriving first ends this payload without a read-back, so a drag confirms only where it stops
         int initialVerificationDwellMs = Math.Min(
             writeFinalDwellMs,
-            TimeConstants.MonitorInitialVerificationDwellMaxMs);
+            TimeConstants.BrightnessVerificationSettleMs);
         if (!await DelayWhileBrightnessTargetCurrentAsync(
                 entry,
                 target,
@@ -3268,6 +3671,7 @@ public sealed class MonitorService : IDisposable
             // +1 because the helper's "wait before this attempt" semantic gives 0 for index 0;
             // we're computing the wait between this mismatched attempt and the next one.
             int waitMs = ScaledRetryDwellMs(attempt + 1, attempts, finalDwellMs);
+            if (!readable) waitMs = Math.Max(waitMs, TimeConstants.VerificationRetryAfterFailedReadMs);
             if (!await DelayWhileBrightnessTargetCurrentAsync(
                     entry,
                     target,
@@ -3280,7 +3684,7 @@ public sealed class MonitorService : IDisposable
 
         if (IsReadDegraded(entry.ID))
         {
-            AbandonBrightnessTargetIfCurrent(entry, target);
+            AbandonBrightnessTargetAsUnverified(entry, target);
             DDCMonitor degradedDDC = Volatile.Read(ref entry.DDC);
             TADNLog.Log(
                 $"MonitorService: verification exhausted for read-degraded '{degradedDDC.Name}', "
@@ -3315,7 +3719,7 @@ public sealed class MonitorService : IDisposable
                 raw,
                 out string? error,
                 cancellationToken);
-            if (!success) _display.ResetDDCTransport(ddc);
+            RecordDDCTransportResult(ddc, success, provesReplyPath: false);
             return new BrightnessWriteAttempt(WasAttempted: true, success, ddc.Name, error);
         }).ConfigureAwait(false);
     }
@@ -3338,7 +3742,7 @@ public sealed class MonitorService : IDisposable
                 out uint maximum,
                 out string? error,
                 cancellationToken);
-            if (!success) _display.ResetDDCTransport(ddc);
+            RecordDDCTransportResult(ddc, success, provesReplyPath: true);
             return new BrightnessReadBack(WasAttempted: true, success, actual, maximum, ddc.Name, error);
         }).ConfigureAwait(false);
     }
@@ -3362,8 +3766,10 @@ public sealed class MonitorService : IDisposable
         // RefreshHandle reapplies the database profile. Preserve a user-selected brightness VCP override across
         // both acquisition-read and write-verification recovery.
         byte brightnessCode = ddc.BrightnessCode;
+        DDCMonitor before = CloneDDCMonitor(ddc);
         bool refreshed = _display.RefreshHandle(ddc);
         ddc.BrightnessCode = brightnessCode;
+        if (refreshed) RetireSupersededTransport(before, ddc);
         return refreshed;
     }
 
@@ -3391,7 +3797,11 @@ public sealed class MonitorService : IDisposable
             if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return false;
 
             int sliceMs = Math.Min(TimeConstants.BrightnessTargetSupersessionPollIntervalMs, remainingMs);
-            try { await Task.Delay(sliceMs, cancellationToken).ConfigureAwait(false); }
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(sliceMs), _timeProvider, cancellationToken)
+                    .ConfigureAwait(false);
+            }
             catch (OperationCanceledException) { return false; }
 
             remainingMs -= sliceMs;
@@ -3443,11 +3853,35 @@ public sealed class MonitorService : IDisposable
     private static void InvalidateBrightnessTarget(MonitorEntry entry)
     {
         lock (entry.BrightnessTargetGate)
+            InvalidateBrightnessTargetLocked(entry);
+    }
+
+    private static void InvalidateBrightnessTargetLocked(MonitorEntry entry)
+    {
+        entry.BrightnessTargetGeneration++;
+        entry.HasPendingBrightnessTarget = false;
+        entry.PendingBrightnessPercentage = -1;
+        entry.LastVerifiedBrightnessPercentage = -1;
+        entry.UnverifiedBrightnessPercentage = -1;
+    }
+
+    /// <summary>
+    /// Releases a read-degraded row's current target that was written but could not be confirmed, and remembers the
+    /// value so the curve does not resend it on every tick. A stale payload records nothing.
+    /// </summary>
+    private void AbandonBrightnessTargetAsUnverified(MonitorEntry entry, BrightnessWriteTarget target)
+    {
+        lock (entry.BrightnessTargetGate)
         {
-            entry.BrightnessTargetGeneration++;
+            if (!entry.HasPendingBrightnessTarget
+                || entry.BrightnessTargetGeneration != target.Generation
+                || entry.PendingBrightnessPercentage != target.Percentage)
+                return;
+
             entry.HasPendingBrightnessTarget = false;
             entry.PendingBrightnessPercentage = -1;
-            entry.LastVerifiedBrightnessPercentage = -1;
+            entry.UnverifiedBrightnessPercentage = target.Percentage;
+            entry.UnverifiedBrightnessAcceptedAt = _timeProvider.GetUtcNow();
         }
     }
 
@@ -3517,9 +3951,16 @@ public sealed class MonitorService : IDisposable
 
             // Already demoted by another path (e.g. concurrent verify exhaustion racing with a write throw) -
             // don't clobber a fresher error message.
-            if (!info.IsHardwareFunctional && !string.IsNullOrEmpty(info.LastDDCError)) return;
+            if (!info.IsHardwareFunctional && !string.IsNullOrEmpty(info.LastDDCError))
+            {
+                info.IsReadDegraded = false;
+                return;
+            }
 
             info.SliderState = SliderStateMachine.OnHardwareFailed();
+            // Failed and read-degraded are exclusive. A leftover read-degraded flag sent every later recovery pass down
+            // the read-only branch, which never sends the SET that resynchronizes a checksum-wedged panel.
+            info.IsReadDegraded = false;
             // A live MonitorEntry proves that this row was DDC-capable even if persisted identity metadata drifted.
             RecordDDCCapableObservation(info);
             info.LastDDCError = error;
@@ -3635,15 +4076,15 @@ public sealed class MonitorService : IDisposable
     public async Task<bool> BeginDrainAsync(TimeSpan timeout)
     {
         _draining = true;
-        DateTime deadline = DateTime.UtcNow + timeout;
+        DateTime deadline = _timeProvider.GetUtcNow().UtcDateTime + timeout;
 
         // Drain the schedulers first so their driver loops stop scheduling new work,
         // then wait for any DDC ops they kicked off to finish or time out through their helper processes.
-        TimeSpan remainingThrottlerBudget = deadline - DateTime.UtcNow;
+        TimeSpan remainingThrottlerBudget = deadline - _timeProvider.GetUtcNow().UtcDateTime;
         TimeSpan throttlerBudget = remainingThrottlerBudget > TimeSpan.Zero
             ? remainingThrottlerBudget
             : TimeSpan.Zero;
-        using (CancellationTokenSource cts = new(throttlerBudget))
+        using (CancellationTokenSource cts = new(throttlerBudget, _timeProvider))
         {
             try
             {
@@ -3662,14 +4103,15 @@ public sealed class MonitorService : IDisposable
 
         while (Volatile.Read(ref _activeDDCOps) > 0)
         {
-            if (DateTime.UtcNow >= deadline)
+            if (_timeProvider.GetUtcNow().UtcDateTime >= deadline)
             {
                 TADNLog.Log(
                     $"MonitorService.BeginDrainAsync: timed out with {_activeDDCOps} DDC op(s) still in flight");
                 return false;
             }
 
-            await Task.Delay(TimeConstants.DrainPollIntervalMs).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(TimeConstants.DrainPollIntervalMs), _timeProvider)
+                .ConfigureAwait(false);
         }
 
         return true;
@@ -3698,6 +4140,58 @@ public sealed class MonitorService : IDisposable
         int ramped = TimeConstants.MonitorWriteRetryBaseMs << (attemptIndex - 1);
         int cap = Math.Max(TimeConstants.MonitorWriteRetryBaseMs, finalDwellMs / 2);
         return Math.Min(ramped, cap);
+    }
+
+    /// <summary>
+    /// Helper retirement policy, applied after every native DDC call. A failure streak retires the monitor's helper
+    /// process once it reaches <see cref="TimeConstants.DDCHelperFailuresBeforeRetirement"/> failures in a row, then at
+    /// most once per cooldown. The helper re-enumerates and re-opens the monitor on every command, so a garbled reply
+    /// gains nothing from a fresh process, while the replacement stalls the next command for a process launch;
+    /// retiring on every failure relaunched about 4,800 helpers an hour for a dark panel and stalled slider drags on
+    /// every garbled read-back. Only a successful read ends the streak: an adapter accepts SETs for a dark panel, so a
+    /// write proves nothing about the reply path.
+    /// </summary>
+    private void RecordDDCTransportResult(DDCMonitor ddc, bool succeeded, bool provesReplyPath)
+    {
+        string transportKey = DisplayService.BuildHelperClientKey(ddc);
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        bool retire;
+        lock (_helperFailureStreaksGate)
+        {
+            if (succeeded)
+            {
+                if (provesReplyPath) _helperFailureStreaks.Remove(transportKey);
+                return;
+            }
+
+            _helperFailureStreaks.TryGetValue(transportKey, out (int Failures, DateTimeOffset LastRetirement) streak);
+            int failures = streak.Failures + 1;
+            retire = failures == TimeConstants.DDCHelperFailuresBeforeRetirement
+                     || (failures > TimeConstants.DDCHelperFailuresBeforeRetirement
+                         && now - streak.LastRetirement
+                         >= TimeSpan.FromMilliseconds(TimeConstants.DDCHelperRetirementCooldownMs));
+            _helperFailureStreaks[transportKey] = (failures, retire ? now : streak.LastRetirement);
+        }
+
+        if (retire) _display.ResetDDCTransport(ddc);
+    }
+
+    /// <summary>
+    /// Releases the helper of a DDC identity an entry just replaced, unless another entry still uses it. A helper
+    /// started for a provisional identity (adapter-name DeviceID during attach lag, a pre-EDID key) otherwise lived
+    /// until the next enumeration happened to prune it.
+    /// </summary>
+    private void RetireSupersededTransport(DDCMonitor previous, DDCMonitor current)
+    {
+        string previousKey = DisplayService.BuildHelperClientKey(previous);
+        if (string.Equals(previousKey, DisplayService.BuildHelperClientKey(current), StringComparison.OrdinalIgnoreCase))
+            return;
+
+        bool stillUsed = _entries.Values.Any(entry => string.Equals(
+            DisplayService.BuildHelperClientKey(Volatile.Read(ref entry.DDC)),
+            previousKey,
+            StringComparison.OrdinalIgnoreCase));
+        if (!stillUsed) _display.RetireDDCTransport(previous);
     }
 
     /// <summary>
@@ -3784,6 +4278,10 @@ public sealed class MonitorService : IDisposable
         public int PendingBrightnessPercentage = -1;
         public int LastVerifiedBrightnessPercentage = -1;
         public bool HasPendingBrightnessTarget;
+
+        // Last value a read-degraded row accepted without read-back confirmation, and when
+        public int UnverifiedBrightnessPercentage = -1;
+        public DateTimeOffset UnverifiedBrightnessAcceptedAt;
 
         // Supersedes an older power verification loop before it can re-apply stale power intent.
         public long PowerIntentGeneration;

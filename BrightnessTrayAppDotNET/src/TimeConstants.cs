@@ -34,6 +34,28 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int DDCRecoveryRetryIntervalMs = 2_000;
     public const int DDCRecoveryShutdownDrainTimeoutMs = 1_000;
 
+    // A candidate is probed at the base interval this many times, then the interval doubles up to the maximum.
+    // An adapter answering for a dark panel holds the global DDC mutex ~190 ms per read, so a permanently silent
+    // panel must not keep the bus busy at the base rate.
+    public const int DDCRecoveryFullRateAttempts = 3;
+    public const int DDCRecoveryMaximumRetryIntervalMs = 30_000;
+
+    // A row that fails again within this long of recovering continues its backoff instead of being probed at once.
+    // A panel that answers reads but does not hold its writes otherwise cycled demote, recover and replay about four
+    // times a second. The replay's verification usually fails within a second or two; a cycle slower than the window,
+    // as with very long validation dwells, costs little bus time anyway.
+    public const int DDCRecoveryRelapseWindowMs = 10_000;
+
+    // A helper process is retired once this many native failures in a row hit its monitor, then at most once per
+    // cooldown while the streak lasts. A single garbled LG reply is the bus, not the helper, and a replacement
+    // process cost the next command 194-242 ms (measured 2026-10-12), which stalled slider drags.
+    public const int DDCHelperFailuresBeforeRetirement = 3;
+    public const int DDCHelperRetirementCooldownMs = 300_000;
+
+    // A read-degraded row resends an unconfirmed brightness value at most this often. An adapter in front of a dark
+    // panel accepts every SET, and each verification read then holds the shared DDC mutex for a garbled reply.
+    public const int ReadDegradedRewriteIntervalMs = 60_000;
+
     // Settle window before the first VCP read on any monitor after a topology event.
     // Covers cold hot-plug, monitor power-on, and cascade refreshes triggered when an unrelated
     // monitor changes power state. Most panels are DDC-ready inside ~500 ms, but some MCUs need
@@ -119,5 +141,16 @@ public abstract class TimeConstants : CommonTimeConstants
     // DDC write retry
     public const int MonitorWriteRetryBaseMs = 25;
     public const int MonitorInitialVerificationDwellMaxMs = 50;
+
+    // A brightness write is read back only once its target has stayed current this long, so a slider drag reads back
+    // only where it stops. On the user's LGs a read costs as much bus time as a write (GET 63-131 ms, SET 57-117 ms,
+    // measured 2026-10-12), and win32k serializes DDC calls across all monitors: reading back every step of a slow
+    // drag halved how often each monitor updated
+    public const int BrightnessVerificationSettleMs = 300;
+
+    // Least pause before another read-back after an unreadable one, whatever the validation dwell. A reply that fails
+    // right after a SET is usually the panel still busy applying it, so a back-to-back retry repeats the failure.
+    // Relaunching the helper after every failed read used to insert this pause by accident
+    public const int VerificationRetryAfterFailedReadMs = 100;
     public const int BrightnessTargetSupersessionPollIntervalMs = 10;
 }

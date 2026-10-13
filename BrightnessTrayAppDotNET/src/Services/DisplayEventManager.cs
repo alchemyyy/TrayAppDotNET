@@ -44,6 +44,9 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
     private volatile bool _burstActive;
     private long _burstGeneration;
     private int _scanInProgress;
+
+    // Signature of the gap the last scan saw; only one scan runs at a time
+    private volatile string? _lastRefreshedGap;
     private bool _started;
     private bool _disposed;
 
@@ -83,11 +86,15 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
     /// <summary>
     /// Trigger B for the slow path: invoked from <c>BrightnessFlyout.Show()</c>.
-    /// Runs the short-circuit gate; if it passes, performs exactly one scan off the UI thread.
+    /// Asks recovery to probe unavailable rows now, since a panel that powered on without a Windows event is
+    /// only found by probing. Then runs the short-circuit gate; if it passes, performs exactly one scan off the UI
+    /// thread.
     /// </summary>
     public void RunSingleGatedScan()
     {
         if (_disposed) return;
+
+        monitorService.RequestRecoveryOfUnavailableMonitors();
 
         if (AllProfileMonitorsLoaded())
         {
@@ -203,7 +210,8 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         if (_disposed) return;
 
         // Idempotent restart: reset the tick counter so a second hot-plug mid-burst gets a full 10-second
-        // window, but don't spawn a second timer.
+        // window, but don't spawn a second timer. A new hot-plug may resolve a gap an earlier Refresh could not.
+        _lastRefreshedGap = null;
         lock (_burstGate)
         {
             _burstTickCount = 0;
@@ -301,18 +309,21 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
         try
         {
-            HashSet<string> reportedHwids = EnumerateDeviceManagerMonitors();
-            HashSet<string>? knownHwids = SafeExtractKnownHwids();
-            if (knownHwids == null) return;
+            HashSet<string> reportedInstancePaths = EnumerateDeviceManagerMonitors();
+            string? gap = DescribeMonitorGap(reportedInstancePaths, monitorService.CaptureMonitorPresence());
 
-            int monitorsCount;
-            try { monitorsCount = monitorService.Monitors.Count; }
-            catch { return; }
+            // Device Manager also lists connected monitors outside the desktop (lid closed while docked, Win+P,
+            // "Disconnect this display"). No row can account for them, so an unchanged gap gets one Refresh, not one
+            // per burst tick and flyout open.
+            string? refreshedGap = _lastRefreshedGap;
+            _lastRefreshedGap = gap;
+            if (gap != null && string.Equals(gap, refreshedGap, StringComparison.Ordinal))
+            {
+                TADNLog.Log("DisplayEventManager: gap unchanged since its Refresh");
+                return;
+            }
 
-            bool hwidGap = reportedHwids.Except(knownHwids).Any();
-            bool countGap = reportedHwids.Count > monitorsCount;
-
-            if (hwidGap || countGap)
+            if (gap != null)
             {
                 TADNLog.Log("DisplayEventManager: gap detected, calling Refresh");
                 // Mark this as a topology-event-driven Refresh so MonitorService applies the
@@ -332,30 +343,56 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
     }
 
-    private HashSet<string>? SafeExtractKnownHwids()
-    {
-        try
-        {
-            HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
-            foreach (MonitorInfo monitor in monitorService.Monitors)
-            {
-                string? hwid = ExtractHwid(monitor.ID);
-                if (hwid != null) result.Add(hwid);
-            }
+    /// <summary>
+    /// Slow-path decision: Device Manager reports more monitor devnodes than the live rows account for.
+    /// Devnodes are compared by exact instance path. Rows without a path on record may each account for one
+    /// unmatched devnode. The old comparison used model hardware IDs read out of row IDs; <c>num:</c> and
+    /// <c>edid:</c> IDs carry none, so every burst tick saw a gap and restarted the post-detection settle.
+    /// </summary>
+    internal static bool HasMonitorGap(
+        IReadOnlySet<string> reportedInstancePaths,
+        MonitorService.MonitorPresence presence) =>
+        DescribeMonitorGap(reportedInstancePaths, presence) != null;
 
-            return result;
-        }
-        catch
-        {
-            // Observable collection mutated during iteration. The scan will re-run on the next tick (and
-            // MonitorsRefreshed will re-evaluate the short-circuit gate), so skipping here is safe.
-            return null;
-        }
+    /// <summary>
+    /// The unaccounted devnodes of a gap as a stable signature, or null when the rows account for every one.
+    /// The comparison is case-insensitive: SetupAPI and the interface path disagree on instance-ID casing.
+    /// </summary>
+    internal static string? DescribeMonitorGap(
+        IReadOnlySet<string> reportedInstancePaths,
+        MonitorService.MonitorPresence presence)
+    {
+        List<string> unaccounted =
+        [
+            .. reportedInstancePaths
+                .Where(path => !presence.DisplayInstancePaths.Contains(path))
+                .Select(static path => path.ToUpperInvariant())
+                .Order(StringComparer.Ordinal)
+        ];
+        return unaccounted.Count > presence.RowsWithoutInstancePath ? string.Join('|', unaccounted) : null;
     }
 
     private bool AllProfileMonitorsLoaded()
     {
         List<(string ID, string EDIDKey)>? expected = ReadSelectedProfileIdentities();
+        try
+        {
+            return AreProfileMonitorsLoaded(expected, monitorService.Monitors);
+        }
+        catch
+        {
+            // Observable collection mutated during iteration; report "not loaded" so the scan runs
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Burst and flyout short-circuit gate: true when every monitor in the selected profile has a live row.
+    /// </summary>
+    internal static bool AreProfileMonitorsLoaded(
+        IReadOnlyList<(string ID, string EDIDKey)>? expected,
+        IEnumerable<MonitorInfo> monitors)
+    {
         if (expected == null || expected.Count == 0) return true;
 
         // Snapshot both keys per live monitor. A saved entry counts as "loaded" if either:
@@ -363,21 +400,12 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         //   * its EDIDKey matches a live EDIDKey (survives display-number drift).
         // Without the EDID arm, a power-cycle that drifted the display number would keep the scanner thinking
         // monitors are missing and burst-refresh forever.
-        HashSet<string> loadedIDs;
-        HashSet<string> loadedEDIDKeys;
-        try
+        HashSet<string> loadedIDs = new(StringComparer.Ordinal);
+        HashSet<string> loadedEDIDKeys = new(StringComparer.Ordinal);
+        foreach (MonitorInfo monitor in monitors)
         {
-            loadedIDs = new HashSet<string>(StringComparer.Ordinal);
-            loadedEDIDKeys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (MonitorInfo monitor in monitorService.Monitors)
-            {
-                if (!string.IsNullOrEmpty(monitor.ID)) loadedIDs.Add(monitor.ID);
-                if (!string.IsNullOrEmpty(monitor.EDIDKey)) loadedEDIDKeys.Add(monitor.EDIDKey);
-            }
-        }
-        catch
-        {
-            return false;
+            if (!string.IsNullOrEmpty(monitor.ID)) loadedIDs.Add(monitor.ID);
+            if (!string.IsNullOrEmpty(monitor.EDIDKey)) loadedEDIDKeys.Add(monitor.EDIDKey);
         }
 
         foreach ((string id, string EDIDKey) in expected)
@@ -426,6 +454,10 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
     }
 
+    /// <summary>
+    /// Instance paths of every present monitor devnode, in the <c>DISPLAY\hwid\instance</c> form that
+    /// <see cref="DDCCI.DDCMonitor.DisplayInstancePath"/> also uses.
+    /// </summary>
     private static HashSet<string> EnumerateDeviceManagerMonitors()
     {
         HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
@@ -449,10 +481,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
                 StringBuilder instanceIDBuilder = new(256);
                 if (SetupAPI.SetupDiGetDeviceInstanceId(
                         hDevInfo, ref devInfo, instanceIDBuilder, instanceIDBuilder.Capacity, out _))
-                {
-                    string? hwid = ExtractHwid(instanceIDBuilder.ToString());
-                    if (hwid != null) result.Add(hwid);
-                }
+                    result.Add(instanceIDBuilder.ToString());
 
                 index++;
             }
@@ -463,33 +492,6 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Extracts the hardware-ID segment shared by both SetupAPI and <c>EnumDisplayDevices</c> forms of a monitor
-    /// instance path:
-    /// <list type="bullet">
-    /// <item><c>DISPLAY\LGE1234\5&amp;abc&amp;0&amp;UID123</c>   -> <c>LGE1234</c></item>
-    /// <item><c>MONITOR\LGE1234\{4d36e96e-...}\0001</c>          -> <c>LGE1234</c></item>
-    /// <item><c>port:MONITOR\LGE1234\{...}\0001</c>              -> <c>LGE1234</c></item>
-    /// <item><c>edid:...</c>, <c>num:...</c>, anything else      -> null</item>
-    /// </list>
-    /// Returning null signals "can't be matched this way" so the caller falls back to the count-based gap check.
-    /// </summary>
-    private static string? ExtractHwid(string? s)
-    {
-        if (string.IsNullOrEmpty(s)) return null;
-
-        if (s.StartsWith(value: "port:", StringComparison.Ordinal)) s = s[5..];
-
-        if (!s.StartsWith(value: "DISPLAY\\", StringComparison.OrdinalIgnoreCase) &&
-            !s.StartsWith(value: "MONITOR\\", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        string[] parts = s.Split('\\');
-        if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[1])) return null;
-
-        return parts[1].ToUpperInvariant();
     }
 
     public void Dispose()

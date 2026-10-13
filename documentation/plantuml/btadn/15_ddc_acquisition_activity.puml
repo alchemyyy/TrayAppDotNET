@@ -37,9 +37,11 @@ endif
 
 :Read resolved brightness VCP with retry;
 note right $TINT_GREEN
-  Every failed native GET retires only that monitor's helper.
-  The next retry launches a fresh process, performs lightweight
-  Win32 + EDID identity resolution, and opens new physical handles.
+  Three failed native calls in a row retire only that monitor's
+  helper, then at most one retirement per 5 minutes until a read
+  succeeds. Every helper command performs lightweight Win32 + EDID
+  identity resolution (strongest rule wins; a contradicting EDID
+  serial never matches) and opens new physical handles.
   Final acquisition attempt also refreshes the parent snapshot while
   preserving a user brightness-VCP override.
 end note
@@ -72,13 +74,14 @@ else (no)
         :Keep LastDDCError and recovery candidacy;
       endif
     else (no)
-      :Reset this monitor's helper transport;
+      :Apply this monitor's helper retirement policy;
       :Keep Failed and retained recovery identity;
     endif
   else (no)
-    :Add or keep row as Failed;
+    :Add or keep row as Failed under a unique row ID;
     :Retain immutable recovery identity;
     :Raise DDCRecoveryRequested for known-capable rows;
+    :Every Failed row stays a backed-off recovery candidate;
     :No arbitrary acquisition write;
   endif
 endif

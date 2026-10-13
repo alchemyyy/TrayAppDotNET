@@ -16,4 +16,7 @@
   <Project Path="tests/BrightnessTrayAppDotNET.Tests/BrightnessTrayAppDotNET.Tests.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="tests/BrightnessTrayAppDotNET.DDCSimulator.Tests/BrightnessTrayAppDotNET.DDCSimulator.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

@@ -32,6 +32,9 @@
   <Project Path="BrightnessTrayAppDotNET/tests/BrightnessTrayAppDotNET.Tests/BrightnessTrayAppDotNET.Tests.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="BrightnessTrayAppDotNET/tests/BrightnessTrayAppDotNET.DDCSimulator.Tests/BrightnessTrayAppDotNET.DDCSimulator.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>

@@ -2,17 +2,20 @@ namespace TrayAppDotNETCommon.Services;
 
 /// <summary>
 /// Per-key "latest-pending-wins" payload scheduler.
+/// Cooldowns and drain polling are measured by <paramref name="timeProvider"/>, which defaults to the system clock.
 /// </summary>
 public sealed class AsyncThrottler<TKey>(
     int cooldownMs,
     IEqualityComparer<TKey>? comparer = null,
-    int drainPollIntervalMs = TimeConstants.DrainPollIntervalMs) : IDisposable
+    int drainPollIntervalMs = TimeConstants.DrainPollIntervalMs,
+    TimeProvider? timeProvider = null) : IDisposable
     where TKey : notnull
 {
     private readonly Dictionary<TKey, Slot> _slots = new(comparer ?? EqualityComparer<TKey>.Default);
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _shutdownTokenSource = new();
     private readonly int _drainPollIntervalMs = Math.Max(val1: 1, drainPollIntervalMs);
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private int _cooldownMs = Math.Max(val1: 0, cooldownMs);
     private bool _disposed;
 
@@ -113,7 +116,8 @@ public sealed class AsyncThrottler<TKey>(
             }
 
             if (active == 0) return;
-            await Task.Delay(_drainPollIntervalMs, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(_drainPollIntervalMs), _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -225,7 +229,8 @@ public sealed class AsyncThrottler<TKey>(
             {
                 try
                 {
-                    await Task.Delay(cooldown, _shutdownTokenSource.Token).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromMilliseconds(cooldown), _timeProvider, _shutdownTokenSource.Token)
+                        .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

@@ -102,6 +102,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="NightLightTester" />
     <InternalsVisibleTo Include="BrightnessTrayAppDotNET.Tests" />
+    <InternalsVisibleTo Include="BrightnessTrayAppDotNET.DDCSimulator.Tests" />
   </ItemGroup>
 
   <!-- Generate the strongly typed resource API under obj so it always matches the RESX.

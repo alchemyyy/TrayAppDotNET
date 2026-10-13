@@ -427,7 +427,8 @@ public class MonitorInfo : INotifyPropertyChanged
     } = true;
 
     /// <summary>
-    /// True only after this application lifetime successfully sent an explicit power-off command.
+    /// True from the moment this application lifetime sends an explicit power-off command until that command fails, a
+    /// power-on is requested, a newer brightness intent arrives, or recovery sees the panel answering.
     /// Recovery uses this runtime intent instead of <see cref="IsPoweredOn"/>, whose profile-restored value can be
     /// stale when the panel was powered externally while the application was not observing it.
     /// </summary>

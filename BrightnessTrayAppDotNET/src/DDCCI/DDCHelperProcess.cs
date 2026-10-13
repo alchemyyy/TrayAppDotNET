@@ -13,6 +13,8 @@ internal sealed class DDCHelperClient : IDisposable
     private const int CommandAttempts = 2;
     private const int HelperConnectTimeoutMs = 5000;
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
+    internal const string DisposedClientError = "DDC helper client is disposed.";
+    internal const string RetiredBeforeSendError = "DDC helper client was retired before the command was sent.";
     internal static readonly Encoding PipeEncoding = new UTF8Encoding(false);
 
     private readonly Lock _gate = new();
@@ -21,6 +23,7 @@ internal sealed class DDCHelperClient : IDisposable
     private StreamReader? _reader;
     private NamedPipeServerStream? _pipe;
     private volatile bool _disposed;
+    private volatile bool _retireWhenIdle;
 
     public DDCCallOutcome<string> TryGetCapabilities(
         DDCMonitor monitor,
@@ -106,7 +109,49 @@ internal sealed class DDCHelperClient : IDisposable
             StopHelperProcess(kill: false, sendExit: false);
     }
 
+    /// <summary>
+    /// Ends the helper process now, or as soon as the command holding the client finishes. The client refuses
+    /// later commands, so callers create a fresh client for the identity.
+    /// </summary>
+    public void Retire()
+    {
+        if (_disposed) return;
+
+        // Flag first, then try the gate: either the running command sees the flag on its way out, or the gate is
+        // free by the time this thread tries it
+        _retireWhenIdle = true;
+        if (!_gate.TryEnter()) return;
+
+        try { RetireIfRequestedLocked(); }
+        finally { _gate.Exit(); }
+    }
+
+    private void RetireIfRequestedLocked()
+    {
+        if (!_retireWhenIdle || _disposed) return;
+
+        _disposed = true;
+        StopHelperProcess(kill: true, sendExit: false);
+    }
+
     private DDCCallOutcome<string[]> SendCommand(
+        string command,
+        int timeoutMs,
+        CancellationToken cancellationToken,
+        string opLabel)
+    {
+        DDCCallOutcome<string[]> outcome = SendCommandCore(command, timeoutMs, cancellationToken, opLabel);
+
+        // A retirement requested while this command held the client completes here
+        if (!_retireWhenIdle || !_gate.TryEnter()) return outcome;
+
+        try { RetireIfRequestedLocked(); }
+        finally { _gate.Exit(); }
+
+        return outcome;
+    }
+
+    private DDCCallOutcome<string[]> SendCommandCore(
         string command,
         int timeoutMs,
         CancellationToken cancellationToken,
@@ -119,11 +164,12 @@ internal sealed class DDCHelperClient : IDisposable
 
         lock (_gate)
         {
-            if (_disposed) return DDCCallOutcome<string[]>.Fail("DDC helper client is disposed.");
+            if (_disposed) return DDCCallOutcome<string[]>.Fail(RetiredBeforeSendError);
 
             for (int attempt = 0; attempt < CommandAttempts; attempt++)
             {
-                if (_disposed) return DDCCallOutcome<string[]>.Fail("DDC helper client is disposed.");
+                // Past the first attempt the command may already have reached the helper
+                if (_disposed) return DDCCallOutcome<string[]>.Fail(DisposedClientError);
 
                 int remainingTimeoutMs = GetRemainingTimeoutMs(timeoutMs, startTimestamp);
                 if (remainingTimeoutMs == 0)
@@ -230,7 +276,7 @@ internal sealed class DDCHelperClient : IDisposable
         error = null;
         if (_disposed)
         {
-            error = "DDC helper client is disposed.";
+            error = DisposedClientError;
             return false;
         }
 
@@ -442,6 +488,7 @@ internal sealed class DDCHelperClient : IDisposable
         AppendEncodedField(builder, monitor.EDIDSerial);
         AppendEncodedField(builder, monitor.Name);
         AppendEncodedField(builder, monitor.DisplayInstancePath);
+        AppendEncodedField(builder, monitor.Handle.ToInt64().ToString(CultureInfo.InvariantCulture));
         foreach (string argument in arguments)
         {
             builder.Append('\t');
@@ -474,6 +521,9 @@ internal static class DDCHelperServer
     public const string PipeNameArg = "--pipe-name";
     public const string ExitCommand = "EXIT";
     private const int HelperPipeConnectTimeoutMs = 5000;
+
+    // Command layout: verb, five identity fields (DeviceID, EDID serial, name, instance path, HMONITOR), then arguments
+    private const int FirstArgumentField = 6;
 
     public static bool TryRun(string[] args, out int exitCode)
     {
@@ -537,7 +587,7 @@ internal static class DDCHelperServer
     private static string HandleCommand(DisplayService displayService, string line)
     {
         string[] fields = line.Split('\t');
-        if (fields.Length < 5) return Fail("Malformed DDC helper command.");
+        if (fields.Length < FirstArgumentField) return Fail("Malformed DDC helper command.");
 
         DDCHelperMonitorIdentity identity;
         try
@@ -546,7 +596,8 @@ internal static class DDCHelperServer
                 DDCHelperClient.DecodeField(fields[1]),
                 DDCHelperClient.DecodeField(fields[2]),
                 DDCHelperClient.DecodeField(fields[3]),
-                DDCHelperClient.DecodeField(fields[4]));
+                DDCHelperClient.DecodeField(fields[4]),
+                long.Parse(DDCHelperClient.DecodeField(fields[5]), NumberStyles.Integer, CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {
@@ -575,8 +626,8 @@ internal static class DDCHelperServer
 
     private static string HandleGetVCP(DisplayService displayService, DDCMonitor monitor, string[] fields)
     {
-        if (fields.Length < 6) return Fail("Malformed GETVCP command.");
-        if (!byte.TryParse(fields[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
+        if (fields.Length < FirstArgumentField + 1) return Fail("Malformed GETVCP command.");
+        if (!byte.TryParse(fields[FirstArgumentField], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
             return Fail("Malformed GETVCP code.");
 
         if (!displayService.TryGetVCPFeature(
@@ -595,11 +646,15 @@ internal static class DDCHelperServer
 
     private static string HandleSetVCP(DisplayService displayService, DDCMonitor monitor, string[] fields)
     {
-        if (fields.Length < 7) return Fail("Malformed SETVCP command.");
-        if (!byte.TryParse(fields[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
+        if (fields.Length < FirstArgumentField + 2) return Fail("Malformed SETVCP command.");
+        if (!byte.TryParse(fields[FirstArgumentField], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
             return Fail("Malformed SETVCP code.");
 
-        if (!uint.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out uint value))
+        if (!uint.TryParse(
+                fields[FirstArgumentField + 1],
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out uint value))
             return Fail("Malformed SETVCP value.");
 
         if (!displayService.TrySetVCPFeature(monitor, code, value, out string? error))
@@ -622,37 +677,74 @@ internal static class DDCHelperServer
             return false;
         }
 
-        foreach (DDCMonitor candidate in monitors)
+        DDCMonitor? match = FindMatchingMonitor(monitors, identity);
+        if (match != null)
         {
-            if (!Matches(candidate, identity)) continue;
-
-            monitor = candidate;
+            monitor = match;
             return true;
         }
 
-        error = "No matching monitor was found in the DDC helper process.";
+        error = NoMatchingMonitorError;
         return false;
     }
 
-    private static bool Matches(DDCMonitor monitor, DDCHelperMonitorIdentity identity)
+    internal const string NoMatchingMonitorError = "No matching monitor was found in the DDC helper process.";
+
+    /// <summary>
+    /// Resolves the monitor a helper command addresses. Rules run in strength order across every monitor: DeviceID,
+    /// display-instance path, EDID serial, then adapter name, so a strong match on a later monitor beats a weak one on
+    /// an earlier monitor. A monitor whose EDID serial contradicts the command's is never chosen. The adapter name
+    /// moves between panels on every topology change, so it only matches the HMONITOR the parent enumerated, and only
+    /// when stable DeviceIDs do not contradict. Returning null fails the command instead of steering it to another
+    /// panel; the parent's next refresh rebinds the monitor.
+    /// </summary>
+    internal static DDCMonitor? FindMatchingMonitor(
+        IReadOnlyList<DDCMonitor> monitors,
+        DDCHelperMonitorIdentity identity)
     {
-        if (!string.IsNullOrEmpty(identity.DeviceID)
-            && string.Equals(monitor.DeviceID, identity.DeviceID, StringComparison.OrdinalIgnoreCase))
-            return true;
+        List<DDCMonitor> consistent =
+            [.. monitors.Where(m => !Differs(identity.EDIDSerial, m.EDIDSerial, StringComparison.Ordinal))];
 
-        if (!string.IsNullOrEmpty(identity.DisplayInstancePath)
-            && string.Equals(
-                monitor.DisplayInstancePath,
-                identity.DisplayInstancePath,
-                StringComparison.OrdinalIgnoreCase))
-            return true;
+        // An adapter-name fallback DeviceID is only the GDI name, so it is left to the name rule and its guards
+        DDCMonitor? match = null;
+        if (IsStableDeviceID(identity.DeviceID))
+        {
+            match = consistent.FirstOrDefault(m =>
+                string.Equals(m.DeviceID, identity.DeviceID, StringComparison.OrdinalIgnoreCase));
+        }
 
-        if (!string.IsNullOrEmpty(identity.EDIDSerial)
-            && string.Equals(monitor.EDIDSerial, identity.EDIDSerial, StringComparison.Ordinal))
-            return true;
+        if (match == null && !string.IsNullOrEmpty(identity.DisplayInstancePath))
+        {
+            match = consistent.FirstOrDefault(m =>
+                string.Equals(m.DisplayInstancePath, identity.DisplayInstancePath, StringComparison.OrdinalIgnoreCase));
+        }
 
-        return !string.IsNullOrEmpty(identity.Name)
-               && string.Equals(monitor.Name, identity.Name, StringComparison.OrdinalIgnoreCase);
+        if (match == null && !string.IsNullOrEmpty(identity.EDIDSerial))
+        {
+            match = consistent.FirstOrDefault(m =>
+                string.Equals(m.EDIDSerial, identity.EDIDSerial, StringComparison.Ordinal));
+        }
+
+        if (match == null && !string.IsNullOrEmpty(identity.Name))
+        {
+            match = consistent.FirstOrDefault(m =>
+                string.Equals(m.Name, identity.Name, StringComparison.OrdinalIgnoreCase)
+                && !(IsStableDeviceID(identity.DeviceID)
+                     && IsStableDeviceID(m.DeviceID)
+                     && Differs(identity.DeviceID, m.DeviceID, StringComparison.OrdinalIgnoreCase))
+                && (identity.MonitorHandle == 0 || m.Handle.ToInt64() == identity.MonitorHandle));
+        }
+
+        return match;
+
+        static bool Differs(string first, string second, StringComparison comparison) =>
+            !string.IsNullOrEmpty(first)
+            && !string.IsNullOrEmpty(second)
+            && !string.Equals(first, second, comparison);
+
+        // An adapter-name fallback DeviceID belongs to the GDI source, not the panel
+        static bool IsStableDeviceID(string deviceID) =>
+            !string.IsNullOrEmpty(deviceID) && !deviceID.StartsWith(value: @"\\.\", StringComparison.Ordinal);
     }
 
     private static string Fail(string error) =>
@@ -716,15 +808,28 @@ internal static class DDCHelperServer
         Environment.Exit(0);
     }
 
-    private readonly struct DDCHelperMonitorIdentity(
+    internal readonly struct DDCHelperMonitorIdentity(
         string deviceID,
         string edidSerial,
         string name,
-        string displayInstancePath)
+        string displayInstancePath,
+        long monitorHandle = 0)
     {
         public readonly string DeviceID = deviceID;
         public readonly string EDIDSerial = edidSerial;
         public readonly string Name = name;
         public readonly string DisplayInstancePath = displayInstancePath;
+
+        // HMONITOR the parent enumerated; zero when unknown
+        public readonly long MonitorHandle = monitorHandle;
+
+        /// <summary>Identity fields the parent encodes into every helper command for <paramref name="monitor"/>.</summary>
+        public static DDCHelperMonitorIdentity From(DDCMonitor monitor) =>
+            new(
+                monitor.DeviceID,
+                monitor.EDIDSerial,
+                monitor.Name,
+                monitor.DisplayInstancePath,
+                monitor.Handle.ToInt64());
     }
 }
