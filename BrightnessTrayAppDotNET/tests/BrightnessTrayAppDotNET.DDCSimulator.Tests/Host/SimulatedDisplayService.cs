@@ -60,13 +60,12 @@ internal readonly record struct HelperRoutingEvent(
 /// rule for rule (the active monitor device for both DeviceID and interface path, adapter-name fallback, CCD numbers,
 /// registry EDID through the real <c>EDIDParser</c>, profile lookup) and retires the helpers of vanished identities.
 /// DDC calls go through per-identity helper clients that mirror DDCHelperClient: a serial command slot, lazy spawn
-/// with a pipe-connect budget, an end-to-end timeout that kills the helper, and a helper that re-enumerates and
-/// resolves the monitor with the real <see cref="DDCHelperServer.FindMatchingMonitor"/> on every command.
+/// with a pipe-connect budget, one command on the bus at a time across every helper, an end-to-end timeout that kills
+/// the helper, and a helper that re-enumerates and resolves the monitor with the real
+/// <see cref="DDCHelperServer.FindMatchingMonitor"/> on every command.
 /// </summary>
 internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
 {
-    private const int HelperConnectTimeoutMs = 5_000;
-
     private readonly SimulationClock _clock;
     private readonly SimulationTrace _trace;
     private readonly HostDisplayStack _host;
@@ -74,6 +73,9 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     private readonly DisplayServiceTiming _timing;
     private readonly IReadOnlyList<SimulatedMonitor> _allMonitors;
     private readonly Lock _gate = new();
+
+    // Mirrors DisplayService._busGate: one helper command on the bus at a time across every monitor
+    private readonly SimulationGate _busGate;
     private readonly Random _random;
     private readonly Dictionary<string, SimulatedHelperClient> _helpers = new(StringComparer.Ordinal);
 
@@ -101,6 +103,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
         _controller = controller;
         _timing = timing;
         _allMonitors = allMonitors;
+        _busGate = new SimulationGate(clock);
         _random = new Random(seed);
     }
 
@@ -589,39 +592,54 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             if (!helper.ProcessAlive && !TryStartHelper(helper, remainingMs))
                 return DDCCallOutcome<HelperReply>.Fail("DDC helper did not connect to its command pipe.");
 
-            remainingMs = RemainingMs(timeoutMs, startTicks);
-            if (remainingMs == 0)
+            // DDCHelperClient queues for the bus after the spawn, and the queueing does not count against the timeout
+            long busWaitStartTicks = _clock.ElapsedTicks;
+            if (!_busGate.Enter(cancellationToken))
+                return DDCCallOutcome<HelperReply>.WithError($"DDC op '{operationLabel}' cancelled by sequence deadline.");
+
+            startTicks += _clock.ElapsedTicks - busWaitStartTicks;
+            try
             {
-                KillHelper(helper, "budget spent before the command was sent");
-                return DDCCallOutcome<HelperReply>.WithError(
-                    $"DDC op '{operationLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
+                if (helper.IsDisposed) return DDCCallOutcome<HelperReply>.Fail(DDCHelperClient.DisposedClientError);
+
+                remainingMs = RemainingMs(timeoutMs, startTicks);
+                if (remainingMs == 0)
+                {
+                    KillHelper(helper, "budget spent before the command was sent");
+                    return DDCCallOutcome<HelperReply>.WithError(
+                        $"DDC op '{operationLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
+                }
+
+                HelperExecution execution = new(_clock, kind, code, value, monitor, OriginOf(monitor), helper.ProcessGeneration);
+                helper.InFlight = execution;
+                StartExecution(helper, execution);
+                HelperWaitOutcome outcome = execution.WaitForReply(TimeSpan.FromMilliseconds(remainingMs), cancellationToken);
+                helper.InFlight = null;
+                switch (outcome)
+                {
+                    case HelperWaitOutcome.Replied:
+                        HelperReply reply = execution.Reply;
+                        return reply.Success
+                            ? DDCCallOutcome<HelperReply>.Ok(reply)
+                            : DDCCallOutcome<HelperReply>.Fail(reply.Error ?? "DDC helper failed.");
+
+                    case HelperWaitOutcome.TimedOut:
+                        KillHelper(helper, $"{operationLabel} timed out");
+                        return DDCCallOutcome<HelperReply>.WithError(
+                            $"DDC op '{operationLabel}' exceeded {timeoutMs}ms timeout; helper process killed.");
+
+                    case HelperWaitOutcome.Cancelled:
+                        KillHelper(helper, $"{operationLabel} cancelled");
+                        return DDCCallOutcome<HelperReply>.WithError(
+                            $"DDC op '{operationLabel}' cancelled by sequence deadline; helper process killed.");
+
+                    default:
+                        return DDCCallOutcome<HelperReply>.Fail(DDCHelperClient.DisposedClientError);
+                }
             }
-
-            HelperExecution execution = new(_clock, kind, code, value, monitor, OriginOf(monitor), helper.ProcessGeneration);
-            helper.InFlight = execution;
-            StartExecution(helper, execution);
-            HelperWaitOutcome outcome = execution.WaitForReply(TimeSpan.FromMilliseconds(remainingMs), cancellationToken);
-            helper.InFlight = null;
-            switch (outcome)
+            finally
             {
-                case HelperWaitOutcome.Replied:
-                    HelperReply reply = execution.Reply;
-                    return reply.Success
-                        ? DDCCallOutcome<HelperReply>.Ok(reply)
-                        : DDCCallOutcome<HelperReply>.Fail(reply.Error ?? "DDC helper failed.");
-
-                case HelperWaitOutcome.TimedOut:
-                    KillHelper(helper, $"{operationLabel} timed out");
-                    return DDCCallOutcome<HelperReply>.WithError(
-                        $"DDC op '{operationLabel}' exceeded {timeoutMs}ms timeout; helper process killed.");
-
-                case HelperWaitOutcome.Cancelled:
-                    KillHelper(helper, $"{operationLabel} cancelled");
-                    return DDCCallOutcome<HelperReply>.WithError(
-                        $"DDC op '{operationLabel}' cancelled by sequence deadline; helper process killed.");
-
-                default:
-                    return DDCCallOutcome<HelperReply>.Fail(DDCHelperClient.DisposedClientError);
+                _busGate.Exit();
             }
         }
         finally
@@ -643,7 +661,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             spawnFails = _random.NextDouble() < _timing.HelperSpawnFailureProbability;
         }
 
-        int connectTimeoutMs = Math.Min(HelperConnectTimeoutMs, remainingMs);
+        int connectTimeoutMs = Math.Min(TimeConstants.DDCHelperConnectTimeoutMs, remainingMs);
         if (spawnFails || spawnMs > connectTimeoutMs)
         {
             _clock.Sleep(TimeSpan.FromMilliseconds(connectTimeoutMs));

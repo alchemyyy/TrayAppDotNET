@@ -79,6 +79,11 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int DisplayServiceOperationTimeoutMs = 3_000;
     public const int DDCOperationTimeoutSafetyFloorMs = 500;
 
+    // DDC helper process: how long the tray waits for a new helper to connect to its command pipe, and how long the
+    // helper waits to connect to that pipe
+    public const int DDCHelperConnectTimeoutMs = 5_000;
+    public const int DDCHelperPipeConnectTimeoutMs = 5_000;
+
     // Display identifier overlay
     public const int DisplayIdentifierDefaultDurationMs = 2_500;
 

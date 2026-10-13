@@ -67,10 +67,11 @@ Real code: `MonitorService`, `DDCRecoveryService`, `AsyncThrottler`, `KnownDispl
 Mirrored, and to be kept in step with the production code:
 
 - `SimulatedDisplayService` repeats `DisplayService.TryGetMonitorsCore` (the active monitor device of each source, read
-  twice, adapter-name fallback), the retirement of helpers whose identity stopped enumerating or was superseded, and
+  twice, adapter-name fallback), the retirement of helpers whose identity stopped enumerating or was superseded,
   `DDCHelperClient.SendCommand` (serial slot, lazy spawn within the pipe budget, end-to-end timeout that kills the
   helper, retirement once the running command finishes, a helper that ends with the command for a retired identity
-  or for one a retired helper refused, error strings).
+  or for one a retired helper refused, error strings), and `DisplayService`'s bus gate, which lets one command at a
+  time onto the bus across every helper and keeps the queueing out of the timeout.
 - `AppEventBridge` repeats DisplayEventManager's Win32 plumbing: 250 ms UI debounce, 1 s x 10 burst, flyout scan with
   its recovery request.
 - `CurveDriver` repeats the absolute-mode parts of EnvironmentalCurveService that touch `MonitorService`.

@@ -47,6 +47,12 @@ public class DisplayService : IDisplayService, IDisposable
     // shows them again. Guarded by _helperClientsGate. A command still aimed at one gets a helper that ends with it;
     // a registered one would live until some later enumeration noticed it
     private readonly HashSet<string> _retiredHelperClientKeys = new(StringComparer.OrdinalIgnoreCase);
+
+    // One DDC/CI command on the bus at a time across every monitor. win32k already runs these calls one after another
+    // behind a single mutex, so this costs no throughput; the queue just forms here instead of inside win32k. On the
+    // user's DP-to-HDMI adapters, SETs queued there for several panels stalled other processes' message loops for up
+    // to 33 ms; none of 173 SETs issued one at a time did (measured 2026-10-12)
+    private readonly SemaphoreSlim _busGate = new(initialCount: 1, maxCount: 1);
     private volatile bool _disposed;
 
     public DisplayService() : this(true) { }
@@ -845,7 +851,7 @@ public class DisplayService : IDisplayService, IDisposable
                 if (!_retiredHelperClientKeys.Contains(helperClientKey)
                     && !_helperClients.TryGetValue(helperClientKey, out helperClient))
                 {
-                    helperClient = new DDCHelperClient();
+                    helperClient = new DDCHelperClient(_busGate);
                     _helperClients.Add(helperClientKey, helperClient);
                 }
             }
@@ -868,12 +874,25 @@ public class DisplayService : IDisplayService, IDisposable
 
         try
         {
+            _busGate.Wait(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return DDCCallOutcome<T>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
+        }
+
+        try
+        {
             return op();
         }
         catch (Exception ex)
         {
             TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
             return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
+        }
+        finally
+        {
+            _busGate.Release();
         }
 
         DDCCallOutcome<T> RunOnHelper(DDCHelperClient client)
@@ -888,7 +907,7 @@ public class DisplayService : IDisplayService, IDisposable
 
         DDCCallOutcome<T> RunOnOneShotHelper()
         {
-            DDCHelperClient oneShotClient = new();
+            DDCHelperClient oneShotClient = new(_busGate);
             try { return RunOnHelper(oneShotClient); }
             finally { _ = Task.Run(oneShotClient.Retire); }
         }

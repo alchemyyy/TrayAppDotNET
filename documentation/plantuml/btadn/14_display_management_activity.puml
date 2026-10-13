@@ -348,6 +348,11 @@ partition "DDC write/read-back" {
     :DoBrightnessWriteAsync(current target);
     :WithDDCLockAsync per monitor DeviceID;
     :DisplayService.TrySetVCPFeature;
+    note right
+      The bus gate lets one DDC command on at a time across
+      every monitor, so commands queue here instead of in
+      win32k. Queueing does not count against the timeout.
+    end note
     if (write ok?) then (yes)
       :Wait up to 300 ms while the target stays current;
       note right

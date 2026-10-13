@@ -8,15 +8,16 @@ namespace BrightnessTrayAppDotNET.DDCCI;
 /// <summary>
 /// Parent-side client for the killable DDC helper process.
 /// </summary>
-internal sealed class DDCHelperClient : IDisposable
+/// <param name="busGate">Shared by every client of one display service so only one command is on the bus at a time.</param>
+internal sealed class DDCHelperClient(SemaphoreSlim busGate) : IDisposable
 {
     private const int CommandAttempts = 2;
-    private const int HelperConnectTimeoutMs = 5000;
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
     internal const string DisposedClientError = "DDC helper client is disposed.";
     internal const string RetiredBeforeSendError = "DDC helper client was retired before the command was sent.";
     internal static readonly Encoding PipeEncoding = new UTF8Encoding(false);
 
+    private readonly SemaphoreSlim _busGate = busGate;
     private readonly Lock _gate = new();
     private Process? _process;
     private StreamWriter? _writer;
@@ -181,87 +182,110 @@ internal sealed class DDCHelperClient : IDisposable
                 if (!EnsureStarted(remainingTimeoutMs, cancellationToken, out string? startError))
                     return DDCCallOutcome<string[]>.Fail(startError ?? "DDC helper could not start.");
 
-                StreamWriter writer = _writer!;
-                StreamReader reader = _reader!;
+                // A spawn does not touch the bus, so only the exchange waits for it. The timeout catches a hung call,
+                // so time queued behind another monitor's command does not count against it
+                long busWaitStart = Stopwatch.GetTimestamp();
                 try
                 {
-                    writer.WriteLine(command);
-                    writer.Flush();
-                }
-                catch (Exception ex)
-                {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    if (attempt + 1 < CommandAttempts) continue;
-
-                    return DDCCallOutcome<string[]>.Fail($"DDC helper command write failed: {ex.Message}");
-                }
-
-                Task<string?> readTask;
-                try
-                {
-                    readTask = reader.ReadLineAsync();
-                }
-                catch (Exception ex)
-                {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    if (attempt + 1 < CommandAttempts) continue;
-
-                    return DDCCallOutcome<string[]>.Fail($"DDC helper reply read failed: {ex.Message}");
-                }
-
-                int effectiveTimeoutMs = GetRemainingTimeoutMs(timeoutMs, startTimestamp);
-                if (effectiveTimeoutMs == 0)
-                {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    return DDCCallOutcome<string[]>.WithError(
-                        $"DDC op '{opLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
-                }
-
-                try
-                {
-                    if (!readTask.Wait(effectiveTimeoutMs, cancellationToken))
-                    {
-                        StopHelperProcess(kill: true, sendExit: false);
-                        return DDCCallOutcome<string[]>.WithError(
-                            $"DDC op '{opLabel}' exceeded {timeoutMs}ms timeout; helper process killed.");
-                    }
+                    _busGate.Wait(cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    return DDCCallOutcome<string[]>.WithError(
-                        $"DDC op '{opLabel}' cancelled by sequence deadline; helper process killed.");
-                }
-                catch (Exception ex)
-                {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    if (attempt + 1 < CommandAttempts) continue;
-
-                    return DDCCallOutcome<string[]>.Fail($"DDC helper wait failed: {ex.Message}");
+                    return DDCCallOutcome<string[]>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
                 }
 
-                string? responseLine;
+                startTimestamp += Stopwatch.GetTimestamp() - busWaitStart;
                 try
                 {
-                    responseLine = readTask.GetAwaiter().GetResult();
+                    // Disposed while queued: the process is gone, so its pipe must not be written
+                    if (_disposed) return DDCCallOutcome<string[]>.Fail(DisposedClientError);
+
+                    StreamWriter writer = _writer!;
+                    StreamReader reader = _reader!;
+                    try
+                    {
+                        writer.WriteLine(command);
+                        writer.Flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        if (attempt + 1 < CommandAttempts) continue;
+
+                        return DDCCallOutcome<string[]>.Fail($"DDC helper command write failed: {ex.Message}");
+                    }
+
+                    Task<string?> readTask;
+                    try
+                    {
+                        readTask = reader.ReadLineAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        if (attempt + 1 < CommandAttempts) continue;
+
+                        return DDCCallOutcome<string[]>.Fail($"DDC helper reply read failed: {ex.Message}");
+                    }
+
+                    int effectiveTimeoutMs = GetRemainingTimeoutMs(timeoutMs, startTimestamp);
+                    if (effectiveTimeoutMs == 0)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        return DDCCallOutcome<string[]>.WithError(
+                            $"DDC op '{opLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
+                    }
+
+                    try
+                    {
+                        if (!readTask.Wait(effectiveTimeoutMs, cancellationToken))
+                        {
+                            StopHelperProcess(kill: true, sendExit: false);
+                            return DDCCallOutcome<string[]>.WithError(
+                                $"DDC op '{opLabel}' exceeded {timeoutMs}ms timeout; helper process killed.");
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        return DDCCallOutcome<string[]>.WithError(
+                            $"DDC op '{opLabel}' cancelled by sequence deadline; helper process killed.");
+                    }
+                    catch (Exception ex)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        if (attempt + 1 < CommandAttempts) continue;
+
+                        return DDCCallOutcome<string[]>.Fail($"DDC helper wait failed: {ex.Message}");
+                    }
+
+                    string? responseLine;
+                    try
+                    {
+                        responseLine = readTask.GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        StopHelperProcess(kill: true, sendExit: false);
+                        if (attempt + 1 < CommandAttempts) continue;
+
+                        return DDCCallOutcome<string[]>.Fail($"DDC helper reply failed: {ex.Message}");
+                    }
+
+                    if (responseLine == null)
+                    {
+                        StopHelperProcess(kill: false, sendExit: false);
+                        if (attempt + 1 < CommandAttempts) continue;
+
+                        return DDCCallOutcome<string[]>.Fail("DDC helper exited without a reply.");
+                    }
+
+                    return ParseResponse(responseLine);
                 }
-                catch (Exception ex)
+                finally
                 {
-                    StopHelperProcess(kill: true, sendExit: false);
-                    if (attempt + 1 < CommandAttempts) continue;
-
-                    return DDCCallOutcome<string[]>.Fail($"DDC helper reply failed: {ex.Message}");
+                    _busGate.Release();
                 }
-
-                if (responseLine == null)
-                {
-                    StopHelperProcess(kill: false, sendExit: false);
-                    if (attempt + 1 < CommandAttempts) continue;
-
-                    return DDCCallOutcome<string[]>.Fail("DDC helper exited without a reply.");
-                }
-
-                return ParseResponse(responseLine);
             }
         }
 
@@ -331,8 +355,8 @@ internal sealed class DDCHelperClient : IDisposable
 
             Task connectTask = pipe.WaitForConnectionAsync(cancellationToken);
             int connectTimeoutMs = timeoutMs > 0
-                ? Math.Min(HelperConnectTimeoutMs, timeoutMs)
-                : HelperConnectTimeoutMs;
+                ? Math.Min(TimeConstants.DDCHelperConnectTimeoutMs, timeoutMs)
+                : TimeConstants.DDCHelperConnectTimeoutMs;
             if (!connectTask.Wait(connectTimeoutMs, cancellationToken))
             {
                 error = "DDC helper did not connect to its command pipe.";
@@ -520,7 +544,6 @@ internal static class DDCHelperServer
     public const string ParentProcessIDArg = "--parent-pid";
     public const string PipeNameArg = "--pipe-name";
     public const string ExitCommand = "EXIT";
-    private const int HelperPipeConnectTimeoutMs = 5000;
 
     // Command layout: verb, five identity fields (DeviceID, EDID serial, name, instance path, HMONITOR), then arguments
     private const int FirstArgumentField = 6;
@@ -541,7 +564,7 @@ internal static class DDCHelperServer
         try
         {
             using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
-            pipe.Connect(HelperPipeConnectTimeoutMs);
+            pipe.Connect(TimeConstants.DDCHelperPipeConnectTimeoutMs);
             using StreamReader reader = new(
                 pipe,
                 DDCHelperClient.PipeEncoding,

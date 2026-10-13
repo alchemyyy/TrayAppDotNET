@@ -98,7 +98,8 @@ TH -> MS  : DoBrightnessWriteAsync(entry, target, context)
 loop write attempts (ValidationAttempts, ScaledRetryDwellMs)
   MS -> MS  : confirm target generation + ownership predicate\ninside per-monitor DDC lock
   MS -> DS  : TrySetVCPFeature(current DDC snapshot, raw)
-  DS -> HLP : stable-identity SETVCP command\ntimeout includes slot + startup + pipe + reply
+  DS -> DS  : wait for the bus gate\none command at a time across all monitors
+  DS -> HLP : stable-identity SETVCP command\ntimeout includes slot + startup + pipe + reply\nbut not the bus gate queue
   HLP -> HLP : enumerate and resolve a fresh DDCMonitor\nopen PHYSICAL_MONITOR[0]
   HLP -> DXV : SetVCPFeature
   DXV --> HLP : ok / Win32 error
@@ -106,13 +107,13 @@ loop write attempts (ValidationAttempts, ScaledRetryDwellMs)
   DS  --> MS
   alt ok
   else transient I2C / monitor busy
-    MS -> DS : ResetDDCTransport(monitor)\nretire only this helper process
+    MS -> DS : ResetDDCTransport(monitor) on the third failure in a row\nretire only this helper process
     MS -> MS : supersession-aware scaled dwell\n<=10 ms response to a newer generation
   end
 end
 
 alt write succeeded and target is still current
-  MS -> MS : initial commit dwell (max 50 ms)
+  MS -> MS : wait up to 300 ms while the target stays current\na newer target ends the payload without a read-back
   MS -> MS : VerifyAppliedAsync(entry, target)
   loop verify attempts (ValidationAttempts)
     MS -> DS  : TryGetVCPFeature(current DDC snapshot)\nunder the same per-monitor lock
@@ -129,7 +130,7 @@ alt write succeeded and target is still current
       MS -> MS : RefreshHandle once\npreserve brightness VCP override
       MS -> DS : re-apply current generation\nthen scaled quiet dwell
     else read transport failure
-      MS -> DS : ResetDDCTransport(monitor)\nnext GET starts a fresh helper process
+      MS -> DS : ResetDDCTransport(monitor) on the third failure in a row\nnext GET starts a fresh helper process
       MS -> MS : RefreshHandle once + scaled quiet dwell\nretry GET without another SET
       MS -> MS : supersession-aware scaled dwell
     end

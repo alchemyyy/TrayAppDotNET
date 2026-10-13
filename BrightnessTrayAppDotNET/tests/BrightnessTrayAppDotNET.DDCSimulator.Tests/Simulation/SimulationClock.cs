@@ -500,7 +500,7 @@ internal sealed class SimulationWaitHandle(SimulationClock clock)
 internal sealed class SimulationGate(SimulationClock clock)
 {
     private readonly Lock _gate = new();
-    private readonly Queue<SimulationWaitHandle> _waiters = new();
+    private readonly LinkedList<SimulationWaitHandle> _waiters = [];
     private bool _isHeld;
 
     public void Enter()
@@ -515,10 +515,49 @@ internal sealed class SimulationGate(SimulationClock clock)
             }
 
             handle = new SimulationWaitHandle(clock);
-            _waiters.Enqueue(handle);
+            _waiters.AddLast(handle);
         }
 
         handle.Wait();
+    }
+
+    /// <summary>
+    /// Like <see cref="Enter()"/>, but leaves the line when <paramref name="cancellationToken"/> fires first.
+    /// False when it gave up; ownership already handed over is kept.
+    /// </summary>
+    public bool Enter(CancellationToken cancellationToken)
+    {
+        SimulationWaitHandle handle;
+        lock (_gate)
+        {
+            if (!_isHeld)
+            {
+                _isHeld = true;
+                return true;
+            }
+
+            if (cancellationToken.IsCancellationRequested) return false;
+
+            handle = new SimulationWaitHandle(clock);
+            _waiters.AddLast(handle);
+        }
+
+        bool gaveUp = false;
+        using (cancellationToken.Register(() =>
+               {
+                   lock (_gate)
+                   {
+                       if (!_waiters.Remove(handle)) return;
+                       gaveUp = true;
+                   }
+
+                   handle.Release();
+               }))
+        {
+            handle.Wait();
+        }
+
+        return !gaveUp;
     }
 
     /// <summary>Takes the gate only when nobody holds it.</summary>
@@ -538,7 +577,11 @@ internal sealed class SimulationGate(SimulationClock clock)
         SimulationWaitHandle? next = null;
         lock (_gate)
         {
-            if (_waiters.Count > 0) next = _waiters.Dequeue();
+            if (_waiters.First is { } first)
+            {
+                next = first.Value;
+                _waiters.RemoveFirst();
+            }
             else _isHeld = false;
         }
 
