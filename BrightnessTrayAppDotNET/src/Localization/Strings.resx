@@ -1013,19 +1013,19 @@ Target: {1}</value>
     <value>Display num (rev)</value>
   </data>
   <data name="Settings_Monitors_ValidationAttempts_Description" xml:space="preserve">
-    <value>Number of times to verify brightness and readable power-state writes before giving up. Higher = more tolerant of transient I2C noise; lower = faster failure for genuinely stuck monitors.</value>
+    <value>How many times a brightness change is written and read back before the display is marked unavailable. Power changes are read back as many times, and a display gets as many reads when it is detected or recovered. Higher tolerates more transient I2C noise; lower gives up sooner on genuinely stuck displays.</value>
   </data>
   <data name="Settings_Monitors_ValidationAttempts_Title" xml:space="preserve">
-    <value>Validation attempts</value>
+    <value>Verification attempts</value>
   </data>
   <data name="Settings_Monitors_ValidationDwellOverride_Label" xml:space="preserve">
-    <value>Validation dwell</value>
+    <value>Verification delay</value>
   </data>
   <data name="Settings_Monitors_ValidationDwell_Description" xml:space="preserve">
-    <value>Maximum retry dwell while reading back brightness or power state to confirm a write applied. Increase on slow-responding monitors.</value>
+    <value>How long a display gets to apply a brightness or power change before it is read back, including each time a value that did not match is sent again. Raise it for displays that apply changes slowly. While a slider is dragged, a change is read back only once the slider rests this long.</value>
   </data>
   <data name="Settings_Monitors_ValidationDwell_Title" xml:space="preserve">
-    <value>Validation dwell</value>
+    <value>Verification delay</value>
   </data>
   <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
     <value>Appearance</value>
@@ -1533,10 +1533,10 @@ Night Light: {0}%</value>
     <value>DDC write pacing interval</value>
   </data>
   <data name="Settings_Monitors_ValidationDwell_SearchKeywords" xml:space="preserve">
-    <value>verify readback delay</value>
+    <value>verify readback delay validation dwell</value>
   </data>
   <data name="Settings_Monitors_ValidationAttempts_SearchKeywords" xml:space="preserve">
-    <value>verification retries DDC</value>
+    <value>verification retries DDC validation attempts</value>
   </data>
   <data name="Settings_Monitors_DDCOperationTimeout_SearchKeywords" xml:space="preserve">
     <value>monitor control command wait</value>
@@ -1633,7 +1633,7 @@ EDID|Extended Display Identification Data|display identification data
 monitor identity|display identity|monitor matching|display matching|stable monitor identifier|stable display identifier
 display number|monitor number|screen number
 validation attempts|verification attempts|validation retries|verification retries|retry count
-validation dwell|verification dwell|readback delay|verification wait
+validation dwell|verification dwell|verification delay|readback delay|verification wait
 DDC operation timeout|DDC timeout|monitor command timeout|maximum DDC wait
 brightness update dwell|brightness dwell|brightness write delay|brightness settling delay
 display sort order|monitor sort order|screen sort order|display ordering

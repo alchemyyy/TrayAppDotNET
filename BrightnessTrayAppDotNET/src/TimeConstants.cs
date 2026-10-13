@@ -129,6 +129,12 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int BrightnessUpdateRateDefaultMs = 50;
     public const int BrightnessUpdateRateMinMs = 10;
     public const int BrightnessUpdateRateMaxMs = 10_000;
+
+    // Default verification delay.
+    // A newer target ends the wait, so at this length a slider drag reads back only where it stops.
+    // On the user's LGs a read costs as much bus time as a write (GET 63-131 ms, SET 57-117 ms, measured 2026-10-12),
+    // and win32k serializes DDC calls across all monitors:
+    // reading back every step of a slow drag halved how often each monitor updated
     public const int ValidationDwellDefaultMs = 500;
     public const int ValidationDwellMinMs = 0;
     public const int ValidationDwellMaxMs = 10_000;
@@ -145,17 +151,5 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // DDC write retry
     public const int MonitorWriteRetryBaseMs = 25;
-    public const int MonitorInitialVerificationDwellMaxMs = 50;
-
-    // A brightness write is read back only once its target has stayed current this long, so a slider drag reads back
-    // only where it stops. On the user's LGs a read costs as much bus time as a write (GET 63-131 ms, SET 57-117 ms,
-    // measured 2026-10-12), and win32k serializes DDC calls across all monitors: reading back every step of a slow
-    // drag halved how often each monitor updated
-    public const int BrightnessVerificationSettleMs = 300;
-
-    // Least pause before another read-back after an unreadable one, whatever the validation dwell. A reply that fails
-    // right after a SET is usually the panel still busy applying it, so a back-to-back retry repeats the failure.
-    // Relaunching the helper after every failed read used to insert this pause by accident
-    public const int VerificationRetryAfterFailedReadMs = 100;
     public const int BrightnessTargetSupersessionPollIntervalMs = 10;
 }

@@ -299,13 +299,21 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     // Monitor Options
     public int BrightnessUpdateRateMs { get; set; } = TimeConstants.BrightnessUpdateRateDefaultMs;
+
+    /// <summary>
+    /// Verification delay (shown under that name): how long a panel gets to apply a brightness or power change
+    /// before it is read back, including each time a value that read back wrong is sent again.
+    /// Also the wait before the final retry of a refused brightness write.
+    /// Per-monitor overrides replace it for one display.
+    /// </summary>
     public int ValidationDwellMs { get; set; } = TimeConstants.ValidationDwellDefaultMs;
 
     /// <summary>
-    /// Number of attempts the acquisition-read, brightness-write, brightness-verification, and readable power-state
-    /// verification loops make before giving up. Acquisition reads use the fixed responsive backoff sequence in
-    /// <c>TimeConstants</c>. Write and verification retries ramp to <see cref="ValidationDwellMs"/>; the final
-    /// acquisition attempt also refreshes HMONITOR.
+    /// Verification attempts (shown under that name): writes per brightness change,
+    /// reads per brightness or power read-back, and reads per acquisition or recovery probe.
+    /// A brightness change still refused or unconfirmed after this many marks the display unavailable.
+    /// Unreadable replies and acquisition reads retry on the fixed backoff sequence in <c>TimeConstants</c>;
+    /// the final acquisition attempt also refreshes HMONITOR.
     /// Higher = more tolerant of transient I2C noise / DPMS-wake races;
     /// lower = faster failure for genuinely stuck monitors.
     /// </summary>

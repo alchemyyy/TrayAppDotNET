@@ -3047,7 +3047,7 @@ public sealed class MonitorService : IDisposable
         byte value)
     {
         int attempts = Math.Max(val1: 1, _settings.ValidationAttempts);
-        int finalDwellMs = ResolveValidationDwellMs(entry);
+        int verificationDelayMs = ResolveValidationDwellMs(entry);
         string? lastError = null;
         PowerWriteAttempt initialWrite = await TryWritePowerStateAsync(
                 entry,
@@ -3069,13 +3069,11 @@ public sealed class MonitorService : IDisposable
         if (on) monitor.SuppressDDCRecoveryForPowerIntent = false;
         bool latestWriteAccepted = true;
 
-        int initialVerificationDwellMs = Math.Min(
-            finalDwellMs,
-            TimeConstants.MonitorInitialVerificationDwellMaxMs);
+        // The verification delay is how long the panel gets to apply the command before it is read back
         if (!await DelayWhilePowerIntentCurrentAsync(
                 entry,
                 powerIntentGeneration,
-                initialVerificationDwellMs).ConfigureAwait(false))
+                verificationDelayMs).ConfigureAwait(false))
             return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
 
         for (int attempt = 0; attempt < attempts; attempt++)
@@ -3136,11 +3134,11 @@ public sealed class MonitorService : IDisposable
                     + $"'{reapply.MonitorName}': {reapply.Error}");
             }
 
-            int waitMs = ScaledRetryDwellMs(attempt + 1, attempts, finalDwellMs);
+            // The re-sent command gets the same verification delay as the first one before it is read back
             if (!await DelayWhilePowerIntentCurrentAsync(
                     entry,
                     powerIntentGeneration,
-                    waitMs).ConfigureAwait(false))
+                    verificationDelayMs).ConfigureAwait(false))
                 return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, Error: null);
         }
 
@@ -3512,12 +3510,12 @@ public sealed class MonitorService : IDisposable
         // Supersession-aware waits poll the explicit generation, so a fresh slider target waits at most
         // one short polling slice rather than the full final dwell before it can take over.
         int writeAttempts = Math.Max(val1: 1, _settings.ValidationAttempts);
-        int writeFinalDwellMs = ResolveValidationDwellMs(entry);
+        int verificationDelayMs = ResolveValidationDwellMs(entry);
         string? lastWriteError = null;
         bool wrote = false;
         for (int attempt = 0; attempt < writeAttempts; attempt++)
         {
-            int waitMs = ScaledRetryDwellMs(attempt, writeAttempts, writeFinalDwellMs);
+            int waitMs = ScaledRetryDwellMs(attempt, writeAttempts, verificationDelayMs);
             if (!await DelayWhileBrightnessTargetCurrentAsync(
                     entry,
                     target,
@@ -3556,20 +3554,20 @@ public sealed class MonitorService : IDisposable
         {
             if (!IsBrightnessTargetCurrent(entry, target)) return;
 
-            DemoteOnDDCFailure(entry, lastWriteError);
+            DemoteOnDDCFailure(
+                entry,
+                $"Brightness could not be written after {DescribeAttempts(writeAttempts)}: {lastWriteError}");
             return;
         }
 
         if (!wrote) return;
 
+        // The verification delay is how long the panel gets to apply the value before it is read back.
         // A newer target arriving first ends this payload without a read-back, so a drag confirms only where it stops
-        int initialVerificationDwellMs = Math.Min(
-            writeFinalDwellMs,
-            TimeConstants.BrightnessVerificationSettleMs);
         if (!await DelayWhileBrightnessTargetCurrentAsync(
                 entry,
                 target,
-                initialVerificationDwellMs,
+                verificationDelayMs,
                 context.CancellationToken).ConfigureAwait(false))
             return;
 
@@ -3580,14 +3578,15 @@ public sealed class MonitorService : IDisposable
     /// Read-back verification with re-apply on mismatch.
     /// Loops up to <see cref="AppSettings.ValidationAttempts"/> times:
     /// each iteration reads the brightness VCP and returns on a match (within +/-1 raw unit to absorb monitor-side
-    /// quantization). A readable mismatch justifies re-applying the target. A failed read does not: the affected
-    /// helper is reset and the loop observes a quiet backoff before trying another read, avoiding repeated writes
-    /// into a desynchronized HDMI reply pipeline.
-    /// The dwell ramps from short (catches the common "monitor was busy for a moment" case fast)
-    /// up to <see cref="AppSettings.ValidationDwellMs"/> on the final attempt
-    /// (gives a slow monitor real settle time before we declare the link unresponsive).
+    /// quantization).
+    /// A readable mismatch re-applies the target, then waits the verification delay before the next read.
+    /// A failed read does not re-apply: doing so on every checksum/transport failure floods fragile HDMI links
+    /// and can keep a desynchronized reply pipeline from recovering.
+    /// An unreadable reply is line noise rather than the panel's apply time,
+    /// so it is read again on the same fixed backoff acquisition reads use.
     /// HMONITOR is refreshed once on the first failed or mismatched read as a defence against stale handles.
     /// A stale generation exits without re-applying, while the newest generation owns completion and persistence.
+    /// A target still unconfirmed after the last attempt demotes the row, naming what the read-backs showed.
     /// </summary>
     private async Task VerifyAppliedAsync(
         MonitorEntry entry,
@@ -3597,7 +3596,9 @@ public sealed class MonitorService : IDisposable
     {
         const long Tolerance = 1;
         int attempts = Math.Max(val1: 1, _settings.ValidationAttempts);
-        int finalDwellMs = ResolveValidationDwellMs(entry);
+        int verificationDelayMs = ResolveValidationDwellMs(entry);
+        int reportedPercent = -1;
+        string? lastReadError = null;
 
         for (int attempt = 0; attempt < attempts; attempt++)
         {
@@ -3613,6 +3614,7 @@ public sealed class MonitorService : IDisposable
             bool readable = readBack is { Success: true, Maximum: > 0 };
             if (!readable)
             {
+                lastReadError = readBack.Error;
                 TADNLog.Log(
                     $"MonitorService: verify read failed for '{readBack.MonitorName}': {readBack.Error}");
             }
@@ -3631,6 +3633,11 @@ public sealed class MonitorService : IDisposable
 
                     return;
                 }
+
+                reportedPercent = Math.Clamp(
+                    (int)Math.Round(readBack.Actual * 100.0 / readBack.Maximum),
+                    min: 0,
+                    max: 100);
             }
 
             // Last attempt: don't bother re-applying or settling - we're about to demote.
@@ -3649,6 +3656,7 @@ public sealed class MonitorService : IDisposable
 
             // A failed GET does not prove the SET missed. Re-applying on every checksum/transport failure floods
             // fragile HDMI links and can prevent the monitor's reply pipeline from resynchronizing.
+            int waitMs;
             if (readable)
             {
                 BrightnessWriteAttempt reapply = await TryWriteBrightnessTargetAsync(
@@ -3665,13 +3673,16 @@ public sealed class MonitorService : IDisposable
 
                 if (!reapply.Success)
                     TADNLog.Log($"MonitorService: re-apply failed for '{reapply.MonitorName}': {reapply.Error}");
+
+                // The re-applied value gets the same verification delay as the first write before it is read back
+                waitMs = verificationDelayMs;
+            }
+            else
+            {
+                // The wait before the NEXT attempt (attempt+1): ReadRetryBackoffMs gives 0 for index 0
+                waitMs = ReadRetryBackoffMs(attempt + 1);
             }
 
-            // Wait for the NEXT attempt (attempt+1).
-            // +1 because the helper's "wait before this attempt" semantic gives 0 for index 0;
-            // we're computing the wait between this mismatched attempt and the next one.
-            int waitMs = ScaledRetryDwellMs(attempt + 1, attempts, finalDwellMs);
-            if (!readable) waitMs = Math.Max(waitMs, TimeConstants.VerificationRetryAfterFailedReadMs);
             if (!await DelayWhileBrightnessTargetCurrentAsync(
                     entry,
                     target,
@@ -3692,13 +3703,18 @@ public sealed class MonitorService : IDisposable
             return;
         }
 
-        uint finalExpectedRaw = ScaleBrightnessPercentToRaw(target.Percentage, Volatile.Read(ref entry.Max));
+        // A readable mismatch at any point means the panel answered, so name the value it reported
+        string reason = reportedPercent >= 0
+            ? $"Brightness read back as {reportedPercent}% instead of {target.Percentage}% "
+              + $"after {DescribeAttempts(attempts)}"
+            : $"Brightness could not be read back after {DescribeAttempts(attempts)}: "
+              + (lastReadError ?? "no reply");
         DDCMonitor currentDDC = Volatile.Read(ref entry.DDC);
-        TADNLog.Log(
-            $"MonitorService: verification exhausted for '{currentDDC.Name}' - target raw={finalExpectedRaw}");
-        DemoteOnDDCFailure(entry,
-            error: "Brightness write was not acknowledged after retry - DDC/CI link is unresponsive.");
+        TADNLog.Log($"MonitorService: verification exhausted for '{currentDDC.Name}': {reason}");
+        DemoteOnDDCFailure(entry, reason);
     }
+
+    private static string DescribeAttempts(int attempts) => attempts == 1 ? "1 attempt" : $"{attempts} attempts";
 
     private async Task<BrightnessWriteAttempt> TryWriteBrightnessTargetAsync(
         MonitorEntry entry,
@@ -4119,8 +4135,9 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Computes the dwell time to wait BEFORE attempt index <paramref name="attemptIndex"/> (0-based).
-    /// Used by the write and verify retry loops - reads have their own explicit sequence in
-    /// <see cref="ReadRetryBackoffMs"/>.
+    /// Used by the brightness write retry loop.
+    /// A read-back waits the full verification delay after every value it sends,
+    /// and unreadable replies have their own explicit sequence in <see cref="ReadRetryBackoffMs"/>.
     /// Attempt 0 has no wait.
     /// Subsequent attempts ramp from 25ms exponentially - 25, 50, 100, 200... -
     /// capped at half the final dwell so the ramp never exceeds the "give up" wait.

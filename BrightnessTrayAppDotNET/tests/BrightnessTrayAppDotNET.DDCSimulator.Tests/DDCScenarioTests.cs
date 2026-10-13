@@ -1,6 +1,7 @@
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Hardware;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Host;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Scenarios;
+using BrightnessTrayAppDotNET.DDCSimulator.Tests.Simulation;
 using BrightnessTrayAppDotNET.Models;
 using Xunit;
 using Xunit.Abstractions;
@@ -325,6 +326,82 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A panel that applies a SET 0.6 to 0.9 s after taking it, read back once per change.
+    /// The read-back used to wait at most 300 ms whatever the verification delay, so it saw the old value,
+    /// and the row winked out until recovery read it back a moment later.
+    /// A verification delay longer than the panel's apply time must confirm every change.
+    /// The default delay is shorter than that apply time,
+    /// so the same changes must demote the row with the value read back, which proves the scenario reaches a mismatch.
+    /// </summary>
+    [Fact]
+    public void LateApplyingPanelIsConfirmedAfterTheVerificationDelay()
+    {
+        const int DelayCoveringApplyMs = 1_000;
+        (ScenarioResult result, List<TraceEntry> trace) = RunLateApplyingPanel(DelayCoveringApplyMs);
+
+        Assert.True(result.Passed, result.Report);
+        Assert.DoesNotContain(trace, IsDemotion);
+
+        (_, List<TraceEntry> shortDelayTrace) = RunLateApplyingPanel(TimeConstants.ValidationDwellDefaultMs);
+        Assert.Contains(shortDelayTrace, entry =>
+            IsDemotion(entry)
+            && entry.Message.Contains("Brightness read back as", StringComparison.Ordinal)
+            && entry.Message.Contains("after 1 attempt", StringComparison.Ordinal));
+
+        static bool IsDemotion(TraceEntry entry) =>
+            entry.Message.StartsWith("MonitorService: demoted", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An adapter keeps accepting SETs for its panel after the panel's own button turns it off,
+    /// and every read-back comes back garbled.
+    /// Once every read-back of a change has failed, the row must be marked unavailable
+    /// with a reason that says so and how many attempts were made.
+    /// </summary>
+    [Fact]
+    public void DarkPanelBehindAdapterIsMarkedUnavailable()
+    {
+        ScenarioScript script = new ScenarioScript("dark-adapter-panel")
+            .At(10, "P3 power button off", world => world.PressPowerButton("P3"))
+            .At(20, "user sets P3 to 30", world => world.SetBrightness("P3", 30));
+        script.Tail = TimeSpan.FromSeconds(40);
+
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 17);
+        configuration.AlwaysWriteTrace = true;
+        using SimulationWorld world = new(configuration);
+        ScenarioResult result = world.Run(script);
+        output.WriteLine(result.Report);
+
+        Assert.True(result.Passed, result.Report);
+        Assert.Contains(world.Trace.Snapshot(), entry =>
+            entry.Ticks > TimeSpan.FromSeconds(20).Ticks
+            && entry.Message.StartsWith("MonitorService: demoted", StringComparison.Ordinal)
+            && entry.Message.Contains(
+                $"Brightness could not be read back after {configuration.App.ValidationAttempts} attempts",
+                StringComparison.Ordinal));
+    }
+
+    private (ScenarioResult Result, List<TraceEntry> Trace) RunLateApplyingPanel(int verificationDelayMs)
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 16);
+        configuration.App.ValidationAttempts = 1;
+        configuration.App.ValidationDwellMs = verificationDelayMs;
+        configuration.Monitors[0].Profile.BrightnessApplyMinimumMs = 600;
+        configuration.Monitors[0].Profile.BrightnessApplyMaximumMs = 900;
+        ScenarioScript script = new ScenarioScript("late-apply")
+            .At(10, "user sets P1 to 75", world => world.SetBrightness("P1", 75))
+            .At(20, "user sets P1 to 30", world => world.SetBrightness("P1", 30))
+            .At(30, "user sets P1 to 55", world => world.SetBrightness("P1", 55));
+        script.Tail = TimeSpan.FromSeconds(60);
+
+        configuration.AlwaysWriteTrace = true;
+        using SimulationWorld world = new(configuration);
+        ScenarioResult result = world.Run(script);
+        output.WriteLine(result.Report);
+        return (result, world.Trace.Snapshot());
+    }
+
+    /// <summary>
     /// A value set less than 3 s before the panel's button turns it off is never saved, so the next cold boot shows the
     /// older saved brightness. When the app's power-on races that button press, the booting panel refuses the command;
     /// btadn must still re-probe and replay its target, as it does after an accepted power-on.
@@ -355,7 +432,7 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
     [Fact]
     public void SlowDragReadsBackOnlyWhereItStops()
     {
-        // Measured 2026-10-12 on this seed: 0 read-backs with the 300 ms settle, 36 with the former 50 ms
+        // Measured 2026-10-12 on this seed: 0 read-backs after a 300 ms settle, 36 with the former 50 ms cap
         const int MaximumReadsDuringDrag = 3;
         string[] panels = ["P1", "P2", "P3"];
         int readsBeforeDrag = 0;

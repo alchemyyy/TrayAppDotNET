@@ -925,9 +925,115 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 73;
 
         await WaitUntil(() => monitor.IsFailed);
+        Assert.Equal("Brightness read back as 45% instead of 73% after 1 attempt", monitor.LastDDCError);
         KnownDisplayEntry? knownDisplay = store.Find(monitor.EDIDKey);
         Assert.NotNull(knownDisplay);
         Assert.Null(knownDisplay.LastBusBrightness);
+    }
+
+    [Fact]
+    public async Task RefusedBrightnessWritesDemoteWithTheAttemptCount()
+    {
+        const string DeviceID = "DISPLAY\\PORT-REFUSED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 55, serial: "REFUSED"));
+        display.SetRead(DeviceID, ok: true, current: 45, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, validationAttempts: 2);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        display.WriteSucceeds = false;
+        monitor.Brightness = 73;
+
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.Equal(expected: 2, display.CountSetValue(VCPConstants.Brightness, value: 73));
+        Assert.StartsWith("Brightness could not be written after 2 attempts: ", monitor.LastDDCError);
+    }
+
+    [Fact]
+    public async Task MismatchedBrightnessIsSentAgainThenGivenTheVerificationDelay()
+    {
+        const string DeviceID = "DISPLAY\\PORT-RESEND";
+        const int VerificationDelayMs = 300;
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 53, serial: "RESEND"));
+        display.SetRead(DeviceID, ok: true, current: 45, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 2,
+            validationDwellMs: VerificationDelayMs);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        // The first SET is lost, as when a busy panel drops it, so its read-back sees the old value
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true, successfulWritesToDrop: 1);
+        monitor.Brightness = 73;
+
+        await WaitUntil(() => display.CountSetValue(VCPConstants.Brightness, value: 73) == 2);
+        int readsAfterResend = display.GetVcpCalls;
+        await Task.Delay(VerificationDelayMs / 2);
+        Assert.Equal(readsAfterResend, display.GetVcpCalls);
+
+        await WaitUntil(() => display.HasReadValue(73), timeoutMs: 1000);
+        Assert.True(monitor.IsHardwareFunctional);
+    }
+
+    [Fact]
+    public async Task FirstReadBackWaitsTheVerificationDelay()
+    {
+        const string DeviceID = "DISPLAY\\PORT-DELAY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 58, serial: "DELAY"));
+        display.SetRead(DeviceID, ok: true, current: 45, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            validationDwellMs: 400);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        int readsBefore = display.GetVcpCalls;
+        monitor.Brightness = 70;
+        await WaitUntil(() => display.CountSetValue(VCPConstants.Brightness, value: 70) == 1);
+        await Task.Delay(200);
+        Assert.Equal(readsBefore, display.GetVcpCalls);
+
+        await WaitUntil(() => display.HasReadValue(70), timeoutMs: 1000);
+    }
+
+    [Fact]
+    public async Task PowerReadBackWaitsTheVerificationDelay()
+    {
+        const string DeviceID = "DISPLAY\\POWER-DELAY";
+        const int VerificationDelayMs = 300;
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 59, serial: "POWER-DELAY"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationDwellMs: VerificationDelayMs);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        // Power read-backs used to wait at most 50 ms whatever the setting
+        int readsBefore = display.GetVcpCalls;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        Assert.True(display.GetVcpCalls > readsBefore);
+        Assert.True(
+            stopwatch.ElapsedMilliseconds >= VerificationDelayMs - 10,
+            $"Power state was read back {stopwatch.ElapsedMilliseconds} ms after the command.");
     }
 
     [Fact]
@@ -1179,7 +1285,7 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
-    public async Task NewerBrightnessTargetPreemptsFinalValidationDwell()
+    public async Task NewerBrightnessTargetPreemptsVerificationDelay()
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-J", displayNumber: 10, serial: "SERIAL-J"));
@@ -1193,18 +1299,19 @@ public sealed class MonitorRecoveryTests
             validationDwellMs: 1000);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
+        // The dropped SET leaves this change waiting out its one-second verification delay
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 30;
-        await WaitUntil(() => display.SetVcpCalls >= 4);
+        await WaitUntil(() => display.SetVcpCalls >= 1);
 
         display.ConfigureWriteReadBack(true);
         Stopwatch stopwatch = Stopwatch.StartNew();
         monitor.Brightness = 80;
 
-        await WaitUntil(() => display.HasReadValue(80), timeoutMs: 1000);
+        await WaitUntil(() => display.GetCurrentValue("DISPLAY\\PORT-J") == 80, timeoutMs: 1000);
         Assert.True(
             stopwatch.ElapsedMilliseconds < 750,
-            $"New target waited {stopwatch.ElapsedMilliseconds} ms behind obsolete validation dwell.");
+            $"New target waited {stopwatch.ElapsedMilliseconds} ms behind an obsolete verification delay.");
     }
 
     [Fact]
@@ -1521,6 +1628,9 @@ public sealed class MonitorRecoveryTests
         // Three failed read-backs in a row retire the helper once
         Assert.Equal(expected: 1, display.SetVcpCalls);
         Assert.Equal(expected: 1, display.GetTransportResetCount(DeviceID));
+        Assert.Equal(
+            "Brightness could not be read back after 3 attempts: simulated HDMI checksum failure",
+            service.Monitors[0].LastDDCError);
     }
 
     [Fact]
@@ -2343,6 +2453,12 @@ public sealed class MonitorRecoveryTests
         {
             lock (_gate)
                 return _setVCPFeatureCalls.Count(call => call.Code == code);
+        }
+
+        public int CountSetValue(byte code, uint value)
+        {
+            lock (_gate)
+                return _setVCPFeatureCalls.Count(call => call.Code == code && call.Value == value);
         }
 
         public void SetMonitors(params DDCMonitor[] monitors)
