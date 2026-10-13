@@ -69,6 +69,7 @@ partition "MonitorService.Refresh - acquisition" {
       :Abort Phase B if Refresh generation is stale;
       if (read ok?) then (yes)
         :Keep row supported;\nclear LastDDCError;
+        :Release an app power-off intent and replay the target\nwhen the panel's power mode reports on;
       else (no)
         :Set SliderState = Failed;\nremove MonitorEntry;\ndrop queued write;
       endif
@@ -443,9 +444,9 @@ partition "Topology event / recovery" {
     8, 16, then 30 s; a direct request makes it due at once, except
     for a row that fails again within 10 s of recovering, which
     waits one more backoff step per relapse in a row.
-    Candidate suppression follows only a power-off VCP accepted
-    in this application lifetime and not superseded by a power-on
-    request or by the panel enumerating again after it dropped off.
+    A row the app powered off in this application lifetime stays
+    a candidate but is probed with reads only. A reply promotes it
+    unless the panel's power mode reports standby or off.
     Stale profile-restored IsPoweredOn=false state cannot cancel
     direct recovery.
   end note

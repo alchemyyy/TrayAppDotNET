@@ -320,6 +320,7 @@ internal sealed class SimulationOracle(SimulationClock clock, SimulationTrace tr
             }
 
             RowSnapshot only = rows[0];
+            bool unavailable = only.State == SliderState.Failed || only.IsReadDegraded;
             if (only.IsPowerSuppressed)
             {
                 long lastPower;
@@ -334,16 +335,19 @@ internal sealed class SimulationOracle(SimulationClock clock, SimulationTrace tr
                         $"{monitor.Describe()} has been healthy since "
                         + $"{TimeSpan.FromTicks(monitor.HealthySinceTicks(now)).TotalSeconds:F1}s but its row "
                         + $"{only.Describe()} still holds a power-off intent although the app was last asked to power it on");
+                    continue;
                 }
-                else
+
+                // A working row keeps the intent through a button power-on that nothing reports to the app.
+                // An unavailable row is still probed, so recovery must notice the panel answering again
+                if (!unavailable)
                 {
                     Observe($"{monitor.PhysicalID} is on but its row is still suppressed by an earlier app power-off");
+                    continue;
                 }
-
-                continue;
             }
 
-            if (only.State == SliderState.Failed || only.IsReadDegraded)
+            if (unavailable)
             {
                 if (IsSettled(state, monitor, now, graceTicks + RecoveryBackoffAllowanceTicks)
                     && !IsStillProbingUnreliablePanel(state, monitor, now))

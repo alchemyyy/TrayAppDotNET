@@ -7,11 +7,16 @@ start
 :Acquisition trigger;
 if (Targeted recovery request?) then (yes)
   :Snapshot only the failed/read-degraded row\non the dispatcher;
-  if (Already healthy, explicitly powered off this runtime,\nor write busy?) then (yes)
+  if (Already healthy or write busy?) then (yes)
     :Skip this candidate pass;
     stop
   else (probe)
     :Enumerate current displays off dispatcher;
+    note right
+      A row the app powered off this runtime is probed with
+      reads only. A reply promotes it unless the panel's power
+      mode reports standby or off.
+    end note
     :Match requested ID, retained instance path / DeviceID,\nEDID key / serial, port form, then adapter name;
     if (Matching display found?) then (no)
       :Keep Failed and retry on a later worker pass;

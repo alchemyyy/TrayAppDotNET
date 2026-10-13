@@ -1140,6 +1140,22 @@ public sealed class MonitorService : IDisposable
                             PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
                             acquired.Add(existingInfo);
                         }
+                        else if (existingInfo.SuppressDDCRecoveryForPowerIntent)
+                        {
+                            // A panel the app powered off answers again.
+                            // Its own button may have switched it on without the app hearing of it,
+                            // and only its power mode tells that from a panel that answers while asleep.
+                            // The replay then applies the target the power-off intent held back
+                            DDCMonitor probedDDC = ddc;
+                            PanelPowerReading power = await Task.Run(() => ReadPanelPower(probedDDC));
+                            if (!IsRefreshProbePhaseCurrent(phaseGen)) return;
+
+                            if (power == PanelPowerReading.On && existingInfo.SuppressDDCRecoveryForPowerIntent)
+                            {
+                                PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
+                                acquired.Add(existingInfo);
+                            }
+                        }
                     }
                     else
                     {
@@ -1179,7 +1195,17 @@ public sealed class MonitorService : IDisposable
                         await TryReadBrightnessWithRetryAsync(ddc, () => IsRefreshProbePhaseCurrent(phaseGen));
                     if (!IsRefreshProbePhaseCurrent(phaseGen)) return;
 
-                    if (promote.Ok)
+                    // Promotion releases a power-off intent and replays brightness,
+                    // which would wake a panel the app powered off that answers while asleep
+                    bool stillPoweredOff = false;
+                    if (promote.Ok && existingInfo.SuppressDDCRecoveryForPowerIntent)
+                    {
+                        DDCMonitor probedDDC = ddc;
+                        stillPoweredOff = await Task.Run(() => ReadPanelPower(probedDDC)) == PanelPowerReading.NotOn;
+                        if (!IsRefreshProbePhaseCurrent(phaseGen)) return;
+                    }
+
+                    if (promote.Ok && !stillPoweredOff)
                     {
                         _recoveryIdentities.TryRemove(existingInfo.ID, out DDCRecoveryIdentity _);
                         int percent = promote.Max == 0
@@ -1935,11 +1961,13 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Returns the <see cref="MonitorInfo.ID"/> of every monitor that's a candidate for the DDC fallback worker:
-    /// currently DDC-unavailable or read-degraded, and not explicitly powered off during this application lifetime.
+    /// currently DDC-unavailable or read-degraded.
     /// Rows that never acquired DDC are included. A panel that was dark at launch, garbled its first probe, or came
     /// back under a different EDID key has no capability record to match, and powering it on is often invisible to
     /// Windows, so nothing else would ever probe it again. <see cref="DDCRecoveryService"/> backs off per candidate,
     /// which keeps a monitor without DDC/CI cheap to keep probing.
+    /// Rows the app powered off are included too and probed with reads only (see <see cref="TryRecoverMonitor"/>):
+    /// a panel switched back on by its own button often stays enumerated with no Windows event to report it.
     /// Self-marshals to the UI thread because <see cref="Monitors"/> is mutated there.
     /// </summary>
     public List<string> GetStuckRecoveryCandidateIDs()
@@ -1959,11 +1987,6 @@ public sealed class MonitorService : IDisposable
                 // IsReadDegraded compatibility state where write transport was accepted but application could not
                 // be confirmed, so we can detect when reads come back and full-promote via PromoteRecovered.
                 if (m is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
-
-                // IsPoweredOn is optimistic and profile-restored, so it can remain false after an external wake.
-                // Only a power-off command accepted during this application lifetime is authoritative enough to
-                // suppress recovery traffic.
-                if (m.SuppressDDCRecoveryForPowerIntent) continue;
 
                 result.Add(m.ID);
             }
@@ -1989,7 +2012,6 @@ public sealed class MonitorService : IDisposable
         foreach (MonitorInfo monitor in Monitors.ToList())
         {
             if (monitor is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
-            if (monitor.SuppressDDCRecoveryForPowerIntent) continue;
 
             DDCRecoveryRequested?.Invoke(monitor.ID);
         }
@@ -2086,6 +2108,7 @@ public sealed class MonitorService : IDisposable
         bool alreadySupported = false;
         bool canProbe = false;
         bool wasReadDegraded = false;
+        bool poweredOffByApp = false;
         bool shouldAttemptWriteTransportProbe = false;
         bool mayAttemptChecksumRecoveryWrite = false;
         bool mayAttemptBlindRecoveryWrite = false;
@@ -2121,9 +2144,11 @@ public sealed class MonitorService : IDisposable
                 return;
             }
 
-            // Don't poke a monitor we explicitly commanded to sleep during this application lifetime. Persisted
-            // IsPoweredOn state is not used here because it can be stale after an external wake.
-            if (info.SuppressDDCRecoveryForPowerIntent) return;
+            // A monitor the app powered off during this application lifetime is probed with reads only.
+            // Its own button can switch it back on without any Windows event,
+            // and a read cannot wake a panel the way a SET can.
+            // Persisted IsPoweredOn state is not used here because it can be stale after an external wake.
+            poweredOffByApp = info.SuppressDDCRecoveryForPowerIntent;
 
             // Defer if a user-initiated brightness write is in flight on this monitor
             // (only happens when an entry already exists, e.g. a previously-supported monitor is mid-recovery).
@@ -2173,6 +2198,14 @@ public sealed class MonitorService : IDisposable
             mayResynchronizeDegradedRow = resyncPercent.HasValue
                                           && info.SliderState != SliderState.Disabled
                                           && !info.WasDisabledBeforeFailure;
+            if (poweredOffByApp)
+            {
+                shouldAttemptWriteTransportProbe = false;
+                mayAttemptChecksumRecoveryWrite = false;
+                mayAttemptBlindRecoveryWrite = false;
+                mayResynchronizeDegradedRow = false;
+            }
+
             identityStrategy = _activeStrategy;
             monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
             foreach (MonitorEntry otherEntry in _entries.Values)
@@ -2296,7 +2329,7 @@ public sealed class MonitorService : IDisposable
                         out uint postWriteMax,
                         out string? postWriteReadError)
                     && postWriteMax > 0)
-                    return PromoteRecoveredUnlessPoweredOff(info, ddc, postWriteCurrent, postWriteMax);
+                    return PromoteRecoveredUnlessPoweredOff(info, ddc, postWriteCurrent, postWriteMax, poweredOffByApp);
 
                 DDCMonitor capturedDDCForDegraded = ddc;
                 MonitorInfo capturedInfoForDegraded = info;
@@ -2345,18 +2378,61 @@ public sealed class MonitorService : IDisposable
             return false;
         }
 
+        // A panel that answers while asleep would be woken by the replay that follows promotion
+        if (poweredOffByApp && ReadPanelPower(ddc) == PanelPowerReading.NotOn)
+        {
+            TADNLog.Log(
+                $"MonitorService: '{ddc.Name}' answers but reports it is still powered off; "
+                + "keeping its power-off intent");
+            return false;
+        }
+
         // Promote on the UI thread -
         // mutating Monitors / _entries / IsDDCCISupported off-thread would race with Refresh and UI bindings.
-        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max);
+        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffByApp);
     }
 
     /// <summary>
     /// Promotes a recovered row on the dispatcher unless the app powered the monitor off while the probe ran.
     /// Promotion clears power-off suppression and replays brightness, which must not override that fresh intent.
+    /// An intent the row already held when the probe started is stale once the panel answers:
+    /// the row was demoted because the dark panel stopped answering, so a reply means it is on again.
     /// Returns true when the row is DDC-supported afterwards.
     /// </summary>
-    private bool PromoteRecoveredUnlessPoweredOff(MonitorInfo info, DDCMonitor ddc, uint current, uint max) =>
-        InvokeOnDispatcher(() => !info.SuppressDDCRecoveryForPowerIntent && PromoteRecovered(info, ddc, current, max));
+    private bool PromoteRecoveredUnlessPoweredOff(
+        MonitorInfo info,
+        DDCMonitor ddc,
+        uint current,
+        uint max,
+        bool poweredOffAtProbeStart) =>
+        InvokeOnDispatcher(() =>
+            (poweredOffAtProbeStart || !info.SuppressDDCRecoveryForPowerIntent)
+            && PromoteRecovered(info, ddc, current, max));
+
+    // What a panel's power-mode VCP says
+    private enum PanelPowerReading
+    {
+        On,
+        NotOn,
+        Unreadable
+    }
+
+    /// <summary>
+    /// Reads the power mode of a panel the app powered off, under its DDC lock on the caller's thread.
+    /// A panel that answers DDC while asleep or soft-off reports that state here,
+    /// which a brightness read cannot tell apart from a panel switched back on by its own button.
+    /// </summary>
+    private PanelPowerReading ReadPanelPower(DDCMonitor ddc)
+    {
+        (byte code, byte onValue) = ddc.ResolvePowerOn();
+        return WithDDCLock(ddc, () =>
+        {
+            bool read = _display.TryGetVCPFeature(ddc, code, out uint current, out uint _, out string? _);
+            RecordDDCTransportResult(ddc, read, provesReplyPath: read);
+            if (!read) return PanelPowerReading.Unreadable;
+            return current == onValue ? PanelPowerReading.On : PanelPowerReading.NotOn;
+        });
+    }
 
     /// <summary>
     /// Picks the live monitor a failed row should recover onto. An <c>edid:</c> key names the physical panel and is
@@ -2532,7 +2608,8 @@ public sealed class MonitorService : IDisposable
         SleepFor(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
         if (!TryReadBrightness(ddc, out uint current, out uint max, out _) || max == 0) return false;
 
-        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max);
+        // Only a row without a power-off intent is sent this SET, so any intent now is newer than the probe
+        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffAtProbeStart: false);
     }
 
     private bool ShouldAttemptReadDegradedWriteTransportProbe(MonitorInfo info)

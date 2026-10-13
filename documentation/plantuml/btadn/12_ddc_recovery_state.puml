@@ -29,8 +29,11 @@ note bottom of Failed
   recovery-needed flag remains set and the next delayed pass retries.
   Only a successful empty snapshot clears the flag and stops the worker.
 
-  Profile-restored IsPoweredOn is not a recovery gate. Only a power-off
-  VCP accepted in this application lifetime suppresses candidate probing.
+  Profile-restored IsPoweredOn is not a recovery gate. A row whose
+  power-off VCP was accepted in this application lifetime stays a
+  candidate, probed with reads only: no write probe, blind write, or
+  checksum resync SET. A reply promotes it unless the panel's power
+  mode reports standby or off.
 
   Promotion preserves pre-failure Disabled and CurveReleased ownership;
   remaining rows resolve against the current curve/disabled-period flags.
@@ -76,7 +79,7 @@ end note
 note as N_REMAINING
   Remaining boundaries:
   - Each candidate still performs its own complete parent enumeration
-  - Runtime power-off intent suppresses probing; stale IsPoweredOn does not
+  - Runtime power-off intent limits probing to reads; stale IsPoweredOn does not
   - ReadDegraded cannot prove application until replies recover
   - Native failure categories remain flattened into error strings
   - Endless recovery is limited to previously successful DDC rows

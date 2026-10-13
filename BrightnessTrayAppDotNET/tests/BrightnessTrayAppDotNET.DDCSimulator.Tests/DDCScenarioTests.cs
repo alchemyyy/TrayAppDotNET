@@ -381,6 +381,55 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
                 StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The app hard-powers every panel off, the RTX 5080 keeps them enumerated, and their own buttons switch them back
+    /// on. The session unlock that follows re-probes the adapter panels while they are still booting, so their reads
+    /// come back as garbage and their rows are marked unavailable, as on the user's desk (2026-10-12).
+    /// Recovery skipped rows the app had powered off, so both stayed unavailable until btadn restarted.
+    /// Every row must work again and hold no power-off intent.
+    /// </summary>
+    [Fact]
+    public void ButtonPowerOnAfterAppPowerOffReacquiresEveryPanel()
+    {
+        string[] panels = ["P1", "P2", "P3"];
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 18);
+        configuration.App.PowerOffMode = PowerOffMode.Hard;
+        configuration.App.CurveEnabled = true;
+        foreach (MonitorSetup monitor in configuration.Monitors)
+        {
+            if (monitor.Link != LinkKind.DisplayPortToHDMIAdapter) continue;
+
+            // Still booting when the unlock's re-probe reaches them
+            monitor.Profile.ColdBootMinimumMs = 4_000;
+            monitor.Profile.ColdBootMaximumMs = 6_000;
+        }
+
+        ScenarioScript script = new ScenarioScript("app-off-button-on")
+            .At(5, "curve holding 40", world => world.SetCurve(true, _ => 40))
+            .At(10, "app powers every panel off", world => world.AppPowerAll(on: false))
+            .At(60, "every panel's power button on", world =>
+            {
+                foreach (string panel in panels) world.PressPowerButton(panel);
+            })
+            .At(61, "session unlock", world => world.SessionUnlock());
+        script.Tail = TimeSpan.FromSeconds(120);
+
+        configuration.AlwaysWriteTrace = true;
+        using SimulationWorld world = new(configuration);
+        ScenarioResult result = world.Run(script);
+        output.WriteLine(result.Report);
+
+        Assert.True(result.Passed, result.Report);
+        Assert.Contains(world.Trace.Snapshot(), entry =>
+            entry.Ticks > TimeSpan.FromSeconds(60).Ticks
+            && entry.Message.StartsWith("MonitorService: demoted", StringComparison.Ordinal));
+        Assert.All(world.Service!.Monitors, row =>
+        {
+            Assert.True(row.IsHardwareFunctional, world.DescribeRows());
+            Assert.False(row.SuppressDDCRecoveryForPowerIntent, world.DescribeRows());
+        });
+    }
+
     private (ScenarioResult Result, List<TraceEntry> Trace) RunLateApplyingPanel(int verificationDelayMs)
     {
         WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 16);

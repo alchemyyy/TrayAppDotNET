@@ -2147,7 +2147,6 @@ public sealed class MonitorRecoveryTests
         service.Refresh();
         await WaitUntil(() => monitor.IsFailed);
         Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
-        Assert.DoesNotContain(monitor.ID, service.GetStuckRecoveryCandidateIDs());
 
         List<string> requested = [];
         service.DDCRecoveryRequested += requested.Add;
@@ -2156,6 +2155,113 @@ public sealed class MonitorRecoveryTests
         Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
         Assert.Contains(monitor.ID, requested);
         Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+    }
+
+    [Fact]
+    public async Task RowPoweredOffByTheAppRecoversWithReadsOnlyOnceItsButtonWakesIt()
+    {
+        const string DeviceID = "DISPLAY\\OFF-BUTTON-ON";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 60, serial: "OFF-BUTTON-ON"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        // The dark panel fails a Refresh probe, as the user's adapter panels did while their buttons booted them
+        display.SetRead(DeviceID, ok: false, error: "simulated adapter garbage");
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: false, current: 0, max: 0, error: "simulated adapter garbage");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+
+        int writesWhileDark = display.SetVcpCalls;
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.Equal(writesWhileDark, display.SetVcpCalls);
+
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.True(monitor.IsPoweredOn);
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+    }
+
+    [Fact]
+    public async Task PanelAnsweringWhileAsleepKeepsTheAppPowerOffIntent()
+    {
+        const string DeviceID = "DISPLAY\\OFF-ANSWERS";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 61, serial: "OFF-ANSWERS"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        display.SetRead(DeviceID, ok: false, error: "simulated missed reply");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        // The sleeping panel answers brightness reads again, but its power mode still reads as off
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        int writesBefore = display.SetVcpCalls;
+
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsFailed);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(writesBefore, display.SetVcpCalls);
+    }
+
+    [Fact]
+    public async Task AnsweringPanelTheAppPoweredOffTakesItsTargetAgainOnceItReportsOn()
+    {
+        const string DeviceID = "DISPLAY\\OFF-REPROBED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 62, serial: "OFF-REPROBED"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 65;
+        await WaitUntil(() => display.HasReadValue(65));
+        await service.SetPowerStateAsync(monitor, on: false);
+
+        // A Refresh while the panel still reports itself off leaves the intent in place
+        int refreshes = 0;
+        service.MonitorsRefreshed += () => Interlocked.Increment(ref refreshes);
+        service.Refresh();
+        await WaitUntil(() => Volatile.Read(ref refreshes) == 1);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+
+        // Its own button switches it on at the brightness it kept, without the app hearing of it
+        display.SetRead(DeviceID, ok: true, current: 20, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        service.Refresh();
+
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 65, timeoutMs: 3000);
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.True(monitor.IsPoweredOn);
     }
 
     [Fact]

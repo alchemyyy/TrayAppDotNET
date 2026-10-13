@@ -92,9 +92,9 @@ covers `DDCRecoveryService` backing a long-failing row off to one probe every 30
 because it answers part of its reads, so a row that stays Failed means btadn stopped retrying. With one read per
 attempt (`ValidationAttempts` 1) such a panel fails most single reads, including each replay's verification, so its
 row may cycle between recovered and unavailable; for that pairing the check only requires that btadn sent the panel a
-command within the longest backoff. A row may keep an app
-power-off intent after the panel's own button woke it, but not after the app was asked to power it on
-(`StuckUnavailable`). A wedged LG must be resynchronized when btadn holds a confirmed bus value, unless the app was last
+command within the longest backoff. A working row may keep an app
+power-off intent after the panel's own button woke it, but not after the app was asked to power it on, and an
+unavailable row must recover once its panel answers whatever intent it holds (`StuckUnavailable`). A wedged LG must be resynchronized when btadn holds a confirmed bus value, unless the app was last
 asked to keep it off (`WedgeNeverResynchronized`), and live helper processes may not outnumber panels
 (`HelperProcessLeak`). Reports also note helper churn above 120 launches per awake hour.
 
