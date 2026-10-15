@@ -23,43 +23,58 @@
 
 ## Overview
 
-These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, it's recommended to pair those apps which replace an existing Windows 11 counterpart, with [Windhawk's Taskbar Tray System Icon Tweaks Mod](https://windhawk.net/mods/taskbar-tray-system-icon-tweaks) in order to hide the stock OS tray icons.
+<p align="center">These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, I recommend removing the stock Windows tray icons with <a href="https://windhawk.net/">Windhawk</a>.</p>
 
 <figure align="center">
-  <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="80%">
-  <figcaption><em>This is an incomplete example. Stock tray icons were removed with Windhawk.</em></figcaption>
+  <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="100%">
+  <figcaption><em>This is an incomplete example. Stock tray icons were removed with <a href="https://windhawk.net/mods/taskbar-tray-system-icon-tweaks">this Windhawk mod</a>.</em></figcaption>
 </figure>
-
-
-
-
-### Installation
-
-These apps are all portable executables, and they serve as their own installers. You can manage an app's installation by opening Settings -> About. 
-
-Every release also ships a single-file installer per app, named `Installer_<AppName>_<version>.exe`, plus `Installer_TrayAppDotNET_<version>.exe` for the whole suite. The installers need nothing installed first, since they run on the .NET Framework that ships with Windows. They offer three installation types: Local (current user, no administrator rights), System (all users, one UAC prompt), and Portable (extract to a folder of your choice). Desktop and Start Menu shortcuts and launching the app when finished are optional. The suite installer lets you choose which apps to install and unselects BatteryTrayAppDotNET automatically when no battery is present. All installers show a notice with a link to Windhawk when it is not detected.
-
-All app settings are saved to `%LocalAppData%\TrayAppDotNET`.
-
-Each app is a Native AOT executable with the .NET runtime compiled in. The only loose files next to it are the ANGLE, Skia, and HarfBuzz rendering libraries plus the license notices.
 
 #### Project status
 
-These apps should all be considered to be in alpha. I personally use all of them without major issues, but there is still a lot that needs to be done. Also, some apps are much further along than others.
+These apps should all be considered to be in alpha. They're exceptionally stable, but there are still large areas that need to be completed.
+
+
+## Installation
+
+[Downloads Page](https://github.com/alchemyyy/TrayAppDotNET/releases) | Grab the latest installer for whichever app(s) you'd like, or download the bundled suite.
+
+Then install it. Done.
+
+`Installer_{AppName}_{version}.exe` is a single-app installer. 
+
+`Installer_TrayAppDotNET_{version}.exe` is the app bundle, with a GUI selector for which apps to install. 
+
+These apps can all run portable. There are no real differences between portable or installed to them. All app settings are saved to `%LocalAppData%\TrayAppDotNET` by default.
+
+### Configuration
+
+In theory, any app settings you may need are properly exposed in the app's own settings UI. 
+
+However, the ***vast*** majority of parameters/constants for any given app are stored to and read from that app's own `settings.xml` file.
+
+In the future, apps will also generate a file for UI constants. **Every. single. UI constant.** is defined in AXAML.
 
 ## Gallery
 
----
+<table>
+<tr>
+<td width="50%" valign="top">
 
-<h3><span>BatteryTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_batadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
+<h3><sup><img src="./documentation/readme_images/app_batadn.ico" alt="Preview" width="32" align="middle"></sup> <span>BatteryTrayAppDotNET</span>&nbsp;</h3>
 
----
+</td>
+<td width="50%" valign="top">
 
-<h3><span>BrightnessTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_btadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
+<h3><sup><img src="./documentation/readme_images/app_btadn.ico" alt="Preview" width="32" align="middle"></sup> <span>BrightnessTrayAppDotNET</span>&nbsp;</h3>
 
-This app lets you control the *actual* brightness of external displays, as well as Windows brightness (laptops) and Windows Night Light.
+Control the *actual* brightness of external displays, as well as Windows brightness (laptops) and Windows Night Light.
 
-I kept running into DDC failures with Twinkle Tray, and I'm not a fan of how much memory Electron uses. I took inspiration from the fluent layout it used, so many thanks to Xander Franfangos for that! BrightnessTrayAppDotNET was the first "major" app I started working on. There are quite a few features.
+I kept running into DDC failures with [Twinkle Tray](https://github.com/xanderfrangos/twinkle-tray), and I don't like Electron. I took inspiration from the fluent layout it used, so many thanks to Xander Franfangos for that! This was the first "major" TADN app I made. There are quite a few features.
+
+<p align="center">
+  <img src="./documentation/readme_images/ui_btadn.png" alt="Preview" width="100%" align="center">
+</p>
 
 <details>
 <summary><strong>Features</strong></summary>
@@ -87,31 +102,38 @@ I kept running into DDC failures with Twinkle Tray, and I'm not a fan of how muc
 	* Solar eclipse visual shows current brightness level
 </details>
 
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<h3><sup><img src="./documentation/readme_images/app_fctadn.ico" alt="Preview" width="32" align="middle"></sup> <span>FanControlTrayAppDotNET</span>&nbsp;</h3>
+
+Not to be confused with the very popular "Fan Control" project. I find that app cumbersome, and I find it odd its not open source. Like Fan Control, this project is essentially a UX wrapper around LibreHardwareMonitor, and nothing more.
+
+</td>
+<td width="50%" valign="top">
+
+<h3><sup><img src="./documentation/readme_images/app_ntadn.ico" alt="Preview" width="32" align="middle"></sup> <span>NetworkTrayAppDotNET</span>&nbsp;</h3>
+
+As simple as it gets. The still-embedded Win10 Windows Network flyout works great, so this little app just invokes it. Still comes with some quick-access features via its tray context menu.
+
 <p align="center">
-  <img src="./documentation/readme_images/ui_btadn.png" alt="Preview" width="80%" align="center">
+  <img src="./documentation/readme_images/flyout_ntadn.png" alt="Preview" width="80%" align="center">
 </p>
 
----
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-<h3><span>FanControlTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_fctadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
-
-Not to be confused with the very popular "Fan Control" project. The former to me is a bit cumbersome to use, and I find it odd its not open source. As the author of Fan Control states, that project and this one are both essentially UX wrappers around LibreHardwareMonitor, and nothing more.
-
----
-
-<h3><span>NetworkTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_ntadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
-
-This is as simple as it gets. I've been fine with the old Windows Network flyout, so this little app just invokes that and keeps track of its tray icon status. One feature I did add is a quick access tray menu entry that lets you open an explorer shell (dark theme supported) directly to the classic network adapters panel.
-
-<p align="center">
-  <img src="./documentation/readme_images/flyout_ntadn.png" alt="Preview" width="40%" align="center">
-</p>
-
----
-
-<h3><span>TaskManagerTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_tmtadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
+<h3><sup><img src="./documentation/readme_images/app_tmtadn.ico" alt="Preview" width="32" align="middle"></sup> <span>TaskManagerTrayAppDotNET</span>&nbsp;</h3>
 
 A "reimplementation" of the Windows 11 Task Manager. The official Task Manager has become far too stuttery for me. While "fixing that", some extra bells and whistles were added.
+
+<p align="center">
+  <img src="./documentation/readme_images/flyout_tmtadn.png" alt="Preview" width="100%" align="center">
+</p>
 
 <details>
 <summary><strong>Features</strong></summary>
@@ -135,15 +157,16 @@ A "reimplementation" of the Windows 11 Task Manager. The official Task Manager h
 * Modern tray icon with display modes
 </details>
 
+</td>
+<td width="50%" valign="top">
+
+<h3><sup><img src="./documentation/readme_images/app_vtadn.ico" alt="Preview" width="32" align="middle"> </sup> <span>VolumeTrayAppDotNET</span>&nbsp;</h3>
+
+EarTrumpet users will find this familiar. I took inspiration from it in this design. Originally, I'd modified EarTrumpet to sort its mixer bottom-up like this, to minimize mouse movement distance. Since that project seems to have been abandoned, I took a crack at the whole thing.
+
 <p align="center">
-  <img src="./documentation/readme_images/flyout_tmtadn.png" alt="Preview" width="80%" align="center">
+  <img src="./documentation/readme_images/flyout_vtadn.png" alt="Preview" width="80%" align="center">
 </p>
-
----
-
-<h3><span>VolumeTrayAppDotNET</span>&nbsp;<sup><img src="./documentation/readme_images/app_vtadn.ico" alt="Preview" width="32" align="middle"></sup></h3>
-
-EarTrumpet users might find this familiar. I took inspiration from it in this design. I had originally modified EarTrumpet to show devices and app mixing from the bottom-up, to minimize mouse movement distance. Since that project seems to have been abandoned, I took a crack at the whole thing.
 
 <details>
 <summary><strong>Features</strong></summary>
@@ -161,11 +184,9 @@ EarTrumpet users might find this familiar. I took inspiration from it in this de
 	* No global mouse hook
 </details>
 
-<p align="center">
-  <img src="./documentation/readme_images/flyout_vtadn.png" alt="Preview" width="40%" align="center">
-</p>
-
----
+</td>
+</tr>
+</table>
 
 All apps come with the following features:
 
@@ -186,9 +207,12 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
   * MSVC v143
   * Windows 11 SDK 10
 
+This mono-repo is set up such that every app also has its own slnx file, if opening only one app is desired.
+
 ## Misc Details
 
-#### Launch Arguments
+<details>
+<summary><h3>Launch arguments</h3></summary>
 
 | Argument | Intended use | Behavior |
 | --- | --- | --- |
@@ -219,35 +243,38 @@ I use Visual Studio 2026 with this project. Here are the necessary tools to comp
 | `--update-apply` | App helper | Apply a staged update after the running app exits. Windows displays a UAC prompt only when the installation directory requires elevation. |
 | `--update-restart` | App helper | Restart the installed app after update commit or rollback, then clean the staging directory. This process is deliberately not elevated. |
 
-#### Build Architecture
+</details>
 
-Each app is written in .NET 10 with Avalonia 12 and compiled with Native AOT. While the apps do share a common framework, they are totally independent from each other. This makes it much simpler to distribute them and manage privileges, and keeps each app isolated from one another in case of instability or performance issues. Memory overhead of this and these apps has been taken into account, especially given they are background applications, and care has been taken to make sure they are memory efficient. The entire suite uses roughly the same amount of RAM as one medium-sized electron app.
+### Architecture
 
-A small set of native libraries next to each executable makes up the Skia rendering backend Avalonia uses. These ship as shared DLLs instead of being compiled straight in because they're large enough in my opinion to warrant Windows re-using them via shared working set memory, to lower the overall memory footprint from running multiple of these tray apps together. 
+* Apps: .NET 10, Avalonia 12, compiled to Native AOT.
+* Installers: .NET 10, WPF
 
-The installers are produced by a factory. A single installer binary is built per release, carrying no app inside it. Stamping an installer then means copying that binary, swapping its icon, and appending the app's package to the end of the file, which takes seconds instead of a whole compilation. The installer finds its payload at startup by reading a trailer at the end of its own executable.
+### AI Usage
 
-The appended package is not a zip. The factory repacks it into a solid payload, which is one LZMA stream over the concatenated file data of every entry with a dictionary of up to 32 MB, rather than a zip's separate DEFLATE stream per entry with a 32 KB window, so matches reach across the whole package. VolumeTrayAppDotNET measures 50,329,628 bytes raw, 20,222,033 as a zip, and 16,899,152 as a solid payload, which took its stamped installer from 21,207,583 to 17,202,910 bytes, an 18.9 percent reduction. Stamping one installer costs about 11 seconds and unpacking the payload at install time about 1.1 seconds. The LZMA encoder and decoder are written by hand and are conformant LZMA1, checked both directions against liblzma. Every stamp decompresses its own output and compares it to the SHA-256 recorded in the payload header, so no installer is written without one proven decode pass.
+I make use of frontier LLM's *heavily* in this project. For what it's worth, I am actually a software engineer; I do actually read and review what gets written, as well as use my own fingers to write code myself sometimes - not just prompts. 
 
-The installers themselves are WPF apps on .NET Framework 4.8 rather than Native AOT. That framework and its renderer are already part of Windows, so an installer is a few hundred kilobytes rather than the 28 MB an Avalonia build cost, where over half the weight was an embedded copy of Skia. The apps stay on .NET 10 with Native AOT; only the installers use the in-box framework.
+I am not about to spend 6 months slogging through a thousand Windows API's and ABI's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. However, the architecture and design choices are all done by me. I keep stylesheets around to somewhat enforce my own standards upon LLMs.
 
-#### AI Usage
+I allow LLMs complete reign over spamming test code. I don't treat tests as debt, and any broken tests will inevitably be cleaned by an LLM.
 
-I use frontier LLM's *heavily* in this project. Disclaimer: I am actually a software engineer; I do actually read and review what gets written, as well as use my fingers to write code myself sometimes, not just prompts. What I am not about to do is spend 6 months doing grunt work on a thousand Windows API's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. With that said, all the architecture and design is mine. I allow LLMs complete reign over spam generating test code since any broken tests will inevitably be cleaned by an LLM, and the more coverage the merrier. Beyond this, I'm fairly loose with scrutinizing code comments unless its something I *really* care about. I generally keep a defined stylesheet to minimize the amount of garbage.
+My philosophy aligns closely with Nonary's if you want to read more: https://github.com/Nonary/vibeshine#why-use-aigenerated-code-concerns-about-technical-debt
 
-If you look around the codebase you'll see some markdown files for LLM agents to assist them with context, mechanisms, etc. If you want to try and work on something in here with AI, I'd recommend reading at least the AGENTS.md file yourself. There are some acronyms in there (among other things), that make it a bit easier to communicate with your LLM of choice.
+### Versioning
 
-#### Versions
+These projects don't use semver. There is no API contract to uphold, and I would prefer not assigning bizzare meaning to semvers that would cause them to look like they're flying all over.
 
-These projects don't use semver. There is no API contract to uphold, and I would prefer not assigning bizzare meaning to semvers that would cause them to look like they're flying all over. The TrayAppDotNET version increments every single release. The individual app versions incremenet only when they themselves have a new release. If an app is not scheduled to have a new version, or has no changes, the release generator will go grab the previous release artifact for that app and re-publish it. This is done so releases remain consistent and there are no tag spiderwebs.
+The TrayAppDotNET version increments every single release. If an app isn't scheduled to have a new release, or has no changes, the publish workflow will go grab the previous release artifact for that app and re-publish it. This is done so it is consistently simple to download build artifacts.
 
-#### Project Name - "Why TrayAppDotNET?"
-
-I cooked up the network app first, which amounted to little more than a single chat message to Claude to whip up a WPF tray icon and a Windows shell call. I couldn't imagine a real name that wouldn't be outlandishly indescriptive so I called it what it was; "NetworkTrayAppWPF". I stuck with this scheme since it lets someone know immediately that these different apps are all from the same project, and because, again, they're quite descriptive. It's also quick and handy to refer to them by their acronyms.
+Note: The installer wrapper has no published version and simply aligns itself with the latest TrayAppDotNET release. Any re-published apps will be packaged into the latest installer release.
 
 ## Translation
 
-This project uses [Weblate](https://hosted.weblate.org/projects/feishin/) for translations. If you would like to contribute, please visit the link and submit a translation.
+All these apps are fully localized with resx, but not currently integrated with any translation providers (Weblate, etc.). 
+
+Localization files live in `{APP}/src/Localization/Strings.{LANGUAGE}.resx`.
+
+There is a localization file for each app, the installer, and one in the Common project for strings shared across all apps.
 
 ## License
 
