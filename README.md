@@ -26,32 +26,34 @@
 <p align="center">These are my projects for replacing, and adding to, the Windows 11 tray system apps. For the best effect, I recommend removing the stock Windows tray icons with <a href="https://windhawk.net/">Windhawk</a>.</p>
 
 <figure align="center">
-  <img src="./documentation/readme_images/tray_sbs.png" alt="Preview" width="100%">
-  <figcaption><em>This is an incomplete example. Stock tray icons were removed with <a href="https://windhawk.net/mods/taskbar-tray-system-icon-tweaks">this Windhawk mod</a>.</em></figcaption>
+  <table>
+    <tr>
+      <td width="50%" align="center" valign="top"><h3>Stock Windows 11</h3><br><img src="./documentation/readme_images/tray_stock.png" alt="Stock Windows 11 tray" width="100%"></td>
+      <td width="50%" align="center" valign="top"><h3>TrayAppDotNET</h3><br><img src="./documentation/readme_images/tray_tadn.png" alt="TrayAppDotNET tray" width="100%"></td>
+    </tr>
+  </table>
+  <figcaption><div align="center"><em>This is an incomplete example. Stock tray icons were removed with <a href="https://windhawk.net/mods/taskbar-tray-system-icon-tweaks">this Windhawk mod</a>.</em></div></figcaption>
 </figure>
 
-#### Project status
+<br>
 
-These apps should all be considered to be in alpha. They're exceptionally stable, but there are still large areas that need to be completed.
+**Project status**: These apps should all be considered to be in alpha. They're exceptionally stable, but there are still large areas that need to be completed.
 
 
 ## Installation
 
-[Downloads Page](https://github.com/alchemyyy/TrayAppDotNET/releases) | Grab the latest installer for whichever app(s) you'd like, or download the bundled suite.
+[Downloads Page](https://github.com/alchemyyy/TrayAppDotNET/releases) | Grab the latest installer for whichever app(s) you'd like, or download the bundled suite. Then install it. Done.
 
-Then install it. Done.
+<div>Notes:</div>
 
-`Installer_{AppName}_{version}.exe` is a single-app installer. 
-
-`Installer_TrayAppDotNET_{version}.exe` is the app bundle, with a GUI selector for which apps to install. 
+* `Installer_{AppName}_{version}.exe` is a single-app installer. 
+* `Installer_TrayAppDotNET_{version}.exe` is the app bundle, with a GUI selector for which apps to install. 
 
 These apps can all run portable. There are no real differences between portable or installed to them. All app settings are saved to `%LocalAppData%\TrayAppDotNET` by default.
 
 ### Configuration
 
-In theory, any app settings you may need are properly exposed in the app's own settings UI. 
-
-However, the ***vast*** majority of parameters/constants for any given app are stored to and read from that app's own `settings.xml` file.
+In theory, any app settings you may need are properly exposed in the app's own settings UI. If this is not enough, the ***vast*** majority of parameters/constants for any given app are stored to and read from that app's own `settings.xml` file.
 
 In the future, apps will also generate a file for UI constants. **Every. single. UI constant.** is defined in AXAML.
 
