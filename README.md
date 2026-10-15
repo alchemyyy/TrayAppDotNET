@@ -28,8 +28,22 @@
 <figure align="center">
   <table>
     <tr>
-      <td width="50%" align="center" valign="top"><h3>Stock Windows 11</h3><br><img src="./documentation/readme_images/tray_stock.png" alt="Stock Windows 11 tray" width="100%"></td>
-      <td width="50%" align="center" valign="top"><h3>TrayAppDotNET</h3><br><img src="./documentation/readme_images/tray_tadn.png" alt="TrayAppDotNET tray" width="100%"></td>
+      <td width="50%" align="center" valign="top">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="./documentation/readme_images/title_stock_dark.svg">
+          <img src="./documentation/readme_images/title_stock_light.svg" alt="Stock Windows 11">
+        </picture>
+        <br>
+        <img src="./documentation/readme_images/tray_stock.png" alt="Stock Windows 11 tray" width="100%">
+      </td>
+      <td width="50%" align="center" valign="top">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="./documentation/readme_images/title_tadn_dark.svg">
+          <img src="./documentation/readme_images/title_tadn_light.svg" alt="TrayAppDotNET">
+        </picture>
+        <br>
+        <img src="./documentation/readme_images/tray_tadn.png" alt="TrayAppDotNET tray" width="100%">
+      </td>
     </tr>
   </table>
   <figcaption><div align="center"><em>This is an incomplete example. Stock tray icons were removed with <a href="https://windhawk.net/mods/taskbar-tray-system-icon-tweaks">this Windhawk mod</a>.</em></div></figcaption>
@@ -37,7 +51,7 @@
 
 <br>
 
-**Project status**: These apps should all be considered to be in alpha. They're exceptionally stable, but there are still large areas that need to be completed.
+**Project status**: These apps should all be considered to be in alpha. They're exceptionally stable, but there are still large gaps in some apps that need to be completed.
 
 
 ## Installation
@@ -49,7 +63,7 @@
 * `Installer_{AppName}_{version}.exe` is a single-app installer. 
 * `Installer_TrayAppDotNET_{version}.exe` is the app bundle, with a GUI selector for which apps to install. 
 
-These apps can all run portable. There are no real differences between portable or installed to them. All app settings are saved to `%LocalAppData%\TrayAppDotNET` by default.
+These apps can all run portably. To these apps, there is not much difference between running portable vs being installed. All app settings and logs are saved to `%LocalAppData%\TrayAppDotNET` by default.
 
 ### Configuration
 
@@ -131,7 +145,9 @@ As simple as it gets. The still-embedded Win10 Windows Network flyout works grea
 
 <h3><sup><img src="./documentation/readme_images/app_tmtadn.ico" alt="Preview" width="32" align="middle"></sup> <span>TaskManagerTrayAppDotNET</span>&nbsp;</h3>
 
-A "reimplementation" of the Windows 11 Task Manager. The official Task Manager has become far too stuttery for me. While "fixing that", some extra bells and whistles were added.
+A "reimplementation" of the Windows 11 Task Manager.
+
+The official Task Manager has become far too stuttery for me. While "fixing that", some extra bells and whistles were added.
 
 <p align="center">
   <img src="./documentation/readme_images/flyout_tmtadn.png" alt="Preview" width="100%" align="center">
@@ -163,6 +179,8 @@ A "reimplementation" of the Windows 11 Task Manager. The official Task Manager h
 <td width="50%" valign="top">
 
 <h3><sup><img src="./documentation/readme_images/app_vtadn.ico" alt="Preview" width="32" align="middle"> </sup> <span>VolumeTrayAppDotNET</span>&nbsp;</h3>
+
+A volume mixer and audio endpoint manager.
 
 EarTrumpet users will find this familiar. I took inspiration from it in this design. Originally, I'd modified EarTrumpet to sort its mixer bottom-up like this, to minimize mouse movement distance. Since that project seems to have been abandoned, I took a crack at the whole thing.
 
@@ -258,9 +276,9 @@ I make use of frontier LLM's *heavily* in this project. For what it's worth, I a
 
 I am not about to spend 6 months slogging through a thousand Windows API's and ABI's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. However, the architecture and design choices are all done by me. I keep stylesheets around to somewhat enforce my own standards upon LLMs.
 
-I allow LLMs complete reign over spamming test code. I don't treat tests as debt, and any broken tests will inevitably be cleaned by an LLM.
+I allow LLMs complete reign over spamming test code. I do not write test-driven code, and any broken tests will inevitably be cleaned by an LLM. The more "coverage", the merrier.
 
-My philosophy aligns closely with Nonary's if you want to read more: https://github.com/Nonary/vibeshine#why-use-aigenerated-code-concerns-about-technical-debt
+My AI code philosophy aligns closely with Nonary's if you want to read more. | [Link](https://github.com/Nonary/vibeshine#why-use-aigenerated-code-concerns-about-technical-debt)
 
 ### Versioning
 
