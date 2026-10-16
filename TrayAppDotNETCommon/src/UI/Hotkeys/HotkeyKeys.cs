@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Input;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Localization;
 
 namespace TrayAppDotNETCommon.UI.Hotkeys;
 
@@ -69,31 +70,32 @@ public static class TrayAppDotNETHotkeyKeys
         };
     }
 
+    /// <summary>Names a virtual key for display; letters, digits, and function keys keep their keycap text.</summary>
     public static string KeyName(uint vk)
     {
         return vk switch
         {
             >= 0x41 and <= 0x5A or >= 0x30 and <= 0x39 => ((char)vk).ToString(),
-            >= 0x60 and <= 0x69 => "Num " + (vk - 0x60).ToString(CultureInfo.InvariantCulture),
+            >= 0x60 and <= 0x69 => FormatKeyNumber(nameof(CommonStrings.Settings_Hotkeys_Key_NumPad_Format), vk - 0x60),
             >= 0x70 and <= 0x87 => "F" + (vk - 0x6F).ToString(CultureInfo.InvariantCulture),
             _ => vk switch
             {
-                0x08 => "Backspace",
-                0x09 => "Tab",
-                0x0D => "Enter",
-                0x1B => "Esc",
-                0x20 => "Space",
-                0x21 => "Page Up",
-                0x22 => "Page Down",
-                0x23 => "End",
-                0x24 => "Home",
-                0x25 => "Left",
-                0x26 => "Up",
-                0x27 => "Right",
-                0x28 => "Down",
-                0x2D => "Insert",
-                0x2E => "Delete",
-                _ => "VK " + vk.ToString(CultureInfo.InvariantCulture)
+                0x08 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Backspace)),
+                0x09 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Tab)),
+                0x0D => L(nameof(CommonStrings.Settings_Hotkeys_Key_Enter)),
+                0x1B => L(nameof(CommonStrings.Settings_Hotkeys_Key_Escape)),
+                0x20 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Space)),
+                0x21 => L(nameof(CommonStrings.Settings_Hotkeys_Key_PageUp)),
+                0x22 => L(nameof(CommonStrings.Settings_Hotkeys_Key_PageDown)),
+                0x23 => L(nameof(CommonStrings.Settings_Hotkeys_Key_End)),
+                0x24 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Home)),
+                0x25 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Left)),
+                0x26 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Up)),
+                0x27 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Right)),
+                0x28 => L(nameof(CommonStrings.Settings_Hotkeys_Key_Down)),
+                0x2D => L(nameof(CommonStrings.Settings_Hotkeys_Key_Insert)),
+                0x2E => L(nameof(CommonStrings.Settings_Hotkeys_Key_Delete)),
+                _ => FormatKeyNumber(nameof(CommonStrings.Settings_Hotkeys_Key_VK_Format), vk)
             }
         };
     }
@@ -101,12 +103,22 @@ public static class TrayAppDotNETHotkeyKeys
     public static string ModifierText(uint modifiers)
     {
         List<string> parts = [];
-        if ((modifiers & HotkeyModifiers.Control) != 0) parts.Add("Ctrl");
-        if ((modifiers & HotkeyModifiers.Alt) != 0) parts.Add("Alt");
-        if ((modifiers & HotkeyModifiers.Shift) != 0) parts.Add("Shift");
-        if ((modifiers & HotkeyModifiers.Win) != 0) parts.Add("Win");
+        if ((modifiers & HotkeyModifiers.Control) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Ctrl)));
+        if ((modifiers & HotkeyModifiers.Alt) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Alt)));
+        if ((modifiers & HotkeyModifiers.Shift) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Shift)));
+        if ((modifiers & HotkeyModifiers.Win) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Win)));
         return string.Join(separator: " + ", parts);
     }
+
+    // Key numbers print with invariant digits, as keycaps show them
+    private static string FormatKeyNumber(string formatKey, uint number) =>
+        string.Format(CultureInfo.InvariantCulture, L(formatKey), number);
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 }
 
 public sealed record TrayAppDotNETHotkeyModifierOption(string Label, uint Modifiers)

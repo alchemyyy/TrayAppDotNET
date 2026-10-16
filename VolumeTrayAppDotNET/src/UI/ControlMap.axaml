@@ -219,6 +219,8 @@
                   Source="VolumeSettingsWindow.BuildFlyoutPage" />
             <Leaf ID="DisconnectedBluetoothDevices" Kind="Select" Event="Callback"
                   Source="VolumeSettingsWindow.BuildFlyoutPage" />
+            <Leaf ID="CollapseDisconnectedBluetoothDevices" Kind="Toggle" Event="Callback"
+                  Source="VolumeSettingsWindow.BuildFlyoutPage" />
             <Leaf ID="ShowBluetoothDevicesOnlyWhenOn" Kind="Toggle" Event="Callback"
                   Source="VolumeSettingsWindow.BuildFlyoutPage" />
             <Leaf ID="ShowBluetoothRadioButton" Kind="Toggle" Event="Callback"

@@ -452,6 +452,7 @@
 
     <Surface ID="Settings" Template="SettingsShell" Source="TaskManagerSettingsWindow.TaskManagerSettingsWindow">
         <Scope ID="GeneralPage" Source="TaskManagerSettingsWindow.BuildGeneralPage">
+            <Scope ID="Language" Template="LanguageCard" Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Scope ID="Startup" Template="StartupCard" Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Leaf ID="Autosave" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildGeneralPage" />

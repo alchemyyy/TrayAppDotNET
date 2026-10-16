@@ -61,6 +61,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private bool _isRestartExplorerPending;
     private bool _isPageActive;
     private bool _disposed;
+    private ProcessDetailsViewState? _pendingViewState;
 
     public ProcessDetailsPage(
         ProcessSnapshotService snapshotService,
@@ -445,6 +446,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         if (_disposed || !_isPageActive) return;
         _processCanvas.RefreshFrom(_snapshotService);
+        ApplyPendingViewState();
     }
 
     internal override void SetPageActive(bool isActive)
@@ -457,6 +459,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
             _processCanvas.ActivateSampling(_snapshotService);
             _processCanvas.RefreshFrom(_snapshotService);
+            ApplyPendingViewState();
             return;
         }
 
@@ -550,9 +553,22 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _rowContextMenuController.ApplyAXAMLResources(resources);
     }
 
-    /// <summary>Captures user-editable Processes state before a shared shell rebuild.</summary>
-    internal ProcessDetailsHotReloadState CaptureHotReloadState() =>
-        new(
+    /// <summary>Returns the rendered grid typography, which Debug AXAML reloads can move away from settings.</summary>
+    internal (double FontSize, double RowSpacing) RenderedGridTypography =>
+        (_processCanvas.GridFontSize, _processCanvas.GridRowSpacing);
+
+    /// <summary>Re-applies rendered typography that a rebuilt page would otherwise read back from settings.</summary>
+    internal void RestoreRenderedGridTypography((double FontSize, double RowSpacing) typography) =>
+        _processCanvas.SetGridTypography(typography.FontSize, typography.RowSpacing);
+#endif
+
+    /// <summary>
+    /// Captures user-editable Processes state before a shell rebuild replaces this page. Grid typography is left out
+    /// because settings own it, and a rebuild that follows a typography setting change must show the new value.
+    /// </summary>
+    internal ProcessDetailsViewState CaptureViewState()
+    {
+        ProcessDetailsViewState currentState = new(
             _searchBox.Text ?? string.Empty,
             _tableScrollViewport.HorizontalOffset,
             _tableScrollViewport.VerticalOffset,
@@ -560,24 +576,45 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _processCanvas.SelectedTerminationTarget,
             _runPanel.IsVisible,
             _runInput.Text ?? string.Empty,
-            _processCanvas.GridFontSize,
-            _processCanvas.GridRowSpacing);
+            _processCanvas.SortColumn,
+            _processCanvas.SortDescending);
 
-    /// <summary>Restores user-editable Processes state after a shared shell rebuild.</summary>
-    internal void RestoreHotReloadState(ProcessDetailsHotReloadState state)
+        // A page that has not received rows yet still holds the selection and offsets it was asked to restore
+        return _pendingViewState is { } pendingState
+            ? currentState with
+            {
+                HorizontalOffset = pendingState.HorizontalOffset,
+                VerticalOffset = pendingState.VerticalOffset,
+                SelectedProcesses = pendingState.SelectedProcesses,
+                ActiveProcess = pendingState.ActiveProcess
+            }
+            : currentState;
+    }
+
+    /// <summary>Restores user-editable Processes state captured from the page this one replaced.</summary>
+    internal void RestoreViewState(ProcessDetailsViewState state)
     {
         if (_disposed) return;
 
         _searchBox.Text = state.SearchText;
         _runInput.Text = state.RunInputText;
         _runPanel.IsVisible = state.IsRunPanelVisible;
-        _processCanvas.SetGridTypography(state.GridFontSize, state.GridRowSpacing);
+        _processCanvas.RestoreSort(state.SortColumn, state.SortDescending);
+        _pendingViewState = state;
+        ApplyPendingViewState();
+    }
+
+    // Selection and scroll offsets need rows, which a page rebuilt while the window is hidden gets only once it shows
+    private void ApplyPendingViewState()
+    {
+        if (_pendingViewState is not { } state || !_processCanvas.HasRows) return;
+
+        _pendingViewState = null;
         _processCanvas.RestoreSelectedProcesses(state.SelectedProcesses, state.ActiveProcess);
         UpdateLayout();
         _tableScrollViewport.UpdateLayout();
         _tableScrollViewport.SetOffsets(state.HorizontalOffset, state.VerticalOffset);
     }
-#endif
 
     private static bool IsSelfOrDescendant(Visual boundary, Visual? source) =>
         source != null
@@ -1133,9 +1170,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     }
 }
 
-#if DEBUG
-/// <summary>Processes state that survives Common or glyph-triggered shell reconstruction.</summary>
-internal readonly record struct ProcessDetailsHotReloadState(
+/// <summary>
+/// Processes state carried across a shell rebuild. Selection is stored as member processes, so a selected group row
+/// comes back as its members.
+/// </summary>
+internal readonly record struct ProcessDetailsViewState(
     string SearchText,
     double HorizontalOffset,
     double VerticalOffset,
@@ -1143,6 +1182,5 @@ internal readonly record struct ProcessDetailsHotReloadState(
     ProcessTerminationTarget? ActiveProcess,
     bool IsRunPanelVisible,
     string RunInputText,
-    double GridFontSize,
-    double GridRowSpacing);
-#endif
+    ProcessTableColumnKind SortColumn,
+    bool SortDescending);

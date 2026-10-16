@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Serialization;
 using TrayAppDotNETCommon.UI.Models;
 
@@ -164,6 +165,13 @@ public abstract class AppSettingsCommon(
         get;
         set => SetField(ref field, value);
     } = renderingBackendDefault;
+
+    /// <summary>UI culture name, or <see cref="LocalizationManager.AutoLanguage"/> to follow Windows</summary>
+    public string Language
+    {
+        get;
+        set => SetField(ref field, value);
+    } = LocalizationManager.AutoLanguage;
 
     public bool CheckForUpdatesEnabled
     {

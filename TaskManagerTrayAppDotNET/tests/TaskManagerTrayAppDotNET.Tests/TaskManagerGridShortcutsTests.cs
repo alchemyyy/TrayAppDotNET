@@ -1,5 +1,7 @@
 using Avalonia.Input;
+using TaskManagerTrayAppDotNET.Localization;
 using TaskManagerTrayAppDotNET.UI;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using Xunit;
 
@@ -7,6 +9,9 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class TaskManagerGridShortcutsTests
 {
+    // Titles and gesture text come from the app resources, which the app loads at startup
+    public TaskManagerGridShortcutsTests() => LocalizationManager.Instance.Initialize(Strings.ResourceManager);
+
     [Theory]
     [InlineData(KeyModifiers.Control, TaskManagerGridShortcutAction.Zoom)]
     [InlineData(KeyModifiers.Shift, TaskManagerGridShortcutAction.Stretch)]

@@ -64,6 +64,13 @@ internal sealed class TaskManagerAvaloniaApp : Application
     {
         TADNLog.Initialize();
         TADNLog.Log("TaskManagerAvaloniaApp.OnFrameworkInitializationCompleted");
+        LocalizationManager.Instance.Initialize(
+            AppStrings.ResourceManager,
+            culture => AppStrings.Culture = culture,
+            TrayAppDotNETAvalonia.LoadConfiguredCulture(
+                AppSettings.GetDefaultPath,
+                AppLocalizationCultures.Names,
+                TADNLog.Log));
         TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
         LoadSettingsAndTheme();

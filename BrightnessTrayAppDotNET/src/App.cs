@@ -94,7 +94,11 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         LocalizationManager.Instance.Initialize(
             AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture);
+            culture => AppStrings.Culture = culture,
+            TrayAppDotNETAvalonia.LoadConfiguredCulture(
+                AppSettings.GetDefaultPath,
+                AppLocalizationCultures.Names,
+                TADNLog.Log));
         WireCrashHandlers();
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);

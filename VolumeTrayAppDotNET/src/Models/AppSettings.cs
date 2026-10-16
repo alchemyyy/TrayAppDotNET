@@ -807,6 +807,8 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     // capture devices group together at the top of the list. The disconnected-Bluetooth policy can
     // override only the per-state visibility gates; it never overrides either recording master.
     // It only ever applies to paired devices, so orphaned Bluetooth endpoints stay hidden in every mode.
+    // CollapseDisconnectedBluetoothDevicesInFlyout then folds the listed endpoints of a Bluetooth device
+    // with no active endpoint into one row, the way Windows Settings lists one entry per device.
     // ShowBluetoothDevicesOnlyWhenBluetoothIsOn is the outer flyout-only Bluetooth gate and wins
     // over every disconnected-device visibility mode.
     public FlyoutDeviceLayoutStyle FlyoutDeviceLayout
@@ -832,6 +834,12 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         get;
         set => SetField(ref field, value);
     } = FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed;
+
+    public bool CollapseDisconnectedBluetoothDevicesInFlyout
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
 
     public bool ShowBluetoothDevicesOnlyWhenBluetoothIsOn
     {

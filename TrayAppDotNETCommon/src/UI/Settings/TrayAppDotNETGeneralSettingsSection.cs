@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
@@ -23,6 +24,11 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required Func<string, string, Task> ShowMessage { get; init; }
     public required Func<bool> GetRunOnStartup { get; init; }
     public required Action<bool> SetRunOnStartup { get; init; }
+    public required Func<string> GetLanguage { get; init; }
+    public required Action<string> SetLanguage { get; init; }
+
+    /// <summary>Culture names of the translations the app ships beyond the neutral English resources</summary>
+    public IReadOnlyList<string> AvailableLanguages { get; init; } = [];
 
     /// <summary>Supplying both start-minimized delegates adds that sub-option to the Run on startup card.</summary>
     public Func<bool>? GetStartMinimized { get; init; }
@@ -67,6 +73,67 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
+    }
+
+    /// <summary>Builds the Language card: Auto, then the neutral language and every translation the app ships.</summary>
+    public Border BuildLanguageCard()
+    {
+        List<(string Tag, string Text)> items =
+        [
+            (LocalizationManager.AutoLanguage, L(nameof(CommonStrings.Settings_General_Language_Auto)))
+        ];
+        items.AddRange(LanguageOptions(_options.AvailableLanguages));
+
+        // A saved language whose translation is no longer shipped shows as Auto without rewriting the setting
+        string selectedLanguage = _options.GetLanguage();
+        if (!items.Exists(item => string.Equals(item.Tag, selectedLanguage, StringComparison.Ordinal)))
+            selectedLanguage = LocalizationManager.AutoLanguage;
+
+        return TrayAppDotNETSettingsCards.ComboCard(
+            L(nameof(CommonStrings.Settings_General_Language_Title)),
+            L(nameof(CommonStrings.Settings_General_Language_Description)),
+            items,
+            selectedLanguage,
+            _options.SetLanguage,
+            _options.Palette,
+            _options.CardRadius,
+            _options.Save,
+            autoSizeToText: true,
+            searchKeywords: [L(nameof(CommonStrings.Settings_General_Language_SearchKeywords))],
+            node: ControlMap.LanguageCard.Language);
+    }
+
+    /// <summary>
+    /// Pairs the neutral language and each translation with its native display name, sorted by that name.
+    /// Names .NET does not recognize are logged and skipped.
+    /// </summary>
+    internal static List<(string Tag, string Text)> LanguageOptions(IReadOnlyList<string> translations)
+    {
+        List<(string Tag, string Text)> options = [];
+        HashSet<string> seenNames = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string cultureName in translations.Prepend(LocalizationManager.NeutralLanguage))
+        {
+            CultureInfo culture;
+            try
+            {
+                culture = CultureInfo.GetCultureInfo(cultureName);
+            }
+            catch (CultureNotFoundException exception)
+            {
+                TADNLog.Log($"Language: skipping unknown translation culture '{cultureName}': {exception.Message}");
+                continue;
+            }
+
+            if (!seenNames.Add(culture.Name)) continue;
+
+            // Native names can start lowercase ("français"); pickers show them capitalized
+            string nativeName = culture.NativeName;
+            string text = culture.TextInfo.ToUpper(nativeName[..1]) + nativeName[1..];
+            options.Add((culture.Name, text));
+        }
+
+        options.Sort((left, right) => string.Compare(left.Text, right.Text, StringComparison.CurrentCultureIgnoreCase));
+        return options;
     }
 
     public Border BuildStartupCard()

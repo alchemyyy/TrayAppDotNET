@@ -54,6 +54,7 @@
 
     <Surface ID="Settings" Template="SettingsShell" Source="NetworkAvaloniaApp.OpenSettings">
         <Scope ID="GeneralPage" Source="NetworkSettingsWindow.BuildGeneralPage">
+            <Scope ID="Language" Template="LanguageCard" Source="NetworkSettingsWindow.BuildGeneralPage" />
             <Scope ID="Startup" Template="StartupCard" Source="NetworkSettingsWindow.BuildGeneralPage" />
             <Leaf ID="FlyoutStyle" Kind="Select" Event="Callback"
                   Source="NetworkSettingsWindow.BuildGeneralPage" Description="Left-click flyout card" />

@@ -148,6 +148,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
             TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
+            stack.Children.Add(commonSection.BuildLanguageCard());
             stack.Children.Add(commonSection.BuildStartupCard());
             commonSection.AddInstallationSection(
                 stack,
@@ -211,6 +212,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 AppServices.Startup.SetRunOnStartup(enabled);
                 _settings.RunOnStartup = enabled;
             },
+            GetLanguage = () => _settings.Language,
+            SetLanguage = language => _settings.Language = language,
+            AvailableLanguages = AppLocalizationCultures.Names,
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),

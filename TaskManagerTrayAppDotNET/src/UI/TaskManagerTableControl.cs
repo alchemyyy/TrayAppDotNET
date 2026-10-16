@@ -58,9 +58,8 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     private readonly double _treeIndentWidth;
     private bool _sortDescending;
     private bool _externalSubscriptionsAttached;
-#if DEBUG
-    private string? _hotReloadPendingSelectedRowKey;
-#endif
+    // A restored selection waits for its row, since a rebuilt page can restore before its rows arrive
+    private string? _pendingRestoredSelectedRowKey;
 
     public TaskManagerTableControl(
         TaskManagerTableSchema schema,
@@ -183,13 +182,11 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
             _sourceRows.Add(rows[rowIndex]);
         RebuildGroupIndex();
         RebuildProjection(true);
-#if DEBUG
-        if (_hotReloadPendingSelectedRowKey != null && SelectedRow != null)
+        if (_pendingRestoredSelectedRowKey != null && SelectedRow != null)
         {
-            _hotReloadPendingSelectedRowKey = null;
+            _pendingRestoredSelectedRowKey = null;
             SelectedRowChanged?.Invoke(SelectedRow);
         }
-#endif
     }
 
     /// <summary>Filters against all display cells while retaining matching parent groups.</summary>
@@ -231,16 +228,12 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     public void SelectRow(string? rowKey)
     {
         ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
-#if DEBUG
-        _hotReloadPendingSelectedRowKey = null;
-#endif
         string? nextKey = FindSourceRowByKey(rowKey)?.Key;
         SetSelectedRowKey(nextKey);
     }
 
-#if DEBUG
-    /// <summary>Captures interactive table state before a hot-reload shell rebuild.</summary>
-    internal TaskManagerTableControlHotReloadState CaptureHotReloadState()
+    /// <summary>Captures interactive table state before a shell rebuild replaces this control.</summary>
+    internal TaskManagerTableViewState CaptureViewState()
     {
         string[] collapsedGroupKeys = new string[_collapsedGroupKeys.Count];
         _collapsedGroupKeys.CopyTo(collapsedGroupKeys);
@@ -249,7 +242,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         for (int columnIndex = 0; columnIndex < _schema.Columns.Length; columnIndex++)
             baselineColumnWidths[columnIndex] = _schema.Columns[columnIndex].Width;
 
-        return new TaskManagerTableControlHotReloadState(
+        return new TaskManagerTableViewState(
             _selectedRowKey,
             _sortColumnIndex,
             _sortDescending,
@@ -259,7 +252,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     }
 
     /// <summary>Restores interactive state while letting changed AXAML column baselines win.</summary>
-    internal void RestoreHotReloadState(TaskManagerTableControlHotReloadState state)
+    internal void RestoreViewState(TaskManagerTableViewState state)
     {
         if ((uint)state.SortColumnIndex < (uint)_schema.Columns.Length)
         {
@@ -290,15 +283,14 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         RecalculateColumnLefts();
 
         _selectedRowKey = state.SelectedRowKey;
-        _hotReloadPendingSelectedRowKey = state.SelectedRowKey;
+        _pendingRestoredSelectedRowKey = state.SelectedRowKey;
         RebuildProjection(false);
         if (SelectedRow != null)
         {
-            _hotReloadPendingSelectedRowKey = null;
+            _pendingRestoredSelectedRowKey = null;
             SelectedRowChanged?.Invoke(SelectedRow);
         }
     }
-#endif
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -574,10 +566,9 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         TaskManagerTableRow? selectedSourceRow = FindSourceRowByKey(_selectedRowKey);
         if (_selectedRowKey != null && selectedSourceRow == null)
         {
-#if DEBUG
             if (string.Equals(
                     _selectedRowKey,
-                    _hotReloadPendingSelectedRowKey,
+                    _pendingRestoredSelectedRowKey,
                     StringComparison.Ordinal))
             {
                 _hoveredRowIndex = -1;
@@ -585,7 +576,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
                 InvalidateVisual();
                 return;
             }
-#endif
+
             _selectedRowKey = null;
             if (notifySelectionRemoval) SelectedRowChanged?.Invoke(null);
         }
@@ -639,6 +630,8 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
 
     private void SetSelectedRowKey(string? rowKey)
     {
+        // A selection made now supersedes a restored one still waiting for its row
+        _pendingRestoredSelectedRowKey = null;
         if (string.Equals(_selectedRowKey, rowKey, StringComparison.Ordinal)) return;
 
         _selectedRowKey = rowKey;
@@ -978,13 +971,11 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     }
 }
 
-#if DEBUG
-/// <summary>Interactive generic-table state retained across a Debug hot-reload rebuild.</summary>
-internal readonly record struct TaskManagerTableControlHotReloadState(
+/// <summary>Interactive generic-table state carried across a shell rebuild.</summary>
+internal readonly record struct TaskManagerTableViewState(
     string? SelectedRowKey,
     int SortColumnIndex,
     bool SortDescending,
     string[] CollapsedGroupKeys,
     double[] ColumnWidths,
     double[] BaselineColumnWidths);
-#endif

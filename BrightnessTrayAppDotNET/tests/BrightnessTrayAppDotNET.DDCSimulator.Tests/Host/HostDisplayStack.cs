@@ -53,16 +53,14 @@ internal readonly record struct DisplayDeviceView(string DeviceID, string Interf
 /// HMONITOR handles, monitor devnodes, the EDID registry and the notifications btadn listens for. Reactions follow the
 /// measured event order, and the policy decides the quirks: renumbering, transients, attach lag, EDID-less devnodes.
 /// </summary>
-internal sealed class HostDisplayStack
+internal sealed class HostDisplayStack(SimulationClock clock, SimulationTrace trace, HostPolicy policy, int seed)
 {
     public const string DefaultMonitorHardwareID = "Default_Monitor";
     private const int DisplayWidth = 3840;
     private const int HandleStride = 0x10002;
 
     private readonly Lock _gate = new();
-    private readonly SimulationClock _clock;
-    private readonly SimulationTrace _trace;
-    private readonly Random _random;
+    private readonly Random _random = new(seed);
     private readonly List<GPUConnector> _connectors = [];
     private readonly Dictionary<GPUConnector, TargetState> _targets = [];
     private readonly Dictionary<(string HardwareID, int ConnectorUID), DeviceNode> _nodes = [];
@@ -72,15 +70,7 @@ internal sealed class HostDisplayStack
     private bool _systemAsleep;
     private long _transientUntilTicks = long.MinValue;
 
-    public HostDisplayStack(SimulationClock clock, SimulationTrace trace, HostPolicy policy, int seed)
-    {
-        _clock = clock;
-        _trace = trace;
-        Policy = policy;
-        _random = new Random(seed);
-    }
-
-    public HostPolicy Policy { get; }
+    public HostPolicy Policy { get; } = policy;
 
     public IReadOnlyList<GPUConnector> Connectors => _connectors;
 
@@ -123,7 +113,7 @@ internal sealed class HostDisplayStack
             _highestGDINumber = Math.Max(_highestGDINumber, _connectors.Count);
         }
 
-        _trace.Add("host", "boot topology: " + DescribeTopology());
+        trace.Add("host", "boot topology: " + DescribeTopology());
     }
 
     /// <summary>Reacts to a panel power transition; hot-plug detect follows only when the link drops it.</summary>
@@ -152,7 +142,7 @@ internal sealed class HostDisplayStack
         }
 
         GPUConnector changed = connector;
-        _clock.Schedule(TimeSpan.FromMilliseconds(delayMs), () => ApplyHPD(changed, desired, version));
+        clock.Schedule(TimeSpan.FromMilliseconds(delayMs), () => ApplyHPD(changed, desired, version));
     }
 
     /// <summary>Pulls the cable: hot-plug detect drops immediately.</summary>
@@ -169,7 +159,7 @@ internal sealed class HostDisplayStack
             version = ++target.HPDVersion;
         }
 
-        _trace.Add("host", $"cable pulled from connector {connector.Index} ({monitor?.PhysicalID ?? "empty"})");
+        trace.Add("host", $"cable pulled from connector {connector.Index} ({monitor?.PhysicalID ?? "empty"})");
         ApplyHPD(connector, asserted: false, version);
         return monitor;
     }
@@ -177,7 +167,7 @@ internal sealed class HostDisplayStack
     public void Plug(GPUConnector connector, SimulatedMonitor monitor)
     {
         lock (_gate) connector.Monitor = monitor;
-        _trace.Add("host", $"cable plugged: {monitor.PhysicalID} -> connector {connector.Index}");
+        trace.Add("host", $"cable plugged: {monitor.PhysicalID} -> connector {connector.Index}");
         OnMonitorPowerChanged(monitor);
     }
 
@@ -191,7 +181,7 @@ internal sealed class HostDisplayStack
             monitors = [.. _connectors.Select(connector => connector.Monitor).OfType<SimulatedMonitor>()];
         }
 
-        _trace.Add("host", "system suspend");
+        trace.Add("host", "system suspend");
         foreach (SimulatedMonitor monitor in monitors) monitor.EnterSleepStandby();
     }
 
@@ -216,7 +206,7 @@ internal sealed class HostDisplayStack
             reactivateAll = _random.NextDouble() < Policy.ResumeReactivatesAllProbability;
         }
 
-        _trace.Add("host", "system resume");
+        trace.Add("host", "system resume");
         ScheduleReaction(100, () => Raise(HostEventKind.PowerResume));
         foreach ((GPUConnector connector, bool asserted) in pending.OrderBy(change => change.Asserted))
         {
@@ -226,7 +216,7 @@ internal sealed class HostDisplayStack
 
         int signalMs;
         lock (_gate) signalMs = _random.Next(minValue: 300, maxValue: 801);
-        _clock.Schedule(TimeSpan.FromMilliseconds(signalMs), () =>
+        clock.Schedule(TimeSpan.FromMilliseconds(signalMs), () =>
         {
             foreach (SimulatedMonitor monitor in monitors) monitor.SetVideoSignal(true);
         });
@@ -240,7 +230,7 @@ internal sealed class HostDisplayStack
         List<SimulatedMonitor> monitors;
         lock (_gate) monitors = [.. _connectors.Select(connector => connector.Monitor).OfType<SimulatedMonitor>()];
 
-        _trace.Add("host", powered ? "console display on" : "console display off");
+        trace.Add("host", powered ? "console display on" : "console display off");
         foreach (SimulatedMonitor monitor in monitors) monitor.SetVideoSignal(powered);
     }
 
@@ -275,14 +265,14 @@ internal sealed class HostDisplayStack
                 suspended.Add(connector);
             }
 
-            _transientUntilTicks = _clock.ElapsedTicks + TimeSpan.FromMilliseconds(durationMs).Ticks;
+            _transientUntilTicks = clock.ElapsedTicks + TimeSpan.FromMilliseconds(durationMs).Ticks;
         }
 
         if (suspended.Count == 0) return;
 
-        _trace.Add("host", $"driver transient: {suspended.Count} path(s) inactive for {durationMs} ms");
+        trace.Add("host", $"driver transient: {suspended.Count} path(s) inactive for {durationMs} ms");
         Raise(HostEventKind.DisplaySettingsChanged);
-        _clock.Schedule(TimeSpan.FromMilliseconds(durationMs), () =>
+        clock.Schedule(TimeSpan.FromMilliseconds(durationMs), () =>
         {
             lock (_gate)
             {
@@ -297,7 +287,7 @@ internal sealed class HostDisplayStack
                 }
             }
 
-            _trace.Add("host", "driver transient ended: " + DescribeTopology());
+            trace.Add("host", "driver transient ended: " + DescribeTopology());
             Raise(HostEventKind.DisplaySettingsChanged);
         });
         ScheduleReaction(durationMs + 4_000, () => Raise(HostEventKind.DisplaySettingsChanged));
@@ -369,7 +359,7 @@ internal sealed class HostDisplayStack
                 target.PathActive && string.Equals(GDIName(target), gdiName, StringComparison.Ordinal));
             if (owner == null) return devices;
 
-            if (owner.Node != null && _clock.ElapsedTicks >= owner.DeviceListedFromTicks)
+            if (owner.Node != null && clock.ElapsedTicks >= owner.DeviceListedFromTicks)
                 devices.Add(new DisplayDeviceView(owner.Node.DeviceID, owner.Node.InterfacePath, IsActive: true, owner.Node));
 
             foreach (TargetState target in _targets.Values)
@@ -395,7 +385,7 @@ internal sealed class HostDisplayStack
             {
                 if (!string.Equals(node.InstancePath, displayInstancePath, StringComparison.OrdinalIgnoreCase)) continue;
 
-                return _clock.ElapsedTicks >= node.EDIDVisibleAtTicks ? node.EDID : null;
+                return clock.ElapsedTicks >= node.EDIDVisibleAtTicks ? node.EDID : null;
             }
 
             return null;
@@ -476,7 +466,7 @@ internal sealed class HostDisplayStack
     {
         get
         {
-            lock (_gate) return _clock.ElapsedTicks < _transientUntilTicks;
+            lock (_gate) return clock.ElapsedTicks < _transientUntilTicks;
         }
     }
 
@@ -542,7 +532,7 @@ internal sealed class HostDisplayStack
             AttachNodeLocked(connector, monitor, defaultFirst);
         }
 
-        _trace.Add("host", $"hot-plug arrival on connector {connector.Index}{(defaultFirst ? " as Default_Monitor" : string.Empty)}");
+        trace.Add("host", $"hot-plug arrival on connector {connector.Index}{(defaultFirst ? " as Default_Monitor" : string.Empty)}");
         ScheduleReaction(Policy.ArrivalTargetAvailableMs, () =>
         {
             lock (_gate)
@@ -565,7 +555,7 @@ internal sealed class HostDisplayStack
                 }
             }
 
-            if (activated) _trace.Add("host", "path activated: " + DescribeTopology());
+            if (activated) trace.Add("host", "path activated: " + DescribeTopology());
         });
         ScheduleReaction(Policy.ArrivalInterfaceMs, () => Raise(HostEventKind.MonitorInterfaceArrival));
         ScheduleReaction(Policy.ArrivalDisplayChangeMs, () => Raise(HostEventKind.DisplaySettingsChanged));
@@ -581,7 +571,7 @@ internal sealed class HostDisplayStack
             target.Node?.Present = false;
         }
 
-        _trace.Add("host", $"hot-plug removal on connector {connector.Index}");
+        trace.Add("host", $"hot-plug removal on connector {connector.Index}");
         Raise(HostEventKind.MonitorInterfaceRemoval);
         ScheduleReaction(Policy.RemovalTargetUnavailableMs, () =>
         {
@@ -606,7 +596,7 @@ internal sealed class HostDisplayStack
                 target.SuspendedByTransient = false;
             }
 
-            if (dropped) _trace.Add("host", "path dropped: " + DescribeTopology());
+            if (dropped) trace.Add("host", "path dropped: " + DescribeTopology());
         });
         ScheduleReaction(Policy.RemovalDisplayChangeMs, () => Raise(HostEventKind.DisplaySettingsChanged));
     }
@@ -620,10 +610,10 @@ internal sealed class HostDisplayStack
 
             placeholder.Present = false;
             AttachNodeLocked(connector, connector.Monitor, defaultMonitor: false);
-            target.DeviceListedFromTicks = _clock.ElapsedTicks;
+            target.DeviceListedFromTicks = clock.ElapsedTicks;
         }
 
-        _trace.Add("host", $"connector {connector.Index} re-enumerated with its EDID: " + DescribeTopology());
+        trace.Add("host", $"connector {connector.Index} re-enumerated with its EDID: " + DescribeTopology());
         Raise(HostEventKind.MonitorInterfaceRemoval);
         ScheduleReaction(20, () => Raise(HostEventKind.MonitorInterfaceArrival));
         ScheduleReaction(90, () => Raise(HostEventKind.DisplaySettingsChanged));
@@ -638,7 +628,7 @@ internal sealed class HostDisplayStack
             foreach (GPUConnector connector in ShuffledLocked(active)) ActivatePathLocked(connector);
         }
 
-        _trace.Add("host", "resume re-activated every path: " + DescribeTopology());
+        trace.Add("host", "resume re-activated every path: " + DescribeTopology());
         Raise(HostEventKind.DisplaySettingsChanged);
         ScheduleReaction(700, () => Raise(HostEventKind.DisplaySettingsChanged));
     }
@@ -671,7 +661,7 @@ internal sealed class HostDisplayStack
                 Index = index,
                 ConnectorUID = connector.ConnectorUID,
                 InstancePrefix = Policy.InstancePrefix,
-                EDIDVisibleAtTicks = _clock.ElapsedTicks + TimeSpan.FromMilliseconds(lagMs).Ticks
+                EDIDVisibleAtTicks = clock.ElapsedTicks + TimeSpan.FromMilliseconds(lagMs).Ticks
             };
             _nodes[key] = node;
         }
@@ -686,7 +676,7 @@ internal sealed class HostDisplayStack
     {
         TargetState target = _targets[connector];
         target.PathActive = true;
-        target.ActivatedAtTicks = _clock.ElapsedTicks;
+        target.ActivatedAtTicks = clock.ElapsedTicks;
         target.SourceIndex = Policy.SourceAllocation == SourceAllocation.ConnectorBound
             ? connector.Index
             : LowestFreeSourceLocked();
@@ -694,7 +684,7 @@ internal sealed class HostDisplayStack
         target.MonitorHandle = new IntPtr(_nextMonitorHandle);
         _nextMonitorHandle += HandleStride;
         int attachLagMs = Policy.DeviceAttachLagMaximumMs > 0 ? _random.Next(Policy.DeviceAttachLagMaximumMs + 1) : 0;
-        target.DeviceListedFromTicks = _clock.ElapsedTicks + TimeSpan.FromMilliseconds(attachLagMs).Ticks;
+        target.DeviceListedFromTicks = clock.ElapsedTicks + TimeSpan.FromMilliseconds(attachLagMs).Ticks;
     }
 
     private void DeactivatePathLocked(GPUConnector connector)
@@ -733,12 +723,12 @@ internal sealed class HostDisplayStack
     {
         int jitterMs;
         lock (_gate) jitterMs = Policy.ReactionJitterMs > 0 ? _random.Next(-Policy.ReactionJitterMs, Policy.ReactionJitterMs + 1) : 0;
-        _clock.Schedule(TimeSpan.FromMilliseconds(Math.Max(val1: 0, baseMs + jitterMs)), action);
+        clock.Schedule(TimeSpan.FromMilliseconds(Math.Max(val1: 0, baseMs + jitterMs)), action);
     }
 
     private void Raise(HostEventKind kind)
     {
-        _trace.Add("host", "event " + kind);
+        trace.Add("host", "event " + kind);
         EventRaised?.Invoke(kind);
     }
 

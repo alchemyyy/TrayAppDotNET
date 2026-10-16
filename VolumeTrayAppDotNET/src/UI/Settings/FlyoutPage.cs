@@ -97,6 +97,17 @@ public sealed partial class VolumeSettingsWindow
             ],
             node: ControlMap.Settings.FlyoutPage.DisconnectedBluetoothDevices));
         stack.Children.Add(BoolCard(
+            Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Title)),
+            Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Description)),
+            _settings.CollapseDisconnectedBluetoothDevicesInFlyout,
+            v => _settings.CollapseDisconnectedBluetoothDevicesInFlyout = v,
+            p,
+            searchKeywords:
+            [
+                Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_SearchKeywords))
+            ],
+            node: ControlMap.Settings.FlyoutPage.CollapseDisconnectedBluetoothDevices));
+        stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description)),
             _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn,

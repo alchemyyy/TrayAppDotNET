@@ -252,6 +252,38 @@
           DependsOnTargets="ResGen"
           Condition="'$(DesignTimeBuild)' == 'true' and '@(_TrayAppDotNETStronglyTypedResource)' != ''" />
 
+  <!-- Lists the cultures of the project's Localization\Strings.<culture>.resx translations as
+       <RootNamespace>.Localization.LocalizationCultures.Names for the language picker. A build-time
+       list needs no satellite assembly probing, which Native AOT has no way to enumerate. -->
+  <Target Name="EmbedLocalizationCultures"
+          BeforeTargets="GenerateAssemblyInfo"
+          Condition="'$(TrayAppDotNETIsVendoredProject)' != 'true' and '$(TargetFrameworkIdentifier)' == '.NETCoreApp' and Exists('$(MSBuildProjectDirectory)\Localization\Strings.resx')">
+    <ItemGroup>
+      <_TrayAppDotNETTranslationResx Include="$(MSBuildProjectDirectory)\Localization\Strings.*.resx" />
+      <_TrayAppDotNETTranslationCulture Include="@(_TrayAppDotNETTranslationResx->'%(Filename)'->Replace('Strings.', ''))" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_TrayAppDotNETLocalizationCulturesFile>$(IntermediateOutputPath)LocalizationCultures.g.cs</_TrayAppDotNETLocalizationCulturesFile>
+      <_TrayAppDotNETLocalizationCultureList>@(_TrayAppDotNETTranslationCulture->'&quot;%(Identity)&quot;', ', ')</_TrayAppDotNETLocalizationCultureList>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TrayAppDotNETLocalizationCulturesLine Include="// &lt;auto-generated /&gt;" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="namespace $(RootNamespace).Localization%3B" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="internal static class LocalizationCultures" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="{" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="    public static readonly string[] Names = [$(_TrayAppDotNETLocalizationCultureList)]%3B" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_TrayAppDotNETLocalizationCulturesFile)"
+                      Lines="@(_TrayAppDotNETLocalizationCulturesLine)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_TrayAppDotNETLocalizationCulturesFile)" />
+      <FileWrites Include="$(_TrayAppDotNETLocalizationCulturesFile)" />
+    </ItemGroup>
+  </Target>
+
   <!-- UseCommonOutputDirectory suppresses the SDK's entire CopyLocal reference copy,
        including NuGet runtime dependencies. Every aggregate managed app must supply
        its dependencies even when it is the only app built into the shared output. -->

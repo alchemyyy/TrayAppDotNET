@@ -1,0 +1,690 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SettingsWindow_Title" xml:space="preserve">
+    <value>Task Manager settings</value>
+  </data>
+  <data name="SettingsWindow_Header" xml:space="preserve">
+    <value>Task Manager</value>
+  </data>
+  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
+    <value>Open Task Manager settings folder</value>
+  </data>
+  <data name="Settings_Common_Page_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_Common_Page_Processes" xml:space="preserve">
+    <value>Processes</value>
+  </data>
+  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_Common_Page_Performance" xml:space="preserve">
+    <value>Performance</value>
+  </data>
+  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Common_Page_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Common_Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Common_DIPSuffix" xml:space="preserve">
+    <value> DIP</value>
+  </data>
+  <data name="Common_PercentSuffix" xml:space="preserve">
+    <value> %</value>
+  </data>
+  <data name="Common_MillisecondsSuffix" xml:space="preserve">
+    <value> ms</value>
+  </data>
+  <data name="Common_MinutesSuffix" xml:space="preserve">
+    <value> min</value>
+  </data>
+  <data name="Settings_General_SectionHeader" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_General_Autosave_Title" xml:space="preserve">
+    <value>Autosave settings</value>
+  </data>
+  <data name="Settings_General_Autosave_Description" xml:space="preserve">
+    <value>Save changes to the Task Manager settings file as they are made.</value>
+  </data>
+  <data name="Settings_General_Autosave_SearchKeywords" xml:space="preserve">
+    <value>save settings automatically</value>
+  </data>
+  <data name="Settings_General_WindowManagement_Title" xml:space="preserve">
+    <value>Window management</value>
+  </data>
+  <data name="Settings_General_WindowManagement_AlwaysOnTop" xml:space="preserve">
+    <value>Always on top</value>
+  </data>
+  <data name="Settings_General_WindowManagement_CloseToTray" xml:space="preserve">
+    <value>Close to Tray</value>
+  </data>
+  <data name="Settings_General_WindowManagement_MinimizeToTray" xml:space="preserve">
+    <value>Minimize to Tray</value>
+  </data>
+  <data name="Settings_General_WindowManagement_SearchKeywords" xml:space="preserve">
+    <value>always on top close to tray minimize to tray</value>
+  </data>
+  <data name="Settings_General_Keyboard_Header" xml:space="preserve">
+    <value>Keyboard</value>
+  </data>
+  <data name="Settings_General_OverrideWindowsTaskManagerHotkey_Title" xml:space="preserve">
+    <value>Replace Ctrl+Shift+Esc shortcut</value>
+  </data>
+  <data name="Settings_General_OverrideWindowsTaskManagerHotkey_Description" xml:space="preserve">
+    <value>While this app is running, open it instead of Windows Task Manager when Ctrl+Shift+Esc is pressed.</value>
+  </data>
+  <data name="Settings_General_OverrideWindowsTaskManagerHotkey_SearchKeywords" xml:space="preserve">
+    <value>Windows Task Manager hotkey shortcut control shift escape</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_Title" xml:space="preserve">
+    <value>Replace Windows Task Manager</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_SearchKeywords" xml:space="preserve">
+    <value>replace windows task manager system wide image file execution options debugger ctrl alt del taskbar win+x administrator even when not running</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_Description" xml:space="preserve">
+    <value>Redirect every Windows Task Manager launch to this app system-wide, so it opens even when this app is not running. Applies to all users on this PC and needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_EnabledDescription" xml:space="preserve">
+    <value>On. Ctrl+Shift+Esc, the Ctrl+Alt+Del screen, the taskbar menu, and Win+X all open this app instead of Windows Task Manager, even when this app is not already running. Changing this needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_RedirectedDescription_Format" xml:space="preserve">
+    <value>Windows Task Manager is currently redirected to {0}. Turning this on points it at this app instead and needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_AnotherProgram" xml:space="preserve">
+    <value>another program</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_Declined" xml:space="preserve">
+    <value>Administrator approval was declined, so nothing changed.</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_Failed" xml:space="preserve">
+    <value>The change could not be applied. See the Task Manager log for details.</value>
+  </data>
+  <data name="Settings_General_AdministratorActions_Header" xml:space="preserve">
+    <value>Administrator actions</value>
+  </data>
+  <data name="Settings_General_ElevatedTerminationOnStartup_Title" xml:space="preserve">
+    <value>Enable elevated termination at startup</value>
+  </data>
+  <data name="Settings_General_ElevatedTerminationOnStartup_Description" xml:space="preserve">
+    <value>Request administrator approval when the app starts so it can end protected processes. When off, approval is requested only the first time you act on a process that needs it.</value>
+  </data>
+  <data name="Settings_General_ElevatedTerminationOnStartup_SearchKeywords" xml:space="preserve">
+    <value>elevated termination startup administrator UAC kill protected process eager</value>
+  </data>
+  <data name="Settings_General_BypassElevationBroker_Title" xml:space="preserve">
+    <value>Run admin actions directly when elevated</value>
+  </data>
+  <data name="Settings_General_BypassElevationBroker_Description" xml:space="preserve">
+    <value>When the app itself runs as administrator, perform admin actions in-process instead of through the elevated helper. Off by default so behavior stays consistent whether or not the app is elevated.</value>
+  </data>
+  <data name="Settings_General_BypassElevationBroker_SearchKeywords" xml:space="preserve">
+    <value>bypass elevation broker elevated administrator in-process consistent helper</value>
+  </data>
+  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
+    <value>Install for current user</value>
+  </data>
+  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
+    <value>Install system-wide</value>
+  </data>
+  <data name="Settings_Processes_SectionHeader" xml:space="preserve">
+    <value>Processes</value>
+  </data>
+  <data name="Settings_Processes_Grouping_Header" xml:space="preserve">
+    <value>Grouping</value>
+  </data>
+  <data name="Settings_Processes_GroupingStyle_Title" xml:space="preserve">
+    <value>Process grouping style</value>
+  </data>
+  <data name="Settings_Processes_GroupingStyle_Description" xml:space="preserve">
+    <value>Choose how processes are organized when Group processes is enabled on the Processes page.</value>
+  </data>
+  <data name="Settings_Processes_GroupingStyle_ParentProcess" xml:space="preserve">
+    <value>Parent process</value>
+  </data>
+  <data name="Settings_Processes_GroupingStyle_Semantic" xml:space="preserve">
+    <value>Semantic application</value>
+  </data>
+  <data name="Settings_Processes_GroupingStyle_SearchKeywords" xml:space="preserve">
+    <value>process tree application semantic parent ancestry group</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForGroups_Title" xml:space="preserve">
+    <value>Use root process as group row</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForGroups_Description" xml:space="preserve">
+    <value>Show each semantic application group as its root process instead of a synthetic group row. The root process shows the group's totals, and its first entry, Root, shows the root process's own usage.</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForGroups_SearchKeywords" xml:space="preserve">
+    <value>semantic group root process total sum synthetic row aggregate</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForSubgroups_Title" xml:space="preserve">
+    <value>Apply to subgroups</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForSubgroups_Description" xml:space="preserve">
+    <value>Give every process with child processes the same layout. Its row shows the totals of its subtree, and its first entry, Root, shows its own usage.</value>
+  </data>
+  <data name="Settings_Processes_UseRootProcessForSubgroups_SearchKeywords" xml:space="preserve">
+    <value>semantic subgroup nested child process tree root total sum</value>
+  </data>
+  <data name="Settings_Processes_GroupWindowsProcesses_Title" xml:space="preserve">
+    <value>Group Windows processes</value>
+  </data>
+  <data name="Settings_Processes_GroupWindowsProcesses_Description" xml:space="preserve">
+    <value>List Windows system processes in their own Windows processes section, as Task Manager does. When off, they appear under Apps or Background processes like any other process.</value>
+  </data>
+  <data name="Settings_Processes_GroupWindowsProcesses_SearchKeywords" xml:space="preserve">
+    <value>windows system processes section category svchost apps background</value>
+  </data>
+  <data name="Settings_Processes_DefaultTreeState_Title" xml:space="preserve">
+    <value>Default process tree state</value>
+  </data>
+  <data name="Settings_Processes_DefaultTreeState_Description" xml:space="preserve">
+    <value>Choose whether newly displayed process trees start collapsed or expanded.</value>
+  </data>
+  <data name="Settings_Processes_DefaultTreeState_Collapsed" xml:space="preserve">
+    <value>Collapsed</value>
+  </data>
+  <data name="Settings_Processes_DefaultTreeState_Expanded" xml:space="preserve">
+    <value>Expanded</value>
+  </data>
+  <data name="Settings_Processes_DefaultTreeState_SearchKeywords" xml:space="preserve">
+    <value>process tree default collapsed expanded start</value>
+  </data>
+  <data name="Settings_Processes_ExpandSemanticSections_Title" xml:space="preserve">
+    <value>Keep semantic sections expanded</value>
+  </data>
+  <data name="Settings_Processes_ExpandSemanticSections_Description" xml:space="preserve">
+    <value>Keep Apps, Background processes, and Windows processes expanded when other process trees start collapsed.</value>
+  </data>
+  <data name="Settings_Processes_ExpandSemanticSections_SearchKeywords" xml:space="preserve">
+    <value>apps background Windows process section category expand collapse</value>
+  </data>
+  <data name="Settings_Processes_ZoomAndStretch_Header" xml:space="preserve">
+    <value>Zoom and stretch</value>
+  </data>
+  <data name="Settings_Processes_Zoom_Title" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="Settings_Processes_Zoom_Description_Format" xml:space="preserve">
+    <value>Set the text size of process rows and the other Task Manager tables. {0} changes it from a table, and Reset returns it to the baseline zoom.</value>
+  </data>
+  <data name="Settings_Processes_Zoom_SearchKeywords" xml:space="preserve">
+    <value>grid text font size zoom</value>
+  </data>
+  <data name="Settings_Processes_ZoomBaseline_Title" xml:space="preserve">
+    <value>Baseline zoom</value>
+  </data>
+  <data name="Settings_Processes_ZoomBaseline_Description_Format" xml:space="preserve">
+    <value>Set the text size that Reset zoom returns to. {0} makes the current zoom the baseline from a table.</value>
+  </data>
+  <data name="Settings_Processes_ZoomBaseline_SearchKeywords" xml:space="preserve">
+    <value>grid text font size zoom baseline default reset</value>
+  </data>
+  <data name="Settings_Processes_Stretch_Title" xml:space="preserve">
+    <value>Stretch</value>
+  </data>
+  <data name="Settings_Processes_Stretch_Description_Format" xml:space="preserve">
+    <value>Set the visible gap between table rows. {0} changes it from a table, and Reset returns it to the baseline stretch.</value>
+  </data>
+  <data name="Settings_Processes_Stretch_SearchKeywords" xml:space="preserve">
+    <value>grid row spacing height stretch</value>
+  </data>
+  <data name="Settings_Processes_StretchBaseline_Title" xml:space="preserve">
+    <value>Baseline stretch</value>
+  </data>
+  <data name="Settings_Processes_StretchBaseline_Description_Format" xml:space="preserve">
+    <value>Set the row spacing that Reset stretch returns to. {0} makes the current stretch the baseline from a table.</value>
+  </data>
+  <data name="Settings_Processes_StretchBaseline_SearchKeywords" xml:space="preserve">
+    <value>grid row spacing height stretch baseline default reset</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Title" xml:space="preserve">
+    <value>Font weight</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Description" xml:space="preserve">
+    <value>Set the text weight used by process rows and column headers.</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_SearchKeywords" xml:space="preserve">
+    <value>grid text thickness bold</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Thin" xml:space="preserve">
+    <value>Thin</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_ExtraLight" xml:space="preserve">
+    <value>Extra light</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_SemiLight" xml:space="preserve">
+    <value>Semi-light</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Normal" xml:space="preserve">
+    <value>Normal</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Medium" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_SemiBold" xml:space="preserve">
+    <value>Semi-bold</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Bold" xml:space="preserve">
+    <value>Bold</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_ExtraBold" xml:space="preserve">
+    <value>Extra bold</value>
+  </data>
+  <data name="Settings_Processes_FontWeight_Black" xml:space="preserve">
+    <value>Black</value>
+  </data>
+  <data name="Settings_Processes_LiveTotals_Header" xml:space="preserve">
+    <value>Live totals</value>
+  </data>
+  <data name="Settings_Processes_ShowTotalsAboveColumnNames_Title" xml:space="preserve">
+    <value>Show totals above column names</value>
+  </data>
+  <data name="Settings_Processes_ShowTotalsAboveColumnNames_Description" xml:space="preserve">
+    <value>Give live totals their own line above the column names, which doubles the height of the column header row. Turn on a column's live total from its properties by right-clicking its header.</value>
+  </data>
+  <data name="Settings_Processes_ShowTotalsAboveColumnNames_SearchKeywords" xml:space="preserve">
+    <value>live total sum header stacked two lines above column name double height</value>
+  </data>
+  <data name="Settings_Processes_TotalFontSize_Title" xml:space="preserve">
+    <value>Total font size</value>
+  </data>
+  <data name="Settings_Processes_TotalFontSize_Description" xml:space="preserve">
+    <value>Set the text size of live totals in the column headers.</value>
+  </data>
+  <data name="Settings_Processes_TotalFontSize_SearchKeywords" xml:space="preserve">
+    <value>live total sum header text size</value>
+  </data>
+  <data name="Settings_Processes_TotalFontWeight_Title" xml:space="preserve">
+    <value>Total font weight</value>
+  </data>
+  <data name="Settings_Processes_TotalFontWeight_Description" xml:space="preserve">
+    <value>Set the text weight of live totals in the column headers.</value>
+  </data>
+  <data name="Settings_Processes_TotalFontWeight_SearchKeywords" xml:space="preserve">
+    <value>live total sum header text thickness bold</value>
+  </data>
+  <data name="Settings_Processes_TotalWidth_Title" xml:space="preserve">
+    <value>Total width</value>
+  </data>
+  <data name="Settings_Processes_TotalWidth_Description" xml:space="preserve">
+    <value>Squish live totals horizontally so wide values fit their columns. 100 % draws them unscaled.</value>
+  </data>
+  <data name="Settings_Processes_TotalWidth_SearchKeywords" xml:space="preserve">
+    <value>live total sum header squish condense narrow horizontal scale</value>
+  </data>
+  <data name="Settings_Processes_TotalTextGap_Title" xml:space="preserve">
+    <value>Gap before column name</value>
+  </data>
+  <data name="Settings_Processes_TotalTextGap_Description" xml:space="preserve">
+    <value>Set the space between a live total and its column name when both share one line.</value>
+  </data>
+  <data name="Settings_Processes_TotalTextGap_SearchKeywords" xml:space="preserve">
+    <value>live total sum header spacing gap</value>
+  </data>
+  <data name="Settings_Processes_ColumnsAndSearch_Header" xml:space="preserve">
+    <value>Columns and search</value>
+  </data>
+  <data name="Settings_Processes_LiveColumnResizing_Title" xml:space="preserve">
+    <value>Live column resizing</value>
+  </data>
+  <data name="Settings_Processes_LiveColumnResizing_Description" xml:space="preserve">
+    <value>Resize column contents while dragging instead of applying the new width on release.</value>
+  </data>
+  <data name="Settings_Processes_LiveColumnResizing_SearchKeywords" xml:space="preserve">
+    <value>column resize preview</value>
+  </data>
+  <data name="Settings_Processes_LeftAlignSearchBar_Title" xml:space="preserve">
+    <value>Left-align search bar</value>
+  </data>
+  <data name="Settings_Processes_LeftAlignSearchBar_Description" xml:space="preserve">
+    <value>Align the Processes search bar with the left edge of the page area instead of centering it in the window.</value>
+  </data>
+  <data name="Settings_Processes_LeftAlignSearchBar_SearchKeywords" xml:space="preserve">
+    <value>process search position search alignment</value>
+  </data>
+  <data name="Settings_Processes_Actions_Header" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Settings_Processes_SkipExplorerRestartConfirmation_Title" xml:space="preserve">
+    <value>Skip Explorer restart confirmation</value>
+  </data>
+  <data name="Settings_Processes_SkipExplorerRestartConfirmation_Description" xml:space="preserve">
+    <value>Restart Windows Explorer immediately from the Processes page without asking for confirmation.</value>
+  </data>
+  <data name="Settings_Processes_SkipExplorerRestartConfirmation_SearchKeywords" xml:space="preserve">
+    <value>restart explorer confirmation prompt warning</value>
+  </data>
+  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_TrayIcon_GraphStyle_Title" xml:space="preserve">
+    <value>Style</value>
+  </data>
+  <data name="Settings_TrayIcon_GraphStyle_Description" xml:space="preserve">
+    <value>Show only the latest value or a recency-weighted sliding history.</value>
+  </data>
+  <data name="Settings_TrayIcon_GraphStyle_Current" xml:space="preserve">
+    <value>Current</value>
+  </data>
+  <data name="Settings_TrayIcon_GraphStyle_Marquee" xml:space="preserve">
+    <value>Marquee</value>
+  </data>
+  <data name="Settings_TrayIcon_GraphStyle_SearchKeywords" xml:space="preserve">
+    <value>graph current marquee history sliding</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_Title" xml:space="preserve">
+    <value>Data source</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_Description" xml:space="preserve">
+    <value>Choose the system utilization measured by the tray graph.</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_CPUAverage" xml:space="preserve">
+    <value>CPU Usage (Average)</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_CPUHighestCore" xml:space="preserve">
+    <value>CPU Usage (Highest Core)</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_Memory" xml:space="preserve">
+    <value>Memory (RAM)</value>
+  </data>
+  <data name="Settings_TrayIcon_DataSource_SearchKeywords" xml:space="preserve">
+    <value>CPU processor core memory RAM metric</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowHighestCoreTrace_Title" xml:space="preserve">
+    <value>Show highest core trace</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowHighestCoreTrace_Description" xml:space="preserve">
+    <value>Overlay highest-logical-processor utilization on the average CPU marquee graph.</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowHighestCoreTrace_SearchKeywords" xml:space="preserve">
+    <value>CPU highest core logical processor secondary trace line overlay</value>
+  </data>
+  <data name="Settings_Performance_SectionHeader" xml:space="preserve">
+    <value>Performance</value>
+  </data>
+  <data name="Settings_Performance_HistoryAndSampling_Header" xml:space="preserve">
+    <value>History and sampling</value>
+  </data>
+  <data name="Settings_Performance_HistoryLength_Title" xml:space="preserve">
+    <value>History length</value>
+  </data>
+  <data name="Settings_Performance_HistoryLength_Description" xml:space="preserve">
+    <value>Keep each Performance graph's samples for this many minutes.</value>
+  </data>
+  <data name="Settings_Performance_HistoryLength_SearchKeywords" xml:space="preserve">
+    <value>performance graph history retention minutes</value>
+  </data>
+  <data name="Settings_Performance_SamplingInterval_Title" xml:space="preserve">
+    <value>Sampling interval</value>
+  </data>
+  <data name="Settings_Performance_SamplingInterval_Description" xml:space="preserve">
+    <value>Wait this many milliseconds between Performance samples.</value>
+  </data>
+  <data name="Settings_Performance_SamplingInterval_SearchKeywords" xml:space="preserve">
+    <value>performance refresh update rate frequency milliseconds</value>
+  </data>
+  <data name="Settings_Performance_Graphs_Header" xml:space="preserve">
+    <value>Graphs</value>
+  </data>
+  <data name="Settings_Performance_FillGraphAreas_Title" xml:space="preserve">
+    <value>Fill graph areas</value>
+  </data>
+  <data name="Settings_Performance_FillGraphAreas_Description" xml:space="preserve">
+    <value>Draw a translucent shaded area beneath Performance graph lines.</value>
+  </data>
+  <data name="Settings_Performance_FillGraphAreas_SearchKeywords" xml:space="preserve">
+    <value>performance graph underfill shade translucent area</value>
+  </data>
+  <data name="Settings_Performance_CPU_Header" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Settings_Performance_ShowHighestCoreTrace_Title" xml:space="preserve">
+    <value>Show highest core trace</value>
+  </data>
+  <data name="Settings_Performance_ShowHighestCoreTrace_Description" xml:space="preserve">
+    <value>Draw a thinner, dimmer highest-logical-processor trace behind the overall CPU graph.</value>
+  </data>
+  <data name="Settings_Performance_ShowHighestCoreTrace_SearchKeywords" xml:space="preserve">
+    <value>CPU core logical processor utilization graph overlay</value>
+  </data>
+  <data name="Settings_Performance_Memory_Header" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Settings_Performance_ShowMemorySerialNumbers_Title" xml:space="preserve">
+    <value>Show memory module serial numbers</value>
+  </data>
+  <data name="Settings_Performance_ShowMemorySerialNumbers_Description" xml:space="preserve">
+    <value>Display each physical memory module's serial number in the Memory performance details. Serial numbers are hidden by default.</value>
+  </data>
+  <data name="Settings_Performance_ShowMemorySerialNumbers_SearchKeywords" xml:space="preserve">
+    <value>RAM DIMM privacy serial number</value>
+  </data>
+  <data name="Settings_Performance_DeviceColumn_Header" xml:space="preserve">
+    <value>Device column</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_Title" xml:space="preserve">
+    <value>Default device priority</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_Description" xml:space="preserve">
+    <value>Sets the category order for newly detected devices and devices that have not been reordered on the Performance page.</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_SearchKeywords" xml:space="preserve">
+    <value>CPU memory GPU network disk order new device</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_ResetPriority" xml:space="preserve">
+    <value>Reset default priority</value>
+  </data>
+  <data name="Settings_Performance_DevicePriority_ClearDeviceOrder" xml:space="preserve">
+    <value>Clear dragged device order</value>
+  </data>
+  <data name="Settings_Performance_DeviceKind_CPU" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Settings_Performance_DeviceKind_Memory" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Settings_Performance_DeviceKind_GPU" xml:space="preserve">
+    <value>GPU</value>
+  </data>
+  <data name="Settings_Performance_DeviceKind_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="Settings_Performance_DeviceKind_Disk" xml:space="preserve">
+    <value>Disk</value>
+  </data>
+  <data name="Settings_Performance_HardwareNames_Header" xml:space="preserve">
+    <value>Hardware names</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_Title" xml:space="preserve">
+    <value>Hardware name replacements</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_Description" xml:space="preserve">
+    <value>Apply case-insensitive .NET regular expression replacements to device hardware names. Rules run from top to bottom, and replacements support $1 and ${name} captures.</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_SearchKeywords" xml:space="preserve">
+    <value>device hardware adapter rename regex match replace captures CPU GPU network disk</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_AddReplacement" xml:space="preserve">
+    <value>+ Add replacement</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_MatchPattern_Placeholder" xml:space="preserve">
+    <value>Regex match</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_MatchPattern_Tooltip" xml:space="preserve">
+    <value>Case-insensitive .NET regular expression matched against the hardware name.</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_Replacement_Placeholder" xml:space="preserve">
+    <value>Replacement ($1)</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_Replacement_Tooltip" xml:space="preserve">
+    <value>Replacement text. Use $1 or ${name} to insert a regex capture.</value>
+  </data>
+  <data name="Settings_Performance_HardwareNameReplacements_Delete_Tooltip" xml:space="preserve">
+    <value>Delete replacement</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Hotkeys_Tables_Header" xml:space="preserve">
+    <value>Tables</value>
+  </data>
+  <data name="Settings_Hotkeys_Tables_SearchKeywords" xml:space="preserve">
+    <value>shortcut hotkey mouse wheel middle click keyboard</value>
+  </data>
+  <data name="Settings_Hotkeys_Zoom_Title" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="Settings_Hotkeys_Zoom_Description" xml:space="preserve">
+    <value>Scroll up to enlarge table text and down to shrink it.</value>
+  </data>
+  <data name="Settings_Hotkeys_Stretch_Title" xml:space="preserve">
+    <value>Stretch</value>
+  </data>
+  <data name="Settings_Hotkeys_Stretch_Description" xml:space="preserve">
+    <value>Scroll up to add space between table rows and down to remove it.</value>
+  </data>
+  <data name="Settings_Hotkeys_ResetZoom_Title" xml:space="preserve">
+    <value>Reset zoom</value>
+  </data>
+  <data name="Settings_Hotkeys_ResetZoom_Description" xml:space="preserve">
+    <value>Return table text to the baseline zoom.</value>
+  </data>
+  <data name="Settings_Hotkeys_ResetStretch_Title" xml:space="preserve">
+    <value>Reset stretch</value>
+  </data>
+  <data name="Settings_Hotkeys_ResetStretch_Description" xml:space="preserve">
+    <value>Return table row spacing to the baseline stretch.</value>
+  </data>
+  <data name="Settings_Hotkeys_SetZoomBaseline_Title" xml:space="preserve">
+    <value>Set baseline zoom</value>
+  </data>
+  <data name="Settings_Hotkeys_SetZoomBaseline_Description" xml:space="preserve">
+    <value>Make the current text size the zoom that resets return to.</value>
+  </data>
+  <data name="Settings_Hotkeys_SetStretchBaseline_Title" xml:space="preserve">
+    <value>Set baseline stretch</value>
+  </data>
+  <data name="Settings_Hotkeys_SetStretchBaseline_Description" xml:space="preserve">
+    <value>Make the current row spacing the stretch that resets return to.</value>
+  </data>
+  <data name="Settings_Hotkeys_EndTask_Title" xml:space="preserve">
+    <value>End task</value>
+  </data>
+  <data name="Settings_Hotkeys_EndTask_Description" xml:space="preserve">
+    <value>End the selected processes on the Processes page.</value>
+  </data>
+  <data name="Settings_Hotkeys_Gesture_MouseWheel" xml:space="preserve">
+    <value>Mouse wheel</value>
+  </data>
+  <data name="Settings_Hotkeys_Gesture_MiddleClick" xml:space="preserve">
+    <value>Middle click</value>
+  </data>
+  <data name="Settings_Hotkeys_Gesture_OrSeparator" xml:space="preserve">
+    <value> or </value>
+  </data>
+  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_Theme_Header" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_Title" xml:space="preserve">
+    <value>Theme mode</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_Description" xml:space="preserve">
+    <value>Choose whether Task Manager follows Windows or uses a fixed light or dark theme.</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_Theme_ThemeMode_SearchKeywords" xml:space="preserve">
+    <value>light dark system</value>
+  </data>
+  <data name="Settings_Theme_Window_Header" xml:space="preserve">
+    <value>Window</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
+    <value>Rounded corners</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
+    <value>Use rounded corners on Task Manager and its menus.</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square sharp corners</value>
+  </data>
+  <data name="Settings_Theme_CollapseNavigationWhenNarrow_Title" xml:space="preserve">
+    <value>Collapse navigation when narrow</value>
+  </data>
+  <data name="Settings_Theme_CollapseNavigationWhenNarrow_Description_Format" xml:space="preserve">
+    <value>Show only navigation icons when the Task Manager window is narrower than {0} pixels.</value>
+  </data>
+  <data name="Settings_Theme_CollapseNavigationWhenNarrow_SearchKeywords" xml:space="preserve">
+    <value>sidebar left menu responsive</value>
+  </data>
+  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
+    <value>Animations</value>
+  </data>
+  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
+    <value>Choose whether interface animations follow Windows, remain disabled, or remain enabled.</value>
+  </data>
+  <data name="Settings_Theme_Animations_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
+    <value>motion transitions</value>
+  </data>
+  <data name="Settings_Theme_ToolTipDelay_Title" xml:space="preserve">
+    <value>Tooltip delay</value>
+  </data>
+  <data name="Settings_Theme_ToolTipDelay_Description" xml:space="preserve">
+    <value>Set how long the pointer must hover before a tooltip appears.</value>
+  </data>
+  <data name="Settings_Theme_ToolTipDelay_SearchKeywords" xml:space="preserve">
+    <value>hover tooltip timing</value>
+  </data>
+  <data name="Settings_About_Tagline" xml:space="preserve">
+    <value>Fast process monitoring and management for TrayAppDotNET.</value>
+  </data>
+</root>

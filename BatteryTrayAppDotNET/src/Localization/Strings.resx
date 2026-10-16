@@ -15,9 +15,6 @@
   <data name="Uninstaller_Title" xml:space="preserve">
     <value>Uninstall BatteryTrayAppDotNET</value>
   </data>
-  <data name="Uninstaller_Message" xml:space="preserve">
-    <value>Remove BatteryTrayAppDotNET from this computer.</value>
-  </data>
   <data name="ColorPicker_DefaultTitle" xml:space="preserve">
     <value>Color picker</value>
   </data>
@@ -395,7 +392,7 @@ open power settings|open Windows power settings|open Power and battery settings|
     <value>Tray icon</value>
   </data>
   <data name="Settings_Theme_Window_Header" xml:space="preserve">
-    <value>Windows</value>
+    <value>Window</value>
   </data>
   <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
     <value>Context menu</value>

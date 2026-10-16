@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Utils;
 using TrayAppDotNETCommon.Visuals;
@@ -43,9 +44,6 @@ internal static class SearchableListBoxLayout
 /// </summary>
 public sealed class SettingsSearchableListBox : Grid, IDisposable
 {
-    private const string DefaultPlaceholderText = "Search";
-    private const string NoResultsText = "No results";
-
     private readonly SettingsPalette _palette;
     private readonly SettingsSearchableListBoxItemCollection _items;
     private readonly Grid _searchRow;
@@ -94,7 +92,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             BorderThickness = SearchableListBoxLayout.SearchBoxBorderThickness,
             Padding = SearchableListBoxLayout.SearchBoxPadding,
             VerticalContentAlignment = VerticalAlignment.Center,
-            PlaceholderText = DefaultPlaceholderText,
+            PlaceholderText = L(nameof(CommonStrings.SearchableListBox_Placeholder)),
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             SelectionBrush = TrayAppDotNETSettingsUI.Brush(AppTheme.ResolveTextSelectionHighlight(palette.Accent)),
             SelectionForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground)
@@ -412,7 +410,10 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         {
             if (candidateVisibleItems.Count == 0)
             {
-                TextBlock empty = TrayAppDotNETSettingsUI.Text(NoResultsText, _palette, _itemFontSize);
+                TextBlock empty = TrayAppDotNETSettingsUI.Text(
+                    L(nameof(CommonStrings.SearchableListBox_NoResults)),
+                    _palette,
+                    _itemFontSize);
                 empty.Opacity = SearchableListBoxLayout.EmptyOpacity;
                 Border emptyHost = new()
                 {
@@ -463,6 +464,8 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
 
         previousResources.Dispose();
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     /// <summary>
     /// Keeps keyboard selection on a visible row.

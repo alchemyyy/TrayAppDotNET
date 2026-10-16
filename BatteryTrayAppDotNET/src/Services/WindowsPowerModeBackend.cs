@@ -95,17 +95,14 @@ internal static class WindowsPowerModeBackend
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            switch (mode)
+            return mode switch
             {
-                case BatteryPowerMode.Ultimate:
-                    return await ApplyUltimateAsync(cancellationToken).ConfigureAwait(false);
-                case BatteryPowerMode.Balanced:
-                    return await ActivateAsync(BalancedGuid, cancellationToken).ConfigureAwait(false);
-                case BatteryPowerMode.PowerSaver:
-                    return await ActivateAsync(PowerSaverGuid, cancellationToken).ConfigureAwait(false);
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mode));
-            }
+                BatteryPowerMode.Ultimate => await ApplyUltimateAsync(cancellationToken).ConfigureAwait(false),
+                BatteryPowerMode.Balanced => await ActivateAsync(BalancedGuid, cancellationToken).ConfigureAwait(false),
+                BatteryPowerMode.PowerSaver => await ActivateAsync(PowerSaverGuid, cancellationToken)
+                    .ConfigureAwait(false),
+                _ => throw new ArgumentOutOfRangeException(nameof(mode))
+            };
         }
         finally
         {

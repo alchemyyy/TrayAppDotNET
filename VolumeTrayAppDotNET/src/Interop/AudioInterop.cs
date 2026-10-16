@@ -175,6 +175,13 @@ internal static class PropertyKeys
         new Guid(a: 0xB3F8FA53, b: 0x0004, c: 0x438E, d: 0x90, e: 0x03, f: 0x51, g: 0xA4, h: 0x6E, i: 0x13, j: 0x9B,
             k: 0xFC), pid: 2);
 
+    // DEVPKEY_KsAudio_Controller_DeviceInterface_Path (ksmedia.h): VT_LPWSTR symbolic link of the
+    // controller interface a KSCATEGORY_AUDIO filter names, read through the filter's own IMMDevice.
+    // The in-box A2DP filters publish one ("\??\BTHENUM#...#{e630310c-...}\CONTROL"); the HFP filters do not.
+    public static readonly PROPERTYKEY PKEY_KsAudio_Controller_DeviceInterface_Path = new(
+        new Guid(a: 0x13E004D6, b: 0xB066, c: 0x43BD, d: 0x91, e: 0x3B, f: 0xA4, g: 0x15, h: 0xCD, i: 0x13, j: 0xDA,
+            k: 0x87), pid: 3);
+
     // 'Listen to this device' state on capture endpoints, mirroring the checkbox under
     // Sound > Recording > [Mic Properties] > Listen tab. Stored as VT_BOOL (VARIANT_TRUE / FALSE)
     // in HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\{guid}\Properties.

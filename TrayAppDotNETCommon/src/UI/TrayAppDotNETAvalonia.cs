@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.ExceptionServices;
 using System.Xml;
 using Avalonia;
@@ -6,6 +7,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
@@ -91,12 +93,44 @@ public static class TrayAppDotNETAvalonia
         Action<string>? log = null,
         TrayAppDotNETRenderingBackend defaultBackend = TrayAppDotNETRenderingBackend.GPUPreferred)
     {
+        string? text = ReadRootSettingOrNull(
+            getSettingsPath,
+            nameof(ITrayAppDotNETRenderingSettings.RenderingBackend),
+            log);
+        return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend)
+            ? backend
+            : defaultBackend;
+    }
+
+    /// <summary>
+    /// Reads the Language setting from settings XML without hydrating app settings and resolves it to the culture
+    /// to apply, so startup can localize before the settings load.
+    /// </summary>
+    public static CultureInfo LoadConfiguredCulture(
+        Func<string> getSettingsPath,
+        IReadOnlyList<string> availableLanguages,
+        Action<string>? log = null)
+    {
+        string language = ReadRootSettingOrNull(getSettingsPath, nameof(AppSettingsCommon.Language), log)
+                          ?? LocalizationManager.AutoLanguage;
+        return LocalizationManager.ResolveCulture(language, availableLanguages, log);
+    }
+
+    /// <summary>
+    /// Returns the text of one top-level settings element, or null when the file or element is missing or the file
+    /// cannot be read.
+    /// </summary>
+    private static string? ReadRootSettingOrNull(Func<string> getSettingsPath, string elementName, Action<string>? log)
+    {
         ArgumentNullException.ThrowIfNull(getSettingsPath);
+
+        // Settings properties are the root's direct children; nested objects may reuse a property name
+        const int RootSettingDepth = 1;
 
         try
         {
             string settingsPath = getSettingsPath();
-            if (!File.Exists(settingsPath)) return defaultBackend;
+            if (!File.Exists(settingsPath)) return null;
 
             XmlReaderSettings readerSettings = new()
             {
@@ -115,24 +149,19 @@ public static class TrayAppDotNETAvalonia
             while (reader.Read())
             {
                 if (reader.NodeType != XmlNodeType.Element ||
-                    !string.Equals(
-                        reader.LocalName,
-                        nameof(ITrayAppDotNETRenderingSettings.RenderingBackend),
-                        StringComparison.Ordinal))
+                    reader.Depth != RootSettingDepth ||
+                    !string.Equals(reader.LocalName, elementName, StringComparison.Ordinal))
                     continue;
 
-                string text = reader.ReadElementContentAsString();
-                return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend)
-                    ? backend
-                    : defaultBackend;
+                return reader.ReadElementContentAsString();
             }
         }
         catch (Exception ex)
         {
-            log?.Invoke($"TrayAppDotNETAvalonia.LoadRenderingBackendOrDefault: {ex.Message}");
+            log?.Invoke($"TrayAppDotNETAvalonia: reading {elementName} from settings failed: {ex.Message}");
         }
 
-        return defaultBackend;
+        return null;
     }
 
     /// <summary>Forces Avalonia's Win32 backend onto CPU software rendering.</summary>

@@ -182,5 +182,130 @@ public sealed class FlyoutDeviceOrderingTests
         Assert.Equal(expectedOrder.Split(','), combined);
     }
 
+    [Fact]
+    public void CollapseDisconnectedBluetoothDevicesDefaultsToEnabled() =>
+        Assert.True(new AppSettings().CollapseDisconnectedBluetoothDevicesInFlyout);
+
+    [Theory]
+    [InlineData(true, true, false, true, false, true)]
+    [InlineData(true, true, false, true, true, false)]
+    [InlineData(false, true, false, true, false, false)]
+    [InlineData(true, false, false, true, false, false)]
+    [InlineData(true, true, true, true, false, false)]
+    [InlineData(true, true, false, false, false, false)]
+    public void OnlyDisconnectedBluetoothEndpointsOfInactiveDevicesCollapse(
+        bool isBluetooth,
+        bool isDisconnected,
+        bool isBluetoothOrphaned,
+        bool hasContainer,
+        bool isContainerConnected,
+        bool expectedCollapsible)
+    {
+        HashSet<Guid> connectedContainers = [];
+        if (isContainerConnected) connectedContainers.Add(FirstHeadset);
+
+        Guid? container = FlyoutDeviceOrdering.ResolveCollapsibleContainer(
+            isBluetooth,
+            isDisconnected,
+            isBluetoothOrphaned,
+            hasContainer ? FirstHeadset : null,
+            connectedContainers);
+
+        Assert.Equal(expectedCollapsible, container.HasValue);
+    }
+
+    // StateGrouped is visually bottom-up, so the playback endpoint closest to the bottom is the most prominent
+    [Fact]
+    public void CollapsedHeadsetTakesItsMostProminentPlaybackSlot()
+    {
+        CollapseTestDevice[] ordered =
+        [
+            new(Name: "Headset microphone", EDataFlow.eCapture, FirstHeadset),
+            new(Name: "Desk microphone", EDataFlow.eCapture, Container: null),
+            new(Name: "Headphones", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Headset", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Speakers", EDataFlow.eRender, Container: null)
+        ];
+
+        List<CollapseTestDevice> collapsed = Collapse(ordered, FlyoutDeviceSortOrder.StateGrouped);
+
+        Assert.Equal(["Desk microphone", "Headset", "Speakers"], collapsed.Select(static device => device.Name));
+    }
+
+    [Fact]
+    public void CollapsedHeadsetTakesTopmostPlaybackSlotInWindowsOrder()
+    {
+        CollapseTestDevice[] ordered =
+        [
+            new(Name: "Headphones", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Speakers", EDataFlow.eRender, Container: null),
+            new(Name: "Headset", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Headset microphone", EDataFlow.eCapture, FirstHeadset)
+        ];
+
+        List<CollapseTestDevice> collapsed = Collapse(ordered, FlyoutDeviceSortOrder.WindowsEnumeration);
+
+        Assert.Equal(["Headphones", "Speakers"], collapsed.Select(static device => device.Name));
+    }
+
+    [Fact]
+    public void CollapsedPlaybackOutranksRecordingThatSortedSooner()
+    {
+        CollapseTestDevice[] ordered =
+        [
+            new(Name: "Headphones", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Headset microphone", EDataFlow.eCapture, FirstHeadset)
+        ];
+
+        List<CollapseTestDevice> collapsed = Collapse(ordered, FlyoutDeviceSortOrder.StateGrouped);
+
+        Assert.Equal(["Headphones"], collapsed.Select(static device => device.Name));
+    }
+
+    [Fact]
+    public void CollapsedRowFallsBackToRecordingWithoutListedPlayback()
+    {
+        CollapseTestDevice[] ordered =
+        [
+            new(Name: "Headset microphone", EDataFlow.eCapture, FirstHeadset),
+            new(Name: "Speakers", EDataFlow.eRender, Container: null)
+        ];
+
+        List<CollapseTestDevice> collapsed = Collapse(ordered, FlyoutDeviceSortOrder.StateGrouped);
+
+        Assert.Equal(["Headset microphone", "Speakers"], collapsed.Select(static device => device.Name));
+    }
+
+    // Identically named headsets stay apart because the container, not the name, groups endpoints
+    [Fact]
+    public void CollapseKeepsOneRowPerDevice()
+    {
+        CollapseTestDevice[] ordered =
+        [
+            new(Name: "Headphones (first)", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Headphones (second)", EDataFlow.eRender, SecondHeadset),
+            new(Name: "Headset (first)", EDataFlow.eRender, FirstHeadset),
+            new(Name: "Headset (second)", EDataFlow.eRender, SecondHeadset)
+        ];
+
+        List<CollapseTestDevice> collapsed = Collapse(ordered, FlyoutDeviceSortOrder.StateGrouped);
+
+        Assert.Equal(["Headset (first)", "Headset (second)"], collapsed.Select(static device => device.Name));
+    }
+
+    private static readonly Guid FirstHeadset = new("79ca349e-3234-5f32-9369-f304d62a4404");
+    private static readonly Guid SecondHeadset = new("3ba371b9-a719-5d78-b530-7d17f546fbdf");
+
+    private static List<CollapseTestDevice> Collapse(
+        IReadOnlyList<CollapseTestDevice> ordered,
+        FlyoutDeviceSortOrder sortOrder) =>
+        FlyoutDeviceOrdering.CollapseDisconnectedBluetooth(
+            ordered,
+            sortOrder,
+            static device => device.Container,
+            static device => device.DataFlow);
+
     private readonly record struct TestDevice(string Name, EDataFlow DataFlow, int StateBucket);
+
+    private readonly record struct CollapseTestDevice(string Name, EDataFlow DataFlow, Guid? Container);
 }

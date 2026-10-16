@@ -661,7 +661,7 @@ public static unsafe class ExplorerProcessLauncher
         }
 
         _ = GetWindowThreadProcessId(shellWindow, out uint processID);
-        if (processID == 0 || processID > int.MaxValue)
+        if (processID is 0 or > int.MaxValue)
         {
             errorMessage = "The Windows desktop Explorer process ID could not be resolved.";
             return false;

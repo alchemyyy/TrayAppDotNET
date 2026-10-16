@@ -64,19 +64,21 @@ internal readonly record struct HelperRoutingEvent(
 /// the helper, and a helper that re-enumerates and resolves the monitor with the real
 /// <see cref="DDCHelperServer.FindMatchingMonitor"/> on every command.
 /// </summary>
-internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
+internal sealed class SimulatedDisplayService(
+    SimulationClock clock,
+    SimulationTrace trace,
+    HostDisplayStack host,
+    GPUDDCController controller,
+    DisplayServiceTiming timing,
+    IReadOnlyList<SimulatedMonitor> allMonitors,
+    int seed)
+    : IDisplayService, IDisposable
 {
-    private readonly SimulationClock _clock;
-    private readonly SimulationTrace _trace;
-    private readonly HostDisplayStack _host;
-    private readonly GPUDDCController _controller;
-    private readonly DisplayServiceTiming _timing;
-    private readonly IReadOnlyList<SimulatedMonitor> _allMonitors;
     private readonly Lock _gate = new();
 
     // Mirrors DisplayService._busGate: one helper command on the bus at a time across every monitor
-    private readonly SimulationGate _busGate;
-    private readonly Random _random;
+    private readonly SimulationGate _busGate = new(clock);
+    private readonly Random _random = new(seed);
     private readonly Dictionary<string, SimulatedHelperClient> _helpers = new(StringComparer.Ordinal);
 
     // Mirrors DisplayService._retiredHelperClientKeys, guarded by _gate
@@ -87,25 +89,6 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     private int _helperKills;
     private int _brightnessReads;
     private int _peakLiveHelpers;
-
-    public SimulatedDisplayService(
-        SimulationClock clock,
-        SimulationTrace trace,
-        HostDisplayStack host,
-        GPUDDCController controller,
-        DisplayServiceTiming timing,
-        IReadOnlyList<SimulatedMonitor> allMonitors,
-        int seed)
-    {
-        _clock = clock;
-        _trace = trace;
-        _host = host;
-        _controller = controller;
-        _timing = timing;
-        _allMonitors = allMonitors;
-        _busGate = new SimulationGate(clock);
-        _random = new Random(seed);
-    }
 
     /// <summary>Raised on a pool thread whenever a helper resolves the monitor for a command.</summary>
     public event Action<HelperRoutingEvent>? RoutingObserved;
@@ -172,7 +155,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
         if (_origins.TryGetValue(monitor, out SimulatedMonitor? origin)) return origin;
         if (string.IsNullOrEmpty(monitor.EDIDSerial)) return null;
 
-        List<SimulatedMonitor> bySerial = [.. _allMonitors.Where(candidate => candidate.EDIDSerial == monitor.EDIDSerial)];
+        List<SimulatedMonitor> bySerial = [.. allMonitors.Where(candidate => candidate.EDIDSerial == monitor.EDIDSerial)];
         return bySerial.Count == 1 ? bySerial[0] : null;
     }
 
@@ -371,15 +354,15 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     {
         if (string.IsNullOrEmpty(monitor.Name)) return false;
 
-        _clock.Sleep(TimeSpan.FromMicroseconds(_timing.CCDQueryMicroseconds));
-        Dictionary<string, int> friendlyByAdapter = _host.BuildCCDMap();
+        clock.Sleep(TimeSpan.FromMicroseconds(timing.CCDQueryMicroseconds));
+        Dictionary<string, int> friendlyByAdapter = host.BuildCCDMap();
         RefreshHandleIdentity target = RefreshHandleIdentity.From(monitor);
-        _clock.Sleep(TimeSpan.FromMicroseconds(_timing.EnumerationBaseMicroseconds));
+        clock.Sleep(TimeSpan.FromMicroseconds(timing.EnumerationBaseMicroseconds));
         List<(ActiveMonitorView View, ResolvedIdentity Resolved)> candidates = [];
-        foreach (ActiveMonitorView view in _host.EnumDisplayMonitors())
+        foreach (ActiveMonitorView view in host.EnumDisplayMonitors())
         {
-            _clock.Sleep(TimeSpan.FromMicroseconds(_timing.EnumerationPerMonitorMicroseconds));
-            if (!_host.IsHandleValid(view.Handle)) continue;
+            clock.Sleep(TimeSpan.FromMicroseconds(timing.EnumerationPerMonitorMicroseconds));
+            if (!host.IsHandleValid(view.Handle)) continue;
 
             candidates.Add((view, ResolveIdentity(view.GDIName)));
         }
@@ -432,18 +415,18 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
         out IReadOnlyList<DDCMonitor> monitors,
         out string? error)
     {
-        _clock.Sleep(TimeSpan.FromMicroseconds(_timing.EnumerationBaseMicroseconds));
-        List<ActiveMonitorView> active = _host.EnumDisplayMonitors();
-        _clock.Sleep(TimeSpan.FromMicroseconds(_timing.CCDQueryMicroseconds));
-        Dictionary<string, int> friendlyByAdapter = _host.BuildCCDMap();
-        _clock.Sleep(TimeSpan.FromMicroseconds(_timing.EnumerationPerMonitorMicroseconds * Math.Max(val1: 1, active.Count)));
+        clock.Sleep(TimeSpan.FromMicroseconds(timing.EnumerationBaseMicroseconds));
+        List<ActiveMonitorView> active = host.EnumDisplayMonitors();
+        clock.Sleep(TimeSpan.FromMicroseconds(timing.CCDQueryMicroseconds));
+        Dictionary<string, int> friendlyByAdapter = host.BuildCCDMap();
+        clock.Sleep(TimeSpan.FromMicroseconds(timing.EnumerationPerMonitorMicroseconds * Math.Max(val1: 1, active.Count)));
         List<DDCMonitor> list = BuildMonitorList(purpose, active, friendlyByAdapter);
 
         if (purpose == EnumerationPurpose.Full)
         {
             int wmiMs;
-            lock (_gate) wmiMs = _random.Next(_timing.WindowsBrightnessQueryMinimumMs, _timing.WindowsBrightnessQueryMaximumMs + 1);
-            _clock.Sleep(TimeSpan.FromMilliseconds(wmiMs));
+            lock (_gate) wmiMs = _random.Next(timing.WindowsBrightnessQueryMinimumMs, timing.WindowsBrightnessQueryMaximumMs + 1);
+            clock.Sleep(TimeSpan.FromMilliseconds(wmiMs));
         }
 
         monitors = list;
@@ -465,7 +448,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             list.Add(monitor);
 
             // GetMonitorInfo fails for an HMONITOR that died after EnumDisplayMonitors; the row stays nameless
-            if (!_host.IsHandleValid(view.Handle)) continue;
+            if (!host.IsHandleValid(view.Handle)) continue;
 
             ResolvedIdentity resolved = ResolveIdentity(view.GDIName);
             monitor.Name = view.GDIName;
@@ -498,7 +481,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     /// </summary>
     private ResolvedIdentity ResolveIdentity(string gdiName)
     {
-        List<DisplayDeviceView> devices = _host.EnumDisplayDevices(gdiName);
+        List<DisplayDeviceView> devices = host.EnumDisplayDevices(gdiName);
         int deviceIndex = DisplayService.SelectMonitorDeviceIndex(StateFlagsOf(devices));
         string deviceID = deviceIndex >= 0 && !string.IsNullOrEmpty(devices[deviceIndex].DeviceID)
             ? devices[deviceIndex].DeviceID
@@ -507,7 +490,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             ? DisplayService.ParseDisplayInstancePath(devices[deviceIndex].InterfacePath)
             : string.Empty;
 
-        byte[]? edid = string.IsNullOrEmpty(instancePath) ? null : _host.ReadEDIDRegistry(instancePath);
+        byte[]? edid = string.IsNullOrEmpty(instancePath) ? null : host.ReadEDIDRegistry(instancePath);
         if (edid == null) return new ResolvedIdentity(deviceID, instancePath, HasEDID: false, string.Empty, string.Empty, string.Empty, string.Empty);
 
         ushort productCode = EDIDParser.ExtractProductCode(edid);
@@ -541,7 +524,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
 
             if (!_retiredHelperKeys.Contains(key) && !_helpers.TryGetValue(key, out helper))
             {
-                helper = new SimulatedHelperClient(_clock, key);
+                helper = new SimulatedHelperClient(clock, key);
                 _helpers.Add(key, helper);
             }
         }
@@ -558,7 +541,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             }
         }
 
-        SimulatedHelperClient oneShot = new(_clock, key) { RetireWhenIdle = true };
+        SimulatedHelperClient oneShot = new(clock, key) { RetireWhenIdle = true };
         return RunHelperCommandOnce(oneShot, monitor, kind, code, value, operationLabel, cancellationToken);
     }
 
@@ -576,7 +559,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             return DDCCallOutcome<HelperReply>.WithError($"DDC op '{operationLabel}' cancelled by sequence deadline.");
 
         int timeoutMs = OperationTimeoutMs;
-        long startTicks = _clock.ElapsedTicks;
+        long startTicks = clock.ElapsedTicks;
         helper.Slot.Enter();
         try
         {
@@ -593,11 +576,11 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
                 return DDCCallOutcome<HelperReply>.Fail("DDC helper did not connect to its command pipe.");
 
             // DDCHelperClient queues for the bus after the spawn, and the queueing does not count against the timeout
-            long busWaitStartTicks = _clock.ElapsedTicks;
+            long busWaitStartTicks = clock.ElapsedTicks;
             if (!_busGate.Enter(cancellationToken))
                 return DDCCallOutcome<HelperReply>.WithError($"DDC op '{operationLabel}' cancelled by sequence deadline.");
 
-            startTicks += _clock.ElapsedTicks - busWaitStartTicks;
+            startTicks += clock.ElapsedTicks - busWaitStartTicks;
             try
             {
                 if (helper.IsDisposed) return DDCCallOutcome<HelperReply>.Fail(DDCHelperClient.DisposedClientError);
@@ -610,7 +593,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
                         $"DDC op '{operationLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
                 }
 
-                HelperExecution execution = new(_clock, kind, code, value, monitor, OriginOf(monitor), helper.ProcessGeneration);
+                HelperExecution execution = new(clock, kind, code, value, monitor, OriginOf(monitor), helper.ProcessGeneration);
                 helper.InFlight = execution;
                 StartExecution(helper, execution);
                 HelperWaitOutcome outcome = execution.WaitForReply(TimeSpan.FromMilliseconds(remainingMs), cancellationToken);
@@ -657,19 +640,19 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
         bool spawnFails;
         lock (_gate)
         {
-            spawnMs = _random.Next(_timing.HelperSpawnMinimumMs, _timing.HelperSpawnMaximumMs + 1);
-            spawnFails = _random.NextDouble() < _timing.HelperSpawnFailureProbability;
+            spawnMs = _random.Next(timing.HelperSpawnMinimumMs, timing.HelperSpawnMaximumMs + 1);
+            spawnFails = _random.NextDouble() < timing.HelperSpawnFailureProbability;
         }
 
         int connectTimeoutMs = Math.Min(TimeConstants.DDCHelperConnectTimeoutMs, remainingMs);
         if (spawnFails || spawnMs > connectTimeoutMs)
         {
-            _clock.Sleep(TimeSpan.FromMilliseconds(connectTimeoutMs));
-            _trace.Add("helper", $"{helper.Key} did not connect within {connectTimeoutMs} ms");
+            clock.Sleep(TimeSpan.FromMilliseconds(connectTimeoutMs));
+            trace.Add("helper", $"{helper.Key} did not connect within {connectTimeoutMs} ms");
             return false;
         }
 
-        _clock.Sleep(TimeSpan.FromMilliseconds(spawnMs));
+        clock.Sleep(TimeSpan.FromMilliseconds(spawnMs));
         lock (_gate)
         {
             if (helper.IsDisposed) return false;
@@ -680,7 +663,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             _peakLiveHelpers = Math.Max(_peakLiveHelpers, _helpers.Values.Count(candidate => candidate.ProcessAlive));
         }
 
-        _trace.Add("helper", $"spawned helper #{helper.ProcessGeneration} for {helper.Key} ({spawnMs} ms)");
+        trace.Add("helper", $"spawned helper #{helper.ProcessGeneration} for {helper.Key} ({spawnMs} ms)");
         return true;
     }
 
@@ -691,15 +674,15 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     /// </summary>
     private void StartExecution(SimulatedHelperClient helper, HelperExecution execution)
     {
-        TimeSpan receive = TimeSpan.FromMicroseconds(_timing.HelperPipeRoundTripMicroseconds / 2.0);
-        TimeSpan enumeration = TimeSpan.FromMicroseconds(_timing.HelperEnumerationMicroseconds);
-        _clock.Schedule(receive + enumeration, () =>
+        TimeSpan receive = TimeSpan.FromMicroseconds(timing.HelperPipeRoundTripMicroseconds / 2.0);
+        TimeSpan enumeration = TimeSpan.FromMicroseconds(timing.HelperEnumerationMicroseconds);
+        clock.Schedule(receive + enumeration, () =>
         {
             if (!execution.IsCurrent(helper)) return;
 
             List<DDCMonitor> helperMonitors = BuildMonitorList(
                 EnumerationPurpose.HelperResolution,
-                _host.EnumDisplayMonitors(),
+                host.EnumDisplayMonitors(),
                 []);
             DDCHelperServer.DDCHelperMonitorIdentity identity = DDCHelperServer.DDCHelperMonitorIdentity.From(execution.ParentMonitor);
             DDCMonitor? match = DDCHelperServer.FindMatchingMonitor(helperMonitors, identity);
@@ -709,9 +692,9 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
                 return;
             }
 
-            GPUConnector? resolvedConnector = _host.ResolveMonitorHandle(match.Handle);
+            GPUConnector? resolvedConnector = host.ResolveMonitorHandle(match.Handle);
             RoutingObserved?.Invoke(new HelperRoutingEvent(
-                _clock.ElapsedTicks,
+                clock.ElapsedTicks,
                 execution.Kind,
                 execution.Code,
                 execution.Value,
@@ -726,7 +709,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             {
                 if (!execution.IsCurrent(helper)) return;
 
-                GPUConnector? connector = _host.ResolveMonitorHandle(match.Handle);
+                GPUConnector? connector = host.ResolveMonitorHandle(match.Handle);
                 if (connector == null)
                 {
                     Reply(
@@ -759,7 +742,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
         if (execution.Kind == HelperCommandKind.SetVCP && connector.Monitor != null)
             WriteObserved?.Invoke(connector.Monitor, execution.Code, execution.Value);
 
-        _controller.Submit(new DDCOperation
+        controller.Submit(new DDCOperation
         {
             Kind = operationKind,
             Connector = connector,
@@ -796,7 +779,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     }
 
     private void SubmitHandleOperation(string label, Action completed) =>
-        _controller.Submit(new DDCOperation
+        controller.Submit(new DDCOperation
         {
             Kind = DDCOperationKind.HandleOperation,
             Connector = null,
@@ -806,8 +789,8 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
 
     private void Reply(SimulatedHelperClient helper, HelperExecution execution, HelperReply reply)
     {
-        TimeSpan pipe = TimeSpan.FromMicroseconds(_timing.HelperPipeRoundTripMicroseconds / 2.0);
-        _clock.Schedule(pipe, () =>
+        TimeSpan pipe = TimeSpan.FromMicroseconds(timing.HelperPipeRoundTripMicroseconds / 2.0);
+        clock.Schedule(pipe, () =>
         {
             if (execution.IsCurrent(helper)) execution.Complete(reply);
         });
@@ -823,7 +806,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
             _helperKills++;
         }
 
-        _trace.Add("helper", $"killed helper #{helper.ProcessGeneration} for {helper.Key}: {reason}");
+        trace.Add("helper", $"killed helper #{helper.ProcessGeneration} for {helper.Key}: {reason}");
     }
 
     private void DisposeHelper(SimulatedHelperClient helper)
@@ -851,7 +834,7 @@ internal sealed class SimulatedDisplayService : IDisplayService, IDisposable
     {
         if (timeoutMs <= 0) return Timeout.Infinite;
 
-        long elapsedMs = (long)Math.Ceiling(TimeSpan.FromTicks(_clock.ElapsedTicks - startTicks).TotalMilliseconds);
+        long elapsedMs = (long)Math.Ceiling(TimeSpan.FromTicks(clock.ElapsedTicks - startTicks).TotalMilliseconds);
         return (int)Math.Max(val1: 0, timeoutMs - elapsedMs);
     }
 

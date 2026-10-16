@@ -1,0 +1,33 @@
+using System.Globalization;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using TrayAppDotNETCommon;
+
+namespace VolumeTrayAppDotNET.Tests;
+
+/// <summary>
+/// Points the app's settings folder at a throwaway directory before any test runs. Every
+/// <c>new AppSettings()</c> schedules a debounced <c>AppSettings.Save()</c>, because its constructor assigns
+/// the slider thumb catalog through a setter, and that save otherwise writes the installed app's
+/// settings.xml under %LOCALAPPDATA%.
+/// </summary>
+internal static class TestSettingsDirectory
+{
+    [ModuleInitializer]
+    internal static void Redirect()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "VolumeTrayAppDotNET.Tests",
+            Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(directory);
+
+        // The override is normally set only by the --settings-dir launch argument, so its setter is private
+        PropertyInfo overrideProperty = typeof(TrayAppDotNETProgram).GetProperty(
+                                            nameof(TrayAppDotNETProgram.SettingsDirectoryOverride),
+                                            BindingFlags.Public | BindingFlags.Static)
+                                        ?? throw new InvalidOperationException(
+                                            "TrayAppDotNETProgram.SettingsDirectoryOverride is missing.");
+        overrideProperty.SetValue(obj: null, directory);
+    }
+}

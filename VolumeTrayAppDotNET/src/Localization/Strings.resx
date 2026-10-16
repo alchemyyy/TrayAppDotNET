@@ -443,6 +443,12 @@ slider thumb|slider handle|slider knob</value>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed" xml:space="preserve">
     <value>Always show (intermixed)</value>
   </data>
+  <data name="Settings_Flyout_CollapseDisconnectedBluetoothDevices_Title" xml:space="preserve">
+    <value>Collapse disconnected Bluetooth devices</value>
+  </data>
+  <data name="Settings_Flyout_CollapseDisconnectedBluetoothDevices_Description" xml:space="preserve">
+    <value>Shows one row per disconnected Bluetooth device instead of one row for each of its playback and recording endpoints, as Windows Settings lists one entry per device. The row takes the slot of the device's highest-priority playback endpoint, or of its recording endpoint when no playback endpoint is listed. A device with any active endpoint keeps all of its rows.</value>
+  </data>
   <data name="Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title" xml:space="preserve">
     <value>Only show Bluetooth devices while Bluetooth is on</value>
   </data>
@@ -729,66 +735,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
     <value>Exists</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_Enter" xml:space="preserve">
-    <value>Enter</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_Escape" xml:space="preserve">
-    <value>Esc</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_PageDown" xml:space="preserve">
-    <value>PageDown</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_PageUp" xml:space="preserve">
-    <value>PageUp</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_Space" xml:space="preserve">
-    <value>Space</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Alt" xml:space="preserve">
-    <value>Alt</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltShift" xml:space="preserve">
-    <value>Alt+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltShiftWin" xml:space="preserve">
-    <value>Alt+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltWin" xml:space="preserve">
-    <value>Alt+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Ctrl" xml:space="preserve">
-    <value>Ctrl</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAlt" xml:space="preserve">
-    <value>Ctrl+Alt</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltShift" xml:space="preserve">
-    <value>Ctrl+Alt+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltShiftWin" xml:space="preserve">
-    <value>Ctrl+Alt+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltWin" xml:space="preserve">
-    <value>Ctrl+Alt+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlShift" xml:space="preserve">
-    <value>Ctrl+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlShiftWin" xml:space="preserve">
-    <value>Ctrl+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlWin" xml:space="preserve">
-    <value>Ctrl+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Shift" xml:space="preserve">
-    <value>Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_ShiftWin" xml:space="preserve">
-    <value>Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Win" xml:space="preserve">
-    <value>Win</value>
   </data>
   <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
     <value>Open this settings window.</value>
@@ -1303,12 +1249,6 @@ Target: {1}</value>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>
   </data>
-  <data name="Uninstaller_DefaultDescription" xml:space="preserve">
-    <value>This will remove the installed copy of VolumeTrayAppDotNET and its registration in Windows Apps. Choose what to do with your settings.</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_DefaultDescription" xml:space="preserve">
-    <value>Also remove %LOCALAPPDATA%\TrayAppDotNET\VolumeTrayAppDotNET, including settings.xml.</value>
-  </data>
   <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
     <value>Also remove "{0}" including settings.xml.</value>
   </data>
@@ -1473,6 +1413,9 @@ Target: {1}</value>
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords" xml:space="preserve">
     <value>headset earbuds wireless offline unavailable</value>
+  </data>
+  <data name="Settings_Flyout_CollapseDisconnectedBluetoothDevices_SearchKeywords" xml:space="preserve">
+    <value>headset earbuds wireless combine merge group single row hands-free stereo endpoints</value>
   </data>
   <data name="Settings_Flyout_HeaderAtBottom_SearchKeywords" xml:space="preserve">
     <value>toolbar titlebar controls position</value>

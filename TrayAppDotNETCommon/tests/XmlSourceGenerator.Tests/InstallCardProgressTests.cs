@@ -213,6 +213,8 @@ public sealed class InstallCardProgressTests
                     return Task.CompletedTask;
                 },
                 GetRunOnStartup = static () => false,
+                GetLanguage = static () => LocalizationManager.AutoLanguage,
+                SetLanguage = static _ => { },
                 SetRunOnStartup = static _ => { },
                 GetCurrentStartupShortcutTarget = static () => null,
                 RetargetStartupShortcut = () => harness._refreshCount++,

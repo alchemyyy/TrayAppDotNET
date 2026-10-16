@@ -35,12 +35,11 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private TaskManagerContextMenuWindow? _actionMenuWindow;
     private bool _externalSubscriptionsAttached;
     private bool _disposed;
-#if DEBUG
-    private double _pendingHotReloadHorizontalOffset;
-    private double _pendingHotReloadVerticalOffset;
-    private bool _hasPendingHotReloadOffsets;
+    // Restored scroll offsets wait for the first rows, which a rebuilt page receives after it restores
+    private double _pendingRestoredHorizontalOffset;
+    private double _pendingRestoredVerticalOffset;
+    private bool _hasPendingRestoredOffsets;
     private bool _hasReceivedRows;
-#endif
 
     /// <summary>
     /// Builds one TaskManagerTablePage instance. The page tags itself and its title bar search overlay with
@@ -208,49 +207,47 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     protected SettingsButton RunTaskButton => _runTaskButton;
     protected TaskManagerTableControl Table => _table;
 
-#if DEBUG
-    /// <summary>Captures interactive generic-page state before a hot-reload shell rebuild.</summary>
-    internal TaskManagerTableHotReloadState CaptureHotReloadState() =>
+    /// <summary>Captures interactive generic-page state before a shell rebuild replaces this page.</summary>
+    internal TaskManagerTablePageViewState CaptureViewState() =>
         new(
             _searchBox.Text ?? string.Empty,
             _runInput.Text ?? string.Empty,
             _runPanel.IsVisible,
-            _hasPendingHotReloadOffsets
-                ? _pendingHotReloadHorizontalOffset
+            _hasPendingRestoredOffsets
+                ? _pendingRestoredHorizontalOffset
                 : _tableScrollViewport.HorizontalOffset,
-            _hasPendingHotReloadOffsets
-                ? _pendingHotReloadVerticalOffset
+            _hasPendingRestoredOffsets
+                ? _pendingRestoredVerticalOffset
                 : _tableScrollViewport.VerticalOffset,
-            _table.CaptureHotReloadState());
+            _table.CaptureViewState());
 
-    /// <summary>Restores interactive generic-page state after a hot-reload shell rebuild.</summary>
-    internal void RestoreHotReloadState(TaskManagerTableHotReloadState state)
+    /// <summary>Restores interactive generic-page state captured from the page this one replaced.</summary>
+    internal void RestoreViewState(TaskManagerTablePageViewState state)
     {
         if (_disposed) return;
 
-        _table.RestoreHotReloadState(state.TableState);
+        _table.RestoreViewState(state.TableState);
         _searchBox.Text = state.SearchText;
         _table.SetFilter(state.SearchText);
         _runInput.Text = state.RunInputText;
         _runPanel.IsVisible = state.RunPanelVisible;
-        _pendingHotReloadHorizontalOffset = state.HorizontalOffset;
-        _pendingHotReloadVerticalOffset = state.VerticalOffset;
-        _hasPendingHotReloadOffsets = true;
-        ApplyPendingHotReloadOffsets();
+        _pendingRestoredHorizontalOffset = state.HorizontalOffset;
+        _pendingRestoredVerticalOffset = state.VerticalOffset;
+        _hasPendingRestoredOffsets = true;
+        ApplyPendingRestoredOffsets();
         UpdateEmptyMessage();
     }
 
-    private void ApplyPendingHotReloadOffsets()
+    private void ApplyPendingRestoredOffsets()
     {
-        if (!_hasPendingHotReloadOffsets || !_hasReceivedRows) return;
+        if (!_hasPendingRestoredOffsets || !_hasReceivedRows) return;
 
         UpdateLayout();
         _tableScrollViewport.SetOffsets(
-            _pendingHotReloadHorizontalOffset,
-            _pendingHotReloadVerticalOffset);
-        _hasPendingHotReloadOffsets = false;
+            _pendingRestoredHorizontalOffset,
+            _pendingRestoredVerticalOffset);
+        _hasPendingRestoredOffsets = false;
     }
-#endif
 
     /// <summary>Adds a right-aligned page action and tracks its event subscription for disposal.</summary>
     protected SettingsButton AddHeaderAction(
@@ -294,10 +291,8 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     {
         _table.SetRows(rows);
         UpdateEmptyMessage();
-#if DEBUG
         _hasReceivedRows = true;
-        ApplyPendingHotReloadOffsets();
-#endif
+        ApplyPendingRestoredOffsets();
     }
 
     protected void SetColumnTitle(int columnIndex, string title) =>
@@ -568,13 +563,11 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         EventHandler ClickHandler);
 }
 
-#if DEBUG
-/// <summary>Interactive generic-page state retained across a Debug hot-reload rebuild.</summary>
-internal readonly record struct TaskManagerTableHotReloadState(
+/// <summary>Interactive generic-page state carried across a shell rebuild.</summary>
+internal readonly record struct TaskManagerTablePageViewState(
     string SearchText,
     string RunInputText,
     bool RunPanelVisible,
     double HorizontalOffset,
     double VerticalOffset,
-    TaskManagerTableControlHotReloadState TableState);
-#endif
+    TaskManagerTableViewState TableState);

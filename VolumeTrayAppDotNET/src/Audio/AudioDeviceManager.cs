@@ -203,11 +203,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     public BluetoothBatteryMonitor BatteryMonitor => _batteryMonitor;
 
     /// <summary>
-    /// Best-effort, single-flight reconnect request for a disconnected Bluetooth audio endpoint.
-    /// Calling this again while the visible attempt is pending reissues the one-shot driver request
-    /// and restarts its observation window. Windows exposes no cancellation handle for the earlier
-    /// asynchronous attempt. A related capture endpoint is tried first because Windows' documented
-    /// one-shot reconnect contract is implemented by the Bluetooth HFP audio filter.
+    /// Best-effort, single-flight reconnect request for a disconnected Bluetooth audio device. Like the
+    /// Windows Settings Connect button, the one-shot request goes to the profile driver behind every
+    /// Unplugged endpoint of the device instead of stopping at the first driver that accepts.
+    /// Calling this again while the visible attempt is pending reissues the requests and restarts the
+    /// observation window. Windows exposes no cancellation handle for the earlier asynchronous attempt.
     /// </summary>
     public void ConnectBluetoothDevice(AudioDevice device)
     {
@@ -220,8 +220,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                                 && (containerID is null
                                     ? ReferenceEquals(candidate, device)
                                     : candidate.ContainerId == containerID))
-            .OrderBy(candidate => candidate.DataFlow == EDataFlow.eCapture ? 0 : 1)
-            .ThenBy(candidate => ReferenceEquals(candidate, device) ? 0 : 1)
+            .OrderBy(candidate => ReferenceEquals(candidate, device) ? 0 : 1)
             .ToArray();
 
         if (relatedDevices.Length == 0) relatedDevices = [device];
@@ -256,7 +255,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 // The driver request completes quickly but cannot be cancelled. Serialize native
                 // calls so a rapid second click becomes a queued retry instead of a dropped click.
                 lock (_bluetoothConnectCallLock)
-                    requested = endpointIDs.Any(BluetoothAudioConnector.TryReconnect);
+                    requested = BluetoothAudioConnector.RequestConnection(endpointIDs, connect: true);
                 if (!requested)
                     TADNLog.Log("AudioDeviceManager.ConnectBluetoothDevice: no related endpoint accepted reconnect");
             }
@@ -401,18 +400,30 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     }
 
     /// <summary>
-    /// Best-effort, single-flight disconnect of the physical Bluetooth device behind an endpoint.
-    /// Address resolution stays on the dispatcher-owned battery cache; the native radio IOCTL runs
-    /// on the threadpool so a slow driver cannot stall the flyout.
+    /// Best-effort, single-flight disconnect of the physical Bluetooth device behind an endpoint. Like the
+    /// Windows Settings Disconnect button, the one-shot disconnect first goes to the profile driver behind
+    /// every active or Unplugged endpoint of the device, and then the radio drops the device's link.
+    /// Address resolution stays on the dispatcher-owned battery cache; the native calls run on the
+    /// threadpool so a slow driver cannot stall the flyout.
     /// </summary>
     public void DisconnectBluetoothDevice(AudioDevice device)
     {
-        if (_disposed || !device.IsBluetooth || device.ContainerId is not { } containerId) return;
-        if (!_batteryMonitor.TryGetBluetoothAddress(containerId, out ulong address))
+        if (_disposed || !device.IsBluetooth || device.ContainerId is not { } containerID) return;
+
+        string[] endpointIDs = _devices
+            .Where(candidate => candidate.IsBluetooth
+                                && candidate.ContainerId == containerID
+                                && (candidate.IsActive || candidate.IsBluetoothUnplugged))
+            .Select(static candidate => candidate.Id)
+            .Where(static deviceID => !string.IsNullOrEmpty(deviceID))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        bool hasAddress = _batteryMonitor.TryGetBluetoothAddress(containerID, out ulong address);
+        if (!hasAddress)
         {
-            TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice: no address for container {containerId}");
+            TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice: no address for container {containerID}");
             _batteryMonitor.Refresh();
-            return;
+            if (endpointIDs.Length == 0) return;
         }
 
         if (Interlocked.CompareExchange(ref _bluetoothDisconnectInFlight, value: 1, comparand: 0) != 0)
@@ -425,7 +436,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             try
             {
-                BluetoothDeviceDisconnector.TryDisconnect(address);
+                // Settings only logs the driver results and drops the link regardless
+                lock (_bluetoothConnectCallLock)
+                    BluetoothAudioConnector.RequestConnection(endpointIDs, connect: false);
+                if (hasAddress) BluetoothDeviceDisconnector.TryDisconnect(address);
             }
             catch (Exception exception)
             {

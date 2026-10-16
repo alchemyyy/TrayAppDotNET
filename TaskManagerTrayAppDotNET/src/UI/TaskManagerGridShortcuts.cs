@@ -1,6 +1,7 @@
 using System.Numerics;
 using Avalonia.Input;
 using TrayAppDotNETCommon.UI.ControlMapping;
+using TrayAppDotNETCommon.UI.Hotkeys;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -46,11 +47,6 @@ internal readonly record struct TaskManagerGridShortcut(
 internal static class TaskManagerGridShortcuts
 {
     private const string ModifierSeparator = " + ";
-    private const string ControlText = "Ctrl";
-    private const string ShiftText = "Shift";
-    private const string AltText = "Alt";
-    private const string MouseWheelText = "Mouse wheel";
-    private const string MiddleClickText = "Middle click";
 
     // Hotkeys page order; declared before Shortcuts, whose initializer reads it
     private static readonly TaskManagerGridShortcutEntry[] EntryList =
@@ -123,14 +119,17 @@ internal static class TaskManagerGridShortcuts
     public static string FormatGesture(TaskManagerGridShortcut shortcut)
     {
         List<string> parts = [];
-        if ((shortcut.Modifiers & KeyModifiers.Control) != 0) parts.Add(ControlText);
-        if ((shortcut.Modifiers & KeyModifiers.Shift) != 0) parts.Add(ShiftText);
-        if ((shortcut.Modifiers & KeyModifiers.Alt) != 0) parts.Add(AltText);
+        if ((shortcut.Modifiers & KeyModifiers.Control) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Ctrl)));
+        if ((shortcut.Modifiers & KeyModifiers.Shift) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Shift)));
+        if ((shortcut.Modifiers & KeyModifiers.Alt) != 0)
+            parts.Add(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Alt)));
         parts.Add(shortcut.Trigger switch
         {
-            TaskManagerGridShortcutTrigger.MouseWheel => MouseWheelText,
-            TaskManagerGridShortcutTrigger.MiddleClick => MiddleClickText,
-            _ => shortcut.Key.ToString()
+            TaskManagerGridShortcutTrigger.MouseWheel => L(nameof(AppStrings.Settings_Hotkeys_Gesture_MouseWheel)),
+            TaskManagerGridShortcutTrigger.MiddleClick => L(nameof(AppStrings.Settings_Hotkeys_Gesture_MiddleClick)),
+            _ => FormatKey(shortcut.Key)
         });
         return string.Join(ModifierSeparator, parts);
     }
@@ -138,29 +137,42 @@ internal static class TaskManagerGridShortcuts
     /// <summary>Returns the settings title for an action.</summary>
     public static string GetTitle(TaskManagerGridShortcutAction action) => action switch
     {
-        TaskManagerGridShortcutAction.Zoom => "Zoom",
-        TaskManagerGridShortcutAction.Stretch => "Stretch",
-        TaskManagerGridShortcutAction.ResetZoom => "Reset zoom",
-        TaskManagerGridShortcutAction.ResetStretch => "Reset stretch",
-        TaskManagerGridShortcutAction.SetZoomBaseline => "Set baseline zoom",
-        TaskManagerGridShortcutAction.SetStretchBaseline => "Set baseline stretch",
-        TaskManagerGridShortcutAction.EndTask => "End task",
+        TaskManagerGridShortcutAction.Zoom => L(nameof(AppStrings.Settings_Hotkeys_Zoom_Title)),
+        TaskManagerGridShortcutAction.Stretch => L(nameof(AppStrings.Settings_Hotkeys_Stretch_Title)),
+        TaskManagerGridShortcutAction.ResetZoom => L(nameof(AppStrings.Settings_Hotkeys_ResetZoom_Title)),
+        TaskManagerGridShortcutAction.ResetStretch => L(nameof(AppStrings.Settings_Hotkeys_ResetStretch_Title)),
+        TaskManagerGridShortcutAction.SetZoomBaseline => L(nameof(AppStrings.Settings_Hotkeys_SetZoomBaseline_Title)),
+        TaskManagerGridShortcutAction.SetStretchBaseline =>
+            L(nameof(AppStrings.Settings_Hotkeys_SetStretchBaseline_Title)),
+        TaskManagerGridShortcutAction.EndTask => L(nameof(AppStrings.Settings_Hotkeys_EndTask_Title)),
         _ => action.ToString()
     };
 
     /// <summary>Returns the settings description for an action.</summary>
     public static string GetDescription(TaskManagerGridShortcutAction action) => action switch
     {
-        TaskManagerGridShortcutAction.Zoom => "Scroll up to enlarge table text and down to shrink it.",
-        TaskManagerGridShortcutAction.Stretch => "Scroll up to add space between table rows and down to remove it.",
-        TaskManagerGridShortcutAction.ResetZoom => "Return table text to the baseline zoom.",
-        TaskManagerGridShortcutAction.ResetStretch => "Return table row spacing to the baseline stretch.",
-        TaskManagerGridShortcutAction.SetZoomBaseline => "Make the current text size the zoom that resets return to.",
+        TaskManagerGridShortcutAction.Zoom => L(nameof(AppStrings.Settings_Hotkeys_Zoom_Description)),
+        TaskManagerGridShortcutAction.Stretch => L(nameof(AppStrings.Settings_Hotkeys_Stretch_Description)),
+        TaskManagerGridShortcutAction.ResetZoom => L(nameof(AppStrings.Settings_Hotkeys_ResetZoom_Description)),
+        TaskManagerGridShortcutAction.ResetStretch => L(nameof(AppStrings.Settings_Hotkeys_ResetStretch_Description)),
+        TaskManagerGridShortcutAction.SetZoomBaseline =>
+            L(nameof(AppStrings.Settings_Hotkeys_SetZoomBaseline_Description)),
         TaskManagerGridShortcutAction.SetStretchBaseline =>
-            "Make the current row spacing the stretch that resets return to.",
-        TaskManagerGridShortcutAction.EndTask => "End the selected processes on the Processes page.",
+            L(nameof(AppStrings.Settings_Hotkeys_SetStretchBaseline_Description)),
+        TaskManagerGridShortcutAction.EndTask => L(nameof(AppStrings.Settings_Hotkeys_EndTask_Description)),
         _ => string.Empty
     };
+
+    /// <summary>
+    /// Names a key gesture's key as the shared hotkey pages do; keys with no virtual key keep their Avalonia name.
+    /// </summary>
+    private static string FormatKey(Key key)
+    {
+        uint virtualKey = TrayAppDotNETHotkeyKeys.VirtualKeyFromKey(key);
+        return virtualKey == 0 ? key.ToString() : TrayAppDotNETHotkeyKeys.KeyName(virtualKey);
+    }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     // A leaf the generated ids name but the compiled map lacks means the build is inconsistent, so fail fast
     private static TaskManagerGridShortcut[] ReadShortcuts()

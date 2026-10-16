@@ -43,13 +43,12 @@ internal enum ParkedThreadKind
 /// idle, or demonstrably stalled. App code under test sees ordinary <see cref="TimeProvider"/> semantics while a
 /// minute of DDC traffic costs milliseconds of real time.
 /// </summary>
-internal sealed class SimulationClock : TimeProvider
+internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions? options = null) : TimeProvider
 {
     private const long MaximumTimerFiresPerRun = 20_000_000;
 
     private readonly Lock _gate = new();
     private readonly PriorityQueue<TimerEntry, TimerOrder> _timers = new();
-    private readonly DateTimeOffset _epochUTC;
     private long _nowTicks;
     private long _timerSequence;
     private long _activity;
@@ -58,13 +57,7 @@ internal sealed class SimulationClock : TimeProvider
     private long _stallAdvances;
     private long _timerFires;
 
-    public SimulationClock(DateTimeOffset epochUTC, QuiescenceOptions? options = null)
-    {
-        _epochUTC = epochUTC;
-        Options = options ?? new QuiescenceOptions();
-    }
-
-    public QuiescenceOptions Options { get; }
+    public QuiescenceOptions Options { get; } = options ?? new QuiescenceOptions();
 
     /// <summary>The simulated UI thread, consulted for quiescence. Set once by the world.</summary>
     public SimulationDispatcher? Dispatcher { get; set; }
@@ -81,7 +74,7 @@ internal sealed class SimulationClock : TimeProvider
 
     public long TimerFires => Interlocked.Read(ref _timerFires);
 
-    public override DateTimeOffset GetUtcNow() => _epochUTC.AddTicks(Volatile.Read(ref _nowTicks));
+    public override DateTimeOffset GetUtcNow() => epochUtc.AddTicks(Volatile.Read(ref _nowTicks));
 
     public override long GetTimestamp() => Volatile.Read(ref _nowTicks);
 

@@ -75,7 +75,11 @@ internal sealed class BatteryAvaloniaApp : Application
         TADNLog.Log("BatteryAvaloniaApp.OnFrameworkInitializationCompleted");
         LocalizationManager.Instance.Initialize(
             AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture);
+            culture => AppStrings.Culture = culture,
+            TrayAppDotNETAvalonia.LoadConfiguredCulture(
+                AppSettings.GetDefaultPath,
+                AppLocalizationCultures.Names,
+                TADNLog.Log));
         TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
 

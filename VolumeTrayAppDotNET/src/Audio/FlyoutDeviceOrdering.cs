@@ -21,6 +21,8 @@ namespace VolumeTrayAppDotNET.Audio;
 /// Windows Bluetooth radio is off, regardless of the disconnected-device policy.
 /// The policy covers only paired devices: Unplugged endpoints, and the current pairing's NotPresent endpoints while the radio is off.
 /// Orphaned Bluetooth endpoints of unpaired devices or older pairings are never listed.
+/// A Bluetooth device whose endpoints are all disconnected can then collapse to one row in the slot of
+/// its most prominent endpoint; a device with any active endpoint keeps every row.
 /// </summary>
 internal static class FlyoutDeviceOrdering
 {
@@ -89,7 +91,110 @@ internal static class FlyoutDeviceOrdering
 
         List<AudioDevice> ordered = Sort(visible, settings);
         List<AudioDevice> dedicatedSection = Sort(dedicatedDisconnectedBluetooth, settings);
+        if (applyFlyoutBluetoothPolicies && settings.CollapseDisconnectedBluetoothDevicesInFlyout)
+        {
+            HashSet<Guid> connectedContainers = CollectContainersWithActiveBluetoothEndpoint(devices);
+            ordered = CollapseDisconnectedBluetooth(
+                ordered,
+                settings.FlyoutDeviceSort,
+                device => ResolveCollapsibleContainer(device, connectedContainers),
+                static device => device.DataFlow);
+            dedicatedSection = CollapseDisconnectedBluetooth(
+                dedicatedSection,
+                settings.FlyoutDeviceSort,
+                device => ResolveCollapsibleContainer(device, connectedContainers),
+                static device => device.DataFlow);
+        }
+
         return PlaceDedicatedSection(ordered, dedicatedSection, settings.FlyoutDeviceSort);
+    }
+
+    /// <summary>
+    /// Containers of Bluetooth devices with at least one active endpoint. Every endpoint counts, listed
+    /// or not, so a half-connected device is recognized even when its active endpoint is hidden.
+    /// </summary>
+    private static HashSet<Guid> CollectContainersWithActiveBluetoothEndpoint(IReadOnlyList<AudioDevice> devices)
+    {
+        HashSet<Guid> connectedContainers = [];
+        for (int deviceIndex = 0; deviceIndex < devices.Count; deviceIndex++)
+        {
+            if (devices[deviceIndex] is { IsBluetooth: true, IsActive: true, ContainerId: { } containerID })
+                connectedContainers.Add(containerID);
+        }
+
+        return connectedContainers;
+    }
+
+    private static Guid? ResolveCollapsibleContainer(AudioDevice device, IReadOnlySet<Guid> connectedContainers) =>
+        ResolveCollapsibleContainer(
+            device.IsBluetooth,
+            device.IsDisconnected,
+            device.IsBluetoothOrphaned,
+            device.ContainerId,
+            connectedContainers);
+
+    /// <summary>
+    /// Container a listed endpoint collapses into: a paired Bluetooth endpoint that is disconnected while
+    /// no endpoint of its device is active. Null leaves the endpoint as its own row.
+    /// </summary>
+    internal static Guid? ResolveCollapsibleContainer(
+        bool isBluetooth,
+        bool isDisconnected,
+        bool isBluetoothOrphaned,
+        Guid? containerID,
+        IReadOnlySet<Guid> connectedContainers)
+    {
+        if (!isBluetooth || !isDisconnected || isBluetoothOrphaned) return null;
+        if (containerID is not { } collapsibleContainerID) return null;
+        return connectedContainers.Contains(collapsibleContainerID) ? null : collapsibleContainerID;
+    }
+
+    /// <summary>
+    /// Keeps one row per collapsible container, in the slot of its most prominent endpoint: the playback
+    /// endpoint that sorts with the highest priority, else the highest-priority recording endpoint.
+    /// StateGrouped lists are visually bottom-up, so their highest priority is the last row; WindowsEnumeration
+    /// lists run top-down. Rows without a container keep their places.
+    /// </summary>
+    internal static List<TDevice> CollapseDisconnectedBluetooth<TDevice>(
+        IReadOnlyList<TDevice> ordered,
+        FlyoutDeviceSortOrder sortOrder,
+        Func<TDevice, Guid?> collapsibleContainerSelector,
+        Func<TDevice, EDataFlow> dataFlowSelector)
+    {
+        Guid?[] containers = new Guid?[ordered.Count];
+        for (int deviceIndex = 0; deviceIndex < ordered.Count; deviceIndex++)
+            containers[deviceIndex] = collapsibleContainerSelector(ordered[deviceIndex]);
+
+        Dictionary<Guid, int> representativeIndexByContainer = [];
+        bool isBottomUp = sortOrder == FlyoutDeviceSortOrder.StateGrouped;
+        for (int priority = 0; priority < ordered.Count; priority++)
+        {
+            int deviceIndex = isBottomUp ? ordered.Count - 1 - priority : priority;
+            if (containers[deviceIndex] is not { } containerID) continue;
+
+            if (!representativeIndexByContainer.TryGetValue(containerID, out int representativeIndex))
+            {
+                representativeIndexByContainer.Add(containerID, deviceIndex);
+                continue;
+            }
+
+            // Playback outranks recording, so the first playback endpoint replaces a recording representative
+            if (dataFlowSelector(ordered[representativeIndex]) != EDataFlow.eRender
+                && dataFlowSelector(ordered[deviceIndex]) == EDataFlow.eRender)
+                representativeIndexByContainer[containerID] = deviceIndex;
+        }
+
+        List<TDevice> collapsed = new(ordered.Count);
+        for (int deviceIndex = 0; deviceIndex < ordered.Count; deviceIndex++)
+        {
+            if (containers[deviceIndex] is { } containerID
+                && representativeIndexByContainer[containerID] != deviceIndex)
+                continue;
+
+            collapsed.Add(ordered[deviceIndex]);
+        }
+
+        return collapsed;
     }
 
     internal static bool PassesBluetoothRadioGate(

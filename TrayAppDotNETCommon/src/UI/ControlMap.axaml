@@ -106,10 +106,17 @@
     <!-- Settings pages and sections -->
 
     <Template ID="GeneralSection"
-              Description="BuildStartupCard then AddInstallationSection of TrayAppDotNETGeneralSettingsSection">
+              Description="BuildLanguageCard, BuildStartupCard, then AddInstallationSection of TrayAppDotNETGeneralSettingsSection">
+        <Scope ID="Language" Template="LanguageCard" Source="TrayAppDotNETGeneralSettingsSection.BuildLanguageCard" />
         <Scope ID="Startup" Template="StartupCard" Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard" />
         <Scope ID="Installation" Template="InstallationSection"
                Source="TrayAppDotNETGeneralSettingsSection.AddInstallationSection" />
+    </Template>
+
+    <Template ID="LanguageCard" Source="TrayAppDotNETGeneralSettingsSection.BuildLanguageCard">
+        <Leaf ID="Language" Kind="Select" Event="Callback"
+              Source="TrayAppDotNETGeneralSettingsSection.BuildLanguageCard"
+              Description="Auto, then the neutral language and each shipped translation by native name" />
     </Template>
 
     <Template ID="StartupCard" Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard">

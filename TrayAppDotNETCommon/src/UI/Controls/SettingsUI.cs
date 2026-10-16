@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Rendering;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Debugging;
@@ -1462,14 +1463,11 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         Children.Add(_cornerHost);
     }
 
-#if DEBUG
-    /// <summary>Gets the current horizontal offset for a hot-reload state snapshot.</summary>
     public double HorizontalOffset => _scrollViewer.Offset.X;
 
-    /// <summary>Gets the current vertical offset for a hot-reload state snapshot.</summary>
     public double VerticalOffset => _scrollViewer.Offset.Y;
 
-    /// <summary>Restores clamped offsets after a hot-reload content rebuild.</summary>
+    /// <summary>Restores offsets captured before the content was rebuilt, clamped to the new extent.</summary>
     public void SetOffsets(double horizontalOffset, double verticalOffset)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -1483,7 +1481,6 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
             : Math.Clamp(verticalOffset, min: 0, verticalMaximum);
         _scrollViewer.Offset = new Vector(nextHorizontalOffset, nextVerticalOffset);
     }
-#endif
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
@@ -1604,20 +1601,6 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
 
 internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 {
-    private const string ScrollHereText = "Scroll Here";
-    private const string TopText = "Top";
-    private const string BottomText = "Bottom";
-    private const string PageUpText = "Page Up";
-    private const string PageDownText = "Page Down";
-    private const string ScrollUpText = "Scroll Up";
-    private const string ScrollDownText = "Scroll Down";
-    private const string LeftEdgeText = "Left Edge";
-    private const string RightEdgeText = "Right Edge";
-    private const string PageLeftText = "Page Left";
-    private const string PageRightText = "Page Right";
-    private const string ScrollLeftText = "Scroll Left";
-    private const string ScrollRightText = "Scroll Right";
-
     private readonly Orientation _orientation;
 #if DEBUG
     private ContextMenuWindowOptions _contextMenuOptions;
@@ -2015,27 +1998,27 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         switch (_orientation)
         {
             case Orientation.Vertical:
-                startText = TopText;
-                endText = BottomText;
-                pageBackwardText = PageUpText;
-                pageForwardText = PageDownText;
-                lineBackwardText = ScrollUpText;
-                lineForwardText = ScrollDownText;
+                startText = L(nameof(CommonStrings.ScrollBarMenu_Top));
+                endText = L(nameof(CommonStrings.ScrollBarMenu_Bottom));
+                pageBackwardText = L(nameof(CommonStrings.ScrollBarMenu_PageUp));
+                pageForwardText = L(nameof(CommonStrings.ScrollBarMenu_PageDown));
+                lineBackwardText = L(nameof(CommonStrings.ScrollBarMenu_ScrollUp));
+                lineForwardText = L(nameof(CommonStrings.ScrollBarMenu_ScrollDown));
                 break;
             case Orientation.Horizontal:
-                startText = LeftEdgeText;
-                endText = RightEdgeText;
-                pageBackwardText = PageLeftText;
-                pageForwardText = PageRightText;
-                lineBackwardText = ScrollLeftText;
-                lineForwardText = ScrollRightText;
+                startText = L(nameof(CommonStrings.ScrollBarMenu_LeftEdge));
+                endText = L(nameof(CommonStrings.ScrollBarMenu_RightEdge));
+                pageBackwardText = L(nameof(CommonStrings.ScrollBarMenu_PageLeft));
+                pageForwardText = L(nameof(CommonStrings.ScrollBarMenu_PageRight));
+                lineBackwardText = L(nameof(CommonStrings.ScrollBarMenu_ScrollLeft));
+                lineForwardText = L(nameof(CommonStrings.ScrollBarMenu_ScrollRight));
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported scrollbar orientation: {_orientation}.");
         }
 
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(ScrollHereText, () => ScrollHere(pointerAxis))
+        entries.Add(new ContextMenuEntry(L(nameof(CommonStrings.ScrollBarMenu_ScrollHere)), () => ScrollHere(pointerAxis))
         {
             Node = ControlMap.ScrollBarMenu.Entries.ScrollHere
         });
@@ -2198,6 +2181,8 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 
     private static ContextMenuWindowOptions CreateDefaultContextMenuOptions(SettingsPalette palette) =>
         new() { Palette = palette };
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private void UpdateLayoutThickness()
     {

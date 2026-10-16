@@ -10,7 +10,50 @@ namespace TrayAppDotNETCommon.Localization;
 /// </summary>
 public sealed class LocalizationManager : INotifyPropertyChanged
 {
+    /// <summary>Language setting value that follows the Windows display language</summary>
+    public const string AutoLanguage = "Auto";
+
+    /// <summary>Culture of the neutral resx files, which every app ships</summary>
+    public const string NeutralLanguage = "en";
+
+    /// <summary>Windows display language, captured before a Language setting replaces the thread cultures</summary>
+    public static CultureInfo SystemUICulture { get; } = CultureInfo.CurrentUICulture;
+
     public static LocalizationManager Instance { get; } = new();
+
+    /// <summary>
+    /// Maps a Language setting value to the culture to apply. Auto, a blank value, and a language without a shipped
+    /// translation resolve to the Windows display language.
+    /// </summary>
+    public static CultureInfo ResolveCulture(
+        string? language,
+        IReadOnlyList<string> availableLanguages,
+        Action<string>? log = null)
+    {
+        string trimmedLanguage = language?.Trim() ?? string.Empty;
+        if (trimmedLanguage.Length == 0 ||
+            string.Equals(trimmedLanguage, AutoLanguage, StringComparison.OrdinalIgnoreCase))
+            return SystemUICulture;
+
+        bool isShipped = string.Equals(trimmedLanguage, NeutralLanguage, StringComparison.OrdinalIgnoreCase) ||
+                         availableLanguages.Contains(trimmedLanguage, StringComparer.OrdinalIgnoreCase);
+        if (!isShipped)
+        {
+            log?.Invoke($"LocalizationManager: no shipped translation for '{trimmedLanguage}'; using {AutoLanguage}");
+            return SystemUICulture;
+        }
+
+        try
+        {
+            return CultureInfo.GetCultureInfo(trimmedLanguage);
+        }
+        catch (CultureNotFoundException exception)
+        {
+            log?.Invoke(
+                $"LocalizationManager: '{trimmedLanguage}' is not a known culture; using {AutoLanguage}: {exception.Message}");
+            return SystemUICulture;
+        }
+    }
 
     private ResourceManager? _applicationResourceManager;
     private Action<CultureInfo>? _applyApplicationStringsCulture;
@@ -84,9 +127,9 @@ public sealed class LocalizationManager : INotifyPropertyChanged
         _applyApplicationStringsCulture?.Invoke(culture);
         CommonStrings.Culture = culture;
 
-        Thread.CurrentThread.CurrentCulture = culture;
+        // Only the UI language follows the setting; number and date formats keep the Windows regional format,
+        // which Windows also treats separately from the display language
         Thread.CurrentThread.CurrentUICulture = culture;
-        CultureInfo.DefaultThreadCurrentCulture = culture;
         CultureInfo.DefaultThreadCurrentUICulture = culture;
     }
 }

@@ -169,6 +169,7 @@
 
     <Surface ID="Settings" Template="SettingsShell" Source="BrightnessSettingsWindow.CreatePageDescriptors">
         <Scope ID="GeneralPage" Source="BrightnessSettingsWindow.BuildGeneralPage">
+            <Scope ID="Language" Template="LanguageCard" Source="BrightnessSettingsWindow.BuildGeneralPage" />
             <Scope ID="Startup" Template="StartupCard" Source="BrightnessSettingsWindow.BuildGeneralPage" />
             <Leaf ID="ApplyBrightnessOnStartup" Kind="Toggle" Event="Callback"
                   Source="BrightnessSettingsWindow.BuildGeneralPage" />

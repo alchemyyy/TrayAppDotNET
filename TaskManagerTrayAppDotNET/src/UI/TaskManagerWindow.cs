@@ -83,8 +83,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private double _axamlWindowHeight;
     private double _axamlWindowMinWidth;
     private double _axamlWindowMinHeight;
-    private ProcessDetailsHotReloadState? _processHotReloadState;
-    private TaskManagerTableHotReloadState? _tableHotReloadState;
+    private TaskManagerShellViewState? _hotReloadShellViewState;
+    private (double FontSize, double RowSpacing)? _hotReloadGridTypography;
 #endif
     private bool _windowDragWndProcHookAttached;
     private bool _activePageWorkEnabled;
@@ -163,43 +163,25 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 #if DEBUG
     protected override bool ApplyCommonAXAMLWindowDimensionsOnReload => false;
 
-    // AXAML hot-reload exception: Common and glyph dictionaries replace the shared shell, whose
-    // page cleanup closes open column, affinity, and reorder editors; their live controls cannot be
-    // safely reparented with active pointer, focus, and owner-window state
-    protected override void OnBeforeHotReloadShellRebuild() => CaptureHotReloadShellState();
-
-    protected override void OnAfterHotReloadShellRebuild() => RestoreHotReloadShellState();
-
-    private void CaptureHotReloadShellState()
+    protected override void OnBeforeHotReloadShellRebuild()
     {
-        CapturePerformancePageState();
-        _processHotReloadState = CurrentPageKey == TaskManagerPage.Processes
-            ? _processDetailsPage?.CaptureHotReloadState()
-            : null;
-        _tableHotReloadState = _activePageLayout is TaskManagerTablePage tablePage
-            ? tablePage.CaptureHotReloadState()
+        _hotReloadShellViewState = CaptureShellViewState();
+        _hotReloadGridTypography = CurrentPageKey == TaskManagerPage.Processes
+            ? _processDetailsPage?.RenderedGridTypography
             : null;
     }
 
-    private void RestoreHotReloadShellState()
+    protected override void OnAfterHotReloadShellRebuild()
     {
-        ProcessDetailsHotReloadState? state = _processHotReloadState;
-        TaskManagerTableHotReloadState? tableState = _tableHotReloadState;
-        _processHotReloadState = null;
-        _tableHotReloadState = null;
-        if (state.HasValue
-            && CurrentPageKey == TaskManagerPage.Processes
-            && _processDetailsPage != null)
-        {
-            UpdateLayout();
-            _processDetailsPage.RestoreHotReloadState(state.Value);
-        }
+        TaskManagerShellViewState? viewState = _hotReloadShellViewState;
+        (double FontSize, double RowSpacing)? gridTypography = _hotReloadGridTypography;
+        _hotReloadShellViewState = null;
+        _hotReloadGridTypography = null;
 
-        if (tableState.HasValue && _activePageLayout is TaskManagerTablePage tablePage)
-        {
-            UpdateLayout();
-            tablePage.RestoreHotReloadState(tableState.Value);
-        }
+        // Typography comes first because the restored scroll offsets depend on row height
+        if (gridTypography is { } typography && CurrentPageKey == TaskManagerPage.Processes)
+            _processDetailsPage?.RestoreRenderedGridTypography(typography);
+        if (viewState is { } state) RestoreShellViewState(state);
     }
 #endif
     protected override double CollapsedSidebarWidth =>
@@ -500,8 +482,46 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     internal void RefreshTheme()
     {
         Topmost = _settings.AlwaysOnTop;
-        CapturePerformancePageState();
+        RebuildShellPreservingViewState();
+    }
+
+    /// <summary>
+    /// Rebuilds the shell around the current page and carries the user's view into the replacement page, since a
+    /// rebuild constructs every page control again. Open column, affinity, and reorder editors close with the old
+    /// page; their live controls cannot be reparented with active pointer, focus, and owner-window state.
+    /// </summary>
+    private void RebuildShellPreservingViewState()
+    {
+        TaskManagerShellViewState viewState = CaptureShellViewState();
         RebuildShell(CurrentPageKey);
+        RestoreShellViewState(viewState);
+    }
+
+    private TaskManagerShellViewState CaptureShellViewState()
+    {
+        // The Performance page builder reads the selected device while the shell rebuilds
+        CapturePerformancePageState();
+        return new TaskManagerShellViewState(
+            CurrentPageKey,
+            CurrentPageKey == TaskManagerPage.Processes ? _processDetailsPage?.CaptureViewState() : null,
+            _activePageLayout is TaskManagerTablePage tablePage ? tablePage.CaptureViewState() : null);
+    }
+
+    private void RestoreShellViewState(TaskManagerShellViewState viewState)
+    {
+        if (CurrentPageKey != viewState.PageKey) return;
+
+        if (viewState.ProcessesState is { } processesState && _processDetailsPage != null)
+        {
+            UpdateLayout();
+            _processDetailsPage.RestoreViewState(processesState);
+        }
+
+        if (viewState.TableState is { } tableState && _activePageLayout is TaskManagerTablePage tablePage)
+        {
+            UpdateLayout();
+            tablePage.RestoreViewState(tableState);
+        }
     }
 
     private void CapturePerformancePageState()
@@ -530,18 +550,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         // Rebuild intentionally: most Task Manager controls copy construction-time AXAML values
         // AXAML hot-reload exception: in-flight generic-page actions remain owned by the disposed
         // page; transferring operation state safely would require ownership above the page
-        CaptureHotReloadShellState();
-        try
-        {
-            RefreshTheme();
-            RestoreHotReloadShellState();
-        }
-        catch
-        {
-            _processHotReloadState = null;
-            _tableHotReloadState = null;
-            throw;
-        }
+        RefreshTheme();
     }
 
     private void ApplyHotReloadedAXAMLWindowDimensions()
@@ -1273,3 +1282,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         resources.AxamlTaskManagerWindow.SidebarNavigationMargin,
         resources.AxamlTaskManagerWindow.SidebarFooterMargin);
 }
+
+/// <summary>The current page's view state, captured before a shell rebuild and restored into its replacement.</summary>
+internal readonly record struct TaskManagerShellViewState(
+    TaskManagerPage PageKey,
+    ProcessDetailsViewState? ProcessesState,
+    TaskManagerTablePageViewState? TableState);

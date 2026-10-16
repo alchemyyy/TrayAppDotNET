@@ -733,4 +733,112 @@ Restart from the installed copy now?</value>
   <data name="Uninstall_Progress_NotStarted" xml:space="preserve">
     <value>The uninstall process did not start</value>
   </data>
+  <data name="ScrollBarMenu_ScrollHere" xml:space="preserve">
+    <value>Scroll Here</value>
+  </data>
+  <data name="ScrollBarMenu_Top" xml:space="preserve">
+    <value>Top</value>
+  </data>
+  <data name="ScrollBarMenu_Bottom" xml:space="preserve">
+    <value>Bottom</value>
+  </data>
+  <data name="ScrollBarMenu_PageUp" xml:space="preserve">
+    <value>Page Up</value>
+  </data>
+  <data name="ScrollBarMenu_PageDown" xml:space="preserve">
+    <value>Page Down</value>
+  </data>
+  <data name="ScrollBarMenu_ScrollUp" xml:space="preserve">
+    <value>Scroll Up</value>
+  </data>
+  <data name="ScrollBarMenu_ScrollDown" xml:space="preserve">
+    <value>Scroll Down</value>
+  </data>
+  <data name="ScrollBarMenu_LeftEdge" xml:space="preserve">
+    <value>Left Edge</value>
+  </data>
+  <data name="ScrollBarMenu_RightEdge" xml:space="preserve">
+    <value>Right Edge</value>
+  </data>
+  <data name="ScrollBarMenu_PageLeft" xml:space="preserve">
+    <value>Page Left</value>
+  </data>
+  <data name="ScrollBarMenu_PageRight" xml:space="preserve">
+    <value>Page Right</value>
+  </data>
+  <data name="ScrollBarMenu_ScrollLeft" xml:space="preserve">
+    <value>Scroll Left</value>
+  </data>
+  <data name="ScrollBarMenu_ScrollRight" xml:space="preserve">
+    <value>Scroll Right</value>
+  </data>
+  <data name="SearchableListBox_Placeholder" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="SearchableListBox_NoResults" xml:space="preserve">
+    <value>No results</value>
+  </data>
+  <data name="Settings_General_Language_Title" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Settings_General_Language_Description" xml:space="preserve">
+    <value>Auto uses the Windows display language when a translation for it is available.</value>
+  </data>
+  <data name="Settings_General_Language_Auto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="Settings_General_Language_SearchKeywords" xml:space="preserve">
+    <value>locale translation culture display language region localization</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Backspace" xml:space="preserve">
+    <value>Backspace</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Tab" xml:space="preserve">
+    <value>Tab</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Enter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Escape" xml:space="preserve">
+    <value>Esc</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Space" xml:space="preserve">
+    <value>Space</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageUp" xml:space="preserve">
+    <value>Page Up</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageDown" xml:space="preserve">
+    <value>Page Down</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_End" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Left" xml:space="preserve">
+    <value>Left</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Up" xml:space="preserve">
+    <value>Up</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Right" xml:space="preserve">
+    <value>Right</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Down" xml:space="preserve">
+    <value>Down</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Insert" xml:space="preserve">
+    <value>Insert</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_NumPad_Format" xml:space="preserve">
+    <value>Num {0}</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_VK_Format" xml:space="preserve">
+    <value>VK {0}</value>
+  </data>
 </root>

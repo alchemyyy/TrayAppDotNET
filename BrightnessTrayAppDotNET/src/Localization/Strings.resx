@@ -754,66 +754,6 @@ Target: {1}</value>
   <data name="Settings_Hotkeys_IncrementNightLight_Title" xml:space="preserve">
     <value>Increment night light</value>
   </data>
-  <data name="Settings_Hotkeys_Key_Enter" xml:space="preserve">
-    <value>Enter</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_Escape" xml:space="preserve">
-    <value>Esc</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_PageDown" xml:space="preserve">
-    <value>PageDown</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_PageUp" xml:space="preserve">
-    <value>PageUp</value>
-  </data>
-  <data name="Settings_Hotkeys_Key_Space" xml:space="preserve">
-    <value>Space</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Alt" xml:space="preserve">
-    <value>Alt</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltShift" xml:space="preserve">
-    <value>Alt+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltShiftWin" xml:space="preserve">
-    <value>Alt+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_AltWin" xml:space="preserve">
-    <value>Alt+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Ctrl" xml:space="preserve">
-    <value>Ctrl</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAlt" xml:space="preserve">
-    <value>Ctrl+Alt</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltShift" xml:space="preserve">
-    <value>Ctrl+Alt+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltShiftWin" xml:space="preserve">
-    <value>Ctrl+Alt+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlAltWin" xml:space="preserve">
-    <value>Ctrl+Alt+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlShift" xml:space="preserve">
-    <value>Ctrl+Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlShiftWin" xml:space="preserve">
-    <value>Ctrl+Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_CtrlWin" xml:space="preserve">
-    <value>Ctrl+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Shift" xml:space="preserve">
-    <value>Shift</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_ShiftWin" xml:space="preserve">
-    <value>Shift+Win</value>
-  </data>
-  <data name="Settings_Hotkeys_Modifier_Win" xml:space="preserve">
-    <value>Win</value>
-  </data>
   <data name="Settings_Hotkeys_NormalizeBrightnesses_Description" xml:space="preserve">
     <value>Sync every monitor's brightness to the master slider's current value.</value>
   </data>
@@ -1396,12 +1336,6 @@ Night Light: {0}%</value>
   </data>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>
-  </data>
-  <data name="Uninstaller_DefaultDescription" xml:space="preserve">
-    <value>This will remove the installed copy of BrightnessTrayAppDotNET and its registration in Windows Apps. Choose what to do with your settings.</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_DefaultDescription" xml:space="preserve">
-    <value>Also remove %LOCALAPPDATA%\TrayAppDotNET\BrightnessTrayAppDotNET, including settings.xml.</value>
   </data>
   <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
     <value>Also remove "{0}" including settings.xml.</value>

@@ -31,7 +31,7 @@ internal static class KSConstants
         a: 0x3CB4A69D, b: 0xBB6F, c: 0x4D2B, d: 0x95, e: 0xB7, f: 0x45, g: 0x2D, h: 0x2C, i: 0x15, j: 0x5D, k: 0xB5);
 
     // Public topology and kernel-streaming interfaces used to submit the Bluetooth audio
-    // driver's filter-level KSPROPERTY_ONESHOT_RECONNECT request.
+    // drivers' filter-level KSPROPERTY_ONESHOT_RECONNECT / KSPROPERTY_ONESHOT_DISCONNECT requests.
     public static readonly Guid IID_IDeviceTopology = new(
         a: 0x2A07407E, b: 0x6497, c: 0x4A18, d: 0x97, e: 0x87, f: 0x32, g: 0xF7, h: 0x9B, i: 0xD0, j: 0xD9, k: 0x8F);
 
@@ -42,7 +42,19 @@ internal static class KSConstants
         a: 0x7FA06C40, b: 0xB8F6, c: 0x4C7E, d: 0x85, e: 0x56, f: 0xE8, g: 0xC3, h: 0x3A, i: 0x12, j: 0xE5, k: 0x4D);
 
     public const uint KSPROPERTY_ONESHOT_RECONNECT = 0;
+    public const uint KSPROPERTY_ONESHOT_DISCONNECT = 1;
     public const uint KSPROPERTY_TYPE_GET = 0x00000001;
+
+    // CTL_CODE(FILE_DEVICE_KS, 0x000, METHOD_NEITHER, FILE_ANY_ACCESS), the IOCTL behind
+    // IKsControl::KsProperty, sent directly to a filter's controller interface
+    public const uint IOCTL_KS_PROPERTY = 0x002F0003;
+
+    // CreateFileW access and disposition for that interface, matching the Settings call
+    public const uint GENERIC_READ = 0x80000000;
+    public const uint GENERIC_WRITE = 0x40000000;
+    public const uint FILE_SHARE_READ = 0x00000001;
+    public const uint FILE_SHARE_WRITE = 0x00000002;
+    public const uint OPEN_EXISTING = 3;
 
     // KSDATAFORMAT_TYPE_AUDIO: MajorFormat for audio formats.
     public static readonly Guid KSDATAFORMAT_TYPE_AUDIO = new(
@@ -94,6 +106,28 @@ internal static class KSTopologyNative
         public uint ID;
         public uint Flags;
     }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    public static extern IntPtr CreateFileW(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DeviceIoControl(
+        IntPtr hDevice,
+        uint dwIoControlCode,
+        ref KSPropertyRequest lpInBuffer,
+        uint nInBufferSize,
+        IntPtr lpOutBuffer,
+        uint nOutBufferSize,
+        out uint lpBytesReturned,
+        IntPtr lpOverlapped);
 
     public static int CallFilterByDataFormat(
         IntPtr filterPtr,

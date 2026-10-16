@@ -1,4 +1,3 @@
-#if DEBUG
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,8 +12,15 @@ using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
 
-[Collection(TaskManagerReorderListLifetimeTestCollection.CollectionName)]
-public sealed class TaskManagerTableHotReloadStateTests
+// Each test starts its own headless Avalonia session, so they must not run alongside other UI tests
+[CollectionDefinition(CollectionName, DisableParallelization = true)]
+public sealed class TaskManagerTableViewStateTestCollection
+{
+    public const string CollectionName = "Task Manager table view state tests";
+}
+
+[Collection(TaskManagerTableViewStateTestCollection.CollectionName)]
+public sealed class TaskManagerTableViewStateTests
 {
     [Fact]
     public async Task RestoreBeforeRowsRetainsSortCollapsedGroupsAndSelection()
@@ -33,7 +39,7 @@ public sealed class TaskManagerTableHotReloadStateTests
                     CreatePalette(),
                     new TaskManagerWindowResources(),
                     isLightTheme: false);
-                TaskManagerTableControlHotReloadState state = new(
+                TaskManagerTableViewState state = new(
                     SelectedRowKey: "process-b",
                     SortColumnIndex: 1,
                     SortDescending: true,
@@ -43,7 +49,7 @@ public sealed class TaskManagerTableHotReloadStateTests
                 List<string?> selectionNotifications = [];
                 table.SelectedRowChanged += row => selectionNotifications.Add(row?.Key);
 
-                table.RestoreHotReloadState(state);
+                table.RestoreViewState(state);
 
                 Assert.Empty(table.VisibleRows);
                 Assert.Null(table.SelectedRow);
@@ -55,7 +61,7 @@ public sealed class TaskManagerTableHotReloadStateTests
                     table.VisibleRows.Select(static row => row.Key));
                 Assert.Equal(expected: "process-b", table.SelectedRow?.Key);
                 Assert.Equal(["process-b"], selectionNotifications);
-                TaskManagerTableControlHotReloadState restored = table.CaptureHotReloadState();
+                TaskManagerTableViewState restored = table.CaptureViewState();
                 Assert.Equal(expected: 1, restored.SortColumnIndex);
                 Assert.True(restored.SortDescending);
                 Assert.Equal(["group-a"], restored.CollapsedGroupKeys);
@@ -79,8 +85,8 @@ public sealed class TaskManagerTableHotReloadStateTests
                     CreatePalette(),
                     new TaskManagerWindowResources(),
                     isLightTheme: false);
-                TaskManagerTableControlHotReloadState previousState =
-                    previousTable.CaptureHotReloadState() with
+                TaskManagerTableViewState previousState =
+                    previousTable.CaptureViewState() with
                     {
                         // The second width differs from its AXAML baseline, as it would after a drag
                         ColumnWidths = [100, 190]
@@ -93,10 +99,10 @@ public sealed class TaskManagerTableHotReloadStateTests
                     CreatePalette(),
                     new TaskManagerWindowResources(),
                     isLightTheme: false);
-                rebuiltTable.RestoreHotReloadState(previousState);
+                rebuiltTable.RestoreViewState(previousState);
 
-                TaskManagerTableControlHotReloadState restoredState =
-                    rebuiltTable.CaptureHotReloadState();
+                TaskManagerTableViewState restoredState =
+                    rebuiltTable.CaptureViewState();
                 Assert.Equal([140, 190], restoredState.ColumnWidths);
                 Assert.Equal([140, 120], restoredState.BaselineColumnWidths);
             },
@@ -127,7 +133,7 @@ public sealed class TaskManagerTableHotReloadStateTests
                     new TaskManagerWindowResources(),
                     isLightTheme: false);
 
-                TaskManagerTableControlHotReloadState state = table.CaptureHotReloadState();
+                TaskManagerTableViewState state = table.CaptureViewState();
                 Assert.Equal([minimumColumnWidth], state.ColumnWidths);
                 Assert.Equal([minimumColumnWidth], state.BaselineColumnWidths);
             },
@@ -159,14 +165,14 @@ public sealed class TaskManagerTableHotReloadStateTests
                 {
                     window.Show();
                     window.UpdateLayout();
-                    TaskManagerTableControlHotReloadState tableState = new(
+                    TaskManagerTableViewState tableState = new(
                         SelectedRowKey: null,
                         SortColumnIndex: 0,
                         SortDescending: false,
                         [],
                         [600, 600],
                         [600, 600]);
-                    TaskManagerTableHotReloadState state = new(
+                    TaskManagerTablePageViewState state = new(
                         string.Empty,
                         string.Empty,
                         RunPanelVisible: false,
@@ -174,13 +180,13 @@ public sealed class TaskManagerTableHotReloadStateTests
                         verticalOffset,
                         tableState);
 
-                    page.RestoreHotReloadState(state);
+                    page.RestoreViewState(state);
 
-                    TaskManagerTableHotReloadState beforeRows = page.CaptureHotReloadState();
+                    TaskManagerTablePageViewState beforeRows = page.CaptureViewState();
                     SettingsScrollViewport viewport = GetPrivateField<SettingsScrollViewport>(
                         page,
                         fieldName: "_tableScrollViewport");
-                    Assert.True(GetPrivateField<bool>(page, fieldName: "_hasPendingHotReloadOffsets"));
+                    Assert.True(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
                     Assert.Equal(horizontalOffset, beforeRows.HorizontalOffset);
                     Assert.Equal(verticalOffset, beforeRows.VerticalOffset);
                     Assert.Equal(expected: 0, viewport.HorizontalOffset);
@@ -189,10 +195,10 @@ public sealed class TaskManagerTableHotReloadStateTests
                     page.SupplyRows(CreateFlatRows(80));
                     window.UpdateLayout();
 
-                    TaskManagerTableHotReloadState afterRows = page.CaptureHotReloadState();
+                    TaskManagerTablePageViewState afterRows = page.CaptureViewState();
                     ScrollViewer scrollViewer = Assert.Single(
                         viewport.Children.OfType<ScrollViewer>());
-                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingHotReloadOffsets"));
+                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
                     Assert.True(
                         afterRows.HorizontalOffset.Equals(horizontalOffset)
                         && afterRows.VerticalOffset.Equals(verticalOffset),
@@ -233,14 +239,14 @@ public sealed class TaskManagerTableHotReloadStateTests
                 {
                     window.Show();
                     window.UpdateLayout();
-                    TaskManagerTableControlHotReloadState tableState = new(
+                    TaskManagerTableViewState tableState = new(
                         SelectedRowKey: null,
                         SortColumnIndex: 0,
                         SortDescending: false,
                         [],
                         [600, 600],
                         [600, 600]);
-                    TaskManagerTableHotReloadState state = new(
+                    TaskManagerTablePageViewState state = new(
                         SearchText: "no matching row",
                         string.Empty,
                         RunPanelVisible: false,
@@ -248,16 +254,16 @@ public sealed class TaskManagerTableHotReloadStateTests
                         VerticalOffset: 90,
                         tableState);
 
-                    page.RestoreHotReloadState(state);
+                    page.RestoreViewState(state);
                     page.SupplyRows(CreateFlatRows(80));
                     window.UpdateLayout();
 
-                    TaskManagerTableHotReloadState restored = page.CaptureHotReloadState();
+                    TaskManagerTablePageViewState restored = page.CaptureViewState();
                     TaskManagerTableControl table = GetPrivateField<TaskManagerTableControl>(
                         page,
                         fieldName: "_table");
                     Assert.Empty(table.VisibleRows);
-                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingHotReloadOffsets"));
+                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
                     Assert.Equal(horizontalOffset, restored.HorizontalOffset);
                 }
                 finally
@@ -378,4 +384,3 @@ public sealed class TaskManagerTableHotReloadStateTests
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 }
-#endif

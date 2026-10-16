@@ -205,7 +205,7 @@ public class ProbeCard
     /// <summary>Changes visibility while refusing to remove the last valid profile.</summary>
     public bool TrySetProfileVisibility(int profileIndex, bool visible)
     {
-        if (profileIndex < 0 || profileIndex >= FanProfile.SlotCount) return false;
+        if (profileIndex is < 0 or >= FanProfile.SlotCount) return false;
 
         int profileBit = 1 << profileIndex;
         int validMask = DisplayProfileMask & ValidProfileMask;

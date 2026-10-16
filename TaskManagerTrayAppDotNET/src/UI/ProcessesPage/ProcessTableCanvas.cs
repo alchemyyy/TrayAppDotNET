@@ -472,16 +472,29 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         }
     }
 
-#if DEBUG
     public ProcessTerminationTarget[] SelectedTerminationTargets => CreateSelectedTerminationTargets();
-#endif
+
+    /// <summary>Returns whether a snapshot has populated the rows, which a canvas built while hidden lacks.</summary>
+    internal bool HasRows => _rowCount > 0;
+
+    internal ProcessTableColumnKind SortColumn => _sortColumn;
+
+    internal bool SortDescending => _sortDescending;
 
     /// <summary>Clears every selected process and its keyboard-driven action target.</summary>
     internal void ClearSelection() => ApplyPointerSelection(
         visibleIndex: -1,
         KeyModifiers.None);
 
-#if DEBUG
+    /// <summary>Restores a sort order captured from the canvas a shell rebuild replaced.</summary>
+    internal void RestoreSort(ProcessTableColumnKind column, bool descending)
+    {
+        if (IsTaskManagerGridDisposed || FindColumn(_columns, column) < 0) return;
+        if (column == _sortColumn && descending == _sortDescending) return;
+
+        ApplySort(column, descending, viewportAnchor: null);
+    }
+
     /// <summary>Restores identity-checked selections after a shared shell rebuild.</summary>
     internal void RestoreSelectedProcesses(
         IReadOnlyList<ProcessTerminationTarget> targets,
@@ -516,7 +529,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         UpdateSelectionOverlay();
         InvalidateLayers(RenderLayerMask.All);
     }
-#endif
 
     /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
@@ -2562,7 +2574,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         return selectedRowIndexes;
     }
 
-#if DEBUG
     private ProcessTerminationTarget[] CreateSelectedTerminationTargets()
     {
         ProcessEndTaskItem[] selectedProcesses = CreateSelectedEndTaskItems();
@@ -2571,7 +2582,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             targets[processIndex] = selectedProcesses[processIndex].Target;
         return targets;
     }
-#endif
 
     private static void AppendRowCopyText(
         StringBuilder copyText,
@@ -4341,14 +4351,19 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
 
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         ProcessTableColumnKind nextColumn = _columns[columnIndex].Kind;
-        if (nextColumn == _sortColumn)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortColumn = nextColumn;
-            _sortDescending = ProcessTableColumnCatalog.SortsDescendingByDefault(nextColumn);
-        }
+        bool nextDescending = nextColumn == _sortColumn
+            ? !_sortDescending
+            : ProcessTableColumnCatalog.SortsDescendingByDefault(nextColumn);
+        ApplySort(nextColumn, nextDescending, viewportAnchor);
+    }
 
+    private void ApplySort(
+        ProcessTableColumnKind column,
+        bool descending,
+        ProcessViewportAnchor? viewportAnchor)
+    {
+        _sortColumn = column;
+        _sortDescending = descending;
         RebuildVisibleRows();
         RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();

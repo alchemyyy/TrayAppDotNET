@@ -214,6 +214,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
     public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;
+    public string Language { get; set; } = LocalizationManager.AutoLanguage;
 
     // Empty by default; defaults are seeded by EnsureDefaultHotkeys() after construction or load.
     // Keep defaults out of the initializer so load paths do not duplicate seeded bindings.
@@ -687,7 +688,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// <summary>Switches fan layout and control snapshots without borrowing names or groups from another slot.</summary>
     public bool SelectFanProfile(int targetIndex, IEnumerable<Fan> liveFans)
     {
-        if (targetIndex < 0 || targetIndex >= FanProfile.SlotCount) return false;
+        if (targetIndex is < 0 or >= FanProfile.SlotCount) return false;
         EnsureFanProfileLayouts();
         if (targetIndex == SelectedFanProfileIndex) return false;
 
