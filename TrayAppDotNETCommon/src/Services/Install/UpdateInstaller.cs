@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO.Pipes;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;
 
@@ -277,6 +278,20 @@ internal static class UpdateInstaller
             log("Commit received; waiting for the parent to exit.");
             await parentExitTask.ConfigureAwait(false);
             StopInstalledProcesses(targetExecutable, plan.StopSiblingApps, log);
+
+            // Other apps' installs and updates write the same shared files into this folder. Mutex ownership
+            // is per thread, so the lock covers only this synchronous stretch after the last await
+            using TrayAppDotNETInstallDirectoryLock? directoryLock = TrayAppDotNETInstallDirectoryLock.Acquire(
+                targetDirectory,
+                TimeSpan.FromMilliseconds(TimeConstants.InstallDirectoryLockTimeoutMs),
+                waiting: null,
+                log);
+            if (directoryLock == null)
+            {
+                // Nothing was replaced yet, so the restarter brings the previous version back up
+                log("Another install or update kept the install folder busy; the update was not applied.");
+                return RolledBackExitCode;
+            }
 
             UpdateFileTransactionResult result = UpdateFileTransaction.Apply(plan, log);
             switch (result.Status)
@@ -579,7 +594,8 @@ internal static class UpdateInstaller
             bool keep = false;
             try
             {
-                if (process.Id == Environment.ProcessId || process.HasExited) continue;
+                if (process.Id == Environment.ProcessId) continue;
+                // A process that has exited no longer opens, so this also stands in for HasExited
                 string? executable = TryGetProcessExecutable(process);
                 keep = executable != null && allowedExecutables.Contains(Path.GetFullPath(executable));
                 if (keep) matches.Add(process);
@@ -806,10 +822,11 @@ internal static class UpdateInstaller
     {
         try
         {
-            return process.MainModule?.FileName;
+            return ProcessImagePath.TryGet(process.Id);
         }
-        catch
+        catch (InvalidOperationException)
         {
+            // A Process whose ID was never resolved
             return null;
         }
     }

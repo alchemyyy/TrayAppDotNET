@@ -679,6 +679,12 @@ Restart from the installed copy now?</value>
   <data name="Install_Progress_CheckingFiles" xml:space="preserve">
     <value>Checking installation files</value>
   </data>
+  <data name="Install_Progress_WaitingForInstallDirectory" xml:space="preserve">
+    <value>Waiting for another installation to finish</value>
+  </data>
+  <data name="Install_Error_InstallDirectoryBusy_Format" xml:space="preserve">
+    <value>Another installation is still copying files into {0}</value>
+  </data>
   <data name="Install_Progress_CopyingFiles_Format" xml:space="preserve">
     <value>Copying files ({0} of {1})</value>
   </data>

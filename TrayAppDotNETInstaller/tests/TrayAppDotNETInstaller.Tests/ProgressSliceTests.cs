@@ -5,23 +5,6 @@ namespace TrayAppDotNETInstaller.Tests;
 
 public sealed class ProgressSliceTests
 {
-    [Fact]
-    public void ForIndex_SplitsEvenlyAndEndsAtHundred()
-    {
-        Assert.Equal(new ProgressSlice(0, 33), ProgressSlice.ForIndex(0, 3));
-        Assert.Equal(new ProgressSlice(33, 66), ProgressSlice.ForIndex(1, 3));
-        Assert.Equal(new ProgressSlice(66, 100), ProgressSlice.ForIndex(2, 3));
-        Assert.Equal(new ProgressSlice(0, 100), ProgressSlice.ForIndex(0, 1));
-    }
-
-    [Fact]
-    public void ForIndex_ClampsDegenerateInputs()
-    {
-        Assert.Equal(ProgressSlice.Full, ProgressSlice.ForIndex(0, 0));
-        Assert.Equal(new ProgressSlice(50, 100), ProgressSlice.ForIndex(5, 2));
-        Assert.Equal(new ProgressSlice(0, 50), ProgressSlice.ForIndex(-1, 2));
-    }
-
     [Theory]
     [InlineData(0, 40)]
     [InlineData(50, 50)]
@@ -47,8 +30,8 @@ public sealed class ProgressSliceTests
     [Fact]
     public void Portion_ThenMap_ComposesLikeInstallSlices()
     {
-        // Second of two apps: extraction is the first 40 percent of its half, install the rest
-        ProgressSlice appSlice = ProgressSlice.ForIndex(1, 2);
+        // Extraction is the first 40 percent of the upper half, install the rest
+        ProgressSlice appSlice = new(50, 100);
         ProgressSlice extract = appSlice.Portion(0, 40);
         ProgressSlice install = appSlice.Portion(40, 100);
 

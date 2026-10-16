@@ -12,6 +12,9 @@ public static class InstallEngine
 {
     // Inside one app's slice, extraction owns the first 40 percent and the headless install the rest
     private const int ExtractPortionEndPercent = 40;
+    // A portable install only copies after extracting, which is the bulk of its time
+    private const int PortableExtractPortionEndPercent = 80;
+    private const string SearchAllPattern = "*";
     private const int FullInnerPercent = InstallProgressLine.CompletePercent;
     private const string HeadlessInstallArgument = "--install-headless";
     private const string DesktopShortcutArgument = "--desktop-shortcut";
@@ -29,15 +32,86 @@ public static class InstallEngine
 
     private sealed record AppInstallResult(string? Error, string? InstalledExecutable);
 
+    /// <summary>How one application's run ended: not started, failed (no executable) or installed.</summary>
+    private sealed record ApplicationRunResult(bool Started, string? InstalledExecutable)
+    {
+        public static ApplicationRunResult NotStarted { get; } = new(Started: false, InstalledExecutable: null);
+    }
+
+    /// <summary>State shared by the applications of one run.</summary>
+    private sealed class ParallelRun(
+        InstallPlan plan,
+        Func<EmbeddedPayload, Stream> openPayload,
+        string temporaryRoot,
+        InstallProgressAggregator aggregator,
+        IProgress<InstallApplicationStatus> applicationProgress,
+        int maximumConcurrentApplications,
+        CancellationToken cancellationToken) : IDisposable
+    {
+        // Stands in for System.Threading.Lock, which the .NET Framework does not define
+        private readonly object _gate = new();
+        // Cancelled by the first failure or by the caller; running applications only follow the caller's token
+        private readonly CancellationTokenSource _stopQueued = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        private string? _firstFailureMessage;
+
+        public InstallPlan Plan { get; } = plan;
+        public Func<EmbeddedPayload, Stream> OpenPayload { get; } = openPayload;
+        public string TemporaryRoot { get; } = temporaryRoot;
+        public InstallProgressAggregator Aggregator { get; } = aggregator;
+        public IProgress<InstallApplicationStatus> ApplicationProgress { get; } = applicationProgress;
+        public CancellationToken CancellationToken { get; } = cancellationToken;
+        public SemaphoreSlim Slots { get; } = new(maximumConcurrentApplications, maximumConcurrentApplications);
+        public SemaphoreSlim PortableCopyGate { get; } = new(initialCount: 1, maxCount: 1);
+        public CancellationToken StopQueuedToken => _stopQueued.Token;
+
+        /// <summary>The message of the failure that happened first, which the run reports as its outcome.</summary>
+        public string? FirstFailureMessage
+        {
+            get
+            {
+                lock (_gate) return _firstFailureMessage;
+            }
+        }
+
+        public void RecordFailure(string message)
+        {
+            lock (_gate) _firstFailureMessage ??= message;
+
+            _stopQueued.Cancel();
+        }
+
+        public void Dispose()
+        {
+            _stopQueued.Dispose();
+            Slots.Dispose();
+            PortableCopyGate.Dispose();
+        }
+    }
+
     public static Task<InstallOutcome> RunAsync(
         InstallPlan plan,
         IProgress<InstallProgressLine> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken) =>
-        RunAsync(plan, EmbeddedPayloadCatalog.Load().OpenPayload, progress, applicationProgress, cancellationToken);
+        RunAsync(
+            plan,
+            EmbeddedPayloadCatalog.Load().OpenPayload,
+            progress,
+            applicationProgress,
+            DefaultMaximumConcurrentApplications,
+            cancellationToken);
 
     /// <summary>
-    /// Runs the plan, reporting each application's Installing, Installed or Failed state to <paramref name="applicationProgress"/>.
+    /// Every selected application installs at once, up to one per processor: extraction decodes each
+    /// application's LZMA stream on its own thread, and the rest is the app's own installer process.
+    /// </summary>
+    public static int DefaultMaximumConcurrentApplications => Math.Max(Environment.ProcessorCount, 1);
+
+    /// <summary>
+    /// Runs the plan with up to <paramref name="maximumConcurrentApplications"/> applications installing at once,
+    /// reporting each application's Installing, Installed or Failed state to <paramref name="applicationProgress"/>.
+    /// The first failure stops queued applications from starting, while the ones already running finish,
+    /// because killing an app's installer mid-copy would leave that app half installed.
     /// <paramref name="openPayload"/> lets tests substitute on-disk zips.
     /// </summary>
     internal static async Task<InstallOutcome> RunAsync(
@@ -45,12 +119,18 @@ public static class InstallEngine
         Func<EmbeddedPayload, Stream> openPayload,
         IProgress<InstallProgressLine> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
+        int maximumConcurrentApplications,
         CancellationToken cancellationToken)
     {
         FrameworkCompatibility.ThrowIfNull(plan, nameof(plan));
         FrameworkCompatibility.ThrowIfNull(openPayload, nameof(openPayload));
         FrameworkCompatibility.ThrowIfNull(progress, nameof(progress));
         FrameworkCompatibility.ThrowIfNull(applicationProgress, nameof(applicationProgress));
+        if (maximumConcurrentApplications <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumConcurrentApplications), maximumConcurrentApplications, message: "At least one application must be allowed to run.");
+        }
 
         List<string> installedExecutables = [];
         if (plan.Payloads.Count == 0)
@@ -64,66 +144,125 @@ public static class InstallEngine
         }
 
         string? temporaryRoot = null;
-        // The application in flight, so a failure that escapes as an exception is still pinned to it
-        string? currentApplicationName = null;
         try
         {
-            for (int index = 0; index < plan.Payloads.Count; index++)
+            temporaryRoot = CreateTemporaryRoot();
+            int applicationCount = plan.Payloads.Count;
+            using ParallelRun run = new(
+                plan,
+                openPayload,
+                temporaryRoot,
+                new InstallProgressAggregator(applicationCount, progress),
+                applicationProgress,
+                Math.Min(maximumConcurrentApplications, applicationCount),
+                cancellationToken);
+
+            Task<ApplicationRunResult>[] applicationRuns = new Task<ApplicationRunResult>[applicationCount];
+            for (int index = 0; index < applicationCount; index++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                EmbeddedPayload payload = plan.Payloads[index];
-                ProgressSlice slice = ProgressSlice.ForIndex(index, plan.Payloads.Count);
-                currentApplicationName = payload.ApplicationName;
-                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
-                AppInstallResult result;
-                switch (plan.Mode)
+                // Slots are taken here rather than inside each run, so queued applications start in plan order
+                try
                 {
-                    case InstallMode.Portable:
-                        result = InstallPortable(plan, payload, openPayload, slice, progress, cancellationToken);
-                        break;
-                    case InstallMode.Local:
-                    case InstallMode.System:
-                        temporaryRoot ??= CreateTemporaryRoot();
-                        result = await InstallThroughAppAsync(
-                            plan, payload, openPayload, temporaryRoot, slice, progress, cancellationToken)
-                            .ConfigureAwait(false);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(plan), plan.Mode, message: "Unsupported install mode.");
+                    await run.Slots.WaitAsync(run.StopQueuedToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Stopped before it started, so it is not blamed and stays not installed
+                    applicationRuns[index] = Task.FromResult(ApplicationRunResult.NotStarted);
+                    continue;
                 }
 
-                if (result.Error != null)
-                    return Fail(result.Error, payload.ApplicationName, progress, applicationProgress, installedExecutables);
-
-                installedExecutables.Add(result.InstalledExecutable
-                                         ?? InstallDefaults.InstalledExecutablePath(
-                                             plan.Mode, plan.TargetDirectory, payload.ApplicationName));
-                applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installed));
-                currentApplicationName = null;
+                int applicationIndex = index;
+                // Extraction is synchronous, so each application starts on the thread pool rather than this thread
+                applicationRuns[index] = Task.Run(() => RunApplicationAsync(run, applicationIndex), CancellationToken.None);
             }
+
+            ApplicationRunResult[] results = await Task.WhenAll(applicationRuns).ConfigureAwait(false);
+            bool anyNotStarted = false;
+            foreach (ApplicationRunResult result in results)
+            {
+                if (result.InstalledExecutable != null) installedExecutables.Add(result.InstalledExecutable);
+                anyNotStarted |= !result.Started;
+            }
+
+            // Only a failure or a cancellation keeps an application from starting
+            string? failureMessage = run.FirstFailureMessage
+                                     ?? (anyNotStarted ? L(nameof(AppStrings.Installer_Progress_Cancelled)) : null);
+            if (failureMessage != null)
+                return Fail(failureMessage, failedApplicationName: null, progress, applicationProgress, installedExecutables);
 
             progress.Report(InstallProgressLine.At(InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
             return new InstallOutcome(Success: true, ErrorMessage: null, installedExecutables);
         }
-        catch (OperationCanceledException)
-        {
-            return Fail(
-                L(nameof(AppStrings.Installer_Progress_Cancelled)),
-                currentApplicationName,
-                progress,
-                applicationProgress,
-                installedExecutables);
-        }
         catch (Exception exception)
         {
+            // Every application handles its own failures, so this is the shared setup failing before any started
             InstallerLog.Write("InstallEngine.RunAsync", exception);
-            return Fail(exception.Message, currentApplicationName, progress, applicationProgress, installedExecutables);
+            return Fail(exception.Message, failedApplicationName: null, progress, applicationProgress, installedExecutables);
         }
         finally
         {
             if (temporaryRoot != null)
                 await DeleteTemporaryRootAsync(temporaryRoot).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Installs one application in the slot the caller took for it, settling its state before returning. Never throws.</summary>
+    private static async Task<ApplicationRunResult> RunApplicationAsync(ParallelRun run, int index)
+    {
+        EmbeddedPayload payload = run.Plan.Payloads[index];
+        try
+        {
+            // A failure can land between taking the slot and starting
+            if (run.StopQueuedToken.IsCancellationRequested) return ApplicationRunResult.NotStarted;
+
+            run.ApplicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
+            IProgress<InstallProgressLine> progress = run.Aggregator.ForApplication(index);
+            AppInstallResult result;
+            switch (run.Plan.Mode)
+            {
+                case InstallMode.Portable:
+                    result = await InstallPortableAsync(run, payload, progress).ConfigureAwait(false);
+                    break;
+                case InstallMode.Local:
+                case InstallMode.System:
+                    result = await InstallThroughAppAsync(
+                            run.Plan, payload, run.OpenPayload, run.TemporaryRoot, ProgressSlice.Full, progress, run.CancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(run), run.Plan.Mode, message: "Unsupported install mode.");
+            }
+
+            if (result.Error != null) return FailApplication(run, payload, result.Error);
+
+            string installedExecutable = result.InstalledExecutable
+                                         ?? InstallDefaults.InstalledExecutablePath(
+                                             run.Plan.Mode, run.Plan.TargetDirectory, payload.ApplicationName);
+            run.ApplicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installed));
+            return new ApplicationRunResult(Started: true, installedExecutable);
+        }
+        catch (OperationCanceledException)
+        {
+            return FailApplication(run, payload, L(nameof(AppStrings.Installer_Progress_Cancelled)));
+        }
+        catch (Exception exception)
+        {
+            InstallerLog.Write($"InstallEngine: {payload.ApplicationName}", exception);
+            return FailApplication(run, payload, exception.Message);
+        }
+        finally
+        {
+            run.Slots.Release();
+        }
+    }
+
+    private static ApplicationRunResult FailApplication(ParallelRun run, EmbeddedPayload payload, string message)
+    {
+        InstallerLog.Write($"InstallEngine: {payload.ApplicationName} failed: {message}");
+        run.RecordFailure(message);
+        run.ApplicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Failed));
+        return new ApplicationRunResult(Started: true, InstalledExecutable: null);
     }
 
     /// <summary>
@@ -238,17 +377,51 @@ public static class InstallEngine
     internal static bool IsRootInstallScript(string entryName) =>
         string.Equals(entryName, InstallScriptFileName, StringComparison.OrdinalIgnoreCase);
 
-    private static AppInstallResult InstallPortable(
-        InstallPlan plan,
+    /// <summary>
+    /// Extracts into the staging folder, which runs alongside the other applications, then copies into the
+    /// portable folder one application at a time, because every package carries the same shared files.
+    /// </summary>
+    private static async Task<AppInstallResult> InstallPortableAsync(
+        ParallelRun run,
         EmbeddedPayload payload,
-        Func<EmbeddedPayload, Stream> openPayload,
-        ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
-        CancellationToken cancellationToken)
+        IProgress<InstallProgressLine> progress)
     {
-        using Stream archive = openPayload(payload);
-        ExtractArchive(archive, plan.TargetDirectory, payload.ApplicationName, slice, progress, cancellationToken);
+        string stagingDirectory = Path.Combine(run.TemporaryRoot, payload.ApplicationName);
+        ProgressSlice extractSlice = ProgressSlice.Full.Portion(fromInnerPercent: 0, PortableExtractPortionEndPercent);
+        using (Stream archive = run.OpenPayload(payload))
+        {
+            ExtractArchive(archive, stagingDirectory, payload.ApplicationName, extractSlice, progress, run.CancellationToken);
+        }
+
+        await run.PortableCopyGate.WaitAsync(run.CancellationToken).ConfigureAwait(false);
+        try
+        {
+            progress.Report(InstallProgressLine.At(extractSlice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
+            CopyDirectory(stagingDirectory, run.Plan.TargetDirectory, run.CancellationToken);
+        }
+        finally
+        {
+            run.PortableCopyGate.Release();
+        }
+
+        progress.Report(InstallProgressLine.At(FullInnerPercent, Format(nameof(AppStrings.Installer_Progress_Installed_Format), payload.ApplicationName)));
         return new AppInstallResult(Error: null, InstalledExecutable: null);
+    }
+
+    /// <summary>Copies every directory and file under <paramref name="sourceDirectory"/> into <paramref name="destinationDirectory"/>, overwriting.</summary>
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory, CancellationToken cancellationToken)
+    {
+        string sourceRoot = Path.GetFullPath(sourceDirectory).TrimEnd(Path.DirectorySeparatorChar);
+        Directory.CreateDirectory(destinationDirectory);
+        // Path.GetRelativePath does not exist on the .NET Framework; every enumerated path starts with the source root
+        foreach (string directory in Directory.EnumerateDirectories(sourceRoot, SearchAllPattern, SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(destinationDirectory, directory[(sourceRoot.Length + 1)..]));
+
+        foreach (string file in Directory.EnumerateFiles(sourceRoot, SearchAllPattern, SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Copy(file, Path.Combine(destinationDirectory, file[(sourceRoot.Length + 1)..]), overwrite: true);
+        }
     }
 
     private static async Task<AppInstallResult> InstallThroughAppAsync(

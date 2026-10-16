@@ -15,6 +15,12 @@ public sealed record TrayAppDotNETInstallLayout(
     public string ProgramFilesInstallExecutable =>
         Path.Combine(ProgramFilesInstallDirectory, InstalledExecutableFileName);
 
+    /// <summary>
+    /// Where uninstall preparation moves the exe until the batch stage deletes it. The name is outside the "*.exe"
+    /// pattern, so a concurrent uninstall does not count the app as still installed.
+    /// </summary>
+    public static string PendingRemovalExecutablePath(string installedExecutable) => installedExecutable + ".uninstalling";
+
     public string WindowsAppsRoot { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), path2: "WindowsApps");
 

@@ -39,9 +39,13 @@ public sealed class UninstallScriptTests
         Assert.StartsWith(expectedStartString: "@echo off", script, StringComparison.Ordinal);
         Assert.Contains(expectedSubstring: "--uninstall-prepare --scope user", script, StringComparison.Ordinal);
         Assert.Contains(expectedSubstring: "app.data", script, StringComparison.Ordinal);
-        Assert.Contains(expectedSubstring: "shared.dll", script, StringComparison.Ordinal);
         Assert.Contains(expectedSubstring: "app-assets", script, StringComparison.Ordinal);
-        Assert.Contains(expectedSubstring: "shared-assets", script, StringComparison.Ordinal);
+        // Shared files belong to the helper, which checks for other apps under the install directory lock
+        Assert.DoesNotContain(expectedSubstring: "shared.dll", script, StringComparison.Ordinal);
+        Assert.DoesNotContain(expectedSubstring: "shared-assets", script, StringComparison.Ordinal);
+        Assert.DoesNotContain(expectedSubstring: "*.exe", script, StringComparison.Ordinal);
+        // The exe is deleted under either name, since the helper renames it when it can
+        Assert.Contains(expectedSubstring: "TestTrayAppDotNET.exe.uninstalling", script, StringComparison.Ordinal);
         Assert.Contains(expectedSubstring: "50%%off", script, StringComparison.Ordinal);
         Assert.DoesNotContain(expectedSubstring: "powershell", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(expectedSubstring: "--progress-pipe", script, StringComparison.Ordinal);

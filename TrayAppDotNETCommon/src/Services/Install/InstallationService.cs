@@ -40,6 +40,8 @@ public sealed record TrayAppDotNETUninstallRun(Process? Process, bool UserCancel
 public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOptions options)
 {
     private const int UninstallProcessStopAttempts = 20;
+    // With UninstallFileRetryDelayMs between attempts, ten seconds for killed processes to unmap the libraries
+    private const int SharedFileDeleteAttempts = 10;
     private const int ElevatedProgressDrainTimeoutMs = 2000;
 
     // Install stage percentages
@@ -355,6 +357,18 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             }
 
             List<InstallCopyItem> copyPlan = BuildCopyPlan(sourceExe, sourceDirectory, destinationDirectory, destinationExe);
+            // Other apps write the same shared files into this folder, so concurrent installs copy one at a time
+            using TrayAppDotNETInstallDirectoryLock? directoryLock = TrayAppDotNETInstallDirectoryLock.Acquire(
+                destinationDirectory,
+                TimeSpan.FromMilliseconds(TimeConstants.InstallDirectoryLockTimeoutMs),
+                () => ReportStage(progress, InstallCheckingFilesPercent, nameof(CommonStrings.Install_Progress_WaitingForInstallDirectory)),
+                Identity.WriteLog);
+            if (directoryLock == null)
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    string.Format(CultureInfo.CurrentCulture, L(nameof(CommonStrings.Install_Error_InstallDirectoryBusy_Format)), destinationDirectory));
+            }
+
             Directory.CreateDirectory(destinationDirectory);
             int copiedCount = 0;
             foreach (InstallCopyItem item in copyPlan)
@@ -659,15 +673,130 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 DeleteSettingsDirectory();
             }
 
-            return desktopResult.Success
+            ReportStage(progress, UninstallRemovingFilesPercent, nameof(CommonStrings.Uninstall_Progress_RemovingFiles));
+            TrayAppDotNETInstallResult sharedResult = RemoveSharedFilesIfLast(scope);
+
+            if (!desktopResult.Success) return Fail(progress, desktopResult.ErrorMessage);
+
+            return sharedResult.Success
                 ? new TrayAppDotNETInstallResult(true)
-                : Fail(progress, desktopResult.ErrorMessage);
+                : Fail(progress, sharedResult.ErrorMessage);
         }
         catch (Exception exception)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.PrepareUninstall({scope}): {exception}");
             return Fail(progress, exception.Message);
         }
+    }
+
+    /// <summary>
+    /// Removes the files every app shares when this app is the last one in the install folder. The check and
+    /// the deletes run under the install directory lock, so an install cannot land its exe in between. This
+    /// app's exe is first renamed out of the "*.exe" pattern: a running image can be renamed but not deleted,
+    /// and another app uninstalling at the same time then only counts exes that are staying. The batch stage
+    /// deletes the renamed exe once its image is unmapped.
+    /// </summary>
+    private TrayAppDotNETInstallResult RemoveSharedFilesIfLast(InstallScope scope)
+    {
+        bool allUsers = scope == InstallScope.ProgramFiles;
+        string installDirectory = allUsers ? Layout.ProgramFilesInstallDirectory : Layout.LocalAppDataInstallDirectory;
+        string installedExecutable = allUsers ? Layout.ProgramFilesInstallExecutable : Layout.LocalAppDataInstallExecutable;
+        if (!Directory.Exists(installDirectory)) return new TrayAppDotNETInstallResult(true);
+
+        using TrayAppDotNETInstallDirectoryLock? directoryLock = TrayAppDotNETInstallDirectoryLock.Acquire(
+            installDirectory,
+            TimeSpan.FromMilliseconds(TimeConstants.InstallDirectoryLockTimeoutMs),
+            waiting: null,
+            Identity.WriteLog);
+        // Keeping the shared files is the safe outcome whenever the folder cannot be examined under the lock
+        if (directoryLock == null)
+            return new TrayAppDotNETInstallResult(Success: false, $"Shared files were kept: {installDirectory} stayed busy");
+
+        string pendingExecutable = TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(installedExecutable);
+        try
+        {
+            if (File.Exists(installedExecutable)) File.Move(installedExecutable, pendingExecutable, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Identity.WriteLog($"PrepareUninstall: could not rename {installedExecutable}; shared files were kept: {exception.Message}");
+            return new TrayAppDotNETInstallResult(Success: false, exception.Message);
+        }
+
+        foreach (string executable in Directory.EnumerateFiles(installDirectory, searchPattern: "*.exe"))
+        {
+            // The pattern also matches longer extensions that start with exe, which are not executables
+            if (!string.Equals(Path.GetExtension(executable), b: ".exe", StringComparison.OrdinalIgnoreCase)) continue;
+
+            Identity.WriteLog($"PrepareUninstall: {Path.GetFileName(executable)} still uses the shared files; keeping them");
+            return new TrayAppDotNETInstallResult(true);
+        }
+
+        List<string> remaining = [];
+        for (int attempt = 1; attempt <= SharedFileDeleteAttempts; attempt++)
+        {
+            remaining = TryDeleteSharedFiles(installDirectory, pendingExecutable);
+            if (remaining.Count == 0) return new TrayAppDotNETInstallResult(true);
+
+            // Processes stopped a moment ago can still have the native libraries mapped
+            if (attempt < SharedFileDeleteAttempts) Thread.Sleep(TimeConstants.UninstallFileRetryDelayMs);
+        }
+
+        string message = $"Could not remove shared files: {string.Join(separator: ", ", remaining)}";
+        Identity.WriteLog($"PrepareUninstall: {message}");
+        return new TrayAppDotNETInstallResult(Success: false, message);
+    }
+
+    /// <summary>Deletes the shared payload once, returning the paths that still exist.</summary>
+    private List<string> TryDeleteSharedFiles(string installDirectory, string pendingExecutable)
+    {
+        List<string> files = [];
+        foreach (TrayAppDotNETInstallFile file in Payload.InstalledFiles(Layout.InstalledExecutableFileName))
+        {
+            if (file.RemoveOnlyWhenInstallRootHasNoExe) files.Add(Path.Combine(installDirectory, file.Name));
+        }
+
+        if (Payload.CopySourceDirectoryRootFiles)
+        {
+            foreach (string rootFile in Directory.EnumerateFiles(installDirectory))
+            {
+                if (!string.Equals(rootFile, pendingExecutable, StringComparison.OrdinalIgnoreCase)) files.Add(rootFile);
+            }
+        }
+
+        List<string> remaining = [];
+        foreach (string file in files)
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Identity.WriteLog($"PrepareUninstall: could not delete {file}: {exception.Message}");
+            }
+
+            if (File.Exists(file)) remaining.Add(file);
+        }
+
+        foreach (TrayAppDotNETInstallDirectory directory in Payload.InstalledDirectories)
+        {
+            if (!directory.RemoveOnlyWhenInstallRootHasNoExe) continue;
+
+            string path = Path.Combine(installDirectory, directory.Name);
+            try
+            {
+                if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Identity.WriteLog($"PrepareUninstall: could not delete {path}: {exception.Message}");
+            }
+
+            if (Directory.Exists(path)) remaining.Add(path);
+        }
+
+        return remaining;
     }
 
     /// <summary>Removes the settings directory; the batch stage repeats the removal once every process is gone.</summary>
@@ -788,8 +917,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             bool keep = false;
             try
             {
-                if (process.Id == Environment.ProcessId || process.HasExited) continue;
-                string? executable = process.MainModule?.FileName;
+                if (process.Id == Environment.ProcessId) continue;
+                // A process that has exited no longer opens, so this also stands in for HasExited
+                string? executable = ProcessImagePath.TryGet(process.Id);
                 keep = executable != null
                        && string.Equals(
                            Path.GetFullPath(executable),

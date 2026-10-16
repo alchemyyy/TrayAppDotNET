@@ -267,6 +267,9 @@
   <data name="Installer_Progress_Installing_Format" xml:space="preserve">
     <value>Installing {0}</value>
   </data>
+  <data name="Installer_Progress_Installed_Format" xml:space="preserve">
+    <value>Installed {0}</value>
+  </data>
   <data name="Installer_Progress_Complete" xml:space="preserve">
     <value>Installation complete</value>
   </data>

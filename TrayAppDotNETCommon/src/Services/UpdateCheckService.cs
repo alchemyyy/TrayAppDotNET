@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net;
@@ -98,7 +97,7 @@ public sealed class UpdateCheckOptions
 
     public string? StagingFilePrefix { get; init; }
 
-    public Func<string?> CurrentExecutablePath { get; init; } = ResolveCurrentExecutablePath;
+    public Func<string?> CurrentExecutablePath { get; init; } = static () => Environment.ProcessPath;
 
     public TimeSpan StartupDelay { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckStartupDelayMs);
@@ -124,12 +123,6 @@ public sealed class UpdateCheckOptions
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
 
     internal Func<DateTime> GetCurrentUTCTime { get; init; } = static () => DateTime.UtcNow;
-
-    private static string? ResolveCurrentExecutablePath()
-    {
-        using Process currentProcess = Process.GetCurrentProcess();
-        return currentProcess.MainModule?.FileName ?? Environment.ProcessPath;
-    }
 }
 
 public sealed class UpdateCheckService : IDisposable

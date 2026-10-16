@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.Marshalling;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Utils;
 using VolumeTrayAppDotNET.Interop;
 using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
 using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
@@ -253,7 +254,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         // AppID routes the session to its group so it has to be ready synchronously - new sessions
         // arriving while a name lookup is async would otherwise race the AppID-keyed bucket lookup
-        // in AudioDevice.AddSession. GetProcessImagePath uses kernel32 directly (OpenProcess +
+        // in AudioDevice.AddSession. ProcessImagePath uses kernel32 directly (OpenProcess +
         // QueryFullProcessImageName); fast (<1ms) so it stays inline.
         // The slow parts - AppIconResolver and FileVersionInfo lookups - are deferred to a
         // background task so a session-migration burst (5-10 apps reconnecting after the default
@@ -270,7 +271,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             _displayName = ReadSessionDisplayName(_control);
             if (string.IsNullOrEmpty(_displayName)) _displayName = AudioLocalization.UnknownAppName;
 
-            string? imagePath = ProcessHelper.GetProcessImagePath(pid);
+            string? imagePath = ProcessImagePath.TryGet((int)pid);
             AppID = string.IsNullOrEmpty(imagePath) ? $"pid:{pid}" : imagePath.ToLowerInvariant();
         }
 

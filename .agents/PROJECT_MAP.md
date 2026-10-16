@@ -75,6 +75,16 @@
     folder each mode installs to; the uninstall registry's build number goes stale after in-app updates, so it
     is not read, and portable copies leave no record. The window starts on the mode holding the most copies
     (System on a tie), shows an informational notice, and labels suite rows `Installed (System)` and so on.
+  - `InstallEngine.RunAsync` installs the selected apps concurrently, up to one per processor, and
+    `InstallProgressAggregator` shows the mean of each app's own percent. The first failure stops queued apps from
+    starting; running ones finish rather than being killed mid-copy. Every app installs into one flat folder and
+    ships the same native DLLs, legal files and `.notices`, so the copy phase is serialized: the apps' headless
+    installers take `TrayAppDotNETInstallDirectoryLock` (a `Global\` mutex named from the install directory hash)
+    around `CopyInstallPayload` (the in-app update worker takes it around `UpdateFileTransaction.Apply`), and portable installs extract to staging in parallel, then copy into the folder
+    one app at a time. Uninstall removes the shared files in C# (`PrepareUninstall`, the `--uninstall-prepare`
+    stage), under the same lock: it renames the app's exe to `<App>.exe.uninstalling` (a running image can be renamed,
+    and the name leaves the `*.exe` pattern), deletes the shared files only when no other exe remains, and the
+    batch script then deletes the exe under either name plus the app's own files.
   - After a successful install the window launches each app with `--hidden` through `AppLauncher`. A process
     elevated under UAC (`SystemProbes.IsSplitTokenElevated`) launches through the desktop Explorer's
     `IShellDispatch2.ShellExecute` (`UnelevatedLauncher`), which keeps the arguments; `explorer.exe <path>`

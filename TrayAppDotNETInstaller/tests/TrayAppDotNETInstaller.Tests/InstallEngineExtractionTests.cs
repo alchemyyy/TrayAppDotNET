@@ -11,6 +11,9 @@ public sealed class InstallEngineExtractionTests : IDisposable
     private const string SecondApplicationName = "SecondTrayAppDotNET";
     private const string ThirdApplicationName = "ThirdTrayAppDotNET";
     private const int PackageVersion = 1;
+    private const string SharedEntryName = "LICENSE.txt";
+    private const string SharedEntryContent = "shared license";
+    private static readonly TimeSpan ConcurrencyWaitTimeout = TimeSpan.FromSeconds(30);
 
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
@@ -141,7 +144,12 @@ public sealed class InstallEngineExtractionTests : IDisposable
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
-            plan, _ => File.OpenRead(zipPath), new ListProgress(reports), new StatusListProgress(statuses), CancellationToken.None);
+            plan,
+            _ => File.OpenRead(zipPath),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            InstallEngine.DefaultMaximumConcurrentApplications,
+            CancellationToken.None);
 
         Assert.True(outcome.Success, outcome.ErrorMessage);
         Assert.Null(outcome.ErrorMessage);
@@ -167,7 +175,12 @@ public sealed class InstallEngineExtractionTests : IDisposable
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
-            plan, _ => File.OpenRead(zipPath), new ListProgress(reports), new StatusListProgress(statuses), CancellationToken.None);
+            plan,
+            _ => File.OpenRead(zipPath),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            InstallEngine.DefaultMaximumConcurrentApplications,
+            CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.NotNull(outcome.ErrorMessage);
@@ -183,7 +196,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_PinsAFailureToTheApplicationInFlightAndGoesNoFurther()
+    public async Task RunAsync_OneAtATimeAFailureStopsTheQueuedApplications()
     {
         string[] applicationNames = [FirstApplicationName, SecondApplicationName, ThirdApplicationName];
         // The middle package escapes its destination, which the engine surfaces as an exception
@@ -203,6 +216,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             payload => File.OpenRead(zipPaths[payload.ApplicationName]),
             new ListProgress(reports),
             new StatusListProgress(statuses),
+            maximumConcurrentApplications: 1,
             CancellationToken.None);
 
         Assert.False(outcome.Success);
@@ -243,6 +257,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             payload => File.OpenRead(zipPaths[payload.ApplicationName]),
             new ListProgress(reports),
             statusProgress,
+            maximumConcurrentApplications: 1,
             cancellation.Token);
 
         Assert.False(outcome.Success);
@@ -253,6 +268,91 @@ public sealed class InstallEngineExtractionTests : IDisposable
                 new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installed)
             ],
             statuses);
+    }
+
+    [Fact]
+    public async Task RunAsync_InstallsEveryApplicationAtOnce()
+    {
+        string[] applicationNames = [FirstApplicationName, SecondApplicationName, ThirdApplicationName];
+        Dictionary<string, string> zipPaths = new(StringComparer.Ordinal);
+        foreach (string applicationName in applicationNames)
+            zipPaths[applicationName] = CreatePackage(applicationName, (EntryName: SharedEntryName, Content: SharedEntryContent));
+
+        string target = Path.Combine(_root, "concurrent");
+        List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
+        // Every payload open waits for all of them, so a run that installs one at a time never gets past the first
+        using CountdownEvent opened = new(applicationNames.Length);
+
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            CreateSuitePlan(target, applicationNames),
+            payload => OpenOnceAllAreRunning(opened, zipPaths[payload.ApplicationName]),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            maximumConcurrentApplications: applicationNames.Length,
+            CancellationToken.None);
+
+        Assert.True(outcome.Success, outcome.ErrorMessage);
+        // Results keep the plan order however the applications finished
+        Assert.Equal(
+            [
+                Path.Combine(target, ExecutableName(FirstApplicationName)),
+                Path.Combine(target, ExecutableName(SecondApplicationName)),
+                Path.Combine(target, ExecutableName(ThirdApplicationName))
+            ],
+            outcome.InstalledExecutables);
+        // The file every package shares reaches the folder intact despite three writers
+        Assert.Equal(SharedEntryContent, File.ReadAllText(Path.Combine(target, SharedEntryName)));
+        Assert.True(reports[reports.Count - 1].IsComplete);
+        for (int index = 1; index < reports.Count; index++)
+            Assert.True(reports[index].Percent >= reports[index - 1].Percent, "progress must not go backwards");
+        foreach (string applicationName in applicationNames)
+        {
+            Assert.Equal(
+                [InstallApplicationState.Installing, InstallApplicationState.Installed],
+                StatesOf(statuses, applicationName));
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_AFailureLetsTheRunningApplicationsFinish()
+    {
+        string[] applicationNames = [FirstApplicationName, SecondApplicationName, ThirdApplicationName];
+        Dictionary<string, string> zipPaths = new(StringComparer.Ordinal)
+        {
+            [FirstApplicationName] = CreatePackage(FirstApplicationName),
+            [SecondApplicationName] = CreatePackage(SecondApplicationName, (EntryName: "../escaped.txt", Content: "escaped")),
+            [ThirdApplicationName] = CreatePackage(ThirdApplicationName)
+        };
+        string target = Path.Combine(_root, "partial");
+        List<InstallProgressLine> reports = [];
+        List<InstallApplicationStatus> statuses = [];
+        // All three are running before the middle one fails
+        using CountdownEvent opened = new(applicationNames.Length);
+
+        InstallOutcome outcome = await InstallEngine.RunAsync(
+            CreateSuitePlan(target, applicationNames),
+            payload => OpenOnceAllAreRunning(opened, zipPaths[payload.ApplicationName]),
+            new ListProgress(reports),
+            new StatusListProgress(statuses),
+            maximumConcurrentApplications: applicationNames.Length,
+            CancellationToken.None);
+
+        Assert.False(outcome.Success);
+        Assert.Contains("escaped.txt", outcome.ErrorMessage);
+        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.Single(reports, report => report.IsFailure);
+        Assert.Equal(
+            [
+                Path.Combine(target, ExecutableName(FirstApplicationName)),
+                Path.Combine(target, ExecutableName(ThirdApplicationName))
+            ],
+            outcome.InstalledExecutables);
+        Assert.Equal([InstallApplicationState.Installing, InstallApplicationState.Installed], StatesOf(statuses, FirstApplicationName));
+        Assert.Equal([InstallApplicationState.Installing, InstallApplicationState.Failed], StatesOf(statuses, SecondApplicationName));
+        Assert.Equal([InstallApplicationState.Installing, InstallApplicationState.Installed], StatesOf(statuses, ThirdApplicationName));
+        // The failed package stopped while still staging, so none of it reaches the folder
+        Assert.False(File.Exists(Path.Combine(target, ExecutableName(SecondApplicationName))));
     }
 
     [Fact]
@@ -267,6 +367,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             _ => throw new InvalidOperationException("unreachable"),
             new ListProgress(reports),
             new StatusListProgress(statuses),
+            InstallEngine.DefaultMaximumConcurrentApplications,
             CancellationToken.None);
 
         Assert.False(outcome.Success);
@@ -318,11 +419,38 @@ public sealed class InstallEngineExtractionTests : IDisposable
 
     private static string ExecutableName(string applicationName) => applicationName + ".exe";
 
+    /// <summary>Opens the package only once every application of the run has asked for its own.</summary>
+    private static Stream OpenOnceAllAreRunning(CountdownEvent opened, string zipPath)
+    {
+        opened.Signal();
+        if (!opened.Wait(ConcurrencyWaitTimeout)) throw new TimeoutException("The applications did not run at once.");
+
+        return File.OpenRead(zipPath);
+    }
+
+    private static List<InstallApplicationState> StatesOf(List<InstallApplicationStatus> statuses, string applicationName)
+    {
+        List<InstallApplicationState> states = [];
+        lock (statuses)
+        {
+            foreach (InstallApplicationStatus status in statuses)
+            {
+                if (status.ApplicationName == applicationName) states.Add(status.State);
+            }
+        }
+
+        return states;
+    }
+
     private static string PackageName(string applicationName) => $"{applicationName}_{PackageVersion}.zip";
 
+    // Applications report from several threads at once, so both recorders lock their list
     private sealed class ListProgress(List<InstallProgressLine> lines) : IProgress<InstallProgressLine>
     {
-        public void Report(InstallProgressLine value) => lines.Add(value);
+        public void Report(InstallProgressLine value)
+        {
+            lock (lines) lines.Add(value);
+        }
     }
 
     private sealed class StatusListProgress(
@@ -331,7 +459,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     {
         public void Report(InstallApplicationStatus value)
         {
-            statuses.Add(value);
+            lock (statuses) statuses.Add(value);
             statusReported?.Invoke(value);
         }
     }

@@ -72,4 +72,9 @@ public abstract class TimeConstants
     protected internal const int UpdateCleanupRetryDelayMs = 1_000;
     protected internal const int UninstallProcessRetryDelayMs = 250;
     protected internal const int UninstallFileRetryDelayMs = 1_000;
+
+    // How long an install waits for another app's install to finish copying into the same folder. The bundle
+    // installer queues up to six apps behind one another, each copy taking a few seconds, so two minutes only
+    // trips when a holder has hung
+    protected internal const int InstallDirectoryLockTimeoutMs = 120_000;
 }

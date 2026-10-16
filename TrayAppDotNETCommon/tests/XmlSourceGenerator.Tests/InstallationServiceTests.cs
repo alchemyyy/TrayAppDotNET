@@ -8,6 +8,9 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class InstallationServiceTests
 {
+    private const string SharedFileName = "shared.dll";
+    private const string SharedDirectoryName = ".notices";
+
     [Fact]
     public void InstallOptionsDefaultToStartMenuOnly()
     {
@@ -178,6 +181,79 @@ public sealed class InstallationServiceTests
         });
     }
 
+    [Fact]
+    public void PrepareUninstallRemovesSharedFilesWhenTheAppIsTheLastOne()
+    {
+        using InstallationFixture fixture = new(SharedPayload());
+        WriteInstalledLayout(fixture);
+
+        TrayAppDotNETInstallResult result = PrepareLocalUninstall(fixture);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        string installDirectory = fixture.Layout.LocalAppDataInstallDirectory;
+        Assert.False(File.Exists(Path.Combine(installDirectory, SharedFileName)));
+        Assert.False(Directory.Exists(Path.Combine(installDirectory, SharedDirectoryName)));
+        // The exe waits under a name outside "*.exe" for the batch stage to delete it
+        Assert.False(File.Exists(fixture.Layout.LocalAppDataInstallExecutable));
+        Assert.True(File.Exists(TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(fixture.Layout.LocalAppDataInstallExecutable)));
+    }
+
+    [Fact]
+    public void PrepareUninstallKeepsSharedFilesWhileAnotherAppIsInstalled()
+    {
+        using InstallationFixture fixture = new(SharedPayload());
+        WriteInstalledLayout(fixture);
+        string installDirectory = fixture.Layout.LocalAppDataInstallDirectory;
+        File.WriteAllText(Path.Combine(installDirectory, "OtherTrayAppDotNET.exe"), contents: "other app");
+
+        TrayAppDotNETInstallResult result = PrepareLocalUninstall(fixture);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.True(File.Exists(Path.Combine(installDirectory, SharedFileName)));
+        Assert.True(Directory.Exists(Path.Combine(installDirectory, SharedDirectoryName)));
+        Assert.True(File.Exists(TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(fixture.Layout.LocalAppDataInstallExecutable)));
+    }
+
+    [Fact]
+    public void ConcurrentUninstallsLeaveTheLastOneToRemoveTheSharedFiles()
+    {
+        using InstallationFixture first = new(SharedPayload());
+        WriteInstalledLayout(first);
+        string installDirectory = first.Layout.LocalAppDataInstallDirectory;
+        // A second app in the same folder whose uninstall has already renamed its exe away
+        string otherExecutable = Path.Combine(installDirectory, "OtherTrayAppDotNET.exe");
+        File.WriteAllText(TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(otherExecutable), contents: "other app");
+
+        TrayAppDotNETInstallResult result = PrepareLocalUninstall(first);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.False(File.Exists(Path.Combine(installDirectory, SharedFileName)));
+    }
+
+    private static TrayAppDotNETInstallPayload SharedPayload() =>
+        new(
+            [new TrayAppDotNETInstallFile(SharedFileName, RemoveOnlyWhenInstallRootHasNoExe: true)],
+            [],
+            [new TrayAppDotNETInstallDirectory(SharedDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true)],
+            []);
+
+    private static void WriteInstalledLayout(InstallationFixture fixture)
+    {
+        string installDirectory = fixture.Layout.LocalAppDataInstallDirectory;
+        File.WriteAllText(fixture.Layout.LocalAppDataInstallExecutable, contents: "test executable");
+        File.WriteAllText(Path.Combine(installDirectory, SharedFileName), contents: "shared library");
+        Directory.CreateDirectory(Path.Combine(installDirectory, SharedDirectoryName));
+        File.WriteAllText(Path.Combine(installDirectory, SharedDirectoryName, "notice.txt"), contents: "notice");
+    }
+
+    private static TrayAppDotNETInstallResult PrepareLocalUninstall(InstallationFixture fixture)
+    {
+        TrayAppDotNETInstallResult? result = null;
+        // The desktop shortcut step goes through shell COM
+        RunOnStaThread(() => result = fixture.Service.PrepareUninstall(InstallScope.LocalAppData));
+        return result!;
+    }
+
     private static void RunOnStaThread(Action action)
     {
         Exception? exception = null;
@@ -201,18 +277,16 @@ public sealed class InstallationServiceTests
 
     private sealed class InstallationFixture : IDisposable
     {
-        private readonly string _rootDirectory;
-
-        public InstallationFixture()
+        public InstallationFixture(TrayAppDotNETInstallPayload? payload = null)
         {
-            _rootDirectory = Path.Combine(
+            RootDirectory = Path.Combine(
                 Path.GetTempPath(),
                 path2: "TrayAppDotNET-install-service-tests",
                 Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_rootDirectory);
+            Directory.CreateDirectory(RootDirectory);
 
-            string localDirectory = Path.Combine(_rootDirectory, path2: "local");
-            string systemDirectory = Path.Combine(_rootDirectory, path2: "system");
+            string localDirectory = Path.Combine(RootDirectory, path2: "local");
+            string systemDirectory = Path.Combine(RootDirectory, path2: "system");
             Directory.CreateDirectory(localDirectory);
             Directory.CreateDirectory(systemDirectory);
 
@@ -222,15 +296,15 @@ public sealed class InstallationServiceTests
                 localDirectory,
                 systemDirectory,
                 InstalledExecutableFileName: "TestTrayAppDotNET.exe");
-            LocalDesktopShortcutPath = Path.Combine(_rootDirectory, path2: "local-desktop.lnk");
-            string systemDesktopShortcutPath = Path.Combine(_rootDirectory, path2: "system-desktop.lnk");
+            LocalDesktopShortcutPath = Path.Combine(RootDirectory, path2: "local-desktop.lnk");
+            string systemDesktopShortcutPath = Path.Combine(RootDirectory, path2: "system-desktop.lnk");
 
             TrayAppDotNETInstallIdentity identity = new(
                 Layout.ApplicationName,
                 Publisher: "Test Publisher",
                 HelpLink: null,
-                Path.Combine(_rootDirectory, path2: "settings"),
-                Path.Combine(_rootDirectory, path2: "startup.lnk"),
+                Path.Combine(RootDirectory, path2: "settings"),
+                Path.Combine(RootDirectory, path2: "startup.lnk"),
                 LegacyRunKeyRegistryPath: @"Software\TrayAppDotNETTests",
                 Log: null);
             TrayAppDotNETDesktopShortcutOptions desktopOptions = new(
@@ -242,12 +316,14 @@ public sealed class InstallationServiceTests
             TrayAppDotNETInstallationOptions serviceOptions = new(
                 identity,
                 Layout,
-                new TrayAppDotNETInstallPayload([], [], [], []),
+                payload ?? new TrayAppDotNETInstallPayload([], [], [], []),
                 CurrentBuildNumber: 1,
                 (scope, allUsers) => LastStartMenuSync = (scope, allUsers),
                 DesktopShortcutOptions: desktopOptions);
             Service = new TrayAppDotNETInstallationService(serviceOptions);
         }
+
+        public string RootDirectory { get; }
 
         public TrayAppDotNETInstallLayout Layout { get; }
 
@@ -259,7 +335,7 @@ public sealed class InstallationServiceTests
 
         public void Dispose()
         {
-            if (Directory.Exists(_rootDirectory)) Directory.Delete(_rootDirectory, recursive: true);
+            if (Directory.Exists(RootDirectory)) Directory.Delete(RootDirectory, recursive: true);
         }
     }
 }

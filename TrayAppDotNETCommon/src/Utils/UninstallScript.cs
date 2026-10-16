@@ -7,7 +7,10 @@ using TrayAppDotNETCommon.Services.Install;
 
 namespace TrayAppDotNETCommon.Utils;
 
-/// <summary>Runs C# uninstall preparation, then removes the unlocked payload from a small batch file.</summary>
+/// <summary>
+/// Runs C# uninstall preparation, which also removes the shared files when this is the last app, then removes
+/// this app's own files from a small batch file once its image is unmapped.
+/// </summary>
 public static class UninstallScript
 {
     private const int FileDeleteAttempts = 120;
@@ -115,20 +118,8 @@ public static class UninstallScript
             payload.InstalledDirectories
                 .Where(directory => !directory.RemoveOnlyWhenInstallRootHasNoExe)
                 .Select(directory => DeleteDirectoryCommands(Path.Combine(installDirectory, directory.Name))));
-        string sharedFileCommands = string.Join(
-            Environment.NewLine,
-            payload.InstalledFiles(installedExecutableFileName)
-                .Where(file => file.RemoveOnlyWhenInstallRootHasNoExe)
-                .Select(file => DeleteFileCommands(Path.Combine(installDirectory, file.Name), indent: "  ")));
-        string sharedDirectoryCommands = string.Join(
-            Environment.NewLine,
-            payload.InstalledDirectories
-                .Where(directory => directory.RemoveOnlyWhenInstallRootHasNoExe)
-                .Select(directory =>
-                    DeleteDirectoryCommands(Path.Combine(installDirectory, directory.Name), indent: "  ")));
-        string rootFileCommands = payload.CopySourceDirectoryRootFiles
-            ? $"  del /f /q \"{Escape(Path.Combine(installDirectory, path2: "*"))}\" >nul 2>&1"
-            : string.Empty;
+        // Where the helper moves the exe; it also removes the shared files, under the install directory lock
+        string pendingExecutable = TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(installExecutable);
         string settingsCommands = deleteSettings
             ? DeleteDirectoryCommands(identity.SettingsDirectory)
             : string.Empty;
@@ -143,11 +134,14 @@ public static class UninstallScript
                  start "" /wait "{Escape(helperExecutable)}" {TrayAppDotNETInstallOptions.PrepareUninstallArgument} --scope {InstallScopeExtensions.ToArg(scope)}{helperArguments}
                  if errorlevel 1 set "ERR=1"
 
-                 rem The helper can itself be the installed exe, so retry until its image is unmapped.
+                 rem The helper renames the exe when it can, and can itself be that image, so retry until it is unmapped.
                  set "DELETE_ATTEMPT=0"
                  :delete_executable
                  del /f /q "{Escape(installExecutable)}" >nul 2>&1
-                 if not exist "{Escape(installExecutable)}" goto delete_payload
+                 del /f /q "{Escape(pendingExecutable)}" >nul 2>&1
+                 if exist "{Escape(installExecutable)}" goto retry_executable
+                 if not exist "{Escape(pendingExecutable)}" goto delete_payload
+                 :retry_executable
                  set /a DELETE_ATTEMPT+=1
                  if %DELETE_ATTEMPT% GEQ {FileDeleteAttempts} goto executable_locked
                  timeout /t {retryDelaySeconds} /nobreak >nul 2>&1
@@ -160,13 +154,6 @@ public static class UninstallScript
                  :delete_payload
                  {regularFileCommands}
                  {regularDirectoryCommands}
-                 set "HAS_SIBLING_EXE="
-                 for %%F in ("{Escape(Path.Combine(installDirectory, path2: "*.exe"))}") do if exist "%%~fF" set "HAS_SIBLING_EXE=1"
-                 if not defined HAS_SIBLING_EXE (
-                 {sharedFileCommands}
-                 {sharedDirectoryCommands}
-                 {rootFileCommands}
-                 )
                  rmdir "{Escape(installDirectory)}" >nul 2>&1
 
                  :metadata
@@ -191,16 +178,16 @@ public static class UninstallScript
         return arguments;
     }
 
-    private static string DeleteFileCommands(string path, string indent = "") =>
+    private static string DeleteFileCommands(string path) =>
         $"""
-         {indent}del /f /q "{Escape(path)}" >nul 2>&1
-         {indent}if exist "{Escape(path)}" set "ERR=1"
+         del /f /q "{Escape(path)}" >nul 2>&1
+         if exist "{Escape(path)}" set "ERR=1"
          """;
 
-    private static string DeleteDirectoryCommands(string path, string indent = "") =>
+    private static string DeleteDirectoryCommands(string path) =>
         $"""
-         {indent}rmdir /s /q "{Escape(path)}" >nul 2>&1
-         {indent}if exist "{Escape(path)}" set "ERR=1"
+         rmdir /s /q "{Escape(path)}" >nul 2>&1
+         if exist "{Escape(path)}" set "ERR=1"
          """;
 
     private static string Escape(string path) => path.Replace(oldValue: "%", newValue: "%%", StringComparison.Ordinal);

@@ -7,16 +7,6 @@ public readonly record struct ProgressSlice(int StartPercent, int EndPercent)
 
     public static ProgressSlice Full => new(StartPercent: 0, FullPercent);
 
-    /// <summary>Equal slice for item <paramref name="index"/> of <paramref name="count"/>; the last one ends at 100.</summary>
-    public static ProgressSlice ForIndex(int index, int count)
-    {
-        if (count <= 0) return Full;
-
-        // FrameworkCompatibility.Clamp stands in for Math.Clamp, which the .NET Framework does not define
-        int clampedIndex = FrameworkCompatibility.Clamp(index, min: 0, count - 1);
-        return new ProgressSlice(clampedIndex * FullPercent / count, (clampedIndex + 1) * FullPercent / count);
-    }
-
     /// <summary>Maps a 0-100 percent inside this slice onto the overall scale.</summary>
     public int Map(int innerPercent)
     {

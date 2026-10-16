@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using TrayAppDotNETCommon.Utils;
 using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
 
 namespace VolumeTrayAppDotNET.Audio;
@@ -118,7 +119,7 @@ internal static class AppIconResolver
 
             string desktopPath = !string.IsNullOrWhiteSpace(sessionIconPath)
                 ? Environment.ExpandEnvironmentVariables(sessionIconPath.TrimStart('@'))
-                : ProcessHelper.GetProcessImagePath(processId) ?? string.Empty;
+                : ProcessImagePath.TryGet((int)processId) ?? string.Empty;
 
             return string.IsNullOrEmpty(desktopPath) ? null : ResolveDesktop(desktopPath);
         }

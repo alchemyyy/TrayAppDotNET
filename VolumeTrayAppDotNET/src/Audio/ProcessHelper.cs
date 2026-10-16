@@ -1,38 +1,12 @@
 using System.Diagnostics;
-using System.Text;
-using VolumeTrayAppDotNET.Interop;
+using TrayAppDotNETCommon.Utils;
 
 namespace VolumeTrayAppDotNET.Audio;
 
-// Process metadata lookup for audio sessions. Icon extraction lives in AppIconResolver;
-// this class only resolves a PID to a display name + image path.
-// QueryFullProcessImageName works against UWP and other restricted processes that
-// Process.MainModule.FileName cannot reach, so we go straight to the kernel32 API.
-// OpenProcess / CloseHandle / PROCESS_QUERY_LIMITED_INFORMATION live in the common Kernel32 helper.
+// Display names for audio sessions. Icon extraction lives in AppIconResolver, and the PID to image path
+// lookup is the common ProcessImagePath, which also reaches UWP and other restricted processes.
 internal static class ProcessHelper
 {
-    /// <summary>
-    /// Resolves a PID to the full image path. Returns null on failure (process gone, access denied).
-    /// </summary>
-    public static string? GetProcessImagePath(uint processId)
-    {
-        if (processId == 0) return null;
-
-        IntPtr handle =
-            Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, bInheritHandle: false, processId);
-        if (handle == IntPtr.Zero) return null;
-
-        try
-        {
-            StringBuilder buffer = new(1024);
-            uint size = (uint)buffer.Capacity;
-            if (Kernel32Process.QueryFullProcessImageNameW(handle, dwFlags: 0, buffer, ref size))
-                return buffer.ToString(startIndex: 0, (int)size);
-        }
-        finally { Kernel32.CloseHandle(handle); }
-
-        return null;
-    }
 
     /// <summary>
     /// Best-effort display name for a session. Order:
@@ -42,7 +16,7 @@ internal static class ProcessHelper
     /// </summary>
     public static string GetDisplayNameForProcess(uint processId)
     {
-        string? path = GetProcessImagePath(processId);
+        string? path = ProcessImagePath.TryGet((int)processId);
         if (string.IsNullOrEmpty(path)) return AudioLocalization.UnknownAppName;
 
         try

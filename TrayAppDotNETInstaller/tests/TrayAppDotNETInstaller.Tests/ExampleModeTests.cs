@@ -171,7 +171,7 @@ public sealed class ExampleModeTests
     }
 
     [Fact]
-    public async Task RunAsync_FailsASuiteOnItsMiddleApplication()
+    public async Task RunAsync_FailsASuiteOnItsMiddleApplicationWhileTheOthersFinish()
     {
         RecordingProgress progress = new();
         InstallPlan plan = CreatePlan(FirstSuiteApplicationName, MiddleSuiteApplicationName, LastSuiteApplicationName);
@@ -180,24 +180,35 @@ public sealed class ExampleModeTests
             plan, progress, progress, simulateFailure: true, CancellationToken.None);
 
         Assert.False(outcome.Success);
-        Assert.Single(outcome.InstalledExecutables);
-        // The last application is never reached, so nothing is reported for it
-        Assert.Equal(
-            [
-                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Installing),
-                new InstallApplicationStatus(FirstSuiteApplicationName, InstallApplicationState.Installed),
-                new InstallApplicationStatus(MiddleSuiteApplicationName, InstallApplicationState.Installing),
-                new InstallApplicationStatus(MiddleSuiteApplicationName, InstallApplicationState.Failed)
-            ],
-            progress.Statuses);
+        Assert.Equal(2, outcome.InstalledExecutables.Count);
+        Assert.True(progress.Lines[^1].IsFailure);
 
-        // What the window shows once the outcome settles the run: every final state appears at once
-        InstallApplicationTracker tracker = new([FirstSuiteApplicationName, MiddleSuiteApplicationName, LastSuiteApplicationName]);
-        foreach (InstallApplicationStatus status in progress.Statuses) tracker.Apply(status);
-        tracker.Finish(outcome.Success);
-        Assert.Equal(InstallApplicationState.Installed, tracker.StateOf(FirstSuiteApplicationName));
-        Assert.Equal(InstallApplicationState.Failed, tracker.StateOf(MiddleSuiteApplicationName));
-        Assert.Equal(InstallApplicationState.NotInstalled, tracker.StateOf(LastSuiteApplicationName));
+        // Every application runs at once, so only each application's own sequence is ordered
+        Assert.Equal(
+            [InstallApplicationState.Installing, InstallApplicationState.Installed],
+            progress.StatesOf(FirstSuiteApplicationName));
+        Assert.Equal(
+            [InstallApplicationState.Installing, InstallApplicationState.Failed],
+            progress.StatesOf(MiddleSuiteApplicationName));
+        Assert.Equal(
+            [InstallApplicationState.Installing, InstallApplicationState.Installed],
+            progress.StatesOf(LastSuiteApplicationName));
+    }
+
+    [Fact]
+    public async Task RunAsync_RunsEveryApplicationAtOnce()
+    {
+        RecordingProgress progress = new();
+        InstallPlan plan = CreatePlan(FirstSuiteApplicationName, MiddleSuiteApplicationName, LastSuiteApplicationName);
+
+        InstallOutcome outcome = await ExampleMode.RunAsync(
+            plan, progress, progress, simulateFailure: false, CancellationToken.None);
+
+        Assert.True(outcome.Success, outcome.ErrorMessage);
+        // Each application reports Installing before any reports Installed
+        List<InstallApplicationStatus> statuses = progress.Statuses;
+        Assert.All(statuses.GetRange(0, 3), status => Assert.Equal(InstallApplicationState.Installing, status.State));
+        Assert.All(statuses.GetRange(3, 3), status => Assert.Equal(InstallApplicationState.Installed, status.State));
     }
 
     [Fact]
@@ -283,21 +294,55 @@ public sealed class ExampleModeTests
             CreateStartMenuShortcut: true);
     }
 
-    /// <summary>Collects every reported line and application status so the order and the end state can be asserted.</summary>
+    /// <summary>
+    /// Collects every reported line and application status so the order and the end state can be asserted.
+    /// Simulated applications resume on thread pool threads at once, so recording is locked.
+    /// </summary>
     private sealed class RecordingProgress : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
     {
-        public List<InstallProgressLine> Lines { get; } = [];
+        // Stands in for System.Threading.Lock, which the .NET Framework does not define
+        private readonly object _gate = new();
+        private readonly List<InstallProgressLine> _lines = [];
+        private readonly List<InstallApplicationStatus> _statuses = [];
 
-        public List<InstallApplicationStatus> Statuses { get; } = [];
+        public List<InstallProgressLine> Lines
+        {
+            get
+            {
+                lock (_gate) return [.. _lines];
+            }
+        }
+
+        public List<InstallApplicationStatus> Statuses
+        {
+            get
+            {
+                lock (_gate) return [.. _statuses];
+            }
+        }
 
         /// <summary>Runs after each status is recorded, so a test can react to a specific report.</summary>
         public Action<InstallApplicationStatus>? StatusReported { get; set; }
 
-        public void Report(InstallProgressLine value) => Lines.Add(value);
+        public List<InstallApplicationState> StatesOf(string applicationName)
+        {
+            List<InstallApplicationState> states = [];
+            foreach (InstallApplicationStatus status in Statuses)
+            {
+                if (status.ApplicationName == applicationName) states.Add(status.State);
+            }
+
+            return states;
+        }
+
+        public void Report(InstallProgressLine value)
+        {
+            lock (_gate) _lines.Add(value);
+        }
 
         public void Report(InstallApplicationStatus value)
         {
-            Statuses.Add(value);
+            lock (_gate) _statuses.Add(value);
             StatusReported?.Invoke(value);
         }
     }
