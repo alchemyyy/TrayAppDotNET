@@ -6,10 +6,9 @@ using TrayAppDotNETCommon;
 namespace VolumeTrayAppDotNET.Tests;
 
 /// <summary>
-/// Points the app's settings folder at a throwaway directory before any test runs. Every
-/// <c>new AppSettings()</c> schedules a debounced <c>AppSettings.Save()</c>, because its constructor assigns
-/// the slider thumb catalog through a setter, and that save otherwise writes the installed app's
-/// settings.xml under %LOCALAPPDATA%.
+/// Points the app's settings folder at a throwaway directory before any test runs. Every settings edit
+/// schedules a debounced <c>AppSettings.Save()</c>, which otherwise writes the installed app's settings.xml
+/// under %LOCALAPPDATA%.
 /// </summary>
 internal static class TestSettingsDirectory
 {

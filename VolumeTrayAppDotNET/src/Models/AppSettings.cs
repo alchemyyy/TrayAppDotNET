@@ -1160,8 +1160,13 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public AppSettings()
         : base(TimeConstants.UpdateCheckIntervalDefaultMs)
     {
+        // A new instance is not an edit. Seeding the slider thumb catalog goes through SetField, which
+        // would otherwise schedule a save of this instance over settings.xml, including the one the
+        // XML reader constructs before OnTrayXmlDeserializing suppresses notifications
+        SuppressChangeNotification = true;
         WireColorCallbacks();
         InitializeSliderThumbCatalog();
+        SuppressChangeNotification = false;
     }
 
     public override void OnTrayXmlDeserialized()
