@@ -133,9 +133,9 @@ internal static class PerformanceDevicePresentationFactory
     {
         string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasUtilizationSample, sample.UtilizationPercent);
-        bool hasCurrentSpeed = sample is { HasFrequencyData: true, HighestCurrentSpeedHertz: > 0 };
+        bool hasCurrentSpeed = sample is { HasFrequencyData: true, CurrentSpeedHertz: > 0 };
         string speed = hasCurrentSpeed
-            ? FormatHertz(sample.HighestCurrentSpeedHertz)
+            ? FormatHertz(sample.CurrentSpeedHertz)
             : "Unavailable";
         string summary = hasCurrentSpeed
             ? string.Concat(utilization, str1: "  ", speed)
@@ -147,9 +147,9 @@ internal static class PerformanceDevicePresentationFactory
             new(
                 Label: "Highest logical processor",
                 FormatPercent(sample.HasUtilizationSample, sample.HighestLogicalProcessorPercent)),
-            new(Label: "Processes", sample.ProcessCount.ToString(format: "N0", CultureInfo.CurrentCulture)),
-            new(Label: "Threads", sample.ThreadCount.ToString(format: "N0", CultureInfo.CurrentCulture)),
-            new(Label: "Handles", sample.HandleCount.ToString(format: "N0", CultureInfo.CurrentCulture)),
+            new(Label: "Processes", FormatOptionalCount(sample.HasProcessTotals, sample.ProcessCount)),
+            new(Label: "Threads", FormatOptionalCount(sample.HasProcessTotals, sample.ThreadCount)),
+            new(Label: "Handles", FormatOptionalCount(sample.HasProcessTotals, sample.HandleCount)),
             new(Label: "Up time", FormatUptime(sample.Uptime)),
             new(
                 Label: "Highest recorded speed",
@@ -498,6 +498,9 @@ internal static class PerformanceDevicePresentationFactory
 
     private static string FormatCount(int value) =>
         value > 0 ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : "Unavailable";
+
+    private static string FormatOptionalCount(bool isAvailable, uint value) =>
+        isAvailable ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : "Unavailable";
 
     private static string FormatBoolean(bool value) => value ? "Yes" : "No";
 

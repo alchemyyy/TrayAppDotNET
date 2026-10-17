@@ -49,6 +49,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private int _historyCount;
     private int _sampleIntervalMilliseconds;
     private int _includeMemorySerialNumbers;
+    private int _processTotalsRequested;
     private int _notificationPending;
     private int _refreshRequested;
     private int _resetBaselinesPending;
@@ -215,6 +216,22 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 _refreshWake.Set();
             }
         }
+    }
+
+    /// <summary>Turns the per-sample process walk behind the CPU process, thread, and handle counts on or off.</summary>
+    /// <remarks>
+    /// One SystemProcessInformation walk took a median 13 ms with about 960 processes and 18,500 threads, so it
+    /// only runs while a page shows the counts. Turning it on wakes the worker so the counts arrive without
+    /// waiting for the next interval.
+    /// </remarks>
+    public void SetProcessTotalsRequested(bool isRequested)
+    {
+        int requestedValue = isRequested ? 1 : 0;
+        if (Interlocked.Exchange(ref _processTotalsRequested, requestedValue) == requestedValue
+            || !isRequested)
+            return;
+
+        RequestRefresh();
     }
 
     /// <summary>Wakes the worker for an early refresh without queuing another worker.</summary>
@@ -389,7 +406,8 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
         try
         {
-            SystemPerformanceMetadataSample sample = _metadataReader.Sample();
+            SystemPerformanceMetadataSample sample = _metadataReader.Sample(
+                Volatile.Read(ref _processTotalsRequested) != 0);
             _metadataFailureLogged = false;
             return sample;
         }
@@ -577,12 +595,12 @@ internal sealed class PerformanceSnapshotService : IDisposable
         if (copiedProcessorCount != logicalProcessorPercents.Length)
             Array.Resize(ref logicalProcessorPercents, copiedProcessorCount);
 
-        SystemPerformanceInformation information = metadata.PerformanceInformation;
+        SystemProcessTotals processTotals = metadata.ProcessTotals;
         if (metadata.HasFrequencyData)
         {
             _highestRecordedCPUSpeedHertz = Math.Max(
                 _highestRecordedCPUSpeedHertz,
-                metadata.HighestCurrentSpeedHertz);
+                metadata.CurrentSpeedHertz);
         }
 
         return new CPUPerformanceSnapshot(
@@ -595,7 +613,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             systemSample.CPUHighestCorePercent,
             logicalProcessorPercents,
             metadata.HasFrequencyData,
-            metadata.HighestCurrentSpeedHertz,
+            metadata.CurrentSpeedHertz,
             metadata.BaseSpeedHertz,
             _highestRecordedCPUSpeedHertz,
             metadata.SocketCount,
@@ -605,9 +623,10 @@ internal sealed class PerformanceSnapshotService : IDisposable
             metadata.L1CacheBytes,
             metadata.L2CacheBytes,
             metadata.L3CacheBytes,
-            metadata.HasPerformanceInformation ? information.ProcessCount : 0,
-            metadata.HasPerformanceInformation ? information.ThreadCount : 0,
-            metadata.HasPerformanceInformation ? information.HandleCount : 0,
+            metadata.HasProcessTotals,
+            processTotals.ProcessCount,
+            processTotals.ThreadCount,
+            processTotals.HandleCount,
             metadata.Uptime) { CCDTopology = _cpuCCDTopology, CoreClassTopology = _cpuCoreClassTopology };
     }
 

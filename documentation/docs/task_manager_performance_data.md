@@ -43,14 +43,42 @@ the delta baseline. [Windows API](https://learn.microsoft.com/en-us/windows/win3
 Sockets, cores, logical processors, and cache sizes come from
 `GetLogicalProcessorInformationEx`. Base speed is the average of the
 per-processor `MaxMhz` values returned by `CallNtPowerInformation`. Speed and
-highest recorded speed are measured from processor performance counters; see
-[Task Manager CPU frequency](task_manager_cpu_frequency.md). Process, thread,
-handle, commit, cache, and pool counts come from `K32GetPerformanceInfo`;
-uptime comes from `GetTickCount64`.
+highest recorded speed are measured from the `_Total` `Actual Frequency`
+counter, the source Windows Task Manager uses; see
+[Task Manager CPU frequency](task_manager_cpu_frequency.md). Commit, cache, and
+pool values come from `K32GetPerformanceInfo`; uptime comes from
+`GetTickCount64`.
 [Topology](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex)
 [Power information](https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-callntpowerinformation)
 [Performance information](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-getperformanceinfo)
 [Implementation](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/SystemPerformanceMetadataReader.cs)
+
+Processes, threads, and handles are counted the way Windows Task Manager
+counts them. `Taskmgr.exe` 10.0.26100.9278 fills its CPU page values in
+`WdcApplicationsMonitor::Update`, which walks one
+`NtQuerySystemInformation(SystemProcessInformation)` snapshot, counts every
+entry, and adds each entry's `NumberOfThreads` and `HandleCount`, the Idle
+process included. TMTADN performs the same walk.
+[Process walk](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/SystemProcessSnapshot.cs)
+
+`K32GetPerformanceInfo` also returns these counts, but KernelBase 10.0.26100.9444
+reads them from `NtQuerySystemInformation` information class 253, three
+kernel-wide counters, and they are not the process sums. Ten back-to-back reads
+of both sources on the test system:
+
+| Count | Information class 253 minus the process sum |
+| --- | --- |
+| Processes | 0 |
+| Threads | -144 in nine reads and -151 in one; the Idle process's `NumberOfThreads` was 144 |
+| Handles | +13,667 to +13,989, each within 34 of the System process's `HandleCount` in the same pass |
+
+The two queries are not atomic, so the differences also carry threads and
+handles created or closed between them.
+
+One walk took a median 13.3 ms on the test system, with about 960 processes,
+18,500 threads, and a 2 MB snapshot, so the walk only runs while the
+Performance page is shown. The counts read `Unavailable` until the first walk
+after the page opens; opening the page requests a sample immediately.
 
 The CPU name is read from
 `HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0\ProcessorNameString`.

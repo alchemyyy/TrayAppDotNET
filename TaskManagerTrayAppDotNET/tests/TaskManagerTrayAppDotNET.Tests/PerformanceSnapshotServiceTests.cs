@@ -78,6 +78,7 @@ public sealed class PerformanceSnapshotServiceTests
     public void NativeSnapshotContainsDirectSystemDevicesAndStableIDs()
     {
         using PerformanceSnapshotService service = new();
+        service.SetProcessTotalsRequested(true);
 
         PerformanceSnapshot initialSnapshot = service.SampleNow();
         Thread.Sleep(25);
@@ -93,12 +94,16 @@ public sealed class PerformanceSnapshotServiceTests
             snapshot.CPU.LogicalProcessorUtilizationPercents.Length);
         Assert.InRange(snapshot.CPU.UtilizationPercent, low: 0, high: 100);
         Assert.True(snapshot.CPU.HasFrequencyData);
-        Assert.True(snapshot.CPU.HighestCurrentSpeedHertz > 0);
+        Assert.True(snapshot.CPU.CurrentSpeedHertz > 0);
         Assert.True(snapshot.CPU.BaseSpeedHertz > 0);
-        Assert.True(snapshot.CPU.HighestRecordedSpeedHertz >= snapshot.CPU.HighestCurrentSpeedHertz);
+        Assert.True(snapshot.CPU.HighestRecordedSpeedHertz >= snapshot.CPU.CurrentSpeedHertz);
         Assert.True(
             snapshot.CPU.HighestRecordedSpeedHertz
             >= initialSnapshot.CPU.HighestRecordedSpeedHertz);
+        Assert.True(snapshot.CPU.HasProcessTotals);
+        Assert.True(snapshot.CPU.ProcessCount > 1);
+        Assert.True(snapshot.CPU.ThreadCount > snapshot.CPU.ProcessCount);
+        Assert.True(snapshot.CPU.HandleCount > snapshot.CPU.ThreadCount);
         Assert.Equal(MemoryPerformanceSnapshot.StableDeviceID, snapshot.Memory.DeviceID);
         Assert.Equal(PerformanceDeviceKind.Memory, snapshot.Memory.Kind);
         Assert.True(snapshot.Memory.HasMemoryData);

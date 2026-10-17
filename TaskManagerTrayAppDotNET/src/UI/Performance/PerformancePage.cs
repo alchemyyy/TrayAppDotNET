@@ -79,6 +79,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private int _configuredPrimaryStatisticCount = -1;
     private PerformanceDeviceKind? _configuredStatisticDeviceKind;
     private bool _hasProcessedSnapshot;
+    private bool _isPageActive;
     private bool _disposed;
 
     public PerformancePage(
@@ -419,6 +420,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
     }
 #endif
+
+    internal override void SetPageActive(bool isActive)
+    {
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        // The CPU process, thread, and handle counts cost a process walk per sample, so it only runs while shown
+        _snapshotService.SetProcessTotalsRequested(isActive);
+    }
 
     private void OnSnapshotUpdated(object? sender, PerformanceSnapshot snapshot)
     {
@@ -1526,6 +1536,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
         CloseCPUGraphContextMenu();
         _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;

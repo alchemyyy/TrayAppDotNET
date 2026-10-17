@@ -1,3 +1,4 @@
+using System.Globalization;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI.Performance;
 using Xunit;
@@ -18,7 +19,7 @@ public sealed class PerformanceDevicePresentationTests
     }
 
     [Fact]
-    public void CPUUsesHighestTurboSpeedAndUpdatedMetricLabels()
+    public void CPUUsesMeasuredTurboSpeedAndUpdatedMetricLabels()
     {
         CPUPerformanceSnapshot CPU = CPUPerformanceSnapshot.Empty with
         {
@@ -26,7 +27,7 @@ public sealed class PerformanceDevicePresentationTests
             UtilizationPercent = 42,
             HighestLogicalProcessorPercent = 73,
             HasFrequencyData = true,
-            HighestCurrentSpeedHertz = 5_400_000_000,
+            CurrentSpeedHertz = 5_400_000_000,
             BaseSpeedHertz = 4_200_000_000,
             HighestRecordedSpeedHertz = 5_700_000_000,
             CoreCount = 16,
@@ -62,6 +63,43 @@ public sealed class PerformanceDevicePresentationTests
             statistics.Take(8).Select(static statistic => statistic.Label));
         Assert.DoesNotContain(statistics, static statistic => statistic.Label is
             "Maximum speed" or "Cores" or "Logical cores" or "Highest logical core");
+    }
+
+    [Theory]
+    [InlineData(true, "988", "19,241", "930,762")]
+    [InlineData(false, "Unavailable", "Unavailable", "Unavailable")]
+    public void CPUProcessTotalsShowOnlyWhenMeasured(
+        bool hasProcessTotals,
+        string expectedProcesses,
+        string expectedThreads,
+        string expectedHandles)
+    {
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+        try
+        {
+            CPUPerformanceSnapshot CPU = CPUPerformanceSnapshot.Empty with
+            {
+                HasProcessTotals = hasProcessTotals,
+                ProcessCount = 988,
+                ThreadCount = 19_241,
+                HandleCount = 930_762
+            };
+            PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { CPU = CPU };
+
+            Dictionary<string, string> valuesByLabel = PerformanceDevicePresentationFactory.Create(snapshot)
+                .Single(static candidate => candidate.Kind == PerformanceDeviceKind.CPU)
+                .Statistics.ToArray()
+                .ToDictionary(static statistic => statistic.Label, static statistic => statistic.Value);
+
+            Assert.Equal(expectedProcesses, valuesByLabel["Processes"]);
+            Assert.Equal(expectedThreads, valuesByLabel["Threads"]);
+            Assert.Equal(expectedHandles, valuesByLabel["Handles"]);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     [Fact]

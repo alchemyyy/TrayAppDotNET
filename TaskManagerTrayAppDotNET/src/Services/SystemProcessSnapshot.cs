@@ -57,13 +57,74 @@ internal sealed class SystemProcessSnapshot : IDisposable
             hasFullProcessInformation: false);
     }
 
+    /// <summary>Counts every process entry and sums their thread and handle counts the way Task Manager does.</summary>
+    /// <remarks>
+    /// Taskmgr.exe fills its CPU page Processes, Threads, and Handles values in WdcApplicationsMonitor::Update,
+    /// which adds NumberOfThreads and HandleCount over every SystemProcessInformation entry, the Idle process
+    /// included. The query reuses the snapshot buffer, so it invalidates entry offsets from an earlier capture.
+    /// </remarks>
+    public bool TryCaptureTotals(out SystemProcessTotals totals)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        totals = default;
+        if (!TryQuery(SystemProcessInformation, out int validLength)) return false;
+
+        uint processCount = 0;
+        ulong threadCount = 0;
+        ulong handleCount = 0;
+        int entryOffset = 0;
+        while (entryOffset + ProcessHeaderSize <= validLength)
+        {
+            SYSTEM_PROCESS_INFORMATION process =
+                Marshal.PtrToStructure<SYSTEM_PROCESS_INFORMATION>(IntPtr.Add(_buffer, entryOffset));
+            processCount++;
+            threadCount += process.NumberOfThreads;
+            handleCount += process.HandleCount;
+            if (process.NextEntryOffset == 0)
+            {
+                totals = new SystemProcessTotals(
+                    processCount,
+                    ToUInt32(threadCount),
+                    ToUInt32(handleCount));
+                return true;
+            }
+
+            if (process.NextEntryOffset > int.MaxValue
+                || process.NextEntryOffset < ProcessHeaderSize
+                || entryOffset > validLength - (int)process.NextEntryOffset)
+                return false;
+
+            entryOffset += (int)process.NextEntryOffset;
+        }
+
+        return false;
+    }
+
+    public void ReleaseQueryBuffer()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ReleaseBuffer();
+    }
+
     private bool TryCaptureCore(
         Dictionary<int, SystemProcessData> destination,
         int informationClass,
         bool hasFullProcessInformation)
     {
         destination.Clear();
+        if (!TryQuery(informationClass, out int validLength)) return false;
 
+        _hasJobObjectIDs = hasFullProcessInformation;
+        _activeThreadEntrySize = hasFullProcessInformation
+            ? ExtendedThreadEntrySize
+            : ThreadEntrySize;
+        return ParseSnapshot(destination, validLength, hasFullProcessInformation);
+    }
+
+    /// <summary>Runs one query, growing the buffer until the whole snapshot fits.</summary>
+    private bool TryQuery(int informationClass, out int validLength)
+    {
+        validLength = 0;
         EnsureBuffer(InitialBufferSize);
         for (int attempt = 0; attempt < 4; attempt++)
         {
@@ -74,14 +135,8 @@ internal sealed class SystemProcessSnapshot : IDisposable
                 out int requiredLength);
             if (status >= 0)
             {
-                _hasJobObjectIDs = hasFullProcessInformation;
-                _activeThreadEntrySize = hasFullProcessInformation
-                    ? ExtendedThreadEntrySize
-                    : ThreadEntrySize;
-                return ParseSnapshot(
-                    destination,
-                    requiredLength > 0 ? requiredLength : _bufferSize,
-                    hasFullProcessInformation);
+                validLength = requiredLength > 0 ? requiredLength : _bufferSize;
+                return true;
             }
 
             if (!IsBufferSizeStatus(status) || _bufferSize >= MaximumBufferSize)
@@ -312,6 +367,8 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
     private static int ToInt32(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
+    private static uint ToUInt32(ulong value) => value > uint.MaxValue ? uint.MaxValue : (uint)value;
+
     private static int ToProcessID(IntPtr value)
     {
         long processID = value.ToInt64();
@@ -464,3 +521,9 @@ internal readonly record struct SystemProcessData(
     ulong DiskBytes,
     bool HasDiskCounters,
     long JobObjectID);
+
+/// <summary>Process count plus the thread and handle counts summed over every process entry.</summary>
+internal readonly record struct SystemProcessTotals(
+    uint ProcessCount,
+    uint ThreadCount,
+    uint HandleCount);
