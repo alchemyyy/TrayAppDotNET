@@ -603,7 +603,7 @@ slider thumb|slider handle|slider knob</value>
     <value>Local user</value>
   </data>
   <data name="Settings_General_LogarithmicVolumeScale_Description" xml:space="preserve">
-    <value>Map the slider to volume on a perceptual curve so equal slider deltas feel like equal loudness deltas.</value>
+    <value>Map app volume sliders to a perceptual curve so equal slider steps feel like equal loudness steps. Device sliders already follow the Windows volume curve and stay as they are.</value>
   </data>
   <data name="Settings_General_LogarithmicVolumeScale_Title" xml:space="preserve">
     <value>Use logarithmic volume scale</value>
@@ -1463,7 +1463,7 @@ Target: {1}</value>
     <value>missing blank application artwork fallback</value>
   </data>
   <data name="Settings_General_LogarithmicVolumeScale_SearchKeywords" xml:space="preserve">
-    <value>audio taper natural slider curve</value>
+    <value>audio taper natural slider curve app session decibel dB perceptual loudness</value>
   </data>
   <data name="Settings_General_PlayAppVolumeChangeSound_SearchKeywords" xml:space="preserve">
     <value>mixer application audio feedback preview chime</value>

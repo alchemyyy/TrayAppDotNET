@@ -190,8 +190,10 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     }
 
-    // Apply a perceptual (exponential) curve when mapping the slider position to the system volume,
-    // so equal slider deltas feel like equal loudness deltas. Off by default; raw linear mapping.
+    // App sliders only: map slider position to the session level on a constant-decibel curve (AppVolumeScale)
+    // so equal slider deltas feel like equal loudness deltas. Session levels are linear amplitude multipliers;
+    // device sliders are left alone because Windows already audio-tapers the endpoint scalar level.
+    // Off by default; raw linear mapping.
     public bool UseLogarithmicVolumeScale
     {
         get;
@@ -243,9 +245,9 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     } = DingSuppressionPeakThresholdPercentDefault;
 
     // Same idea for per-app sliders. The wav plays through this app's audio session at MediaPlayer.Volume
-    // scaled to the target app's slider value, so the feedback's loudness matches what the user just dialed
-    // the app to. Caveat: it isn't injected into the target app's session - if the user has muted/lowered
-    // VolumeTrayApp itself, the feedback gets attenuated again on top of that scalar.
+    // scaled to the target app's session level (not its slider position), so the feedback's loudness matches
+    // what the user just dialed the app to. Caveat: it isn't injected into the target app's session - if the
+    // user has muted/lowered VolumeTrayApp itself, the feedback gets attenuated again on top of that scalar.
     public bool PlayAppVolumeChangeSound
     {
         get;

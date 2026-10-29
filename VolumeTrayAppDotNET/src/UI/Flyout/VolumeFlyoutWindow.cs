@@ -962,22 +962,26 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Grid.SetColumn(icon, value: 0);
         grid.Children.Add(icon);
 
+        // Read once per generation: toggling the setting fires Changed, and the rebuild re-positions every app
+        // slider from the current Windows levels
+        bool isLogarithmic = _settings.UseLogarithmicVolumeScale;
+        double sliderPercent = AppVolumeScale.SliderPercentFromLevel(group.Volume, isLogarithmic);
         FlyoutSlider slider = BuildVolumeSlider(
-            group.Volume,
-            group.PeakValues,
+            sliderPercent,
+            AppSliderPeaks(group.PeakValues, group.Volume, isLogarithmic),
             p,
-            v => group.Volume = (float)(v / 100.0),
+            v => group.Volume = AppVolumeScale.LevelFromSliderPercent(v, isLogarithmic),
             immediate => _feedback?.PlayForApp(group, immediate));
         slider.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.Volume);
         Grid.SetColumn(slider, value: 1);
         grid.Children.Add(slider);
 
-        (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(group.Volume, p);
+        (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(PercentText(sliderPercent), p);
         percent.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.EditPercent);
         percentEdit.MapTo(ControlMap.Flyout.Devices.Device.AppDrawer.App.PercentEditor);
         WirePercentEditor(percent, percentEdit, slider, v =>
         {
-            group.Volume = (float)(v / 100.0);
+            group.Volume = AppVolumeScale.LevelFromSliderPercent(v, isLogarithmic);
             _feedback?.PlayForApp(group, immediate: true);
         });
         Grid.SetColumn(percentHost, value: 2);
@@ -996,7 +1000,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         slider.ValueChanged += (_, value) =>
         {
             if (!isUserAdjusting) return;
-            percent.Text = ScalarText((float)(value / 100.0));
+            percent.Text = PercentText(value);
         };
 
         group.PropertyChanged += OnGroupChanged;
@@ -1014,7 +1018,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     ApplyGroupVolume();
                     break;
                 case nameof(AudioAppGroup.PeakValues):
-                    slider.PeakValues = SliderPeaks(group.PeakValues);
+                    slider.PeakValues = AppSliderPeaks(group.PeakValues, group.Volume, isLogarithmic);
                     break;
                 case nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.State)
                     or nameof(AudioAppGroup.Icon):
@@ -1025,8 +1029,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void ApplyGroupVolume()
         {
-            slider.Value = group.Volume * 100.0;
-            percent.Text = ScalarText(group.Volume);
+            double position = AppVolumeScale.SliderPercentFromLevel(group.Volume, isLogarithmic);
+            slider.Value = position;
+            percent.Text = PercentText(position);
+            // The logarithmic meter fraction depends on the level, so it follows volume changes too
+            slider.PeakValues = AppSliderPeaks(group.PeakValues, group.Volume, isLogarithmic);
         }
     }
 
@@ -1337,15 +1344,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         row.Children.Add(mute);
 
         FlyoutSlider slider = BuildVolumeSlider(
-            device.Volume,
-            device.PeakValues,
+            device.Volume * 100.0,
+            SliderPeaks(device.PeakValues),
             p,
             v => device.Volume = (float)(v / 100.0),
             immediate => _feedback?.PlayForDevice(device, immediate)).MapTo(ControlMap.Flyout.Devices.Device.Volume);
         Grid.SetColumn(slider, value: 1);
         row.Children.Add(slider);
 
-        (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(device.Volume, p);
+        (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(ScalarText(device.Volume), p);
         percent.MapTo(ControlMap.Flyout.Devices.Device.EditPercent);
         percentEdit.MapTo(ControlMap.Flyout.Devices.Device.PercentEditor);
         WirePercentEditor(percent, percentEdit, slider, v =>
@@ -1414,8 +1421,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private FlyoutSlider BuildVolumeSlider(
-        float scalar,
-        MeterPeakValues peaks,
+        double percent,
+        FlyoutSliderPeakValues peaks,
         FlyoutPalette p,
         Action<double> setPercent,
         Action<bool> playFeedback)
@@ -1423,8 +1430,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         VolumeFlyoutContentGeneration content = BuildingContent;
         FlyoutSlider slider = new()
         {
-            Value = scalar * 100.0,
-            PeakValues = SliderPeaks(peaks),
+            Value = percent,
+            PeakValues = peaks,
             Thumb = ResolveSliderThumb(),
             WheelStepPercent = _settings.WheelVolumeStepPercent,
             HitTestVerticalPadding = Layout.SliderHitTestVerticalPadding,
@@ -1472,11 +1479,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private static FlyoutSliderPeakValues SliderPeaks(MeterPeakValues peaks) => new(peaks.Min, peaks.Max);
 
+    /// <summary>App slider meter, kept on the same scale as the thumb by <see cref="AppVolumeScale"/>.</summary>
+    private static FlyoutSliderPeakValues AppSliderPeaks(MeterPeakValues peaks, float level, bool isLogarithmic) =>
+        new(
+            AppVolumeScale.MeterPeakFraction(peaks.Min, level, isLogarithmic),
+            AppVolumeScale.MeterPeakFraction(peaks.Max, level, isLogarithmic));
+
     private SliderThumbGlyphOption ResolveSliderThumb() =>
         _settings.SliderThumbOptions.FirstOrDefault(o => o.Name == _settings.SliderThumbGlyph)
         ?? SliderThumbGlyphOption.CreateDefaults()[0];
 
-    private (Grid Host, TextBlock Label, TextBox Editor) BuildPercentEditor(float scalar, FlyoutPalette p)
+    private (Grid Host, TextBlock Label, TextBox Editor) BuildPercentEditor(string text, FlyoutPalette p)
     {
         Grid host = new()
         {
@@ -1485,7 +1498,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Margin = Layout.SliderValueMargin
         };
 
-        TextBlock label = Text(ScalarText(scalar), p, Layout.SliderValueFontSize);
+        TextBlock label = Text(text, p, Layout.SliderValueFontSize);
         label.Background = Brushes.Transparent;
         label.TextAlignment = TextAlignment.Right;
         label.VerticalAlignment = VerticalAlignment.Center;
@@ -3137,6 +3150,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     };
 
     private static string ScalarText(float scalar) => $"{(int)Math.Round(scalar * 100)}";
+
+    /// <summary>Percent label for a slider position. App sliders show their position, not the raw level.</summary>
+    private static string PercentText(double percent) => $"{(int)Math.Round(percent)}";
 
     private static TextBlock Text(string text, FlyoutPalette p, double size, FontWeight? weight = null) => new()
     {

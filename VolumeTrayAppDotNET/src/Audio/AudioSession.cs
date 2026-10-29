@@ -34,9 +34,11 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     // identifies us as the originator when our own writes echo back through the
     // IAudioSessionEvents callbacks. Same fixed value shared with AudioDevice.
 
-    // Volume-equality short-circuit threshold (just under 0.05%). Applied to setter writes and
-    // OnSimpleVolumeChanged so a fresh sample within this band of the cached scalar is a no-op.
-    private const float VolumeEqualityEpsilon = 0.0005f;
+    // Volume-equality short-circuit threshold. Applied to setter writes and OnSimpleVolumeChanged so a fresh
+    // sample within this band of the cached scalar is a no-op. Kept below the level change of a 0.01% move at the
+    // bottom of the logarithmic app slider (AppVolumeScale), which is about 2e-6; a larger band would swallow the
+    // first wheel steps up from silence and snap the slider back.
+    internal const float VolumeEqualityEpsilon = 0.000001f;
 
     // Hardcoded AppID for the system-sounds session so it groups with itself across endpoints.
     // Mirrors EarTrumpet's "System.SystemSoundsSession" sentinel.
