@@ -17,9 +17,10 @@
         <Leaf ID="OpenMenu" Kind="Command" Keys="Shift+F10;Apps" Pointer="RightClick;Ctrl+RightClick;Alt+RightClick"
               Event="TrayMessage" Source="FanAvaloniaApp.OnTrayRightClick"
               Description="Opens the tray menu unless a Ctrl or Alt modifier action is configured" />
-        <Leaf ID="OpenAbout" Kind="Command" Pointer="Click" Event="TrayMessage"
-              Source="FanAvaloniaApp.OnUpdateBalloonClicked"
-              Description="Clicking the update balloon opens Settings on the About page" />
+        <Leaf ID="BalloonClick" Kind="Command" Pointer="Click" Event="TrayMessage"
+              Source="FanAvaloniaApp.OnTrayBalloonClicked"
+              Description="Clicking the last tray balloon: an update balloon opens Settings on the About page, a fan
+                           speed warning balloon shows the flyout" />
     </Surface>
 
     <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="FanTrayMenuWindow.BuildEntries">

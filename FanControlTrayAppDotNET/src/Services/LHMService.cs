@@ -5,14 +5,26 @@ using LibreHardwareMonitor.Hardware;
 
 namespace FanControlTrayAppDotNET.Services;
 
-// First-pass skeleton service that interfaces with LibreHardwareMonitor. Owns the global
-// Computer instance, polls every TimeConstants.LHMPollIntervalMs, and exposes:
+// Service that interfaces with LibreHardwareMonitor. Owns the global Computer instance, polls every
+// TimeConstants.LHMPollIntervalMs, and exposes:
 //   * DataSources via the static DataSource.DataSources registry, written into on each tick
 //   * Fans collection, an ObservableCollection<Fan> the flyout binds to
 //
-// What this pass does NOT do yet:
-//   * Curve evaluation, jumpstart, delta limiting
-//   * Disabled/Detached state classification beyond a naive check
+// Fan control, all writes going through the coalescing control-write queue:
+//   * Manual: FanDisplayedValue (clamped by Min/Max Duty) is written whenever it or the mode changes.
+//   * Curve: every tick, FanCurveController evaluates the assigned curve against its data source and
+//     applies Offset, Min/Max Duty, Max Delta, Jumpstart, then Min/Max Duty again as a hard bound. A
+//     missing, NaN (raw or transformed), or stale source, or an unusable curve, hands the fan back to
+//     hardware control (SetDefault) until it recovers. A source not polled yet since Start is pending: no
+//     write at all until the first tick decides.
+//   * Times are Environment.TickCount64 ms, so wall-clock changes can't fake freshness.
+//   * FanControlDirtyShutdownMarker: written before the first SetSoftware, cleared after the clean-exit
+//     restore in Dispose. A same-boot marker at Start means SetDefault would restore a crashed instance's
+//     duty, so curve fallbacks write the fan's Max Duty instead.
+//   * Warn Low / Warn High are checked every tick against measured speed; a confirmed excursion
+//     raises FanSpeedWarningRaised once.
+//
+// Not done yet: Disabled/Detached state classification beyond a naive check.
 public sealed class LHMService : IDisposable
 {
     private readonly Dispatcher _dispatcher;
@@ -23,6 +35,24 @@ public sealed class LHMService : IDisposable
 
     private readonly Dictionary<string, FanControlWriteRequest> _pendingControlWrites =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // UI-thread only: poll-tick evaluation and fan property handlers both run on the dispatcher.
+    private readonly Dictionary<string, FanCurveControlState> _curveControlStates =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, FanSpeedWarningTracker> _speedWarningTrackers =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Dirty-shutdown marker: written before this process's first SetSoftware, cleared after the clean-exit
+    // restore. A same-boot marker at startup means firmware defaults are untrusted for this process.
+    private readonly FanControlDirtyShutdownMarker _shutdownMarker =
+        new(Path.Combine(AppSettings.GetDefaultDirectory(), FanControlDirtyShutdownMarker.FileName));
+
+    private DateTime _bootTimeUtc;
+
+    // UI-thread only. Environment.TickCount64 of the first poll tick that pushed readings; until then curve
+    // sources with no reading are pending rather than unavailable.
+    private long _firstPollMs = DataSource.NoSample;
 
     private readonly Computer _computer = new()
     {
@@ -87,10 +117,16 @@ public sealed class LHMService : IDisposable
     // Subscribers can use this to recompute curve outputs without subscribing to every signal.
     public event Action? PollTickCompleted;
 
+    // Raised on the UI thread once per confirmed Warn Low / Warn High excursion.
+    public event Action<Fan, FanSpeedWarning>? FanSpeedWarningRaised;
+
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_pollingCancellationToken != null) return;
+
+        _bootTimeUtc = FanControlDirtyShutdownMarker.CurrentBootTimeUtc();
+        _shutdownMarker.Load(_bootTimeUtc);
 
         lock (_hardwareLock)
         {
@@ -145,7 +181,11 @@ public sealed class LHMService : IDisposable
             {
                 await _dispatcher.InvokeAsync(() =>
                 {
-                    PushSensorReadings(readings);
+                    long nowMs = Environment.TickCount64;
+                    PushSensorReadings(readings, nowMs);
+                    if (_firstPollMs == DataSource.NoSample) _firstPollMs = nowMs;
+                    ApplyCurveControl(nowMs);
+                    UpdateSpeedWarnings(nowMs);
                     PollTickCompleted?.Invoke();
                 }, DispatcherPriority.Background, token);
             }
@@ -384,12 +424,18 @@ public sealed class LHMService : IDisposable
         existingSource.EnsureDisplayMetadata();
     }
 
-    private void PushSensorReadings(IReadOnlyList<SensorReading> readings)
+    private void PushSensorReadings(IReadOnlyList<SensorReading> readings, long nowMs)
     {
         foreach (SensorReading reading in readings)
         {
             DataSource? source = DataSource.Find(reading.Key);
-            source?.SetValue((long)Math.Round(reading.Value * 1000.0));
+            if (source != null)
+            {
+                bool transformValid = source.SetValue((long)Math.Round(reading.Value * 1000.0));
+                // A NaN/infinite reading, raw or after its transform, makes the source unavailable right away
+                // so no curve acts on it
+                source.RecordSample(nowMs, transformValid && float.IsFinite(reading.Value));
+            }
 
             switch (reading.SensorType)
             {
@@ -409,6 +455,7 @@ public sealed class LHMService : IDisposable
                     Fan? fan = FindFanByFanSensor(reading.HardwareName, reading.SensorName);
                     if (fan != null)
                     {
+                        fan.HasRPMSensor = true;
                         fan.CurrentRPM = (int)Math.Round(reading.Value);
                         UpdateFanFunctionalState(fan);
                     }
@@ -474,6 +521,10 @@ public sealed class LHMService : IDisposable
             or nameof(Fan.CurrentControlMode)
             or nameof(Fan.RPMMode)
             or nameof(Fan.MaxRPM)
+            or nameof(Fan.ClampLow)
+            or nameof(Fan.ClampLowRPMMode)
+            or nameof(Fan.ClampHigh)
+            or nameof(Fan.ClampHighRPMMode)
             or nameof(Fan.ForcedNonFunctioning)
             or nameof(Fan.ForceNonFunctional);
 
@@ -481,11 +532,109 @@ public sealed class LHMService : IDisposable
     {
         if (_disposed || string.IsNullOrWhiteSpace(fan.DataSourceKey)) return;
 
-        FanControlWriteRequest request =
-            fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual }
-                ? FanControlWriteRequest.Software(fan.DataSourceKey, ResolveManualDutyCyclePercent(fan))
-                : FanControlWriteRequest.Default(fan.DataSourceKey);
+        if (fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Curve })
+        {
+            ApplyCurveControl(fan, Environment.TickCount64);
+            return;
+        }
 
+        _curveControlStates.Remove(fan.DataSourceKey);
+        SetCurveFallback(fan, FanCurveFallback.None);
+        QueueControlWrite(
+            fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual }
+                ? FanControlWriteRequest.Software(fan.DataSourceKey,
+                    FanCurveController.ResolveManualDutyCyclePercent(fan))
+                : FanControlWriteRequest.Default(fan.DataSourceKey));
+    }
+
+    // Runs every poll tick for each Curve-mode fan (grouped fans resolve their group's curve).
+    private void ApplyCurveControl(long nowMs)
+    {
+        if (_disposed) return;
+
+        foreach (Fan fan in Fans)
+        {
+            if (fan is not { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Curve }) continue;
+            if (string.IsNullOrWhiteSpace(fan.DataSourceKey)) continue;
+            ApplyCurveControl(fan, nowMs);
+        }
+    }
+
+    private void ApplyCurveControl(Fan fan, long nowMs)
+    {
+        if (!_curveControlStates.TryGetValue(fan.DataSourceKey, out FanCurveControlState? state))
+        {
+            state = new FanCurveControlState();
+            _curveControlStates[fan.DataSourceKey] = state;
+        }
+
+        Curve? curve = fan.AssignedCurve;
+        FanCurveCommand command =
+            FanCurveController.Evaluate(fan, curve, curve?.SelectedDataSource, state, nowMs, _firstPollMs);
+        // The source hasn't been polled yet: leave the fan alone until the first tick decides
+        if (command.Action == FanCurveAction.Pending) return;
+
+        command = FanCurveController.ApplyFirmwareTrust(fan, command, _shutdownMarker.FirmwareDefaultsTrusted);
+        SetCurveFallback(fan, command);
+
+        if (command.Action == FanCurveAction.HandBack)
+        {
+            if (state.HandedToHardware) return;
+
+            state.HandedToHardware = true;
+            QueueControlWrite(FanControlWriteRequest.Default(fan.DataSourceKey));
+            return;
+        }
+
+        state.HandedToHardware = false;
+        QueueControlWrite(FanControlWriteRequest.Software(fan.DataSourceKey, command.DutyCyclePercent));
+    }
+
+    private static void SetCurveFallback(Fan fan, FanCurveCommand command)
+    {
+        FanCurveFallback fallback = command.Fallback;
+        if (fan.CurveFallback == fallback) return;
+
+        if (fallback == FanCurveFallback.None)
+            TADNLog.Log($"LHMService curve control resumed for {fan.DataSourceKey}");
+        else if (command.Action == FanCurveAction.Drive)
+            TADNLog.Log(
+                $"LHMService curve control fallback for {fan.DataSourceKey}: {fallback}; writing Max Duty "
+                + $"{command.DutyCyclePercent:0.#}% instead of SetDefault because firmware defaults are untrusted "
+                + "after an unclean exit earlier this boot");
+        else
+            TADNLog.Log($"LHMService curve control handed {fan.DataSourceKey} back to hardware: {fallback}");
+        fan.CurveFallback = fallback;
+    }
+
+    private static void SetCurveFallback(Fan fan, FanCurveFallback fallback) =>
+        SetCurveFallback(fan, FanCurveCommand.HandBack(fallback));
+
+    private void UpdateSpeedWarnings(long nowMs)
+    {
+        if (_disposed) return;
+
+        foreach (Fan fan in Fans)
+        {
+            if (string.IsNullOrWhiteSpace(fan.DataSourceKey)) continue;
+            if (!_speedWarningTrackers.TryGetValue(fan.DataSourceKey, out FanSpeedWarningTracker? tracker))
+            {
+                tracker = new FanSpeedWarningTracker();
+                _speedWarningTrackers[fan.DataSourceKey] = tracker;
+            }
+
+            bool raised = tracker.Update(FanSpeedWarnings.Classify(fan), nowMs);
+            fan.SpeedWarning = tracker.Active;
+            if (!raised) continue;
+
+            (string measured, string threshold) = FanSpeedWarnings.Describe(fan, tracker.Active);
+            TADNLog.Log($"LHMService speed warning {tracker.Active} for {fan.DataSourceKey}: {measured} vs {threshold}");
+            FanSpeedWarningRaised?.Invoke(fan, tracker.Active);
+        }
+    }
+
+    private void QueueControlWrite(FanControlWriteRequest request)
+    {
         lock (_controlWriteQueueLock)
         {
             _pendingControlWrites[request.DataSourceKey] = request;
@@ -560,30 +709,21 @@ public sealed class LHMService : IDisposable
                 return;
             }
 
+            _shutdownMarker.MarkSoftwareControl(_bootTimeUtc);
             float value = ClampToSoftwareRange(control, request.DutyCyclePercent);
             control.SetSoftware(value);
         }
     }
 
-    private static double ResolveManualDutyCyclePercent(Fan fan)
-    {
-        double value = Math.Clamp(fan.FanDisplayedValue, min: 0, Math.Max(val1: 1, fan.FanSliderMaximum));
-        if (fan.RPMMode)
-        {
-            double rpmReference = Math.Max(val1: 1, fan.FanSliderMaximum);
-            value = value / rpmReference * 100.0;
-        }
-
-        return Math.Clamp(value, min: 0.0, max: 100.0);
-    }
-
+    // Never outside 0-100, whatever range the control reports.
     private static float ClampToSoftwareRange(IControl control, double dutyCyclePercent)
     {
         float min = float.IsNaN(control.MinSoftwareValue) ? 0.0f : control.MinSoftwareValue;
         float max = float.IsNaN(control.MaxSoftwareValue) ? 100.0f : control.MaxSoftwareValue;
         if (max < min) (min, max) = (max, min);
 
-        return (float)Math.Clamp(dutyCyclePercent, min, max);
+        double value = Math.Clamp(dutyCyclePercent, min, max);
+        return (float)Math.Clamp(value, min: 0.0, max: 100.0);
     }
 
     private static void UpdateFanFunctionalState(Fan fan)
@@ -671,6 +811,7 @@ public sealed class LHMService : IDisposable
         DrainControlWriteWorker();
         UnsubscribeAndClearFans();
         PollTickCompleted = null;
+        FanSpeedWarningRaised = null;
         try
         {
             lock (_hardwareLock)
@@ -678,6 +819,9 @@ public sealed class LHMService : IDisposable
                 _controlSensorsByKey.Clear();
                 _computer.Close();
             }
+
+            // Close restored every header this process took over; only now is the marker safe to drop
+            _shutdownMarker.ClearAfterCleanRestore();
         }
         catch (Exception ex)
         {

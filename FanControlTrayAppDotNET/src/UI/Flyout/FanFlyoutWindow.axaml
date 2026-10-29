@@ -81,6 +81,7 @@
         <Thickness x:Key="Flyout.TelemetryMargin">6,0,0,0</Thickness>
         <sys:Double x:Key="Flyout.RPMFontSize">14</sys:Double>
         <sys:Double x:Key="Flyout.RPMOpacity">0.7</sys:Double>
+        <Thickness x:Key="Flyout.SpeedWarningGlyphMargin">0,0,4,0</Thickness>
         <sys:Double x:Key="Flyout.ControllerFontSize">9</sys:Double>
         <sys:Double x:Key="Flyout.ControllerOpacity">0.45</sys:Double>
         <Thickness x:Key="Flyout.ControllerMargin">0,-2,0,0</Thickness>

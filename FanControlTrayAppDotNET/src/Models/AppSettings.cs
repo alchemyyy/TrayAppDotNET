@@ -224,6 +224,10 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     [XmlArrayItem("Binding")]
     public List<HotkeyBinding> Hotkeys { get; set; } = [];
 
+    // Set once RetireLegacyOpenSettingsHotkey() has run (or on fresh installs, which never had the
+    // retired binding) so a binding the user re-adds later is never removed again.
+    public bool LegacyOpenSettingsHotkeyRetired { get; set; }
+
     [XmlArray("Fans")]
     [XmlArrayItem("Fan")]
     public List<Fan> Fans { get; set; } = [];
@@ -398,10 +402,12 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
             {
                 // One-time cleanup of duplicate hotkey rows that may have accumulated from a prior build
                 // that re-seeded the default hotkey on every launch.
+                // Retire the Open settings binding older builds seeded, once.
                 // Top up any defaults missing from the persisted list (e.g. when a new build ships a new
                 // default action). Skips entries the user has tombstoned via the UI (RemovedByUser=true)
                 // so an explicit removal isn't undone on the next launch.
                 bool changed = loaded.DedupeHotkeysByIdentity();
+                changed |= loaded.RetireLegacyOpenSettingsHotkey();
                 changed |= loaded.EnsureDefaultHotkeys();
                 changed |= loaded.EnsureFanProfileLayouts();
                 changed |= loaded.EnsureDefaultDeviceNicknameRules();
@@ -415,7 +421,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
             // fall through to default
         }
 
-        AppSettings defaults = new();
+        AppSettings defaults = new() { LegacyOpenSettingsHotkeyRetired = true };
         defaults.InitializeFanControlRegistries();
         defaults.EnsureDefaultHotkeys();
         defaults.EnsureFanProfileLayouts();
@@ -848,20 +854,28 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// Identity is (Action, Parameter, BindingID): defaults always live on BindingID 0 (the primary row),
     /// so a user-added secondary binding (BindingID >= 1) for the same action does not block re-seeding
     /// the primary row.
-    /// Skeleton ships with one illustrative binding; replace with your project's own defaults.
+    /// Fan Control ships no default bindings: every action starts unbound.
     /// </summary>
-    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() =>
-    [
-        new()
-        {
-            Action = HotkeyAction.OpenSettings,
-            Parameter = string.Empty,
-            Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
-            VirtualKey = 0x53, // VK_S
-            Enabled = true,
-            BindingID = 0
-        }
-    ];
+    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() => [];
+
+    /// <summary>
+    /// One-time removal of the Open settings binding on Ctrl+Alt+Win+S that older builds seeded
+    /// (it collided with Network's identical default). Drops the row only while it still equals
+    /// the retired default, plus any RemovedByUser tombstone for that identity.
+    /// Runs once, gated by LegacyOpenSettingsHotkeyRetired, so a binding re-added later survives.
+    /// Returns true when the marker was set (caller should persist).
+    /// </summary>
+    public bool RetireLegacyOpenSettingsHotkey()
+    {
+        if (LegacyOpenSettingsHotkeyRetired) return false;
+
+        const uint legacyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt;
+        Hotkeys.RemoveAll(b =>
+            b.Matches(HotkeyAction.OpenSettings, string.Empty, 0)
+            && (b.RemovedByUser || (b.Modifiers == legacyModifiers && b.VirtualKey == 0x53)));
+        LegacyOpenSettingsHotkeyRetired = true;
+        return true;
+    }
 
     /// <summary>
     /// True if the binding occupies the same identity slot as one of the built-in defaults

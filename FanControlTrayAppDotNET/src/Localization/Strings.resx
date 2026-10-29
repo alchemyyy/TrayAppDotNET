@@ -264,7 +264,7 @@ Target: {1}</value>
     <value>Default Jumpstart Duty Cycle</value>
   </data>
   <data name="Settings_FanProperties_DefaultJumpstartDutyCycle_Description" xml:space="preserve">
-    <value>Initial duty cycle applied for one tick to overcome fan stiction. Always in duty cycle %; skipped when a fan's startup speed is already higher.</value>
+    <value>Initial duty cycle applied for one tick to get a stopped fan past stiction. Always in duty cycle %; skipped when the fan's target speed is already higher.</value>
   </data>
   <data name="Settings_FanProperties_DefaultDeltaMaxDutyCycle_Title" xml:space="preserve">
     <value>Default Delta Max Duty Cycle</value>
@@ -310,6 +310,27 @@ Target: {1}</value>
   </data>
   <data name="Flyout_ModeLock_Tooltip" xml:space="preserve">
     <value>Toggle between manual and curve control</value>
+  </data>
+  <data name="Flyout_SpeedWarningLow_TooltipFormat" xml:space="preserve">
+    <value>Speed warning: {0}, below Warn Low ({1})</value>
+  </data>
+  <data name="Flyout_SpeedWarningHigh_TooltipFormat" xml:space="preserve">
+    <value>Speed warning: {0}, above Warn High ({1})</value>
+  </data>
+  <data name="Flyout_CurveFallbackSource_Tooltip" xml:space="preserve">
+    <value>Curve paused: its data source isn't reporting. Until readings come back the fan is on hardware control, or on its Max Duty if Fan Control didn't exit cleanly earlier this boot.</value>
+  </data>
+  <data name="Flyout_CurveFallbackCurve_Tooltip" xml:space="preserve">
+    <value>Curve paused: the curve has no usable points. The fan is on hardware control, or on its Max Duty if Fan Control didn't exit cleanly earlier this boot.</value>
+  </data>
+  <data name="Notification_SpeedWarning_Title" xml:space="preserve">
+    <value>Fan speed warning</value>
+  </data>
+  <data name="Notification_SpeedWarningLow_BodyFormat" xml:space="preserve">
+    <value>{0} is at {1}, below its Warn Low of {2}.</value>
+  </data>
+  <data name="Notification_SpeedWarningHigh_BodyFormat" xml:space="preserve">
+    <value>{0} is at {1}, above its Warn High of {2}.</value>
   </data>
   <data name="Settings_General_Seconds_Suffix" xml:space="preserve">
     <value>s</value>

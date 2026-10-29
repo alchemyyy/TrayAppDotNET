@@ -5,6 +5,7 @@ using HotAvalonia;
 using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -63,6 +64,9 @@ internal sealed class FanAvaloniaApp : Application
     private FanWatcherMonitor? _watcherMonitor;
     private UpdateCheckService? _updateCheckService;
     private int _lastNotifiedUpdateVersion;
+
+    // The tray has one balloon slot and one click event; this says what the last balloon was about.
+    private bool _lastBalloonIsUpdate;
     private bool _suppressNextTrayClick;
     private bool _shuttingDown;
 
@@ -172,6 +176,7 @@ internal sealed class FanAvaloniaApp : Application
 
                 pendingLHMService = new LHMService(Dispatcher.UIThread, _settings);
                 pendingLHMService.PollTickCompleted += RequestTrayRefresh;
+                pendingLHMService.FanSpeedWarningRaised += OnFanSpeedWarningRaised;
                 pendingLHMService.Start();
                 _lhmService = pendingLHMService;
                 AppServices.LHMService = pendingLHMService;
@@ -184,6 +189,7 @@ internal sealed class FanAvaloniaApp : Application
             if (pendingLHMService != null)
             {
                 pendingLHMService.PollTickCompleted -= RequestTrayRefresh;
+                pendingLHMService.FanSpeedWarningRaised -= OnFanSpeedWarningRaised;
                 Safe.Dispose(pendingLHMService);
             }
 
@@ -269,7 +275,7 @@ internal sealed class FanAvaloniaApp : Application
         _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
-        _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+        _trayIcon.BalloonClicked += OnTrayBalloonClicked;
     }
 
     private void OnHotkeyFired(object? sender, FanHotkeyFiredEventArgs e)
@@ -328,13 +334,34 @@ internal sealed class FanAvaloniaApp : Application
         if (info.Version <= _lastNotifiedUpdateVersion) return;
 
         _lastNotifiedUpdateVersion = info.Version;
+        _lastBalloonIsUpdate = true;
         _trayIcon?.ShowBalloon(
             L(nameof(CommonStrings.UpdateNotification_Title)),
             string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
-    private void OnUpdateBalloonClicked()
+    private void OnFanSpeedWarningRaised(Fan fan, FanSpeedWarning warning)
     {
+        if (_trayIcon == null || warning == FanSpeedWarning.None) return;
+
+        (string measured, string threshold) = FanSpeedWarnings.Describe(fan, warning);
+        string format = warning == FanSpeedWarning.Low
+            ? L(nameof(AppStrings.Notification_SpeedWarningLow_BodyFormat))
+            : L(nameof(AppStrings.Notification_SpeedWarningHigh_BodyFormat));
+        _lastBalloonIsUpdate = false;
+        _trayIcon.ShowBalloon(
+            L(nameof(AppStrings.Notification_SpeedWarning_Title)),
+            string.Format(CultureInfo.CurrentCulture, format, fan.DisplayName, measured, threshold));
+    }
+
+    private void OnTrayBalloonClicked()
+    {
+        if (!_lastBalloonIsUpdate)
+        {
+            ShowFanFlyout();
+            return;
+        }
+
         if (_updateCheckService?.AvailableUpdate == null) return;
         OpenSettings(FanSettingsPage.About);
     }
@@ -736,6 +763,7 @@ internal sealed class FanAvaloniaApp : Application
             if (_lhmService != null)
             {
                 _lhmService.PollTickCompleted -= RequestTrayRefresh;
+                _lhmService.FanSpeedWarningRaised -= OnFanSpeedWarningRaised;
                 Safe.Dispose(_lhmService);
                 _lhmService = null;
                 AppServices.LHMService = null;
@@ -760,7 +788,7 @@ internal sealed class FanAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
-                _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
+                _trayIcon.BalloonClicked -= OnTrayBalloonClicked;
             }
 
             Safe.Dispose(_trayIcon);

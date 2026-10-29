@@ -19,9 +19,28 @@ public enum FanState
     Normal
 }
 
+// Live Warn Low / Warn High state, from the measured speed compared in each threshold's own unit.
+public enum FanSpeedWarning
+{
+    None,
+    Low,
+    High
+}
+
+// Why a Curve-mode fan with a curve and data source was handed back to hardware control.
+// - SourceUnavailable: the data source is gone, not live, invalid (NaN), or stopped updating.
+// - CurveUnusable: the curve has no points or produced a non-finite value.
+public enum FanCurveFallback
+{
+    None,
+    SourceUnavailable,
+    CurveUnusable
+}
+
 // How the fan picks its target duty cycle / RPM each tick.
 // - Manual: FanDisplayedValue is the target. The slider in the flyout drives this directly.
-// - Curve: AssignedCurve.Evaluate(SelectedDataSource.Value) picks the target.
+// - Curve: the assigned curve, sampled at its data source's reading, picks the target; LHMService runs
+//   it through FanCurveController (Offset, clamps, Max Delta, Jumpstart, fail-safe) every poll tick.
 public enum FanControlMode
 {
     Manual,
@@ -62,8 +81,8 @@ public class Fan : INotifyPropertyChanged
         }
     }
 
-    // Hard limits applied to the resolved target speed. Curve outputs and manual values clamp
-    // into [ClampLow, ClampHigh]. Defaults span the full duty-cycle range.
+    // Hard limits on every written speed. Curve outputs clamp into [ClampLow, ClampHigh] after Offset and
+    // again after Max Delta and Jumpstart; manual values clamp too. Defaults span the full duty-cycle range.
 
     [XmlAttribute]
     public int ClampLow
@@ -113,8 +132,8 @@ public class Fan : INotifyPropertyChanged
         }
     }
 
-    // Soft warnings. The flyout colors the slider / shows an icon if the resolved speed crosses
-    // these bounds. Doesn't gate the actual write.
+    // Soft warnings. The measured speed is compared against each threshold in that threshold's own unit;
+    // the flyout shows a warning glyph and the tray raises a notification. Doesn't gate the actual write.
 
     [XmlAttribute]
     public int WarnLow
@@ -164,9 +183,9 @@ public class Fan : INotifyPropertyChanged
         }
     }
 
-    // Maximum change per second, in the active speed unit. Caps how fast the curve service is
-    // allowed to ramp the fan up or down. Always expressed in duty cycle % even when RPMMode is
-    // true (rate-of-change feels more natural per-PWM than per-RPM).
+    // Maximum change per second of the curve-driven speed, in %/s or RPM/s per DeltaMaxRPMMode. Caps
+    // how fast Curve mode is allowed to ramp the fan up or down. 0 disables the limit. Manual writes
+    // are not rate-limited.
 
     [XmlAttribute]
     public int DeltaMax
@@ -340,9 +359,25 @@ public class Fan : INotifyPropertyChanged
     public int OffsetForCurve(Curve? curve) =>
         ConvertSpeedPropertyValueForCurve(Offset, OffsetRPMMode, curve);
 
-    // Speed to drive the fan at briefly during startup to overcome stiction. If the curve or
-    // manual target is below StartupSpeed and the fan was previously at zero, we kick to
-    // StartupSpeed for one tick then drop to target. Skipped if the target is already >= startup.
+    /// <summary>
+    /// Converts a value in the assigned curve unit to duty cycle %, using the same RPM reference as the
+    /// ...ForCurve property conversions so property limits round-trip exactly.
+    /// </summary>
+    public double CurveValueToDutyCycle(double value, Curve? curve) =>
+        curve?.RPMMode ?? RPMMode
+            ? RPMToDutyCyclePercent(value, RPMReference(curve))
+            : value;
+
+    /// <summary>
+    /// Converts an RPM value to duty cycle % against an RPM reference (the speed treated as 100%).
+    /// Shared by Manual RPM mode and RPM-unit curves. Not clamped.
+    /// </summary>
+    public static double RPMToDutyCyclePercent(double rpm, double rpmReference) =>
+        rpm / Math.Max(val1: 1.0, rpmReference) * DutyCycleMaximum;
+
+    // Speed to drive the fan at briefly during startup to overcome stiction. If the curve target is
+    // above zero but below StartupSpeed and the fan was stopped, Curve mode kicks to StartupSpeed for
+    // one poll tick then drops to the target, never above ClampHigh. Skipped if the target is already >= startup.
 
     [XmlAttribute]
     public int StartupSpeed
@@ -521,6 +556,38 @@ public class Fan : INotifyPropertyChanged
             OnPropertyChanged();
         }
     } = FanState.Normal;
+
+    // True once LHM has paired an RPM sensor with this fan. RPM-unit warnings stay quiet without one,
+    // since CurrentRPM would read 0 forever.
+    [XmlIgnore]
+    public bool HasRPMSensor { get; set; }
+
+    // Live Warn Low / Warn High state, debounced by LHMService.
+    [XmlIgnore]
+    public FanSpeedWarning SpeedWarning
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    // Set while Curve mode has handed this fan back to hardware control because the curve's data
+    // source or the curve itself can't be trusted. Cleared as soon as the curve drives the fan again.
+    [XmlIgnore]
+    public FanCurveFallback CurveFallback
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
 
     // User override that forces this fan into a non-functioning state even if LHM still exposes
     // the control. This is persisted separately from CurrentState because CurrentState is live

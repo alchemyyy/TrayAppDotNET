@@ -62,6 +62,24 @@ public class DataSource : INotifyPropertyChanged
     [XmlIgnore]
     public bool IsLiveHardwareSensor { get; set; }
 
+    // LastSampleTickMs value meaning "no reading pushed since this process started".
+    public const long NoSample = long.MinValue;
+
+    // Runtime-only: Environment.TickCount64 (monotonic ms) when the producer last pushed a reading, and
+    // whether that reading (after TransformString) was a finite number. Curve control treats an invalid
+    // reading as unavailable right away and an old stamp as stale.
+    [XmlIgnore]
+    public long LastSampleTickMs { get; private set; } = NoSample;
+
+    [XmlIgnore]
+    public bool LastSampleValid { get; private set; }
+
+    public void RecordSample(long tickMs, bool valid)
+    {
+        LastSampleTickMs = tickMs;
+        LastSampleValid = valid;
+    }
+
     [XmlAttribute]
     public DataSourceTypeEnum DataSourceType { get; set; } = DataSourceTypeEnum.Unknown;
 
@@ -117,13 +135,14 @@ public class DataSource : INotifyPropertyChanged
 
     // Producer-side setter that runs the TransformString before storing. If the expression
     // throws or fails to parse, the raw value is stored unchanged so a broken transform never
-    // freezes the signal.
-    public void SetValue(long rawValue)
+    // freezes the signal. Returns false when the transform produced NaN, infinity, or a value too large
+    // for the milli-unit long; Value is left unchanged then so it never silently saturates.
+    public bool SetValue(long rawValue)
     {
         if (string.IsNullOrWhiteSpace(TransformString))
         {
             Value = rawValue;
-            return;
+            return true;
         }
 
         try
@@ -132,8 +151,11 @@ public class DataSource : INotifyPropertyChanged
             object? result = expression.Evaluate();
             if (result is IConvertible convertible)
             {
-                Value = (long)Math.Round(Convert.ToDouble(convertible));
-                return;
+                double transformed = Math.Round(Convert.ToDouble(convertible));
+                if (!double.IsFinite(transformed) || Math.Abs(transformed) >= long.MaxValue) return false;
+
+                Value = (long)transformed;
+                return true;
             }
         }
         catch
@@ -142,6 +164,7 @@ public class DataSource : INotifyPropertyChanged
         }
 
         Value = rawValue;
+        return true;
     }
 
     [XmlIgnore]

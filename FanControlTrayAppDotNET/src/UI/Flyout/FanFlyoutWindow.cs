@@ -1271,13 +1271,24 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         };
         TextBlock rpm = TrayAppDotNETFlyoutUI.Text($"{fan.CurrentRPM} RPM", p, Layout.RPMFontSize);
         rpm.Opacity = Layout.RPMOpacity;
-        rpm.HorizontalAlignment = HorizontalAlignment.Right;
+        rpm.VerticalAlignment = VerticalAlignment.Center;
+        TextBlock warning = IconText(GlyphCatalog.WARNING, p, Layout.RPMFontSize);
+        warning.Margin = Layout.SpeedWarningGlyphMargin;
+        warning.IsHitTestVisible = true;
+        ApplyFanWarningVisual(fan, warning);
+        StackPanel rpmLine = new()
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        rpmLine.Children.Add(warning);
+        rpmLine.Children.Add(rpm);
         TextBlock controller = TrayAppDotNETFlyoutUI.Text(fan.ControllerDisplayLabel, p, Layout.ControllerFontSize);
         controller.Opacity = Layout.ControllerOpacity;
         controller.HorizontalAlignment = HorizontalAlignment.Right;
         controller.TextTrimming = TextTrimming.CharacterEllipsis;
         controller.Margin = Layout.ControllerMargin;
-        telemetry.Children.Add(rpm);
+        telemetry.Children.Add(rpmLine);
         telemetry.Children.Add(controller);
         Grid.SetRow(telemetry, value: 0);
         Grid.SetColumn(telemetry, value: 2);
@@ -1410,7 +1421,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (generation != null && interactive)
         {
             RegisterFanRowRefs(generation, fan,
-                new FanRowVisualRefs(grouped, name, rpm, subtitle, valueText, slider, modeGlyph, mode));
+                new FanRowVisualRefs(grouped, name, rpm, warning, subtitle, valueText, slider, modeGlyph, mode));
             if (grouped)
                 WireFanDrag(row, fan);
         }
@@ -1822,12 +1833,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (propertyName is null or nameof(Fan.CurrentRPM))
                 refs.RPM.Text = $"{fan.CurrentRPM} RPM";
 
+            if (propertyName is null or nameof(Fan.SpeedWarning) or nameof(Fan.CurveFallback))
+                ApplyFanWarningVisual(fan, refs.Warning);
+
             if (refs.Grouped && propertyName is null or nameof(Fan.CurrentDutyCycle))
                 refs.Subtitle.Text = $"{fan.CurrentDutyCycle.ToString(format: "0", CultureInfo.InvariantCulture)}%";
 
             if (propertyName is null or nameof(Fan.FanDisplayedValue) or nameof(Fan.FanDisplayedValueText)
                 or nameof(Fan.FanSliderMaximum) or nameof(Fan.CurrentControlMode) or nameof(Fan.CurrentRPM)
-                or nameof(Fan.CurrentDutyCycle))
+                or nameof(Fan.CurrentDutyCycle) or nameof(Fan.CurveFallback))
                 RefreshFanSliderVisual(fan, refs);
 
             if (propertyName is null or nameof(Fan.CurrentControlMode))
@@ -1851,6 +1865,42 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         refs.Slider.Value = FanSliderValue(fan, curveSliderValue, sliderRange);
         ConfigureFanSliderMultipleValues(fan, refs.Slider, sliderRange);
         ApplyFanRelinquishedControlVisual(fan, refs.Name, refs.Value, refs.Slider);
+    }
+
+    /// <summary>
+    /// Shows the warning glyph for a confirmed Warn Low / Warn High excursion or a curve hand-back,
+    /// with a tooltip saying which.
+    /// </summary>
+    private static void ApplyFanWarningVisual(Fan fan, TextBlock warning)
+    {
+        string? tip = FanWarningTooltip(fan);
+        warning.IsVisible = tip != null;
+        TrayAppDotNETToolTip.SetTip(warning, tip);
+    }
+
+    private static string? FanWarningTooltip(Fan fan)
+    {
+        List<string> lines = [];
+        if (fan.SpeedWarning != FanSpeedWarning.None)
+        {
+            (string measured, string threshold) = FanSpeedWarnings.Describe(fan, fan.SpeedWarning);
+            string format = fan.SpeedWarning == FanSpeedWarning.Low
+                ? L(nameof(AppStrings.Flyout_SpeedWarningLow_TooltipFormat))
+                : L(nameof(AppStrings.Flyout_SpeedWarningHigh_TooltipFormat));
+            lines.Add(string.Format(CultureInfo.CurrentCulture, format, measured, threshold));
+        }
+
+        switch (fan.CurveFallback)
+        {
+            case FanCurveFallback.SourceUnavailable:
+                lines.Add(L(nameof(AppStrings.Flyout_CurveFallbackSource_Tooltip)));
+                break;
+            case FanCurveFallback.CurveUnusable:
+                lines.Add(L(nameof(AppStrings.Flyout_CurveFallbackCurve_Tooltip)));
+                break;
+        }
+
+        return lines.Count == 0 ? null : string.Join(Environment.NewLine, lines);
     }
 
     private void RefreshGroupHeaderVisuals()
@@ -1915,11 +1965,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private static bool IsFanControlRelinquished(Fan fan) =>
         fan.CurrentControlMode != FanControlMode.Manual
-        && fan.AssignedCurve?.SelectedDataSource == null;
+        && (fan.AssignedCurve?.SelectedDataSource == null || fan.CurveFallback != FanCurveFallback.None);
 
     private static bool IsGroupControlRelinquished(FanFlyoutCell cell) =>
         cell.GroupCurrentControlMode != FanControlMode.Manual
-        && cell.GroupSettings?.AssignedCurve?.SelectedDataSource == null;
+        && (cell.GroupSettings?.AssignedCurve?.SelectedDataSource == null
+            || (cell.Fans.Count > 0
+                && cell.Fans.All(static fan => fan.CurveFallback != FanCurveFallback.None)));
 
     private SliderThumbGlyphOption ResolveFanSliderThumb(Fan fan) =>
         fan.CurrentControlMode == FanControlMode.Manual
@@ -2183,7 +2235,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         DataSource? source = curve?.SelectedDataSource;
         if (curve == null || source == null) return null;
 
-        double target = curve.Evaluate(source.DisplayValue);
+        if (!FanCurveEvaluator.TryEvaluate(curve, source, out double target)) return null;
         double sliderValue = ConvertCurveTargetToFanSliderValue(fan, curve, target);
         return ClampSliderPosition(sliderValue, sliderRange);
     }
@@ -2207,7 +2259,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         DataSource? source = curve?.SelectedDataSource;
         if (curve == null || source == null) return null;
 
-        double target = curve.Evaluate(source.DisplayValue);
+        if (!FanCurveEvaluator.TryEvaluate(curve, source, out double target)) return null;
         target = ConvertCurveTargetToGroupSliderValue(cell, curve, target);
 
         return ClampSliderPosition(target, sliderRange);
@@ -5465,7 +5517,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 or nameof(Fan.FanDisplayedValue)
                 or nameof(Fan.FanDisplayedValueText)
                 or nameof(Fan.FanSliderMaximum)
-                or nameof(Fan.CurrentControlMode))
+                or nameof(Fan.CurrentControlMode)
+                or nameof(Fan.SpeedWarning)
+                or nameof(Fan.CurveFallback))
         {
             if (!IsVisible) return;
             string? propertyName = e.PropertyName;
@@ -6069,6 +6123,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         bool Grouped,
         TextBlock Name,
         TextBlock RPM,
+        TextBlock Warning,
         TextBlock Subtitle,
         TextBlock? Value,
         FlyoutSlider? Slider,

@@ -77,7 +77,7 @@ public class Curve : INotifyPropertyChanged
     public int ClampXMax { get; set; } = 100;
 
     // Minimum dwell time before the curve commits a new Y to the fan, in milliseconds. Used by
-    // FanControlService to suppress rapid Y oscillations across a hot sample boundary.
+    // FanCurveController to suppress rapid Y oscillations across a hot sample boundary. 0 = off.
     [XmlAttribute]
     public int HysteresisMs { get; set; }
 
