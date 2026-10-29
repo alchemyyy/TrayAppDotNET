@@ -275,7 +275,8 @@
         </Scope>
         <Scope ID="UsersPage" Template="TaskManagerTablePage" Tab="Continue" Source="UsersPage.UsersPage"
                Description="User rows are groups, so activating one expands or collapses it">
-            <Leaf ID="Disconnect" Kind="Button" Event="Click" Source="UsersPage.OnDisconnectClick" />
+            <Leaf ID="Disconnect" Kind="Button" Event="Click" Source="UsersPage.OnDisconnectClick"
+                  Description="Confirms in the shell overlay first" />
             <Leaf ID="ManageUserAccounts" Kind="Button" Event="Click" Source="UsersPage.OnManageUsersClick" />
             <Leaf ID="More" Kind="Button" Event="Click" Source="UsersPage.OnMoreClick"
                   Description="Opens UsersMoreMenu" />
@@ -388,7 +389,7 @@
               Description="End tasks for several; confirms in the shell overlay" />
         <Leaf ID="EndProcessTree" Kind="ListItem" Event="MenuEntry"
               Source="ProcessRowContextMenuController.BuildMainEntries"
-              Description="End process trees for several; descendants first, then the roots" />
+              Description="End process trees for several; confirms in the shell overlay, then descendants first, then the roots" />
         <Leaf ID="SetPriority" Kind="ListItem" Event="MenuEntry"
               Source="ProcessRowContextMenuController.BuildMainEntries"
               Description="Opens ProcessPriorityMenu, also on hover; shield when elevation is needed" />
@@ -416,7 +417,7 @@
 
     <Surface ID="ProcessPriorityMenu" Kind="Popup" Template="ContextMenu"
              Source="ProcessRowContextMenuController.BuildPriorityEntries"
-             Description="Submenu shown without activation; checks the current class for one process">
+             Description="Submenu shown without activation; checks the current class for one process; every entry confirms in the shell overlay">
         <Leaf ID="Realtime" Kind="ListItem" Event="MenuEntry"
               Source="ProcessRowContextMenuController.AddPriorityEntry" />
         <Leaf ID="High" Kind="ListItem" Event="MenuEntry"
@@ -648,7 +649,7 @@
     <Surface ID="UsersMoreMenu" Kind="Popup" Template="ContextMenu" Source="UsersPage.OnMoreClick">
         <Leaf ID="Refresh" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick" />
         <Leaf ID="Disconnect" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick"
-              Description="Only when the selected user session can be disconnected" />
+              Description="Only when the selected user session can be disconnected; confirms in the shell overlay" />
         <Leaf ID="ManageUserAccounts" Kind="ListItem" Event="MenuEntry" Source="UsersPage.OnMoreClick" />
     </Surface>
 

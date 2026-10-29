@@ -362,14 +362,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private Task<bool> ConfirmEnableElevatedActionsAsync()
     {
         TaskManagerWindow? window = _taskManagerWindow;
-        if (window == null) return Task.FromResult(false);
-
-        return window.ConfirmAsync(
-            title: "Administrator approval required",
-            "This action needs administrator rights. Continue to the Windows approval prompt? Declining "
-            + "leaves nothing changed, and you will be asked again the next time an action needs elevation.",
-            confirmText: "Continue",
-            cancelText: "Cancel");
+        return window == null ? Task.FromResult(false) : window.ConfirmAdministratorApprovalAsync();
     }
 
     private void OnTrayRightClick(Point point) =>

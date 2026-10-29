@@ -183,6 +183,41 @@ internal static class CriticalProcessActions
         return true;
     }
 
+    /// <summary>
+    /// Returns whether standard rights are refused a termination handle for a live process known to be
+    /// non-critical, i.e. the administrator helper could still end it. A process whose criticality can't be read
+    /// at standard rights is never offered: Windows' own critical SYSTEM processes refuse that query, and no helper
+    /// ends critical processes.
+    /// </summary>
+    internal static bool IsTerminationAccessDenied(ProcessTerminationTarget target)
+    {
+        if (target.ProcessID <= 0 || target.ProcessID == Environment.ProcessId) return false;
+
+        IntPtr queryHandle = Kernel32.OpenProcess(
+            Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
+            bInheritHandle: false,
+            (uint)target.ProcessID);
+        if (queryHandle == IntPtr.Zero) return false;
+
+        try
+        {
+            if (!Kernel32.IsProcessCritical(queryHandle, out bool isCritical) || isCritical) return false;
+        }
+        finally
+        {
+            _ = Kernel32.CloseHandle(queryHandle);
+        }
+
+        IntPtr terminateHandle = Kernel32.OpenProcess(
+            Kernel32.PROCESS_TERMINATE,
+            bInheritHandle: false,
+            (uint)target.ProcessID);
+        if (terminateHandle == IntPtr.Zero) return Marshal.GetLastWin32Error() == ErrorAccessDenied;
+
+        _ = Kernel32.CloseHandle(terminateHandle);
+        return false;
+    }
+
     /// <summary>Sends termination through a process handle that already pins target identity.</summary>
     internal static bool TryTerminateHandle(IntPtr processHandle, out int errorCode)
     {

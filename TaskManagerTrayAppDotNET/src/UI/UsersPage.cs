@@ -12,6 +12,7 @@ internal sealed class UsersPage : TaskManagerTablePage
     private readonly WindowsUserSessionService _sessionService;
     private readonly ProcessDataSchema _schema;
     private readonly Func<string, bool> _startProcess;
+    private readonly Func<ActionConfirmation, Task<bool>> _confirmAction;
     private readonly Action<string, string> _reportMessage;
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly SettingsButton _disconnectButton;
@@ -33,6 +34,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         TaskManagerWindowResources resources,
         bool isLightTheme,
         Func<string, bool> startProcess,
+        Func<ActionConfirmation, Task<bool>> confirmAction,
         Action<string, string> reportMessage)
         : base(
             title: "Users",
@@ -49,6 +51,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         _snapshotService = snapshotService;
         _sessionService = sessionService;
         _startProcess = startProcess;
+        _confirmAction = confirmAction;
         _reportMessage = reportMessage;
         _schema = ProcessDataSchema.Create(
             [],
@@ -351,23 +354,10 @@ internal sealed class UsersPage : TaskManagerTablePage
         UpdateDisconnectButton(group);
         try
         {
-            UserSessionActionResult result = await Task.Run(() => _sessionService.Disconnect(group.Session));
-            if (_disposed) return;
-            if (!result.Succeeded)
-            {
-                if (result.NativeErrorCode == AccessDeniedErrorCode
-                    && await TryDisconnectElevatedAsync(group.Session.SessionID))
-                    return;
-
-                _reportMessage(
-                    arg1: "Disconnect failed",
-                    string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? "Windows could not disconnect the selected user session."
-                        : result.ErrorMessage);
-                return;
-            }
-
-            _snapshotService.RequestRefresh();
+            _ = await ActionConfirmations.RunIfConfirmedAsync(
+                ActionConfirmations.Disconnect(group.Session, CurrentSessionID),
+                _confirmAction,
+                () => DisconnectConfirmedAsync(group));
         }
         catch (Exception exception)
         {
@@ -379,6 +369,38 @@ internal sealed class UsersPage : TaskManagerTablePage
             _disconnectPending = false;
             if (!_disposed) UpdateDisconnectButton(SelectedRow?.Tag as UserGroupSnapshot);
         }
+    }
+
+    private static int CurrentSessionID
+    {
+        get
+        {
+            using System.Diagnostics.Process current = System.Diagnostics.Process.GetCurrentProcess();
+            return current.SessionId;
+        }
+    }
+
+    private async Task DisconnectConfirmedAsync(UserGroupSnapshot group)
+    {
+        if (_disposed) return;
+
+        UserSessionActionResult result = await Task.Run(() => _sessionService.Disconnect(group.Session));
+        if (_disposed) return;
+        if (!result.Succeeded)
+        {
+            if (result.NativeErrorCode == AccessDeniedErrorCode
+                && await TryDisconnectElevatedAsync(group.Session.SessionID))
+                return;
+
+            _reportMessage(
+                arg1: "Disconnect failed",
+                string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    ? "Windows could not disconnect the selected user session."
+                    : result.ErrorMessage);
+            return;
+        }
+
+        _snapshotService.RequestRefresh();
     }
 
     private void OnManageUsersClick(object? sender, EventArgs eventArgs) =>

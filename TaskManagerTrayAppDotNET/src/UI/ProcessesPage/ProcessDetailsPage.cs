@@ -22,7 +22,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private readonly TryTerminateProcessAction _terminateProcess;
     private readonly Func<ElevatedHelperStatus> _getElevatedHelperStatus;
     private readonly Action _requestElevatedTermination;
-    private readonly Func<ProcessEndTaskRequest, Task<bool>> _confirmEndTask;
+    private readonly Func<Task<ElevatedTerminationRequestOutcome>> _requestElevatedTerminationOnDemand;
+    private readonly Func<ActionConfirmation, Task<bool>> _confirmAction;
     private readonly Func<Task<bool>> _confirmRestartExplorer;
     private readonly Func<Task<ExplorerRestartResult>> _restartExplorer;
     private readonly Action<string, string> _reportMessage;
@@ -74,7 +75,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         TryTerminateProcessAction terminateProcess,
         Func<ElevatedHelperStatus> getElevatedHelperStatus,
         Action requestElevatedTermination,
-        Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
+        Func<Task<ElevatedTerminationRequestOutcome>> requestElevatedTerminationOnDemand,
+        Func<ActionConfirmation, Task<bool>> confirmAction,
         Func<Task<bool>> confirmRestartExplorer,
         Func<ProcessSavedSearch, Task<bool>> confirmDeleteSavedSearch,
         Func<Task<ExplorerRestartResult>> restartExplorer,
@@ -90,7 +92,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _terminateProcess = terminateProcess;
         _getElevatedHelperStatus = getElevatedHelperStatus;
         _requestElevatedTermination = requestElevatedTermination;
-        _confirmEndTask = confirmEndTask;
+        _requestElevatedTerminationOnDemand = requestElevatedTerminationOnDemand;
+        _confirmAction = confirmAction;
         _confirmRestartExplorer = confirmRestartExplorer;
         _restartExplorer = restartExplorer;
         _reportMessage = reportMessage;
@@ -138,6 +141,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings.EnableRoundedCorners,
             settings,
             terminateProcess,
+            ExecuteTerminationAsync,
+            confirmAction,
             RequestEndTask,
             _snapshotService.RequestRefresh,
             reportMessage,
@@ -1035,14 +1040,16 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _isEndTaskConfirmationPending = true;
         try
         {
-            bool confirmed = await _confirmEndTask(request);
+            bool confirmed = await _confirmAction(ActionConfirmations.EndTask(request.Processes));
             if (_disposed || !confirmed) return;
 
-            ProcessTerminationBatchResult result = await Task.Run(() =>
-                ProcessTerminationBatchFunctions.Execute(
-                    request.Processes,
+            ProcessTerminationBatchResult result = await ExecuteTerminationAsync(
+                request.Processes,
+                processes => ProcessTerminationBatchFunctions.Execute(
+                    processes,
                     _terminateProcess,
-                    CriticalProcessActions.IsTargetGone));
+                    CriticalProcessActions.IsTargetGone,
+                    CriticalProcessActions.IsTerminationAccessDenied));
             if (_disposed) return;
             if (result.RefreshNeeded) _snapshotService.RequestRefresh();
             if (!string.IsNullOrEmpty(result.ErrorMessage))
@@ -1068,6 +1075,17 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             _isEndTaskConfirmationPending = false;
         }
     }
+
+    /// <summary>Ends processes, asking for elevated termination on demand when standard rights are refused.</summary>
+    private Task<ProcessTerminationBatchResult> ExecuteTerminationAsync(
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        ProcessTerminationBatchAction execute) =>
+        ProcessTerminationElevationFunctions.ExecuteAsync(
+            processes,
+            execute,
+            () => _getElevatedHelperStatus().State,
+            AppElevation.IsElevated,
+            _requestElevatedTerminationOnDemand);
 
     private void OnSubmitRunClick(object? sender, EventArgs eventArgs) => SubmitRunTask();
 

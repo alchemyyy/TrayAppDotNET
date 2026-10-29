@@ -33,6 +33,9 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private readonly bool _enableRoundedCorners;
     private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
     private readonly TryTerminateProcessAction _terminateProcess;
+    private readonly Func<IReadOnlyList<ProcessEndTaskItem>, ProcessTerminationBatchAction, Task<ProcessTerminationBatchResult>>
+        _executeTermination;
+    private readonly Func<ActionConfirmation, Task<bool>> _confirmAction;
     private readonly Action<ProcessEndTaskRequest> _requestEndTask;
     private readonly Action _requestRefresh;
     private readonly Action<string, string> _reportError;
@@ -50,6 +53,9 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings,
         TryTerminateProcessAction terminateProcess,
+        Func<IReadOnlyList<ProcessEndTaskItem>, ProcessTerminationBatchAction, Task<ProcessTerminationBatchResult>>
+            executeTermination,
+        Func<ActionConfirmation, Task<bool>> confirmAction,
         Action<ProcessEndTaskRequest> requestEndTask,
         Action requestRefresh,
         Action<string, string> reportError,
@@ -59,6 +65,8 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(trayMenuSettings);
         ArgumentNullException.ThrowIfNull(terminateProcess);
+        ArgumentNullException.ThrowIfNull(executeTermination);
+        ArgumentNullException.ThrowIfNull(confirmAction);
         ArgumentNullException.ThrowIfNull(requestEndTask);
         ArgumentNullException.ThrowIfNull(requestRefresh);
         ArgumentNullException.ThrowIfNull(reportError);
@@ -68,6 +76,8 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         _enableRoundedCorners = enableRoundedCorners;
         _trayMenuSettings = trayMenuSettings;
         _terminateProcess = terminateProcess;
+        _executeTermination = executeTermination;
+        _confirmAction = confirmAction;
         _requestEndTask = requestEndTask;
         _requestRefresh = requestRefresh;
         _reportError = reportError;
@@ -280,75 +290,89 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     }
 
     private void ExecuteEndProcessTrees(IReadOnlyList<ProcessEndTaskItem> processes) =>
-        _ = ExecuteEndProcessTreesAsync(processes);
+        _ = ConfirmAndEndProcessTreesAsync(processes);
+
+    private async Task ConfirmAndEndProcessTreesAsync(IReadOnlyList<ProcessEndTaskItem> processes)
+    {
+        try
+        {
+            _ = await ActionConfirmations.RunIfConfirmedAsync(
+                ActionConfirmations.EndProcessTree(processes),
+                _confirmAction,
+                () => ExecuteEndProcessTreesAsync(processes));
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"End process tree confirmation failed: {exception}");
+        }
+    }
 
     private async Task ExecuteEndProcessTreesAsync(IReadOnlyList<ProcessEndTaskItem> processes)
     {
-        BatchActionResult result;
+        if (_disposed) return;
+
+        ProcessTerminationBatchResult result;
         try
         {
-            result = await Task.Run(() =>
-            {
-                List<string> failures = [];
-                bool refreshNeeded = false;
-                for (int processIndex = 0; processIndex < processes.Count; processIndex++)
-                {
-                    ProcessEndTaskItem process = processes[processIndex];
-                    if (CriticalProcessActions.IsTargetGone(process.Target))
-                    {
-                        refreshNeeded = true;
-                        continue;
-                    }
-
-                    if (ProcessNativeActions.TryTerminateDescendants(
-                            process.Target,
-                            _terminateProcess,
-                            out string errorMessage))
-                    {
-                        refreshNeeded = true;
-                        continue;
-                    }
-
-                    // Descendant termination can partially succeed before reporting a failure
-                    refreshNeeded = true;
-                    if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
-
-                    failures.Add(processes.Count > 1
-                        ? FormatProcessFailure(process, errorMessage)
-                        : errorMessage);
-                }
-
-                ProcessTerminationBatchResult rootResult =
-                    ProcessTerminationBatchFunctions.Execute(
-                        processes,
-                        _terminateProcess,
-                        CriticalProcessActions.IsTargetGone);
-                if (!string.IsNullOrEmpty(rootResult.ErrorMessage))
-                    failures.Add(rootResult.ErrorMessage);
-                return new BatchActionResult(
-                    refreshNeeded || rootResult.RefreshNeeded,
-                    string.Join(separator: "\n", failures));
-            }).ConfigureAwait(false);
+            result = await _executeTermination(
+                processes,
+                selection => ProcessTerminationBatchFunctions.ExecuteTrees(
+                    selection,
+                    _terminateProcess,
+                    ProcessNativeActions.TryTerminateDescendants,
+                    CriticalProcessActions.IsTargetGone,
+                    CriticalProcessActions.IsTerminationAccessDenied));
         }
         catch (Exception exception)
         {
             TADNLog.Log($"End process trees failed: {exception}");
-            result = new BatchActionResult(RefreshNeeded: true, exception.Message);
+            if (!_disposed)
+            {
+                _requestRefresh();
+                _reportError(
+                    processes.Count > 1 ? "End process trees failed" : "End process tree failed",
+                    exception.Message);
+            }
+
+            return;
         }
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            if (_disposed) return;
-            if (result.RefreshNeeded) _requestRefresh();
-            if (string.IsNullOrEmpty(result.ErrorMessage)) return;
+        if (_disposed) return;
+        if (result.RefreshNeeded) _requestRefresh();
+        if (string.IsNullOrEmpty(result.ErrorMessage)) return;
 
-            _reportError(
-                processes.Count > 1 ? "End process trees failed" : "End process tree failed",
-                result.ErrorMessage);
-        });
+        _reportError(
+            processes.Count > 1 ? "End process trees failed" : "End process tree failed",
+            result.ErrorMessage);
     }
 
     private void ExecuteSetPriority(
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        ProcessPriorityLevel priority) =>
+        _ = ConfirmAndSetPriorityAsync(processes, priority);
+
+    private async Task ConfirmAndSetPriorityAsync(
+        IReadOnlyList<ProcessEndTaskItem> processes,
+        ProcessPriorityLevel priority)
+    {
+        try
+        {
+            _ = await ActionConfirmations.RunIfConfirmedAsync(
+                ActionConfirmations.SetPriority(processes),
+                _confirmAction,
+                () =>
+                {
+                    if (!_disposed) ApplyPriority(processes, priority);
+                    return Task.CompletedTask;
+                });
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Set priority confirmation failed: {exception}");
+        }
+    }
+
+    private void ApplyPriority(
         IReadOnlyList<ProcessEndTaskItem> processes,
         ProcessPriorityLevel priority)
     {

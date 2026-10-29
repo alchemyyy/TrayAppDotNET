@@ -38,14 +38,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private const string CollapseNavigationText = "Collapse navigation";
     private const string ExpandNavigationText = "Expand navigation";
 
-    private const string EndTaskConfirmationMessage =
-        "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
-        "If you end a system process, it might result in system instability. Are you sure you want to continue?";
-
-    private const string EndTasksConfirmationMessage =
-        "Open programs associated with these processes will close and you may lose unsaved data. Ending system " +
-        "processes might result in system instability. Are you sure you want to continue?";
-
     private const string RestartExplorerConfirmationMessage =
         "This will close every running explorer.exe process, including the desktop, taskbar, and open File " +
         "Explorer windows, and then start a fresh explorer.exe process.";
@@ -668,7 +660,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             TryTerminateProcess,
             _processTerminationService.GetElevatedHelperStatus,
             RequestManualElevatedTermination,
-            ConfirmEndTaskAsync,
+            RequestOnDemandElevatedTerminationAsync,
+            ConfirmActionAsync,
             ConfirmRestartExplorerAsync,
             ConfirmDeleteSavedSearchAsync,
             RestartExplorerAsync,
@@ -718,6 +711,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _taskManagerResources,
         ResolveEffectiveIsLight(),
         StartProcess,
+        ConfirmActionAsync,
         ReportMessage));
 
     private Control BuildServicesPage() => RegisterPage(new ServicesPage(
@@ -1081,26 +1075,54 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         }
     }
 
-    private Task<bool> ConfirmEndTaskAsync(ProcessEndTaskRequest request)
-    {
-        if (request.Count > 1)
-        {
-            return ConfirmAsync(
-                $"Do you want to end {request.Count} selected processes?",
-                EndTasksConfirmationMessage,
-                confirmText: "End processes",
-                cancelText: "Cancel");
-        }
+    private Task<bool> ConfirmActionAsync(ActionConfirmation confirmation) =>
+        ConfirmAsync(
+            confirmation.Title,
+            confirmation.Message,
+            confirmation.ConfirmText,
+            confirmation.CancelText);
 
-        ProcessEndTaskItem process = request.Processes[0];
-        string processName = string.IsNullOrWhiteSpace(process.ProcessName)
-            ? $"PID {process.Target.ProcessID}"
-            : process.ProcessName;
-        return ConfirmAsync(
-            $"Do you want to end {processName}?",
-            EndTaskConfirmationMessage,
-            confirmText: "End process",
-            cancelText: "Cancel");
+    /// <summary>Shows the in-app consent that precedes every Windows administrator approval prompt.</summary>
+    internal Task<bool> ConfirmAdministratorApprovalAsync() =>
+        ConfirmActionAsync(ActionConfirmations.AdministratorApproval);
+
+    /// <summary>Enables elevated termination after End task or End process tree was refused for lack of rights.</summary>
+    private async Task<ElevatedTerminationRequestOutcome> RequestOnDemandElevatedTerminationAsync()
+    {
+        if (_allowClose || _manualElevationPromptPending || !IsVisible)
+            return ElevatedTerminationRequestOutcome.Unavailable;
+
+        // The request owns elevation like the manual choice, so the startup attempt cannot prompt again
+        _initialElevationAttemptConsumed = true;
+        _manualElevationPromptPending = true;
+        try
+        {
+            if (!await ConfirmAdministratorApprovalAsync()) return ElevatedTerminationRequestOutcome.Declined;
+            if (_allowClose || !IsVisible) return ElevatedTerminationRequestOutcome.Unavailable;
+
+            IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            ElevatedHelperStatus completedStatus = await _processTerminationService
+                .EnableElevatedHelperAsync(ownerWindowHandle);
+            switch (completedStatus.State)
+            {
+                case ElevatedHelperState.Ready:
+                    return ElevatedTerminationRequestOutcome.Approved;
+                case ElevatedHelperState.Declined:
+                    return ElevatedTerminationRequestOutcome.Declined;
+                default:
+                    TADNLog.Log($"Task Manager on-demand elevated termination failed: {completedStatus.ErrorMessage}");
+                    return ElevatedTerminationRequestOutcome.Unavailable;
+            }
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Task Manager on-demand elevated termination prompt failed: {exception}");
+            return ElevatedTerminationRequestOutcome.Unavailable;
+        }
+        finally
+        {
+            _manualElevationPromptPending = false;
+        }
     }
 
     private Task<bool> ConfirmDeleteSavedSearchAsync(ProcessSavedSearch savedSearch)
