@@ -31,9 +31,20 @@
       <AdditionalProperties
           Condition="'$(Configuration)' == 'Release' and '$(TrayAppDotNETAggregateBuild)' != 'true' and ('$(SolutionFileName)' == '' or '$(SolutionFileName)' == '*Undefined*')">SkipPublishAfterBuild=true</AdditionalProperties>
     </ProjectReference>
+    <!-- Same metadata as the app's reference, so both resolve to one LHM build. With any difference MSBuild
+         builds LHM twice in parallel into the same obj folder, and a clean build fails with CS2012 on
+         LibreHardwareMonitorLib.dll. -->
     <ProjectReference Include="..\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
-                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'"
-                      AdditionalProperties="DisableIpmiWmi=true;DisableRamSpd=true" />
+                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetPlatform>Platform=x64</SetPlatform>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true;$(TrayAppDotNETPrereleaseProjectProperties)</AdditionalProperties>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+      <Visible>false</Visible>
+    </ProjectReference>
     <!-- NCalc is private in the app graph, but tests execute app code that loads it. -->
     <ProjectReference Include="..\..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj"
                       Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'">
