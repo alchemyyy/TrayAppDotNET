@@ -207,7 +207,7 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>Known Issues</value>
   </data>
   <data name="Settings_About_NightLightCorruption_Description" xml:space="preserve">
-    <value>If Night Light becomes unresponsive, win+alt+shift+b then signing out and back in should clear it.</value>
+    <value>If Night Light becomes unresponsive, press Ctrl+Shift+Win+B to reset the graphics driver, then sign out and back in.</value>
   </data>
   <data name="Settings_About_NightLightCorruption_Title" xml:space="preserve">
     <value>Night Light corruption</value>
@@ -791,7 +791,7 @@ Target: {1}</value>
     <value>Search:</value>
   </data>
   <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
-    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
+    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). Full bright starts on Ctrl+Alt+Win+F; every other action starts unbound.</value>
   </data>
   <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
     <value>Keyboard shortcuts</value>
@@ -1680,7 +1680,7 @@ Night Light corruption|stuck Night Light|unresponsive Night Light</value>
     <value>Environmental tick interval</value>
   </data>
   <data name="Settings_General_NightLightBackend_Description" xml:space="preserve">
-    <value>Choose how the app applies Windows Night Light changes.</value>
+    <value>Choose how the app applies Night Light. Gamma ramp tints SDR displays itself instead of using Windows Night Light.</value>
   </data>
   <data name="Settings_General_NightLightBackend_GammaRamp" xml:space="preserve">
     <value>Gamma ramp</value>

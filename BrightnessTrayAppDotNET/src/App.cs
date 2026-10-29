@@ -1292,12 +1292,10 @@ internal sealed class BrightnessAvaloniaApp : Application
         _trayIcon.PrecisionTouchpadUnitsPerScrollStep = _settings.PrecisionTouchpadUnitsPerScrollStep;
     }
 
-    private static void ApplyPDBDownloadTimeout(AppSettings settings)
-    {
-        int seconds = settings.NightLightPDBDownloadTimeoutSeconds;
-        if (seconds is < 5 or > 600) seconds = 60;
-        PDBSymbolResolver.DownloadTimeout = seconds * 1000;
-    }
+    // The setting is clamped to the UI's range by AppSettings. The Night Light helper process does the download and
+    // receives this value on its command line each time it starts.
+    private static void ApplyPDBDownloadTimeout(AppSettings settings) =>
+        PDBSymbolResolver.DownloadTimeout = settings.NightLightPDBDownloadTimeoutSeconds * 1_000;
 
     private void ShutdownServices()
     {

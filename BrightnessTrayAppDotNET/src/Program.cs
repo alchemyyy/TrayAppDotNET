@@ -45,8 +45,21 @@ internal static class Program
             (sourceExe, buildNumber, installOptions, progress) => TrayAppDotNETProgramInstallResult.From(
                 AppServices.Installation.RunAdminInstallSystem(sourceExe, buildNumber, installOptions, progress)),
             (removingScope, allUsers) => AppServices.StartMenu.Sync(removingScope, allUsers),
-            (scope, deleteSettings, progress) => TrayAppDotNETProgramInstallResult.From(
-                AppServices.Installation.PrepareUninstall(scope, deleteSettings, progress)),
+            (scope, deleteSettings, progress) =>
+            {
+                // A gamma ramp outlives its process, and preparation kills running instances before they can restore
+                // it. Read the settings first (preparation may delete them), restore after every instance is gone.
+                bool restoreGammaRamp = AppSettings.IsPersistedGammaRampTintOn();
+                try
+                {
+                    return TrayAppDotNETProgramInstallResult.From(
+                        AppServices.Installation.PrepareUninstall(scope, deleteSettings, progress));
+                }
+                finally
+                {
+                    if (restoreGammaRamp) GammaRampNightLight.RestoreIdentityOnActiveDisplays();
+                }
+            },
             (scope, deleteSettings, progress) => AppServices.Installation.RunUninstall(
                 scope,
                 deleteSettings,

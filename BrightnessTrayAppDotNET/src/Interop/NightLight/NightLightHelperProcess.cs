@@ -36,6 +36,13 @@ internal static class NightLightHelperClient
     internal static bool HasStartedInitialization => InitializationTask.IsValueCreated;
 
     /// <summary>
+    /// How long a new helper gets to connect and report ready. Readiness waits on the symbol download, so the wait
+    /// follows the configured download timeout instead of a fixed constant.
+    /// </summary>
+    internal static int GetStartTimeoutMs(int pdbDownloadTimeoutMs) =>
+        Math.Max(pdbDownloadTimeoutMs, 0) + TimeConstants.NightLightHelperStartGraceMs;
+
+    /// <summary>
     /// Starts and primes one helper, then waits until the production IPC pump is blocked and ready for input.
     /// </summary>
     public static bool IsSupported()
@@ -774,6 +781,8 @@ internal static class NightLightHelperClient
 
             try
             {
+                // One read so the helper's download timeout and our startup wait can't disagree
+                int pdbDownloadTimeoutMs = PDBSymbolResolver.DownloadTimeout;
                 ProcessStartInfo startInfo = new()
                 {
                     FileName = executablePath,
@@ -781,11 +790,11 @@ internal static class NightLightHelperClient
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                startInfo.ArgumentList.Add(NightLightHelperServer.ServerArg);
-                startInfo.ArgumentList.Add(NightLightHelperServer.ParentProcessIDArg);
-                startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-                startInfo.ArgumentList.Add(NightLightHelperServer.PipeNameArg);
-                startInfo.ArgumentList.Add(pipeName);
+                foreach (string argument in NightLightHelperServer.BuildArguments(
+                             Environment.ProcessId,
+                             pipeName,
+                             pdbDownloadTimeoutMs))
+                    startInfo.ArgumentList.Add(argument);
                 startInfo.Environment[NoWatcherEnvironmentVariable] = "1";
 
                 process = Process.Start(startInfo)
@@ -793,7 +802,7 @@ internal static class NightLightHelperClient
 
                 using CancellationTokenSource startupTokenSource =
                     CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                startupTokenSource.CancelAfter(TimeConstants.NightLightHelperStartTimeoutMs);
+                startupTokenSource.CancelAfter(GetStartTimeoutMs(pdbDownloadTimeoutMs));
                 await pipe.WaitForConnectionAsync(startupTokenSource.Token).ConfigureAwait(false);
 
                 writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
@@ -1047,6 +1056,9 @@ internal static class NightLightHelperServer
     public const string ServerArg = "--night-light-helper-server";
     public const string ParentProcessIDArg = "--parent-pid";
     public const string PipeNameArg = "--pipe-name";
+
+    // Symbol download timeout in milliseconds; the helper does the download, so the user's setting must reach it
+    public const string PDBDownloadTimeoutArg = "--pdb-download-timeout-ms";
     public const string SetStrengthCommand = "SET";
     public const string SetEnabledCommand = "ACTIVE";
     public const string PingCommand = "PING";
@@ -1067,6 +1079,9 @@ internal static class NightLightHelperServer
         if (!HasArg(args, ServerArg)) return false;
 
         StartParentWatchdog(ParseParentProcessID(args));
+        if (ParsePDBDownloadTimeoutMs(args) is { } pdbDownloadTimeoutMs)
+            PDBSymbolResolver.DownloadTimeout = pdbDownloadTimeoutMs;
+
         string? pipeName = ParseArgValue(args, PipeNameArg);
         if (string.IsNullOrWhiteSpace(pipeName))
         {
@@ -1221,6 +1236,32 @@ internal static class NightLightHelperServer
             return parentProcessID;
 
         return null;
+    }
+
+    /// <summary>Command line the main process starts a helper with.</summary>
+    internal static string[] BuildArguments(int parentProcessID, string pipeName, int pdbDownloadTimeoutMs) =>
+    [
+        ServerArg,
+        ParentProcessIDArg, parentProcessID.ToString(CultureInfo.InvariantCulture),
+        PipeNameArg, pipeName,
+        PDBDownloadTimeoutArg, pdbDownloadTimeoutMs.ToString(CultureInfo.InvariantCulture)
+    ];
+
+    /// <summary>
+    /// Download timeout handed down by the main process, clamped to the settings range. Null when absent or not a
+    /// number, which leaves <see cref="PDBSymbolResolver.DownloadTimeout"/> at its default.
+    /// </summary>
+    internal static int? ParsePDBDownloadTimeoutMs(string[] args)
+    {
+        string? value = ParseArgValue(args, PDBDownloadTimeoutArg);
+        if (value == null ||
+            !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int timeoutMs))
+            return null;
+
+        return Math.Clamp(
+            timeoutMs,
+            TimeConstants.PDBSymbolResolverDownloadTimeoutMinSeconds * 1_000,
+            TimeConstants.PDBSymbolResolverDownloadTimeoutMaxSeconds * 1_000);
     }
 
     private static string? ParseArgValue(string[] args, string name)

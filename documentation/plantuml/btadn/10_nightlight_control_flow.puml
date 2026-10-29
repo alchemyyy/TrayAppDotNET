@@ -51,9 +51,11 @@ package "NightLightProvider facade (Services/NightLightProvider.cs)" $TINT_AMBER
   note bottom of NLP_RESOLVE
     Backend resolution
     ----
-    Auto / Registry / GammaRamp -> Registry
-       (GammaRamp is a hidden affordance with no
-        backing impl; falls through to Registry)
+    Auto / Registry             -> Registry
+    GammaRamp                   -> GammaRamp
+       (app-owned on/off + strength in AppSettings;
+        GammaRampNightLight writes SetDeviceGammaRamp
+        to SDR displays; reads come from AppSettings)
     SettingsHandler             -> SettingsHandler
        (explicit user opt-in; no silent fallback
         if the DLL probe fails -> Backend.None)
@@ -125,7 +127,7 @@ note top of NLP_EN
 end note
 
 ' ---------------------------------------------------------------------------
-' 3. Registry backend (default for Auto / Registry / GammaRamp modes)
+' 3. Registry backend (default for Auto / Registry modes)
 ' ---------------------------------------------------------------------------
 package "Registry backend (Interop/NightLight/NightLightRegistry.cs)" $TINT_GREEN {
   [GetStrength / IsEnabled\n(parse Bond CB v1, find tag,\nZigZag varint decode)] as REG_READ
@@ -147,7 +149,7 @@ package "Registry backend (Interop/NightLight/NightLightRegistry.cs)" $TINT_GREE
   [HKCU\\...\\CloudStore\\...\nSTATE blob + SETTINGS blob\n(REG_BINARY 'Data')] as REG_STORE
 }
 
-NLP_READ --> REG_READ : both Registry and SettingsHandler\nbackends read via Registry
+NLP_READ --> REG_READ : both Windows backends read via Registry\n(GammaRamp reads AppSettings instead)
 NLP_SET  --> REG_ENQ  : Backend.Registry
 NLP_EN   --> REG_TOG  : Backend.Registry
 NLP_TOG  --> REG_TOG  : Backend.Registry
@@ -420,6 +422,27 @@ CTC_SET_MON --> HW_DES   : ShouldUseDESPath == 1
 CTC_SET_MON --> HW_GAMMA : ShouldUseDESPath == 0
 HW_DES   --> HW_PANELS
 HW_GAMMA --> HW_PANELS
+
+' ---------------------------------------------------------------------------
+' 9. Gamma-ramp backend (app-owned; bypasses the Windows broker entirely)
+' ---------------------------------------------------------------------------
+package "Gamma-ramp backend (Interop/NightLight/GammaRamp*.cs)" $TINT_TEAL {
+  [GammaRampNightLight.QueueStrength\nlatest-wins, drained on thread pool;\nactivation generation drops stale values] as GR_QUEUE
+  [Activate / Refresh / Deactivate\nenumerate active displays (CCD),\nskip advanced color (HDR),\nkeep written displays for restore] as GR_STATE
+  [GammaRampMath.ApplyWithBackoff\nrefused ramp -> binary search for the\nstrongest accepted strength (<= 7 probes)] as GR_WRITE
+  [Watchdog (5 s)\nreadback vs written ramp -> rewrite;\nWindows NL on -> SetEnabled(false)] as GR_WATCH
+}
+
+NLP_SET     --> GR_QUEUE : GammaRamp\n(persist NightLightGammaRampStrength)
+NLP_EN      --> GR_STATE : GammaRamp\n(persist NightLightGammaRampEnabled)
+NLP_TOG     --> GR_STATE : GammaRamp
+NLP_REAPPLY --> GR_STATE : GammaRamp: Refresh\n(topology / resume / unlock)
+GR_QUEUE    --> GR_WRITE
+GR_STATE    --> GR_WRITE : on: tint; off: identity ramp
+GR_WATCH    --> GR_WRITE
+GR_STATE    --> REG_TOG  : turn Windows NL off while tinted
+GR_WATCH    --> REG_TOG
+GR_WRITE    --> HW_GAMMA : SetDeviceGammaRamp per display DC
 
 ' ===========================================================================
 ' Cross-cutting timing constants (TimeConstants.cs)

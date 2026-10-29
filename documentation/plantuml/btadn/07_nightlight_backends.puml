@@ -1,7 +1,7 @@
 @startuml nightlight_backends
 !include dark-theme.puml
 ' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
-title Night-light dispatch - two live backends, registry as the source of truth
+title Night-light dispatch - two Windows backends (registry as source of truth) + app-owned gamma ramp
 
 [Caller (UI / hotkey / env curve)] as CALLER
 [NightLightProvider\n(static facade,\n_lastResolvedBackend cache)] as NLP
@@ -15,6 +15,13 @@ package "Live backends" $TINT_AMBER {
   [Backend.SettingsHandler\nNightLightSettingsHandler] as B_SH
   [Backend.Registry\nNightLightRegistry] as B_REG
   [Backend.None\n(unsupported)] as B_NONE
+  [Backend.GammaRamp\nGammaRampNightLight\n(app-owned state in AppSettings)] as B_GAMMA
+}
+
+package "Gamma-ramp write path (SDR displays only)" $TINT_GREEN {
+  [GammaRampMath\nkelvin -> blackbody white point\n-> 3x256 ramp (0 = identity)] as GMATH
+  [SetDeviceGammaRamp per display DC\n(bounded back-off on refusal)] as GSET
+  [Watchdog (5 s)\nGetDeviceGammaRamp readback\n-> rewrite if reset] as GWATCH
 }
 
 package "SettingsHandler write path (kelvin only)" $TINT_PURPLE {
@@ -38,17 +45,27 @@ MODE  ..> NLP  : Changed event\nInvalidateBackendCache only when\nNightLightFall
 NLP   --> RESOLVE : first call /\non mode change
 
 RESOLVE --> B_SH   : mode == SettingsHandler\n&& CloudStore.IsSupported()
-RESOLVE --> B_REG  : mode == Auto / Registry / GammaRamp\n(Registry.IsSupported())
+RESOLVE --> B_REG  : mode == Auto / Registry\n(Registry.IsSupported())
 RESOLVE --> B_NONE : mode == SettingsHandler\nbut RVA init failed\n(no silent downgrade)
+RESOLVE --> B_GAMMA : mode == GammaRamp\n(always available)
 
 note right of RESOLVE
-  GammaRamp is a hidden enum value with
-  no implementation - the resolver folds it
-  into the Registry branch.
-  Auto is a legacy XML-compat value, also
+  GammaRamp bypasses Windows Night Light:
+  on/off + strength live in AppSettings
+  (NightLightGammaRampEnabled / Strength),
+  persisted and reapplied at startup.
+  Switching to it adopts Windows NL state;
+  switching away restores identity ramps.
+  Auto is a legacy XML-compat value,
   treated as Registry.
   Default for new installs is SettingsHandler.
 end note
+
+B_GAMMA --> GMATH : SetStrength (latest-wins queue)\n/ SetEnabled / Reapply
+GMATH --> GSET : skip HDR (advanced color);\nrefused ramp -> strongest accepted\n(GdiIcmGammaRange limit)
+GWATCH --> GSET : ramp reset by other software
+B_GAMMA --> B_REG : keeps Windows NL off while tinted\n(SetEnabled(false), once per on-edge)
+B_GAMMA --> GSET : off / backend switch / exit / uninstall:\nidentity ramp on displays it wrote
 
 B_SH  --> CS : SetStrength(percent)\nSaveSettingsKelvinAsync
 B_SH  --> B_REG : Get / IsEnabled\nSetEnabled / Toggle\n(Registry is the read+toggle owner)
@@ -122,9 +139,11 @@ note bottom of B_REG
 end note
 
 note right of NLP
-  Reads always go through Registry, even
-  on the SettingsHandler backend - the
+  Reads go through Registry on both Windows
+  backends (even SettingsHandler) - the
   registry blobs are the OS source of truth.
+  On GammaRamp, reads come from AppSettings
+  (Windows knows nothing about that tint).
 
   EnsureNonZeroStrengthBeforeEnable:
   toggling on at strength 0 silently restores

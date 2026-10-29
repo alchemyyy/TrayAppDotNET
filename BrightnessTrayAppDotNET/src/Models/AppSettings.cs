@@ -75,16 +75,18 @@ public enum ContextMenuPosition
 }
 
 /// <summary>
-/// How the app drives Windows Night Light.
+/// How the app drives Night Light.
 /// <c>SettingsHandler</c> is the default
 /// - drives the Settings UI's own setting handler in SettingsHandlers_Display.dll,
 /// the most reliable path since it triggers the same SaveSettingsAsync chain the Settings slider does
 /// and refreshes both the live filter and the Settings UI cache.
-/// The resolver falls back to Registry automatically if SettingsHandler isn't available on the OS.
+/// It is an explicit choice: when the handler can't be used on this OS build, Night Light reports unsupported
+/// instead of silently switching to Registry.
 /// <c>Registry</c> forces the CloudStore <c>BlueLightReduction</c> path regardless of availability
 /// - useful for debugging or when SettingsHandler is misbehaving on a particular machine.
-/// <c>GammaRamp</c> is reserved for a hidden UI toggle and currently has no backing implementation;
-/// the resolver treats it as Registry.
+/// <c>GammaRamp</c> bypasses Windows Night Light: the app writes a warm GDI gamma ramp to every active SDR display
+/// and owns the on/off state and strength itself (<see cref="AppSettings.NightLightGammaRampEnabled"/>,
+/// <see cref="AppSettings.NightLightGammaRampStrength"/>). Windows Night Light is kept off while the tint is on.
 /// <c>Auto</c> is a legacy value retained for XML compatibility with settings written before SettingsHandler existed;
 /// it currently behaves the same as Registry.
 /// </summary>
@@ -430,14 +432,40 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool TurnOffNightLightAtZeroStrength { get; set; }
 
     /// <summary>
+    /// Gamma-ramp backend on/off state. Windows knows nothing about this tint, so the app persists it and reapplies
+    /// it at startup while <see cref="NightLightFallbackMode"/> is <c>GammaRamp</c>.
+    /// Switching to that backend copies Windows Night Light's on/off state and strength into these two values;
+    /// switching away clears this flag after restoring the identity ramp.
+    /// </summary>
+    public bool NightLightGammaRampEnabled { get; set; }
+
+    /// <summary>Gamma-ramp backend strength (0-100), same kelvin mapping as Windows Night Light.</summary>
+    public int NightLightGammaRampStrength
+    {
+        get;
+        set => field = Math.Clamp(value, min: 0, max: 100);
+    } = 50;
+
+    /// <summary>
     /// HTTP timeout (seconds) used by <see cref="BrightnessTrayAppDotNET.Interop.NightLight.PDBSymbolResolver"/>
     /// when fetching SettingsHandlers_Display.dll's PDB from the Microsoft public symbol server.
     /// The resolver only runs after a Windows update introduces an unknown DLL build,
     /// so this fires at most once per build-version transition;
     /// the default 60s is enough for a typical home connection but slow or metered links can raise it
-    /// to avoid a fallthrough to the registry/gamma backend.
+    /// to avoid the Settings handler backend reporting unsupported.
+    /// The download runs in the Night Light helper process, which receives this value on its command line and is
+    /// given this long plus <see cref="TimeConstants.NightLightHelperStartGraceMs"/> to report ready.
+    /// Clamped to <see cref="TimeConstants.PDBSymbolResolverDownloadTimeoutMinSeconds"/> -
+    /// <see cref="TimeConstants.PDBSymbolResolverDownloadTimeoutMaxSeconds"/>, the same range the settings UI accepts.
     /// </summary>
-    public int NightLightPDBDownloadTimeoutSeconds { get; set; } = 60;
+    public int NightLightPDBDownloadTimeoutSeconds
+    {
+        get;
+        set => field = Math.Clamp(
+            value,
+            TimeConstants.PDBSymbolResolverDownloadTimeoutMinSeconds,
+            TimeConstants.PDBSymbolResolverDownloadTimeoutMaxSeconds);
+    } = TimeConstants.PDBSymbolResolverDownloadTimeoutDefaultSeconds;
 
     // Auto-update.
     // CheckForUpdatesEnabled gates the background poll loop entirely; flipping it off cancels any in-flight
@@ -635,11 +663,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         yield return EnvironmentalGridLineColor;
     }
 
+    private const string SettingsFileName = "settings.xml";
+
     public static string GetDefaultPath()
     {
         string appFolder = Program.AppLocalAppDataDirectory;
         Directory.CreateDirectory(appFolder);
-        return Path.Combine(appFolder, path2: "settings.xml");
+        return Path.Combine(appFolder, SettingsFileName);
     }
 
     /// <summary>
@@ -648,6 +678,23 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// </summary>
     public static string GetDefaultDirectory() =>
         Program.AppLocalAppDataDirectory;
+
+    /// <summary>
+    /// True when the saved settings say the gamma-ramp Night Light tint is on, so a killed instance may have left
+    /// it on screen. Read-only: unlike <see cref="LoadOrDefault()"/>, a missing or unreadable file is never created
+    /// or replaced, which matters on the uninstall path.
+    /// </summary>
+    public static bool IsPersistedGammaRampTintOn()
+    {
+        string path = Path.Combine(GetDefaultDirectory(), SettingsFileName);
+        return TrayXmlSerializer.TryReadFile(
+                   path,
+                   out AppSettings? settings,
+                   ex => TADNLog.Log($"AppSettings.IsPersistedGammaRampTintOn: {ex.Message}"))
+               && BrightnessTrayAppDotNET.Interop.NightLight.GammaRampNightLight.ShouldRestoreAfterForcedStop(
+                   settings.NightLightFallbackMode,
+                   settings.NightLightGammaRampEnabled);
+    }
 
     public void Save() => Save(GetDefaultPath());
 

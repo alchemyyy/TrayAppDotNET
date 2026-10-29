@@ -50,10 +50,11 @@ internal static class PDBSymbolResolver
     private const string SymbolServerUserAgent = "Microsoft-Symbol-Server/10.0";
 
     /// <summary>
-    /// Per-PDB-file HTTP download timeout.
-    /// Mutable so the settings UI can override the default without restarting the app;
-    /// reads are unsynchronized because <see cref="HttpClient.Timeout"/> is set once per download
-    /// from a single field read.
+    /// Whole-transfer timeout per PDB download, in milliseconds.
+    /// The main process sets it from <see cref="AppSettings.NightLightPDBDownloadTimeoutSeconds"/>; the Night Light
+    /// helper process, where the download actually runs, receives it on its command line
+    /// (<see cref="NightLightHelperServer.PDBDownloadTimeoutArg"/>) at startup.
+    /// Reads are unsynchronized: each download reads it once.
     /// </summary>
     internal static int DownloadTimeout = TimeConstants.PDBSymbolResolverDownloadTimeout;
 
@@ -475,6 +476,8 @@ internal static class PDBSymbolResolver
 
     /// <summary>
     /// Streams <paramref name="url"/> to <paramref name="targetPath"/> via a *.tmp side file and an atomic move.
+    /// <see cref="DownloadTimeout"/> bounds the whole transfer, body included, so the helper's startup wait
+    /// (download timeout plus a fixed grace) always outlasts it.
     /// Returns false on any HTTP, IO, or timeout failure (logged).
     /// </summary>
     private static bool TryDownloadFile(string url, string targetPath)
@@ -482,15 +485,17 @@ internal static class PDBSymbolResolver
         string tempPath = targetPath + ".tmp";
         try
         {
+            using CancellationTokenSource timeout = new(TimeSpan.FromMilliseconds(DownloadTimeout));
             using HttpClientHandler handler = new();
             handler.AllowAutoRedirect = true;
             using HttpClient http = new(handler);
-            http.Timeout = TimeSpan.FromMilliseconds(DownloadTimeout);
+            http.Timeout = Timeout.InfiniteTimeSpan;
             http.DefaultRequestHeaders.UserAgent.ParseAdd(SymbolServerUserAgent);
 
             using HttpResponseMessage resp = http.Send(
                 new HttpRequestMessage(HttpMethod.Get, url),
-                HttpCompletionOption.ResponseHeadersRead);
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token);
 
             if (!resp.IsSuccessStatusCode)
             {
@@ -498,9 +503,9 @@ internal static class PDBSymbolResolver
                 return false;
             }
 
-            using Stream src = resp.Content.ReadAsStream();
+            using Stream src = resp.Content.ReadAsStream(timeout.Token);
             using FileStream dst = File.Create(tempPath);
-            src.CopyTo(dst);
+            src.CopyToAsync(dst, timeout.Token).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

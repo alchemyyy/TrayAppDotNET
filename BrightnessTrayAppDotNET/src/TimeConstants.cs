@@ -110,18 +110,28 @@ public abstract class TimeConstants : CommonTimeConstants
     // because the broker-mediated Save round-trip is genuinely slower than a raw key write.
     public const int NightLightCloudStoreFallbackDwellMs = 250;
 
-    // PDB symbol resolver
-    public const int PDBSymbolResolverDownloadTimeout = 60_000;
+    // PDB symbol resolver: per-download timeout for SettingsHandlers_Display.dll symbols.
+    // The user setting (seconds) is clamped to Min..Max; the helper process receives the value on its command line.
+    public const int PDBSymbolResolverDownloadTimeoutDefaultSeconds = 60;
+    public const int PDBSymbolResolverDownloadTimeoutMinSeconds = 5;
+    public const int PDBSymbolResolverDownloadTimeoutMaxSeconds = 600;
+    public const int PDBSymbolResolverDownloadTimeout = PDBSymbolResolverDownloadTimeoutDefaultSeconds * 1_000;
 
-    // Night Light helper process
-    public const int NightLightHelperStartTimeoutMs = PDBSymbolResolverDownloadTimeout + 5_000;
+    // Night Light helper process.
+    // Startup waits for the PDB download timeout plus this grace for process start, DLL load and symbol parsing.
+    public const int NightLightHelperStartGraceMs = 5_000;
     public const int NightLightHelperHotPathTimeoutMs = 1_000;
     public const int NightLightHelperStateChangeTimeoutMs = NightLightSaveNotifyTimeoutMs * 4 + 2_000;
     public const int NightLightHelperExitTimeoutMs = 2_000;
     public const int NightLightHelperRecoveryDelayMs = 250;
     public const int NightLightStreamingPreviewReleaseDelayMs = 150;
     public const int NightLightHelperRecycleQuietDelayMs = 200;
-    public const int NightLightLastStrengthSaveDebounceMs = 500;
+    public const int NightLightStateSaveDebounceMs = 500;
+
+    // Gamma-ramp Night Light: how often the live ramp is compared with the one written, and how often a rewrite
+    // caused by other software resetting it may be logged
+    public const int NightLightGammaRampWatchdogIntervalMs = 5_000;
+    public const int NightLightGammaRampWatchdogLogIntervalMs = 60_000;
 
     // AppSettings defaults & floors (the values themselves are user-configurable;
     // the defaults and the minimum-allowed floor for the brightness update rate live here
