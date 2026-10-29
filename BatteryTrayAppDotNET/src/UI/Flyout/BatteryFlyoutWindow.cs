@@ -1461,7 +1461,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _ = _powerModes.RequestAsync(mode);
     }
 
-    private static void OpenModernPowerSettings()
+    internal static void OpenModernPowerSettings()
     {
         try
         {

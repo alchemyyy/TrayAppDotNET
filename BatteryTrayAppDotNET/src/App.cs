@@ -54,6 +54,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BatteryTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
+    private readonly BatteryTriggerEngine _triggerEngine = new();
     private BatteryFlyoutWindow? _batteryFlyout;
     private BatteryTrayMenuWindow? _trayMenuWindow;
     private BatterySettingsWindow? _settingsWindow;
@@ -64,6 +65,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private BatteryWatcherMonitor? _watcherMonitor;
     private UpdateCheckService? _updateCheckService;
     private int _lastNotifiedUpdateVersion;
+    private bool _lastBalloonWasTrigger;
     private bool _isBatteryReportRunning;
     private bool _shuttingDown;
 
@@ -239,10 +241,105 @@ internal sealed class BatteryAvaloniaApp : Application
         _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
-        _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+        _trayIcon.BalloonClicked += OnBalloonClicked;
     }
 
-    private void OnBatteryStateChanged() => RequestTrayRefresh();
+    private void OnBatteryStateChanged()
+    {
+        RequestTrayRefresh();
+        EvaluateTriggers();
+    }
+
+    /// <summary>
+    /// Feeds the latest reading to the trigger engine. The trigger list is read live, so edits on the Triggers page
+    /// apply from the next reading.
+    /// </summary>
+    private void EvaluateTriggers()
+    {
+        if (_batteryMonitor == null) return;
+
+        BatterySnapshot snapshot = _batteryMonitor.Snapshot;
+        IReadOnlyList<BatteryTriggerFiring> firings = _triggerEngine.Observe(snapshot, _settings?.Triggers ?? []);
+        if (firings.Count == 0) return;
+
+        foreach (BatteryTriggerFiring firing in firings)
+            TADNLog.Log($"BatteryAvaloniaApp trigger '{firing.Trigger.Title}': {firing.Condition} -> {firing.Action}");
+        Dispatcher.UIThread.Post(() => RunTriggerActions(firings, snapshot.ChargePercentage));
+    }
+
+    /// <summary>
+    /// Runs each distinct action once per reading. Notifications from several triggers are combined into one
+    /// balloon, since a second balloon would replace the first.
+    /// </summary>
+    private void RunTriggerActions(IReadOnlyList<BatteryTriggerFiring> firings, int chargePercentage)
+    {
+        if (_shuttingDown) return;
+
+        List<BatteryTriggerCondition> notifiedConditions = [];
+        HashSet<BatteryTriggerAction> ranActions = [];
+        foreach (BatteryTriggerFiring firing in firings)
+        {
+            if (firing.Action == BatteryTriggerAction.ShowNotification)
+            {
+                if (!notifiedConditions.Contains(firing.Condition))
+                    notifiedConditions.Add(firing.Condition);
+                continue;
+            }
+
+            if (!ranActions.Add(firing.Action)) continue;
+
+            try { RunTriggerAction(firing.Action); }
+            catch (Exception ex) { TADNLog.Log($"BatteryAvaloniaApp.RunTriggerActions {firing.Action}: {ex}"); }
+        }
+
+        if (notifiedConditions.Count > 0)
+            ShowTriggerNotification(notifiedConditions, chargePercentage);
+    }
+
+    private void RunTriggerAction(BatteryTriggerAction action)
+    {
+        switch (action)
+        {
+            case BatteryTriggerAction.OpenFlyout:
+                ShowBatteryFlyout();
+                break;
+            case BatteryTriggerAction.OpenSettings:
+                OpenSettings();
+                break;
+            case BatteryTriggerAction.OpenPowerSettings:
+                BatteryFlyoutWindow.OpenModernPowerSettings();
+                break;
+        }
+    }
+
+    private void ShowTriggerNotification(List<BatteryTriggerCondition> conditions, int chargePercentage)
+    {
+        if (_trayIcon == null) return;
+
+        List<string> lines = [];
+        for (int i = 1; i < conditions.Count; i++)
+            lines.Add(TriggerConditionText(conditions[i]));
+        lines.Add(string.Format(L(nameof(AppStrings.TriggerNotification_ChargeFormat)), chargePercentage));
+
+        _lastBalloonWasTrigger = true;
+        _trayIcon.ShowBalloon(TriggerConditionText(conditions[0]), string.Join(separator: '\n', lines));
+    }
+
+    private static string TriggerConditionText(BatteryTriggerCondition condition) =>
+        condition switch
+        {
+            BatteryTriggerCondition.BatteryBelow20 => L(nameof(AppStrings.Settings_Triggers_Condition_BatteryBelow20)),
+            BatteryTriggerCondition.BatteryBelow10 => L(nameof(AppStrings.Settings_Triggers_Condition_BatteryBelow10)),
+            BatteryTriggerCondition.BatteryAbove80 => L(nameof(AppStrings.Settings_Triggers_Condition_BatteryAbove80)),
+            BatteryTriggerCondition.ChargingStarted => L(nameof(AppStrings.Settings_Triggers_Condition_ChargingStarted)),
+            BatteryTriggerCondition.ChargingStopped => L(nameof(AppStrings.Settings_Triggers_Condition_ChargingStopped)),
+            BatteryTriggerCondition.ExternalPowerConnected =>
+                L(nameof(AppStrings.Settings_Triggers_Condition_ExternalPowerConnected)),
+            BatteryTriggerCondition.ExternalPowerDisconnected =>
+                L(nameof(AppStrings.Settings_Triggers_Condition_ExternalPowerDisconnected)),
+            BatteryTriggerCondition.FullyCharged => L(nameof(AppStrings.Settings_Triggers_Condition_FullyCharged)),
+            _ => condition.ToString()
+        };
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
@@ -323,13 +420,21 @@ internal sealed class BatteryAvaloniaApp : Application
         if (info.Version <= _lastNotifiedUpdateVersion) return;
 
         _lastNotifiedUpdateVersion = info.Version;
+        _lastBalloonWasTrigger = false;
         _trayIcon?.ShowBalloon(
             L(nameof(CommonStrings.UpdateNotification_Title)),
             string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
-    private void OnUpdateBalloonClicked()
+    // The balloon is shared: a trigger balloon opens the flyout, an update balloon opens the About page
+    private void OnBalloonClicked()
     {
+        if (_lastBalloonWasTrigger)
+        {
+            ShowBatteryFlyout();
+            return;
+        }
+
         if (_updateCheckService?.AvailableUpdate == null) return;
 
         OpenSettings(BatterySettingsPage.About);
@@ -760,7 +865,7 @@ internal sealed class BatteryAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
-                _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
+                _trayIcon.BalloonClicked -= OnBalloonClicked;
             }
 
             Safe.Dispose(_trayIcon);

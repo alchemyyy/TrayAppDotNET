@@ -172,9 +172,9 @@
     <value>notification area glyph palette</value>
   </data>
   <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
-    <value>battery below|battery under|battery less than|charge below|charge under|charge less than
+    <value>battery below|battery under|battery less than|charge below|charge under|charge less than|or less
 battery below|low battery|battery low|low charge
-battery above|battery over|battery greater than|charge above|charge over|charge greater than
+battery above|battery over|battery greater than|charge above|charge over|charge greater than|or more
 battery full|fully charged|full battery|100% charge
 charging started|started charging|charging began|began charging
 charging stopped|stopped charging|charging ended|ended charging
@@ -431,13 +431,13 @@ open power settings|open Windows power settings|open Power and battery settings|
     <value>Drag to reorder, or press Ctrl+Up/Ctrl+Down.</value>
   </data>
   <data name="Settings_Triggers_Condition_BatteryAbove80" xml:space="preserve">
-    <value>Battery above 80%</value>
+    <value>Battery at 80% or more</value>
   </data>
   <data name="Settings_Triggers_Condition_BatteryBelow10" xml:space="preserve">
-    <value>Battery below 10%</value>
+    <value>Battery at 10% or less</value>
   </data>
   <data name="Settings_Triggers_Condition_BatteryBelow20" xml:space="preserve">
-    <value>Battery below 20%</value>
+    <value>Battery at 20% or less</value>
   </data>
   <data name="Settings_Triggers_Condition_ChargingStarted" xml:space="preserve">
     <value>Charging started</value>
@@ -474,5 +474,8 @@ open power settings|open Windows power settings|open Power and battery settings|
   </data>
   <data name="SettingsWindow_Title" xml:space="preserve">
     <value>Settings</value>
+  </data>
+  <data name="TriggerNotification_ChargeFormat" xml:space="preserve">
+    <value>Charge: {0}%</value>
   </data>
 </root>
