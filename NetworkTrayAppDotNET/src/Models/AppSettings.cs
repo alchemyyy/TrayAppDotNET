@@ -67,9 +67,13 @@ public class AppSettings : AppSettingsCommon
     public NullableThemeColor NetworkNoInternetColor { get; set; } = new();
     public NullableThemeColor NetworkDisconnectedColor { get; set; } = new();
 
+    // One-time migration marker: true once the retired Ctrl+Alt+Win+S Open settings default has been
+    // removed (or on fresh installs, which never had it). Keeps a binding the user re-adds later.
+    public bool LegacyOpenSettingsHotkeyRetired { get; set; }
+
     public AppSettings()
         : base(
-            updateCheckIntervalDefaultMs: 0,
+            updateCheckIntervalDefaultMs: TimeConstants.UpdateCheckIntervalDefaultMs,
             TrayAppDotNETRenderingBackend.Software) =>
         WireColorCallbacks();
 
@@ -158,6 +162,8 @@ public class AppSettings : AppSettingsCommon
                 // default action). Skips entries the user has tombstoned via the UI (RemovedByUser=true)
                 // so an explicit removal isn't undone on the next launch.
                 bool changed = loaded.DedupeHotkeysByIdentity();
+                changed |= loaded.RetireLegacyOpenSettingsHotkey();
+                changed |= loaded.MigrateZeroUpdateCheckInterval();
                 changed |= loaded.EnsureDefaultHotkeys();
                 if (changed) loaded.Save(path);
                 return loaded;
@@ -168,7 +174,7 @@ public class AppSettings : AppSettingsCommon
             TADNLog.Log($"AppSettings.LoadOrDefault: {ex.Message}");
         }
 
-        AppSettings defaults = new();
+        AppSettings defaults = new() { LegacyOpenSettingsHotkeyRetired = true };
         defaults.EnsureDefaultHotkeys();
         defaults.Save(path);
         return defaults;
@@ -179,20 +185,41 @@ public class AppSettings : AppSettingsCommon
     /// Identity is (Action, Parameter, BindingID): defaults always live on BindingID 0 (the primary row),
     /// so a user-added secondary binding (BindingID >= 1) for the same action does not block re-seeding
     /// the primary row.
-    /// Skeleton ships with one illustrative binding; replace with your project's own defaults.
+    /// Network ships no default bindings: every action starts unbound.
     /// </summary>
-    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() =>
-    [
-        new()
-        {
-            Action = HotkeyAction.OpenSettings,
-            Parameter = string.Empty,
-            Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
-            VirtualKey = 0x53, // VK_S
-            Enabled = true,
-            BindingID = 0
-        }
-    ];
+    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() => [];
+
+    /// <summary>
+    /// Older builds passed 0 as the update check interval default, which the update service raised to
+    /// its 1-minute minimum. The UI can't pick 0, so a persisted 0 is always that bad default.
+    /// Returns true when the value was replaced (caller should persist).
+    /// </summary>
+    public bool MigrateZeroUpdateCheckInterval()
+    {
+        if (UpdateCheckIntervalMs != 0) return false;
+
+        UpdateCheckIntervalMs = TimeConstants.UpdateCheckIntervalDefaultMs;
+        return true;
+    }
+
+    /// <summary>
+    /// One-time removal of the Open settings binding on Ctrl+Alt+Win+S that older builds seeded
+    /// (it collided with Fan Control's identical default). Drops the row only while it still equals
+    /// the retired default, plus any RemovedByUser tombstone for that identity.
+    /// Runs once, gated by LegacyOpenSettingsHotkeyRetired, so a binding re-added later survives.
+    /// Returns true when the marker was set (caller should persist).
+    /// </summary>
+    public bool RetireLegacyOpenSettingsHotkey()
+    {
+        if (LegacyOpenSettingsHotkeyRetired) return false;
+
+        const uint legacyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt;
+        Hotkeys.RemoveAll(b =>
+            b.Matches(HotkeyAction.OpenSettings, string.Empty, 0)
+            && (b.RemovedByUser || (b.Modifiers == legacyModifiers && b.VirtualKey == 0x53)));
+        LegacyOpenSettingsHotkeyRetired = true;
+        return true;
+    }
 
     /// <summary>
     /// True if the binding occupies the same identity slot as one of the built-in defaults

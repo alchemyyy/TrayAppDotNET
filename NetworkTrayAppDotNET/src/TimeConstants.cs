@@ -19,6 +19,7 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int ToolTipShowDelayMaxMs = CommonTimeConstants.ToolTipShowDelayMaxMs;
 
     // Auto-update
+    public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
     public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // Network polling
