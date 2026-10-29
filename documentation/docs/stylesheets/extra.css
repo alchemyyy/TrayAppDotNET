@@ -1,0 +1,4 @@
+/* The TADN logo is white line art; darken it on the light palette's white header. */
+[data-md-color-scheme="default"] .md-header__button.md-logo img {
+  filter: invert(1);
+}

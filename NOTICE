@@ -224,14 +224,13 @@ PlantUML MIT distribution, 1.2026.2
   PlantUML-generated diagrams are owned and licensed according to their PUML
   source, not by PlantUML.
 
-mdBook documentation generator, 0.5.2
-  License: MPL-2.0.
-  Source: https://github.com/rust-lang/mdBook/tree/v0.5.2
-  Notice: .notices/MPL-2.0.txt
-  `documentation/download_mdbook.bat` downloads the publisher's Windows x64
-  release archive and verifies its published SHA-256 digest:
-    e78fa1159bfc381d03f9c6659c48c883706497dc63c9153007a8a4c8df8da166
-  The downloaded executable is not tracked or included in release archives.
+Zensical documentation generator
+  Copyright (c) 2025-2026 Zensical and contributors.
+  License: MIT.
+  Source: https://github.com/zensical/zensical
+  `documentation/pyproject.toml` and `documentation/uv.lock` install it and
+  its Python dependencies into a local uv environment that builds the
+  documentation site. None of it is tracked or included in release archives.
 
 HotAvalonia, 3.1.1, and Fody, 6.9.2
   These MIT-licensed packages are Debug/build-time dependencies and are not

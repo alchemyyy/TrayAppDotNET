@@ -1,0 +1,150 @@
+[project]
+site_name = "TrayAppDotNET"
+site_description = "Documentation for TrayAppDotNET, a suite of Windows 11 tray apps."
+site_author = "alchemyyy"
+copyright = "Copyright &copy; 2026 alchemyyy. Licensed under the GPL-3.0."
+
+repo_url = "https://github.com/alchemyyy/TrayAppDotNET"
+repo_name = "alchemyyy/TrayAppDotNET"
+edit_uri = "edit/main/documentation/docs/"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting Started" = [
+    "getting-started/installation.md",
+    "getting-started/updates.md",
+    "getting-started/configuration.md",
+    "getting-started/launch-arguments.md",
+  ] },
+  { "Shared Features" = [
+    "shared/index.md",
+    "shared/settings-window.md",
+    "shared/themes.md",
+    "shared/hotkeys.md",
+    "shared/tray-and-flyouts.md",
+    "shared/crash-recovery.md",
+  ] },
+  { "Apps" = [
+    { "Battery" = ["apps/battery/index.md"] },
+    { "Brightness" = [
+      "apps/brightness/index.md",
+      "apps/brightness/curve.md",
+      "apps/brightness/displays.md",
+      "apps/brightness/night-light.md",
+    ] },
+    { "Fan Control" = [
+      "apps/fan-control/index.md",
+      "apps/fan-control/curve-editor.md",
+      "apps/fan-control/probe-cards.md",
+    ] },
+    { "Network" = ["apps/network/index.md"] },
+    { "Task Manager" = [
+      "apps/task-manager/index.md",
+      "apps/task-manager/processes.md",
+      "apps/task-manager/performance.md",
+      "apps/task-manager/other-pages.md",
+    ] },
+    { "Volume" = [
+      "apps/volume/index.md",
+      "apps/volume/settings.md",
+    ] },
+  ] },
+  { "Development Notes" = [
+    { "DDC pipeline audit" = "ddc-pipeline-audit.md" },
+    { "Avalonia text layout retention" = "avalonia_text_layout_retention.md" },
+    { "Warm flyout and tray menu show flicker" = "warm_window_show_flicker.md" },
+    { "Embedded native helper programs in NativeAOT executables" = "embedded_nativeaot_helper_programs.md" },
+    { "Task Manager performance data" = "task_manager_performance_data.md" },
+    { "Task Manager CPU frequency" = "task_manager_cpu_frequency.md" },
+    { "Task Manager AMD CCD topology" = "task_manager_amd_ccd_topology.md" },
+    { "Task Manager CPU core classes" = "task_manager_cpu_core_classes.md" },
+    { "Task Manager process resource data" = "task_manager_process_resource_data.md" },
+    { "Task Manager process status" = "task_manager_process_status.md" },
+    { "Task Manager process sections" = "task_manager_process_sections.md" },
+    { "Task Manager process single-thread CPU" = "task_manager_process_single_thread_cpu.md" },
+    { "Task Manager process table render stability" = "task_manager_process_table_render_stability.md" },
+    { "Task Manager process search" = "task_manager_process_search.md" },
+    { "Update system" = "update_system.md" },
+    { "Cloudflare version endpoint" = "cloudflare_version_endpoint.md" },
+  ] },
+]
+
+extra_css = ["stylesheets/extra.css"]
+
+[project.theme]
+language = "en"
+logo = "assets/images/tadnlogo.png"
+favicon = "assets/images/favicon.ico"
+features = [
+  "content.action.edit",
+  "content.action.view",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.suggest",
+  "toc.follow",
+]
+
+[project.theme.font]
+text = "Source Sans 3"
+code = "IBM Plex Mono"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "grey"
+accent = "grey"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "grey"
+accent = "grey"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to dark mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/alchemyyy/TrayAppDotNET"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/discord"
+link = "https://discord.gg/nzg7jm8yKC"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.caret = {}
+pymdownx.details = {}
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.mark = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+pymdownx.tasklist.custom_checkbox = true
+pymdownx.tilde = {}
+zensical.extensions.glightbox = {}

@@ -1,0 +1,127 @@
+# Installation
+
+Grab the latest installer for whichever app(s) you'd like, or download the bundled suite. Then install it. Done. Every app also runs portably, so installing is optional.
+
+## Requirements
+
+- Windows 11, 64-bit (x64). There are no ARM64 or 32-bit builds.
+- Nothing else to install. The apps are self-contained native executables (no .NET runtime needed), and the installer runs on .NET Framework 4.8, which ships with Windows 11.
+- An internet connection for update checks, see [Updates](updates.md).
+
+## Downloading
+
+Everything lives on the [Downloads Page](https://github.com/alchemyyy/TrayAppDotNET/releases). Each release has:
+
+- `Installer_<App>_<version>.exe`: a single-app installer, e.g. `Installer_VolumeTrayAppDotNET_<version>.exe`.
+- `Installer_TrayAppDotNET_<version>.exe`: the app bundle, with a selector for which apps to install.
+- `<App>_<version>.zip`: the bare app, for running portably. This is also the file the built-in updater downloads.
+
+All apps share one release number. How that number works is explained under [Versioning](updates.md#versioning).
+
+## The Installer
+
+Both installers open the same one-page window. The title says **Install TrayAppDotNET** for the bundle or **Install &lt;App&gt;** for a single app, with the version (or the number of bundled apps) right below it. Pick your options from top to bottom and click **Install**.
+
+### Apps to Install
+
+Only the bundle has this list. Every app starts checked except BatteryTrayAppDotNET on a machine without a battery: it starts unchecked with a **No battery detected** hint next to it. You can still check it yourself.
+
+Apps that are already installed get a label at the end of their row, e.g. **Installed (Local)** or **Installed (System and Local)**. Once you click **Install**, the selected rows switch to their progress instead: **Waiting**, **Installing...**, **Installation complete**, **Installation failed** or **Not installed**.
+
+### Installation Type
+
+| Type | What it does | Where the apps go |
+| --- | --- | --- |
+| **Local** | Installs for the current user. No administrator rights needed. | `%LocalAppData%\TrayAppDotNET\apps` |
+| **System** | Installs for all users. Windows shows one UAC prompt for the whole run. | `C:\Program Files\TrayAppDotNET` |
+| **Portable** | Extracts the apps to a folder of your choice without installing them. | Your pick |
+
+Local and System put every app's exe side by side in that one folder, and the **Install location** box just shows it. For Portable the box becomes editable and **Browse...** turns on. The default is a `TrayAppDotNET` folder (or `<App>` for a single-app installer) inside the folder the installer was started from. It has to be a full path, otherwise you get **Enter a full folder path for the portable copy.**
+
+If you decline the UAC prompt for a System install, nothing gets installed and the status reads **Installation was cancelled because administrator approval was declined.**
+
+You can have both a Local and a System copy of the same app. Their Start Menu entries then get a **(Local)** and **(System)** suffix so you can tell them apart.
+
+### Existing Installs
+
+The installer looks for each app in the Local and System folders. If it finds any, a notice shows up above **Installation type**, e.g. "VolumeTrayAppDotNET is already installed for the current user in ..." followed by **The installation type is set to match, so installing replaces the installed copy.** The bundle just counts them and leaves the details to the row labels.
+
+The installation type starts on whichever type holds the most installed copies (System wins a tie), so clicking **Install** right away updates what you already have instead of adding a second copy. A running copy gets stopped before its files are replaced. Your settings aren't in the install folder, so they survive a reinstall.
+
+Portable copies leave no record anywhere, so the installer can't see them.
+
+### Windhawk Notice
+
+If Windhawk isn't installed, the installer shows a caution card with **Get Windhawk** and **View the mod** links. It only checks for Windhawk itself, not for the mod. See [Hiding the Stock Tray Icons](#hiding-the-stock-tray-icons) for why I recommend it.
+
+### Options
+
+- **Create a desktop shortcut**: off by default.
+- **Add a Start Menu entry**: on by default.
+- **Launch when finished**: on by default.
+
+The two shortcut options are greyed out for Portable.
+
+### When It Finishes
+
+The progress bar and status line follow along, and the window refuses to close while files are being copied. On success the status reads **Installation complete. Installed to ...** and **Install** turns into **Close**.
+
+With **Launch when finished** checked, every installed app starts hidden in the tray. No windows pop up, which really only matters for Task Manager since it's the only app that opens a window at startup.
+
+The apps turn on **Run on startup** the first time they run, so from now on they start with Windows. See [Run on Startup](configuration.md#run-on-startup) if you don't want that.
+
+If something fails, the status line shows the error. The installer writes a log to `%TEMP%\TrayAppDotNETInstaller\installer.log`.
+
+## Installing from a Portable Copy
+
+A portable copy can install itself, no installer download needed. Open its settings window (see [Settings Window](../shared/settings-window.md)) and go to **Settings** > **General** > **Installation**. There's one card for a per-user install and one for a system-wide install (titled e.g. **Local user** and **System wide**; the exact wording varies a little between apps). Each card tells you where things stand:
+
+- **Not installed at ...**, with **Requires administrator approval.** added on the system-wide card.
+- **Build N installed at ...**, with an **Uninstall** button.
+- **Installed build N; current build is M.**, with an **Update** button that copies the build you're running over the older one.
+- **Currently running from ...**, when the copy you're looking at is the installed one.
+
+Click **Install**, confirm the **Install app?** (or **Install app system-wide?**) prompt, and watch the progress under the card. The system-wide card triggers a UAC prompt. When it's done you get **Installation complete** with two choices: **Restart** starts the installed copy and closes the one you're running, **Not now** keeps the current copy running.
+
+What gets installed is the exe you're running. Your settings already live in the shared data folder (see [Configuration](configuration.md)), so the installed copy picks them up as-is.
+
+You can also run `<App>.exe --installer` to get a small **Install &lt;App&gt;** window: pick **Local** or **System** under **Install location**, tick **Desktop shortcut** (off by default) and **Start Menu entry** (on by default), and click **Install**. The installed copy starts once it's done. For scripted installs, see [Launch Arguments](launch-arguments.md).
+
+## Running Portable
+
+Extract `<App>_<version>.zip` (or use the installer's **Portable** type) wherever you like and run the exe. To these apps, there isn't much difference between running portable and being installed. Settings and logs go to the same `%LocalAppData%\TrayAppDotNET\<App>` folder either way, and updates replace the portable exe in place.
+
+What you don't get: no entry in Windows Settings > Apps, no Start Menu entry, and the bundle installer won't know the copy exists.
+
+***Don't rename the exe.*** The updater looks for a file with the same name inside the release zip, so a renamed exe can't be updated.
+
+More on how portable and installed copies interact (shared settings, which copy Run on startup points at, one copy at a time) is in [Configuration](configuration.md#portable-vs-installed).
+
+## Hiding the Stock Tray Icons
+
+These apps replace, and add to, the Windows 11 tray system apps. For the best effect, I recommend removing the stock Windows tray icons with [Windhawk](https://windhawk.net/) and its [Taskbar Tray System Icon Tweaks](https://windhawk.net/mods/taskbar-tray-system-icon-tweaks) mod. Otherwise you end up with two volume icons, two network icons, etc.
+
+## Uninstalling
+
+There are three ways in:
+
+- Windows Settings > Apps > Installed apps. Each installed app has its own entry under its own name (e.g. **VolumeTrayAppDotNET**), and **Uninstall** opens that app's uninstaller.
+- **Settings** > **General** > **Installation** > **Uninstall** in the app itself.
+- `--uninstall-headless` from a command line, see [Launch Arguments](launch-arguments.md).
+
+### The Uninstaller
+
+The **Uninstall &lt;App&gt;** window says which folder it's about to remove and asks what to do with your settings:
+
+- **Keep my settings** (the default): leaves `settings.xml` in place so a future install picks it up.
+- **Delete my settings**: also removes the app's data folder, which the option spells out.
+
+Click **Uninstall** to go, or **Cancel** (or ++esc++) to back out. A System install asks for UAC after you click **Uninstall**. If you're uninstalling the copy that's currently running, it closes itself.
+
+The uninstaller removes the startup shortcut, the Start Menu entries, the desktop shortcut and the Windows uninstall entry, stops the app, deletes the settings if you asked for that, and removes the files. If you have both a Local and a System copy, the startup shortcut moves over to the other copy instead of being deleted. Files the apps share stay in the install folder until the last app in it is uninstalled.
+
+**Note**: **Delete my settings** from Windows Settings always targets the default `%LocalAppData%\TrayAppDotNET\<App>` folder. If you use [`--settings-dir`](configuration.md#using-a-different-data-folder), delete that folder yourself.
+
+### Removing a Portable Copy
+
+There's nothing to uninstall. Turn off **Run on startup** first (or delete `<App>.lnk` from your Startup folder, `shell:startup`), exit the app, then delete its folder. If you want the settings gone too, delete `%LocalAppData%\TrayAppDotNET\<App>`.

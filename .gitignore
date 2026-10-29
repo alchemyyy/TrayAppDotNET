@@ -1,11 +1,11 @@
-**/documentation/mdbook.exe
 **/Localization/*Strings.Designer.cs
 *.py[cod]
 .artifacts/
 .buildtools/
 .dumps
 .github/.cloudflare/version-endpoint/public/versions.xml
-.mdbook/
+documentation/.cache/
+documentation/site/
 .ruff_cache/
 .tadn_tools/procdump64.exe
 .vs/
