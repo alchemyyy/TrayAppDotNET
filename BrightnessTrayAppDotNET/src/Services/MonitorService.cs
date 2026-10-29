@@ -63,6 +63,12 @@ public sealed class MonitorService : IDisposable
     private readonly ConcurrentDictionary<string, DDCRecoveryIdentity>
         _recoveryIdentities = new(StringComparer.Ordinal);
 
+    // Rows whose panel acknowledged a brightness SET that a successful read-back then contradicted. From then on a
+    // SetVCPFeature acknowledgement says nothing about that panel: an active DP-to-HDMI converter acknowledges the
+    // transfer itself while its panel is dark, and a freshly booted LG answers GETs before it applies SETs. Recovery
+    // may not present such a row as read-degraded on an acknowledgement alone until a read-back confirms a write.
+    private readonly ConcurrentDictionary<string, byte> _rowsWithContradictedWrites = new(StringComparer.Ordinal);
+
     // Per-monitor latest-pending-wins scheduler.
     // Owns the cooldown between brightness writes; the payloads it runs hold the per-monitor DDC mutex (the lock is
     // for bus atomicity vs other DDC ops, the throttler is for pacing - different concerns).
@@ -1244,7 +1250,8 @@ public sealed class MonitorService : IDisposable
                         PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
                         existingInfo.LastDDCError = null;
                         acquired.Add(existingInfo);
-                        TADNLog.Log($"MonitorService: promoted '{ddc.Name}' to DDC/CI-supported");
+                        TADNLog.Log(
+                            $"MonitorService: promoted '{ddc.Name}' to DDC/CI-supported (panel reported {percent}%)");
                     }
                     else
                     {
@@ -1961,13 +1968,14 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Returns the <see cref="MonitorInfo.ID"/> of every monitor that's a candidate for the DDC fallback worker:
-    /// currently DDC-unavailable or read-degraded.
+    /// currently DDC-unavailable or read-degraded, or holding a power-off intent.
     /// Rows that never acquired DDC are included. A panel that was dark at launch, garbled its first probe, or came
     /// back under a different EDID key has no capability record to match, and powering it on is often invisible to
     /// Windows, so nothing else would ever probe it again. <see cref="DDCRecoveryService"/> backs off per candidate,
     /// which keeps a monitor without DDC/CI cheap to keep probing.
-    /// Rows the app powered off are included too and probed with reads only (see <see cref="TryRecoverMonitor"/>):
-    /// a panel switched back on by its own button often stays enumerated with no Windows event to report it.
+    /// Rows the app powered off are included too, working ones as well, and probed with reads (see
+    /// <see cref="TryRecoverMonitor"/>): a panel switched back on by its own button often stays enumerated with no
+    /// Windows event to report it, and until a probe notices, the power-off intent keeps every curve write from it.
     /// Self-marshals to the UI thread because <see cref="Monitors"/> is mutated there.
     /// </summary>
     public List<string> GetStuckRecoveryCandidateIDs()
@@ -1985,8 +1993,9 @@ public sealed class MonitorService : IDisposable
             {
                 // DDC fallback probes any monitor whose read half is failing - includes the asymmetric
                 // IsReadDegraded compatibility state where write transport was accepted but application could not
-                // be confirmed, so we can detect when reads come back and full-promote via PromoteRecovered.
-                if (m is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
+                // be confirmed, so we can detect when reads come back and full-promote via PromoteRecovered - and any
+                // monitor the app powered off, so we notice when its own button switches it back on.
+                if (!IsRecoveryCandidate(m)) continue;
 
                 result.Add(m.ID);
             }
@@ -1996,8 +2005,9 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
-    /// Asks the recovery worker to probe every unavailable row now instead of waiting out its backoff.
-    /// The flyout calls this on open: a user looking at a locked slider is the best hint that a panel came back.
+    /// Asks the recovery worker to probe every unavailable or app-powered-off row now instead of waiting out its
+    /// backoff. The flyout calls this on open: a user looking at a locked slider, or at a panel they just switched on
+    /// with its button, is the best hint that a panel came back.
     /// </summary>
     public void RequestRecoveryOfUnavailableMonitors()
     {
@@ -2011,11 +2021,18 @@ public sealed class MonitorService : IDisposable
 
         foreach (MonitorInfo monitor in Monitors.ToList())
         {
-            if (monitor is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
+            if (!IsRecoveryCandidate(monitor)) continue;
 
             DDCRecoveryRequested?.Invoke(monitor.ID);
         }
     }
+
+    /// <summary>
+    /// True for a row the DDC fallback worker should probe: unavailable, read-degraded, or holding a power-off intent.
+    /// </summary>
+    private static bool IsRecoveryCandidate(MonitorInfo monitor) =>
+        monitor is not { IsHardwareFunctional: true, IsReadDegraded: false }
+        || monitor.SuppressDDCRecoveryForPowerIntent;
 
     /// <summary>
     /// Device-instance paths of the panels behind live rows, and how many live rows have none on record.
@@ -2088,13 +2105,13 @@ public sealed class MonitorService : IDisposable
     /// Call from off the UI thread: only the small candidate snapshot runs on the dispatcher;
     /// enumeration and DDC I/O run on the caller's thread,
     /// and the promotion (if any) marshals back to the dispatcher.
-    /// The short-circuit cases - already supported, powered off, or a user write in flight -
-    /// return without touching the bus.
+    /// The short-circuit cases - already supported, or a user write in flight - return without touching the bus.
+    /// A working row the app powered off is probed as well: its panel's own button may have switched it back on.
     /// </summary>
     /// <returns>
     /// True when the monitor is DDC-supported after the call
-    /// (whether by a successful recovery or because it was already supported).
-    /// False if the targeted probe did not restore readable DDC state.
+    /// (whether by a successful recovery or because it was already supported) and no power-off intent holds it back.
+    /// False if the targeted probe did not restore readable DDC state, or the panel the app powered off is still off.
     /// </returns>
     public bool TryRecoverMonitor(string monitorID)
     {
@@ -2109,10 +2126,14 @@ public sealed class MonitorService : IDisposable
         bool canProbe = false;
         bool wasReadDegraded = false;
         bool poweredOffByApp = false;
+        bool writesContradicted = false;
         bool shouldAttemptWriteTransportProbe = false;
         bool mayAttemptChecksumRecoveryWrite = false;
         bool mayAttemptBlindRecoveryWrite = false;
         bool mayResynchronizeDegradedRow = false;
+        bool awaitingPowerOn = false;
+        bool mayResynchronizePoweredOffPanel = false;
+        long powerIntentGeneration = 0;
         int writeTransportProbePercent = 0;
         int blindRecoveryWritePercent = 0;
         int degradedResyncPercent = 0;
@@ -2136,15 +2157,21 @@ public sealed class MonitorService : IDisposable
             if (info == null) return;
 
             // IsReadDegraded monitors are technically "functional" (best-effort slider operable) but still need
-            // read-probing so we can fully promote when reads come back. Only short-circuit
-            // for monitors that are both functional AND not read-degraded.
-            if (info is { IsHardwareFunctional: true, IsReadDegraded: false })
+            // read-probing so we can fully promote when reads come back. A working row the app powered off is probed
+            // too: until a reply shows its panel is on again, the power-off intent refuses every curve write to it.
+            // Only short-circuit for other monitors that are both functional AND not read-degraded.
+            awaitingPowerOn = info is
+            {
+                IsHardwareFunctional: true, IsReadDegraded: false, SuppressDDCRecoveryForPowerIntent: true
+            };
+            if (info is { IsHardwareFunctional: true, IsReadDegraded: false } && !awaitingPowerOn)
             {
                 alreadySupported = true;
                 return;
             }
 
-            // A monitor the app powered off during this application lifetime is probed with reads only.
+            // A monitor the app powered off during this application lifetime is probed with reads, apart from the one
+            // SET TryResynchronizePoweredOffPanel may send a hard-off panel.
             // Its own button can switch it back on without any Windows event,
             // and a read cannot wake a panel the way a SET can.
             // Persisted IsPoweredOn state is not used here because it can be stale after an external wake.
@@ -2153,8 +2180,17 @@ public sealed class MonitorService : IDisposable
             // Defer if a user-initiated brightness write is in flight on this monitor
             // (only happens when an entry already exists, e.g. a previously-supported monitor is mid-recovery).
             // Avoids racing with the throttler-driven write payload.
-            if (_entries.TryGetValue(monitorID, out MonitorEntry? _) && IsBrightnessWriteBusy(monitorID))
-                return;
+            if (_entries.TryGetValue(monitorID, out MonitorEntry? existingEntry))
+            {
+                if (IsBrightnessWriteBusy(monitorID)) return;
+
+                // A power command still being verified owns the panel: one that has not landed yet reads as on, and
+                // noticing that would lift the intent the command just published
+                if (Volatile.Read(ref existingEntry.PowerCommandsInFlight) > 0) return;
+
+                // A power command sent after this snapshot owns the panel; noticing a power-on compares against this
+                powerIntentGeneration = Volatile.Read(ref existingEntry.PowerIntentGeneration);
+            }
 
             EDIDKey = info.EDIDKey;
             EDIDSerial = info.EDIDSerial;
@@ -2172,9 +2208,9 @@ public sealed class MonitorService : IDisposable
             lastKnownBrightnessMax = info.LastKnownBrightnessMax;
             shouldAttemptWriteTransportProbe = lastConfirmedBusBrightness.HasValue
                                                && ShouldAttemptReadDegradedWriteTransportProbe(info);
-            // A previously confirmed bus value is also a safe checksum-resynchronization SET. Unlike the generic
-            // read-degraded probe, this is allowed for curve-owned rows because a successful confirming GET promotes
-            // the row and immediately replays the current curve target. User-disabled rows remain untouched.
+            // A previously confirmed bus value is also a safe SET to resynchronize a wedged reply pipeline. Unlike the
+            // generic read-degraded probe, this is allowed for curve-owned rows because a successful confirming GET
+            // promotes the row and immediately replays the current curve target. User-disabled rows remain untouched.
             mayAttemptChecksumRecoveryWrite = lastConfirmedBusBrightness.HasValue
                                               && !info.WasDisabledBeforeFailure;
             // This is the explicit opt-in escape hatch for displays whose GET path is permanently broken while SET
@@ -2183,7 +2219,7 @@ public sealed class MonitorService : IDisposable
                                            && info.WasEverDDCCapable
                                            && !info.WasDisabledBeforeFailure;
             // A read-degraded row may have accepted newer, unconfirmed SETs since its last confirmed bus value.
-            // Resending the newest one resynchronizes a checksum wedge without moving the panel backwards.
+            // Resending the newest one resynchronizes a wedged reply pipeline without moving the panel backwards.
             int? resyncPercent = lastConfirmedBusBrightness;
             if (_entries.TryGetValue(monitorID, out MonitorEntry? degradedEntry))
             {
@@ -2204,6 +2240,22 @@ public sealed class MonitorService : IDisposable
                 mayAttemptChecksumRecoveryWrite = false;
                 mayAttemptBlindRecoveryWrite = false;
                 mayResynchronizeDegradedRow = false;
+            }
+
+            mayResynchronizePoweredOffPanel = poweredOffByApp
+                                              && info.PowerOffIntent == PowerOffIntent.HardOff
+                                              && lastConfirmedBusBrightness.HasValue
+                                              && info.SliderState != SliderState.Disabled
+                                              && !info.WasDisabledBeforeFailure;
+
+            // The generic and blind probes exist only to establish read-degraded state, which an acknowledgement can
+            // no longer justify once a read-back caught this panel acknowledging a SET it did not apply. The
+            // resynchronization SET stays: only a confirming read promotes after it.
+            writesContradicted = _rowsWithContradictedWrites.ContainsKey(monitorID);
+            if (writesContradicted)
+            {
+                shouldAttemptWriteTransportProbe = false;
+                mayAttemptBlindRecoveryWrite = false;
             }
 
             identityStrategy = _activeStrategy;
@@ -2256,13 +2308,24 @@ public sealed class MonitorService : IDisposable
         if (!TryReadBrightnessWithRetry(ddc, out uint current, out uint max, out string? readError) || max == 0)
         {
             string capturedReadError = readError ?? "Monitor did not respond to DDC/CI.";
-            bool isChecksumRecovery = DDCNativeError.IsInvalidMessageChecksum(capturedReadError);
-            bool mayResynchronizeChecksum = isChecksumRecovery && mayAttemptChecksumRecoveryWrite;
+            bool isGarbledReply = DDCNativeError.IsGarbledReply(capturedReadError);
+            if (isGarbledReply
+                && mayResynchronizePoweredOffPanel
+                && TryResynchronizePoweredOffPanel(
+                    info,
+                    ddc,
+                    writeTransportProbePercent,
+                    lastKnownBrightnessMax,
+                    awaitingPowerOn,
+                    powerIntentGeneration))
+                return true;
+
+            bool mayResynchronizeChecksum = isGarbledReply && mayAttemptChecksumRecoveryWrite;
             if (wasReadDegraded)
             {
                 // Writes already reach a read-degraded row, so the only probe worth sending is the SET that
-                // resynchronizes a checksum-wedged reply pipeline
-                if (isChecksumRecovery
+                // resynchronizes a wedged reply pipeline
+                if (isGarbledReply
                     && mayResynchronizeDegradedRow
                     && TryResynchronizeChecksumWedge(info, ddc, degradedResyncPercent, lastKnownBrightnessMax))
                     return true;
@@ -2306,21 +2369,22 @@ public sealed class MonitorService : IDisposable
                     + $"target={selectedProbePercent} result={writeTransportAccepted}"
                     + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
             }
-            else if (isChecksumRecovery && shouldWriteProbe)
+            else if (isGarbledReply && shouldWriteProbe)
             {
                 TADNLog.Log(
-                    $"MonitorService: checksum recovery write probe for '{ddc.Name}' "
+                    $"MonitorService: garbled-reply recovery write probe for '{ddc.Name}' "
                     + $"target={selectedProbePercent} result={writeTransportAccepted}"
                     + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
             }
 
+            string failureError = capturedReadError;
             if (writeTransportAccepted)
             {
                 // Transport acceptance is not proof that the brightness changed. Make one post-write read attempt
                 // even though the preceding acquisition reads failed. If replies resumed, publish full recovery and
                 // send the owning manual or curve target through the normal verified pipeline; otherwise enter the
                 // best-effort compatibility state without claiming the probe landed.
-                if (isChecksumRecovery)
+                if (isGarbledReply)
                     SleepFor(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
 
                 if (TryReadBrightness(
@@ -2331,20 +2395,36 @@ public sealed class MonitorService : IDisposable
                     && postWriteMax > 0)
                     return PromoteRecoveredUnlessPoweredOff(info, ddc, postWriteCurrent, postWriteMax, poweredOffByApp);
 
-                DDCMonitor capturedDDCForDegraded = ddc;
-                MonitorInfo capturedInfoForDegraded = info;
                 string degradedError = postWriteReadError ?? capturedReadError;
-                InvokeOnDispatcher(() =>
+                // An acknowledgement establishes the best-effort state only for the probes that always could: the
+                // generic and blind probes and the checksum resynchronization. Other garbled replies get the same SET,
+                // but an adapter acknowledges it for a dark panel, so with blind writes off only a reply brings the row
+                // back
+                bool acknowledgementEstablishesDegraded = shouldAttemptWriteTransportProbe
+                                                          || mayAttemptBlindRecoveryWrite
+                                                          || DDCNativeError.IsInvalidMessageChecksum(capturedReadError);
+                if (!writesContradicted && acknowledgementEstablishesDegraded)
                 {
-                    if (!capturedInfoForDegraded.SuppressDDCRecoveryForPowerIntent)
-                        PromoteReadDegraded(capturedInfoForDegraded, capturedDDCForDegraded, degradedError);
-                });
-                return false;
+                    DDCMonitor capturedDDCForDegraded = ddc;
+                    MonitorInfo capturedInfoForDegraded = info;
+                    InvokeOnDispatcher(() =>
+                    {
+                        if (!capturedInfoForDegraded.SuppressDDCRecoveryForPowerIntent)
+                            PromoteReadDegraded(capturedInfoForDegraded, capturedDDCForDegraded, degradedError);
+                    });
+                    return false;
+                }
+
+                // This panel has acknowledged SETs it did not apply, so this acknowledgement vouches for nothing.
+                // Without it the read-degraded state would cycle with the demotion each contradicting read-back causes
+                failureError = writesContradicted
+                    ? degradedError + " " + ContradictedWriteAcknowledgementNote
+                    : degradedError;
             }
 
-            // Both halves down - surface the read error (more diagnostic than the write probe error,
-            // which is almost always the same Win32 code echoed back from the bus).
-            // info isn't null here (checked above), but the assignment must marshal to the dispatcher
+            // Both halves down, or only an acknowledgement that proves nothing - surface the read error (more
+            // diagnostic than the write probe error, which is almost always the same Win32 code echoed back from the
+            // bus). info isn't null here (checked above), but the assignment must marshal to the dispatcher
             // because MonitorInfo property changes drive UI bindings.
             MonitorInfo failedInfo = info;
             _dispatcher.Post(() =>
@@ -2373,23 +2453,16 @@ public sealed class MonitorService : IDisposable
                 }
 
                 failedInfo.IsReadDegraded = false;
-                failedInfo.LastDDCError = capturedReadError;
+                failedInfo.LastDDCError = failureError;
             });
-            return false;
-        }
-
-        // A panel that answers while asleep would be woken by the replay that follows promotion
-        if (poweredOffByApp && ReadPanelPower(ddc) == PanelPowerReading.NotOn)
-        {
-            TADNLog.Log(
-                $"MonitorService: '{ddc.Name}' answers but reports it is still powered off; "
-                + "keeping its power-off intent");
             return false;
         }
 
         // Promote on the UI thread -
         // mutating Monitors / _entries / IsDDCCISupported off-thread would race with Refresh and UI bindings.
-        return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffByApp);
+        return poweredOffByApp
+            ? PromotePoweredOnPanel(info, ddc, current, max, awaitingPowerOn, powerIntentGeneration)
+            : PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffAtProbeStart: false);
     }
 
     /// <summary>
@@ -2587,10 +2660,16 @@ public sealed class MonitorService : IDisposable
 
     private const string PowerOffIntentError = "Recovery write skipped: the app powered the monitor off.";
 
+    // Appended to a failed row's reason when recovery's SET was acknowledged by a panel already caught acknowledging
+    // SETs it did not apply
+    private const string ContradictedWriteAcknowledgementNote =
+        "A brightness write was acknowledged, but this display has acknowledged writes it did not apply, "
+        + "so it stays unavailable until a reply confirms it.";
+
     /// <summary>
-    /// Resends the newest bus value a read-degraded row accepted to a panel whose reads fail with checksum errors, then
-    /// reads back once and promotes the row on success. A checksum-wedged reply pipeline only resynchronizes after
-    /// it accepts a SET, and a read-degraded row may be sent none (blind writes off, or a steady manual value).
+    /// Resends the newest bus value a read-degraded row accepted to a panel whose reads come back garbled, then reads
+    /// back once and promotes the row on success. A wedged reply pipeline only resynchronizes after it accepts a SET,
+    /// and a read-degraded row may be sent none (blind writes off, or a steady manual value).
     /// </summary>
     private bool TryResynchronizeChecksumWedge(
         MonitorInfo info,
@@ -2600,7 +2679,7 @@ public sealed class MonitorService : IDisposable
     {
         bool accepted = TryDDCWriteTransportProbe(busPercent, lastKnownBrightnessMax, ddc, info, out string? writeError);
         TADNLog.Log(
-            $"MonitorService: checksum recovery write probe for read-degraded '{ddc.Name}' "
+            $"MonitorService: garbled-reply recovery write probe for read-degraded '{ddc.Name}' "
             + $"target={busPercent} result={accepted}"
             + (writeError == null ? string.Empty : $" error={writeError}"));
         if (!accepted) return false;
@@ -2610,6 +2689,114 @@ public sealed class MonitorService : IDisposable
 
         // Only a row without a power-off intent is sent this SET, so any intent now is newer than the probe
         return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffAtProbeStart: false);
+    }
+
+    /// <summary>
+    /// Resends the last read-back-confirmed bus value to a panel the app hard-powered off whose reads come back
+    /// garbled, then promotes the row once a read shows the panel is on.
+    /// Reads alone cannot tell such a panel, still dark behind an active adapter that answers garbage for it, from one
+    /// its own button switched back on into a wedged reply pipeline, which only a SET resynchronizes. On 2026-10-29
+    /// DISPLAY2 failed every read for five minutes after its button power-on, and the restarted app's first SET
+    /// recovered it within three seconds. A hard-off panel takes no SETs and only its button wakes it, so this SET can
+    /// neither wake it nor change the brightness it comes back with. A panel sent a standby or soft-off command never
+    /// gets it, because a DDC write wakes some of them.
+    /// </summary>
+    private bool TryResynchronizePoweredOffPanel(
+        MonitorInfo info,
+        DDCMonitor ddc,
+        int busPercent,
+        uint lastKnownBrightnessMax,
+        bool awaitingPowerOn,
+        long powerIntentGeneration)
+    {
+        uint probeRaw = ScaleBrightnessPercentToRaw(busPercent, lastKnownBrightnessMax);
+        (bool accepted, string? writeError) = WithDDCLock(ddc, () =>
+        {
+            // Rechecked under the DDC lock: once a user change lifted the intent, its own write owns the panel and
+            // this older value must not land after it
+            if (info.PowerOffIntent != PowerOffIntent.HardOff) return (false, PowerOffIntentLiftedError);
+
+            bool wrote = _display.TrySetVCPFeature(ddc, ddc.BrightnessCode, probeRaw, out string? e);
+            RecordDDCTransportResult(ddc, wrote, provesReplyPath: false);
+            return (wrote, e);
+        });
+        TADNLog.Log(
+            $"MonitorService: power-off resynchronization write for '{ddc.Name}' "
+            + $"target={busPercent} result={accepted}"
+            + (writeError == null ? string.Empty : $" error={writeError}"));
+        if (!accepted) return false;
+
+        // An adapter acknowledges SETs for a dark panel, so only a reply may lift the intent
+        SleepFor(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
+        if (!TryReadBrightness(ddc, out uint current, out uint max, out _) || max == 0) return false;
+
+        return PromotePoweredOnPanel(info, ddc, current, max, awaitingPowerOn, powerIntentGeneration);
+    }
+
+    private const string PowerOffIntentLiftedError =
+        "Resynchronization write skipped: the power-off intent was lifted.";
+
+    /// <summary>
+    /// Promotes a row the app powered off whose panel answered a brightness read, unless the panel reports that it is
+    /// still off: a panel that answers while asleep would be woken by the replay that follows promotion. A failed row
+    /// recovers through <see cref="PromoteRecovered"/>. A working row resumes through
+    /// <see cref="ResumePoweredOnRow"/> only once the panel reports it is on, the rule Refresh applies to such a row.
+    /// </summary>
+    private bool PromotePoweredOnPanel(
+        MonitorInfo info,
+        DDCMonitor ddc,
+        uint current,
+        uint max,
+        bool awaitingPowerOn,
+        long powerIntentGeneration)
+    {
+        PanelPowerReading power = ReadPanelPower(ddc);
+        if (power == PanelPowerReading.NotOn)
+        {
+            TADNLog.Log(
+                $"MonitorService: '{ddc.Name}' answers but reports it is still powered off; "
+                + "keeping its power-off intent");
+            return false;
+        }
+
+        if (!awaitingPowerOn)
+            return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffAtProbeStart: true);
+
+        return power == PanelPowerReading.On
+               && InvokeOnDispatcher(() => ResumePoweredOnRow(info, ddc, max, powerIntentGeneration));
+    }
+
+    /// <summary>
+    /// UI-thread half of noticing that a working row's panel was switched back on without the app: installs the fresh
+    /// DDC snapshot, lifts the power-off intent and replays the target the intent held back, as Refresh does for a
+    /// panel the app powered off that answers again.
+    /// </summary>
+    private bool ResumePoweredOnRow(MonitorInfo info, DDCMonitor ddc, uint max, long powerIntentGeneration)
+    {
+        if (_disposed) return false;
+        if (!Monitors.Contains(info)) return false;
+
+        // A user change or a Refresh lifted the intent meanwhile and sent the target itself
+        if (!info.SuppressDDCRecoveryForPowerIntent)
+            return info is { IsHardwareFunctional: true, IsReadDegraded: false };
+
+        // Demoted meanwhile, or a power command sent since the probe started, or still running, owns the panel now
+        if (!_entries.TryGetValue(info.ID, out MonitorEntry? entry)) return false;
+        if (Volatile.Read(ref entry.PowerIntentGeneration) != powerIntentGeneration) return false;
+        if (Volatile.Read(ref entry.PowerCommandsInFlight) > 0) return false;
+        if (IsPanelDrivenByAnotherRow(info, ddc)) return false;
+
+        DDCMonitor previousDDC = Volatile.Read(ref entry.DDC);
+        Volatile.Write(ref entry.DDC, ddc);
+        RetireSupersededTransport(previousDDC, ddc);
+        entry.Max = NormalizeBrightnessMax(max);
+        info.LastKnownBrightnessMax = entry.Max;
+        RecordDDCCapableObservation(info);
+        info.LastDDCError = null;
+        PublishRecoveredPowerAvailability(info, ddc.Name);
+        MonitorsRefreshed?.Invoke();
+        ReplayRecoveredBrightnessIntent(info);
+        return true;
     }
 
     private bool ShouldAttemptReadDegradedWriteTransportProbe(MonitorInfo info)
@@ -2820,7 +3007,8 @@ public sealed class MonitorService : IDisposable
         PublishRecoveredPowerAvailability(info, ddc.Name);
         info.LastDDCError = null;
         _recoveryIdentities.TryRemove(info.ID, out DDCRecoveryIdentity _);
-        TADNLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported");
+        // The read proves the reply path, not the brightness: the replay below is the first write confirmed or refuted
+        TADNLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported (panel reported {pct}%)");
 
         MonitorsRefreshed?.Invoke();
         ReplayRecoveredBrightnessIntent(info);
@@ -2991,6 +3179,26 @@ public sealed class MonitorService : IDisposable
         RegisterKnownDisplays([ddc]);
     }
 
+    // MCCS 0xD6 = 0x05: write-only, and by the standard the same as pressing the panel's power button
+    private const byte PowerModeHardOff = 0x05;
+
+    private static PowerOffIntent ResolvePowerOffIntent(byte code, byte value) =>
+        code == VCPConstants.PowerMode && value == PowerModeHardOff ? PowerOffIntent.HardOff : PowerOffIntent.Off;
+
+    /// <summary>Counts a power command on its entry until the command returns, verification included.</summary>
+    private readonly struct PowerCommandInFlight : IDisposable
+    {
+        private readonly MonitorEntry _entry;
+
+        public PowerCommandInFlight(MonitorEntry entry)
+        {
+            _entry = entry;
+            Interlocked.Increment(ref entry.PowerCommandsInFlight);
+        }
+
+        public void Dispose() => Interlocked.Decrement(ref _entry.PowerCommandsInFlight);
+    }
+
     /// <summary>
     /// Sends a power VCP write to the monitor, resolved through the per-monitor profile.
     /// ON uses the profile's primary power-on command; OFF uses the level chosen by
@@ -3020,24 +3228,10 @@ public sealed class MonitorService : IDisposable
         if (!ddc.SupportsVcpPower) return;
 
         long powerIntentGeneration = Interlocked.Increment(ref entry.PowerIntentGeneration);
-        bool previousRecoverySuppression = monitor.SuppressDDCRecoveryForPowerIntent;
 
-        // A queued brightness re-apply after an off command can wake some monitors or immediately fail and demote
-        // the row. Publish the power-off intent and make every older brightness generation stale under one target
-        // gate before sending power-down traffic: a target prepared after this point is refused, one prepared before
-        // it is stale. Publishing only once the write was accepted let a curve tick in between land a brightness SET
-        // on the dark panel. A failed write restores the previous intent below.
-        if (!on)
-        {
-            lock (entry.BrightnessTargetGate)
-            {
-                monitor.SuppressDDCRecoveryForPowerIntent = true;
-                InvalidateBrightnessTargetLocked(entry);
-            }
-
-            DropQueuedBrightnessWrites(entry.ID);
-        }
-
+        // Recovery leaves the row alone until this command returns (see TryRecoverMonitor)
+        using PowerCommandInFlight _ = new(entry);
+        PowerOffIntent previousPowerOffIntent = monitor.PowerOffIntent;
         PowerOffLevel offLevel = _settings.PowerOffMode switch
         {
             PowerOffMode.Soft => PowerOffLevel.Soft,
@@ -3049,6 +3243,24 @@ public sealed class MonitorService : IDisposable
             : TryResolvePowerOffOverride(ddc, offLevel, out byte overrideCode, out byte overrideValue)
                 ? (overrideCode, overrideValue)
                 : ddc.ResolvePowerOff(offLevel);
+
+        // A queued brightness re-apply after an off command can wake some monitors or immediately fail and demote
+        // the row. Publish the power-off intent and make every older brightness generation stale under one target
+        // gate before sending power-down traffic: a target prepared after this point is refused, one prepared before
+        // it is stale. Publishing only once the write was accepted let a curve tick in between land a brightness SET
+        // on the dark panel. A failed write restores the previous intent below. The intent records the command
+        // actually sent: a profile without a standby value turns Sleep into the hard off.
+        if (!on)
+        {
+            lock (entry.BrightnessTargetGate)
+            {
+                monitor.PowerOffIntent = ResolvePowerOffIntent(code, value);
+                InvalidateBrightnessTargetLocked(entry);
+            }
+
+            DropQueuedBrightnessWrites(entry.ID);
+        }
+
         TADNLog.Log(
             $"MonitorService: SetPowerState '{ddc.Name}' on={on}; code=0x{code:X2}; value=0x{value:X2}; "
             + $"mode={_settings.PowerOffMode}");
@@ -3068,7 +3280,7 @@ public sealed class MonitorService : IDisposable
             case PowerStateApplyOutcome.Failed:
                 // A refused power-on still records on-intent: the earlier off intent must not keep recovery away from a
                 // panel the user wants on, such as a hard-off panel that only its button can wake
-                monitor.SuppressDDCRecoveryForPowerIntent = !on && previousRecoverySuppression;
+                monitor.PowerOffIntent = on ? PowerOffIntent.None : previousPowerOffIntent;
                 TADNLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {application.Error}");
                 if (on)
                 {
@@ -3105,7 +3317,13 @@ public sealed class MonitorService : IDisposable
             if (_disposed || !Monitors.Contains(monitor)) return;
 
             monitor.IsPoweredOn = on;
-            if (!on) return;
+            if (!on)
+            {
+                // Its own button can switch the panel back on with no Windows event to say so. Recovery probes it
+                // until a reply shows it is on, then replays the target the intent held back
+                if (monitor.SuppressDDCRecoveryForPowerIntent) DDCRecoveryRequested?.Invoke(monitor.ID);
+                return;
+            }
 
             // A successful wake can reset brightness without emitting a reliable Windows topology event.
             // Route it through the same settled refresh/replay boundary as an external wake so fresh handles and
@@ -3292,13 +3510,7 @@ public sealed class MonitorService : IDisposable
         if (Volatile.Read(ref _hardwareWritesSuspendCount) > 0) return;
 
         if (sender is not MonitorInfo monitor) return;
-        if (monitor.SuppressDDCRecoveryForPowerIntent)
-        {
-            // A direct user/profile brightness change is newer intent than an earlier power-off command. Curve writes
-            // bypass the Brightness setter and therefore cannot clear this gate in the background.
-            monitor.SuppressDDCRecoveryForPowerIntent = false;
-            monitor.IsPoweredOn = true;
-        }
+        LiftPowerOffIntentForUserBrightness(monitor);
 
         if (ShouldSuppressSliderBrightnessWrite(monitor)) return;
 
@@ -3317,6 +3529,19 @@ public sealed class MonitorService : IDisposable
         // setter), so persisting it would record a value the user no longer sees. The bus stamp
         // captures every read-back-verified target regardless of source.
         EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
+    }
+
+    /// <summary>
+    /// A direct user/profile brightness change is newer intent than an earlier power-off command. Curve writes bypass
+    /// the Brightness setter and <see cref="EnqueueUserBrightness"/>, and therefore cannot clear this gate in the
+    /// background.
+    /// </summary>
+    private static void LiftPowerOffIntentForUserBrightness(MonitorInfo monitor)
+    {
+        if (!monitor.SuppressDDCRecoveryForPowerIntent) return;
+
+        monitor.SuppressDDCRecoveryForPowerIntent = false;
+        monitor.IsPoweredOn = true;
     }
 
     // Counter-based so nested SuspendHardwareWrites scopes compose cleanly.
@@ -3371,6 +3596,7 @@ public sealed class MonitorService : IDisposable
                 monitor,
                 percent,
                 force: false,
+                canBeVetoed: false,
                 out MonitorEntry entry,
                 out BrightnessWriteTarget target))
             return;
@@ -3387,6 +3613,19 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
+    /// <see cref="EnqueueDirectBrightness"/> for a brightness the user just chose while an engaged curve keeps slider
+    /// changes off the bus, as a master drag, wheel or key step and a manual curve override do. Like a change through
+    /// the Brightness setter, it lifts an earlier power-off intent: otherwise the user's own adjustment is refused
+    /// until something else notices the panel came back on. Curve ticks and replays keep using
+    /// <see cref="EnqueueDirectBrightness"/>, which a power-off intent still refuses. UI thread only.
+    /// </summary>
+    public void EnqueueUserBrightness(MonitorInfo? monitor, int percent)
+    {
+        if (monitor != null) LiftPowerOffIntentForUserBrightness(monitor);
+        EnqueueDirectBrightness(monitor, percent);
+    }
+
+    /// <summary>
     /// Writes a direct brightness target without waiting for the per-monitor cooldown window.
     /// Used only for mode handoff boundaries where stale manual hardware state must be superseded now
     /// (for example, returning a released row to curve ownership).
@@ -3398,14 +3637,16 @@ public sealed class MonitorService : IDisposable
         int percent,
         Func<bool>? shouldWrite = null)
     {
-        // Reject an already-stale handoff before it can occupy the dedupe slot. The predicate is checked again
-        // under the DDC lock because ownership can still change after this synchronous gate.
+        // Reject an already-stale handoff before it can supersede the current target. The predicate is checked again
+        // under the DDC lock because ownership can still change after this synchronous gate, so a predicated target
+        // never deduplicates a later write of the same value.
         if (shouldWrite?.Invoke() == false) return;
 
         if (!TryPrepareDirectBrightnessWrite(
                 monitor,
                 percent,
                 force: true,
+                canBeVetoed: shouldWrite != null,
                 out MonitorEntry entry,
                 out BrightnessWriteTarget target))
             return;
@@ -3422,6 +3663,7 @@ public sealed class MonitorService : IDisposable
         MonitorInfo? monitor,
         int percent,
         bool force,
+        bool canBeVetoed,
         out MonitorEntry entry,
         out BrightnessWriteTarget target)
     {
@@ -3455,9 +3697,11 @@ public sealed class MonitorService : IDisposable
             if (monitor.SuppressDDCRecoveryForPowerIntent) return false;
 
             // A value is deduplicable only while the same target is still guaranteed to run, or after a matching
-            // read-back completed. Enqueue-time state alone is not proof: a canceled handoff must remain retryable.
+            // read-back completed. Enqueue-time state alone is not proof: a canceled handoff must remain retryable,
+            // and a pending handoff its ownership predicate can still veto is not guaranteed to run.
             if (!force
                 && ((resolvedEntry.HasPendingBrightnessTarget
+                     && !resolvedEntry.PendingBrightnessTargetCanBeVetoed
                      && resolvedEntry.PendingBrightnessPercentage == clampedPercent)
                     || (!resolvedEntry.HasPendingBrightnessTarget
                         && resolvedEntry.LastVerifiedBrightnessPercentage == clampedPercent)))
@@ -3478,6 +3722,7 @@ public sealed class MonitorService : IDisposable
             // longer proves current hardware state. Only this generation's matching read-back restores deduplication.
             resolvedEntry.LastVerifiedBrightnessPercentage = -1;
             resolvedEntry.HasPendingBrightnessTarget = true;
+            resolvedEntry.PendingBrightnessTargetCanBeVetoed = canBeVetoed;
             target = new BrightnessWriteTarget(generation, clampedPercent);
         }
 
@@ -3524,6 +3769,7 @@ public sealed class MonitorService : IDisposable
                     m,
                     m.RoundedBrightness,
                     force: true,
+                    canBeVetoed: false,
                     out MonitorEntry entry,
                     out BrightnessWriteTarget target))
                 continue;
@@ -3664,6 +3910,9 @@ public sealed class MonitorService : IDisposable
     /// HMONITOR is refreshed once on the first failed or mismatched read as a defence against stale handles.
     /// A stale generation exits without re-applying, while the newest generation owns completion and persistence.
     /// A target still unconfirmed after the last attempt demotes the row, naming what the read-backs showed.
+    /// A read-degraded row keeps its best-effort state only while every reply stays unreadable: a reply naming another
+    /// value proves the acknowledged SET was not applied, demotes it like any other row, and stops recovery from
+    /// trusting this panel's acknowledgements until a read-back confirms a write again.
     /// </summary>
     private async Task VerifyAppliedAsync(
         MonitorEntry entry,
@@ -3701,11 +3950,14 @@ public sealed class MonitorService : IDisposable
                 uint expectedRaw = ScaleBrightnessPercentToRaw(target.Percentage, readBack.Maximum);
                 if (Math.Abs((long)readBack.Actual - expectedRaw) <= Tolerance)
                 {
-                    if (CompleteBrightnessTargetIfCurrent(entry, target)
-                        && !string.IsNullOrEmpty(entry.EDIDKey))
+                    if (CompleteBrightnessTargetIfCurrent(entry, target))
                     {
+                        // A matching read-back shows this panel applies what it acknowledges again
+                        _rowsWithContradictedWrites.TryRemove(entry.ID, out byte _);
+
                         // Persistence represents acknowledged hardware state, never mere SetVCPFeature acceptance.
-                        _knownDisplays.StampLastBusBrightness(entry.EDIDKey, target.Percentage);
+                        if (!string.IsNullOrEmpty(entry.EDIDKey))
+                            _knownDisplays.StampLastBusBrightness(entry.EDIDKey, target.Percentage);
                     }
 
                     return;
@@ -3770,7 +4022,10 @@ public sealed class MonitorService : IDisposable
 
         if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return;
 
-        if (IsReadDegraded(entry.ID))
+        bool contradicted = reportedPercent >= 0;
+        if (contradicted)
+            _rowsWithContradictedWrites.TryAdd(entry.ID, value: 0);
+        else if (IsReadDegraded(entry.ID))
         {
             AbandonBrightnessTargetAsUnverified(entry, target);
             DDCMonitor degradedDDC = Volatile.Read(ref entry.DDC);
@@ -4096,6 +4351,7 @@ public sealed class MonitorService : IDisposable
             m.PropertyChanged -= OnMonitorPropertyChanged;
 
         _recoveryIdentities.Clear();
+        _rowsWithContradictedWrites.Clear();
         _disconnectedMonitors.Clear();
 
         // Flush any pending debounced brightness / offset stamps so a last-moment slider drag
@@ -4366,12 +4622,14 @@ public sealed class MonitorService : IDisposable
 
         // Brightness target lifecycle. Pending state suppresses duplicate queue entries while the target is
         // guaranteed to run; LastVerified suppresses steady curve samples only after matching read-back.
+        // A pending handoff whose ownership predicate can still veto it never suppresses a duplicate.
         // The generation makes stale normal/immediate/topology payloads unable to complete or re-apply.
         public readonly Lock BrightnessTargetGate = new();
         public long BrightnessTargetGeneration;
         public int PendingBrightnessPercentage = -1;
         public int LastVerifiedBrightnessPercentage = -1;
         public bool HasPendingBrightnessTarget;
+        public bool PendingBrightnessTargetCanBeVetoed;
 
         // Last value a read-degraded row accepted without read-back confirmation, and when
         public int UnverifiedBrightnessPercentage = -1;
@@ -4379,6 +4637,11 @@ public sealed class MonitorService : IDisposable
 
         // Supersedes an older power verification loop before it can re-apply stale power intent.
         public long PowerIntentGeneration;
+
+        // Power commands running against this entry, verification included. Recovery stands down while one runs: a
+        // panel that has not applied an off command yet reads as on, and noticing that would lift the intent just
+        // published
+        public int PowerCommandsInFlight;
 
         // Negative values inherit the global setting; non-negative values are resolved from MonitorOverrides.
         public int ValidationDwellMs = -1;

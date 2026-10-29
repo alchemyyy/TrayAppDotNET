@@ -1072,7 +1072,9 @@ internal sealed class BrightnessAvaloniaApp : Application
             string monitorState = monitors.Count == 0
                 ? "<none>"
                 : string.Join(separator: " | ", monitors.Select(m =>
-                    $"{m.Name}:{m.SliderState}:b={m.RoundedBrightness}:eff={m.EffectiveRoundedBrightness}:failed={m.IsFailed}:part={m.IsParticipatingInMaster}"));
+                    // A degraded row's writes were acknowledged but never confirmed by a read-back: eff is its intent
+                    $"{m.Name}:{m.SliderState}:b={m.RoundedBrightness}:eff={m.EffectiveRoundedBrightness}"
+                    + $":failed={m.IsFailed}:degraded={m.IsReadDegraded}:part={m.IsParticipatingInMaster}"));
             string snapshot =
                 $"brightness={brightness}; tooltip='{tooltip.Replace(oldValue: "\r", newValue: "\\r").Replace(oldValue: "\n", newValue: "\\n")}'; "
                 + $"flyoutNull={_brightnessFlyout == null}; flyoutVisible={_brightnessFlyout?.IsVisible.ToString() ?? "<null>"}; "

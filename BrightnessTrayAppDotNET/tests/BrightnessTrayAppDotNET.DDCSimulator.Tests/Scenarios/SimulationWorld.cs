@@ -544,7 +544,7 @@ internal sealed class SimulationWorld : IDisposable
             if (!_sentPowerOff.GetValueOrDefault(monitor)) return;
         }
 
-        Oracle.CheckBrightnessWrite(monitor, value, OwnedRows());
+        Oracle.CheckBrightnessWrite(monitor, value, OwnedRows(), key => _app?.Store.Find(key)?.LastBusBrightness);
         return;
 
         List<RowSnapshot> OwnedRows()

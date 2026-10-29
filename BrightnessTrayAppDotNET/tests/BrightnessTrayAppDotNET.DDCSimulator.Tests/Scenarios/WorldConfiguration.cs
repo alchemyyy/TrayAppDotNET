@@ -24,6 +24,7 @@ internal sealed class MonitorSetup
         + $"{(StartsOff ? " starts-off" : string.Empty)}"
         + $"{(Profile.SupportsDDC ? string.Empty : " no-DDC")}{(Profile.ReadsBroken ? " write-only" : string.Empty)}"
         + $"{(Profile.EarlyReadWedgeProbability > 0 ? $" wedge={Profile.EarlyReadWedgeProbability:F2}" : string.Empty)}"
+        + $"{(Profile.WedgeGarblesReplies ? " garbage-wedge" : string.Empty)}"
         + $"{(Profile.ReplyPreparationMaximumMs > DDCTiming.WindowsReplyDelayMs ? $" slow-replies={Profile.ReplyPreparationMinimumMs}-{Profile.ReplyPreparationMaximumMs}ms" : string.Empty)}"
         + $"{(Profile.DropSetProbability > 0 || Profile.StaleReplyProbability > 0 ? $" lossy(drop={Profile.DropSetProbability:F2} stale={Profile.StaleReplyProbability:F2})" : string.Empty)}"
         + $"{(Profile.BrightnessApplyMinimumMs > 0 ? $" slow-apply={Profile.BrightnessApplyMinimumMs}-{Profile.BrightnessApplyMaximumMs}ms" : string.Empty)}"

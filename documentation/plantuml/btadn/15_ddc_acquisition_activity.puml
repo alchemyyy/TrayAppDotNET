@@ -6,16 +6,18 @@ start
 
 :Acquisition trigger;
 if (Targeted recovery request?) then (yes)
-  :Snapshot only the failed/read-degraded row\non the dispatcher;
-  if (Already healthy or write busy?) then (yes)
+  :Snapshot the failed/read-degraded row, or a working row\nholding the app's power-off intent, on the dispatcher;
+  if (Already healthy with no power-off intent, or write busy?) then (yes)
     :Skip this candidate pass;
     stop
   else (probe)
     :Enumerate current displays off dispatcher;
     note right
       A row the app powered off this runtime is probed with
-      reads only. A reply promotes it unless the panel's power
-      mode reports standby or off.
+      reads, plus one LastBusBrightness SET and read-back when
+      a hard off (0xD6=0x05) answers garbled. A reply lifts the
+      intent unless the panel's power mode reports standby or
+      off; a working row needs it to report on.
     end note
     :Match requested ID, retained instance path / DeviceID,\nEDID key / serial, port form, then adapter name;
     if (Matching display found?) then (no)
@@ -74,6 +76,9 @@ else (no)
       if (Reply recovered?) then (yes)
         :Promote fully from the returned brightness;
         :Mark row acquired;
+      elseif (A read-back has contradicted this row's\nacknowledged SETs since its last confirmed write?) then (yes)
+        :Keep Failed: the acknowledgement proves nothing;
+        :Keep LastDDCError and recovery candidacy;
       else (no)
         :Publish explicit ReadDegraded compatibility state;
         :Keep LastDDCError and recovery candidacy;

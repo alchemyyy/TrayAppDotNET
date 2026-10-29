@@ -3,8 +3,9 @@ namespace BrightnessTrayAppDotNET.Services;
 /// <summary>
 /// Event-triggered final fallback for DDC acquisition failures.
 /// Healthy state is fully event-driven and no worker runs. When MonitorService reports an unavailable or
-/// read-degraded row, this service sets one global DDC recovery flag and starts a single background loop. The loop
-/// performs one immediate targeted pass, then sleeps until the next candidate is due. Each candidate is probed at the
+/// read-degraded row, or one whose panel the app powered off, this service sets one global DDC recovery flag and
+/// starts a single background loop. The loop performs one immediate targeted pass, then sleeps until the next
+/// candidate is due. Each candidate is probed at the
 /// base interval for its first few failures, then its interval doubles up to a maximum, so a dark panel or one
 /// without DDC/CI costs little bus time. A direct recovery request (a fresh failure, or the flyout opening) wakes the
 /// loop and makes its candidate due at once while keeping its failure count. A row that fails again shortly after

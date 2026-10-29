@@ -39,6 +39,7 @@ internal sealed class SimulatedMonitor
     private long _mcuReadyAtTicks;
     private long _flakyUntilTicks;
     private double _flakyProbability;
+    private long _setsIgnoredUntilTicks;
     private long _hardOffGarbleUntilTicks;
     private long _healthySinceTicks;
     private long _pendingTransitionVersion;
@@ -120,8 +121,8 @@ internal sealed class SimulatedMonitor
     }
 
     /// <summary>
-    /// True when a DDC read would succeed reliably: powered on, MCU booted, outside the post-boot garble window and
-    /// with an intact reply pipeline.
+    /// True when DDC works reliably: powered on, MCU booted, outside the post-boot garble window, applying SETs again
+    /// and with an intact reply pipeline.
     /// </summary>
     public bool IsDDCHealthy(long nowTicks)
     {
@@ -131,7 +132,12 @@ internal sealed class SimulatedMonitor
     /// <summary>Virtual time since which <see cref="IsDDCHealthy"/> has held continuously, or -1.</summary>
     public long HealthySinceTicks(long nowTicks)
     {
-        lock (_gate) return IsDDCHealthyLocked(nowTicks) ? Math.Max(_healthySinceTicks, _flakyUntilTicks) : -1;
+        lock (_gate)
+        {
+            return IsDDCHealthyLocked(nowTicks)
+                ? Math.Max(Math.Max(_healthySinceTicks, _flakyUntilTicks), _setsIgnoredUntilTicks)
+                : -1;
+        }
     }
 
     public bool IsWedged
@@ -306,6 +312,12 @@ internal sealed class SimulatedMonitor
                     }
 
                     _busyUntilTicks = nowTicks + Milliseconds(_random.Next(Profile.SetBusyMinimumMs, Profile.SetBusyMaximumMs + 1));
+                    if (nowTicks < _setsIgnoredUntilTicks)
+                    {
+                        _trace.Add("monitor", $"{PhysicalID} still booting, dropped SET 0x{payload[1]:X2}");
+                        break;
+                    }
+
                     if (_random.NextDouble() < Profile.DropSetProbability)
                     {
                         _trace.Add("monitor", $"{PhysicalID} dropped SET 0x{payload[1]:X2}");
@@ -350,7 +362,9 @@ internal sealed class SimulatedMonitor
                 reply = _previousReply;
             _previousReply = prepared;
 
-            return _wedged ? ShiftedReply(reply) : reply;
+            if (!_wedged) return reply;
+
+            return Profile.WedgeGarblesReplies ? Garble(reply) : ShiftedReply(reply);
         }
     }
 
@@ -359,6 +373,7 @@ internal sealed class SimulatedMonitor
         && !Profile.ReadsBroken
         && _power == PanelPowerState.On
         && nowTicks >= _mcuReadyAtTicks
+        && nowTicks >= _setsIgnoredUntilTicks
         && !_wedged;
 
     private void PrepareGetReplyLocked(long nowTicks, byte code)
@@ -553,6 +568,7 @@ internal sealed class SimulatedMonitor
             _flakyProbability = Profile.BootFlakyProbabilityMinimum
                                 + _random.NextDouble()
                                 * (Profile.BootFlakyProbabilityMaximum - Profile.BootFlakyProbabilityMinimum);
+            _setsIgnoredUntilTicks = _mcuReadyAtTicks + Milliseconds(Profile.IgnoresSetsAfterColdBootMs);
         }
         else
         {

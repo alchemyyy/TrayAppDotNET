@@ -41,6 +41,25 @@ public enum SliderState
 }
 
 /// <summary>
+/// The power-off command a row's pending power-off intent came from (see
+/// <see cref="MonitorInfo.SuppressDDCRecoveryForPowerIntent"/>).
+/// </summary>
+internal enum PowerOffIntent
+{
+    /// <summary>No power-off intent: the app last left the panel on, or something newer lifted the intent.</summary>
+    None,
+
+    /// <summary>A standby or soft-off command. A DDC write can wake some panels from these.</summary>
+    Off,
+
+    /// <summary>
+    /// The write-only hard off (MCCS 0xD6 = 0x05), which MCCS defines as the same as pressing the power button. The
+    /// panel takes no SETs until its button switches it back on.
+    /// </summary>
+    HardOff
+}
+
+/// <summary>
 /// Pure transition functions for <see cref="SliderState"/>.
 /// Each event method takes the current state plus any context the transition needs and returns
 /// the next state. No side effects, no PropertyChanged - the caller writes the result back to
@@ -434,11 +453,21 @@ public class MonitorInfo : INotifyPropertyChanged
     /// </summary>
     internal bool SuppressDDCRecoveryForPowerIntent
     {
-        get => Volatile.Read(ref _suppressDDCRecoveryForPowerIntent) != 0;
-        set => Volatile.Write(ref _suppressDDCRecoveryForPowerIntent, value ? 1 : 0);
+        get => Volatile.Read(ref _powerOffIntent) != (int)PowerOffIntent.None;
+        set => Volatile.Write(ref _powerOffIntent, (int)(value ? PowerOffIntent.Off : PowerOffIntent.None));
     }
 
-    private int _suppressDDCRecoveryForPowerIntent;
+    /// <summary>
+    /// Which command the power-off intent came from. Shares its field with
+    /// <see cref="SuppressDDCRecoveryForPowerIntent"/>, so lifting the intent anywhere also clears this.
+    /// </summary>
+    internal PowerOffIntent PowerOffIntent
+    {
+        get => (PowerOffIntent)Volatile.Read(ref _powerOffIntent);
+        set => Volatile.Write(ref _powerOffIntent, (int)value);
+    }
+
+    private int _powerOffIntent;
 
     /// <summary>
     /// Segoe Fluent Icons glyph code for the monitor icon.

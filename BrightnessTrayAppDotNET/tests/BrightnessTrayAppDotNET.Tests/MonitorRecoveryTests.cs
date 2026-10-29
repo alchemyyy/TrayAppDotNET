@@ -800,6 +800,92 @@ public sealed class MonitorRecoveryTests
             timeoutMs: 5000);
     }
 
+    /// <summary>
+    /// Under an engaged curve the flyout keeps slider changes off the bus and sends a master drag through
+    /// EnqueueUserBrightness. On 2026-10-27 the app had hard-powered three panels off overnight, their buttons switched
+    /// them back on, and a master drag from 41 to 92 to 17 reached none of them: the power-off intent refused every
+    /// write. The user's adjustment must lift that intent, as a plain slider change does; a curve write must not.
+    /// </summary>
+    [Fact]
+    public async Task UserBrightnessUnderACurveLiftsThePowerOffIntentThatCurveWritesKeep()
+    {
+        const string DeviceID = "DISPLAY\\PORT-USER-AFTER-OFF";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 41, serial: "USER-AFTER-OFF"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, on: false);
+        Assert.Equal(PowerOffIntent.HardOff, monitor.PowerOffIntent);
+
+        service.EnqueueDirectBrightness(monitor, percent: 30);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+
+        using (service.SuspendHardwareWrites())
+        {
+            monitor.Brightness = 92;
+            service.EnqueueUserBrightness(monitor, monitor.RoundedBrightness);
+        }
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.True(monitor.IsPoweredOn);
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 92, timeoutMs: 5000);
+        Assert.Equal(expected: 0, display.CountSetValue(VCPConstants.Brightness, value: 30));
+    }
+
+    /// <summary>
+    /// "Turn off displays" sends every panel its command at once, and the first one to finish asks recovery to watch
+    /// them all. A panel whose command is still being verified can read as on (it dropped the first command), so
+    /// recovery lifted its fresh intent and replayed brightness into a panel going to standby. Recovery must leave a
+    /// row alone until its power command has finished.
+    /// </summary>
+    [Fact]
+    public async Task RecoveryLeavesARowAloneWhileItsPowerOffIsStillVerifying()
+    {
+        const string DeviceID = "DISPLAY\\POWER-OFF-IN-FLIGHT";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 42, serial: "POWER-OFF-IN-FLIGHT"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(true);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(
+            VCPConstants.PowerMode,
+            applySuccessfulWrites: true,
+            successfulWritesToDrop: 1);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 2,
+            validationDwellMs: 1_500,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Soft);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 65;
+        await WaitUntil(() => display.HasReadValue(65), timeoutMs: 5000);
+        int brightnessWritesBefore = display.GetSetVCPFeatureCallCount(VCPConstants.Brightness);
+
+        Task powerOff = service.SetPowerStateAsync(monitor, on: false);
+        await WaitUntil(() => display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode) == 1);
+
+        // The panel dropped that first command and still reports it is on
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+
+        await powerOff;
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.False(monitor.IsPoweredOn);
+        Assert.Equal(brightnessWritesBefore, display.GetSetVCPFeatureCallCount(VCPConstants.Brightness));
+    }
+
     [Fact]
     public async Task FailedPowerOffRestoresCanceledBrightnessTarget()
     {
@@ -877,6 +963,43 @@ public sealed class MonitorRecoveryTests
 
         await WaitUntil(() => display.HasReadValue(64));
         Assert.Equal((uint)64, display.GetCurrentValue("DISPLAY\\PORT-E"));
+    }
+
+    [Fact]
+    public async Task VetoedImmediateBrightnessWriteDoesNotSwallowSameManualTarget()
+    {
+        const string DeviceID = "DISPLAY\\PORT-VETO";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 21, serial: "SERIAL-VETO"));
+        display.SetRead(key: DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 2);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+
+        // A curve handoff targets the row's slider value, then the user takes manual control before the write runs
+        int ownershipChecks = 0;
+        using ManualResetEventSlim ownershipCheckReached = new();
+        using ManualResetEventSlim ownershipChanged = new();
+        service.EnqueueDirectBrightnessImmediate(monitor, percent: 64, () =>
+        {
+            if (Interlocked.Increment(ref ownershipChecks) == 1) return true;
+            ownershipCheckReached.Set();
+            ownershipChanged.Wait(TimeSpan.FromSeconds(5));
+            return false;
+        });
+        Assert.True(ownershipCheckReached.Wait(1000));
+
+        // The manual replay of the same value must still reach the panel once the curve write vetoes itself
+        service.EnqueueDirectBrightness(monitor, percent: 64);
+        ownershipChanged.Set();
+
+        await WaitUntil(() => display.HasReadValue(64));
+        Assert.Equal((uint)64, display.GetCurrentValue(DeviceID));
     }
 
     [Fact]
@@ -1282,6 +1405,115 @@ public sealed class MonitorRecoveryTests
         monitor.Brightness = 43;
 
         await WaitUntil(() => display.GetVcpCalls > readsBeforeWrite);
+    }
+
+    [Fact]
+    public async Task ReadDegradedRowIsDemotedWhenAReplyContradictsItsAcknowledgedWrite()
+    {
+        const string DeviceID = "DISPLAY\\CONVERTER-CONTRADICTED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 57, serial: "CONVERTER-CONTRADICTED"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true);
+        MonitorInfo monitor = await MakeCurveRowReadDegradedAsync(service, display, DeviceID);
+
+        // The panel answers again, still at 60: the SET its converter acknowledged never reached it
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        service.EnqueueDirectBrightness(monitor, ContradictedCurveTarget);
+
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(monitor.IsReadDegraded);
+        Assert.Equal(
+            $"Brightness read back as 60% instead of {ContradictedCurveTarget}% after 1 attempt",
+            monitor.LastDDCError);
+    }
+
+    [Fact]
+    public async Task AcknowledgementAloneCannotRestoreARowWhoseWritesWereContradictedUntilAWriteIsConfirmed()
+    {
+        const string DeviceID = "DISPLAY\\CONVERTER-LOOP";
+        string storePath = Path.Combine(
+            Path.GetTempPath(),
+            path2: "BrightnessTrayAppDotNET.Tests",
+            $"{Guid.NewGuid():N}.displays.json");
+        KnownDisplaysStore store = new(storePath);
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(DeviceID, displayNumber: 58, serial: "CONVERTER-LOOP"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true,
+            knownDisplays: store);
+        MonitorInfo monitor = await MakeCurveRowReadDegradedAsync(service, display, DeviceID);
+        // The last value a read-back confirmed before the acknowledged-but-unconfirmed writes began
+        int? confirmedBusBrightness = store.Find(monitor.EDIDKey)?.LastBusBrightness;
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        service.EnqueueDirectBrightness(monitor, ContradictedCurveTarget);
+        await WaitUntil(() => monitor.IsFailed);
+
+        // Dark again: the converter acknowledges every SET and each reply is garbage. That acknowledgement no longer
+        // vouches for the panel, so recovery neither sends a blind probe nor turns the row read-degraded. Its one SET
+        // resends the last confirmed bus value, which resynchronizes a panel whose replies wedged into the same
+        // garbage (DISPLAY2, 2026-10-29); only a reply may promote the row after it
+        display.SetRead(DeviceID, ok: false, error: AdapterGarbageError);
+        int writesBeforeRecovery = display.SetVcpCalls;
+
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsFailed);
+        Assert.False(monitor.IsReadDegraded);
+        Assert.NotNull(confirmedBusBrightness);
+        Assert.Equal(writesBeforeRecovery + 1, display.SetVcpCalls);
+        Assert.Equal((uint)confirmedBusBrightness.Value, display.GetLastSetValueForCode(VCPConstants.Brightness));
+        Assert.Contains(monitor.ID, service.GetStuckRecoveryCandidateIDs());
+        Assert.Equal(confirmedBusBrightness, store.Find(monitor.EDIDKey)?.LastBusBrightness);
+
+        // A reply and then a confirmed write: the panel applies what it acknowledges again
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(true);
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+        await WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == ContradictedCurveTarget);
+
+        // So a later acknowledged-but-unreadable outage may use the best-effort state again
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(DeviceID, ok: false, error: AdapterGarbageError);
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsReadDegraded);
+    }
+
+    private const int ContradictedCurveTarget = 37;
+    private const string AdapterGarbageError =
+        "GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241847, 0xC0262589)";
+
+    /// <summary>
+    /// Takes a curve row through the read-degraded entry the user's logs show: every read fails while the link still
+    /// acknowledges the blind recovery SET.
+    /// </summary>
+    private static async Task<MonitorInfo> MakeCurveRowReadDegradedAsync(
+        MonitorService service,
+        FakeDisplayService display,
+        string deviceID)
+    {
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.CurveTargetBrightness = ContradictedCurveTarget;
+        display.ConfigureWriteReadBack(false);
+        display.SetRead(deviceID, ok: false, error: AdapterGarbageError);
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsReadDegraded);
+        return monitor;
     }
 
     [Fact]

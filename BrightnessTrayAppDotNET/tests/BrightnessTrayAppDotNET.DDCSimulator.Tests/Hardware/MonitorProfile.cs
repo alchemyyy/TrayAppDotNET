@@ -43,6 +43,11 @@ internal sealed class MonitorProfile
     public int WakeFlakyWindowMs = 3_000;
     public double WakeFlakyProbability = 0.15;
 
+    // After a cold boot the panel answers GETs before it applies SETs: each SET frame is taken and dropped. Seen on the
+    // user's desk on 2026-10-26 through a DP-to-HDMI converter: the panel answered the read that brought its row back,
+    // accepted SET 100, then read back its saved 75%. Zero applies every SET from the moment the MCU answers
+    public int IgnoresSetsAfterColdBootMs;
+
     // DDC/CI engine. Reply preparation beyond the host's 50 ms wait reads back as a null message
     public int ReplyPreparationMinimumMs = 4;
     public int ReplyPreparationMaximumMs = 30;
@@ -68,6 +73,11 @@ internal sealed class MonitorProfile
     public double EarlyReadWedgeProbability = 0.15;
     public int EarlyReadWedgeWindowMs = 1_500;
     public bool SetClearsWedge = true;
+
+    // What a wedged pipeline answers. The hdmi-relink recorder saw checksum failures (0x8B). DISPLAY2 behind a
+    // DP-to-HDMI converter answered garbage instead, 0x89 and 0x85 like an adapter in front of a dark panel, and a SET
+    // cleared that too (btadn log 2026-10-29 07:57-08:02)
+    public bool WedgeGarblesReplies;
 
     public string HardwareID => ManufacturerID + ProductCode.ToString("X4", CultureInfo.InvariantCulture);
 

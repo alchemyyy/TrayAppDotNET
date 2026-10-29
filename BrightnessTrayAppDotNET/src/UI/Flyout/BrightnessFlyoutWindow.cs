@@ -361,7 +361,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             OnPropertyChanged();
             OnCurveToggleStateChanged();
-            if (wasOn && !value) ResyncBrightnessHardwareToSliders();
+            if (wasOn && !value) ResyncBrightnessHardwareToSliders(userAdjustment: false);
             RebuildVisual();
         }
     }
@@ -2456,7 +2456,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 monitor.VirtualBrightness = unclamped;
                 UpdateVisibleMonitorSliderValue(monitor, clamped);
                 if (suspendForCurve)
-                    _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
+                    _monitorService.EnqueueUserBrightness(monitor, monitor.RoundedBrightness);
             }
         }
         finally
@@ -2817,11 +2817,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ResyncManualCurveOverrideToSlider(MonitorInfo monitor)
     {
         if (monitor.IsMaster)
-            ResyncBrightnessHardwareToSliders();
+            ResyncBrightnessHardwareToSliders(userAdjustment: true);
         else if (monitor.IsNightLight)
             ResyncNightLightHardwareToSlider();
         else
-            _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
+            _monitorService.EnqueueUserBrightness(monitor, monitor.RoundedBrightness);
 
         BrightnessUpdated?.Invoke();
     }
@@ -2850,12 +2850,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _curveService.Evaluate(IsBrightnessCurveEnabled || IsNightLightCurveEnabled);
     }
 
-    private void ResyncBrightnessHardwareToSliders()
+    /// <summary>
+    /// Sends each master-participating row's slider value to its display. <paramref name="userAdjustment"/> marks a
+    /// brightness the user just chose, which lifts an earlier power-off intent; turning the curve off or restoring a
+    /// manual override does not, so it leaves a panel the app powered off alone.
+    /// </summary>
+    private void ResyncBrightnessHardwareToSliders(bool userAdjustment)
     {
         foreach (MonitorInfo monitor in Monitors)
         {
             if (!monitor.IsParticipatingInMaster) continue;
-            _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
+
+            if (userAdjustment)
+                _monitorService.EnqueueUserBrightness(monitor, monitor.RoundedBrightness);
+            else
+                _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
         }
     }
 
@@ -3139,7 +3148,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ResyncCurveStopwatchManualOverridesToSliders()
     {
         if (MasterMonitor.IsCurveReleased && IsBrightnessCurveEnabled)
-            ResyncBrightnessHardwareToSliders();
+            ResyncBrightnessHardwareToSliders(userAdjustment: false);
         else
         {
             foreach (MonitorInfo monitor in Monitors)

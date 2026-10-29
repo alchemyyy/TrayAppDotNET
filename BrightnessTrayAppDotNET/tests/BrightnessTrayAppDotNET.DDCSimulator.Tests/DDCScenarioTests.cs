@@ -298,6 +298,157 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The user's nights (btadn log 2026-10-27): the app hard-powers all three panels off, and in the morning their own
+    /// buttons switch them back on. Windows reports neither on the RTX 5080, so only recovery probes can notice. The
+    /// rows used to keep the power-off intent until a restart, which refused every curve write and master drag.
+    /// </summary>
+    [Fact]
+    public void ButtonPowerOnAfterAppHardOffResumesTheCurve()
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 16);
+        configuration.App.CurveEnabled = true;
+        configuration.App.PowerOffMode = PowerOffMode.Hard;
+        ScenarioScript script = new ScenarioScript("app-hard-off-button-on")
+            .At(5, "curve at 17 when powered off, 12 overnight, 90 from the morning", world =>
+                world.SetCurve(true, elapsed => elapsed.TotalMinutes < 1 ? 17 : elapsed.TotalMinutes < 30 ? 12 : 90))
+            .At(20, "app powers every panel off (hard)", world => world.AppPowerAll(false))
+            .At(1_900, "P1 power button on", world => world.PressPowerButton("P1"))
+            .At(1_902, "P2 power button on", world => world.PressPowerButton("P2"))
+            .At(1_905, "P3 power button on", world => world.PressPowerButton("P3"));
+        script.Tail = TimeSpan.FromSeconds(150);
+
+        ScenarioResult result = Run(configuration, script);
+
+        Assert.True(result.Passed, result.Report);
+    }
+
+    /// <summary>
+    /// The user's morning (btadn log 2026-10-29): after the app's hard-off, the button power-on leaves the panel behind
+    /// a DP-to-HDMI converter with a wedged reply pipeline that answers garbage (0x89, 0x85) instead of checksum
+    /// failures. Reads alone never cleared it for five minutes; the restarted app's first SET did. Recovery must send
+    /// that SET without waiting for a restart.
+    /// </summary>
+    [Fact]
+    public void GarbageWedgeAfterButtonPowerOnFromAppHardOffIsResynchronized()
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 17);
+        configuration.App.CurveEnabled = true;
+        configuration.App.PowerOffMode = PowerOffMode.Hard;
+        configuration.Monitors[1].Profile.WedgeGarblesReplies = true;
+        ScenarioScript script = new ScenarioScript("app-hard-off-garbage-wedge")
+            .At(5, "curve at 17 when powered off, 12 overnight, 90 from the morning", world =>
+                world.SetCurve(true, elapsed => elapsed.TotalMinutes < 1 ? 17 : elapsed.TotalMinutes < 10 ? 12 : 90))
+            .At(20, "app powers every panel off (hard)", world => world.AppPowerAll(false))
+            .At(600, "power buttons on; P2 comes back with its reply pipeline wedged", world =>
+            {
+                foreach (string panel in UsersDeskPanels) world.PressPowerButton(panel);
+                world.Monitor("P2").ForceWedge();
+            });
+        script.Tail = TimeSpan.FromSeconds(150);
+
+        ScenarioResult result = Run(configuration, script);
+
+        Assert.True(result.Passed, result.Report);
+    }
+
+    /// <summary>
+    /// Safety companion to the hard-off scenarios: after a soft-off the LG stays on the bus in standby, and a SET wakes
+    /// some panels from that. Recovery may only read it, must keep the intent while the panel reports it is not on, and
+    /// must still notice once the panel is switched back on.
+    /// </summary>
+    [Fact]
+    public void SoftPowerOffIsOnlyReadUntilThePanelIsSwitchedBackOn()
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 18);
+        configuration.App.CurveEnabled = true;
+        configuration.App.PowerOffMode = PowerOffMode.Soft;
+        ScenarioScript script = new ScenarioScript("app-soft-off-button-on")
+            .At(5, "curve at 17 overnight, 90 from the morning", world =>
+                world.SetCurve(true, elapsed => elapsed.TotalMinutes < 10 ? 17 : 90))
+            .At(20, "app powers every panel off (soft)", world => world.AppPowerAll(false))
+            .At(600, "power buttons: standby to off", world =>
+            {
+                foreach (string panel in UsersDeskPanels) world.PressPowerButton(panel);
+            })
+            .At(605, "power buttons: off to on", world =>
+            {
+                foreach (string panel in UsersDeskPanels) world.PressPowerButton(panel);
+            });
+        script.Tail = TimeSpan.FromSeconds(150);
+
+        ScenarioResult result = Run(configuration, script);
+
+        Assert.True(result.Passed, result.Report);
+    }
+
+    /// <summary>
+    /// The other side of the 2026-10-29 fix: all night the adapters in front of the hard-off panels answer garbage and
+    /// acknowledge SETs. Neither may pass for the panel coming back: every row keeps its power-off intent and nothing
+    /// turns read-degraded. Probing all three dark panels must not churn helper processes either.
+    /// </summary>
+    [Fact]
+    public void HardOffPanelsStayPoweredOffOvernight()
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 19);
+        configuration.App.CurveEnabled = true;
+        configuration.App.PowerOffMode = PowerOffMode.Hard;
+        configuration.AlwaysWriteTrace = true;
+        List<RowSnapshot> rowsAnHourLater = [];
+        ScenarioScript script = new ScenarioScript("app-hard-off-overnight")
+            .At(5, "curve stepping down every 10 minutes", world =>
+                world.SetCurve(true, elapsed => Math.Max(10, 80 - 10 * (int)(elapsed.TotalMinutes / 10))))
+            .At(20, "app powers every panel off (hard)", world => world.AppPowerAll(false))
+            .At(3_620, "rows an hour later", world => world.Dispatcher.Post(() =>
+                rowsAnHourLater.AddRange(world.Service!.Monitors.Select(RowSnapshot.From))));
+        script.Tail = TimeSpan.FromSeconds(30);
+
+        using SimulationWorld world = new(configuration);
+        ScenarioResult result = world.Run(script);
+        output.WriteLine(result.Report);
+
+        Assert.True(result.Passed, result.Report);
+        Assert.Equal(expected: 3, rowsAnHourLater.Count);
+        Assert.All(rowsAnHourLater, row =>
+        {
+            Assert.Equal(PowerOffIntent.HardOff, row.PowerOffIntent);
+            Assert.False(row.IsReadDegraded, row.Describe());
+        });
+        Assert.True(
+            world.HelperSpawnsPerAwakeHour <= 60,
+            $"{world.HelperSpawnsPerAwakeHour:F0} helper launches per awake hour while three panels were off\n"
+            + result.Report);
+    }
+
+    /// <summary>
+    /// A panel behind an adapter comes back from its own power cycle with its reply pipeline wedged into garbage, as
+    /// DISPLAY2's was, while blind writes are off. Its row failed while the panel was dark, so the resynchronizing SET
+    /// of its last confirmed bus value is the only write recovery may send. It used to be sent for checksum failures
+    /// only, which left this row failed until a restart.
+    /// </summary>
+    [Fact]
+    public void GarbageWedgeIsResynchronizedWithoutBlindWrites()
+    {
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 12);
+        configuration.App.CurveEnabled = true;
+        configuration.App.AllowBlindDDCWrites = false;
+        configuration.Monitors[2].Profile.WedgeGarblesReplies = true;
+        ScenarioScript script = new ScenarioScript("adapter-garbage-wedge-on-return")
+            .At(5, "curve stepping down every minute", world =>
+                world.SetCurve(true, elapsed => Math.Max(10, 80 - 5 * (int)elapsed.TotalMinutes)))
+            .At(20, "P3 power button off", world => world.PressPowerButton("P3"))
+            .At(140, "P3 power button on; its reply pipeline comes back wedged", world =>
+            {
+                world.PressPowerButton("P3");
+                world.Monitor("P3").ForceWedge();
+            });
+        script.Tail = TimeSpan.FromSeconds(150);
+
+        ScenarioResult result = Run(configuration, script);
+
+        Assert.True(result.Passed, result.Report);
+    }
+
+    /// <summary>
     /// A panel that answers reads but never takes a SET, as when its picture mode locks brightness. Every replay after
     /// recovery fails its read-back, and the row used to cycle demote, recover and replay about once a second for as
     /// long as the target differed. A row that fails again right after recovering must back off instead.
@@ -379,6 +530,85 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
             && entry.Message.Contains(
                 $"Brightness could not be read back after {configuration.App.ValidationAttempts} attempts",
                 StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The user's converter panel on 2026-10-26: while it is dark its DP-to-HDMI adapter acknowledges every SET and
+    /// answers reads with garbage, so its row turns read-degraded on an acknowledgement alone. The panel then boots,
+    /// answers reads with its saved brightness and drops SETs for a while, as DISPLAY1 did at 10:53:32-34. Once a
+    /// read-back shows the panel ignored a SET it acknowledged, the row must stop posing as best-effort working: it is
+    /// marked unavailable at once and not made read-degraded again before a write is confirmed.
+    /// </summary>
+    [Fact]
+    public void ConverterPanelThatDropsAcknowledgedSetsIsNotKeptReadDegraded()
+    {
+        const double PowerOnSeconds = 60;
+        const double UserSetSeconds = 62.2;
+        WorldConfiguration configuration = WorldConfiguration.UsersDesk(seed: 19);
+
+        // P3 sits behind a DP-to-HDMI adapter. Its MCU answers exactly 2 s after the button, and every read from then
+        // on succeeds, so each read-back of a dropped SET names the saved brightness
+        MonitorProfile panel = configuration.Monitors[2].Profile;
+        panel.ColdBootMinimumMs = 2_000;
+        panel.ColdBootMaximumMs = 2_000;
+        panel.IgnoresSetsAfterColdBootMs = 20_000;
+        panel.BootFlakyProbabilityMinimum = 0;
+        panel.BootFlakyProbabilityMaximum = 0;
+        panel.EarlyReadWedgeProbability = 0;
+
+        List<(long Ticks, bool ReadDegraded)> samples = [];
+        Lock samplesGate = new();
+        ITimer? sampler = null;
+        ScenarioScript script = new ScenarioScript("converter-drops-acknowledged-sets")
+            .At(10, "P3 power button off", world => world.PressPowerButton("P3"))
+            .At(20, "user sets P3 to 30 while it is dark", world => world.SetBrightness("P3", 30))
+            .At(PowerOnSeconds, "P3 power button on; sample its row every 100 ms", world =>
+            {
+                world.PressPowerButton("P3");
+                sampler = world.Clock.CreateTimer(
+                    _ => world.Dispatcher.Post(() =>
+                    {
+                        MonitorInfo? row = world.FindRow("P3");
+                        if (row == null) return;
+
+                        lock (samplesGate) samples.Add((world.Clock.ElapsedTicks, row.IsReadDegraded));
+                    }),
+                    state: null,
+                    TimeSpan.Zero,
+                    TimeSpan.FromMilliseconds(100));
+            })
+            .At(UserSetSeconds, "user sets P3 to 35 while it still drops SETs", world => world.SetBrightness("P3", 35));
+        script.Tail = TimeSpan.FromSeconds(90);
+
+        configuration.AlwaysWriteTrace = true;
+        using SimulationWorld world = new(configuration);
+        ScenarioResult result = world.Run(script);
+        sampler?.Dispose();
+        output.WriteLine(result.Report);
+
+        // Only P3 is written after the boot, so the first exhausted verification is the read-back of its dropped 35
+        List<TraceEntry> exhausted =
+        [
+            .. world.Trace.Snapshot().Where(entry =>
+                entry.Ticks > TimeSpan.FromSeconds(UserSetSeconds).Ticks
+                && entry.Message.StartsWith("MonitorService: verification exhausted", StringComparison.Ordinal))
+        ];
+        Assert.NotEmpty(exhausted);
+        long contradictedAt = exhausted[0].Ticks;
+        long settledAt = contradictedAt + TimeSpan.FromMilliseconds(100).Ticks;
+        long windowEnd = contradictedAt + TimeSpan.FromSeconds(15).Ticks;
+        lock (samplesGate)
+        {
+            // The row went in read-degraded on the adapter's acknowledgement while the panel was dark
+            Assert.Contains(samples, sample => sample.Ticks < contradictedAt && sample.ReadDegraded);
+
+            List<(long Ticks, bool ReadDegraded)> afterContradiction =
+                [.. samples.Where(sample => sample.Ticks > settledAt && sample.Ticks <= windowEnd)];
+            Assert.NotEmpty(afterContradiction);
+            Assert.DoesNotContain(afterContradiction, sample => sample.ReadDegraded);
+        }
+
+        Assert.True(result.Passed, result.Report);
     }
 
     /// <summary>
@@ -502,6 +732,8 @@ public sealed class DDCScenarioTests(ITestOutputHelper output)
             readsDuringDrag <= MaximumReadsDuringDrag,
             $"{readsDuringDrag} brightness read-backs during a 6 s drag\n{result.Report}");
     }
+
+    private static readonly string[] UsersDeskPanels = ["P1", "P2", "P3"];
 
     private static MonitorSetup LG(string physicalID, LinkKind link, string serial, ushort brightness) =>
         new() { PhysicalID = physicalID, Link = link, SerialDescriptor = serial, InitialBrightness = brightness };

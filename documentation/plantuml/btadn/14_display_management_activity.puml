@@ -290,7 +290,7 @@ partition "Manual slider / wheel / hotkey path" {
   if (absolute curve active and not disabled period?) then (yes)
     if (master row?) then (yes)
       :Turn brightness curve off;
-      :ResyncBrightnessHardwareToSliders();
+      :ResyncBrightnessHardwareToSliders(userAdjustment: true);\nEnqueueUserBrightness lifts a power-off intent;
     elseif (individual row?) then (yes)
       :SliderState = OnUserRelease();\nCurveReleased survives ticks;
     endif
@@ -378,9 +378,11 @@ partition "DDC write/read-back" {
         end note
       endif
       if (still unconfirmed after the last read-back?) then (yes)
-        if (read-degraded row?) then (yes)
+        if (read-degraded row and every reply unreadable?) then (yes)
           :Leave the target unverified and retryable;
         else (no)
+          :A reply naming another value marks the row as contradicted:
+          recovery stops trusting its acknowledged SETs until a write is confirmed;
           :Demote the row; recovery takes over;
         endif
       endif
@@ -440,13 +442,16 @@ partition "Topology event / recovery" {
   :Immediate first pass, then wake every 2 seconds and probe due\ncandidates until an authoritative candidate snapshot is empty;
   note right
     Every unavailable or read-degraded row is a candidate, including
-    rows that never acquired DDC. Each candidate backs off 2, 2, 2, 4,
-    8, 16, then 30 s; a direct request makes it due at once, except
+    rows that never acquired DDC, and so is every row holding the app's
+    power-off intent, working or not. Each candidate backs off 2, 2, 2,
+    4, 8, 16, then 30 s; a direct request makes it due at once, except
     for a row that fails again within 10 s of recovering, which
     waits one more backoff step per relapse in a row.
-    A row the app powered off in this application lifetime stays
-    a candidate but is probed with reads only. A reply promotes it
-    unless the panel's power mode reports standby or off.
+    A row the app powered off in this application lifetime is probed
+    with reads, plus one LastBusBrightness SET and read-back when a
+    hard off (0xD6=0x05) answers garbled. A reply lifts the intent
+    unless the panel's power mode reports standby or off; a working
+    row needs it to report on.
     Stale profile-restored IsPoweredOn=false state cannot cancel
     direct recovery.
   end note

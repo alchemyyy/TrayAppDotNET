@@ -5,20 +5,27 @@ title DDC recovery state machine\nFresh helper escalation, durable identity, no 
 state Healthy : SliderState != Failed\n!IsReadDegraded\nbrightness target completes only after matching read-back
 state Failed : SliderState == Failed\nLastDDCError set\nentry target invalidated\nnormal + immediate queues dropped\nimmutable recovery identity retained
 state ReadDegraded : SliderState != Failed\nIsReadDegraded == true\nslider operable\nevery user write still attempts read-back
+state PoweredOff : SliderState != Failed\nholds the app's power-off intent\n(PowerOffIntent HardOff for 0xD6=0x05, else Off)\ncurve ticks and replays refused\nstill a recovery candidate
 
 [*] --> Healthy
 
 Healthy --> Healthy : native read/write FAIL\nResetDDCTransport retires only this helper\nretry with a fresh process context
-Healthy --> Failed : current write retries exhausted\nOR current verification exhausted\nOR Refresh re-probe exhausted\nOR known-DDC monitor disappears
+Healthy --> Failed : current write retries exhausted\nOR current verification exhausted\n(a reply naming another value marks the row as contradicted)\nOR Refresh re-probe exhausted\nOR known-DDC monitor disappears
+Healthy --> PoweredOff : SetPowerStateAsync(off) publishes the intent\nbefore the power SET; an accepted off\nraises DDCRecoveryRequested to watch the panel
+
+PoweredOff --> PoweredOff : targeted read fails: reads only\nHardOff + garbled reply: resend LastBusBrightness,\nwait 250 ms, read back (an acknowledgement proves nothing)
+PoweredOff --> Healthy : user brightness change (setter or EnqueueUserBrightness)\nOR power-on request\nOR a reply whose power mode reads on (Refresh or recovery,\nnever while the row's own power command is still verifying):\nfresh DDC snapshot, intent lifted, current target replayed
+PoweredOff --> Failed : Refresh re-probe exhausted\n(intent kept)
 
 Failed --> Failed : DDCRecoveryRequested(id)\nworker performs immediate targeted pass
 Failed --> Failed : targeted read fails\noptional last-verified write probe also fails
-Failed --> ReadDegraded : targeted read fails\nverified projected bus value exists\nwrite transport accepted\npost-write read still fails
+Failed --> ReadDegraded : targeted read fails\nwrite transport accepted\npost-write read still fails\nprobe was generic, blind, or after a checksum failure\nno read-back has contradicted an acknowledged SET\nsince this row's last confirmed write
 Failed --> Healthy : targeted or post-write read succeeds\nPromoteRecovered + restore projections\npublish MonitorsRefreshed\nforce final owner target through SET + read-back
 
 ReadDegraded --> ReadDegraded : targeted read still fails\nupdate LastDDCError only\nno periodic write probe
 ReadDegraded --> Healthy : targeted read succeeds\nPromoteRecovered clears IsReadDegraded\npublish MonitorsRefreshed\nforce final owner target through SET + read-back
 ReadDegraded --> Failed : active SET retries exhaust\nwrite transport is no longer usable
+ReadDegraded --> Failed : a verification reply names another value\nthe acknowledged SET was not applied\nrow marked as contradicted
 
 note bottom of Failed
   MonitorService raises DDCRecoveryRequested synchronously on demotion.
@@ -31,9 +38,10 @@ note bottom of Failed
 
   Profile-restored IsPoweredOn is not a recovery gate. A row whose
   power-off VCP was accepted in this application lifetime stays a
-  candidate, probed with reads only: no write probe, blind write, or
-  checksum resync SET. A reply promotes it unless the panel's power
-  mode reports standby or off.
+  candidate, probed with reads: no write probe or blind write. A HardOff
+  row whose reads come back garbled gets one SET of LastBusBrightness and
+  a read-back, since only its button wakes it. A reply promotes it unless
+  the panel's power mode reports standby or off.
 
   Promotion preserves pre-failure Disabled and CurveReleased ownership;
   remaining rows resolve against the current curve/disabled-period flags.
@@ -47,7 +55,8 @@ note bottom of Failed
 
   A readable promotion clears stale runtime power-off suppression after an
   external wake. Background curve writes cannot clear an active gate; a
-  direct brightness assignment is explicit newer intent and can clear it.
+  user brightness change, through the setter or EnqueueUserBrightness,
+  is explicit newer intent and clears it.
 end note
 
 note bottom of ReadDegraded
@@ -55,6 +64,15 @@ note bottom of ReadDegraded
   whose DDC write transport is accepted while replies are broken.
   Transport acceptance is never persisted as applied. Read recovery
   or a normal target's matching read-back is required for proof.
+  It survives only unreadable verifications. TrayDiag prints
+  degraded=True for it, so eff there is intent, not panel state.
+
+  A DP-to-HDMI converter acknowledges SETs for a dark panel, and a
+  freshly booted LG answers reads before it applies SETs. Once any
+  read-back contradicts an acknowledged SET, recovery sends no
+  generic or blind probe and keeps the row Failed until a matching
+  read-back confirms a write; the resync SET for garbled replies still
+  runs but promotes only on a confirming read.
 end note
 
 note as N_HELPER
@@ -69,7 +87,7 @@ end note
 note as N_ISOLATION
   Recovery isolation and responsiveness:
   - Candidate monitors run in parallel; each monitor remains serialized
-  - Healthy rows receive no collateral recovery reads
+  - Healthy rows receive no collateral recovery reads unless they hold a power-off intent
   - Failed rows keep DeviceID / instance / serial / adapter identity
   - Native hangs/timeouts kill only the affected helper process
   - Recovery has no terminal attempt count while a candidate remains
@@ -79,7 +97,7 @@ end note
 note as N_REMAINING
   Remaining boundaries:
   - Each candidate still performs its own complete parent enumeration
-  - Runtime power-off intent limits probing to reads; stale IsPoweredOn does not
+  - Runtime power-off intent limits probing to reads, plus one LastBusBrightness SET after a hard off
   - ReadDegraded cannot prove application until replies recover
   - Native failure categories remain flattened into error strings
   - Endless recovery is limited to previously successful DDC rows

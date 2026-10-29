@@ -124,7 +124,7 @@ alt write succeeded and target is still current
     HLP --> DS : current + maximum / FAIL
     DS  --> MS
     alt match (within +/- 1 raw unit)
-      MS -> MS : complete generation\nLastVerifiedBrightnessPercentage = pct
+      MS -> MS : complete generation\nLastVerifiedBrightnessPercentage = pct\nclear the row's contradicted-write mark
       MS -> KDS : stamp acknowledged LastBusBrightness
     else readable mismatch
       MS -> MS : RefreshHandle once\npreserve brightness VCP override
@@ -134,10 +134,11 @@ alt write succeeded and target is still current
       MS -> MS : RefreshHandle once\nretry GET on the fixed 80/160/480 ms read backoff\nwithout another SET
     end
   end
-  alt verification exhausted on a read-degraded row
+  alt verification exhausted on a read-degraded row, every reply unreadable
     MS -> MS : AbandonBrightnessTargetAsUnverified(entry, target)\nkeep best-effort state, target stays retryable\nno demotion
   else verification exhausted
-    MS -> MS  : DemoteOnDDCFailure(entry, reason)\nreason: read back as X% instead of Y% after N attempts,\nor could not be read back after N attempts + lastReadError\nwhen no read was readable
+    MS -> MS  : a reply named another value: mark the row as contradicted\n(recovery stops trusting its acknowledgements until a write is confirmed)
+    MS -> MS  : DemoteOnDDCFailure(entry, reason), read-degraded or not\nreason: read back as X% instead of Y% after N attempts,\nor could not be read back after N attempts + lastReadError\nwhen no read was readable
     MS -> DRS : DDCRecoveryRequested(id)\ndirect synchronous wake-up
   end
 else write retries exhausted while target remains current

@@ -46,8 +46,9 @@ The simulated UI thread (`SimulationDispatcher`) carries a `SynchronizationConte
 | Shared path | One global mutex across every monitor for the whole call, including the wait | win32k `CAutoMutexOPM` |
 | Bus speed | 100 kHz I2C, 9 clocks per byte; DP and adapters 4x for I2C-over-AUX | I2C standard mode |
 | Error codes | NAK 0xC0262582, receive 0x83, unsupported 0x84, invalid data 0x85, no command 0x89, length 0x8A, checksum 0x8B | winerror.h, recorder logs |
-| LG ULTRAGEAR+ | ~2 s MCU boot, 25-35 % garbled replies for 26-30 s after power-on, 0.6-1.5 s of garbage after DDC hard-off, an early read after wake can wedge the reply pipeline into checksum failures (0x8B) until a SET | hdmi-relink recorder, btadn comments |
+| LG ULTRAGEAR+ | ~2 s MCU boot, 25-35 % garbled replies for 26-30 s after power-on, 0.6-1.5 s of garbage after DDC hard-off, an early read after wake can wedge the reply pipeline into checksum failures (0x8B) until a SET. `WedgeGarblesReplies`: the wedge answers garbage (0x89, 0x85) instead, as DISPLAY2 behind a converter did | hdmi-relink recorder, btadn comments, btadn log 2026-10-29 07:57-08:02 |
 | Profile variants | Clean (no wedge, no busy NAK), slow replies (25-85 ms preparation, so late replies read back as null messages, 0x89), write-only, no DDC, lossy (dropped SETs, stale replies) | DDC/CI null-message rule, varied by the sweeps |
+| Post-boot SET drop | `IgnoresSetsAfterColdBootMs`: after a cold boot the panel answers GETs before it applies SETs, taking and dropping each SET frame. Off by default | btadn log 2026-10-26 10:53:32-34, a DP-to-HDMI converter link: read answered, SET 100 accepted, read back 75% |
 | Links | NAK in 3-10 ms direct, 30-40 ms through adapters; adapters answer garbage (0x89) and accept SETs while the panel is off | recorder logs |
 | Brightness persistence | A value is saved 3 s after it last changed; a power cycle restores the saved value. A panel whose MCU answers while soft-off keeps saving then. Some panels apply a SET 100-900 ms late | assumption, varied by the sweeps |
 | Hot-plug | RTX 5080: power cycles invisible to Windows. RTX 4080: DP removed at once, HDMI after 22-33 s | recorder logs |
@@ -82,8 +83,9 @@ Mirrored, and to be kept in step with the production code:
 Checked whenever btadn publishes rows: no physical panel shown twice (`DuplicateRow`), no shared row IDs
 (`DuplicateRowID`), every helper command reaching the panel its DDCMonitor described (`MisroutedCommand`), no brightness
 SET reaching a panel after the SET of an app power-off did while its row still holds that intent
-(`WriteToPoweredOffPanel`; a SET already in flight when the intent was published lands first and is allowed, and a
-Ctrl+click hard-off publishes no intent), no exception escaping to the UI thread, a timer, or an app catch-all log line.
+(`WriteToPoweredOffPanel`; a SET already in flight when the intent was published lands first and is allowed, a
+Ctrl+click hard-off publishes no intent, and a hard-off row may get the SET of its `LastBusBrightness` that
+resynchronizes a wedged pipeline), no exception escaping to the UI thread, a timer, or an app catch-all log line.
 
 Checked once panels have been enumerated and DDC-healthy for the 20 s grace: each has exactly one row (`MissingRow`,
 `StaleRow`), its DDC entry drives that panel (`MisboundEntry`), and the panel shows the target that owns it
@@ -92,11 +94,11 @@ covers `DDCRecoveryService` backing a long-failing row off to one probe every 30
 because it answers part of its reads, so a row that stays Failed means btadn stopped retrying. With one read per
 attempt (`ValidationAttempts` 1) such a panel fails most single reads, including each replay's verification, so its
 row may cycle between recovered and unavailable; for that pairing the check only requires that btadn sent the panel a
-command within the longest backoff. A working row may keep an app
-power-off intent after the panel's own button woke it, but not after the app was asked to power it on, and an
-unavailable row must recover once its panel answers whatever intent it holds (`StuckUnavailable`). A wedged LG must be resynchronized when btadn holds a confirmed bus value, unless the app was last
-asked to keep it off (`WedgeNeverResynchronized`), and live helper processes may not outnumber panels
-(`HelperProcessLeak`). Reports also note helper churn above 120 launches per awake hour.
+command within the longest backoff. A row may not keep an app power-off intent once its panel has been on and healthy
+for that long, whether it still works (`PowerOnUnnoticed`) or not (`StuckUnavailable`), nor once the app was asked to
+power the panel on (`StuckUnavailable`). A wedged LG must be resynchronized when btadn holds a confirmed bus value,
+unless its row still holds a standby or soft-off intent (`WedgeNeverResynchronized`), and live helper processes may not
+outnumber panels (`HelperProcessLeak`). Reports also note helper churn above 120 launches per awake hour.
 
 ## Gaps found and fixed
 
@@ -124,6 +126,8 @@ the seeds listed here are the regression cover; replay a random seed with `DDCSI
 | Slider drag stutter (user report) | Each write was read back 50 ms after it landed, so a drag slower than the bus read back every step, and a read costs as much shared bus time as a write (GET 63-131 ms, SET 57-117 ms on the user's LGs). Every failed read also relaunched the helper, which stalled that panel's next write 194-242 ms. | A write is read back only once its target has stayed current for the verification delay (500 ms by default); the helper is retired only after three failures in a row, and an unreadable read-back waits the fixed read backoff (80, 160, 480 ms) before the next. | `SlowDragReadsBackOnlyWhereItStops` (36 read-backs during the drag, now 0); 1616 |
 | `StuckUnavailable` | A row that dropped off the bus while read-degraded was parked as Failed with `IsReadDegraded` still set. Restored, it sent every recovery pass down the read-only degraded branch, which never probes the write transport of a row without an entry. | Parking a row clears `IsReadDegraded`. | 69 |
 | Rows winking out (user report) | With `ValidationAttempts` 1, a panel still applying a value read back the old one, its row was demoted, and recovery read it back a moment later. The verification delay setting could only shorten the first read-back wait (capped at 300 ms, 50 ms for power), so raising it for a slow panel did nothing. | Every read-back waits the full verification delay, brightness and power, the first one and the one after each re-sent value; an unreadable reply is read again on the fixed read backoff. A demoted row's reason says what the writes or read-backs showed and how many attempts were made. | `LateApplyingPanelIsConfirmedAfterTheVerificationDelay`, `DarkPanelBehindAdapterIsMarkedUnavailable` |
+| Converter panel kept read-degraded (user report) | An adapter's acknowledgement turned a dark panel's row read-degraded. When the panel came back and a read-back showed it had dropped an acknowledged SET, verification still kept the best-effort state, so the row went on posing as working at a value the panel did not show. Demoting it alone would let the next acknowledgement-only recovery bring the state straight back. | A reply naming another value demotes a read-degraded row like any other row. Recovery then sends that row no generic or blind probe and refuses it read-degraded state until a matching read-back confirms a write. | `ConverterPanelThatDropsAcknowledgedSetsIsNotKeptReadDegraded` |
+| `PowerOnUnnoticed`, `WedgeNeverResynchronized` (user report) | The app's power-off intent was lifted only by a Brightness setter change, a power-on request, a Refresh, or recovery of a failed row. Recovery never probed a working row, and the flyout's master drags under an engaged curve bypass the setter, so after a button power-on that Windows did not report, every curve write and drag was refused until a restart. A failed powered-off row got reads only, and the resynchronizing SET followed checksum failures only, so DISPLAY2's 0x89/0x85 wedge never got one. | User brightness writes lift the intent (`EnqueueUserBrightness`); every row holding it is probed, and a reply plus a power reading of on lifts it and replays the target. A hard-off row whose reads come back garbled gets its `LastBusBrightness` resent, and any garbled reply (0x83, 0x85, 0x86, 0x89, 0x8A, 0x8B) now gets the confirmed resynchronization SET. | `ButtonPowerOnAfterAppHardOffResumesTheCurve`, `GarbageWedgeAfterButtonPowerOnFromAppHardOffIsResynchronized`, `SoftPowerOffIsOnlyReadUntilThePanelIsSwitchedBackOn`, `HardOffPanelsStayPoweredOffOvernight`, `GarbageWedgeIsResynchronizedWithoutBlindWrites` |
 
 ## Known limits
 
@@ -134,3 +138,5 @@ No sweep reports these; they are bounds of what btadn can observe or of the sett
 | Invisible button power cycles | A panel that comes back from its own button with a different saved brightness, such as one switched off less than 3 s after a SET, is invisible on the RTX 5080. btadn corrects it at its next write, recovery, Refresh or app power-on; it does not poll brightness. |
 | One read per attempt | With `ValidationAttempts` 1, a panel that misses most single reads cannot pass a replay's verification for long, so its row cycles between recovered and unavailable at the relapse backoff instead of settling. The oracle only requires that btadn keeps probing it. |
 | Adapter-name keys in `displays.json` | Capability recorded under a `port:\\.\DISPLAYn` key during attach lag stays in the store after the row is re-keyed, so later launches run both startup sweep Refreshes. |
+| Acknowledgement-only state | Until a read-back contradicts it, a read-degraded row rests on nothing but a SET acknowledgement: a dark panel behind an adapter stays read-degraded, not Failed, for as long as the adapter keeps acknowledging and every reply stays garbage. The oracle counts such a row as unavailable, and TrayDiag prints `degraded=True` for it. |
+| Standby or soft-off wedge | A panel the app sent standby or soft-off gets reads only, because a SET wakes some panels from those states. One that its button switches back on with a wedged pipeline keeps its row's power-off intent until a user brightness change or an app power-on writes to it. The oracle exempts it from `WedgeNeverResynchronized`. |

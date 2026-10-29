@@ -31,7 +31,8 @@ internal enum ViolationKind
     // A helper resolved a different panel than the DDCMonitor it was handed described
     MisroutedCommand,
 
-    // A brightness SET reached a panel the app powered off, with no user brightness action since
+    // A brightness SET reached a panel the app powered off, with no user brightness action since, other than a
+    // hard-off row's resynchronizing SET of its last confirmed bus value
     WriteToPoweredOffPanel,
 
     // A settled panel's visible brightness differs from the target that owns it
@@ -39,6 +40,10 @@ internal enum ViolationKind
 
     // An LG reply pipeline stayed wedged although btadn holds a confirmed brightness it could resynchronize with
     WedgeNeverResynchronized,
+
+    // A panel switched back on by its own button stayed on and healthy past the recovery backoff while its working row
+    // kept the app's earlier power-off intent, which refuses every curve write and replay (btadn log 2026-10-27)
+    PowerOnUnnoticed,
 
     // An exception escaped to the UI thread, a timer, or an app catch-all logger
     UnhandledException,
@@ -64,6 +69,7 @@ internal readonly record struct RowSnapshot(
     int RoundedBrightness,
     bool HasUserBrightness,
     bool IsPowerSuppressed,
+    PowerOffIntent PowerOffIntent,
     string? LastDDCError)
 {
     public static RowSnapshot From(MonitorInfo row) =>
@@ -77,6 +83,7 @@ internal readonly record struct RowSnapshot(
             row.RoundedBrightness,
             row.HasUserBrightness,
             row.SuppressDDCRecoveryForPowerIntent,
+            row.PowerOffIntent,
             row.LastDDCError);
 
     public string Describe() =>
@@ -192,19 +199,35 @@ internal sealed class SimulationOracle(SimulationClock clock, SimulationTrace tr
     }
 
     /// <summary>
-    /// A brightness SET reached a panel. Called on the UI thread with btadn's rows for that panel, so the check uses
-    /// btadn's own power intent: a row whose accepted power-off still suppresses traffic must not be written.
+    /// A brightness SET reached a panel. Called with btadn's rows for that panel, so the check uses btadn's own power
+    /// intent: a row whose accepted power-off still suppresses traffic must not be written. The one exception is a
+    /// hard-off row's resynchronizing SET of its last confirmed bus value: only the panel's button wakes it, and the
+    /// panel already holds that value. The exception goes by value, so a leaked curve tick or replay of that same value
+    /// passes too; scenarios that power panels off move the curve off that value while they are off.
     /// </summary>
-    public void CheckBrightnessWrite(SimulatedMonitor monitor, uint value, IReadOnlyList<RowSnapshot> ownedRows)
+    public void CheckBrightnessWrite(
+        SimulatedMonitor monitor,
+        uint value,
+        IReadOnlyList<RowSnapshot> ownedRows,
+        Func<string, int?> lastBusBrightness)
     {
         RowSnapshot[] suppressed = [.. ownedRows.Where(row => row.IsPowerSuppressed)];
         if (suppressed.Length == 0) return;
+        if (suppressed.All(IsHardOffResynchronization)) return;
 
         Report(
             ViolationKind.WriteToPoweredOffPanel,
             monitor.PhysicalID,
             $"brightness SET {value} sent to {monitor.PhysicalID} while its row {suppressed[0].Describe()} "
             + "still holds the app's power-off intent");
+        return;
+
+        // MonitorService.ScaleBrightnessPercentToRaw
+        bool IsHardOffResynchronization(RowSnapshot row) =>
+            row.PowerOffIntent == PowerOffIntent.HardOff
+            && lastBusBrightness(row.EDIDKey) is { } busPercent
+            && value == (uint)Math.Round(
+                Math.Clamp(busPercent, min: 0, max: 100) / 100.0 * monitor.Profile.BrightnessMaximum);
     }
 
     /// <summary>Checks that hold at every instant: no panel shown twice, no ID shared. Runs on the UI thread.</summary>
@@ -286,20 +309,21 @@ internal sealed class SimulationOracle(SimulationClock clock, SimulationTrace tr
                 continue;
             }
 
-            // MonitorService resynchronizes a checksum-wedged reply pipeline with a SET of the last confirmed value,
-            // unless the app was last told to keep the panel off and the panel was woken some other way
+            // MonitorService resynchronizes a wedged reply pipeline with a SET of the last confirmed value. A row that
+            // still holds a standby or soft-off intent is only read, since a SET wakes some of those panels; a hard-off
+            // intent allows that one SET, because only the panel's button wakes it
             long wedgedSince = monitor.WedgedSinceTicks;
             if (wedgedSince >= 0
                 && now - wedgedSince > TimeSpan.FromSeconds(60).Ticks
                 && monitor.PowerState == PanelPowerState.On
                 && rows.Count > 0
                 && state.LastBusBrightness(rows[0].EDIDKey) != null
-                && LastAppPowerIntentOn(monitor) != false)
+                && rows[0].PowerOffIntent != PowerOffIntent.Off)
             {
                 Report(
                     ViolationKind.WedgeNeverResynchronized,
                     monitor.PhysicalID,
-                    $"{monitor.PhysicalID} has answered with checksum failures since "
+                    $"{monitor.PhysicalID} has answered with garbled replies since "
                     + $"{TimeSpan.FromTicks(wedgedSince).TotalSeconds:F1}s; its row {rows[0].Describe()} has a confirmed "
                     + $"bus value of {state.LastBusBrightness(rows[0].EDIDKey)} but no resynchronizing SET was sent");
             }
@@ -338,11 +362,22 @@ internal sealed class SimulationOracle(SimulationClock clock, SimulationTrace tr
                     continue;
                 }
 
-                // A working row keeps the intent through a button power-on that nothing reports to the app.
-                // An unavailable row is still probed, so recovery must notice the panel answering again
+                // A working row keeps the intent through a button power-on that nothing reports to the app, but the
+                // recovery worker probes it and must notice the panel answering: until then the intent refuses every
+                // curve write and replay. An unavailable row falls through to the same check below
                 if (!unavailable)
                 {
-                    Observe($"{monitor.PhysicalID} is on but its row is still suppressed by an earlier app power-off");
+                    if (IsSettled(state, monitor, now, graceTicks + RecoveryBackoffAllowanceTicks)
+                        && !IsStillProbingUnreliablePanel(state, monitor, now))
+                    {
+                        Report(
+                            ViolationKind.PowerOnUnnoticed,
+                            monitor.PhysicalID,
+                            $"{monitor.Describe()} has been healthy since "
+                            + $"{TimeSpan.FromTicks(monitor.HealthySinceTicks(now)).TotalSeconds:F1}s but its row "
+                            + $"{only.Describe()} still holds the app's earlier power-off intent");
+                    }
+
                     continue;
                 }
             }
