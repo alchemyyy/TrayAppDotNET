@@ -6,8 +6,6 @@ namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 
 internal static class CSharpBuilderProvenanceGenerator
 {
-    private const string DefaultRootNamespace = "AxamlPropertyLinkerGenerated";
-
     public static void Initialize(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValueProvider<CSharpBuilderProvenanceSettings> settings =
@@ -49,10 +47,9 @@ internal static class CSharpBuilderProvenanceGenerator
         AnalyzerConfigOptionsProvider optionsProvider)
     {
         AnalyzerConfigOptions options = optionsProvider.GlobalOptions;
-        _ = options.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace);
         _ = options.TryGetValue(key: "build_property.ProjectDir", out string? projectDirectory);
         return new CSharpBuilderProvenanceSettings(
-            string.IsNullOrWhiteSpace(rootNamespace) ? DefaultRootNamespace : rootNamespace,
+            CSharpNames.ReadRootNamespace(options),
             projectDirectory ?? string.Empty);
     }
 }

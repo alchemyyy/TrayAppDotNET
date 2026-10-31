@@ -9,68 +9,38 @@ namespace FanControlTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-#if DEBUG
-    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
-        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            catalogName: "Fan",
-            static () => []);
-#else
-    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
-#endif
+    // The fan glyph is drawn from Fan's own icon font, which Common resolves through the app font registration
+    static GlyphCatalog() => TADNFontResolver.RegisterAppFont(Constants.FanFontFamilyName);
 
-    public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
-    public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;
+    public static Glyph FAN => Glyphs.Fan;
+    public static Glyph VOLTAGE => Glyphs.Voltage;
+    public static Glyph LOAD => Glyphs.Load;
+    public static Glyph WATTAGE => Glyphs.Wattage;
+    public static Glyph PROBE => Glyphs.Probe;
+    public static Glyph TEMPERATURE => Glyphs.Temperature;
+    public static Glyph CLOCK => Glyphs.Clock;
 
-    public new static Glyph SETTINGS => Glyph("Settings");
-    public new static Glyph POWER => Glyph("Power");
-    public new static Glyph INFO => Glyph("Info");
-    public new static Glyph EXIT => Glyph("Exit");
-    public new static Glyph WARNING => Glyph("Warning");
-    public new static Glyph UNDOCK => Glyph("Undock");
-    public new static Glyph REDOCK => Glyph("Redock");
+    public static Glyph ARROW_RIGHT => Glyphs.ArrowRight;
 
-    public static Glyph FAN => Glyph("Fan");
-    public static Glyph VOLTAGE => Glyph("Voltage");
-    public static Glyph LOAD => Glyph("Load");
-    public static Glyph WATTAGE => Glyph("Wattage");
-    public static Glyph PROBE => Glyph("Probe");
-    public static Glyph TEMPERATURE => Glyph("Temperature");
-    public static Glyph CLOCK => Glyph("Clock");
+    public static Glyph CURVE_WINDOW => Glyphs.CurveWindow;
+    public static Glyph ADD => Glyphs.Add;
+    public static Glyph GROUP => Glyphs.Group;
+    public static Glyph DELETE => Glyphs.Delete;
+    public static Glyph CLOSE => Glyphs.Close;
+    public static Glyph VIEW => Glyphs.View;
+    public static Glyph HIDE => Glyphs.Hide;
+    public static Glyph DRAG_HANDLE => Glyphs.DragHandle;
 
-    public static Glyph ARROW_LEFT => Glyph("ArrowLeft");
-    public static Glyph ARROW_RIGHT => Glyph("ArrowRight");
+    public static Glyph PIN => Glyphs.Pin;
+    public static Glyph PINNED => Glyphs.Pinned;
 
-    public static Glyph CURVE_WINDOW => Glyph("CurveWindow");
-    public static Glyph ADD => Glyph("Add");
-    public static Glyph CHECK => Glyph("Check");
-    public static Glyph GROUP => Glyph("Group");
-    public static Glyph DELETE => Glyph("Delete");
-    public static Glyph CLOSE => Glyph("Close");
-    public static Glyph VIEW => Glyph("View");
-    public static Glyph HIDE => Glyph("Hide");
-    public static Glyph DRAG_HANDLE => Glyph("DragHandle");
+    public static Glyph COLLAPSED => Glyphs.Collapsed;
+    public static Glyph EXPANDED => Glyphs.Expanded;
 
-    public static Glyph PIN => Glyph("Pin");
-    public static Glyph PINNED => Glyph("Pinned");
+    public static Glyph FLYOUT_FAN_CONTROL_MODE_MANUAL => Glyphs.FlyoutFanControlModeManual;
+    public static Glyph FLYOUT_FAN_CONTROL_MODE_CURVE => Glyphs.FlyoutFanControlModeCurve;
 
-    public static Glyph COLLAPSED => Glyph("Collapsed");
-    public static Glyph EXPANDED => Glyph("Expanded");
-
-    public static Glyph FLYOUT_FAN_CONTROL_MODE_MANUAL => Glyph("FlyoutFanControlModeManual");
-    public static Glyph FLYOUT_FAN_CONTROL_MODE_CURVE => Glyph("FlyoutFanControlModeCurve");
-
-    public static Glyph CIRCLE => Glyph("Circle");
-    public static Glyph DIAMOND => Glyph("Diamond");
-    public static Glyph STAR => Glyph("Star");
-    public static Glyph SQUARE => Glyph("Square");
-    public static Glyph HEART => Glyph("Heart");
-
-    private static Glyph Glyph(string name)
-    {
-#if DEBUG
-        return Resources.Current.Glyph(name);
-#else
-        return Resources.Value.Glyph(name);
-#endif
-    }
+    // Each read goes through the current dictionary, so a Debug catalog reload reaches the next read
+    private static GlyphCatalogResources.GlyphCatalogAxamlProperties Glyphs =>
+        GlyphCatalogResources.Current.AxamlGlyphCatalog;
 }

@@ -8,72 +8,49 @@ namespace TaskManagerTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-#if DEBUG
-    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
-        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            catalogName: "TaskManager",
-            static () => new GlyphCatalogResources());
-#else
-    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
-#endif
+    public static Glyph MORE => Glyphs.More;
 
-    public static Glyph MORE => Glyph("More");
-
-    public static Glyph SAVE => Glyph("Save");
+    public static Glyph SAVE => Glyphs.Save;
 
     public static Glyph CLOSE => CHROME_CLOSE;
 
-    public new static Glyph CHEVRON_UP_BIG => Glyph("ChevronUpBig");
+    public static Glyph CARET_LEFT => Glyphs.CaretLeft;
 
-    public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
+    public static Glyph CARET_RIGHT => Glyphs.CaretRight;
 
-    public static Glyph CARET_LEFT => Glyph("CaretLeft");
+    public static Glyph PROCESSES => Glyphs.Processes;
 
-    public static Glyph CARET_RIGHT => Glyph("CaretRight");
+    public static Glyph PERFORMANCE => Glyphs.Performance;
 
-    public static Glyph PROCESSES => Glyph("Processes");
+    public static Glyph APP_HISTORY => Glyphs.AppHistory;
 
-    public static Glyph PERFORMANCE => Glyph("Performance");
+    public static Glyph STARTUP_APPS => Glyphs.StartupApps;
 
-    public static Glyph APP_HISTORY => Glyph("AppHistory");
+    public static Glyph USERS => Glyphs.Users;
 
-    public static Glyph STARTUP_APPS => Glyph("StartupApps");
+    public static Glyph SERVICES => Glyphs.Services;
 
-    public static Glyph USERS => Glyph("Users");
+    public static Glyph UPDATE => Glyphs.Update;
 
-    public static Glyph SERVICES => Glyph("Services");
-
-    public static Glyph UPDATE => Glyph("Update");
-
-    public static Glyph SELECTED => Glyph("Selected");
+    public static Glyph SELECTED => Glyphs.Selected;
 
     /// <summary>UAC shield shown on context-menu actions that require administrator approval.</summary>
-    public static Glyph SHIELD => Glyph("Shield");
+    public static Glyph SHIELD => Glyphs.Shield;
 
-    public static Glyph SORT_ASCENDING => Glyph("SortAscending");
+    public static Glyph SORT_ASCENDING => Glyphs.SortAscending;
 
-    public static Glyph SORT_DESCENDING => Glyph("SortDescending");
+    public static Glyph SORT_DESCENDING => Glyphs.SortDescending;
 
-    public static Glyph STATUS_SUSPENDED => Glyph("StatusSuspended");
+    public static Glyph STATUS_SUSPENDED => Glyphs.StatusSuspended;
 
-    public static Glyph STATUS_EFFICIENCY_MODE => Glyph("StatusEfficiencyMode");
+    public static Glyph STATUS_EFFICIENCY_MODE => Glyphs.StatusEfficiencyMode;
 
-    public static Glyph STATUS_NOT_RESPONDING => Glyph("StatusNotResponding");
+    public static Glyph STATUS_NOT_RESPONDING => Glyphs.StatusNotResponding;
 
     /// <summary>North-facing chevron drawn in the icon slot of a semantic group's Root line.</summary>
-    public static Glyph ROOT_LINE => Glyph("RootLine");
+    public static Glyph ROOT_LINE => Glyphs.RootLine;
 
-    private static GlyphCatalogResources CurrentResources
-    {
-        get
-        {
-#if DEBUG
-            return Resources.Current;
-#else
-            return Resources.Value;
-#endif
-        }
-    }
-
-    private static Glyph Glyph(string name) => CurrentResources.Glyph(name);
+    // Each read goes through the current dictionary, so a Debug catalog reload reaches the next read
+    private static GlyphCatalogResources.GlyphCatalogAxamlProperties Glyphs =>
+        GlyphCatalogResources.Current.AxamlGlyphCatalog;
 }

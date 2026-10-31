@@ -7,7 +7,6 @@ using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
-using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Debugging;
 
@@ -24,13 +23,14 @@ internal sealed class ControlHoverInspectorWindow : Window
     private const int FallbackWorkAreaWidthPixels = 1920;
     private const int FallbackWorkAreaHeightPixels = 1080;
 
-    private const string BackgroundResourceName = "DebugInspectorBackground";
-    private const string BorderResourceName = "DebugInspectorBorder";
-    private const string ForegroundResourceName = "DebugInspectorForeground";
-    private const string SecondaryForegroundResourceName = "DebugInspectorSecondaryForeground";
-    private const string LiveResourceName = "DebugInspectorLive";
-    private const string FrozenResourceName = "DebugInspectorFrozen";
-    private const string HeaderBackgroundResourceName = "DebugInspectorHeaderBackground";
+    // The inspector exists only in Debug, so its fixed dark palette lives here rather than in the shipped theme AXAML
+    private static readonly Color BackgroundColor = Color.FromRgb(r: 0x1C, g: 0x1C, b: 0x1E);
+    private static readonly Color BorderColor = Color.FromRgb(r: 0x5C, g: 0x5C, b: 0x60);
+    private static readonly Color ForegroundColor = Color.FromRgb(r: 0xEB, g: 0xEB, b: 0xF0);
+    private static readonly Color SecondaryForegroundColor = Color.FromRgb(r: 0xB9, g: 0xB9, b: 0xC0);
+    private static readonly Color LiveColor = Color.FromRgb(r: 0x69, g: 0xD2, b: 0x8C);
+    private static readonly Color FrozenColor = Color.FromRgb(r: 0xFF, g: 0xC2, b: 0x5C);
+    private static readonly Color HeaderBackgroundColor = Color.FromRgb(r: 0x26, g: 0x26, b: 0x2A);
 
     private readonly TextBlock _statusText;
     private readonly TextBlock _targetText;
@@ -42,7 +42,6 @@ internal sealed class ControlHoverInspectorWindow : Window
     private readonly SolidColorBrush _secondaryForegroundBrush;
     private readonly SolidColorBrush _statusBrush;
     private readonly SolidColorBrush _headerBackgroundBrush;
-    private bool _isFrozen;
 
     internal string? StatusText => _statusText.Text;
 
@@ -52,12 +51,12 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public ControlHoverInspectorWindow()
     {
-        _backgroundBrush = new SolidColorBrush(ResolveColor(BackgroundResourceName));
-        _borderBrush = new SolidColorBrush(ResolveColor(BorderResourceName));
-        _foregroundBrush = new SolidColorBrush(ResolveColor(ForegroundResourceName));
-        _secondaryForegroundBrush = new SolidColorBrush(ResolveColor(SecondaryForegroundResourceName));
-        _statusBrush = new SolidColorBrush(ResolveColor(LiveResourceName));
-        _headerBackgroundBrush = new SolidColorBrush(ResolveColor(HeaderBackgroundResourceName));
+        _backgroundBrush = new SolidColorBrush(BackgroundColor);
+        _borderBrush = new SolidColorBrush(BorderColor);
+        _foregroundBrush = new SolidColorBrush(ForegroundColor);
+        _secondaryForegroundBrush = new SolidColorBrush(SecondaryForegroundColor);
+        _statusBrush = new SolidColorBrush(LiveColor);
+        _headerBackgroundBrush = new SolidColorBrush(HeaderBackgroundColor);
 
         ControlNameScope controlNames = ControlNameScope.For(this);
         Title = "Avalonia Hover Inspector";
@@ -141,7 +140,6 @@ internal sealed class ControlHoverInspectorWindow : Window
         SetFrozen(false);
         ShowNoControl();
 
-        AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
         Opened += OnOpened;
     }
 
@@ -180,30 +178,17 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public void SetFrozen(bool isFrozen)
     {
-        _isFrozen = isFrozen;
         string state = isFrozen ? "FROZEN" : "LIVE";
         _statusText.Text = $"{state} | {ControlHoverInspectorShortcut.Hint}";
-        _statusBrush.Color = ResolveColor(isFrozen ? FrozenResourceName : LiveResourceName);
+        _statusBrush.Color = isFrozen ? FrozenColor : LiveColor;
         Title = isFrozen ? "Avalonia Hover Inspector [FROZEN]" : "Avalonia Hover Inspector";
     }
-
-    private static Color ResolveColor(string resourceName) => AppThemeColorCatalog.SingleColor(resourceName);
 
     private void ReplaceRoots(IReadOnlyList<ControlHoverInspectorNode> roots)
     {
         _treeRoots.Clear();
         foreach (ControlHoverInspectorNode root in roots)
             _treeRoots.Add(root);
-    }
-
-    private void OnAppThemeResourcesReloaded()
-    {
-        _backgroundBrush.Color = ResolveColor(BackgroundResourceName);
-        _borderBrush.Color = ResolveColor(BorderResourceName);
-        _foregroundBrush.Color = ResolveColor(ForegroundResourceName);
-        _secondaryForegroundBrush.Color = ResolveColor(SecondaryForegroundResourceName);
-        _headerBackgroundBrush.Color = ResolveColor(HeaderBackgroundResourceName);
-        _statusBrush.Color = ResolveColor(_isFrozen ? FrozenResourceName : LiveResourceName);
     }
 
     private void OnOpened(object? sender, EventArgs eventArgs)
@@ -225,7 +210,6 @@ internal sealed class ControlHoverInspectorWindow : Window
     protected override void OnClosed(EventArgs eventArgs)
     {
         Opened -= OnOpened;
-        AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
         _treeRoots.Clear();
         _treeView.ItemsSource = null;
         base.OnClosed(eventArgs);

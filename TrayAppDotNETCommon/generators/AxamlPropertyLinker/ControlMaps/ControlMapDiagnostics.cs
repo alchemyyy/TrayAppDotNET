@@ -95,6 +95,13 @@ internal static class ControlMapDiagnostics
         title: "Invalid control map variant",
         messageFormat: "{0}");
 
+    public static readonly DiagnosticDescriptor OwnerWithoutMapName = Create(
+        id: "TADNCM018",
+        title: "Control map owner does not pass MapName",
+        messageFormat: "The owner of x:Class '{0}' must pass MapName to the ControlMap base constructor, as in " +
+                       "'public ControlMap() : base(MapName) => AvaloniaXamlLoader.Load(this);'; otherwise every " +
+                       "node lookup against this map finds nothing");
+
     // A warning rather than an error: it measures how far code has caught up with the map
     public static readonly DiagnosticDescriptor UntaggedNode = new(
         id: "TADNCM100",

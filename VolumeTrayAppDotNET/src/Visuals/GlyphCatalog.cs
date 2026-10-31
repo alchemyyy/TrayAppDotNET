@@ -9,50 +9,27 @@ namespace VolumeTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-#if DEBUG
-    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
-        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
-            catalogName: "Volume",
-            static () => new GlyphCatalogResources());
-#else
-    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => []);
-#endif
+    public static Glyph COMMUNICATIONS_ACTIVITY => Glyphs.CommunicationsActivity;
 
-    public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
-    public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;
+    public static Glyph PLAYBACK_VOLUME_MUTE => Glyphs.PlaybackVolumeMute;
+    public static Glyph PLAYBACK_VOLUME_SILENT => Glyphs.PlaybackVolumeSilent;
+    public static Glyph PLAYBACK_VOLUME_LOW => Glyphs.PlaybackVolumeLow;
+    public static Glyph PLAYBACK_VOLUME_MID => Glyphs.PlaybackVolumeMid;
+    public static Glyph PLAYBACK_VOLUME_HIGH => Glyphs.PlaybackVolumeHigh;
+    public static Glyph SOUND_SETTINGS => Glyphs.SoundSettings;
+    public static Glyph VIEW => Glyphs.View;
+    public static Glyph HIDE => Glyphs.Hide;
 
-    public new static Glyph SETTINGS => Glyph("Settings");
-    public new static Glyph EXIT => Glyph("Exit");
-    public static Glyph CLOSE => EXIT;
-    public new static Glyph WARNING => Glyph("Warning");
+    public static Glyph MICROPHONE => Glyphs.Microphone;
+    public static Glyph MICROPHONE_OFF => Glyphs.MicrophoneOff;
+    public static Glyph MICROPHONE_SLEEP => Glyphs.MicrophoneSleep;
+    public static Glyph MICROPHONE_LISTENING => Glyphs.MicrophoneListening;
+    public static Glyph EAR_LISTEN => Glyphs.EarListen;
 
-    public new static Glyph CHEVRON_UP_BIG => Glyph("ChevronUpBig");
-    public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
-
-    public new static Glyph UNDOCK => Glyph("Undock");
-    public new static Glyph REDOCK => Glyph("Redock");
-
-    public static Glyph COMMUNICATIONS_ACTIVITY => Glyph("CommunicationsActivity");
-
-    public static Glyph PLAYBACK_VOLUME_MUTE => Glyph("PlaybackVolumeMute");
-    public static Glyph PLAYBACK_VOLUME_SILENT => Glyph("PlaybackVolumeSilent");
-    public static Glyph PLAYBACK_VOLUME_LOW => Glyph("PlaybackVolumeLow");
-    public static Glyph PLAYBACK_VOLUME_MID => Glyph("PlaybackVolumeMid");
-    public static Glyph PLAYBACK_VOLUME_HIGH => Glyph("PlaybackVolumeHigh");
-    public static Glyph SOUND_SETTINGS => Glyph("SoundSettings");
-    public static Glyph VIEW => Glyph("View");
-    public static Glyph HIDE => Glyph("Hide");
-
-    public static Glyph MICROPHONE => Glyph("Microphone");
-    public static Glyph MICROPHONE_OFF => Glyph("MicrophoneOff");
-    public static Glyph MICROPHONE_SLEEP => Glyph("MicrophoneSleep");
-    public static Glyph MICROPHONE_LISTENING => Glyph("MicrophoneListening");
-    public static Glyph EAR_LISTEN => Glyph("EarListen");
-
-    public static Glyph LOCK => Glyph("Lock");
-    public static Glyph UNLOCK => Glyph("Unlock");
-    public static Glyph EQUALIZER => Glyph("Equalizer");
-    public static Glyph SIGNAL_NOT_CONNECTED => Glyph("SignalNotConnected");
+    public static Glyph LOCK => Glyphs.Lock;
+    public static Glyph UNLOCK => Glyphs.Unlock;
+    public static Glyph EQUALIZER => Glyphs.Equalizer;
+    public static Glyph SIGNAL_NOT_CONNECTED => Glyphs.SignalNotConnected;
 
     public static Glyph GetVolumeTier(float scalar, bool muted)
     {
@@ -66,44 +43,31 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
         };
     }
 
-    public static Glyph PLAYBACK_DEVICE_DEFAULT => Glyph("PlaybackDeviceDefault");
-    public static Glyph PLAYBACK_DEVICE_ENABLED => Glyph("PlaybackDeviceEnabled");
-    public static Glyph PLAYBACK_DEVICE_DISABLED => Glyph("PlaybackDeviceDisabled");
-    public static Glyph PLAYBACK_DEVICE_DEFAULT_COMMS => Glyph("PlaybackDeviceDefaultComms");
+    public static Glyph PLAYBACK_DEVICE_DEFAULT => Glyphs.PlaybackDeviceDefault;
+    public static Glyph PLAYBACK_DEVICE_ENABLED => Glyphs.PlaybackDeviceEnabled;
+    public static Glyph PLAYBACK_DEVICE_DISABLED => Glyphs.PlaybackDeviceDisabled;
+    public static Glyph PLAYBACK_DEVICE_DEFAULT_COMMS => Glyphs.PlaybackDeviceDefaultComms;
 
-    public static Glyph APP_MUTE_OVERLAY => Glyph("AppMuteOverlay");
-    public static Glyph APP_FALLBACK => Glyph("AppFallback");
+    public static Glyph APP_MUTE_OVERLAY => Glyphs.AppMuteOverlay;
+    public static Glyph APP_FALLBACK => Glyphs.AppFallback;
 
-    public static Glyph BLUETOOTH => Glyph("Bluetooth");
-    public static Glyph BLUETOOTH_AUDIO_WAITING => Glyph("BluetoothAudioWaiting");
-    public static Glyph BT_BATTERY_0 => Glyph("BTBattery0");
-    public static Glyph BT_BATTERY_1 => Glyph("BTBattery1");
-    public static Glyph BT_BATTERY_2 => Glyph("BTBattery2");
-    public static Glyph BT_BATTERY_3 => Glyph("BTBattery3");
-    public static Glyph BT_BATTERY_4 => Glyph("BTBattery4");
-    public static Glyph BT_BATTERY_5 => Glyph("BTBattery5");
-    public static Glyph BT_BATTERY_6 => Glyph("BTBattery6");
-    public static Glyph BT_BATTERY_7 => Glyph("BTBattery7");
-    public static Glyph BT_BATTERY_8 => Glyph("BTBattery8");
-    public static Glyph BT_BATTERY_9 => Glyph("BTBattery9");
-    public static Glyph BT_BATTERY_10 => Glyph("BTBattery10");
+    public static Glyph BLUETOOTH => Glyphs.Bluetooth;
+    public static Glyph BLUETOOTH_AUDIO_WAITING => Glyphs.BluetoothAudioWaiting;
+    public static Glyph BT_BATTERY_0 => Glyphs.BTBattery0;
+    public static Glyph BT_BATTERY_1 => Glyphs.BTBattery1;
+    public static Glyph BT_BATTERY_2 => Glyphs.BTBattery2;
+    public static Glyph BT_BATTERY_3 => Glyphs.BTBattery3;
+    public static Glyph BT_BATTERY_4 => Glyphs.BTBattery4;
+    public static Glyph BT_BATTERY_5 => Glyphs.BTBattery5;
+    public static Glyph BT_BATTERY_6 => Glyphs.BTBattery6;
+    public static Glyph BT_BATTERY_7 => Glyphs.BTBattery7;
+    public static Glyph BT_BATTERY_8 => Glyphs.BTBattery8;
+    public static Glyph BT_BATTERY_9 => Glyphs.BTBattery9;
+    public static Glyph BT_BATTERY_10 => Glyphs.BTBattery10;
 
-    public new static Glyph CHROME_MINIMIZE => Glyph("ChromeMinimize");
-    public new static Glyph CHROME_MAXIMIZE => Glyph("ChromeMaximize");
-    public new static Glyph CHROME_RESTORE => Glyph("ChromeRestore");
+    public static Glyph CIRCLE => Glyphs.Circle;
 
-    public static Glyph CIRCLE => Glyph("Circle");
-    public static Glyph DIAMOND => Glyph("Diamond");
-    public static Glyph STAR => Glyph("Star");
-    public static Glyph SQUARE => Glyph("Square");
-    public static Glyph HEART => Glyph("Heart");
-
-    private static Glyph Glyph(string name)
-    {
-#if DEBUG
-        return Resources.Current.Glyph(name);
-#else
-        return Resources.Value.Glyph(name);
-#endif
-    }
+    // Each read goes through the current dictionary, so a Debug catalog reload reaches the next read
+    private static GlyphCatalogResources.GlyphCatalogAxamlProperties Glyphs =>
+        GlyphCatalogResources.Current.AxamlGlyphCatalog;
 }

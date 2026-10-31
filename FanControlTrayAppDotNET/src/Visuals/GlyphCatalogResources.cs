@@ -1,18 +1,7 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.Visuals;
 
 namespace FanControlTrayAppDotNET.Visuals;
 
-public sealed class GlyphCatalogResources : ResourceDictionary
-{
-    /// <summary>
-    /// Initializes the compiled fan glyph catalog dictionary.
-    /// </summary>
-    public GlyphCatalogResources() => AvaloniaXamlLoader.Load(this);
-
-    /// <summary>
-    /// Reads a glyph from this dictionary.
-    /// </summary>
-    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, prefix: "GlyphCatalog", name);
-}
+/// <summary>The fan-control glyphs; <see cref="GlyphCatalog"/> reads them through the generated getters.</summary>
+[AxamlResourceStore(AxamlReloadMode.GlyphCatalog, "Fan Control glyph catalog")]
+public sealed partial class GlyphCatalogResources : ResourceDictionary;

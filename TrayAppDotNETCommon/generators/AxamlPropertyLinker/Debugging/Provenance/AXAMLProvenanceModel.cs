@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 
 internal enum AXAMLProvenanceItemKind
@@ -14,36 +12,19 @@ internal enum AXAMLProvenanceItemKind
     Binding
 }
 
-internal sealed class AXAMLProvenanceDocument(
-    string sourcePath,
-    string ownerTypeName,
-    ImmutableArray<AXAMLProvenanceItem> entries)
-{
-    public readonly string SourcePath = sourcePath;
-    public readonly string OwnerTypeName = ownerTypeName;
-    public readonly ImmutableArray<AXAMLProvenanceItem> Entries = entries;
-}
+internal sealed record AXAMLProvenanceDocument(
+    string SourcePath,
+    string OwnerTypeName,
+    EquatableArray<AXAMLProvenanceItem> Entries);
 
-internal sealed class AXAMLProvenanceItem(
-    AXAMLProvenanceItemKind kind,
-    int line,
-    int column,
-    string elementTypeName,
-    string elementPath,
-    string? controlName,
-    string? propertyName,
-    string? resourceKey,
-    string? valueExpression,
-    string? selector)
-{
-    public readonly AXAMLProvenanceItemKind Kind = kind;
-    public readonly int Line = line;
-    public readonly int Column = column;
-    public readonly string ElementTypeName = elementTypeName;
-    public readonly string ElementPath = elementPath;
-    public readonly string? ControlName = controlName;
-    public readonly string? PropertyName = propertyName;
-    public readonly string? ResourceKey = resourceKey;
-    public readonly string? ValueExpression = valueExpression;
-    public readonly string? Selector = selector;
-}
+internal sealed record AXAMLProvenanceItem(
+    AXAMLProvenanceItemKind Kind,
+    int Line,
+    int Column,
+    string ElementTypeName,
+    string ElementPath,
+    string? ControlName,
+    string? PropertyName,
+    string? ResourceKey,
+    string? ValueExpression,
+    string? Selector);

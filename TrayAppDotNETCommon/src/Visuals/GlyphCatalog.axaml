@@ -22,8 +22,8 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDown" Text="&#xE70D;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronLeft" Text="&#xE76B;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronRight" Text="&#xE76C;" Font="SegoeFluentIcons" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDownBig" Text="&#xE96D;" Font="SegoeFluentIcons" />
-    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUpBig" Text="&#xE96E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUpSmall" Text="&#xE96D;" Font="SegoeFluentIcons" TranslateY="1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDownSmall" Text="&#xE96E;" Font="SegoeFluentIcons" TranslateY="-1" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Calendar" Text="&#xE787;" Font="SegoeFluentIcons" />
 
     <!-- Flyout docking -->

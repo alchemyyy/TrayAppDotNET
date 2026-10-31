@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -17,7 +16,7 @@ internal static class AXAMLProvenanceParser
         List<AXAMLProvenanceItem> entries = [];
         XElement? root = document.Root;
         if (root == null)
-            return new AXAMLProvenanceDocument(sourcePath, ownerTypeName, ImmutableArray<AXAMLProvenanceItem>.Empty);
+            return new AXAMLProvenanceDocument(sourcePath, ownerTypeName, []);
 
         foreach (XElement element in root.DescendantsAndSelf())
         {

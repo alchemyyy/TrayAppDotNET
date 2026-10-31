@@ -9,60 +9,42 @@ namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 /// <summary>Generates debug-only source metadata from AXAML documents.</summary>
 internal static class AXAMLProvenanceGenerator
 {
-    private const string DefaultRootNamespace = "AxamlPropertyLinkerGenerated";
+    internal const string DocumentsTrackingName = "AXAMLProvenanceDocuments";
     private const string GeneratedNamespaceSuffix = ".GeneratedAxaml";
-    private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
 
-    public static void Initialize(IncrementalGeneratorInitializationContext context)
+    public static void Initialize(
+        IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<AxamlDocument> parsedDocuments)
     {
         IncrementalValueProvider<AXAMLProvenanceSettings> settings =
             context.AnalyzerConfigOptionsProvider.Select(static (provider, _) => ReadSettings(provider));
-        IncrementalValuesProvider<AXAMLProvenanceDocument> documents = context.AdditionalTextsProvider
-            .Where(static text => text.Path.EndsWith(value: ".axaml", StringComparison.OrdinalIgnoreCase))
+        IncrementalValuesProvider<AXAMLProvenanceDocument> documents = parsedDocuments
             .Combine(settings)
-            .Select(static (value, cancellationToken) =>
-                ParseAdditionalText(value.Left, value.Right, cancellationToken))
+            .Select(static (value, _) => Parse(value.Left, value.Right))
             .Where(static document => document != null)
-            .Select(static (document, _) => document!);
+            .Select(static (document, _) => document!)
+            .WithTrackingName(DocumentsTrackingName);
 
         context.RegisterSourceOutput(
             documents.Collect().Combine(settings),
             static (sourceContext, value) => Emit(sourceContext, value.Left, value.Right));
     }
 
-    private static AXAMLProvenanceDocument? ParseAdditionalText(
-        AdditionalText text,
-        AXAMLProvenanceSettings settings,
-        CancellationToken cancellationToken)
+    private static AXAMLProvenanceDocument? Parse(AxamlDocument axamlDocument, AXAMLProvenanceSettings settings)
     {
-        Microsoft.CodeAnalysis.Text.SourceText? sourceText = text.GetText(cancellationToken);
-        if (sourceText == null) return null;
-
-        XDocument document;
-        try
-        {
-            document = XDocument.Parse(
-                sourceText.ToString(),
-                LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
-        }
-        catch
-        {
-            return null;
-        }
-
-        XElement? root = document.Root;
+        XDocument? document = axamlDocument.Document;
+        XElement? root = document?.Root;
         if (root == null) return null;
 
         // Control maps describe focus structure, not visuals, so the hover inspector has nothing to trace to them
         if (string.Equals(root.Name.NamespaceName, ControlMapParser.ControlMapNamespace, StringComparison.Ordinal))
             return null;
 
-        XName classAttributeName = XName.Get(localName: "Class", XamlNamespace);
-        string? ownerTypeName = root.Attribute(classAttributeName)?.Value;
-        if (!IsQualifiedNamespace(ownerTypeName)) return null;
+        string? ownerTypeName = root.Attribute(XName.Get(localName: "Class", CSharpNames.XamlNamespace))?.Value;
+        if (!CSharpNames.TrySplitClassName(ownerTypeName, out _, out _)) return null;
 
-        string sourcePath = AXAMLSourcePath.Normalize(text.Path, settings.ProjectDirectory);
-        return AXAMLProvenanceParser.Parse(document, sourcePath, ownerTypeName!);
+        string sourcePath = AXAMLSourcePath.Normalize(axamlDocument.Path, settings.ProjectDirectory);
+        return AXAMLProvenanceParser.Parse(document!, sourcePath, ownerTypeName!);
     }
 
     private static void Emit(
@@ -76,59 +58,15 @@ internal static class AXAMLProvenanceGenerator
             AXAMLProvenanceEmitter.HintName,
             AXAMLProvenanceEmitter.Generate(
                 documents,
-                settings.RootNamespace + GeneratedNamespaceSuffix));
+                CSharpNames.EscapeQualifiedName(settings.RootNamespace + GeneratedNamespaceSuffix)));
     }
 
     private static AXAMLProvenanceSettings ReadSettings(
         AnalyzerConfigOptionsProvider optionsProvider)
     {
         AnalyzerConfigOptions options = optionsProvider.GlobalOptions;
-        string rootNamespace = ReadRootNamespace(options);
         _ = options.TryGetValue(key: "build_property.ProjectDir", out string? projectDirectory);
-        return new AXAMLProvenanceSettings(rootNamespace, projectDirectory ?? string.Empty);
-    }
-
-    private static string ReadRootNamespace(AnalyzerConfigOptions options)
-    {
-        if (options.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace)
-            && IsQualifiedNamespace(rootNamespace))
-            return rootNamespace;
-
-        if (options.TryGetValue(key: "build_property.MSBuildProjectName", out string? projectName)
-            && IsIdentifier(projectName))
-            return projectName;
-
-        return DefaultRootNamespace;
-    }
-
-    private static bool IsQualifiedNamespace(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return false;
-
-        string[] parts = value.Split('.');
-        if (parts.Length < 2) return false;
-
-        foreach (string part in parts)
-        {
-            if (!IsIdentifier(part))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsIdentifier(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        if (value[0] != '_' && !char.IsLetter(value[0])) return false;
-
-        for (int index = 1; index < value.Length; index++)
-        {
-            char character = value[index];
-            if (character != '_' && !char.IsLetterOrDigit(character)) return false;
-        }
-
-        return true;
+        return new AXAMLProvenanceSettings(CSharpNames.ReadRootNamespace(options), projectDirectory ?? string.Empty);
     }
 
     private readonly record struct AXAMLProvenanceSettings(

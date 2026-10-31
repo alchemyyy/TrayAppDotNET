@@ -2,95 +2,173 @@ using System.Collections.Immutable;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 
+/// <summary>
+/// Adds typed getters for one-dot AXAML resource keys to each x:Class owner, and for every resource dictionary marked
+/// with <c>[AxamlResourceStore]</c> the compiled-AXAML constructor, the shared <c>Current</c> instance, the Debug
+/// hot-reload store, and the reload event its mode requires.
+/// </summary>
 [Generator]
 public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 {
+    internal const string DocumentsTrackingName = "AxamlDocuments";
+    internal const string ClassModelsTrackingName = "AxamlClassModels";
+    internal const string StoreModelsTrackingName = "AxamlResourceStores";
+
     private const string GeneratedRuntimeFileName = "AxamlPropertyLinker.Runtime.g.cs";
     private const string GeneratedNamespaceSuffix = ".GeneratedAxaml";
-    private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
-    private const string DefaultRootNamespace = "AxamlPropertyLinkerGenerated";
+    private const string StoreAttributeMetadataName = "TrayAppDotNETCommon.UI.AxamlResourceStoreAttribute";
+    private const string ResourceDictionaryMetadataName = "Avalonia.Controls.ResourceDictionary";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        IncrementalValuesProvider<AxamlDocument> documents = AxamlDocument.CreateProvider(context);
+
 #if DEBUG
-        DebugProvenanceGenerator.Initialize(context);
+        DebugProvenanceGenerator.Initialize(context, documents);
 #endif
 
-        IncrementalValuesProvider<AxamlClassModel?> axamlFiles = context.AdditionalTextsProvider
-            .Where(static text => text.Path.EndsWith(value: ".axaml", StringComparison.OrdinalIgnoreCase))
-            .Select(static (text, cancellationToken) => ParseAdditionalText(text, cancellationToken));
+        IncrementalValuesProvider<AxamlClassModel> classes = documents
+            .Select(static (document, _) => ParseClass(document))
+            .Where(static model => model != null)
+            .Select(static (model, _) => model!)
+            .WithTrackingName(ClassModelsTrackingName);
+
+        IncrementalValuesProvider<ResourceStoreModel> stores = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                StoreAttributeMetadataName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (attributeContext, _) => CreateStoreModel(attributeContext))
+            .WithTrackingName(StoreModelsTrackingName);
 
         IncrementalValueProvider<string> rootNamespace = context.AnalyzerConfigOptionsProvider
-            .Select(static (optionsProvider, _) => ReadRootNamespace(optionsProvider));
+            .Select(static (optionsProvider, _) => CSharpNames.ReadRootNamespace(optionsProvider.GlobalOptions));
 
-        IncrementalValueProvider<(ImmutableArray<AxamlClassModel?> Files, string RootNamespace)> source =
-            axamlFiles.Collect().Combine(rootNamespace);
-
-        context.RegisterSourceOutput(source, static (sourceProductionContext, value) =>
-        {
-            List<AxamlClassModel> classes = [];
-            foreach (AxamlClassModel? axamlClass in value.Files)
-            {
-                if (axamlClass == null) continue;
-                classes.Add(axamlClass);
-            }
-
-            if (classes.Count == 0) return;
-
-            string generatedNamespace = value.RootNamespace + GeneratedNamespaceSuffix;
-            sourceProductionContext.AddSource(GeneratedRuntimeFileName, GenerateRuntime(generatedNamespace));
-
-            List<AxamlClassModel> mergedClasses = MergeClasses(classes);
-            sourceProductionContext.AddSource(
-                hintName: "AxamlPropertyLinker.StaticAccessors.g.cs",
-                GenerateStaticAccessors(mergedClasses, generatedNamespace));
-
-            foreach (AxamlClassModel axamlClass in mergedClasses)
-            {
-                string hintName = HintName(axamlClass);
-                sourceProductionContext.AddSource(hintName, GenerateClass(axamlClass, generatedNamespace));
-            }
-        });
+        context.RegisterSourceOutput(
+            classes.Collect().Combine(stores.Collect()).Combine(rootNamespace),
+            static (sourceProductionContext, value) =>
+                Emit(sourceProductionContext, value.Left.Left, value.Left.Right, value.Right));
     }
 
-    private static AxamlClassModel? ParseAdditionalText(AdditionalText text, CancellationToken cancellationToken)
+    private static void Emit(
+        SourceProductionContext context,
+        ImmutableArray<AxamlClassModel> classes,
+        ImmutableArray<ResourceStoreModel> stores,
+        string rootNamespace)
     {
-        Microsoft.CodeAnalysis.Text.SourceText? sourceText = text.GetText(cancellationToken);
-        if (sourceText == null) return null;
+        if (classes.Length == 0 && stores.Length == 0) return;
 
-        XDocument document;
-        try
+        List<AxamlClassModel> mergedClasses = MergeClasses(classes, out Dictionary<string, List<string>> pathsByClass);
+        Dictionary<string, AxamlClassModel> classesByName = new(StringComparer.Ordinal);
+        foreach (AxamlClassModel axamlClass in mergedClasses)
+            classesByName[axamlClass.FullName] = axamlClass;
+
+        Dictionary<string, (ResourceStoreModel Store, string SourcePath)> validStores =
+            ValidateStores(context, stores, pathsByClass, classesByName);
+
+        string generatedNamespace = CSharpNames.EscapeQualifiedName(rootNamespace + GeneratedNamespaceSuffix);
+        HashSet<ResourceKind> usedKinds = [];
+        foreach (AxamlClassModel axamlClass in mergedClasses)
         {
-            document = XDocument.Parse(sourceText.ToString(), LoadOptions.None);
-        }
-        catch
-        {
-            return null;
+            bool hasStore = validStores.TryGetValue(axamlClass.FullName, out (ResourceStoreModel Store, string SourcePath) store);
+            if (axamlClass.Groups.Length == 0 && !hasStore) continue;
+
+            foreach (ResourceGroup group in axamlClass.Groups)
+            {
+                foreach (ResourceEntry resource in group.Resources)
+                    usedKinds.Add(resource.Kind);
+            }
+
+            context.AddSource(
+                CSharpNames.HintName(axamlClass.FullName, ".AxamlPropertyLinker.g.cs"),
+                GenerateClass(axamlClass, generatedNamespace, hasStore ? store : null));
         }
 
-        XElement? root = document.Root;
+        if (usedKinds.Count > 0)
+            context.AddSource(GeneratedRuntimeFileName, GenerateRuntime(generatedNamespace, usedKinds));
+    }
+
+    private static Dictionary<string, (ResourceStoreModel Store, string SourcePath)> ValidateStores(
+        SourceProductionContext context,
+        ImmutableArray<ResourceStoreModel> stores,
+        Dictionary<string, List<string>> pathsByClass,
+        Dictionary<string, AxamlClassModel> classesByName)
+    {
+        Dictionary<string, (ResourceStoreModel Store, string SourcePath)> validStores = new(StringComparer.Ordinal);
+        foreach (ResourceStoreModel store in stores.OrderBy(static value => value.FullName, StringComparer.Ordinal))
+        {
+            if (store.Problem != null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AxamlResourceStoreDiagnostics.InvalidOwner,
+                    store.Location.ToLocation(),
+                    store.FullName,
+                    store.Problem));
+                continue;
+            }
+
+            if (!pathsByClass.TryGetValue(store.FullName, out List<string>? paths))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AxamlResourceStoreDiagnostics.MissingAxaml,
+                    store.Location.ToLocation(),
+                    store.FullName));
+                continue;
+            }
+
+            if (paths.Count > 1)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AxamlResourceStoreDiagnostics.DuplicateAxaml,
+                    store.Location.ToLocation(),
+                    store.FullName,
+                    string.Join(", ", paths)));
+                continue;
+            }
+
+            if (validStores.ContainsKey(store.FullName)) continue;
+
+            // The XML error is the real problem; the store still compiles so that only the AXAML is reported
+            if (classesByName[store.FullName].ParseError is { } parseError)
+            {
+                LinePosition position = new(Math.Max(val1: 0, parseError.Line - 1), Math.Max(val1: 0, parseError.Column - 1));
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AxamlResourceStoreDiagnostics.MalformedAxaml,
+                    Location.Create(paths[0], textSpan: default, new LinePositionSpan(position, position)),
+                    store.FullName,
+                    parseError.Message));
+            }
+
+            validStores.Add(store.FullName, (store, paths[0]));
+        }
+
+        return validStores;
+    }
+
+    private static AxamlClassModel? ParseClass(AxamlDocument axamlDocument)
+    {
+        // Malformed XML still names its x:Class, so a store can report the parse error rather than a missing file
+        if (axamlDocument.ParseError is { } parseError)
+        {
+            return CSharpNames.TrySplitClassName(parseError.DeclaredClass, out string brokenNamespace, out string brokenClass)
+                ? new AxamlClassModel(axamlDocument.Path, brokenNamespace, brokenClass, [], parseError)
+                : null;
+        }
+
+        XElement? root = axamlDocument.Document?.Root;
         if (root == null) return null;
 
-        XName classAttributeName = XName.Get(localName: "Class", XamlNamespace);
-        string? fullClassName = root.Attribute(classAttributeName)?.Value;
-        if (string.IsNullOrWhiteSpace(fullClassName)) return null;
-
-        int classSeparatorIndex = fullClassName.LastIndexOf('.');
-        if (classSeparatorIndex <= 0 || classSeparatorIndex == fullClassName.Length - 1)
-            return null;
-
-        string classNamespace = fullClassName[..classSeparatorIndex];
-        string className = fullClassName[(classSeparatorIndex + 1)..];
-        if (!IsQualifiedNamespace(classNamespace) || !IsIdentifier(className))
+        string? fullClassName = root.Attribute(XName.Get(localName: "Class", CSharpNames.XamlNamespace))?.Value;
+        if (!CSharpNames.TrySplitClassName(fullClassName, out string classNamespace, out string className))
             return null;
 
         Dictionary<string, ResourceGroupBuilder> groupBuilders = new(StringComparer.Ordinal);
-        XName keyAttributeName = XName.Get(localName: "Key", XamlNamespace);
-        foreach (XElement element in document.Descendants())
+        XName keyAttributeName = XName.Get(localName: "Key", CSharpNames.XamlNamespace);
+        foreach (XElement element in root.DescendantsAndSelf())
         {
             XAttribute? keyAttribute = element.Attribute(keyAttributeName);
             if (keyAttribute == null) continue;
@@ -107,20 +185,12 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             groupBuilder.Add(entry);
         }
 
-        if (groupBuilders.Count == 0) return null;
-
         List<ResourceGroup> groups = [];
-        foreach (ResourceGroupBuilder groupBuilder in groupBuilders.Values.OrderBy(static group => group.Prefix))
+        foreach (ResourceGroupBuilder groupBuilder in groupBuilders.Values.OrderBy(static group => group.Prefix,
+                     StringComparer.Ordinal))
             groups.Add(groupBuilder.Build());
 
-        bool isResourceDictionary =
-            string.Equals(root.Name.LocalName, b: "ResourceDictionary", StringComparison.Ordinal);
-        return new AxamlClassModel(
-            text.Path,
-            classNamespace,
-            className,
-            isResourceDictionary,
-            [..groups]);
+        return new AxamlClassModel(axamlDocument.Path, classNamespace, className, [..groups], ParseError: null);
     }
 
     private static ResourceEntry? CreateResourceEntry(string elementName, string key)
@@ -132,9 +202,9 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (key.IndexOf(value: '.', separatorIndex + 1) >= 0)
             return null;
 
-        string prefix = key[..separatorIndex];
-        string propertyName = key[(separatorIndex + 1)..];
-        if (!IsIdentifier(prefix) || !IsIdentifier(propertyName))
+        string prefix = key.Substring(0, separatorIndex);
+        string propertyName = key.Substring(separatorIndex + 1);
+        if (!CSharpNames.IsIdentifier(prefix) || !CSharpNames.IsIdentifier(propertyName))
             return null;
 
         ResourceKind? kind = ResourceKindFromElement(elementName, propertyName);
@@ -151,6 +221,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             "CornerRadius" => ResourceKind.CornerRadius,
             "TranslateTransform" => ResourceKind.TranslateTransform,
             "Color" => ResourceKind.Color,
+            "GlyphDefinition" => ResourceKind.Glyph,
+            "ThemeColor" => ResourceKind.ThemeColor,
             "String" => propertyName.EndsWith(value: "Color", StringComparison.Ordinal)
                 ? ResourceKind.Color
                 : ResourceKind.String,
@@ -158,47 +230,131 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         };
     }
 
-    private static List<AxamlClassModel> MergeClasses(List<AxamlClassModel> classes)
+    private static ResourceStoreModel CreateStoreModel(GeneratorAttributeSyntaxContext context)
     {
+        INamedTypeSymbol symbol = (INamedTypeSymbol)context.TargetSymbol;
+        string classNamespace = symbol.ContainingNamespace.IsGlobalNamespace
+            ? string.Empty
+            : symbol.ContainingNamespace.ToDisplayString();
+        string fullName = classNamespace.Length == 0 ? symbol.Name : classNamespace + "." + symbol.Name;
+        SourceLocation location = SourceLocation.From(context.TargetNode.GetLocation());
+
+        AttributeData attribute = context.Attributes[0];
+        string? mode = null;
+        string? label = null;
+        if (attribute.ConstructorArguments.Length == 2)
+        {
+            mode = EnumMemberName(attribute.ConstructorArguments[0]);
+            label = attribute.ConstructorArguments[1].Value as string;
+        }
+
+        string? problem = null;
+        if (symbol.ContainingType != null)
+            problem = "must be a top-level class, because an AXAML x:Class cannot name a nested type";
+        else if (symbol.IsGenericType)
+            problem = "must not be generic, because an AXAML x:Class names a closed type";
+        else if (symbol.IsAbstract || symbol.IsStatic)
+            problem = "must not be abstract or static, because the store constructs it";
+        else if (!IsPartial(symbol))
+            problem = "must be partial so the generated part can add its constructor and store";
+        else if (!DerivesFrom(symbol, ResourceDictionaryMetadataName))
+            problem = "must derive from Avalonia.Controls.ResourceDictionary";
+        else if (symbol.InstanceConstructors.Any(static constructor => !constructor.IsImplicitlyDeclared))
+            problem = "must not declare a constructor; the generated constructor loads the compiled AXAML";
+        else if (mode == null || !Enum.TryParse(mode, out StoreMode _))
+            problem = "names an unknown AxamlReloadMode";
+        else if (string.IsNullOrWhiteSpace(label))
+            problem = "needs a non-empty label for hot-reload log messages";
+
+        return new ResourceStoreModel(fullName, mode ?? string.Empty, label ?? string.Empty, location, problem);
+    }
+
+    private static string? EnumMemberName(TypedConstant constant)
+    {
+        if (constant.Type is not INamedTypeSymbol { TypeKind: TypeKind.Enum } enumType) return null;
+
+        foreach (ISymbol member in enumType.GetMembers())
+        {
+            if (member is IFieldSymbol { HasConstantValue: true } field && Equals(field.ConstantValue, constant.Value))
+                return field.Name;
+        }
+
+        return null;
+    }
+
+    private static bool IsPartial(INamedTypeSymbol symbol)
+    {
+        foreach (SyntaxReference reference in symbol.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax() is ClassDeclarationSyntax declaration
+                && declaration.Modifiers.Any(static modifier => modifier.ValueText == "partial"))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool DerivesFrom(INamedTypeSymbol symbol, string baseMetadataName)
+    {
+        for (INamedTypeSymbol? type = symbol.BaseType; type != null; type = type.BaseType)
+        {
+            if (string.Equals(type.ToDisplayString(), baseMetadataName, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static List<AxamlClassModel> MergeClasses(
+        ImmutableArray<AxamlClassModel> classes,
+        out Dictionary<string, List<string>> pathsByClass)
+    {
+        pathsByClass = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         Dictionary<string, AxamlClassBuilder> builders = new(StringComparer.Ordinal);
         foreach (AxamlClassModel axamlClass in classes.OrderBy(static value => value.Path,
                      StringComparer.OrdinalIgnoreCase))
         {
-            string key = axamlClass.Namespace + "." + axamlClass.ClassName;
-            if (!builders.TryGetValue(key, out AxamlClassBuilder? builder))
+            if (!builders.TryGetValue(axamlClass.FullName, out AxamlClassBuilder? builder))
             {
-                builder = new AxamlClassBuilder(
-                    axamlClass.Path,
-                    axamlClass.Namespace,
-                    axamlClass.ClassName,
-                    axamlClass.IsResourceDictionary);
-                builders.Add(key, builder);
+                builder = new AxamlClassBuilder(axamlClass.Path, axamlClass.Namespace, axamlClass.ClassName);
+                builders.Add(axamlClass.FullName, builder);
+                pathsByClass.Add(axamlClass.FullName, []);
             }
 
+            pathsByClass[axamlClass.FullName].Add(axamlClass.Path);
+            builder.ParseError ??= axamlClass.ParseError;
             foreach (ResourceGroup group in axamlClass.Groups)
                 builder.Add(group);
         }
 
         List<AxamlClassModel> merged = [];
-        foreach (AxamlClassBuilder builder in builders.Values.OrderBy(static value => value.Namespace)
-                     .ThenBy(static value => value.ClassName))
+        foreach (AxamlClassBuilder builder in builders.Values
+                     .OrderBy(static value => value.Namespace, StringComparer.Ordinal)
+                     .ThenBy(static value => value.ClassName, StringComparer.Ordinal))
             merged.Add(builder.Build());
 
         return merged;
     }
 
-    private static string GenerateClass(AxamlClassModel axamlClass, string generatedNamespace)
+    private static string GenerateClass(
+        AxamlClassModel axamlClass,
+        string generatedNamespace,
+        (ResourceStoreModel Store, string SourcePath)? store)
     {
         StringBuilder builder = new();
         builder.AppendLine("// <auto-generated/>");
         builder.AppendLine("#nullable enable");
         builder.AppendLine();
         builder.Append("namespace ");
-        builder.AppendLine(axamlClass.Namespace);
+        builder.AppendLine(CSharpNames.EscapeQualifiedName(axamlClass.Namespace));
         builder.AppendLine("{");
-        builder.Append("    public partial class ");
-        builder.AppendLine(axamlClass.ClassName);
+        // The hand-written part declares accessibility, modifiers, and the base type
+        builder.Append("    partial class ");
+        builder.AppendLine(CSharpNames.Escape(axamlClass.ClassName));
         builder.AppendLine("    {");
+
+        if (store != null)
+            AppendStore(builder, axamlClass.ClassName, store.Value.Store, store.Value.SourcePath);
 
         foreach (ResourceGroup group in axamlClass.Groups)
             AppendGroup(builder, axamlClass, group, generatedNamespace);
@@ -208,68 +364,75 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         return builder.ToString();
     }
 
-    private static string GenerateStaticAccessors(List<AxamlClassModel> axamlClasses, string generatedNamespace)
+    private static void AppendStore(StringBuilder builder, string className, ResourceStoreModel store, string sourcePath)
     {
-        Dictionary<string, ResourceGroupBuilder> groupBuilders = new(StringComparer.Ordinal);
-        foreach (AxamlClassModel axamlClass in axamlClasses)
-        {
-            foreach (ResourceGroup group in axamlClass.Groups)
-            {
-                if (!groupBuilders.TryGetValue(group.Prefix, out ResourceGroupBuilder? groupBuilder))
-                {
-                    groupBuilder = new ResourceGroupBuilder(group.Prefix);
-                    groupBuilders.Add(group.Prefix, groupBuilder);
-                }
+        StoreMode mode = (StoreMode)Enum.Parse(typeof(StoreMode), store.Mode);
+        string type = CSharpNames.Escape(className);
+        string label = CSharpNames.StringLiteral(store.Label);
+        string storeType = $"global::TrayAppDotNETCommon.UI.AXAMLResourceHotReloadStore<{type}>";
+        bool hasOwnEvent = mode is StoreMode.Synchronized or StoreMode.Replaced;
 
-                foreach (ResourceEntry resource in group.Resources)
-                    groupBuilder.Add(resource);
-            }
+        builder.AppendLine("        /// <summary>Initializes the dictionary from its compiled AXAML.</summary>");
+        builder.Append("        public ").Append(type)
+            .AppendLine("() => global::Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);");
+        builder.AppendLine();
+        builder.AppendLine("#if DEBUG");
+        if (hasOwnEvent)
+        {
+            builder.AppendLine("        /// <summary>Raised on the UI thread after the AXAML source reloads successfully.</summary>");
+            builder.AppendLine("        internal static event global::System.Action? ResourcesReloaded;");
+            builder.AppendLine();
         }
 
-        StringBuilder builder = new();
-        builder.AppendLine("// <auto-generated/>");
-        builder.AppendLine("#nullable enable");
+        builder.Append("        private static readonly ").Append(storeType).AppendLine(" ResourceStore =");
+        builder.Append("            ").Append(storeType).AppendLine(".CreateForSource(");
+        builder.Append("                ").Append(label).AppendLine(",");
+        builder.Append("                static () => new ").Append(type).AppendLine("(),");
+        builder.Append("                ").Append(NotifyExpression(mode, label)).AppendLine(",");
+        builder.Append("                ").Append(CSharpNames.StringLiteral(sourcePath)).AppendLine(",");
+        builder.Append("                ").Append(SynchronizeExpression(mode)).AppendLine(");");
         builder.AppendLine();
-        builder.Append("namespace ");
-        builder.AppendLine(generatedNamespace);
-        builder.AppendLine("{");
+        builder.AppendLine("        /// <summary>Gets the latest successfully loaded dictionary.</summary>");
+        builder.Append("        internal static ").Append(type).AppendLine(" Current => ResourceStore.Current;");
+        builder.AppendLine();
+        builder.AppendLine("        /// <summary>Reloads the AXAML source immediately on the calling UI thread.</summary>");
+        builder.AppendLine("        internal static void ReloadNow() => ResourceStore.ReloadNow();");
 
-        foreach (ResourceGroupBuilder groupBuilder in groupBuilders.Values.OrderBy(static value => value.Prefix))
-            AppendStaticAccessorClass(builder, groupBuilder.Build());
+        // Owners of a per-owner dictionary build their own instances, so Release keeps no shared one
+        if (mode != StoreMode.CommonPerOwner)
+        {
+            builder.AppendLine("#else");
+            builder.Append("        private static readonly global::System.Lazy<").Append(type)
+                .Append("> ResourceStore = new(static () => new ").Append(type).AppendLine("());");
+            builder.AppendLine();
+            builder.AppendLine("        /// <summary>Gets the shared compiled dictionary.</summary>");
+            builder.Append("        internal static ").Append(type).AppendLine(" Current => ResourceStore.Value;");
+        }
 
-        builder.AppendLine("}");
-        return builder.ToString();
+        builder.AppendLine("#endif");
     }
 
-    private static void AppendStaticAccessorClass(StringBuilder builder, ResourceGroup group)
+    private static string NotifyExpression(StoreMode mode, string label) => mode switch
     {
-        builder.AppendLine();
-        builder.Append("    internal static class Axaml");
-        builder.AppendLine(group.Prefix);
-        builder.AppendLine("    {");
+        StoreMode.Common or StoreMode.CommonPerOwner =>
+            $"static () => global::TrayAppDotNETCommon.UI.CommonAXAMLHotReload.NotifyResourcesReloaded({label})",
+        StoreMode.Synchronized or StoreMode.Replaced =>
+            $"static () => global::TrayAppDotNETCommon.UI.AXAMLHotReload.NotifyEach(ResourcesReloaded, {label})",
+        StoreMode.GlyphCatalog =>
+            $"static () => global::TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload.NotifyResourcesReloaded({label})",
+        StoreMode.AppTheme =>
+            $"static () => global::TrayAppDotNETCommon.Visuals.AppThemeHotReload.NotifyResourcesReloaded({label})",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, message: null)
+    };
 
-        foreach (ResourceEntry resource in group.Resources.OrderBy(static value => value.PropertyName))
-            AppendStaticAccessor(builder, resource);
-
-        builder.AppendLine("    }");
-    }
-
-    private static void AppendStaticAccessor(StringBuilder builder, ResourceEntry resource)
+    private static string SynchronizeExpression(StoreMode mode) => mode switch
     {
-        builder.AppendLine();
-        builder.Append("        public static ");
-        builder.Append(ReturnType(resource.Kind));
-        builder.Append(' ');
-        builder.Append(resource.PropertyName);
-        builder.AppendLine("(object owner) =>");
-        builder.Append("            AxamlPropertyLinkerRuntime.");
-        builder.Append(ReaderMethod(resource.Kind));
-        builder.Append("(owner, ");
-        builder.Append(StringLiteral(resource.Prefix + "."));
-        builder.Append(", nameof(");
-        builder.Append(resource.PropertyName);
-        builder.AppendLine("));");
-    }
+        StoreMode.Common or StoreMode.CommonPerOwner or StoreMode.Synchronized =>
+            "global::TrayAppDotNETCommon.UI.AXAMLHotReload.SynchronizeResources",
+        StoreMode.AppTheme => "global::TrayAppDotNETCommon.Visuals.AppThemeHotReload.SynchronizeColors",
+        StoreMode.Replaced or StoreMode.GlyphCatalog => "synchronizeReload: null",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, message: null)
+    };
 
     private static void AppendGroup(
         StringBuilder builder,
@@ -279,6 +442,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
     {
         string structName = group.Prefix + "AxamlProperties";
         string accessorName = "Axaml" + group.Prefix;
+        string ownerType = CSharpNames.Escape(axamlClass.ClassName);
 
         builder.AppendLine();
         builder.Append("        internal ");
@@ -293,19 +457,19 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         builder.AppendLine(structName);
         builder.AppendLine("        {");
         builder.Append("            private readonly ");
-        builder.Append(axamlClass.ClassName);
+        builder.Append(ownerType);
         builder.AppendLine(" _owner;");
         builder.AppendLine();
         builder.Append("            public ");
         builder.Append(structName);
         builder.Append('(');
-        builder.Append(axamlClass.ClassName);
+        builder.Append(ownerType);
         builder.AppendLine(" owner)");
         builder.AppendLine("            {");
         builder.AppendLine("                _owner = owner;");
         builder.AppendLine("            }");
 
-        foreach (ResourceEntry resource in group.Resources.OrderBy(static value => value.PropertyName))
+        foreach (ResourceEntry resource in group.Resources)
             AppendProperty(builder, resource, generatedNamespace);
 
         builder.AppendLine("        }");
@@ -317,101 +481,140 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         builder.Append("            public ");
         builder.Append(ReturnType(resource.Kind));
         builder.Append(' ');
-        builder.Append(resource.PropertyName);
+        builder.Append(CSharpNames.Escape(resource.PropertyName));
         builder.AppendLine(" =>");
         builder.Append("                global::");
         builder.Append(generatedNamespace);
         builder.Append(".AxamlPropertyLinkerRuntime.");
         builder.Append(ReaderMethod(resource.Kind));
         builder.Append("(_owner, ");
-        builder.Append(StringLiteral(resource.Prefix + "."));
-        builder.Append(", nameof(");
-        builder.Append(resource.PropertyName);
-        builder.AppendLine("));");
+        builder.Append(CSharpNames.StringLiteral(resource.Prefix + "."));
+        builder.Append(", ");
+        builder.Append(CSharpNames.StringLiteral(resource.PropertyName));
+        builder.AppendLine(");");
     }
 
-    private static string GenerateRuntime(string generatedNamespace) =>
-        $$"""
-          // <auto-generated/>
-          #nullable enable
+    private static string GenerateRuntime(string generatedNamespace, HashSet<ResourceKind> usedKinds)
+    {
+        StringBuilder builder = new();
+        builder.AppendLine("// <auto-generated/>");
+        builder.AppendLine("#nullable enable");
+        builder.AppendLine();
+        builder.Append("namespace ").AppendLine(generatedNamespace);
+        builder.AppendLine("{");
+        builder.AppendLine("    internal static class AxamlPropertyLinkerRuntime");
+        builder.AppendLine("    {");
+        builder.Append(
+            """
+                    public static double Double(object owner, string prefix, string name) =>
+                        Resource(owner, prefix, name) switch
+                        {
+                            double value => value,
+                            int value => value,
+                            string value => double.Parse(value, global::System.Globalization.CultureInfo.InvariantCulture),
+                            object value => global::System.Convert.ToDouble(value, global::System.Globalization.CultureInfo.InvariantCulture),
+                        };
 
-          namespace {{generatedNamespace}}
-          {
-              internal static class AxamlPropertyLinkerRuntime
-              {
-                  public static double Double(object owner, string prefix, string name) =>
-                      Resource(owner, prefix, name) switch
-                      {
-                          double value => value,
-                          int value => value,
-                          string value => double.Parse(value, global::System.Globalization.CultureInfo.InvariantCulture),
-                          object value => global::System.Convert.ToDouble(value, global::System.Globalization.CultureInfo.InvariantCulture),
-                      };
+                    public static int Int(object owner, string prefix, string name) =>
+                        (int)global::System.Math.Round(Double(owner, prefix, name));
 
-                  public static int Int(object owner, string prefix, string name) =>
-                      (int)global::System.Math.Round(Double(owner, prefix, name));
+                    public static string String(object owner, string prefix, string name) =>
+                        Resource(owner, prefix, name) switch
+                        {
+                            string value => value,
+                            object value => global::System.Convert.ToString(value, global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                        };
 
-                  public static string String(object owner, string prefix, string name) =>
-                      Resource(owner, prefix, name) switch
-                      {
-                          string value => value,
-                          object value => global::System.Convert.ToString(value, global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-                      };
+                    public static global::Avalonia.Thickness Thickness(object owner, string prefix, string name) =>
+                        Resource(owner, prefix, name) is global::Avalonia.Thickness value
+                            ? value
+                            : throw InvalidType(prefix, name, nameof(global::Avalonia.Thickness));
 
-                  public static global::Avalonia.Thickness Thickness(object owner, string prefix, string name) =>
-                      Resource(owner, prefix, name) is global::Avalonia.Thickness value
-                          ? value
-                          : throw InvalidType(prefix, name, nameof(global::Avalonia.Thickness));
+                    public static global::Avalonia.CornerRadius CornerRadius(object owner, string prefix, string name) =>
+                        Resource(owner, prefix, name) is global::Avalonia.CornerRadius value
+                            ? value
+                            : throw InvalidType(prefix, name, nameof(global::Avalonia.CornerRadius));
 
-                  public static global::Avalonia.CornerRadius CornerRadius(object owner, string prefix, string name) =>
-                      Resource(owner, prefix, name) is global::Avalonia.CornerRadius value
-                          ? value
-                          : throw InvalidType(prefix, name, nameof(global::Avalonia.CornerRadius));
+                    public static global::Avalonia.Media.Color Color(object owner, string prefix, string name) =>
+                        Resource(owner, prefix, name) switch
+                        {
+                            global::Avalonia.Media.Color value => value,
+                            string value => global::Avalonia.Media.Color.Parse(value),
+                            object => throw InvalidType(prefix, name, nameof(global::Avalonia.Media.Color)),
+                        };
 
-                  public static global::Avalonia.Media.Color Color(object owner, string prefix, string name) =>
-                      Resource(owner, prefix, name) switch
-                      {
-                          global::Avalonia.Media.Color value => value,
-                          string value => global::Avalonia.Media.Color.Parse(value),
-                          object => throw InvalidType(prefix, name, nameof(global::Avalonia.Media.Color)),
-                      };
+                    public static global::Avalonia.Media.TranslateTransform TranslateTransform(object owner, string prefix, string name)
+                    {
+                        if (Resource(owner, prefix, name) is not global::Avalonia.Media.TranslateTransform value)
+                            throw InvalidType(prefix, name, nameof(global::Avalonia.Media.TranslateTransform));
 
-                  public static global::Avalonia.Media.TranslateTransform TranslateTransform(object owner, string prefix, string name)
-                  {
-                      if (Resource(owner, prefix, name) is not global::Avalonia.Media.TranslateTransform value)
-                          throw InvalidType(prefix, name, nameof(global::Avalonia.Media.TranslateTransform));
+                        return new global::Avalonia.Media.TranslateTransform(value.X, value.Y);
+                    }
 
-                      return new global::Avalonia.Media.TranslateTransform(value.X, value.Y);
-                  }
+            """);
 
-                  private static object Resource(object owner, string prefix, string name)
-                  {
-                      string key = prefix + name;
-                      if (owner is global::Avalonia.Controls.ResourceDictionary resources)
-                      {
-                          object? dictionaryValue = resources[key];
-                          if (dictionaryValue != null)
-                              return dictionaryValue;
-                      }
+        if (usedKinds.Contains(ResourceKind.Glyph))
+        {
+            builder.Append(
+                """
+                        public static global::TrayAppDotNETCommon.Visuals.Glyph Glyph(object owner, string prefix, string name)
+                        {
+                            if (Resource(owner, prefix, name) is not global::TrayAppDotNETCommon.Visuals.GlyphDefinition definition)
+                                throw InvalidType(prefix, name, nameof(global::TrayAppDotNETCommon.Visuals.GlyphDefinition));
 
-                      if (owner is global::Avalonia.Controls.IResourceNode resourceNode &&
-                          resourceNode.TryGetResource(key, null, out object? resourceNodeValue) &&
-                          resourceNodeValue != null)
-                      {
-                          return resourceNodeValue;
-                      }
+                            global::TrayAppDotNETCommon.Visuals.Glyph glyph = definition.ToGlyph();
+                            global::TrayAppDotNETCommon.UI.Debugging.DebugUIProvenance.RegisterGlyphResource(glyph, prefix + name);
+                            return glyph;
+                        }
 
-                      throw new global::System.InvalidOperationException($"Missing AXAML resource '{key}'.");
-                  }
+                """);
+        }
 
-                  private static global::System.InvalidOperationException InvalidType(
-                      string prefix,
-                      string name,
-                      string expectedType) =>
-                      new($"AXAML resource '{prefix}{name}' is not a {expectedType}.");
-              }
-          }
-          """;
+        if (usedKinds.Contains(ResourceKind.ThemeColor))
+        {
+            builder.Append(
+                """
+                        public static global::TrayAppDotNETCommon.Visuals.ThemeColor ThemeColor(object owner, string prefix, string name) =>
+                            Resource(owner, prefix, name) is global::TrayAppDotNETCommon.Visuals.ThemeColor value
+                                ? value
+                                : throw InvalidType(prefix, name, nameof(global::TrayAppDotNETCommon.Visuals.ThemeColor));
+
+                """);
+        }
+
+        builder.Append(
+            """
+                    private static object Resource(object owner, string prefix, string name)
+                    {
+                        string key = prefix + name;
+                        if (owner is global::Avalonia.Controls.ResourceDictionary resources)
+                        {
+                            object? dictionaryValue = resources[key];
+                            if (dictionaryValue != null)
+                                return dictionaryValue;
+                        }
+
+                        if (owner is global::Avalonia.Controls.IResourceNode resourceNode &&
+                            resourceNode.TryGetResource(key, null, out object? resourceNodeValue) &&
+                            resourceNodeValue != null)
+                        {
+                            return resourceNodeValue;
+                        }
+
+                        throw new global::System.InvalidOperationException($"Missing AXAML resource '{key}'.");
+                    }
+
+                    private static global::System.InvalidOperationException InvalidType(
+                        string prefix,
+                        string name,
+                        string expectedType) =>
+                        new($"AXAML resource '{prefix}{name}' is not a {expectedType}.");
+                }
+            }
+
+            """);
+        return builder.ToString();
+    }
 
     private static string ReturnType(ResourceKind kind)
     {
@@ -424,6 +627,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             ResourceKind.CornerRadius => "global::Avalonia.CornerRadius",
             ResourceKind.Color => "global::Avalonia.Media.Color",
             ResourceKind.TranslateTransform => "global::Avalonia.Media.TranslateTransform",
+            ResourceKind.Glyph => "global::TrayAppDotNETCommon.Visuals.Glyph",
+            ResourceKind.ThemeColor => "global::TrayAppDotNETCommon.Visuals.ThemeColor",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: null)
         };
     }
@@ -439,101 +644,10 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             ResourceKind.CornerRadius => "CornerRadius",
             ResourceKind.Color => "Color",
             ResourceKind.TranslateTransform => "TranslateTransform",
+            ResourceKind.Glyph => "Glyph",
+            ResourceKind.ThemeColor => "ThemeColor",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: null)
         };
-    }
-
-    private static string HintName(AxamlClassModel axamlClass)
-    {
-        string fullName = axamlClass.Namespace + "." + axamlClass.ClassName;
-        StringBuilder builder = new();
-        foreach (char character in fullName) builder.Append(IsIdentifierPart(character) ? character : '_');
-
-        builder.Append(".AxamlPropertyLinker.g.cs");
-        return builder.ToString();
-    }
-
-    private static string ReadRootNamespace(AnalyzerConfigOptionsProvider optionsProvider)
-    {
-        if (optionsProvider.GlobalOptions.TryGetValue(key: "build_property.RootNamespace", out string? rootNamespace) &&
-            !string.IsNullOrWhiteSpace(rootNamespace) &&
-            IsQualifiedNamespace(rootNamespace))
-            return rootNamespace;
-
-        if (optionsProvider.GlobalOptions.TryGetValue(key: "build_property.MSBuildProjectName",
-                out string? projectName) &&
-            !string.IsNullOrWhiteSpace(projectName) &&
-            IsIdentifier(projectName))
-            return projectName;
-
-        return DefaultRootNamespace;
-    }
-
-    private static bool IsQualifiedNamespace(string value)
-    {
-        string[] parts = value.Split('.');
-        if (parts.Length == 0) return false;
-
-        foreach (string part in parts)
-        {
-            if (!IsIdentifier(part))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsIdentifier(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        if (!IsIdentifierStart(value[0])) return false;
-
-        for (int index = 1; index < value.Length; index++)
-        {
-            if (!IsIdentifierPart(value[index]))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsIdentifierStart(char character) =>
-        character == '_' || char.IsLetter(character);
-
-    private static bool IsIdentifierPart(char character) =>
-        character == '_' || char.IsLetterOrDigit(character);
-
-    private static string StringLiteral(string value)
-    {
-        StringBuilder builder = new();
-        builder.Append('"');
-        foreach (char character in value)
-        {
-            switch (character)
-            {
-                case '\\':
-                    builder.Append(@"\\");
-                    break;
-                case '"':
-                    builder.Append("\\\"");
-                    break;
-                case '\r':
-                    builder.Append(@"\r");
-                    break;
-                case '\n':
-                    builder.Append(@"\n");
-                    break;
-                case '\t':
-                    builder.Append(@"\t");
-                    break;
-                default:
-                    builder.Append(character);
-                    break;
-            }
-        }
-
-        builder.Append('"');
-        return builder.ToString();
     }
 
     private enum ResourceKind
@@ -544,31 +658,49 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         Thickness,
         CornerRadius,
         Color,
-        TranslateTransform
+        TranslateTransform,
+        Glyph,
+        ThemeColor
     }
 
-    private sealed class AxamlClassModel(
-        string path,
-        string ns,
-        string className,
-        bool isResourceDictionary,
-        ImmutableArray<ResourceGroup> groups)
+    // Mirrors TrayAppDotNETCommon.UI.AxamlReloadMode by member name, so reordering the runtime enum cannot drift
+    private enum StoreMode
     {
-        public readonly string Path = path;
-        public readonly string Namespace = ns;
-        public readonly string ClassName = className;
-        public readonly bool IsResourceDictionary = isResourceDictionary;
-        public readonly ImmutableArray<ResourceGroup> Groups = groups;
+        Common,
+        CommonPerOwner,
+        Synchronized,
+        Replaced,
+        GlyphCatalog,
+        AppTheme
     }
 
-    private sealed class AxamlClassBuilder(string path, string ns, string className, bool isResourceDictionary)
+    private sealed record AxamlClassModel(
+        string Path,
+        string Namespace,
+        string ClassName,
+        EquatableArray<ResourceGroup> Groups,
+        AxamlParseError? ParseError)
+    {
+        public string FullName => Namespace + "." + ClassName;
+    }
+
+    private sealed record ResourceStoreModel(
+        string FullName,
+        string Mode,
+        string Label,
+        SourceLocation Location,
+        string? Problem);
+
+    private sealed class AxamlClassBuilder(string path, string ns, string className)
     {
         private readonly Dictionary<string, ResourceGroupBuilder> _groups = new(StringComparer.Ordinal);
 
         public readonly string Path = path;
         public readonly string Namespace = ns;
         public readonly string ClassName = className;
-        public readonly bool IsResourceDictionary = isResourceDictionary;
+
+        /// <summary>The XML error of a malformed file declaring this class, when one exists.</summary>
+        public AxamlParseError? ParseError;
 
         public void Add(ResourceGroup group)
         {
@@ -585,18 +717,15 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         public AxamlClassModel Build()
         {
             List<ResourceGroup> groups = [];
-            foreach (ResourceGroupBuilder group in _groups.Values.OrderBy(static value => value.Prefix))
+            foreach (ResourceGroupBuilder group in _groups.Values.OrderBy(static value => value.Prefix,
+                         StringComparer.Ordinal))
                 groups.Add(group.Build());
 
-            return new AxamlClassModel(Path, Namespace, ClassName, IsResourceDictionary, [..groups]);
+            return new AxamlClassModel(Path, Namespace, ClassName, [..groups], ParseError);
         }
     }
 
-    private sealed class ResourceGroup(string prefix, ImmutableArray<ResourceEntry> resources)
-    {
-        public readonly string Prefix = prefix;
-        public readonly ImmutableArray<ResourceEntry> Resources = resources;
-    }
+    private sealed record ResourceGroup(string Prefix, EquatableArray<ResourceEntry> Resources);
 
     private sealed class ResourceGroupBuilder(string prefix)
     {
@@ -616,17 +745,51 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         public ResourceGroup Build()
         {
             List<ResourceEntry> resources = [];
-            foreach (ResourceEntry resource in _resources.Values.OrderBy(static value => value.PropertyName))
+            foreach (ResourceEntry resource in _resources.Values.OrderBy(static value => value.PropertyName,
+                         StringComparer.Ordinal))
                 resources.Add(resource);
 
             return new ResourceGroup(Prefix, [..resources]);
         }
     }
 
-    private sealed class ResourceEntry(string prefix, string propertyName, ResourceKind kind)
-    {
-        public readonly string Prefix = prefix;
-        public readonly string PropertyName = propertyName;
-        public readonly ResourceKind Kind = kind;
-    }
+    private sealed record ResourceEntry(string Prefix, string PropertyName, ResourceKind Kind);
+}
+
+/// <summary>Errors reported against <c>[AxamlResourceStore]</c> declarations.</summary>
+internal static class AxamlResourceStoreDiagnostics
+{
+    private const string Category = "TrayAppDotNET.AxamlResourceStore";
+
+    public static readonly DiagnosticDescriptor MissingAxaml = new(
+        id: "TADNAX001",
+        title: "AXAML resource store has no AXAML file",
+        messageFormat: "[AxamlResourceStore] class '{0}' has no AXAML AdditionalFile whose x:Class names it",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DuplicateAxaml = new(
+        id: "TADNAX002",
+        title: "AXAML resource store has several AXAML files",
+        messageFormat: "[AxamlResourceStore] class '{0}' is the x:Class of more than one AXAML file: {1}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidOwner = new(
+        id: "TADNAX003",
+        title: "Invalid AXAML resource store class",
+        messageFormat: "[AxamlResourceStore] class '{0}' {1}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor MalformedAxaml = new(
+        id: "TADNAX004",
+        title: "AXAML resource store file is not well-formed XML",
+        messageFormat: "The AXAML of [AxamlResourceStore] class '{0}' is not well-formed XML: {1}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

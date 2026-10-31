@@ -1,18 +1,8 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using TrayAppDotNETCommon.Visuals;
+using TrayAppDotNETCommon.UI;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
-public sealed class GlyphCatalogResources : ResourceDictionary
-{
-    /// <summary>
-    /// Initializes the compiled brightness glyph catalog dictionary.
-    /// </summary>
-    public GlyphCatalogResources() => AvaloniaXamlLoader.Load(this);
-
-    /// <summary>
-    /// Reads a glyph from this dictionary.
-    /// </summary>
-    public Glyph Glyph(string name) => GlyphCatalogResourceReader.Glyph(this, prefix: "GlyphCatalog", name);
-}
+/// <summary>The brightness glyphs; <see cref="GlyphCatalog"/> reads them through the generated getters.</summary>
+[AxamlResourceStore(AxamlReloadMode.GlyphCatalog, "Brightness glyph catalog")]
+public sealed partial class GlyphCatalogResources : ResourceDictionary;

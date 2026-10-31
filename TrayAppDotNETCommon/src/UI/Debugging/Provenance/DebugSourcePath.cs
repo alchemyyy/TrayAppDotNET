@@ -1,18 +1,12 @@
 #if DEBUG
+using TrayAppDotNETCommon.Contracts;
+
 namespace TrayAppDotNETCommon.UI.Debugging;
 
 /// <summary>Normalizes compiler-provided paths without retaining a developer-specific repository root.</summary>
 internal static class DebugSourcePath
 {
-    private static readonly string[] ProjectDirectoryNames =
-    [
-        "BatteryTrayAppDotNET",
-        "BrightnessTrayAppDotNET",
-        "FanControlTrayAppDotNET",
-        "NetworkTrayAppDotNET",
-        "TrayAppDotNETCommon",
-        "VolumeTrayAppDotNET"
-    ];
+    private static readonly string[] ProjectDirectoryNames = [.. TrayAppDotNETAppCatalog.ApplicationNames, "TrayAppDotNETCommon"];
 
     public static string Normalize(string sourceFilePath)
     {

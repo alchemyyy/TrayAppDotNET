@@ -1,12 +1,7 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
-public sealed partial class FanFlyoutCellResources : ResourceDictionary
-{
-    /// <summary>
-    /// Initializes the compiled fan-flyout-cell resource dictionary.
-    /// </summary>
-    public FanFlyoutCellResources() => AvaloniaXamlLoader.Load(this);
-}
+/// <summary>Layout primitives for fan flyout cells; the open flyout rebuilds on <c>ResourcesReloaded</c>.</summary>
+[AxamlResourceStore(AxamlReloadMode.Replaced, "Fan flyout cell resources")]
+public sealed partial class FanFlyoutCellResources : ResourceDictionary;

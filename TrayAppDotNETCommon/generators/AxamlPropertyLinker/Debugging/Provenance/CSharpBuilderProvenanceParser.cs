@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -70,7 +69,7 @@ internal static class CSharpBuilderProvenanceParser
 
         if (assignmentsByProperty.Count == 0) return null;
 
-        ImmutableArray<CSharpBuilderAssignment> assignments =
+        EquatableArray<CSharpBuilderAssignment> assignments =
         [
             ..assignmentsByProperty.Values
                 .OrderBy(static value => value.Position)

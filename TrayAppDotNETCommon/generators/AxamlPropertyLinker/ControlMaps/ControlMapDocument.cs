@@ -48,13 +48,19 @@ internal sealed class ControlMapElement(string name, int line, int column, Contr
     public string? GetValue(string attributeName) => GetAttribute(attributeName)?.Value;
 }
 
-/// <summary>A parsed control map AXAML file.</summary>
-internal sealed class ControlMapDocument(string path, bool isReference)
+/// <summary>
+/// A parsed control map AXAML file. The tree and its diagnostics are a pure function of the path, the reference flag,
+/// and the source text, so equality compares those three and the incremental pipeline can cache unchanged maps.
+/// </summary>
+internal sealed class ControlMapDocument(string path, bool isReference, string sourceText)
+    : IEquatable<ControlMapDocument>
 {
     public readonly string Path = path;
 
     // Reference documents only supply templates to the maps compiled by this project
     public readonly bool IsReference = isReference;
+
+    private readonly string _sourceText = sourceText;
 
     public readonly List<ControlMapElement> RootElements = [];
     public readonly List<Diagnostic> Diagnostics = [];
@@ -71,6 +77,16 @@ internal sealed class ControlMapDocument(string path, bool isReference)
     /// by convention, so only the namespace tells two maps apart.
     /// </summary>
     public string FullClassName => ClassNamespace + "." + ClassName;
+
+    public bool Equals(ControlMapDocument? other) =>
+        other != null
+        && string.Equals(Path, other.Path, StringComparison.Ordinal)
+        && IsReference == other.IsReference
+        && string.Equals(_sourceText, other._sourceText, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) => Equals(obj as ControlMapDocument);
+
+    public override int GetHashCode() => HashCode.Combine(Path, IsReference, _sourceText);
 }
 
 /// <summary>Reads control map AXAML into <see cref="ControlMapDocument"/> trees.</summary>
@@ -91,7 +107,7 @@ internal static class ControlMapParser
         string content = sourceText.ToString();
         if (content.IndexOf(ControlMapNamespace, StringComparison.Ordinal) < 0) return null;
 
-        ControlMapDocument document = new(text.Path, isReference);
+        ControlMapDocument document = new(text.Path, isReference, content);
         XDocument xml;
         try
         {

@@ -7,8 +7,40 @@ using Avalonia.Threading;
 
 namespace TrayAppDotNETCommon.UI;
 
+/// <summary>Shared Debug helpers for generated AXAML resource stores and their reload events.</summary>
+public static class AXAMLHotReload
+{
+    /// <summary>Invokes each handler independently, so one failed consumer does not block the others.</summary>
+    public static void NotifyEach(Action? handlers, string label)
+    {
+        if (handlers == null) return;
+
+        foreach (Delegate handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                ((Action)handler)();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.LogDebug($"{label} hot-reload notification failed: {exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>Replaces every entry of a retained dictionary with the entries of a reloaded one.</summary>
+    public static void SynchronizeResources(ResourceDictionary currentResources, ResourceDictionary candidateResources)
+    {
+        List<KeyValuePair<object, object?>> resourceSnapshot = [..candidateResources];
+        currentResources.Clear();
+        foreach (KeyValuePair<object, object?> resource in resourceSnapshot)
+            currentResources[resource.Key] = resource.Value;
+    }
+}
+
 /// <summary>
-/// Replaces a compiled resource dictionary after successful Debug source AXAML reloads.
+/// Replaces a compiled resource dictionary after successful Debug source AXAML reloads. The AXAML property linker creates
+/// one per <see cref="AxamlResourceStoreAttribute"/> dictionary.
 /// </summary>
 public sealed class AXAMLResourceHotReloadStore<TResource>
     where TResource : ResourceDictionary
@@ -44,24 +76,28 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
     public TResource Current => Volatile.Read(ref _hotReloadedResources) ?? field;
 
     /// <summary>Reloads the source immediately on the calling UI thread.</summary>
-    internal void ReloadNow() => Reload();
+    public void ReloadNow() => Reload();
 
-    /// <summary>Creates a store for an AXAML file adjacent to the supplied caller source file.</summary>
-    public static AXAMLResourceHotReloadStore<TResource> Create(
+    /// <summary>Creates a store that watches the given AXAML source file.</summary>
+    /// <param name="resourceName">Name used by hot-reload log messages.</param>
+    /// <param name="resourceFactory">Builds a compiled instance; reloads load the source into a fresh one.</param>
+    /// <param name="resourcesReloaded">Runs on the UI thread after a successful reload.</param>
+    /// <param name="sourcePath">Absolute path of the AXAML source file.</param>
+    /// <param name="synchronizeReload">
+    /// Copies a reloaded dictionary into the retained one to keep its identity; null publishes the reloaded instance.
+    /// </param>
+    public static AXAMLResourceHotReloadStore<TResource> CreateForSource(
         string resourceName,
         Func<TResource> resourceFactory,
         Action resourcesReloaded,
-        string sourceFileName,
-        [CallerFilePath] string callerFilePath = "",
-        Action<TResource, TResource>? synchronizeReload = null)
+        string sourcePath,
+        Action<TResource, TResource>? synchronizeReload)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
         ArgumentNullException.ThrowIfNull(resourceFactory);
         ArgumentNullException.ThrowIfNull(resourcesReloaded);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        string sourceDirectory = Path.GetDirectoryName(callerFilePath) ?? string.Empty;
-        string sourcePath = Path.Combine(sourceDirectory, sourceFileName);
         return new AXAMLResourceHotReloadStore<TResource>(
             resourceName,
             sourcePath,

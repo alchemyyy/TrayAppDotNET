@@ -96,6 +96,13 @@ internal static class ControlMapValidator
         "MapName", "Name", "Children", "Nodes", "Find", "FindTemplate", "Variants", "RegisterControlMap"
     ];
 
+    // Every generated node id is initialized with an unqualified MapName, so a node of that name at any depth
+    // would shadow the map constant in its own initializer
+    private const string MapNameMember = "MapName";
+
+    // Variant names become constants of the generated Variants class, which cannot hold a member of its own name
+    private const string VariantsClass = "Variants";
+
     /// <summary>Validates one document against its own templates and the templates of reference maps.</summary>
     public static void Validate(
         ControlMapDocument document,
@@ -374,6 +381,10 @@ internal static class ControlMapValidator
             problem = "must be a PascalCase identifier of ASCII letters and digits";
         else if (string.Equals(id, IDAttribute, StringComparison.Ordinal))
             problem = "is reserved for the generated id of each scope";
+        else if (string.Equals(id, MapNameMember, StringComparison.Ordinal))
+            problem = "is reserved for the generated MapName constant that every node id references";
+        else if (element.Name == VariantElement && string.Equals(id, VariantsClass, StringComparison.Ordinal))
+            problem = "is reserved for the generated Variants class that holds the variant names";
         else if (element.Parent != null && string.Equals(id, element.Parent.ID, StringComparison.Ordinal))
             problem = "matches its parent's id; C# forbids a member named like its enclosing class";
         else if (element.Parent == null

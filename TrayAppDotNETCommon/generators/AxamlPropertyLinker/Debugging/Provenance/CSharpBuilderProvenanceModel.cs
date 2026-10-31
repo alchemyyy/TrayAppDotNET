@@ -1,11 +1,9 @@
-using System.Collections.Immutable;
-
 namespace TrayAppDotNETCommon.AxamlPropertyLinker;
 
 internal sealed record CSharpBuilderBoundary(
     string SourcePath,
     int BoundaryLine,
-    ImmutableArray<CSharpBuilderAssignment> Assignments);
+    EquatableArray<CSharpBuilderAssignment> Assignments);
 
 internal readonly record struct CSharpBuilderAssignment(
     string PropertyReference,
