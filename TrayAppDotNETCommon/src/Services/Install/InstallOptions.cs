@@ -1,19 +1,11 @@
 namespace TrayAppDotNETCommon.Services.Install;
 
 /// <summary>
-/// Optional shell integration selected for a local or system installation.
+/// Shell integration chosen for a local or system installation. Null leaves the choice to the install: the
+/// desktop shortcut stays as it is, and the Start Menu entries stay in step with the installation unless the user
+/// removed them from a copy that was already installed. The command-line names live in
+/// <see cref="Contracts.TrayAppDotNETInstallContract"/>.
 /// </summary>
 public sealed record TrayAppDotNETInstallOptions(
-    bool CreateDesktopShortcut = false,
-    bool CreateStartMenuShortcut = true)
-{
-    public const string SystemInstallArgument = "--install-system";
-    public const string SourceExecutableArgument = "--source";
-    public const string BuildNumberArgument = "--build";
-    public const string SyncStartMenuArgument = "--sync-start-menu";
-    public const string PrepareUninstallArgument = "--uninstall-prepare";
-    public const string DesktopShortcutArgument = "--desktop-shortcut";
-    public const string StartMenuShortcutArgument = "--start-menu-shortcut";
-    public const string DeleteSettingsArgument = "--delete-settings";
-    public const string ProgressPipeArgument = "--progress-pipe";
-}
+    bool? CreateDesktopShortcut = null,
+    bool? CreateStartMenuShortcut = null);

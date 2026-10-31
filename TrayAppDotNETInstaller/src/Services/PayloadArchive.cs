@@ -13,7 +13,7 @@ public sealed record PayloadArchiveEntry(string FileName, long DataOffset, long 
 /// find its own payload without parsing the PE headers, and the directory carries a SHA-256 per entry so a
 /// truncated or patched download is rejected before anything is extracted.
 /// </summary>
-public sealed class PayloadArchive : IDisposable
+public sealed class PayloadArchive
 {
     // Keep in sync with MagicBytes below
     public const string Magic = "TADNPKG1";
@@ -38,16 +38,13 @@ public sealed class PayloadArchive : IDisposable
     internal static byte[] MagicBytes { get; } = Encoding.ASCII.GetBytes(Magic);
 
     private readonly string _filePath;
-    private readonly FileStream _stream;
-    private bool _disposed;
 
     /// <summary>The appended payloads, in the order the stamping step wrote them.</summary>
     public IReadOnlyList<PayloadArchiveEntry> Entries { get; }
 
-    private PayloadArchive(string filePath, FileStream stream, IReadOnlyList<PayloadArchiveEntry> entries)
+    private PayloadArchive(string filePath, IReadOnlyList<PayloadArchiveEntry> entries)
     {
         _filePath = filePath;
-        _stream = stream;
         Entries = entries;
     }
 
@@ -56,27 +53,35 @@ public sealed class PayloadArchive : IDisposable
     /// when the file is too short, carries no trailer magic, or fails directory validation. Entry data is
     /// not hashed here; that happens in <see cref="OpenEntry"/>.
     /// </summary>
-    public static PayloadArchive? TryOpen(string filePath, Action<string>? log = null)
+    public static PayloadArchive? TryOpen(string filePath, Action<string>? log = null) =>
+        TryOpen(filePath, log, out _);
+
+    /// <summary>
+    /// Like <see cref="TryOpen(string, Action{string}?)"/>, and also hands back why the archive was rejected, so a
+    /// damaged download can say what is wrong with it.
+    /// </summary>
+    public static PayloadArchive? TryOpen(string filePath, Action<string>? log, out string? failureReason)
     {
         FrameworkCompatibility.ThrowIfNullOrWhiteSpace(filePath, nameof(filePath));
 
-        FileStream? stream = null;
+        string? lastReason = null;
+        Action<string> capture = message =>
+        {
+            lastReason = message;
+            log?.Invoke(message);
+        };
         try
         {
-            stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            List<PayloadArchiveEntry>? entries = TryReadDirectory(stream, filePath, log);
-            if (entries == null)
-            {
-                stream.Dispose();
-                return null;
-            }
-
-            return new PayloadArchive(filePath, stream, entries);
+            // The directory is read once; every entry is hashed again when it is opened, so no handle is kept
+            using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            List<PayloadArchiveEntry>? entries = TryReadDirectory(stream, filePath, capture);
+            failureReason = entries == null ? lastReason : null;
+            return entries == null ? null : new PayloadArchive(filePath, entries);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            Report(log, $"PayloadArchive: cannot read {filePath}: {exception.Message}");
-            stream?.Dispose();
+            capture($"PayloadArchive: cannot read {filePath}: {exception.Message}");
+            failureReason = lastReason;
             return null;
         }
     }
@@ -89,7 +94,6 @@ public sealed class PayloadArchive : IDisposable
     public Stream OpenEntry(PayloadArchiveEntry entry)
     {
         FrameworkCompatibility.ThrowIfNull(entry, nameof(entry));
-        FrameworkCompatibility.ThrowIfDisposed(_disposed, this);
 
         FileStream stream = new(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         try
@@ -108,14 +112,6 @@ public sealed class PayloadArchive : IDisposable
             stream.Dispose();
             throw;
         }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _disposed = true;
-        _stream.Dispose();
     }
 
     /// <summary>Reads and validates the trailer and directory. Returns null after logging any rejection.</summary>
@@ -397,7 +393,7 @@ public static class PayloadArchiveWriter
             throw new FileNotFoundException($"The image to append to was not found: {targetFilePath}", targetFilePath);
 
         List<string> resolvedPaths = ResolvePayloadPaths(payloadFilePaths);
-        using (PayloadArchive? existing = PayloadArchive.TryOpen(targetFilePath, log))
+        PayloadArchive? existing = PayloadArchive.TryOpen(targetFilePath, log);
         {
             if (existing != null)
             {

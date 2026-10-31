@@ -5,9 +5,6 @@ namespace TrayAppDotNETInstaller.Services;
 /// <summary>Starts an installed app as the interactive user, even when the installer itself is elevated.</summary>
 public static class AppLauncher
 {
-    // Keep in sync with TrayAppDotNETProgram.HiddenArgument, which the watcher forwards to the app it monitors
-    public const string HiddenArgument = "--hidden";
-
     private const string ExplorerExecutableName = "explorer.exe";
 
     /// <summary>
@@ -28,7 +25,7 @@ public static class AppLauncher
             string commandLine = FormatArguments(arguments);
             // With UAC off, or for a standard user, the installer already runs with the desktop's token, so a
             // direct start is the same as one through Explorer and keeps the arguments on every Windows setup
-            if (!SystemProbes.IsSplitTokenElevated())
+            if (!TrayAppDotNETElevationPolicy.IsSplitTokenElevated(InstallerLog.Write))
                 return Start(CreateDirectStartInfo(executablePath, commandLine, workingDirectory), executablePath);
 
             if (UnelevatedLauncher.TryShellExecute(executablePath, commandLine, workingDirectory, out string? failure))

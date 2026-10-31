@@ -10,30 +10,27 @@ using TrayAppDotNETInstaller.Localization;
 
 namespace TrayAppDotNETInstaller.Services;
 
-/// <summary>The plan an elevated worker process receives on its command line.</summary>
+/// <summary>
+/// The plan an elevated worker process receives on its command line. Only System installs need one. A null
+/// shortcut choice leaves that shortcut as it is.
+/// </summary>
 public sealed record WorkerArguments(
     string PipeName,
-    InstallMode Mode,
-    bool CreateDesktopShortcut,
-    bool CreateStartMenuShortcut,
+    bool? CreateDesktopShortcut,
+    bool? CreateStartMenuShortcut,
     IReadOnlyList<string> ApplicationNames);
 
 /// <summary>
 /// System installs run the engine in a second, elevated copy of this executable.
-/// The UI hosts a named pipe, starts the worker with the runas verb,
-/// and relays the progress lines and application status lines the worker writes to the pipe.
+/// The UI hosts a named pipe, starts the worker with the runas verb, and relays the progress lines, application
+/// status lines and log lines the worker writes to the pipe. The UI writes one byte back to cancel the run.
 /// </summary>
 public static class ElevatedInstallWorker
 {
     public const string WorkerArgument = "--worker";
+    internal const string LogLinePrefix = "[LOG] ";
     private const string PipeArgument = "--pipe";
-    private const string ModeArgument = "--mode";
-    private const string DesktopShortcutArgument = "--desktop-shortcut";
-    private const string StartMenuShortcutArgument = "--start-menu-shortcut";
     private const string AppsArgument = "--apps";
-    private const string LocalModeValue = "local";
-    private const string SystemModeValue = "system";
-    private const string PortableModeValue = "portable";
     private const string TrueValue = "true";
     private const string FalseValue = "false";
     private const char AppsSeparator = ',';
@@ -42,6 +39,7 @@ public static class ElevatedInstallWorker
     private const string PipeNamePrefix = "TrayAppDotNETInstaller.";
     private const string RunAsVerb = "runas";
     private const string LocalServerName = ".";
+    private const byte CancelMessage = 1;
     private const int WindowsErrorCancelled = 1223;
     private const int ConnectTimeoutMs = 10_000;
     private const int ConnectionWaitTimeoutMs = 30_000;
@@ -67,15 +65,22 @@ public static class ElevatedInstallWorker
     {
         FrameworkCompatibility.ThrowIfNull(arguments, nameof(arguments));
 
-        return
-        [
-            WorkerArgument,
-            PipeArgument, arguments.PipeName,
-            ModeArgument, ModeToValue(arguments.Mode),
-            DesktopShortcutArgument, arguments.CreateDesktopShortcut ? TrueValue : FalseValue,
-            StartMenuShortcutArgument, arguments.CreateStartMenuShortcut ? TrueValue : FalseValue,
-            AppsArgument, string.Join(AppsSeparatorText, arguments.ApplicationNames)
-        ];
+        List<string> result = [WorkerArgument, PipeArgument, arguments.PipeName];
+        if (arguments.CreateDesktopShortcut is { } desktop)
+        {
+            result.Add(TrayAppDotNETInstallContract.DesktopShortcutArgument);
+            result.Add(desktop ? TrueValue : FalseValue);
+        }
+
+        if (arguments.CreateStartMenuShortcut is { } startMenu)
+        {
+            result.Add(TrayAppDotNETInstallContract.StartMenuShortcutArgument);
+            result.Add(startMenu ? TrueValue : FalseValue);
+        }
+
+        result.Add(AppsArgument);
+        result.Add(string.Join(AppsSeparatorText, arguments.ApplicationNames));
+        return [.. result];
     }
 
     public static bool TryParseWorkerArguments(
@@ -95,24 +100,9 @@ public static class ElevatedInstallWorker
             return false;
         }
 
-        string? modeValue = TryGetArgumentValue(args, ModeArgument);
-        if (!TryParseMode(modeValue, out InstallMode mode))
-        {
-            error = $"{ModeArgument} must be {LocalModeValue}, {SystemModeValue}, or {PortableModeValue}.";
+        if (!TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.DesktopShortcutArgument, out bool? createDesktopShortcut, out error)
+            || !TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument, out bool? createStartMenuShortcut, out error))
             return false;
-        }
-
-        if (!TryParseBoolean(TryGetArgumentValue(args, DesktopShortcutArgument), out bool createDesktopShortcut))
-        {
-            error = $"{DesktopShortcutArgument} must be {TrueValue} or {FalseValue}.";
-            return false;
-        }
-
-        if (!TryParseBoolean(TryGetArgumentValue(args, StartMenuShortcutArgument), out bool createStartMenuShortcut))
-        {
-            error = $"{StartMenuShortcutArgument} must be {TrueValue} or {FalseValue}.";
-            return false;
-        }
 
         string? appsValue = TryGetArgumentValue(args, AppsArgument);
         // SplitTrimmed stands in for Split(char, RemoveEmptyEntries | TrimEntries); the .NET Framework has
@@ -127,25 +117,29 @@ public static class ElevatedInstallWorker
             return false;
         }
 
-        arguments = new WorkerArguments(pipeName, mode, createDesktopShortcut, createStartMenuShortcut, applicationNames);
+        arguments = new WorkerArguments(pipeName, createDesktopShortcut, createStartMenuShortcut, applicationNames);
         return true;
     }
 
     /// <summary>Worker process entry point: connects to the UI's pipe and runs the engine.</summary>
     public static int Run(string[] args)
     {
+        // The log folder is the user's; the lines travel to the unelevated window once the pipe is up
+        InstallerLog.BeginBuffering();
         if (!TryParseWorkerArguments(args, out WorkerArguments? arguments, out string? error))
         {
             InstallerLog.Write($"ElevatedInstallWorker.Run: {error}");
             return UsageExitCode;
         }
 
-        InstallerLog.Write($"ElevatedInstallWorker.Run: mode {arguments.Mode}, apps {string.Join(AppsSeparatorText, arguments.ApplicationNames)}");
+        InstallerLog.Write($"ElevatedInstallWorker.Run: apps {string.Join(AppsSeparatorText, arguments.ApplicationNames)}");
         try
         {
             return RunWorkerAsync(
                     arguments,
-                    (progress, applicationProgress) => RunInstallAsync(arguments, progress, applicationProgress))
+                    (progress, applicationProgress, cancellationToken) =>
+                        RunInstallAsync(arguments, progress, applicationProgress, cancellationToken),
+                    redirectLog: true)
                 .GetAwaiter()
                 .GetResult();
         }
@@ -158,11 +152,13 @@ public static class ElevatedInstallWorker
 
     /// <summary>
     /// Pipe transport of the worker; <paramref name="runInstall"/> is injected so tests can drive it without payloads.
-    /// It receives one writer for both progress lines and application statuses, so the two keep their relative order on the pipe.
+    /// It receives one writer for progress lines, application statuses and log lines, so they keep their relative
+    /// order on the pipe, and a token the UI cancels by writing a byte or by going away.
     /// </summary>
     internal static async Task<int> RunWorkerAsync(
         WorkerArguments arguments,
-        Func<IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>, Task<InstallOutcome>> runInstall)
+        Func<IProgress<TrayAppDotNETInstallProgress>, IProgress<InstallApplicationStatus>, CancellationToken, Task<InstallOutcome>> runInstall,
+        bool redirectLog = false)
     {
         // The .NET Framework has no IAsyncDisposable, so these are plain using declarations; disposal order
         // is unchanged, the writer closing before the pipe.
@@ -171,7 +167,7 @@ public static class ElevatedInstallWorker
         using NamedPipeClientStream pipe = new(
             LocalServerName,
             arguments.PipeName,
-            PipeDirection.Out,
+            PipeDirection.InOut,
             PipeOptions.Asynchronous,
             TokenImpersonationLevel.Anonymous);
         await pipe.ConnectAsync(ConnectTimeoutMs).ConfigureAwait(false);
@@ -180,18 +176,45 @@ public static class ElevatedInstallWorker
         using StreamWriter writer = new(pipe, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         writer.AutoFlush = true;
         PipeProgress progress = new(writer);
-        InstallOutcome outcome = await runInstall(progress, progress).ConfigureAwait(false);
+        if (redirectLog) InstallerLog.RedirectTo(progress.WriteLog);
+        using CancellationTokenSource cancellation = new();
+        _ = WatchForCancelAsync(pipe, cancellation);
+        InstallOutcome outcome = await runInstall(progress, progress, cancellation.Token).ConfigureAwait(false);
         progress.EnsureTerminalLine(outcome);
         return outcome.Success ? SuccessExitCode : FailureExitCode;
     }
 
+    /// <summary>Cancels the run once the UI writes a byte or closes its end of the pipe.</summary>
+    private static async Task WatchForCancelAsync(Stream pipe, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            byte[] buffer = new byte[1];
+            _ = await pipe.ReadAsync(buffer, offset: 0, count: 1).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            // A broken pipe means the window is gone, which cancels the run as well
+        }
+
+        try
+        {
+            cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The run already finished
+        }
+    }
+
     /// <summary>
-    /// UI side: starts the elevated worker and relays its progress and application statuses.
-    /// Runs in-process when already elevated.
+    /// UI side: starts the elevated worker and relays its progress, application statuses and log lines.
+    /// Runs in-process when already elevated. Cancelling <paramref name="cancellationToken"/> asks the worker to
+    /// stop, and the call still waits for the worker to report how far it got.
     /// </summary>
     public static async Task<InstallOutcome> RunElevatedAsync(
         InstallPlan plan,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken)
     {
@@ -201,6 +224,10 @@ public static class ElevatedInstallWorker
 
         if (SystemProbes.IsElevated())
             return await InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken).ConfigureAwait(false);
+
+        // The one over-the-shoulder policy shared with the apps: elevated work runs only as the signed-in user
+        if (TrayAppDotNETElevationPolicy.ElevationWouldUseAnotherAccount(InstallerLog.Write))
+            return Fail(L(nameof(AppStrings.Installer_Error_DifferentAdministratorAccount)), progress);
 
         string? executablePath = FrameworkCompatibility.ProcessPath;
         if (string.IsNullOrEmpty(executablePath))
@@ -212,24 +239,13 @@ public static class ElevatedInstallWorker
         string pipeName = $"{PipeNamePrefix}{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
         string[] workerArguments = BuildWorkerArguments(new WorkerArguments(
             pipeName,
-            plan.Mode,
             plan.CreateDesktopShortcut,
             plan.CreateStartMenuShortcut,
             applicationNames));
 
         try
         {
-            // PipeOptions.CurrentUserOnly does not exist on the .NET Framework, so the same guarantee comes
-            // from an explicit descriptor; see CreateCurrentUserOnlyPipeSecurity
-            using NamedPipeServerStream server = new(
-                pipeName,
-                PipeDirection.In,
-                maxNumberOfServerInstances: 1,
-                PipeTransmissionMode.Byte,
-                PipeOptions.Asynchronous,
-                DefaultPipeBufferSize,
-                DefaultPipeBufferSize,
-                CreateCurrentUserOnlyPipeSecurity());
+            using NamedPipeServerStream server = CreateProgressPipeServer(pipeName);
 
             ProcessStartInfo startInfo = new()
             {
@@ -262,10 +278,6 @@ public static class ElevatedInstallWorker
                     .ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException)
-        {
-            return Fail(L(nameof(AppStrings.Installer_Progress_Cancelled)), progress);
-        }
         catch (Exception exception)
         {
             InstallerLog.Write("ElevatedInstallWorker.RunElevatedAsync", exception);
@@ -277,12 +289,12 @@ public static class ElevatedInstallWorker
         NamedPipeServerStream server,
         Process worker,
         InstallPlan plan,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken)
     {
         Task workerExitTask = worker.WaitForExitAsync(CancellationToken.None);
-        Task connectTask = server.WaitForConnectionAsync(cancellationToken);
+        Task connectTask = server.WaitForConnectionAsync(CancellationToken.None);
         Task connectionTimeoutTask = Task.Delay(ConnectionWaitTimeoutMs, CancellationToken.None);
         Task firstTask = await Task.WhenAny(connectTask, workerExitTask, connectionTimeoutTask).ConfigureAwait(false);
         if (ReferenceEquals(firstTask, workerExitTask))
@@ -299,13 +311,17 @@ public static class ElevatedInstallWorker
 
         await connectTask.ConfigureAwait(false);
 
+        // The worker cannot be killed from here (it runs elevated), so cancelling asks it to stop and the relay
+        // keeps reading until it has reported where the run ended
+        using CancellationTokenRegistration cancelRegistration = cancellationToken.Register(() => RequestCancel(server));
         string? failureMessage = null;
-        using (StreamReader reader = new(server, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+        HashSet<string> installedApplications = new(StringComparer.OrdinalIgnoreCase);
+        using (StreamReader reader = new(server, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true))
         {
             string? line;
-            while ((line = await ReadLineAsync(reader, cancellationToken).ConfigureAwait(false)) != null)
+            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
             {
-                InstallProgressLine? relayed = RelayWorkerLine(line, progress, applicationProgress);
+                TrayAppDotNETInstallProgress? relayed = RelayWorkerLine(line, progress, applicationProgress, installedApplications);
                 if (relayed?.IsFailure == true) failureMessage = relayed.Message;
             }
         }
@@ -313,37 +329,68 @@ public static class ElevatedInstallWorker
         await workerExitTask.ConfigureAwait(false);
         int exitCode = worker.ExitCode;
         InstallerLog.Write($"ElevatedInstallWorker: worker exited with {exitCode}");
-        // The worker already sent the [FAIL] line, so it is not reported a second time
-        if (failureMessage != null) return new InstallOutcome(Success: false, failureMessage, []);
-        if (exitCode != SuccessExitCode) return Fail(Format(nameof(AppStrings.Installer_Error_WorkerExitCode_Format), exitCode), progress);
 
+        // The apps that finished are relaunched by the window whether or not the run as a whole succeeded
         List<string> installedExecutables = [];
         foreach (EmbeddedPayload payload in plan.Payloads)
         {
+            if (!installedApplications.Contains(payload.ApplicationName)) continue;
             installedExecutables.Add(InstallDefaults.InstalledExecutablePath(
                 plan.Mode, plan.TargetDirectory, payload.ApplicationName));
+        }
+
+        // The worker already sent the [FAIL] line, so it is not reported a second time
+        if (failureMessage != null) return new InstallOutcome(Success: false, failureMessage, installedExecutables);
+        if (exitCode != SuccessExitCode)
+        {
+            string message = Format(nameof(AppStrings.Installer_Error_WorkerExitCode_Format), exitCode);
+            progress.Report(TrayAppDotNETInstallProgress.Failed(message));
+            return new InstallOutcome(Success: false, message, installedExecutables);
         }
 
         return new InstallOutcome(Success: true, ErrorMessage: null, installedExecutables);
     }
 
-    /// <summary>
-    /// Forwards one line the worker wrote: an application status to <paramref name="applicationProgress"/>,
-    /// and a progress line to <paramref name="progress"/>.
-    /// Returns the progress line so the caller can see a failure, or null for a status or an unrecognized line.
-    /// </summary>
-    internal static InstallProgressLine? RelayWorkerLine(
-        string line,
-        IProgress<InstallProgressLine> progress,
-        IProgress<InstallApplicationStatus> applicationProgress)
+    private static void RequestCancel(NamedPipeServerStream server)
     {
+        try
+        {
+            server.WriteByte(CancelMessage);
+            server.Flush();
+            InstallerLog.Write("ElevatedInstallWorker: asked the worker to cancel");
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            InstallerLog.Write("ElevatedInstallWorker: could not ask the worker to cancel", exception);
+        }
+    }
+
+    /// <summary>
+    /// Forwards one line the worker wrote: a log line to the log, an application status to
+    /// <paramref name="applicationProgress"/> (remembering installed applications in
+    /// <paramref name="installedApplications"/>), and a progress line to <paramref name="progress"/>.
+    /// Returns the progress line so the caller can see a failure, or null for anything else.
+    /// </summary>
+    internal static TrayAppDotNETInstallProgress? RelayWorkerLine(
+        string line,
+        IProgress<TrayAppDotNETInstallProgress> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
+        ISet<string>? installedApplications = null)
+    {
+        if (line.StartsWith(LogLinePrefix, StringComparison.Ordinal))
+        {
+            InstallerLog.Write($"worker: {line.Substring(LogLinePrefix.Length)}");
+            return null;
+        }
+
         if (InstallApplicationStatus.TryParseLine(line, out InstallApplicationStatus? status))
         {
+            if (status.State == InstallApplicationState.Installed) installedApplications?.Add(status.ApplicationName);
             applicationProgress.Report(status);
             return null;
         }
 
-        if (InstallProgressLine.TryParseLine(line, out InstallProgressLine? parsed))
+        if (TrayAppDotNETInstallProgress.TryParseLine(line, out TrayAppDotNETInstallProgress? parsed))
         {
             progress.Report(parsed);
             return parsed;
@@ -353,37 +400,11 @@ public static class ElevatedInstallWorker
         return null;
     }
 
-    /// <summary>
-    /// Reads one line with cancellation. The .NET Framework only offers the parameterless
-    /// StreamReader.ReadLineAsync, so the read races a task the token completes. The abandoned read ends
-    /// when the caller disposes the reader and the pipe on its way out.
-    /// </summary>
-    private static async Task<string?> ReadLineAsync(StreamReader reader, CancellationToken cancellationToken)
-    {
-        Task<string> readTask = reader.ReadLineAsync();
-        if (!cancellationToken.CanBeCanceled) return await readTask.ConfigureAwait(false);
-
-        TaskCompletionSource<bool> cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        using (cancellationToken.Register(() => cancelled.TrySetResult(true)))
-        {
-            Task firstTask = await Task.WhenAny(readTask, cancelled.Task).ConfigureAwait(false);
-            if (ReferenceEquals(firstTask, readTask)) return await readTask.ConfigureAwait(false);
-        }
-
-        // Disposing the pipe faults the abandoned read, so its exception is observed here instead of being
-        // left to the unobserved task exception path
-        _ = readTask.ContinueWith(
-            static task => InstallerLog.Write("ElevatedInstallWorker: the cancelled pipe read ended", task.Exception!),
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        throw new OperationCanceledException(cancellationToken);
-    }
-
     private static Task<InstallOutcome> RunInstallAsync(
         WorkerArguments arguments,
-        IProgress<InstallProgressLine> progress,
-        IProgress<InstallApplicationStatus> applicationProgress)
+        IProgress<TrayAppDotNETInstallProgress> progress,
+        IProgress<InstallApplicationStatus> applicationProgress,
+        CancellationToken cancellationToken)
     {
         EmbeddedPayloadCatalog catalog = EmbeddedPayloadCatalog.Load();
         List<EmbeddedPayload> payloads = [];
@@ -395,7 +416,7 @@ public static class ElevatedInstallWorker
                 // Nothing has been installed yet, and this application is the one that stopped the run
                 string message = Format(nameof(AppStrings.Installer_Error_PayloadMissing_Format), applicationName);
                 applicationProgress.Report(new InstallApplicationStatus(applicationName, InstallApplicationState.Failed));
-                progress.Report(InstallProgressLine.Failed(message));
+                progress.Report(TrayAppDotNETInstallProgress.Failed(message));
                 return Task.FromResult(new InstallOutcome(Success: false, message, []));
             }
 
@@ -403,12 +424,12 @@ public static class ElevatedInstallWorker
         }
 
         InstallPlan plan = new(
-            arguments.Mode,
-            InstallDefaults.DefaultDirectory(arguments.Mode, catalog),
+            InstallMode.System,
+            InstallDefaults.DefaultDirectory(InstallMode.System, catalog),
             payloads,
             arguments.CreateDesktopShortcut,
             arguments.CreateStartMenuShortcut);
-        return InstallEngine.RunAsync(plan, progress, applicationProgress, CancellationToken.None);
+        return InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken);
     }
 
     /// <summary>
@@ -447,51 +468,49 @@ public static class ElevatedInstallWorker
         return security;
     }
 
-    private static InstallOutcome Fail(string message, IProgress<InstallProgressLine> progress)
+    /// <summary>
+    /// Creates the UI's end of the progress pipe with the current-user-only descriptor and the current user as
+    /// its explicit owner. Without the explicit owner an elevated UI would create a pipe owned by
+    /// BUILTIN\Administrators, which the worker's owner check rightly refuses; with it the check holds whether
+    /// or not the UI runs elevated.
+    /// </summary>
+    internal static NamedPipeServerStream CreateProgressPipeServer(string pipeName) =>
+        new(
+            pipeName,
+            PipeDirection.InOut,
+            maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            DefaultPipeBufferSize,
+            DefaultPipeBufferSize,
+            CreateCurrentUserOnlyPipeSecurity());
+
+    private static InstallOutcome Fail(string message, IProgress<TrayAppDotNETInstallProgress> progress)
     {
-        progress.Report(InstallProgressLine.Failed(message));
+        progress.Report(TrayAppDotNETInstallProgress.Failed(message));
         return new InstallOutcome(Success: false, message, []);
     }
 
-    private static string ModeToValue(InstallMode mode) => mode switch
+    private static bool TryParseOptionalBoolean(
+        string[] args,
+        string name,
+        out bool? value,
+        [NotNullWhen(false)] out string? error)
     {
-        InstallMode.Local => LocalModeValue,
-        InstallMode.System => SystemModeValue,
-        InstallMode.Portable => PortableModeValue,
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, message: "Unsupported install mode.")
-    };
+        value = null;
+        error = null;
+        if (!args.Any(argument => string.Equals(argument, name, StringComparison.OrdinalIgnoreCase))) return true;
 
-    private static bool TryParseMode(string? value, out InstallMode mode)
-    {
-        switch (value?.ToLowerInvariant())
-        {
-            case LocalModeValue:
-                mode = InstallMode.Local;
-                return true;
-            case SystemModeValue:
-                mode = InstallMode.System;
-                return true;
-            case PortableModeValue:
-                mode = InstallMode.Portable;
-                return true;
-            default:
-                mode = InstallMode.Local;
-                return false;
-        }
-    }
-
-    private static bool TryParseBoolean(string? value, out bool result)
-    {
-        switch (value?.ToLowerInvariant())
+        switch (TryGetArgumentValue(args, name)?.ToLowerInvariant())
         {
             case TrueValue:
-                result = true;
+                value = true;
                 return true;
             case FalseValue:
-                result = false;
+                value = false;
                 return true;
             default:
-                result = false;
+                error = $"{name} must be {TrueValue} or {FalseValue}.";
                 return false;
         }
     }
@@ -519,16 +538,16 @@ public static class ElevatedInstallWorker
     }
 
     /// <summary>
-    /// Writes progress lines and application status lines to the pipe.
-    /// The engine reports from several threads, and one gate keeps both kinds in the order they were reported.
+    /// Writes progress lines, application status lines and log lines to the pipe.
+    /// The engine reports from several threads, and one gate keeps every kind in the order it was reported.
     /// </summary>
-    private sealed class PipeProgress(TextWriter writer) : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
+    private sealed class PipeProgress(TextWriter writer) : IProgress<TrayAppDotNETInstallProgress>, IProgress<InstallApplicationStatus>
     {
         // Stands in for System.Threading.Lock, which the .NET Framework does not define
         private readonly object _gate = new();
         private bool _terminalLineWritten;
 
-        public void Report(InstallProgressLine value)
+        public void Report(TrayAppDotNETInstallProgress value)
         {
             FrameworkCompatibility.ThrowIfNull(value, nameof(value));
 
@@ -542,6 +561,9 @@ public static class ElevatedInstallWorker
             WriteLine(value.ToLine(), isTerminal: false);
         }
 
+        public void WriteLog(string line) =>
+            WriteLine(LogLinePrefix + TrayAppDotNETInstallProgress.SingleLine(line), isTerminal: false);
+
         /// <summary>Guarantees the UI sees a terminal line even when the engine returned without one.</summary>
         public void EnsureTerminalLine(InstallOutcome outcome)
         {
@@ -551,8 +573,8 @@ public static class ElevatedInstallWorker
             }
 
             Report(outcome.Success
-                ? InstallProgressLine.At(InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete)))
-                : InstallProgressLine.Failed(outcome.ErrorMessage ?? L(nameof(AppStrings.Installer_Status_Failed))));
+                ? TrayAppDotNETInstallProgress.At(TrayAppDotNETInstallProgress.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete)))
+                : TrayAppDotNETInstallProgress.Failed(outcome.ErrorMessage ?? L(nameof(AppStrings.Installer_Status_Failed))));
         }
 
         private void WriteLine(string line, bool isTerminal)
@@ -566,11 +588,13 @@ public static class ElevatedInstallWorker
                 }
                 catch (Exception exception) when (exception is IOException or ObjectDisposedException)
                 {
-                    InstallerLog.Write("ElevatedInstallWorker: pipe write failed", exception);
+                    // The log is redirected here, so a failed write only reaches the debugger
+                    Debug.WriteLine($"ElevatedInstallWorker: pipe write failed: {exception.Message}");
                 }
             }
         }
     }
+
     private static string L(string key) => LocalizationManager.Instance[key];
 
     private static string Format(string key, params object[] arguments) =>

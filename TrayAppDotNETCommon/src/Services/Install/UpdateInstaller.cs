@@ -2,13 +2,37 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
+using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services.Ipc;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;
 
-/// <summary>Runs the staged helper processes used to replace and restart an installed app.</summary>
+/// <summary>How handing a verified package to the update worker ended.</summary>
+internal enum UpdateLaunchResult
+{
+    HandedOff,
+    Failed,
+    AnotherUpdateRunning,
+    AdministratorAccountRequired
+}
+
+/// <summary>
+/// Runs the helper processes that replace and restart an installed app.
+/// <para>
+/// The worker is the installed exe itself (<c>--update-apply</c>), started elevated when the install folder needs it.
+/// It never runs code from the user's download folder: it copies the downloaded package into a staging folder inside
+/// the install folder, which only those allowed to change the install can write, checks the copy's SHA-256 against
+/// the published one, extracts it there and moves the app's payload files into place as a journaled transaction.
+/// The restarter (<c>--update-restart</c>) runs unelevated from the extracted download, waits for the worker and
+/// starts the apps it stopped again.
+/// </para>
+/// </summary>
 internal static class UpdateInstaller
 {
     internal const string ApplyArgument = "--update-apply";
@@ -19,13 +43,17 @@ internal static class UpdateInstaller
     private const int UnsafeFailureExitCode = 21;
     private const int CancelledExitCode = 22;
     private const int ValidationFailureExitCode = 23;
-    private const int WindowsErrorCancelled = 1223;
+    private const int AnotherUpdateRunningExitCode = 24;
+    private const int InstallFolderBusyExitCode = 25;
     private const int ProcessStopAttempts = 20;
     private const int TargetLockAttempts = 40;
     private const int LogWriteAttempts = 20;
     private const byte ReadyMessage = 1;
     private const byte CommitMessage = 2;
     private const byte CancelMessage = 3;
+    private const string PackageFileName = "package.zip";
+    private const string PayloadDirectoryName = "payload";
+    private const string RestartListFileName = ".update-restart-list";
 
     /// <summary>Returns true when the current process is an internal update helper.</summary>
     public static bool IsUpdateMode(string[] args) =>
@@ -54,12 +82,16 @@ internal static class UpdateInstaller
     }
 
     /// <summary>
-    /// Starts and validates the elevated worker, then starts the medium-integrity restarter before committing.
+    /// Starts and validates the worker, then starts the unelevated restarter before committing. The worker is
+    /// <paramref name="targetExecutable"/>; <paramref name="stagedExecutable"/>, the same exe extracted from the
+    /// download, only runs the unelevated restarter.
     /// </summary>
-    public static async Task<bool> LaunchAsync(
+    public static async Task<UpdateLaunchResult> LaunchAsync(
         string stagedExecutable,
         string targetExecutable,
         string downloadedArchive,
+        string archiveSha256,
+        int buildNumber,
         string installerLogPath,
         Action<string> log,
         CancellationToken token)
@@ -67,6 +99,7 @@ internal static class UpdateInstaller
         ArgumentException.ThrowIfNullOrWhiteSpace(stagedExecutable);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetExecutable);
         ArgumentException.ThrowIfNullOrWhiteSpace(downloadedArchive);
+        ArgumentException.ThrowIfNullOrWhiteSpace(archiveSha256);
         ArgumentException.ThrowIfNullOrWhiteSpace(installerLogPath);
         ArgumentNullException.ThrowIfNull(log);
 
@@ -79,23 +112,29 @@ internal static class UpdateInstaller
         if (IsWindowsAppsPath(targetPath))
         {
             log("Update: Windows Store installations must be updated through the Store.");
-            return false;
+            return UpdateLaunchResult.Failed;
         }
 
-        string pipeName = $"TrayAppDotNET.Update.{Environment.ProcessId}.{Guid.NewGuid():N}";
-        await using NamedPipeServerStream pipe = new(
-            pipeName,
-            PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        bool elevate = NeedsElevation(targetPath, log);
+        if (elevate && TrayAppDotNETElevationPolicy.ElevationWouldUseAnotherAccount(log))
+        {
+            log("Update: elevation would run under another account; the update needs an administrator account.");
+            return UpdateLaunchResult.AdministratorAccountRequired;
+        }
+
+        // Created here, unelevated, so the worker appends to an ordinary file of the user's
+        File.WriteAllText(installerLogPath, string.Empty);
+
+        string pipeName = TrayAppDotNETPipeSecurity.CreatePipeName("TrayAppDotNET.Update");
+        await using NamedPipeServerStream pipe = TrayAppDotNETPipeSecurity.CreateServer(pipeName, PipeDirection.InOut);
 
         using Process currentProcess = Process.GetCurrentProcess();
         long parentStartTimeTicks = currentProcess.StartTime.ToUniversalTime().Ticks;
-        bool elevate = NeedsElevation(targetPath, log);
         ProcessStartInfo workerStartInfo = BuildWorkerStartInfo(
-            stagedPath,
             targetPath,
+            downloadedArchive,
+            archiveSha256,
+            buildNumber,
             installerLogPath,
             pipeName,
             Environment.ProcessId,
@@ -110,16 +149,16 @@ internal static class UpdateInstaller
             {
                 worker = Process.Start(workerStartInfo);
             }
-            catch (Win32Exception exception) when (exception.NativeErrorCode == WindowsErrorCancelled)
+            catch (Win32Exception exception) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(exception))
             {
                 log("Update: UAC prompt was declined; the running app was left untouched.");
-                return false;
+                return UpdateLaunchResult.Failed;
             }
 
             if (worker == null)
             {
                 log("Update: Process.Start returned null for the update worker.");
-                return false;
+                return UpdateLaunchResult.Failed;
             }
 
             long workerStartTimeTicks = worker.StartTime.ToUniversalTime().Ticks;
@@ -134,16 +173,35 @@ internal static class UpdateInstaller
             {
                 await workerExitTask.ConfigureAwait(false);
                 log($"Update: worker exited before becoming ready with code {worker.ExitCode}.");
-                return false;
+                return worker.ExitCode == AnotherUpdateRunningExitCode
+                    ? UpdateLaunchResult.AnotherUpdateRunning
+                    : UpdateLaunchResult.Failed;
             }
 
             await connectTask.ConfigureAwait(false);
+            if (!TrayAppDotNETPipeSecurity.IsClient(pipe, worker.Id))
+            {
+                log($"Update: the update pipe was opened by another process than worker PID {worker.Id}.");
+                return UpdateLaunchResult.Failed;
+            }
+
             byte message = await ReadMessageAsync(pipe, token).ConfigureAwait(false);
             if (message != ReadyMessage)
             {
                 log("Update: worker disconnected before confirming readiness.");
-                return false;
+                return UpdateLaunchResult.Failed;
             }
+
+            bool stopSiblingApps = await ReadMessageAsync(pipe, token).ConfigureAwait(false) != 0;
+            string stagedDirectory = Path.GetDirectoryName(stagedPath)
+                                     ?? throw new InvalidOperationException("Cannot resolve the staged directory.");
+            List<string> restartExecutables = CollectRestartExecutables(targetPath, stopSiblingApps);
+            await File.WriteAllLinesAsync(
+                    Path.Combine(stagedDirectory, RestartListFileName),
+                    restartExecutables,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                    token)
+                .ConfigureAwait(false);
 
             ProcessStartInfo restarterStartInfo = BuildRestarterStartInfo(
                 stagedPath,
@@ -157,23 +215,24 @@ internal static class UpdateInstaller
             {
                 await WriteMessageAsync(pipe, CancelMessage, CancellationToken.None).ConfigureAwait(false);
                 log("Update: Process.Start returned null for the update restarter.");
-                return false;
+                return UpdateLaunchResult.Failed;
             }
 
             await WriteMessageAsync(pipe, CommitMessage, token).ConfigureAwait(false);
             committed = true;
             log($"Update: restarter PID {restarter.Id} is ready; shutting down for replacement.");
-            return true;
+            return UpdateLaunchResult.HandedOff;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             log("Update: handoff was cancelled; the running app was left untouched.");
-            return false;
+            return UpdateLaunchResult.Failed;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is IOException or InvalidOperationException
+                                              or UnauthorizedAccessException or Win32Exception)
         {
             log($"Update: failed to hand off to the worker: {exception}");
-            return false;
+            return UpdateLaunchResult.Failed;
         }
         finally
         {
@@ -183,8 +242,9 @@ internal static class UpdateInstaller
                 {
                     await WriteMessageAsync(pipe, CancelMessage, CancellationToken.None).ConfigureAwait(false);
                 }
-                catch
+                catch (IOException)
                 {
+                    // The worker already went away
                 }
             }
 
@@ -195,30 +255,47 @@ internal static class UpdateInstaller
     private static async Task<int> RunApplyAsync(string[] args, TrayAppDotNETProgramOptions options)
     {
         string logPath = RequiredArgument(args, name: "--log");
-        Action<string> log = message => AppendLog(logPath, $"worker: {message}");
+        // An older parent starts the worker without --archive and --sha256 and does not create the log first
+        bool legacyInvocation = IsLegacyApplyInvocation(args);
+        Action<string> log = message => AppendLog(logPath, $"worker: {message}", createIfMissing: legacyInvocation);
         bool commitReceived = false;
+        string? stagingDirectory = null;
+        string? targetDirectory = null;
         string? lockPath = null;
+        List<DetachedCleanupTarget> afterExit = [];
 
         try
         {
             int parentPID = RequiredIntArgument(args, name: "--parent-pid");
             long parentStartTimeTicks = RequiredLongArgument(args, name: "--parent-start");
+            int buildNumber = legacyInvocation ? 0 : RequiredIntArgument(args, name: "--build");
             string pipeName = RequiredArgument(args, name: "--pipe");
+            string? archivePath = legacyInvocation ? null : Path.GetFullPath(RequiredArgument(args, name: "--archive"));
+            string expectedSha256 = legacyInvocation
+                ? string.Empty
+                : UpdateCheckService.NormalizeSha256(RequiredArgument(args, name: "--sha256"));
             string targetExecutable = Path.GetFullPath(RequiredArgument(args, name: "--target"));
-            string sourceExecutable = Environment.ProcessPath
-                                      ?? throw new InvalidOperationException("Cannot resolve staged executable path.");
-            string sourceDirectory = Path.GetDirectoryName(sourceExecutable)
-                                     ?? throw new InvalidOperationException("Cannot resolve staged update directory.");
-            string targetDirectory = Path.GetDirectoryName(targetExecutable)
-                                     ?? throw new InvalidOperationException("Cannot resolve install directory.");
+            targetDirectory = Path.GetDirectoryName(targetExecutable)
+                              ?? throw new InvalidOperationException("Cannot resolve install directory.");
+            if (!legacyInvocation && expectedSha256.Length == 0)
+                throw new ArgumentException("The update has no valid SHA-256.");
 
-            if (!File.Exists(targetExecutable))
-                throw new FileNotFoundException(message: "Installed executable not found.", targetExecutable);
-            if (!File.Exists(Path.Combine(sourceDirectory, Path.GetFileName(targetExecutable))))
+            // The worker is the installed exe; it never runs from the download folder. Only the transitional
+            // invocation of an older parent runs this exe from the folder that parent extracted: that parent has
+            // already chosen to run it, elevated if needed, so refusing would protect nothing and would strand the
+            // install on the old build
+            string workerExecutable = Environment.ProcessPath
+                                      ?? throw new InvalidOperationException("Cannot resolve the worker path.");
+            if (!legacyInvocation
+                && !string.Equals(Path.GetFullPath(workerExecutable), targetExecutable, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The update worker must run from the installed executable.");
+
+            TrayAppDotNETInstallationService installation = options.Installation();
+            string applicationName = installation.Layout.ApplicationName;
+            if (legacyInvocation)
             {
-                throw new FileNotFoundException(
-                    message: "The staged update does not contain the installed executable.",
-                    Path.Combine(sourceDirectory, Path.GetFileName(targetExecutable)));
+                buildNumber = installation.CurrentBuildNumber;
+                log($"Transitional update from an older build to build {buildNumber}.");
             }
 
             using Process parent = RequireProcess(parentPID, parentStartTimeTicks, description: "update parent");
@@ -230,18 +307,35 @@ internal static class UpdateInstaller
                     StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The update parent does not match the target executable.");
 
+            lockPath = UpdateFileTransaction.LockPath(targetDirectory, applicationName);
+            await using FileStream? targetLock = AcquireTargetLock(lockPath, log);
+            if (targetLock == null)
+            {
+                lockPath = null;
+                log("Another update of this app is being installed; this one was not started.");
+                return AnotherUpdateRunningExitCode;
+            }
+
+            if (!UpdateFileTransaction.RecoverInterrupted(targetDirectory, applicationName, log))
+                throw new InvalidOperationException("An earlier interrupted update could not be rolled back.");
+
+            stagingDirectory = UpdateFileTransaction.NewStagingDirectory(targetDirectory, applicationName);
+            Directory.CreateDirectory(stagingDirectory);
+            string payloadDirectory = PrepareStagedPayload(
+                legacyInvocation,
+                Path.GetDirectoryName(workerExecutable)!,
+                archivePath,
+                expectedSha256,
+                stagingDirectory);
+
             UpdateFilePlan plan = UpdateFileTransaction.BuildPlan(
-                sourceDirectory,
+                payloadDirectory,
                 targetDirectory,
                 targetExecutable,
+                installation.Payload,
+                stagingDirectory,
                 log);
-            lockPath = Path.Combine(targetDirectory, path2: ".tadn-update.lock");
-            await using FileStream targetLock = AcquireTargetLock(lockPath, log);
-            await using NamedPipeClientStream pipe = new(
-                serverName: ".",
-                pipeName,
-                PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+            await using NamedPipeClientStream pipe = TrayAppDotNETPipeSecurity.CreateClient(pipeName, PipeDirection.InOut);
 
             Task connectTask = pipe.ConnectAsync();
             Task parentExitTask = parent.WaitForExitAsync();
@@ -253,8 +347,19 @@ internal static class UpdateInstaller
             }
 
             await connectTask.ConfigureAwait(false);
+            // The server must be the update parent in every case; only its owner rule depends on the handshake
+            if (!IsAcceptedServerOwner(pipe, legacyInvocation) || !TrayAppDotNETPipeSecurity.IsServer(pipe, parentPID))
+                throw new UnauthorizedAccessException("The update pipe is not served by the update parent.");
+
             await WriteMessageAsync(pipe, ReadyMessage, CancellationToken.None).ConfigureAwait(false);
-            log($"Validated {plan.Files.Count} files and acquired the install lock.");
+            // An old parent reads the ready byte only; the sibling flag is part of the current handshake
+            if (!legacyInvocation)
+            {
+                await WriteMessageAsync(pipe, plan.StopSiblingApps ? (byte)1 : (byte)0, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+
+            log($"Verified the package and planned {plan.Files.Count} files under the update lock.");
 
             byte command = await ReadMessageAsync(pipe, CancellationToken.None).ConfigureAwait(false);
             if (command != CommitMessage)
@@ -264,20 +369,22 @@ internal static class UpdateInstaller
             }
 
             commitReceived = true;
-            List<string> restartExecutables = CollectRestartExecutables(
-                targetExecutable,
-                plan.StopSiblingApps,
-                log);
-            string restartListPath = RestartListPath(sourceDirectory);
-            await File.WriteAllLinesAsync(
-                    restartListPath,
-                    restartExecutables,
-                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
-                .ConfigureAwait(false);
+            if (legacyInvocation)
+            {
+                // The old parent leaves the restart list to the worker, beside the restarter it started
+                WriteLegacyRestartList(
+                    Path.GetDirectoryName(workerExecutable)!,
+                    CollectRestartExecutables(targetExecutable, plan.StopSiblingApps),
+                    log);
+            }
 
             log("Commit received; waiting for the parent to exit.");
             await parentExitTask.ConfigureAwait(false);
-            StopInstalledProcesses(targetExecutable, plan.StopSiblingApps, log);
+            TrayAppDotNETInstalledProcesses.Stop(
+                TrayAppDotNETInstalledProcesses.ExecutablePaths(targetExecutable, plan.StopSiblingApps),
+                ProcessStopAttempts,
+                TimeConstants.UpdateProcessRetryDelayMs,
+                log);
 
             // Other apps' installs and updates write the same shared files into this folder. Mutex ownership
             // is per thread, so the lock covers only this synchronous stretch after the last await
@@ -290,19 +397,24 @@ internal static class UpdateInstaller
             {
                 // Nothing was replaced yet, so the restarter brings the previous version back up
                 log("Another install or update kept the install folder busy; the update was not applied.");
-                return RolledBackExitCode;
+                return InstallFolderBusyExitCode;
             }
 
             UpdateFileTransactionResult result = UpdateFileTransaction.Apply(plan, log);
+            foreach (string leftover in result.LeftoverPaths ?? [])
+                afterExit.Add(new DetachedCleanupTarget(DetachedCleanupAction.DeleteFile, leftover));
             switch (result.Status)
             {
                 case UpdateFileTransactionStatus.Succeeded:
+                    RefreshUninstallEntry(installation, targetExecutable, buildNumber, log);
                     log("Update completed successfully.");
                     return SuccessExitCode;
                 case UpdateFileTransactionStatus.FailedRolledBack:
                     log($"Update failed and was rolled back: {result.ErrorMessage}");
                     return RolledBackExitCode;
                 case UpdateFileTransactionStatus.FailedRollbackIncomplete:
+                    // The journal and the backups stay for the next update or install to finish the rollback
+                    stagingDirectory = null;
                     log($"Update failed and rollback was incomplete: {result.ErrorMessage}");
                     return UnsafeFailureExitCode;
                 default:
@@ -316,8 +428,12 @@ internal static class UpdateInstaller
         }
         finally
         {
-            if (!string.IsNullOrWhiteSpace(lockPath))
-                TryDeleteFile(lockPath, log);
+            if (stagingDirectory != null)
+                afterExit.Add(new DetachedCleanupTarget(DetachedCleanupAction.DeleteDirectoryTree, stagingDirectory));
+            if (lockPath != null)
+                afterExit.Add(new DetachedCleanupTarget(DetachedCleanupAction.DeleteFile, lockPath));
+            // Runs once this process, whose image may now be one of the backups, has exited
+            DetachedCleanup.Schedule(afterExit, log);
             options.FlushLog?.Invoke();
         }
     }
@@ -346,7 +462,7 @@ internal static class UpdateInstaller
             log($"Worker exited with code {workerExitCode}.");
 
             List<string> restartExecutables = ReadRestartExecutables(
-                RestartListPath(sourceDirectory),
+                Path.Combine(sourceDirectory, RestartListFileName),
                 targetExecutable,
                 log);
 
@@ -360,27 +476,35 @@ internal static class UpdateInstaller
                     StartApplications(restartExecutables, targetExecutable, log);
                     ShowUpdateError(
                         options.ApplicationName,
-                        "The update could not be installed. The previous version was restored and restarted.\n\n"
-                        + $"Details: {logPath}");
+                        Format(CommonStrings.UpdateError_RolledBack_Format, logPath));
                     ScheduleCleanup(sourceDirectory, archivePath, log);
                     return RolledBackExitCode;
+                case InstallFolderBusyExitCode:
+                    StartApplications(restartExecutables, targetExecutable, log);
+                    ShowUpdateError(
+                        options.ApplicationName,
+                        Format(CommonStrings.UpdateError_FolderBusy_Format, logPath));
+                    ScheduleCleanup(sourceDirectory, archivePath, log);
+                    return InstallFolderBusyExitCode;
                 case CancelledExitCode:
                     ScheduleCleanup(sourceDirectory, archivePath, log);
                     return CancelledExitCode;
                 case UnsafeFailureExitCode:
                     ShowUpdateError(
                         options.ApplicationName,
-                        "The update failed and could not be completely rolled back. The application was not "
-                        + "restarted to avoid loading a mixed installation.\n\n"
-                        + $"Recovery files and details were preserved at: {sourceDirectory}\n{logPath}");
+                        Format(CommonStrings.UpdateError_Unsafe_Format, logPath));
+                    ScheduleCleanup(sourceDirectory, archivePath, log);
                     return UnsafeFailureExitCode;
                 default:
-                    StartApplications(restartExecutables, targetExecutable, log);
-                    ShowUpdateError(
-                        options.ApplicationName,
-                        "The update worker failed before completing the installation.\n\n"
-                        + $"Details: {logPath}");
-                    return workerExitCode;
+                    return RecoverAfterUnknownExit(
+                        workerExitCode,
+                        restartExecutables,
+                        targetExecutable,
+                        sourceDirectory,
+                        archivePath,
+                        logPath,
+                        options,
+                        log);
             }
         }
         catch (Exception exception)
@@ -388,8 +512,7 @@ internal static class UpdateInstaller
             log($"Restarter failed: {exception}");
             ShowUpdateError(
                 options.ApplicationName,
-                "The update helper failed while waiting to restart the application.\n\n"
-                + $"Details: {logPath}");
+                Format(CommonStrings.UpdateError_HelperFailed_Format, logPath));
             return ValidationFailureExitCode;
         }
         finally
@@ -398,16 +521,106 @@ internal static class UpdateInstaller
         }
     }
 
-    private static ProcessStartInfo BuildWorkerStartInfo(
-        string stagedExecutable,
+    /// <summary>
+    /// A worker that ended with an unknown code (killed, crashed) may have stopped halfway through the replacement.
+    /// The apps restart only once the journal proves the folder is whole again.
+    /// </summary>
+    private static int RecoverAfterUnknownExit(
+        int workerExitCode,
+        List<string> restartExecutables,
         string targetExecutable,
+        string sourceDirectory,
+        string archivePath,
+        string logPath,
+        TrayAppDotNETProgramOptions options,
+        Action<string> log)
+    {
+        string targetDirectory = Path.GetDirectoryName(targetExecutable)
+                                 ?? throw new InvalidOperationException("Cannot resolve install directory.");
+        string applicationName = Path.GetFileNameWithoutExtension(targetExecutable);
+        bool recovered;
+        try
+        {
+            using FileStream? targetLock = AcquireTargetLock(UpdateFileTransaction.LockPath(targetDirectory, applicationName), log);
+            recovered = targetLock != null
+                        && UpdateFileTransaction.RecoverInterrupted(targetDirectory, applicationName, log);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                                              or InvalidOperationException or InvalidDataException)
+        {
+            log($"Could not check the install folder after the worker ended: {exception.Message}");
+            recovered = false;
+        }
+
+        ScheduleCleanup(sourceDirectory, archivePath, log);
+        if (!recovered)
+        {
+            ShowUpdateError(
+                options.ApplicationName,
+                Format(CommonStrings.UpdateError_WorkerStoppedNotRestarted_Format, workerExitCode, logPath));
+            return UnsafeFailureExitCode;
+        }
+
+        StartApplications(restartExecutables, targetExecutable, log);
+        ShowUpdateError(
+            options.ApplicationName,
+            Format(CommonStrings.UpdateError_WorkerStoppedRestored_Format, workerExitCode, logPath));
+        return RolledBackExitCode;
+    }
+
+    /// <summary>
+    /// Copies the downloaded package into the protected staging folder while hashing the copy, so the bytes that
+    /// are extracted are exactly the bytes that were verified.
+    /// </summary>
+    private static void CopyAndVerifyPackage(string sourcePath, string destinationPath, string expectedSha256)
+    {
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using (FileStream source = new(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (FileStream destination = new(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            byte[] buffer = new byte[81920];
+            int read;
+            while ((read = source.Read(buffer, offset: 0, buffer.Length)) > 0)
+            {
+                hash.AppendData(buffer, offset: 0, read);
+                destination.Write(buffer, offset: 0, read);
+            }
+        }
+
+        string actualSha256 = Convert.ToHexStringLower(hash.GetHashAndReset());
+        if (!string.Equals(actualSha256, expectedSha256, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"The update package's SHA-256 is {actualSha256}, but the release publishes {expectedSha256}.");
+        }
+    }
+
+    /// <summary>Records the installed build in the Apps &amp; Features entry of the scope that was updated.</summary>
+    private static void RefreshUninstallEntry(
+        TrayAppDotNETInstallationService installation,
+        string targetExecutable,
+        int buildNumber,
+        Action<string> log)
+    {
+        InstallScope? scope = installation.ScopeOfExecutable(targetExecutable);
+        if (scope == null) return;
+
+        if (!WindowsUninstallRegistry.UpdateVersion(scope.Value, installation.Identity, buildNumber, targetExecutable))
+            log($"Could not record build {buildNumber} in the uninstall entry.");
+    }
+
+    private static ProcessStartInfo BuildWorkerStartInfo(
+        string targetExecutable,
+        string archivePath,
+        string archiveSha256,
+        int buildNumber,
         string logPath,
         string pipeName,
         int parentPID,
         long parentStartTimeTicks,
         bool elevate)
     {
-        ProcessStartInfo startInfo = BuildHelperStartInfo(stagedExecutable, elevate);
+        ProcessStartInfo startInfo = BuildHelperStartInfo(targetExecutable, elevate);
         AddArgument(startInfo, ApplyArgument);
         AddArgument(startInfo, argument: "--parent-pid", parentPID.ToString(CultureInfo.InvariantCulture));
         AddArgument(
@@ -416,6 +629,9 @@ internal static class UpdateInstaller
             parentStartTimeTicks.ToString(CultureInfo.InvariantCulture));
         AddArgument(startInfo, argument: "--pipe", pipeName);
         AddArgument(startInfo, argument: "--target", targetExecutable);
+        AddArgument(startInfo, argument: "--archive", archivePath);
+        AddArgument(startInfo, argument: "--sha256", archiveSha256);
+        AddArgument(startInfo, argument: "--build", buildNumber.ToString(CultureInfo.InvariantCulture));
         AddArgument(startInfo, argument: "--log", logPath);
         return startInfo;
     }
@@ -482,7 +698,11 @@ internal static class UpdateInstaller
         await stream.FlushAsync(token).ConfigureAwait(false);
     }
 
-    private static FileStream AcquireTargetLock(string path, Action<string> log)
+    /// <summary>
+    /// Takes the app's own update lock, retrying briefly. Returns null while another worker of the same app holds
+    /// it; other apps updating in the same folder use their own lock.
+    /// </summary>
+    private static FileStream? AcquireTargetLock(string path, Action<string> log)
     {
         for (int attempt = 1; attempt <= TargetLockAttempts; attempt++)
         {
@@ -490,145 +710,27 @@ internal static class UpdateInstaller
             {
                 return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             }
-            catch (Exception exception) when (
-                exception is IOException or UnauthorizedAccessException
-                && attempt < TargetLockAttempts)
+            catch (IOException exception) when (attempt < TargetLockAttempts)
             {
-                log(
-                    $"Install lock is busy ({attempt}/{TargetLockAttempts}): {exception.Message}; retrying");
+                log($"Update lock is busy ({attempt}/{TargetLockAttempts}): {exception.Message}; retrying");
                 Thread.Sleep(TimeConstants.UpdateFileRetryDelayMs);
             }
+            catch (IOException exception)
+            {
+                log($"Update lock stayed busy: {exception.Message}");
+                return null;
+            }
         }
 
-        throw new InvalidOperationException("Update lock retry loop ended unexpectedly.");
+        return null;
     }
 
-    private static List<string> CollectRestartExecutables(
-        string targetExecutable,
-        bool includeSiblings,
-        Action<string> log)
+    private static List<string> CollectRestartExecutables(string targetExecutable, bool includeSiblings)
     {
-        HashSet<string> allowedExecutables = InstalledExecutablePaths(targetExecutable, includeSiblings);
-        HashSet<string> restartExecutables = new(StringComparer.OrdinalIgnoreCase)
-        {
-            Path.GetFullPath(targetExecutable)
-        };
-
-        foreach (Process process in Process.GetProcesses())
-        {
-            try
-            {
-                string? executable = TryGetProcessExecutable(process);
-                if (executable != null && allowedExecutables.Contains(Path.GetFullPath(executable)))
-                    restartExecutables.Add(Path.GetFullPath(executable));
-            }
-            catch (Exception exception)
-            {
-                log($"Could not inspect PID {SafeProcessID(process)}: {exception.Message}");
-            }
-            finally
-            {
-                process.Dispose();
-            }
-        }
-
+        HashSet<string> restartExecutables = new(StringComparer.OrdinalIgnoreCase) { Path.GetFullPath(targetExecutable) };
+        restartExecutables.UnionWith(TrayAppDotNETInstalledProcesses.RunningExecutables(
+            TrayAppDotNETInstalledProcesses.ExecutablePaths(targetExecutable, includeSiblings)));
         return [.. restartExecutables.Order(StringComparer.OrdinalIgnoreCase)];
-    }
-
-    private static void StopInstalledProcesses(
-        string targetExecutable,
-        bool includeSiblings,
-        Action<string> log)
-    {
-        HashSet<string> allowedExecutables = InstalledExecutablePaths(targetExecutable, includeSiblings);
-
-        for (int attempt = 1; attempt <= ProcessStopAttempts; attempt++)
-        {
-            List<Process> processes = FindProcesses(allowedExecutables);
-            if (processes.Count == 0) return;
-
-            foreach (Process process in processes)
-            {
-                try
-                {
-                    if (process.HasExited) continue;
-                    log($"Stopping PID {process.Id}: {TryGetProcessExecutable(process)}");
-                    process.Kill(true);
-                    process.WaitForExit(TimeConstants.UpdateProcessRetryDelayMs);
-                }
-                catch (Exception exception)
-                {
-                    log($"Could not stop PID {SafeProcessID(process)}: {exception.Message}");
-                }
-                finally
-                {
-                    process.Dispose();
-                }
-            }
-
-            if (attempt < ProcessStopAttempts)
-                Thread.Sleep(TimeConstants.UpdateProcessRetryDelayMs);
-        }
-
-        List<Process> remaining = FindProcesses(allowedExecutables);
-        try
-        {
-            if (remaining.Count > 0)
-            {
-                string processIDs = string.Join(separator: ", ", remaining.Select(SafeProcessID));
-                throw new IOException($"Could not stop installed process IDs: {processIDs}");
-            }
-        }
-        finally
-        {
-            foreach (Process process in remaining)
-                process.Dispose();
-        }
-    }
-
-    private static List<Process> FindProcesses(HashSet<string> allowedExecutables)
-    {
-        List<Process> matches = [];
-        foreach (Process process in Process.GetProcesses())
-        {
-            bool keep = false;
-            try
-            {
-                if (process.Id == Environment.ProcessId) continue;
-                // A process that has exited no longer opens, so this also stands in for HasExited
-                string? executable = TryGetProcessExecutable(process);
-                keep = executable != null && allowedExecutables.Contains(Path.GetFullPath(executable));
-                if (keep) matches.Add(process);
-            }
-            catch
-            {
-            }
-            finally
-            {
-                if (!keep) process.Dispose();
-            }
-        }
-
-        return matches;
-    }
-
-    private static HashSet<string> InstalledExecutablePaths(string targetExecutable, bool includeSiblings)
-    {
-        string normalizedTarget = Path.GetFullPath(targetExecutable);
-        HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase) { normalizedTarget };
-        if (!includeSiblings) return paths;
-
-        string? targetDirectory = Path.GetDirectoryName(normalizedTarget);
-        if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
-            return paths;
-
-        foreach (string executable in Directory.EnumerateFiles(targetDirectory, searchPattern: "*.exe"))
-        {
-            if (Path.GetFileName(executable).EndsWith(value: "TrayAppDotNET.exe", StringComparison.OrdinalIgnoreCase))
-                paths.Add(Path.GetFullPath(executable));
-        }
-
-        return paths;
     }
 
     private static List<string> ReadRestartExecutables(
@@ -647,7 +749,7 @@ internal static class UpdateInstaller
                         executables.Add(Path.GetFullPath(line.Trim()));
                 }
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 log($"Could not read restart list: {exception.Message}");
             }
@@ -667,81 +769,23 @@ internal static class UpdateInstaller
         Action<string> log)
     {
         string? settingsDirectory = TrayAppDotNETProgram.SettingsDirectoryOverride;
-        foreach (string executable in executables)
-        {
-            try
-            {
-                if (!File.Exists(executable))
-                {
-                    log($"Cannot restart missing executable: {executable}");
-                    continue;
-                }
-
-                ProcessStartInfo startInfo = new()
-                {
-                    FileName = executable,
-                    WorkingDirectory = Path.GetDirectoryName(executable) ?? ".",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                if (settingsDirectory != null
-                    && string.Equals(executable, targetExecutable, StringComparison.OrdinalIgnoreCase))
-                    AddArgument(startInfo, TrayAppDotNETProgram.SettingsDirectoryArgument, settingsDirectory);
-                using Process? process = Process.Start(startInfo);
-                log(process == null
-                    ? $"Process.Start returned null for {executable}"
-                    : $"Restarted {executable} as PID {process.Id}");
-            }
-            catch (Exception exception)
-            {
-                log($"Could not restart {executable}: {exception}");
-            }
-        }
+        _ = TrayAppDotNETInstalledProcesses.Start(
+            executables,
+            executable => settingsDirectory != null
+                          && string.Equals(executable, targetExecutable, StringComparison.OrdinalIgnoreCase)
+                ? [TrayAppDotNETProgram.SettingsDirectoryArgument, settingsDirectory]
+                : [],
+            log);
     }
 
-    private static void ScheduleCleanup(string sourceDirectory, string archivePath, Action<string> log)
-    {
-        string scriptPath = sourceDirectory.TrimEnd(Path.DirectorySeparatorChar) + ".cleanup.bat";
-        string delaySeconds = Math.Max(val1: 1, TimeConstants.UpdateCleanupRetryDelayMs / 1000)
-            .ToString(CultureInfo.InvariantCulture);
-        string escapedSource = EscapeBatchPath(sourceDirectory);
-        string escapedArchive = EscapeBatchPath(archivePath);
-        string script = $"""
-                          @echo off
-                          setlocal
-                          :retry
-                          rmdir /s /q "{escapedSource}" >nul 2>&1
-                          del /f /q "{escapedArchive}" >nul 2>&1
-                          if exist "{escapedSource}" goto wait
-                          if exist "{escapedArchive}" goto wait
-                          goto done
-                          :wait
-                          timeout /t {delaySeconds} /nobreak >nul 2>&1
-                          goto retry
-                          :done
-                          del /f /q "%~f0" >nul 2>&1
-                          """;
-
-        File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
-        ProcessStartInfo startInfo = new()
-        {
-            FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        startInfo.ArgumentList.Add("/d");
-        startInfo.ArgumentList.Add("/c");
-        startInfo.ArgumentList.Add(scriptPath);
-        using Process? cleanup = Process.Start(startInfo);
-        log(cleanup == null
-            ? $"Could not start cleanup script: {scriptPath}"
-            : $"Scheduled staging cleanup as PID {cleanup.Id}");
-    }
-
-    private static string EscapeBatchPath(string path) =>
-        path.Replace(oldValue: "%", newValue: "%%", StringComparison.Ordinal);
+    /// <summary>Removes the extracted download, which holds this restarter's own image, once it has exited.</summary>
+    private static void ScheduleCleanup(string sourceDirectory, string archivePath, Action<string> log) =>
+        DetachedCleanup.Schedule(
+            [
+                new DetachedCleanupTarget(DetachedCleanupAction.DeleteDirectoryTree, sourceDirectory),
+                new DetachedCleanupTarget(DetachedCleanupAction.DeleteFile, archivePath)
+            ],
+            log);
 
     private static bool NeedsElevation(string targetExecutable, Action<string> log)
     {
@@ -770,16 +814,6 @@ internal static class UpdateInstaller
         {
             log($"Update: target directory is not directly writable ({exception.Message}); requesting elevation.");
             return true;
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(probePath)) File.Delete(probePath);
-            }
-            catch
-            {
-            }
         }
     }
 
@@ -831,72 +865,45 @@ internal static class UpdateInstaller
         }
     }
 
-    private static int SafeProcessID(Process process)
-    {
-        try
-        {
-            return process.Id;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static string RestartListPath(string sourceDirectory) =>
-        Path.Combine(sourceDirectory, path2: ".update-restart-list");
-
-    private static void AppendLog(string logPath, string message)
+    private static void AppendLog(string logPath, string message, bool createIfMissing = false)
     {
         string line = $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}";
         for (int attempt = 1; attempt <= LogWriteAttempts; attempt++)
         {
             try
             {
-                string? directory = Path.GetDirectoryName(logPath);
-                if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+                // Appends only to the file the unelevated parent created, except for an older parent, which
+                // leaves creating it to the worker
                 using FileStream stream = new(
                     logPath,
-                    FileMode.Append,
+                    createIfMissing ? FileMode.OpenOrCreate : FileMode.Open,
                     FileAccess.Write,
                     FileShare.ReadWrite | FileShare.Delete);
+                stream.Seek(0, SeekOrigin.End);
                 using StreamWriter writer = new(stream, new UTF8Encoding(false));
                 writer.Write(line);
                 return;
             }
-            catch when (attempt < LogWriteAttempts)
+            catch (IOException) when (attempt < LogWriteAttempts)
             {
                 Thread.Sleep(TimeConstants.UpdateLogRetryDelayMs);
             }
-            catch
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 return;
             }
         }
     }
 
-    private static void TryDeleteFile(string path, Action<string> log)
-    {
-        try
-        {
-            if (File.Exists(path)) File.Delete(path);
-        }
-        catch (Exception exception)
-        {
-            log($"Could not delete {path}: {exception.Message}");
-        }
-    }
+    private static void ShowUpdateError(string applicationName, string message) =>
+        _ = User32.MessageBox(
+            IntPtr.Zero,
+            message,
+            Format(CommonStrings.UpdateError_Title_Format, applicationName),
+            User32.MB_ICONERROR);
 
-    private static void ShowUpdateError(string applicationName, string message)
-    {
-        try
-        {
-            _ = User32.MessageBox(IntPtr.Zero, message, $"{applicationName} Update", User32.MB_ICONERROR);
-        }
-        catch
-        {
-        }
-    }
+    private static string Format(string format, params object[] arguments) =>
+        string.Format(CultureInfo.CurrentCulture, format, arguments);
 
     private static string RequiredArgument(string[] args, string name)
     {
@@ -924,4 +931,96 @@ internal static class UpdateInstaller
 
     private static bool HasArgument(string[] args, string name) =>
         args.Any(argument => argument.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// True for the <c>--update-apply</c> command line of a build from before the verified-package handshake: no
+    /// <c>--archive</c> and no <c>--sha256</c>. Such a parent runs the downloaded exe as the worker and cannot be
+    /// updated any other way, so this one step applies the update the old way.
+    /// </summary>
+    internal static bool IsLegacyApplyInvocation(string[] args) =>
+        HasArgument(args, ApplyArgument) && !HasArgument(args, "--archive") && !HasArgument(args, "--sha256");
+
+    private static bool IsAcceptedServerOwner(NamedPipeClientStream pipe, bool legacyInvocation)
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        return IsAcceptedServerOwner(
+            pipe.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier,
+            TrayAppDotNETPipeSecurity.CurrentUser,
+            identity.Owner,
+            legacyInvocation);
+    }
+
+    /// <summary>
+    /// The owner rule for the update parent's pipe. The current handshake creates it with the user SID as explicit
+    /// owner, which holds elevated or not. An older parent created it with <see cref="PipeOptions.CurrentUserOnly"/>,
+    /// which leaves the token's default owner in place: <c>BUILTIN\Administrators</c> for an elevated administrator,
+    /// the common case with UAC turned off. Only for that transitional handshake is the default owner of this
+    /// process's token, the same account's, accepted too; the caller still requires the server to be the parent.
+    /// </summary>
+    internal static bool IsAcceptedServerOwner(
+        SecurityIdentifier? owner,
+        SecurityIdentifier currentUser,
+        SecurityIdentifier? tokenDefaultOwner,
+        bool legacyInvocation)
+    {
+        if (owner == null) return false;
+        if (owner.Equals(currentUser)) return true;
+        return legacyInvocation && tokenDefaultOwner != null && owner.Equals(tokenDefaultOwner);
+    }
+
+    /// <summary>Writes the restart list an older parent expects the worker to leave beside the restarter.</summary>
+    private static void WriteLegacyRestartList(string sourceDirectory, List<string> executables, Action<string> log)
+    {
+        string path = Path.Combine(sourceDirectory, RestartListFileName);
+        try
+        {
+            // CreateNew refuses a name planted in advance, link or file, instead of writing through it
+            using FileStream stream = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            using StreamWriter writer = new(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            foreach (string executable in executables) writer.WriteLine(executable);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The restarter still restarts the updated app itself; only siblings would stay stopped
+            log($"Could not write the restart list {path}: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Fills <c>payload\</c> inside <paramref name="stagingDirectory"/> and returns it. The current handshake copies
+    /// the downloaded package in while hashing that copy, refuses a hash other than <paramref name="expectedSha256"/>,
+    /// and extracts the verified copy. The transitional handshake of an older parent copies the folder that parent
+    /// extracted and started this exe from, so the installed files still come from the protected staging folder.
+    /// </summary>
+    internal static string PrepareStagedPayload(
+        bool legacyInvocation,
+        string workerDirectory,
+        string? archivePath,
+        string expectedSha256,
+        string stagingDirectory)
+    {
+        string payloadDirectory = Path.Combine(stagingDirectory, PayloadDirectoryName);
+        if (legacyInvocation)
+        {
+            CopyDirectory(workerDirectory, payloadDirectory);
+            return payloadDirectory;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
+        string packagePath = Path.Combine(stagingDirectory, PackageFileName);
+        CopyAndVerifyPackage(archivePath, packagePath, expectedSha256);
+        UpdateCheckService.ExtractZip(packagePath, payloadDirectory);
+        return payloadDirectory;
+    }
+
+    /// <summary>Copies every file under <paramref name="source"/> into <paramref name="destination"/>.</summary>
+    private static void CopyDirectory(string source, string destination)
+    {
+        string sourceRoot = Path.GetFullPath(source);
+        Directory.CreateDirectory(destination);
+        foreach (string directory in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(sourceRoot, directory)));
+        foreach (string file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+            File.Copy(file, Path.Combine(destination, Path.GetRelativePath(sourceRoot, file)), overwrite: false);
+    }
 }

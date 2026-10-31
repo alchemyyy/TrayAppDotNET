@@ -291,6 +291,18 @@
   <data name="Installer_Error_WorkerPathUnknown" xml:space="preserve">
     <value>The installer executable path is unknown.</value>
   </data>
+  <data name="Installer_Error_DifferentAdministratorAccount" xml:space="preserve">
+    <value>Installing for all users needs administrator rights for your own account. Windows would run the installation under a different administrator account, so shortcuts would end up in that account's profile. Sign in with an administrator account, or choose the installation for the current user.</value>
+  </data>
+  <data name="Installer_Error_AppInstallerStalled_Format" xml:space="preserve">
+    <value>The {0} installer stopped responding and was ended. {0} may be incomplete; run the installer again to repair it.</value>
+  </data>
+  <data name="Installer_Subtitle_Damaged_Format" xml:space="preserve">
+    <value>This installer is damaged ({0}). Download it again.</value>
+  </data>
+  <data name="Installer_Status_Cancelling" xml:space="preserve">
+    <value>Cancelling: apps already installing finish, the rest are skipped.</value>
+  </data>
   <data name="Installer_Error_WorkerStartFailed" xml:space="preserve">
     <value>The elevated installer could not be started.</value>
   </data>

@@ -25,7 +25,7 @@ public static class ExampleMode
 
     // Matches InstallEngine, so the bar moves the way it does during a real install
     private const int ExtractPortionEndPercent = 40;
-    private const int FullInnerPercent = InstallProgressLine.CompletePercent;
+    private const int FullInnerPercent = TrayAppDotNETInstallProgress.CompletePercent;
     private const int EntryDelayMilliseconds = 110;
     private const int StageDelayMilliseconds = 450;
     private const int SimulatedFailureExitCode = 1;
@@ -129,7 +129,7 @@ public static class ExampleMode
     /// </summary>
     public static async Task<InstallOutcome> RunAsync(
         InstallPlan plan,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         bool simulateFailure,
         CancellationToken cancellationToken)
@@ -179,8 +179,8 @@ public static class ExampleMode
                 firstFailureMessage, failedApplicationName: null, progress, applicationProgress, installedExecutables);
         }
 
-        progress.Report(InstallProgressLine.At(
-            InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
+        progress.Report(TrayAppDotNETInstallProgress.At(
+            TrayAppDotNETInstallProgress.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
         return new InstallOutcome(Success: true, ErrorMessage: null, installedExecutables);
     }
 
@@ -188,7 +188,7 @@ public static class ExampleMode
     private static async Task<string?> SimulateApplicationAsync(
         InstallPlan plan,
         EmbeddedPayload payload,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         bool fails,
         CancellationToken cancellationToken)
@@ -206,14 +206,14 @@ public static class ExampleMode
                 .ConfigureAwait(true);
 
             ProgressSlice installSlice = slice.Portion(ExtractPortionEndPercent, FullInnerPercent);
-            progress.Report(InstallProgressLine.At(
+            progress.Report(TrayAppDotNETInstallProgress.At(
                 installSlice.StartPercent,
                 Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
             await Task.Delay(StageDelayMilliseconds, cancellationToken).ConfigureAwait(true);
 
             if (!fails)
             {
-                progress.Report(InstallProgressLine.At(installSlice.EndPercent, DescribeInstalled(plan, payload)));
+                progress.Report(TrayAppDotNETInstallProgress.At(installSlice.EndPercent, DescribeInstalled(plan, payload)));
                 applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installed));
                 return null;
             }
@@ -235,14 +235,14 @@ public static class ExampleMode
     private static async Task SimulateExtractionAsync(
         EmbeddedPayload payload,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<string> entryNames = EntryNamesFor(payload.ApplicationName);
+        List<string> entryNames = EntryNamesFor(payload.ApplicationName);
         for (int entryIndex = 0; entryIndex < entryNames.Count; entryIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            progress.Report(InstallProgressLine.At(
+            progress.Report(TrayAppDotNETInstallProgress.At(
                 slice.Map(entryIndex * FullInnerPercent / entryNames.Count),
                 Format(
                     nameof(AppStrings.Installer_Progress_Extracting_Format),
@@ -251,12 +251,12 @@ public static class ExampleMode
             await Task.Delay(EntryDelayMilliseconds, cancellationToken).ConfigureAwait(true);
         }
 
-        progress.Report(InstallProgressLine.At(
+        progress.Report(TrayAppDotNETInstallProgress.At(
             slice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Extracted_Format), payload.ApplicationName)));
     }
 
     /// <summary>The executable first, then the shared native libraries a release package carries.</summary>
-    private static IReadOnlyList<string> EntryNamesFor(string applicationName)
+    private static List<string> EntryNamesFor(string applicationName)
     {
         List<string> entryNames = [applicationName + InstallDefaults.ExecutableExtension];
         entryNames.AddRange(SharedEntryNames);

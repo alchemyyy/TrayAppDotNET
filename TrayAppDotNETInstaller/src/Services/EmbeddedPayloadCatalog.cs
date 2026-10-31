@@ -24,12 +24,19 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
     // Stands in for System.Threading.Lock, which the .NET Framework does not define
     private static readonly object LoadGate = new();
     private static EmbeddedPayloadCatalog? LoadedCatalog;
+    private const string ReasonPrefix = "PayloadArchive: ";
 
     private readonly PayloadArchive? _archive;
     private readonly string? _developmentDirectory;
     private bool _disposed;
 
     public IReadOnlyList<EmbeddedPayload> Payloads { get; }
+
+    /// <summary>
+    /// Why a Release installer found no usable payload (a truncated or altered download), or null. The window shows
+    /// it instead of an empty app list.
+    /// </summary>
+    public string? DamageReason { get; private init; }
 
     public bool IsBundle => Payloads.Count > 1;
 
@@ -169,13 +176,12 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
         throw new InvalidOperationException($"This installer carries no payload for {payload.ApplicationName}.");
     }
 
-    /// <summary>Releases the handle on the appended archive. The process calls this once, on the way out.</summary>
+    /// <summary>Forgets the process-wide catalog. The process calls this once, on the way out.</summary>
     public void Dispose()
     {
         if (_disposed) return;
 
         _disposed = true;
-        _archive?.Dispose();
         lock (LoadGate)
         {
             if (ReferenceEquals(LoadedCatalog, this)) LoadedCatalog = null;
@@ -186,7 +192,10 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
     private static EmbeddedPayloadCatalog CreateForProcess()
     {
         string? imagePath = FrameworkCompatibility.ProcessPath;
-        PayloadArchive? archive = FrameworkCompatibility.IsNullOrEmpty(imagePath) ? null : PayloadArchive.TryOpen(imagePath);
+        PayloadArchive? archive = null;
+        string? failureReason = null;
+        if (!FrameworkCompatibility.IsNullOrEmpty(imagePath))
+            archive = PayloadArchive.TryOpen(imagePath, InstallerLog.Write, out failureReason);
         if (archive != null)
         {
             List<EmbeddedPayload> archivePayloads = [];
@@ -205,6 +214,8 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
             return new EmbeddedPayloadCatalog(archivePayloads, archive, developmentDirectory: null);
         }
 
+#if DEBUG
+        // A Debug build is never a stamped installer; "dotnet run" reads plain release zips from beside it
         string? developmentDirectory = FindDevelopmentDirectory();
         if (developmentDirectory != null)
         {
@@ -227,8 +238,19 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
 
         InstallerLog.Write("EmbeddedPayloadCatalog: no appended archive and no development payload directory; the catalog is empty");
         return new EmbeddedPayloadCatalog([], archive: null, developmentDirectory: null);
+#else
+        // A Release build is what a stamped installer is, so a missing or damaged archive means a damaged
+        // download; a stray Payloads folder next to it is never installed
+        string damage = failureReason ?? "no payload archive";
+        InstallerLog.Write($"EmbeddedPayloadCatalog: the installer is damaged: {damage}");
+        return new EmbeddedPayloadCatalog([], archive: null, developmentDirectory: null)
+        {
+            DamageReason = damage.StartsWith(ReasonPrefix, StringComparison.Ordinal) ? damage.Substring(ReasonPrefix.Length) : damage
+        };
+#endif
     }
 
+#if DEBUG
     /// <summary>
     /// Looks for the development payload directory beside the executable. The base directory is probed as
     /// well so a "dotnet TrayAppDotNETInstaller.dll" launch, where the process is dotnet itself, still works.
@@ -253,4 +275,5 @@ public sealed class EmbeddedPayloadCatalog : IDisposable
 
         return null;
     }
+#endif
 }

@@ -26,6 +26,23 @@ public sealed record TrayAppDotNETStartMenuShortcutOptions(
 /// </summary>
 public sealed class TrayAppDotNETStartMenuShortcut(TrayAppDotNETStartMenuShortcutOptions options)
 {
+    /// <summary>
+    /// True when the current user's Start Menu Programs folder holds any of the app's entries (plain or with a
+    /// Local/System suffix). Installs use it to leave entries the user removed alone, and installer windows to
+    /// preset their Start Menu choice.
+    /// </summary>
+    public static bool HasAnyShortcut(string applicationName)
+    {
+        string programsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        string[] fileNames =
+        [
+            $"{applicationName}.lnk",
+            $"{applicationName} ({TrayAppDotNETStartMenuShortcutOptions.LocalSuffix}).lnk",
+            $"{applicationName} ({TrayAppDotNETStartMenuShortcutOptions.SystemSuffix}).lnk"
+        ];
+        return fileNames.Any(fileName => File.Exists(Path.Combine(programsDirectory, fileName)));
+    }
+
     public void Sync(InstallScope? removingScope = null, bool allUsers = false)
     {
         try

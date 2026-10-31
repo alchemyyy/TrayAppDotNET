@@ -44,7 +44,7 @@ public sealed class PayloadArchiveTests : IDisposable
 
         PayloadArchiveWriter.Append(targetPath, [firstPayload, secondPayload], _log.Add);
 
-        using PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
+        PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
         Assert.NotNull(archive);
         Assert.Equal(2, archive.Entries.Count);
         Assert.Equal(FirstPayloadName, archive.Entries[0].FileName);
@@ -71,7 +71,7 @@ public sealed class PayloadArchiveTests : IDisposable
 
         PayloadArchiveWriter.Append(targetPath, [payload], _log.Add);
 
-        using PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
+        PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
         Assert.NotNull(archive);
         using Stream entryStream = archive.OpenEntry(archive.Entries[0]);
         using ZipArchive zip = new(entryStream, ZipArchiveMode.Read);
@@ -89,7 +89,7 @@ public sealed class PayloadArchiveTests : IDisposable
 
         FlipByte(targetPath, FakeImageLength + 16);
 
-        using PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
+        PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
         Assert.NotNull(archive);
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() => archive.OpenEntry(archive.Entries[0]));
         Assert.Contains(FirstPayloadName, exception.Message, StringComparison.Ordinal);
@@ -139,7 +139,7 @@ public sealed class PayloadArchiveTests : IDisposable
 
         // The directory sits immediately before the trailer, so its first byte is the format version
         long directoryOffset;
-        using (PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add))
+        PayloadArchive? archive = PayloadArchive.TryOpen(targetPath, _log.Add);
         {
             Assert.NotNull(archive);
             directoryOffset = archive.Entries[0].DataOffset + archive.Entries[0].DataLength;

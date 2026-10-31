@@ -102,7 +102,7 @@ public static class InstallerFactory
                 payloadPaths.Add(fullPath);
             }
 
-            using (PayloadArchive? alreadyStamped = PayloadArchive.TryOpen(factoryImagePath, WriteVerbose))
+            PayloadArchive? alreadyStamped = PayloadArchive.TryOpen(factoryImagePath, WriteVerbose);
             {
                 if (alreadyStamped != null)
                 {
@@ -384,9 +384,9 @@ public static class InstallerFactory
     /// matched against the SHA-256 its header records. A hand written codec is exactly the thing that should
     /// never be trusted on a structural check alone, so no installer is published without one decode pass.
     /// </summary>
-    private static bool VerifyPayloadArchive(string imagePath, IReadOnlyList<string>? expectedFileNames)
+    private static bool VerifyPayloadArchive(string imagePath, List<string>? expectedFileNames)
     {
-        using PayloadArchive? archive = PayloadArchive.TryOpen(imagePath, WriteVerbose);
+        PayloadArchive? archive = PayloadArchive.TryOpen(imagePath, WriteVerbose);
         if (archive == null)
         {
             WriteError($"{imagePath} does not read back as a payload archive.");

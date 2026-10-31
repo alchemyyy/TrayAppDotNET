@@ -1,15 +1,25 @@
-using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace TrayAppDotNETCommon.UI.Controls;
+
+/// <summary>
+/// Starts the uninstall the window confirmed: scope, whether to delete settings, the action that exits this process
+/// when it is the copy being removed, and the progress sink.
+/// </summary>
+public delegate TrayAppDotNETUninstallRun TrayAppDotNETRunUninstall(
+    InstallScope scope,
+    bool deleteSettings,
+    Action exitCurrentProcess,
+    IProgress<TrayAppDotNETInstallProgress>? progress);
 
 public sealed record TrayAppDotNETUninstallerWindowOptions
 {
@@ -21,28 +31,63 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
     public required SettingsPalette Palette { get; init; }
     public required bool EnableRoundedCorners { get; init; }
     public required Func<string, string> L { get; init; }
-    public required Func<InstallScope, bool, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETUninstallRun> RunUninstall { get; init; }
+    public required TrayAppDotNETRunUninstall RunUninstall { get; init; }
+
+    /// <summary>Exits this process through the app's exit path when it is the installed copy being removed.</summary>
+    public Action ExitCurrentProcess { get; init; } = TrayAppDotNETAppLifetime.Exit;
 
     /// <summary>Optional sink that receives the uninstall stage reports, typically the settings card.</summary>
     public IProgress<TrayAppDotNETInstallProgress>? Progress { get; init; }
+
+    /// <summary>
+    /// Builds the options for an app from its install services. A missing settings value keeps rounded corners on,
+    /// the default every other window uses.
+    /// </summary>
+    public static TrayAppDotNETUninstallerWindowOptions Create(
+        TrayAppDotNETAppInstallServices install,
+        InstallScope scope,
+        WindowIcon? icon,
+        SettingsPalette palette,
+        bool? enableRoundedCorners,
+        IProgress<TrayAppDotNETInstallProgress>? progress)
+    {
+        ArgumentNullException.ThrowIfNull(install);
+        ArgumentNullException.ThrowIfNull(palette);
+
+        return new TrayAppDotNETUninstallerWindowOptions
+        {
+            ApplicationName = install.ApplicationName,
+            InstallDirectory = install.InstallDirectory(scope),
+            SettingsDirectory = install.SettingsDirectory,
+            InstallScope = scope,
+            Icon = icon,
+            Palette = palette,
+            EnableRoundedCorners = enableRoundedCorners ?? true,
+            L = static key => LocalizationManager.Instance[key],
+            Progress = progress,
+            RunUninstall = (uninstallScope, deleteSettings, exitCurrentProcess, uninstallProgress) =>
+                install.Installation.RunUninstall(uninstallScope, deleteSettings, exitCurrentProcess, uninstallProgress)
+        };
+    }
 }
 
 /// <summary>
-/// Shared custom-chrome uninstaller confirmation window.
+/// Shared custom-chrome uninstaller confirmation window. It closes once the uninstall has started; when the UAC
+/// prompt is declined or the uninstall cannot start, it stays open and says so.
 /// </summary>
-public class TrayAppDotNETUninstallerWindow : Window, IDisposable
+public sealed class TrayAppDotNETUninstallerWindow : Window, IDisposable
 {
-    private const int UninstallProcessOwnershipGraceMs = 5000;
     private const string SettingsChoiceGroupName = "SettingsChoice";
 
+    private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TrayAppDotNETUninstallerWindowOptions? _options;
     private RadioButton? _keepSettings;
     private RadioButton? _deleteSettings;
     private SettingsButton? _uninstallButton;
     private SettingsButton? _cancelButton;
+    private TextBlock? _errorText;
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _contentGeneration;
-    private UninstallProcessOwner? _uninstallProcessOwner;
     private int _disposeState;
     private bool _closed;
     private bool _uninstallStarted;
@@ -95,9 +140,11 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         }
     }
 
-    public Process? UninstallProcess => Interlocked.Exchange(ref _uninstallProcessOwner, value: null)?.Transfer();
-
-    public bool ConfirmedUninstall { get; private set; }
+    /// <summary>
+    /// Completes when the window closes: true when the uninstall started, false when it was cancelled or never
+    /// started.
+    /// </summary>
+    public Task<bool> Completion => _completion.Task;
 
     private static RadioButton CreateChoiceRadio(bool isChecked) =>
         new()
@@ -168,6 +215,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         TextBlock header = TrayAppDotNETSettingsUI.SectionHeader(
             FormatApplicationName(nameof(CommonStrings.Uninstaller_SectionHeader)),
@@ -200,8 +248,18 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         Grid.SetRow(choices, value: 2);
         body.Children.Add(choices);
 
+        // Why an uninstall did not start (UAC declined, the helper failed to launch); hidden until then
+        TextBlock errorText = TrayAppDotNETSettingsUI.DescriptionText(
+            string.Empty,
+            Options.Palette,
+            TrayAppDotNETDialogChromeLayout.DescriptionMargin);
+        errorText.IsVisible = false;
+        _errorText = errorText;
+        Grid.SetRow(errorText, value: 3);
+        body.Children.Add(errorText);
+
         StackPanel buttons = BuildButtons(resources);
-        Grid.SetRow(buttons, value: 3);
+        Grid.SetRow(buttons, value: 4);
         body.Children.Add(buttons);
         return body;
     }
@@ -234,15 +292,6 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
             Margin = TrayAppDotNETDialogChromeLayout.ActionButtonsMargin,
             Children = { cancel, uninstall }
         };
-    }
-
-    private void TrackUninstallProcess(Process? process)
-    {
-        UninstallProcessOwner? replacement = process == null
-            ? null
-            : new UninstallProcessOwner(process, UninstallProcessOwnershipGraceMs);
-        UninstallProcessOwner? previous = Interlocked.Exchange(ref _uninstallProcessOwner, replacement);
-        previous?.Dispose();
     }
 
     private Border BuildOptionCard(
@@ -318,19 +367,74 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
         TrayAppDotNETUninstallerWindowOptions options = Options;
         bool deleteSettings = _deleteSettings?.IsChecked == true;
-        _uninstallStarted = true;
-        if (_uninstallButton != null)
+        SetBusy(busy: true);
+
+        // Reports made while starting reach the sink only once the uninstall is known to have started; a declined
+        // UAC prompt or a failed start is shown here instead, and the window stays open for another try
+        StartupProgressBuffer startupProgress = new(options.Progress);
+        bool exitingCurrentProcess = false;
+        TrayAppDotNETUninstallRun run;
+        try
         {
-            _uninstallButton.IsEnabled = false;
-            _uninstallButton.Text = L(nameof(CommonStrings.Uninstaller_UninstallingButton));
+            run = options.RunUninstall(
+                options.InstallScope,
+                deleteSettings,
+                () =>
+                {
+                    exitingCurrentProcess = true;
+                    _uninstallStarted = true;
+                    options.ExitCurrentProcess();
+                },
+                startupProgress);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"TrayAppDotNETUninstallerWindow: uninstall failed to start: {exception}");
+            ShowStartFailure(exception.Message);
+            return;
         }
 
-        _cancelButton?.IsEnabled = false;
+        run.Process?.Dispose();
+        if (run.UserCancelled)
+        {
+            ShowStartFailure(L(nameof(CommonStrings.Uninstall_Progress_Cancelled)));
+            return;
+        }
 
-        ConfirmedUninstall = true;
-        TrayAppDotNETUninstallRun run = options.RunUninstall(options.InstallScope, deleteSettings, options.Progress);
-        TrackUninstallProcess(run.Process);
-        Close();
+        if (run.Process == null && !exitingCurrentProcess)
+        {
+            ShowStartFailure(run.ErrorMessage ?? L(nameof(CommonStrings.Uninstall_Progress_NotStarted)));
+            return;
+        }
+
+        _uninstallStarted = true;
+        startupProgress.Release();
+        _completion.TrySetResult(true);
+        if (!_closed) Close();
+    }
+
+    private void ShowStartFailure(string message)
+    {
+        if (_closed) return;
+
+        SetBusy(busy: false);
+        if (_errorText == null) return;
+
+        _errorText.Text = message;
+        _errorText.IsVisible = true;
+    }
+
+    private void SetBusy(bool busy)
+    {
+        if (_uninstallButton != null)
+        {
+            _uninstallButton.IsEnabled = !busy;
+            _uninstallButton.Text = L(busy
+                ? nameof(CommonStrings.Uninstaller_UninstallingButton)
+                : nameof(CommonStrings.Uninstaller_UninstallButton));
+        }
+
+        _cancelButton?.IsEnabled = !busy;
     }
 
     private void OnCancelClick(object? sender, EventArgs e)
@@ -339,7 +443,11 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         Close();
     }
 
-    private void OnWindowClosed(object? sender, EventArgs e) => DisposeCore();
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        _completion.TrySetResult(_uninstallStarted);
+        DisposeCore();
+    }
 
     /// <summary>Closes the dialog when necessary and releases all window-owned resources.</summary>
     public void Dispose()
@@ -386,6 +494,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         _deleteSettings = null;
         _uninstallButton = null;
         _cancelButton = null;
+        _errorText = null;
         _options = null;
     }
 
@@ -422,118 +531,44 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
     private string L(string key) => Options.L(key);
 
-    private sealed class UninstallProcessOwner : IDisposable
+    /// <summary>
+    /// Holds the progress reports made while an uninstall is being started, and passes them and every later one on
+    /// only once <see cref="Release"/> confirms the start. Reports of a start that failed are never passed on.
+    /// </summary>
+    private sealed class StartupProgressBuffer(IProgress<TrayAppDotNETInstallProgress>? sink)
+        : IProgress<TrayAppDotNETInstallProgress>
     {
         private readonly Lock _gate = new();
-        private readonly int _ownershipGraceMilliseconds;
-        private Process? _process;
-        private Timer? _disposalTimer;
-        private bool _finished;
+        private List<TrayAppDotNETInstallProgress>? _pending = [];
 
-        public UninstallProcessOwner(Process process, int ownershipGraceMilliseconds)
+        public void Report(TrayAppDotNETInstallProgress value)
         {
-            ArgumentNullException.ThrowIfNull(process);
-            _process = process;
-            _ownershipGraceMilliseconds = ownershipGraceMilliseconds;
+            if (sink == null) return;
 
-            try
-            {
-                process.EnableRaisingEvents = true;
-                process.Exited += OnProcessExited;
-                if (process.HasExited)
-                    ScheduleUnclaimedDisposal();
-            }
-            catch
-            {
-                Dispose();
-                throw;
-            }
-        }
-
-        public Process? Transfer()
-        {
-            Process? process;
-            Timer? disposalTimer;
             lock (_gate)
             {
-                if (_finished) return null;
-
-                _finished = true;
-                process = _process;
-                _process = null;
-                disposalTimer = _disposalTimer;
-                _disposalTimer = null;
-            }
-
-            disposalTimer?.Dispose();
-            DetachExitedHandler(process);
-            return process;
-        }
-
-        private void OnProcessExited(object? sender, EventArgs e)
-        {
-            lock (_gate)
-            {
-                if (_finished || !ReferenceEquals(sender, _process))
+                if (_pending != null)
+                {
+                    _pending.Add(value);
                     return;
+                }
             }
 
-            ScheduleUnclaimedDisposal();
+            sink.Report(value);
         }
 
-        private void ScheduleUnclaimedDisposal()
+        public void Release()
         {
+            List<TrayAppDotNETInstallProgress>? pending;
             lock (_gate)
             {
-                if (_finished || _disposalTimer != null) return;
-
-                _disposalTimer = new Timer(
-                    static state => ((UninstallProcessOwner)state!).Dispose(),
-                    this,
-                    _ownershipGraceMilliseconds,
-                    Timeout.Infinite);
-            }
-        }
-
-        public void Dispose()
-        {
-            Process? process;
-            Timer? disposalTimer;
-            lock (_gate)
-            {
-                if (_finished) return;
-
-                _finished = true;
-                process = _process;
-                _process = null;
-                disposalTimer = _disposalTimer;
-                _disposalTimer = null;
+                pending = _pending;
+                _pending = null;
             }
 
-            disposalTimer?.Dispose();
-            DetachExitedHandler(process);
-            try
-            {
-                process?.Dispose();
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"Uninstall process disposal failed: {exception.Message}");
-            }
-        }
+            if (sink == null || pending == null) return;
 
-        private void DetachExitedHandler(Process? process)
-        {
-            if (process == null) return;
-
-            try
-            {
-                process.Exited -= OnProcessExited;
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"Uninstall process event detachment failed: {exception.Message}");
-            }
+            foreach (TrayAppDotNETInstallProgress value in pending) sink.Report(value);
         }
     }
 }

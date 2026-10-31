@@ -15,7 +15,6 @@ public sealed class ElevatedInstallWorkerTests
     {
         WorkerArguments original = new(
             "TrayAppDotNETInstaller.123.abc",
-            InstallMode.System,
             CreateDesktopShortcut: true,
             CreateStartMenuShortcut: false,
             ["VolumeTrayAppDotNET", "BatteryTrayAppDotNET"]);
@@ -28,29 +27,29 @@ public sealed class ElevatedInstallWorkerTests
         Assert.Null(error);
         Assert.NotNull(result);
         Assert.Equal(original.PipeName, result.PipeName);
-        Assert.Equal(original.Mode, result.Mode);
         Assert.Equal(original.CreateDesktopShortcut, result.CreateDesktopShortcut);
         Assert.Equal(original.CreateStartMenuShortcut, result.CreateStartMenuShortcut);
         Assert.Equal(original.ApplicationNames, result.ApplicationNames);
     }
 
     [Fact]
-    public void BuildWorkerArguments_UsesTheDocumentedShape()
+    public void WorkerArguments_LeaveOutUnsetShortcutChoices()
     {
         string[] arguments = ElevatedInstallWorker.BuildWorkerArguments(new WorkerArguments(
-            "pipe", InstallMode.System, CreateDesktopShortcut: false, CreateStartMenuShortcut: true, ["A", "B"]));
+            "pipe", CreateDesktopShortcut: null, CreateStartMenuShortcut: true, ["A", "B"]));
+        bool parsed = ElevatedInstallWorker.TryParseWorkerArguments(arguments, out WorkerArguments? result, out _);
 
-        Assert.Equal(
-            ["--worker", "--pipe", "pipe", "--mode", "system", "--desktop-shortcut", "false", "--start-menu-shortcut", "true", "--apps", "A,B"],
-            arguments);
+        Assert.Equal(["--worker", "--pipe", "pipe", "--start-menu-shortcut", "true", "--apps", "A,B"], arguments);
+        Assert.True(parsed);
+        Assert.Null(result!.CreateDesktopShortcut);
+        Assert.True(result.CreateStartMenuShortcut);
     }
 
     [Theory]
-    [InlineData("--worker --mode system --desktop-shortcut true --start-menu-shortcut true --apps A")]
-    [InlineData("--worker --pipe p --mode remote --desktop-shortcut true --start-menu-shortcut true --apps A")]
-    [InlineData("--worker --pipe p --mode system --desktop-shortcut yes --start-menu-shortcut true --apps A")]
-    [InlineData("--worker --pipe p --mode system --desktop-shortcut true --start-menu-shortcut true")]
-    [InlineData("--worker --pipe p --mode system --desktop-shortcut true --start-menu-shortcut true --apps ,")]
+    [InlineData("--worker --desktop-shortcut true --start-menu-shortcut true --apps A")]
+    [InlineData("--worker --pipe p --desktop-shortcut yes --start-menu-shortcut true --apps A")]
+    [InlineData("--worker --pipe p --desktop-shortcut true --start-menu-shortcut true")]
+    [InlineData("--worker --pipe p --desktop-shortcut true --start-menu-shortcut true --apps ,")]
     public void TryParseWorkerArguments_RejectsIncompleteOrInvalidInput(string commandLine)
     {
         // The .NET Framework has no Split(char, StringSplitOptions) overload, so the separator is an array
@@ -73,22 +72,16 @@ public sealed class ElevatedInstallWorkerTests
     [Fact]
     public async Task RunWorkerAsync_WritesProgressLinesToPipeAndReturnsSuccess()
     {
-        // The .NET Framework has neither IAsyncDisposable nor PipeOptions.CurrentUserOnly. Production pins
-        // the pipe to the current user with a PipeSecurity descriptor; this pipe only needs to carry bytes
-        // between two tasks in one process, so the plain options are enough.
+        // The production pipe, so the worker's owner check sees the same descriptor it sees in a real run,
+        // elevated or not
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
-        using NamedPipeServerStream server = new(
-            pipeName,
-            PipeDirection.In,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
-        WorkerArguments arguments = new(pipeName, InstallMode.System, false, true, ["A"]);
+        using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: false, CreateStartMenuShortcut: true, ["A"]);
 
-        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, (progress, _) =>
+        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, (progress, _, _) =>
         {
-            progress.Report(InstallProgressLine.At(10, "ten"));
-            progress.Report(InstallProgressLine.At(100, "done"));
+            progress.Report(TrayAppDotNETInstallProgress.At(10, "ten"));
+            progress.Report(TrayAppDotNETInstallProgress.At(100, "done"));
             return Task.FromResult(new InstallOutcome(Success: true, ErrorMessage: null, []));
         });
 
@@ -101,20 +94,41 @@ public sealed class ElevatedInstallWorkerTests
     }
 
     [Fact]
+    public async Task RunWorkerAsync_CancelsTheRunWhenTheWindowWritesTheCancelByte()
+    {
+        string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
+        using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: null, ["A"]);
+
+        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static async (progress, _, cancellationToken) =>
+        {
+            progress.Report(TrayAppDotNETInstallProgress.At(5, "started"));
+            TaskCompletionSource<bool> cancelled = new();
+            using (cancellationToken.Register(() => cancelled.TrySetResult(true)))
+                await cancelled.Task.ConfigureAwait(false);
+            return new InstallOutcome(Success: false, "cancelled", []);
+        });
+
+        await server.WaitForConnectionAsync();
+        server.WriteByte(1);
+        server.Flush();
+        List<string> lines = await ReadAllLinesAsync(server);
+        int exitCode = await workerTask;
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal(["[5%] started", "[FAIL] cancelled"], lines);
+    }
+
+    [Fact]
     public async Task RunWorkerAsync_AppendsFailureLineWhenEngineReturnsFailureSilently()
     {
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
-        using NamedPipeServerStream server = new(
-            pipeName,
-            PipeDirection.In,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
-        WorkerArguments arguments = new(pipeName, InstallMode.System, false, true, ["A"]);
+        using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: true, ["A"]);
 
-        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, _) =>
+        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, _, _) =>
         {
-            progress.Report(InstallProgressLine.At(5, "started"));
+            progress.Report(TrayAppDotNETInstallProgress.At(5, "started"));
             return Task.FromResult(new InstallOutcome(Success: false, "boom", []));
         });
 
@@ -130,25 +144,19 @@ public sealed class ElevatedInstallWorkerTests
     public async Task RunWorkerAsync_WritesApplicationStatusLinesBetweenProgressLines()
     {
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
-        using NamedPipeServerStream server = new(
-            pipeName,
-            PipeDirection.In,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
+        using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
         WorkerArguments arguments = new(
             pipeName,
-            InstallMode.System,
             CreateDesktopShortcut: false,
             CreateStartMenuShortcut: true,
             [FirstApplicationName]);
 
-        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, applicationProgress) =>
+        Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, applicationProgress, _) =>
         {
             applicationProgress.Report(new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installing));
-            progress.Report(InstallProgressLine.At(percent: 50, message: "half"));
+            progress.Report(TrayAppDotNETInstallProgress.At(percent: 50, message: "half"));
             applicationProgress.Report(new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installed));
-            progress.Report(InstallProgressLine.At(percent: 100, message: "done"));
+            progress.Report(TrayAppDotNETInstallProgress.At(percent: 100, message: "done"));
             return Task.FromResult(new InstallOutcome(Success: true, ErrorMessage: null, []));
         });
 
@@ -167,34 +175,34 @@ public sealed class ElevatedInstallWorkerTests
         List<object> reported =
         [
             new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installing),
-            InstallProgressLine.At(percent: 25, message: "Installing A"),
+            TrayAppDotNETInstallProgress.At(percent: 25, message: "Installing A"),
             new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installed),
             new InstallApplicationStatus(SecondApplicationName, InstallApplicationState.Installing),
-            InstallProgressLine.At(percent: 75, message: "Installing B"),
+            TrayAppDotNETInstallProgress.At(percent: 75, message: "Installing B"),
             new InstallApplicationStatus(SecondApplicationName, InstallApplicationState.Failed),
-            InstallProgressLine.Failed(SecondApplicationFailure)
+            TrayAppDotNETInstallProgress.Failed(SecondApplicationFailure)
         ];
         List<string> lines = [];
         foreach (object report in reported)
         {
             lines.Add(report switch
             {
-                InstallProgressLine line => line.ToLine(),
+                TrayAppDotNETInstallProgress line => line.ToLine(),
                 InstallApplicationStatus status => status.ToLine(),
                 _ => throw new InvalidOperationException("Unexpected report type.")
             });
         }
 
         RelayRecorder recorder = new();
-        List<InstallProgressLine> failures = [];
+        List<TrayAppDotNETInstallProgress> failures = [];
         foreach (string line in lines)
         {
-            InstallProgressLine? relayed = ElevatedInstallWorker.RelayWorkerLine(line, recorder, recorder);
+            TrayAppDotNETInstallProgress? relayed = ElevatedInstallWorker.RelayWorkerLine(line, recorder, recorder);
             if (relayed?.IsFailure == true) failures.Add(relayed);
         }
 
         Assert.Equal(reported, recorder.Reports);
-        Assert.Equal([InstallProgressLine.Failed(SecondApplicationFailure)], failures);
+        Assert.Equal([TrayAppDotNETInstallProgress.Failed(SecondApplicationFailure)], failures);
     }
 
     [Theory]
@@ -205,7 +213,7 @@ public sealed class ElevatedInstallWorkerTests
     {
         RelayRecorder recorder = new();
 
-        InstallProgressLine? relayed = ElevatedInstallWorker.RelayWorkerLine(line, recorder, recorder);
+        TrayAppDotNETInstallProgress? relayed = ElevatedInstallWorker.RelayWorkerLine(line, recorder, recorder);
 
         Assert.Null(relayed);
         Assert.Empty(recorder.Reports);
@@ -221,11 +229,11 @@ public sealed class ElevatedInstallWorkerTests
     }
 
     /// <summary>Records progress lines and application statuses in one list, so their relative order can be asserted.</summary>
-    private sealed class RelayRecorder : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
+    private sealed class RelayRecorder : IProgress<TrayAppDotNETInstallProgress>, IProgress<InstallApplicationStatus>
     {
         public List<object> Reports { get; } = [];
 
-        public void Report(InstallProgressLine value) => Reports.Add(value);
+        public void Report(TrayAppDotNETInstallProgress value) => Reports.Add(value);
 
         public void Report(InstallApplicationStatus value) => Reports.Add(value);
     }

@@ -1,3 +1,4 @@
+using TrayAppDotNETCommon.Contracts;
 using TrayAppDotNETCommon.Models;
 
 namespace TrayAppDotNETCommon.Services.Install;
@@ -16,7 +17,7 @@ public sealed record TrayAppDotNETInstallLayout(
         Path.Combine(ProgramFilesInstallDirectory, InstalledExecutableFileName);
 
     /// <summary>
-    /// Where uninstall preparation moves the exe until the batch stage deletes it. The name is outside the "*.exe"
+    /// Where uninstall preparation moves the exe until the detached removal deletes it. The name is outside the "*.exe"
     /// pattern, so a concurrent uninstall does not count the app as still installed.
     /// </summary>
     public static string PendingRemovalExecutablePath(string installedExecutable) => installedExecutable + ".uninstalling";
@@ -24,21 +25,18 @@ public sealed record TrayAppDotNETInstallLayout(
     public string WindowsAppsRoot { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), path2: "WindowsApps");
 
-    // Local installs live in their own folder because the shared LocalAppData root also holds each app's
-    // settings directory, its log and the shared versions manifest.
-    public const string InstalledApplicationsFolderName = "apps";
-
     public string LocalAppDataExecutableProfileRelativePath =>
         Path.Combine(
             "AppData",
             "Local",
             SharedRootFolderName,
-            InstalledApplicationsFolderName,
+            TrayAppDotNETInstallContract.InstalledApplicationsFolderName,
             InstalledExecutableFileName);
 
     /// <summary>
     /// Builds the layout from the shared LocalAppData root. The installed binaries land in the
-    /// <see cref="InstalledApplicationsFolderName"/> subfolder of that root, beside the settings folders.
+    /// <see cref="TrayAppDotNETInstallContract.InstalledApplicationsFolderName"/> subfolder of that root, beside the
+    /// settings folders.
     /// </summary>
     public static TrayAppDotNETInstallLayout Create(
         string applicationName,
@@ -46,7 +44,9 @@ public sealed record TrayAppDotNETInstallLayout(
         string localAppDataRoot)
     {
         string installedExecutableFileName = applicationName + ".exe";
-        string localAppDataInstallDirectory = Path.Combine(localAppDataRoot, InstalledApplicationsFolderName);
+        string localAppDataInstallDirectory = Path.Combine(
+            localAppDataRoot,
+            TrayAppDotNETInstallContract.InstalledApplicationsFolderName);
         string programFilesInstallDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             sharedRootFolderName);
@@ -109,6 +109,9 @@ public sealed record TrayAppDotNETInstallPayload(
             ToDirectories(optionalDirectories ?? []));
     }
 
+    private static TrayAppDotNETInstallFile SharedFile(string name) =>
+        new(name, RemoveOnlyWhenInstallRootHasNoExe: true);
+
     public static TrayAppDotNETInstallPayload NativeAOTApp(
         string applicationName,
         IEnumerable<string>? requiredDirectories = null,
@@ -116,17 +119,12 @@ public sealed record TrayAppDotNETInstallPayload(
     {
         TrayAppDotNETInstallFile[] requiredFiles =
         [
-            new(Name: "av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            .. TrayAppDotNETInstallContract.SharedNativeDllNames.Select(SharedFile),
             .. CreateLegalFiles()
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
-        [
-            new(Name: "libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new(Name: "MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
-        ];
+            [.. TrayAppDotNETInstallContract.OptionalSharedNativeDllNames.Select(SharedFile)];
         TrayAppDotNETInstallDirectory[] resolvedRequiredDirectories =
         [
             new(ThirdPartyNoticesDirectoryName, RemoveOnlyWhenInstallRootHasNoExe: true),

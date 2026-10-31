@@ -87,10 +87,10 @@ public sealed class InstallApplicationStatusTests
     [InlineData(InstallApplicationState.NotInstalled)]
     public void ProgressParser_RejectsStatusLines(InstallApplicationState state)
     {
-        // InstallProgressLine mirrors the TrayAppDotNETCommon parser, so neither reads a status line as progress
+        // TrayAppDotNETInstallProgress mirrors the TrayAppDotNETCommon parser, so neither reads a status line as progress
         string line = new InstallApplicationStatus(ApplicationName, state).ToLine();
 
-        bool parsed = InstallProgressLine.TryParseLine(line, out InstallProgressLine? result);
+        bool parsed = TrayAppDotNETInstallProgress.TryParseLine(line, out TrayAppDotNETInstallProgress? result);
 
         Assert.False(parsed);
         Assert.Null(result);

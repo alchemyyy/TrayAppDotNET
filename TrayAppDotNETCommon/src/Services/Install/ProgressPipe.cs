@@ -1,5 +1,6 @@
 using System.IO.Pipes;
 using System.Text;
+using TrayAppDotNETCommon.Services.Ipc;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;
@@ -7,6 +8,8 @@ namespace TrayAppDotNETCommon.Services.Install;
 /// <summary>
 /// Receives progress lines from an elevated install helper over a named pipe. The normal-integrity app
 /// owns the server, the helper started through the UAC "runas" verb is the client, mirroring UpdateInstaller.
+/// The pipe follows <see cref="TrayAppDotNETPipeSecurity"/>: only this account can open it, and the client checks
+/// that this account owns it.
 /// </summary>
 public sealed class TrayAppDotNETProgressPipeServer : IDisposable
 {
@@ -35,12 +38,7 @@ public sealed class TrayAppDotNETProgressPipeServer : IDisposable
         PipeName = pipeName;
         _target = target;
         _log = log ?? TADNLog.Log;
-        _stream = new NamedPipeServerStream(
-            pipeName,
-            PipeDirection.In,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        _stream = TrayAppDotNETPipeSecurity.CreateServer(pipeName, PipeDirection.In);
         _loop = ReadLoopAsync(_cancellation.Token);
     }
 
@@ -182,7 +180,7 @@ public sealed class TrayAppDotNETProgressPipeClient : IProgress<TrayAppDotNETIns
 
     /// <summary>
     /// Connects to the server pipe within <paramref name="timeoutMilliseconds"/>. Returns null, after logging,
-    /// when the pipe does not exist, times out, or refuses the caller.
+    /// when the pipe does not exist, times out, refuses the caller, or is not owned by this account.
     /// </summary>
     public static TrayAppDotNETProgressPipeClient? TryConnect(
         string pipeName,
@@ -192,22 +190,22 @@ public sealed class TrayAppDotNETProgressPipeClient : IProgress<TrayAppDotNETIns
         ArgumentException.ThrowIfNullOrWhiteSpace(pipeName);
         Action<string> logger = log ?? TADNLog.Log;
 
-        NamedPipeClientStream stream = new(
-            serverName: ".",
-            pipeName,
-            PipeDirection.Out,
-            PipeOptions.Asynchronous);
+        NamedPipeClientStream stream = TrayAppDotNETPipeSecurity.CreateClient(pipeName, PipeDirection.Out);
         try
         {
             stream.Connect(timeoutMilliseconds);
-            return new TrayAppDotNETProgressPipeClient(stream, logger);
+            if (TrayAppDotNETPipeSecurity.IsServerOwnedByCurrentUser(stream))
+                return new TrayAppDotNETProgressPipeClient(stream, logger);
+
+            logger($"{LogPrefix}: {pipeName} is not owned by this account; not reporting progress to it.");
         }
         catch (Exception exception) when (exception is TimeoutException or IOException or UnauthorizedAccessException)
         {
             logger($"{LogPrefix}: could not connect to {pipeName}: {exception.Message}");
-            Safe.Dispose(stream);
-            return null;
         }
+
+        Safe.Dispose(stream);
+        return null;
     }
 
     /// <summary>Writes one progress line. Drops the line, after logging once, when the pipe is broken or disposed.</summary>

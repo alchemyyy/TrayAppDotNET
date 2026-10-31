@@ -3,7 +3,7 @@ namespace TrayAppDotNETInstaller.Services;
 /// <summary>A contiguous percent range of the overall progress bar, used to rescale per-app progress.</summary>
 public readonly record struct ProgressSlice(int StartPercent, int EndPercent)
 {
-    private const int FullPercent = InstallProgressLine.CompletePercent;
+    private const int FullPercent = TrayAppDotNETInstallProgress.CompletePercent;
 
     public static ProgressSlice Full => new(StartPercent: 0, FullPercent);
 

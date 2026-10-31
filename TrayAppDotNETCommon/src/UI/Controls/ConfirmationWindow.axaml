@@ -1,0 +1,32 @@
+<ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.Controls.ConfirmationWindowResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Window geometry and chrome -->
+    <sys:Double x:Key="ConfirmationWindow.WindowWidth">320</sys:Double>
+    <sys:Double x:Key="ConfirmationWindow.WindowMinWidth">200</sys:Double>
+    <sys:Double x:Key="ConfirmationWindow.FlyoutVerticalAnchorRatio">0.3333333333333333</sys:Double>
+    <Thickness x:Key="ConfirmationWindow.RootBorderThickness">1</Thickness>
+    <CornerRadius x:Key="ConfirmationWindow.RootCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="ConfirmationWindow.ZeroCornerRadius">0</CornerRadius>
+    <sys:Double x:Key="ConfirmationWindow.TitleBarHeight">32</sys:Double>
+    <Thickness x:Key="ConfirmationWindow.TitleMargin">16,0,0,0</Thickness>
+
+    <Thickness x:Key="ConfirmationWindow.BodyMargin">16,8,20,20</Thickness>
+    <!-- Modal update content -->
+    <Thickness x:Key="ConfirmationWindow.ModalBodyMargin">16,8,0,0</Thickness>
+    <sys:Double x:Key="ConfirmationWindow.ModalTitleFontSize">18</sys:Double>
+    <Thickness x:Key="ConfirmationWindow.ModalDescriptionMargin">0,10,0,0</Thickness>
+    <sys:Double x:Key="ConfirmationWindow.VersionLineHeightPadding">6</sys:Double>
+    <sys:Double x:Key="ConfirmationWindow.ModalLinkSpacing">0</sys:Double>
+    <Thickness x:Key="ConfirmationWindow.ModalLinksMargin">0,8,18,0</Thickness>
+    <Thickness x:Key="ConfirmationWindow.ModalRestartNoticeMargin">0,8,0,-4</Thickness>
+    <Thickness x:Key="ConfirmationWindow.ModalActionButtonsMargin">-4,12,12,11</Thickness>
+    <sys:Double x:Key="ConfirmationWindow.ModalActionButtonSpacing">6</sys:Double>
+    <!-- Dialog actions -->
+    <Thickness x:Key="ConfirmationWindow.ActionButtonPadding">14,6</Thickness>
+    <Thickness x:Key="ConfirmationWindow.SecondaryButtonMargin">0,0,0,6</Thickness>
+    <Thickness x:Key="ConfirmationWindow.ActionButtonsMargin">0,20,0,0</Thickness>
+</ResourceDictionary>

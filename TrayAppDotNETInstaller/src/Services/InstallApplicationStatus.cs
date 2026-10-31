@@ -42,7 +42,7 @@ public sealed record InstallApplicationStatus(string ApplicationName, InstallApp
 
     /// <summary>Formats the status as one worker line: "[APP:Installing] VolumeTrayAppDotNET".</summary>
     public string ToLine() =>
-        $"{LinePrefix}{StateToToken(State)}{LineClose} {InstallProgressLine.SingleLine(ApplicationName)}";
+        $"{LinePrefix}{StateToToken(State)}{LineClose} {TrayAppDotNETInstallProgress.SingleLine(ApplicationName)}";
 
     /// <summary>Parses one worker line. Progress lines and anything else malformed return false.</summary>
     public static bool TryParseLine(string? line, [NotNullWhen(true)] out InstallApplicationStatus? status)

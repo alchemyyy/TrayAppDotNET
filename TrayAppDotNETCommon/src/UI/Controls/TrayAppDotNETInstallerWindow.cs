@@ -63,11 +63,11 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         _installPath = BuildInstallPathText();
         _desktopShortcut = BuildShortcutCheckBox(
                 L(nameof(CommonStrings.Installer_DesktopShortcut)),
-                options.InitialInstallOptions.CreateDesktopShortcut)
+                DesktopPreset(options.InitialScope))
             .MapTo(ControlMap.Installer.Shortcuts.DesktopShortcut);
         _startMenuShortcut = BuildShortcutCheckBox(
                 L(nameof(CommonStrings.Installer_StartMenuShortcut)),
-                options.InitialInstallOptions.CreateStartMenuShortcut)
+                StartMenuPreset(options.InitialScope))
             .MapTo(ControlMap.Installer.Shortcuts.StartMenuShortcut);
 
         Title = FormatApplicationName(nameof(CommonStrings.Installer_Title_Format));
@@ -124,10 +124,13 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         _ => throw new InvalidOperationException($"Unsupported installer scope '{_selectedScope}'.")
     };
 
-    /// <summary>Gets the currently selected shortcut options.</summary>
+    /// <summary>
+    /// Gets the selected shortcut options. A choice left as preset is null, so the install leaves that shortcut as
+    /// it is instead of rewriting or deleting it.
+    /// </summary>
     public TrayAppDotNETInstallOptions SelectedInstallOptions => new(
-        _desktopShortcut.IsChecked == true,
-        _startMenuShortcut.IsChecked == true);
+        _desktopShortcut.IsChecked == DesktopPreset(_selectedScope) ? null : _desktopShortcut.IsChecked == true,
+        _startMenuShortcut.IsChecked == StartMenuPreset(_selectedScope) ? null : _startMenuShortcut.IsChecked == true);
 
     private Border BuildRoot(UIResourceScope resources)
     {
@@ -329,8 +332,37 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         if (_closed || _selectedScope == scope) return;
 
         ValidateScope(scope);
+        // A choice the user has not changed follows the shortcuts of the newly selected scope
+        bool desktopUnchanged = _desktopShortcut.IsChecked == DesktopPreset(_selectedScope);
+        bool startMenuUnchanged = _startMenuShortcut.IsChecked == StartMenuPreset(_selectedScope);
         _selectedScope = scope;
+        if (desktopUnchanged) _desktopShortcut.IsChecked = DesktopPreset(scope);
+        if (startMenuUnchanged) _startMenuShortcut.IsChecked = StartMenuPreset(scope);
         UpdateSelectedLocation();
+    }
+
+    /// <summary>The desktop choice that matches what is there now: checked when the scope's shortcut exists.</summary>
+    private bool DesktopPreset(InstallScope scope)
+    {
+        if (_options.InitialInstallOptions.CreateDesktopShortcut is { } initial) return initial;
+
+        TrayAppDotNETDesktopShortcutOptions shortcuts = new(_options.Layout.ApplicationName, _options.Layout);
+        return File.Exists(scope == InstallScope.ProgramFiles ? shortcuts.SystemShortcutPath : shortcuts.LocalShortcutPath);
+    }
+
+    /// <summary>
+    /// The Start Menu choice that matches what is there now: checked for a fresh install and while an entry
+    /// exists, unchecked for an installed copy whose entries the user removed.
+    /// </summary>
+    private bool StartMenuPreset(InstallScope scope)
+    {
+        if (_options.InitialInstallOptions.CreateStartMenuShortcut is { } initial) return initial;
+
+        string installedExecutable = scope == InstallScope.ProgramFiles
+            ? _options.Layout.ProgramFilesInstallExecutable
+            : _options.Layout.LocalAppDataInstallExecutable;
+        return !File.Exists(installedExecutable)
+               || TrayAppDotNETStartMenuShortcut.HasAnyShortcut(_options.Layout.ApplicationName);
     }
 
     private void UpdateSelectedLocation()

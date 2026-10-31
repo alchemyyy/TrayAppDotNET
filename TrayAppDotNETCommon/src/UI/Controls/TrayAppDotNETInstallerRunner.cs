@@ -7,7 +7,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 /// <summary>Runs the shared installer window and exits after applying or cancelling its selection.</summary>
 public static class TrayAppDotNETInstallerRunner
 {
-    public static void Show(Application application, TrayAppDotNETInstallerWindowOptions options)
+    public static TrayAppDotNETInstallerWindow Show(Application application, TrayAppDotNETInstallerWindowOptions options)
     {
         ArgumentNullException.ThrowIfNull(application);
         ArgumentNullException.ThrowIfNull(options);
@@ -31,5 +31,6 @@ public static class TrayAppDotNETInstallerRunner
         };
         window.Closed += closedHandler;
         window.Show();
+        return window;
     }
 }

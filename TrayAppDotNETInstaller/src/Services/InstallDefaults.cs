@@ -1,14 +1,12 @@
 namespace TrayAppDotNETInstaller.Services;
 
-/// <summary>Directory conventions shared with the apps' own installers (TrayAppDotNETInstallLayout).</summary>
+/// <summary>
+/// Directory conventions shared with the apps' own installers; the folder names come from the linked
+/// TrayAppDotNETInstallContract, the same source TrayAppDotNETInstallLayout uses.
+/// </summary>
 public static class InstallDefaults
 {
-    public const string SharedRootFolderName = "TrayAppDotNET";
     public const string ExecutableExtension = ".exe";
-
-    // Keep in sync with TrayAppDotNETInstallLayout.InstalledApplicationsFolderName. Local installs sit in
-    // their own folder because the shared root also holds each app's settings directory.
-    public const string InstalledApplicationsFolderName = "apps";
 
     public static string DefaultDirectory(InstallMode mode, EmbeddedPayloadCatalog catalog)
     {
@@ -19,15 +17,15 @@ public static class InstallDefaults
             case InstallMode.Local:
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    SharedRootFolderName,
-                    InstalledApplicationsFolderName);
+                    TrayAppDotNETInstallContract.SharedRootFolderName,
+                    TrayAppDotNETInstallContract.InstalledApplicationsFolderName);
             case InstallMode.System:
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                    SharedRootFolderName);
+                    TrayAppDotNETInstallContract.SharedRootFolderName);
             case InstallMode.Portable:
                 string folderName = catalog.IsBundle || catalog.Payloads.Count == 0
-                    ? SharedRootFolderName
+                    ? TrayAppDotNETInstallContract.SharedRootFolderName
                     : catalog.Payloads[0].ApplicationName;
                 return Path.Combine(Environment.CurrentDirectory, folderName);
             default:

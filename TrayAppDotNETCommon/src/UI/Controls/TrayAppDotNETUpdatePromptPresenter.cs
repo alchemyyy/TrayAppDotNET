@@ -23,9 +23,14 @@ public sealed record TrayAppDotNETUpdatePromptOptions
     public required Action Shutdown { get; init; }
     public Action<string> Log { get; init; } = static _ => { };
     public Action FlushLog { get; init; } = static () => { };
-    public Action<bool>? SetPromptOpen { get; init; }
+
+    /// <summary>
+    /// Gets a callback raised when a prompt or download for the owner starts or ends, so the owner can refresh the
+    /// controls that start one; <see cref="TrayAppDotNETUpdatePromptPresenter.IsBusy"/> holds the state.
+    /// </summary>
+    public Action<bool>? BusyChanged { get; init; }
+
     public Action<bool>? SetDownloadInFlight { get; init; }
-    public Action? PromptClosed { get; init; }
     public bool ShowFailurePrompt { get; init; } = true;
 
     /// <summary>
@@ -40,26 +45,34 @@ public sealed record TrayAppDotNETUpdatePromptOptions
 /// </summary>
 public static class TrayAppDotNETUpdatePromptPresenter
 {
-    /// <summary>
-    /// Confirms, stages, and shuts down after a successful update handoff.
-    /// </summary>
-    public static async Task<bool> ShowInstallUpdateAsync(TrayAppDotNETUpdatePromptOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
+    // UI-thread only: owners with a prompt open or a download in flight
+    private static readonly HashSet<Window> BusyOwners = [];
 
+    /// <summary>Gets whether a prompt for the owner is open or its download is in flight.</summary>
+    public static bool IsBusy(Window owner) => BusyOwners.Contains(owner);
+
+    /// <summary>
+    /// Confirms, stages, and shuts down after a successful update handoff. Returns false at once while another flow
+    /// for the same owner is open or downloading.
+    /// </summary>
+    public static Task<bool> ShowInstallUpdateAsync(TrayAppDotNETUpdatePromptOptions options) =>
+        RunExclusiveAsync(options, ShowInstallUpdateCoreAsync);
+
+    private static async Task<bool> ShowInstallUpdateCoreAsync(TrayAppDotNETUpdatePromptOptions options)
+    {
         while (true)
         {
-            TrayAppDotNETUpdatePromptResult promptResult = await ShowConfirmationAsync(options);
+            TrayAppDotNETConfirmationResult promptResult = await ShowConfirmationAsync(options);
             switch (promptResult)
             {
-                case TrayAppDotNETUpdatePromptResult.Confirmed:
+                case TrayAppDotNETConfirmationResult.Confirmed:
                     return await StageAndShutdownAsync(
                         options,
                         operationName: "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
                         L(options, nameof(CommonStrings.UpdateDialog_FailedTitle)),
                         L(options, nameof(CommonStrings.UpdateDialog_DownloadFailed)));
-                case TrayAppDotNETUpdatePromptResult.Alternate:
-                    if (await ShowSkipConfirmationAsync(options) == TrayAppDotNETUpdatePromptResult.Confirmed)
+                case TrayAppDotNETConfirmationResult.Alternate:
+                    if (await ShowSkipConfirmationAsync(options) == TrayAppDotNETConfirmationResult.Confirmed)
                     {
                         await SkipReleaseAsync(options);
                         return false;
@@ -68,7 +81,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
                     // Declining the skip returns to the update prompt while its release is still the one offered
                     if (options.Service.AvailableUpdate != options.UpdateInfo) return false;
                     continue;
-                case TrayAppDotNETUpdatePromptResult.Cancelled:
+                case TrayAppDotNETConfirmationResult.Cancelled:
                 default:
                     return false;
             }
@@ -76,12 +89,48 @@ public static class TrayAppDotNETUpdatePromptPresenter
     }
 
     /// <summary>Confirms and persists skipping a release; returns whether the release is now skipped.</summary>
-    public static async Task<bool> ShowSkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options)
+    public static Task<bool> ShowSkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options) =>
+        RunExclusiveAsync(options, static async options =>
+            await ShowSkipConfirmationAsync(options) == TrayAppDotNETConfirmationResult.Confirmed
+            && await SkipReleaseAsync(options));
+
+    private static async Task<bool> RunExclusiveAsync(
+        TrayAppDotNETUpdatePromptOptions options,
+        Func<TrayAppDotNETUpdatePromptOptions, Task<bool>> flow)
     {
         ArgumentNullException.ThrowIfNull(options);
+        IDisposable? busy = TryBeginBusy(options.Owner);
+        if (busy == null) return false;
 
-        if (await ShowSkipConfirmationAsync(options) != TrayAppDotNETUpdatePromptResult.Confirmed) return false;
-        return await SkipReleaseAsync(options);
+        options.BusyChanged?.Invoke(true);
+        try
+        {
+            return await flow(options);
+        }
+        finally
+        {
+            // The owner refreshes from IsBusy, so the state clears before the callback
+            busy.Dispose();
+            options.BusyChanged?.Invoke(false);
+        }
+    }
+
+    /// <summary>
+    /// Marks the owner busy until the returned scope is disposed, or returns null while another flow holds it.
+    /// </summary>
+    internal static IDisposable? TryBeginBusy(Window owner) =>
+        BusyOwners.Add(owner) ? new BusyScope(owner) : null;
+
+    private sealed class BusyScope(Window owner) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            BusyOwners.Remove(owner);
+        }
     }
 
     private static async Task<bool> SkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options)
@@ -99,64 +148,75 @@ public static class TrayAppDotNETUpdatePromptPresenter
     }
 
     /// <summary>Confirms and installs an older release, including the current-version skip choice.</summary>
-    public static async Task<bool> ShowBackdateAsync(TrayAppDotNETUpdatePromptOptions options)
+    public static Task<bool> ShowBackdateAsync(TrayAppDotNETUpdatePromptOptions options) =>
+        RunExclusiveAsync(options, ShowBackdateCoreAsync);
+
+    private static async Task<bool> ShowBackdateCoreAsync(TrayAppDotNETUpdatePromptOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        TrayAppDotNETConfirmationResult confirmationResult = await ShowBackdateConfirmationAsync(options);
+        if (confirmationResult != TrayAppDotNETConfirmationResult.Confirmed) return false;
 
-        TrayAppDotNETUpdatePromptResult confirmationResult = await ShowBackdateConfirmationAsync(options);
-        if (confirmationResult != TrayAppDotNETUpdatePromptResult.Confirmed) return false;
-
-        TrayAppDotNETUpdatePromptResult skipResult = await ShowBackdateSkipPromptAsync(options);
+        TrayAppDotNETConfirmationResult skipResult = await ShowBackdateSkipPromptAsync(options);
         bool isCurrentVersionSkipped;
         switch (skipResult)
         {
-            case TrayAppDotNETUpdatePromptResult.Confirmed:
+            case TrayAppDotNETConfirmationResult.Confirmed:
                 isCurrentVersionSkipped = true;
                 break;
-            case TrayAppDotNETUpdatePromptResult.Alternate:
+            case TrayAppDotNETConfirmationResult.Alternate:
                 isCurrentVersionSkipped = false;
                 break;
-            case TrayAppDotNETUpdatePromptResult.Cancelled:
+            case TrayAppDotNETConfirmationResult.Cancelled:
             default:
                 return false;
         }
 
-        try
-        {
-            await options.Service.SetCurrentVersionSkippedAsync(isCurrentVersionSkipped);
-        }
-        catch (Exception exception)
-        {
-            options.Log($"TrayAppDotNETUpdatePromptPresenter.SetCurrentVersionSkippedAsync: {exception.Message}");
-            return false;
-        }
-
+        // The skip choice is saved only once the installer has taken over, so a failed backdate keeps an earlier skip
         return await StageAndShutdownAsync(
             options,
             operationName: "TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync",
             L(options, nameof(CommonStrings.BackdateDialog_FailedTitle)),
-            L(options, nameof(CommonStrings.BackdateDialog_DownloadFailed)));
+            L(options, nameof(CommonStrings.BackdateDialog_DownloadFailed)),
+            beforeShutdown: () => PersistBackdateSkipAsync(options, isCurrentVersionSkipped));
+    }
+
+    private static async Task PersistBackdateSkipAsync(TrayAppDotNETUpdatePromptOptions options, bool isSkipped)
+    {
+        try
+        {
+            await options.Service.SetCurrentVersionSkippedAsync(isSkipped);
+        }
+        catch (Exception exception)
+        {
+            // The installer already owns the update; the app shuts down either way
+            options.Log($"TrayAppDotNETUpdatePromptPresenter.SetCurrentVersionSkippedAsync: {exception.Message}");
+        }
     }
 
     private static async Task<bool> StageAndShutdownAsync(
         TrayAppDotNETUpdatePromptOptions options,
         string operationName,
         string failureTitle,
-        string failureMessage)
+        string failureMessage,
+        Func<Task>? beforeShutdown = null)
     {
         options.SetDownloadInFlight?.Invoke(true);
-        bool staged = false;
+        UpdateStageResult result = UpdateStageResult.Failed;
+
+        // A confirmed update runs to the end even when its owner window hides or closes: no cancel control exists,
+        // and the service's inactivity timeout ends a stalled download
         try
         {
-            staged = await options.Service.DownloadAndStageAsync(options.UpdateInfo);
+            result = await options.Service.DownloadAndStageAsync(options.UpdateInfo);
         }
         catch (Exception ex)
         {
             options.Log($"{operationName}: {ex.Message}");
         }
 
-        if (staged)
+        if (result == UpdateStageResult.HandedOff)
         {
+            if (beforeShutdown != null) await beforeShutdown();
             options.FlushLog();
             options.Shutdown();
             return true;
@@ -164,11 +224,21 @@ public static class TrayAppDotNETUpdatePromptPresenter
 
         options.SetDownloadInFlight?.Invoke(false);
         if (options.ShowFailurePrompt)
-            await ShowFailureAsync(options, failureTitle, failureMessage);
+        {
+            string message = result switch
+            {
+                UpdateStageResult.AnotherUpdateRunning => L(options, nameof(CommonStrings.UpdateDialog_AnotherUpdateRunning)),
+                UpdateStageResult.AdministratorAccountRequired =>
+                    L(options, nameof(CommonStrings.Elevation_Error_DifferentAdministratorAccount)),
+                _ => failureMessage
+            };
+            await ShowFailureAsync(options, failureTitle, message);
+        }
+
         return false;
     }
 
-    private static async Task<TrayAppDotNETUpdatePromptResult> ShowConfirmationAsync(
+    private static async Task<TrayAppDotNETConfirmationResult> ShowConfirmationAsync(
         TrayAppDotNETUpdatePromptOptions options)
     {
         string title = L(options, nameof(CommonStrings.UpdateDialog_Title));
@@ -191,7 +261,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         string websiteLinkText = L(options, nameof(CommonStrings.UpdateDialog_VisitWebsite));
         string restartNotice = L(options, nameof(CommonStrings.UpdateDialog_RestartNotice));
 
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETConfirmationWindow dialog = new(
             title,
             description,
             confirmText,
@@ -210,7 +280,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         return await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<TrayAppDotNETUpdatePromptResult> ShowSkipConfirmationAsync(
+    private static async Task<TrayAppDotNETConfirmationResult> ShowSkipConfirmationAsync(
         TrayAppDotNETUpdatePromptOptions options)
     {
         string title = string.Format(
@@ -221,7 +291,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             CultureInfo.CurrentCulture,
             L(options, nameof(CommonStrings.SkipDialog_DescriptionFormat)),
             options.UpdateInfo.Version);
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETConfirmationWindow dialog = new(
             title,
             description,
             L(options, nameof(CommonStrings.SkipDialog_Confirm)),
@@ -234,7 +304,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         return await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<TrayAppDotNETUpdatePromptResult> ShowBackdateConfirmationAsync(
+    private static async Task<TrayAppDotNETConfirmationResult> ShowBackdateConfirmationAsync(
         TrayAppDotNETUpdatePromptOptions options)
     {
         string title = string.Format(
@@ -245,7 +315,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             CultureInfo.CurrentCulture,
             L(options, nameof(CommonStrings.BackdateDialog_DescriptionFormat)),
             options.UpdateInfo.Version);
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETConfirmationWindow dialog = new(
             title,
             description,
             L(options, nameof(CommonStrings.BackdateDialog_Confirm)),
@@ -254,14 +324,14 @@ public static class TrayAppDotNETUpdatePromptPresenter
         return await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<TrayAppDotNETUpdatePromptResult> ShowBackdateSkipPromptAsync(
+    private static async Task<TrayAppDotNETConfirmationResult> ShowBackdateSkipPromptAsync(
         TrayAppDotNETUpdatePromptOptions options)
     {
         string description = string.Format(
             CultureInfo.CurrentCulture,
             L(options, nameof(CommonStrings.BackdateDialog_SkipCurrentDescriptionFormat)),
             options.Service.CurrentBuild);
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETConfirmationWindow dialog = new(
             L(options, nameof(CommonStrings.BackdateDialog_SkipCurrentTitle)),
             description,
             L(options, nameof(CommonStrings.BackdateDialog_Yes)),
@@ -281,7 +351,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
     {
         string okText = L(options, nameof(CommonStrings.SettingsWindow_ConfirmOverlay_OK));
 
-        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+        TrayAppDotNETConfirmationWindow dialog = new(
             title,
             message,
             okText,
@@ -290,15 +360,22 @@ public static class TrayAppDotNETUpdatePromptPresenter
         _ = await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<TrayAppDotNETUpdatePromptResult> ShowPromptAsync(
+    private static async Task<TrayAppDotNETConfirmationResult> ShowPromptAsync(
         TrayAppDotNETUpdatePromptOptions options,
-        TrayAppDotNETUpdateConfirmationWindow dialog)
+        TrayAppDotNETConfirmationWindow dialog)
     {
         dialog.MapTo(options.Node);
+
+        // An owner that was hidden or closed while a confirmed download ran cannot host the result; it still shows
+        if (!options.Owner.IsVisible)
+        {
+            options.Log("TrayAppDotNETUpdatePromptPresenter: the owner window is gone; the prompt opens on its own.");
+            return await ShowUnownedAsync(dialog);
+        }
+
         if (options.Owner is FlyoutWindowCommon)
             dialog.PlaceOverOwnerUpperThird(options.Owner);
 
-        options.SetPromptOpen?.Invoke(true);
         UpdatePromptOwnerBackdrop? ownerBackdrop = null;
         try
         {
@@ -311,20 +388,52 @@ public static class TrayAppDotNETUpdatePromptPresenter
                 options.Log($"TrayAppDotNETUpdatePromptPresenter.OwnerBackdrop: {exception.Message}");
             }
 
-            return await dialog.ShowDialog<TrayAppDotNETUpdatePromptResult>(options.Owner);
+            // A flyout closes the dialog when it hides and keeps itself open while the dialog is up
+            if (options.Owner is FlyoutWindowCommon flyout)
+                return await flyout.ShowOwnedDialogAsync<TrayAppDotNETConfirmationResult>(dialog);
+
+            return await ShowAndCloseAsync(options.Owner, dialog);
         }
         finally
         {
-            try
-            {
-                ownerBackdrop?.Dispose();
-            }
-            finally
-            {
-                options.SetPromptOpen?.Invoke(false);
-                options.PromptClosed?.Invoke();
-            }
+            ownerBackdrop?.Dispose();
         }
+    }
+
+    private static async Task<TrayAppDotNETConfirmationResult> ShowAndCloseAsync(
+        Window owner,
+        TrayAppDotNETConfirmationWindow dialog)
+    {
+        bool closed = false;
+        EventHandler onClosed = (_, _) => closed = true;
+        dialog.Closed += onClosed;
+        try
+        {
+            return await dialog.ShowDialog<TrayAppDotNETConfirmationResult>(owner);
+        }
+        finally
+        {
+            dialog.Closed -= onClosed;
+
+            // Hiding the owner completes the modal task with the dialog only hidden, not closed
+            if (!closed) dialog.Close();
+        }
+    }
+
+    private static Task<TrayAppDotNETConfirmationResult> ShowUnownedAsync(TrayAppDotNETConfirmationWindow dialog)
+    {
+        TaskCompletionSource<TrayAppDotNETConfirmationResult> completion = new();
+        EventHandler? onClosed = null;
+        onClosed = (_, _) =>
+        {
+            dialog.Closed -= onClosed;
+            completion.TrySetResult(dialog.Result);
+        };
+        dialog.Closed += onClosed;
+        dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        dialog.Topmost = true;
+        dialog.Show();
+        return completion.Task;
     }
 
     private static string L(TrayAppDotNETUpdatePromptOptions options, string key) =>

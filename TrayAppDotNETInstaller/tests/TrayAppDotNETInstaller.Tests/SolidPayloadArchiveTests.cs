@@ -345,6 +345,23 @@ public sealed class SolidPayloadArchiveTests : IDisposable
     }
 
     [Fact]
+    public void Read_RejectsABackslashTraversalPatchedIntoTheTable()
+    {
+        // "aa/inner.txt" becomes "..\inner.txt", which Windows would resolve one folder up
+        string zipPath = CreateZip(SourceZipName, ("aa/inner.txt", TextBytes("inner")), (ExecutableEntryName, TextBytes("app")));
+        CreatePayload(zipPath, out string payloadPath);
+        PatchBytes(payloadPath, FirstEntryNameOffset, Encoding.ASCII.GetBytes("..\\"));
+
+        string destination = Path.Combine(_root, "backslash");
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            ExtractPayload(payloadPath, destination, out SolidPayloadHeader _));
+
+        Assert.Contains("backslash", exception.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(destination));
+        Assert.False(File.Exists(Path.Combine(_root, "inner.txt")));
+    }
+
+    [Fact]
     public void Extract_WithoutADestinationVerifiesTheHashAndWritesNothing()
     {
         byte[] content = TextBytes("the bytes --verify-installer has to prove decode cleanly");
@@ -384,7 +401,7 @@ public sealed class SolidPayloadArchiveTests : IDisposable
             ("tools/helper.dll", TextBytes("helper")));
         CreatePayload(zipPath, out string payloadPath);
         string destination = Path.Combine(_root, "engine-out");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         ProgressSlice slice = new(0, 50);
 
         int filesWritten;
@@ -548,8 +565,8 @@ public sealed class SolidPayloadArchiveTests : IDisposable
         PatchBytes(filePath, offset, encoded);
     }
 
-    private sealed class ListProgress(List<InstallProgressLine> lines) : IProgress<InstallProgressLine>
+    private sealed class ListProgress(List<TrayAppDotNETInstallProgress> lines) : IProgress<TrayAppDotNETInstallProgress>
     {
-        public void Report(InstallProgressLine value) => lines.Add(value);
+        public void Report(TrayAppDotNETInstallProgress value) => lines.Add(value);
     }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Xml.Serialization;
@@ -11,6 +12,10 @@ using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services;
 
+/// <summary>
+/// One downloadable app package. <paramref name="Sha256"/> is the lowercase hex SHA-256 the release publishes for the
+/// package, or empty when the source did not carry one; a package without it is never installed.
+/// </summary>
 public sealed record UpdateInfo(
     int Version,
     string TagName,
@@ -18,7 +23,27 @@ public sealed record UpdateInfo(
     string Changelog,
     string AssetUrl,
     string AssetName,
-    long AssetSize);
+    long AssetSize,
+    string Sha256);
+
+/// <summary>How handing a downloaded update to the installer ended.</summary>
+public enum UpdateStageResult
+{
+    /// <summary>The installer took over; the app must shut down now.</summary>
+    HandedOff,
+
+    /// <summary>The download, its verification or the handoff failed; the running app was left untouched.</summary>
+    Failed,
+
+    /// <summary>Another update of this app was already being installed; the running app was left untouched.</summary>
+    AnotherUpdateRunning,
+
+    /// <summary>
+    /// The install folder needs elevation, which would run as a different account (over-the-shoulder); the update
+    /// was refused and the running app was left untouched.
+    /// </summary>
+    AdministratorAccountRequired
+}
 
 [XmlRoot("versions")]
 internal sealed class VersionsManifest
@@ -67,6 +92,9 @@ internal sealed class VersionsArtifact
 
     [XmlAttribute("releaseTag")]
     public string ReleaseTag { get; set; } = string.Empty;
+
+    [XmlAttribute("sha256")]
+    public string Sha256 { get; set; } = string.Empty;
 }
 
 public enum UpdateCheckResult
@@ -122,6 +150,9 @@ public sealed class UpdateCheckOptions
     public TimeSpan AssetDownloadInitialBackoff { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
 
+    public TimeSpan AssetDownloadInactivityTimeout { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInactivityTimeoutMs);
+
     internal Func<DateTime> GetCurrentUTCTime { get; init; } = static () => DateTime.UtcNow;
 }
 
@@ -130,6 +161,8 @@ public sealed class UpdateCheckService : IDisposable
     private const int HttpUnauthorized = 401;
     private const int HttpForbidden = 403;
     private const int HttpNotFound = 404;
+    private const int Sha256HexLength = 64;
+    private const int DownloadBufferSize = 81920;
     private const int PollStateIdle = 0;
     private const int PollStateScheduled = 1;
     private const int PollStateManual = 2;
@@ -371,7 +404,11 @@ public sealed class UpdateCheckService : IDisposable
         }
     }
 
-    public async Task<bool> DownloadAndStageAsync(UpdateInfo info, CancellationToken token = default)
+    /// <summary>
+    /// Downloads, verifies and extracts <paramref name="info"/>, then hands it to the update installer. On
+    /// <see cref="UpdateStageResult.HandedOff"/> the caller must shut the app down.
+    /// </summary>
+    public async Task<UpdateStageResult> DownloadAndStageAsync(UpdateInfo info, CancellationToken token = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(info);
@@ -404,12 +441,14 @@ public sealed class UpdateCheckService : IDisposable
                     zipPath,
                     extractDirectory,
                     info.AssetSize,
+                    info.Sha256,
                     token)
                 .ConfigureAwait(false);
-            if (!downloaded) return false;
+            if (!downloaded) return UpdateStageResult.Failed;
 
             TADNLog.Log(
-                $"UpdateCheckService.DownloadAndStageAsync: extracted build {info.Version} to {extractDirectory}");
+                $"UpdateCheckService.DownloadAndStageAsync: verified and extracted build {info.Version} to "
+                + extractDirectory);
 
             string currentExe = _options.CurrentExecutablePath()
                                 ?? throw new InvalidOperationException("Could not resolve current executable path.");
@@ -417,21 +456,30 @@ public sealed class UpdateCheckService : IDisposable
             if (!File.Exists(expectedExe))
                 throw new InvalidOperationException($"Update package did not contain {Path.GetFileName(currentExe)}.");
 
-            handedOff = await UpdateInstaller.LaunchAsync(
+            UpdateLaunchResult launchResult = await UpdateInstaller.LaunchAsync(
                     expectedExe,
                     currentExe,
                     zipPath,
+                    info.Sha256,
+                    info.Version,
                     installerLogPath,
                     TADNLog.Log,
                     token)
                 .ConfigureAwait(false);
+            handedOff = launchResult == UpdateLaunchResult.HandedOff;
             if (handedOff) TADNLog.Flush();
-            return handedOff;
+            return launchResult switch
+            {
+                UpdateLaunchResult.HandedOff => UpdateStageResult.HandedOff,
+                UpdateLaunchResult.AnotherUpdateRunning => UpdateStageResult.AnotherUpdateRunning,
+                UpdateLaunchResult.AdministratorAccountRequired => UpdateStageResult.AdministratorAccountRequired,
+                _ => UpdateStageResult.Failed
+            };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             TADNLog.Log($"UpdateCheckService.DownloadAndStageAsync: {ex.Message}");
-            return false;
+            return UpdateStageResult.Failed;
         }
         finally
         {
@@ -453,30 +501,6 @@ public sealed class UpdateCheckService : IDisposable
 
         await runningTask.ConfigureAwait(false);
         return true;
-    }
-
-    public static int ParseVersionFromTag(string tag)
-    {
-        if (string.IsNullOrEmpty(tag)) return 0;
-
-        ReadOnlySpan<char> span = tag.AsSpan().Trim();
-        if (span.Length == 0) return 0;
-
-        if (span[0] == 'v' || span[0] == 'V') span = span[1..];
-        if (span.StartsWith(value: "TrayAppDotNET_", StringComparison.OrdinalIgnoreCase))
-            span = span["TrayAppDotNET_".Length..];
-
-        int dashIndex = span.IndexOf('-');
-        if (dashIndex >= 0) span = span[..dashIndex];
-        int plusIndex = span.IndexOf('+');
-        if (plusIndex >= 0) span = span[..plusIndex];
-
-        int end = 0;
-        while (end < span.Length && char.IsDigit(span[end])) end++;
-        if (end == 0) return 0;
-        return int.TryParse(span[..end], NumberStyles.None, CultureInfo.InvariantCulture, out int version)
-            ? version
-            : 0;
     }
 
     private async Task RunLoopAsync(CancellationToken token)
@@ -974,7 +998,8 @@ public sealed class UpdateCheckService : IDisposable
             Changelog: "",
             assetUrl.ToString(),
             expectedAssetName,
-            ParsePositiveLong(appArtifact.Size));
+            ParsePositiveLong(appArtifact.Size),
+            NormalizeSha256(appArtifact.Sha256));
     }
 
     private async Task TryWriteLatestManifestCacheAsync(byte[] manifestBytes, CancellationToken token)
@@ -994,7 +1019,7 @@ public sealed class UpdateCheckService : IDisposable
 
             // Publish only a complete XML file because sibling apps can read it concurrently
             // NOTE: the replace fails while a sibling holds the file open, even with FileShare.Delete, so it retries
-            TrayXmlSerializer.ReplaceFileWithRetry(temporaryPath, cachePath);
+            AtomicFile.ReplaceWithRetry(temporaryPath, cachePath);
             temporaryPath = null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -1097,7 +1122,8 @@ public sealed class UpdateCheckService : IDisposable
                     GetJSONString(release, propertyName: "body"),
                     assetUrl.ToString(),
                     assetName,
-                    GetJSONPositiveInt64(asset, propertyName: "size"));
+                    GetJSONPositiveInt64(asset, propertyName: "size"),
+                    NormalizeSha256(GetJSONString(asset, propertyName: "digest")));
                 if (preferredVersion is { } preferred && version == preferred)
                     return (bestRelease, releases.GetArrayLength());
             }
@@ -1171,20 +1197,36 @@ public sealed class UpdateCheckService : IDisposable
         && string.Equals(artifact.Profile, GitHubReleaseUrls.ReleaseProfile, StringComparison.OrdinalIgnoreCase)
         && string.Equals(artifact.Kind, b: "app", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Downloads the package, hashing it while it streams, and extracts it only once its size and SHA-256 match the
+    /// published values. A package without a published hash or with a different one is never extracted.
+    /// </summary>
     private async Task<bool> DownloadAndExtractAssetWithRetryAsync(
         string assetUrl,
         string destination,
         string extractDirectory,
         long expectedSize,
+        string expectedSha256,
         CancellationToken token)
     {
+        if (!IsSha256Hex(expectedSha256))
+        {
+            TADNLog.Log(
+                "UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: the release publishes no SHA-256 for "
+                + $"{assetUrl}; the package is not installed.");
+            return false;
+        }
+
         TimeSpan backoff = _options.AssetDownloadInitialBackoff;
         for (int attempt = 1; attempt <= _options.AssetDownloadMaxAttempts; attempt++)
         {
             try
             {
+                // Restarted on every chunk, so only a stalled transfer trips it and the retry below engages
+                using CancellationTokenSource inactivityCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                inactivityCts.CancelAfter(_options.AssetDownloadInactivityTimeout);
                 using HttpResponseMessage resp = await _http
-                    .GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, token)
+                    .GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, inactivityCts.Token)
                     .ConfigureAwait(false);
                 if (IsTerminalHttpStatus(resp.StatusCode))
                 {
@@ -1197,8 +1239,8 @@ public sealed class UpdateCheckService : IDisposable
                 }
 
                 resp.EnsureSuccessStatusCode();
-                await using (FileStream fs = new(destination, FileMode.Create, FileAccess.Write, FileShare.None))
-                    await resp.Content.CopyToAsync(fs, token).ConfigureAwait(false);
+                string actualSha256 = await CopyAndHashAsync(resp.Content, destination, inactivityCts, token)
+                    .ConfigureAwait(false);
 
                 if (expectedSize > 0)
                 {
@@ -1208,6 +1250,16 @@ public sealed class UpdateCheckService : IDisposable
                         throw new IOException(
                             $"Downloaded asset size differs (got {actualSize}, expected {expectedSize}).");
                     }
+                }
+
+                if (!string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    TADNLog.Log(
+                        $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: SHA-256 of {assetUrl} is "
+                        + $"{actualSha256}, but the release publishes {expectedSha256}; the package is not installed.");
+                    TryDeleteFile(destination);
+                    TryDeleteDirectory(extractDirectory);
+                    return false;
                 }
 
                 ExtractZip(destination, extractDirectory);
@@ -1231,7 +1283,7 @@ public sealed class UpdateCheckService : IDisposable
             {
                 TADNLog.Log(
                     $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: attempt "
-                    + $"{attempt}/{_options.AssetDownloadMaxAttempts} failed: {ex.Message}");
+                    + $"{attempt}/{_options.AssetDownloadMaxAttempts} failed: {DescribeDownloadFailure(ex)}");
                 TryDeleteFile(destination);
                 TryDeleteDirectory(extractDirectory);
                 try { await Task.Delay(backoff, token).ConfigureAwait(false); }
@@ -1243,7 +1295,7 @@ public sealed class UpdateCheckService : IDisposable
             {
                 TADNLog.Log(
                     $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: "
-                    + $"final attempt failed: {ex.Message}");
+                    + $"final attempt failed: {DescribeDownloadFailure(ex)}");
                 TryDeleteFile(destination);
                 TryDeleteDirectory(extractDirectory);
                 return false;
@@ -1252,6 +1304,50 @@ public sealed class UpdateCheckService : IDisposable
 
         return false;
     }
+
+    /// <summary>Writes the response body to <paramref name="destination"/> and returns its lowercase hex SHA-256.</summary>
+    private async Task<string> CopyAndHashAsync(
+        HttpContent content,
+        string destination,
+        CancellationTokenSource inactivityCts,
+        CancellationToken token)
+    {
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        byte[] buffer = new byte[DownloadBufferSize];
+        await using Stream body = await content.ReadAsStreamAsync(inactivityCts.Token).ConfigureAwait(false);
+        await using FileStream file = new(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+        while (true)
+        {
+            inactivityCts.CancelAfter(_options.AssetDownloadInactivityTimeout);
+            int read = await body.ReadAsync(buffer, inactivityCts.Token).ConfigureAwait(false);
+            if (read == 0) break;
+
+            hash.AppendData(buffer, offset: 0, read);
+            await file.WriteAsync(buffer.AsMemory(start: 0, read), token).ConfigureAwait(false);
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private string DescribeDownloadFailure(Exception exception) =>
+        exception is OperationCanceledException
+            ? $"no data arrived for {_options.AssetDownloadInactivityTimeout.TotalSeconds:0} s"
+            : exception.Message;
+
+    /// <summary>Returns the lowercase hex digest of a <c>sha256:&lt;hex&gt;</c> or bare hex value, or empty.</summary>
+    internal static string NormalizeSha256(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        string trimmed = value.Trim();
+        const string algorithmPrefix = "sha256:";
+        if (trimmed.StartsWith(algorithmPrefix, StringComparison.OrdinalIgnoreCase))
+            trimmed = trimmed[algorithmPrefix.Length..];
+        return IsSha256Hex(trimmed) ? trimmed.ToLowerInvariant() : string.Empty;
+    }
+
+    internal static bool IsSha256Hex(string? value) =>
+        value is { Length: Sha256HexLength } && value.All(char.IsAsciiHexDigit);
 
     private static bool IsTerminalHttpStatus(HttpStatusCode status)
     {
@@ -1262,7 +1358,8 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
 
-    private static void ExtractZip(string zipPath, string destinationDirectory)
+    /// <summary>Extracts an update package, refusing any entry that would land outside the destination.</summary>
+    internal static void ExtractZip(string zipPath, string destinationDirectory)
     {
         if (Directory.Exists(destinationDirectory))
             Directory.Delete(destinationDirectory, recursive: true);
@@ -1371,6 +1468,8 @@ public sealed class UpdateCheckService : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options.MaxPollInterval));
         if (options.AssetDownloadInitialBackoff <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.AssetDownloadInitialBackoff));
+        if (options.AssetDownloadInactivityTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options.AssetDownloadInactivityTimeout));
 
         return options;
     }

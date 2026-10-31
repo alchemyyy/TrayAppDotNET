@@ -8,7 +8,7 @@ public sealed class AppLauncherTests
     [Fact]
     public void FormatArguments_PassesAFlagThroughUnquoted()
     {
-        string[] arguments = [AppLauncher.HiddenArgument];
+        string[] arguments = [TrayAppDotNETInstallContract.HiddenArgument];
 
         Assert.Equal("--hidden", AppLauncher.FormatArguments(arguments));
     }
@@ -16,7 +16,7 @@ public sealed class AppLauncherTests
     [Fact]
     public void FormatArguments_QuotesAnArgumentWithSpaces()
     {
-        string[] arguments = [AppLauncher.HiddenArgument, @"C:\Program Files\TrayAppDotNET"];
+        string[] arguments = [TrayAppDotNETInstallContract.HiddenArgument, @"C:\Program Files\TrayAppDotNET"];
         const string expected =
             """
             --hidden "C:\Program Files\TrayAppDotNET"

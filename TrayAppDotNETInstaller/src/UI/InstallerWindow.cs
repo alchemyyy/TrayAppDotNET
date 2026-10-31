@@ -24,7 +24,7 @@ namespace TrayAppDotNETInstaller.UI;
 /// </summary>
 public sealed class InstallerWindow : Window
 {
-    private const double ProgressMaximum = InstallProgressLine.CompletePercent;
+    private const double ProgressMaximum = TrayAppDotNETInstallProgress.CompletePercent;
     private const double ProgressMinimum = 0;
 
     private const string ModeGroupName = "InstallMode";
@@ -72,7 +72,7 @@ public sealed class InstallerWindow : Window
     private const string CloseButtonPartName = "PART_CloseButton";
 
     // Launched apps wait in the tray; a freshly installed Task Manager would otherwise open its window
-    private static readonly string[] PostInstallLaunchArguments = [AppLauncher.HiddenArgument];
+    private static readonly string[] PostInstallLaunchArguments = [TrayAppDotNETInstallContract.HiddenArgument];
 
     private readonly EmbeddedPayloadCatalog _catalog;
     private readonly IReadOnlyList<DetectedInstallation> _installations;
@@ -105,6 +105,10 @@ public sealed class InstallerWindow : Window
     private InstallApplicationTracker? _applicationTracker;
     private bool _installRunning;
     private bool _installFinished;
+    private bool _desktopChoiceChanged;
+    private bool _startMenuChoiceChanged;
+    private CancellationTokenSource? _cancellation;
+    private bool _closeWhenFinished;
 
     /// <summary>One suite row. <paramref name="InstalledLabel"/> says where the application is already installed, or is null.</summary>
     private sealed record PayloadSelection(
@@ -206,10 +210,15 @@ public sealed class InstallerWindow : Window
         _browseButton.Click += OnBrowseClick;
         _installButton.Click += OnInstallClick;
         _cancelButton.Click += OnCancelClick;
+        // Click is raised only by the user, so a preset moved by the code never counts as a choice
+        _desktopShortcutCheckBox.Click += (_, _) => _desktopChoiceChanged = true;
+        _startMenuShortcutCheckBox.Click += (_, _) => _startMenuChoiceChanged = true;
         SourceInitialized += OnSourceInitialized;
         Closing += OnClosing;
 
         ApplyMode(initialMode);
+        // Nothing to install: the button would only answer with "select at least one app"
+        if (catalog.Payloads.Count == 0) _installButton.IsEnabled = false;
         UpdateApplicationIcons(VisualTreeHelper.GetDpi(this));
     }
 
@@ -235,7 +244,9 @@ public sealed class InstallerWindow : Window
         switch (catalog.Payloads.Count)
         {
             case 0:
-                subtitle = L(nameof(AppStrings.Installer_Subtitle_NoApps));
+                subtitle = catalog.DamageReason == null
+                    ? L(nameof(AppStrings.Installer_Subtitle_NoApps))
+                    : Format(nameof(AppStrings.Installer_Subtitle_Damaged_Format), catalog.DamageReason);
                 break;
             case 1:
                 subtitle = Format(nameof(AppStrings.Installer_Subtitle_Version_Format), catalog.Payloads[0].Version);
@@ -360,6 +371,7 @@ public sealed class InstallerWindow : Window
             _payloadSelections.Add(selection);
             ShowInstalledState(selection);
             _inputs.Add(checkBox);
+            checkBox.Click += (_, _) => RefreshShortcutPresets();
             if (!showBatteryHint)
             {
                 rows.Add(CreateApplicationRow(checkBox, stateTextBlock));
@@ -589,7 +601,7 @@ public sealed class InstallerWindow : Window
     /// Picks the window icon out of the embedded set: a single-application installer shows that
     /// application's icon, while a bundle or an installer with no payload shows the suite icon.
     /// </summary>
-    private ImageSource? LoadIcon()
+    private BitmapFrame? LoadIcon()
     {
         List<string> applicationNames = [];
         foreach (EmbeddedPayload payload in _catalog.Payloads) applicationNames.Add(payload.ApplicationName);
@@ -750,6 +762,7 @@ public sealed class InstallerWindow : Window
         _browseButton.IsEnabled = portable;
         _desktopShortcutCheckBox.IsEnabled = !portable;
         _startMenuShortcutCheckBox.IsEnabled = !portable;
+        RefreshShortcutPresets();
     }
 
     private void OnLinkClick(object sender, RoutedEventArgs eventArgs)
@@ -787,7 +800,12 @@ public sealed class InstallerWindow : Window
         _directoryTextBox.Text = selectedDirectory;
     }
 
-    private void OnCancelClick(object sender, RoutedEventArgs eventArgs) => Close();
+    private void OnCancelClick(object sender, RoutedEventArgs eventArgs)
+    {
+        // During a run Cancel stops it; the installer closes once every child has ended
+        if (_installRunning) RequestCancel();
+        else Close();
+    }
 
     private async void OnInstallClick(object sender, RoutedEventArgs eventArgs)
     {
@@ -807,28 +825,29 @@ public sealed class InstallerWindow : Window
         }
 
         _installRunning = true;
+        _cancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _cancellation.Token;
         SetInputsEnabled(false);
         _installButton.IsEnabled = false;
-        _cancelButton.IsEnabled = false;
         _progressBar.Value = ProgressMinimum;
         ShowStatus(L(nameof(AppStrings.Installer_Status_Starting)));
         StartApplicationStates(plan);
         InstallerLog.Write(
             $"InstallerWindow: starting {plan.Mode} install of {plan.Payloads.Count} app(s) into {plan.TargetDirectory}");
 
-        DispatcherProgress<InstallProgressLine> progress = new(Dispatcher, ApplyProgress);
+        DispatcherProgress<TrayAppDotNETInstallProgress> progress = new(Dispatcher, ApplyProgress);
         DispatcherProgress<InstallApplicationStatus> applicationProgress = new(Dispatcher, ApplyApplicationStatus);
         InstallOutcome outcome;
         try
         {
             // The example simulation never leaves this thread, so neither engine is reachable from it
             if (_isExample)
-                outcome = await ExampleMode.RunAsync(plan, progress, applicationProgress, _exampleFails, CancellationToken.None);
+                outcome = await ExampleMode.RunAsync(plan, progress, applicationProgress, _exampleFails, cancellationToken);
             else
                 outcome = plan.Mode == InstallMode.System
                     ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(
-                        plan, progress, applicationProgress, CancellationToken.None))
-                    : await Task.Run(() => InstallEngine.RunAsync(plan, progress, applicationProgress, CancellationToken.None));
+                        plan, progress, applicationProgress, cancellationToken))
+                    : await Task.Run(() => InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken));
         }
         catch (Exception exception)
         {
@@ -844,8 +863,22 @@ public sealed class InstallerWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs eventArgs)
     {
-        // The engine has child installers running; closing now would orphan them mid-copy
-        if (_installRunning) eventArgs.Cancel = true;
+        // The engine has child installers running; closing asks them to stop and the window closes once they have
+        if (!_installRunning) return;
+
+        eventArgs.Cancel = true;
+        _closeWhenFinished = true;
+        RequestCancel();
+    }
+
+    private void RequestCancel()
+    {
+        if (_cancellation == null || _cancellation.IsCancellationRequested) return;
+
+        InstallerLog.Write("InstallerWindow: cancel requested");
+        _cancelButton.IsEnabled = false;
+        ShowStatus(L(nameof(AppStrings.Installer_Status_Cancelling)));
+        _cancellation.Cancel();
     }
 
     private InstallPlan? BuildPlan(out string? validationError)
@@ -887,12 +920,38 @@ public sealed class InstallerWindow : Window
         }
 
         bool portable = mode == InstallMode.Portable;
-        return new InstallPlan(
-            mode,
-            targetDirectory,
-            selected,
-            CreateDesktopShortcut: !portable && _desktopShortcutCheckBox.IsChecked == true,
-            CreateStartMenuShortcut: !portable && _startMenuShortcutCheckBox.IsChecked == true);
+        List<string> applicationNames = [.. selected.Select(payload => payload.ApplicationName)];
+        // A choice left as preset reaches the apps as no flag, so each app's shortcuts stay as they are
+        bool? desktop = portable || _desktopShortcutCheckBox.IsChecked == ShortcutPresets.Desktop(mode, applicationNames)
+            ? null
+            : _desktopShortcutCheckBox.IsChecked == true;
+        bool? startMenu = portable || _startMenuShortcutCheckBox.IsChecked == ShortcutPresets.StartMenu(mode, applicationNames, _installations)
+            ? null
+            : _startMenuShortcutCheckBox.IsChecked == true;
+        return new InstallPlan(mode, targetDirectory, selected, desktop, startMenu);
+    }
+
+    /// <summary>The applications the run would include: the checked rows of a suite, or the single payload.</summary>
+    private List<string> SelectedApplicationNames()
+    {
+        if (!_catalog.IsBundle) return [.. _catalog.Payloads.Select(payload => payload.ApplicationName)];
+
+        return
+        [
+            .. _payloadSelections
+                .Where(selection => selection.CheckBox.IsChecked == true)
+                .Select(selection => selection.Payload.ApplicationName)
+        ];
+    }
+
+    /// <summary>Moves each shortcut choice the user has not touched to what is on the machine for the current selection.</summary>
+    private void RefreshShortcutPresets()
+    {
+        List<string> applicationNames = SelectedApplicationNames();
+        if (!_desktopChoiceChanged)
+            _desktopShortcutCheckBox.IsChecked = ShortcutPresets.Desktop(SelectedMode, applicationNames);
+        if (!_startMenuChoiceChanged)
+            _startMenuShortcutCheckBox.IsChecked = ShortcutPresets.StartMenu(SelectedMode, applicationNames, _installations);
     }
 
     private static bool TryGetRootedFullPath(string text, out string fullPath)
@@ -910,7 +969,7 @@ public sealed class InstallerWindow : Window
         }
     }
 
-    private void ApplyProgress(InstallProgressLine line)
+    private void ApplyProgress(TrayAppDotNETInstallProgress line)
     {
         // A line arriving after the run finished must not replace the final status
         if (line.IsFailure || _installFinished) return;
@@ -1001,37 +1060,43 @@ public sealed class InstallerWindow : Window
     private void FinishInstall(InstallPlan plan, InstallOutcome outcome)
     {
         _installRunning = false;
+        _cancellation?.Dispose();
+        _cancellation = null;
+        _cancelButton.IsEnabled = true;
         _installFinished = true;
         _installButton.Content = L(nameof(AppStrings.Installer_Button_Close));
         _installButton.IsEnabled = true;
         // The outcome settles whatever the reports left open, so every row keeps a final state
         _applicationTracker?.Finish(outcome.Success);
         ShowApplicationStates();
-        if (!outcome.Success)
+        if (outcome.Success)
+        {
+            _progressBar.Value = ProgressMaximum;
+            ShowStatus(Format(nameof(AppStrings.Installer_Status_Complete_Format), plan.TargetDirectory));
+        }
+        else
         {
             ShowStatus(outcome.ErrorMessage ?? L(nameof(AppStrings.Installer_Status_Failed)));
-            return;
         }
 
-        _progressBar.Value = ProgressMaximum;
-        ShowStatus(Format(nameof(AppStrings.Installer_Status_Complete_Format), plan.TargetDirectory));
-        if (_launchCheckBox.IsChecked != true) return;
-
-        // Nothing was installed, so there is nothing to start
-        if (_isExample)
+        // The apps that finished were stopped for their install, so they start again even when another app's
+        // install failed or the run was cancelled, and also when the window is about to close
+        if (_launchCheckBox.IsChecked == true && !_isExample)
+        {
+            foreach (string executablePath in outcome.InstalledExecutables)
+                AppLauncher.Launch(executablePath, PostInstallLaunchArguments);
+        }
+        else if (_isExample)
         {
             InstallerLog.Write("InstallerWindow: example mode, so the launch checkbox starts nothing");
-            return;
         }
 
-        foreach (EmbeddedPayload payload in plan.Payloads)
-        {
-            string executablePath = InstallDefaults.InstalledExecutablePath(
-                plan.Mode,
-                plan.TargetDirectory,
-                payload.ApplicationName);
-            AppLauncher.Launch(executablePath, PostInstallLaunchArguments);
-        }
+        // A close during the run asked to cancel it; the window closes once it ends, unless something failed that
+        // the user has to know about, such as an app installer that had to be ended and may have left its app
+        // incomplete
+        bool onlyCancelled = outcome.Success
+                             || string.Equals(outcome.ErrorMessage, L(nameof(AppStrings.Installer_Progress_Cancelled)), StringComparison.Ordinal);
+        if (_closeWhenFinished && onlyCancelled) Close();
     }
 
     private void ShowStatus(string text)

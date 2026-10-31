@@ -15,22 +15,19 @@ public static class InstallEngine
     // A portable install only copies after extracting, which is the bulk of its time
     private const int PortableExtractPortionEndPercent = 80;
     private const string SearchAllPattern = "*";
-    private const int FullInnerPercent = InstallProgressLine.CompletePercent;
-    private const string HeadlessInstallArgument = "--install-headless";
-    private const string DesktopShortcutArgument = "--desktop-shortcut";
-    private const string StartMenuShortcutArgument = "--start-menu-shortcut";
-    private const string LocalScope = "local";
-    private const string SystemScope = "system";
+    private const int FullInnerPercent = TrayAppDotNETInstallProgress.CompletePercent;
     private const string TrueValue = "true";
     private const string FalseValue = "false";
-    private const string InstalledToPrefix = "Installed to ";
+    private const string SystemStagingPrefix = ".installer-staging-";
+    // Longer than the two minutes an app's installer may wait for another install to free the folder
+    private const int ChildInactivityTimeoutMs = 180_000;
     private const int OutputDrainTimeoutMs = 250;
     private const int TemporaryDeleteAttempts = 5;
     private const int TemporaryDeleteRetryDelayMs = 200;
     private const char ZipDirectorySeparator = '/';
     private const string InstallScriptFileName = "install.bat";
 
-    private sealed record AppInstallResult(string? Error, string? InstalledExecutable);
+    private sealed record AppInstallResult(string? Error, string? InstalledExecutable, bool ChildKilled = false);
 
     /// <summary>How one application's run ended: not started, failed (no executable) or installed.</summary>
     private sealed record ApplicationRunResult(bool Started, string? InstalledExecutable)
@@ -50,9 +47,11 @@ public static class InstallEngine
     {
         // Stands in for System.Threading.Lock, which the .NET Framework does not define
         private readonly object _gate = new();
-        // Cancelled by the first failure or by the caller; running applications only follow the caller's token
+        // Cancelled by the first failure or by the caller; it keeps queued applications from starting, while a
+        // started application always runs to its end
         private readonly CancellationTokenSource _stopQueued = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         private string? _firstFailureMessage;
+        private bool _anyChildKilled;
 
         public InstallPlan Plan { get; } = plan;
         public Func<EmbeddedPayload, Stream> OpenPayload { get; } = openPayload;
@@ -80,6 +79,20 @@ public static class InstallEngine
             _stopQueued.Cancel();
         }
 
+        /// <summary>True once the inactivity timeout ended an app's installer.</summary>
+        public bool AnyChildKilled
+        {
+            get
+            {
+                lock (_gate) return _anyChildKilled;
+            }
+        }
+
+        public void MarkChildKilled()
+        {
+            lock (_gate) _anyChildKilled = true;
+        }
+
         public void Dispose()
         {
             _stopQueued.Dispose();
@@ -90,7 +103,7 @@ public static class InstallEngine
 
     public static Task<InstallOutcome> RunAsync(
         InstallPlan plan,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         CancellationToken cancellationToken) =>
         RunAsync(
@@ -117,7 +130,7 @@ public static class InstallEngine
     internal static async Task<InstallOutcome> RunAsync(
         InstallPlan plan,
         Func<EmbeddedPayload, Stream> openPayload,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         int maximumConcurrentApplications,
         CancellationToken cancellationToken)
@@ -146,7 +159,12 @@ public static class InstallEngine
         string? temporaryRoot = null;
         try
         {
-            temporaryRoot = CreateTemporaryRoot();
+            temporaryRoot = CreateTemporaryRoot(plan);
+            // A killed app installer cannot restart the apps it stopped for a shared DLL change, so the run notes
+            // which apps were running and restarts the ones a killed installer left stopped
+            IReadOnlyList<string> runningBefore = plan.Mode == InstallMode.Portable
+                ? []
+                : RunningApplicationProcesses.ExecutablesUnder(plan.TargetDirectory);
             int applicationCount = plan.Payloads.Count;
             using ParallelRun run = new(
                 plan,
@@ -178,6 +196,7 @@ public static class InstallEngine
             }
 
             ApplicationRunResult[] results = await Task.WhenAll(applicationRuns).ConfigureAwait(false);
+            if (run.AnyChildKilled) RestartStoppedApps(runningBefore, plan);
             bool anyNotStarted = false;
             foreach (ApplicationRunResult result in results)
             {
@@ -191,7 +210,7 @@ public static class InstallEngine
             if (failureMessage != null)
                 return Fail(failureMessage, failedApplicationName: null, progress, applicationProgress, installedExecutables);
 
-            progress.Report(InstallProgressLine.At(InstallProgressLine.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
+            progress.Report(TrayAppDotNETInstallProgress.At(TrayAppDotNETInstallProgress.CompletePercent, L(nameof(AppStrings.Installer_Progress_Complete))));
             return new InstallOutcome(Success: true, ErrorMessage: null, installedExecutables);
         }
         catch (Exception exception)
@@ -217,7 +236,7 @@ public static class InstallEngine
             if (run.StopQueuedToken.IsCancellationRequested) return ApplicationRunResult.NotStarted;
 
             run.ApplicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
-            IProgress<InstallProgressLine> progress = run.Aggregator.ForApplication(index);
+            IProgress<TrayAppDotNETInstallProgress> progress = run.Aggregator.ForApplication(index);
             AppInstallResult result;
             switch (run.Plan.Mode)
             {
@@ -234,6 +253,7 @@ public static class InstallEngine
                     throw new ArgumentOutOfRangeException(nameof(run), run.Plan.Mode, message: "Unsupported install mode.");
             }
 
+            if (result.ChildKilled) run.MarkChildKilled();
             if (result.Error != null) return FailApplication(run, payload, result.Error);
 
             string installedExecutable = result.InstalledExecutable
@@ -278,7 +298,7 @@ public static class InstallEngine
         string destinationDirectory,
         string applicationName,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         CancellationToken cancellationToken)
     {
         FrameworkCompatibility.ThrowIfNull(archiveStream, nameof(archiveStream));
@@ -298,7 +318,7 @@ public static class InstallEngine
         string destinationDirectory,
         string applicationName,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         CancellationToken cancellationToken)
     {
         SolidPayloadHeader header = SolidPayloadArchive.Read(archiveStream);
@@ -307,12 +327,12 @@ public static class InstallEngine
             archiveStream,
             header,
             destinationDirectory,
-            (entryIndex, entry) => progress.Report(InstallProgressLine.At(
+            (entryIndex, entry) => progress.Report(TrayAppDotNETInstallProgress.At(
                 slice.Map(entryIndex * FullInnerPercent / entryCount),
                 Format(nameof(AppStrings.Installer_Progress_Extracting_Format), applicationName, entry.Name))),
             cancellationToken);
 
-        progress.Report(InstallProgressLine.At(slice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Extracted_Format), applicationName)));
+        progress.Report(TrayAppDotNETInstallProgress.At(slice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Extracted_Format), applicationName)));
         return extractedFiles;
     }
 
@@ -321,7 +341,7 @@ public static class InstallEngine
         string destinationDirectory,
         string applicationName,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         CancellationToken cancellationToken)
     {
         string destinationRoot = Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar);
@@ -347,7 +367,7 @@ public static class InstallEngine
             // redundant inside an installer, so it never reaches a temporary or a portable folder.
             if (IsRootInstallScript(entry)) continue;
 
-            progress.Report(InstallProgressLine.At(
+            progress.Report(TrayAppDotNETInstallProgress.At(
                 slice.Map(entryIndex * FullInnerPercent / entryCount),
                 Format(nameof(AppStrings.Installer_Progress_Extracting_Format), applicationName, entry.FullName)));
 
@@ -363,7 +383,7 @@ public static class InstallEngine
             extractedFiles++;
         }
 
-        progress.Report(InstallProgressLine.At(slice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Extracted_Format), applicationName)));
+        progress.Report(TrayAppDotNETInstallProgress.At(slice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Extracted_Format), applicationName)));
         return extractedFiles;
     }
 
@@ -384,7 +404,7 @@ public static class InstallEngine
     private static async Task<AppInstallResult> InstallPortableAsync(
         ParallelRun run,
         EmbeddedPayload payload,
-        IProgress<InstallProgressLine> progress)
+        IProgress<TrayAppDotNETInstallProgress> progress)
     {
         string stagingDirectory = Path.Combine(run.TemporaryRoot, payload.ApplicationName);
         ProgressSlice extractSlice = ProgressSlice.Full.Portion(fromInnerPercent: 0, PortableExtractPortionEndPercent);
@@ -396,15 +416,16 @@ public static class InstallEngine
         await run.PortableCopyGate.WaitAsync(run.CancellationToken).ConfigureAwait(false);
         try
         {
-            progress.Report(InstallProgressLine.At(extractSlice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
-            CopyDirectory(stagingDirectory, run.Plan.TargetDirectory, run.CancellationToken);
+            progress.Report(TrayAppDotNETInstallProgress.At(extractSlice.EndPercent, Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
+            // Once copying into the portable folder starts it finishes, so a cancel never leaves a half-copied app
+            CopyDirectory(stagingDirectory, run.Plan.TargetDirectory, CancellationToken.None);
         }
         finally
         {
             run.PortableCopyGate.Release();
         }
 
-        progress.Report(InstallProgressLine.At(FullInnerPercent, Format(nameof(AppStrings.Installer_Progress_Installed_Format), payload.ApplicationName)));
+        progress.Report(TrayAppDotNETInstallProgress.At(FullInnerPercent, Format(nameof(AppStrings.Installer_Progress_Installed_Format), payload.ApplicationName)));
         return new AppInstallResult(Error: null, InstalledExecutable: null);
     }
 
@@ -424,13 +445,33 @@ public static class InstallEngine
         }
     }
 
+    /// <summary>
+    /// Starts again the apps that were running before the run, are no longer running, and were not part of it.
+    /// Called after the inactivity timeout ended an app's installer, which may have stopped them for a shared DLL
+    /// change without reaching its own restart. The run's own apps are left to the window's relaunch.
+    /// </summary>
+    private static void RestartStoppedApps(IReadOnlyList<string> runningBefore, InstallPlan plan)
+    {
+        HashSet<string> excluded = new(RunningApplicationProcesses.ExecutablesUnder(plan.TargetDirectory), StringComparer.OrdinalIgnoreCase);
+        foreach (EmbeddedPayload payload in plan.Payloads)
+            excluded.Add(InstallDefaults.InstalledExecutablePath(plan.Mode, plan.TargetDirectory, payload.ApplicationName));
+
+        foreach (string executable in runningBefore)
+        {
+            if (excluded.Contains(executable)) continue;
+
+            InstallerLog.Write($"InstallEngine: restarting {executable}, which an ended app installer left stopped");
+            AppLauncher.Launch(executable, [TrayAppDotNETInstallContract.HiddenArgument]);
+        }
+    }
+
     private static async Task<AppInstallResult> InstallThroughAppAsync(
         InstallPlan plan,
         EmbeddedPayload payload,
         Func<EmbeddedPayload, Stream> openPayload,
         string temporaryRoot,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         CancellationToken cancellationToken)
     {
         string applicationDirectory = Path.Combine(temporaryRoot, payload.ApplicationName);
@@ -450,9 +491,9 @@ public static class InstallEngine
                 InstalledExecutable: null);
         }
 
-        progress.Report(InstallProgressLine.At(installSlice.StartPercent, Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
+        progress.Report(TrayAppDotNETInstallProgress.At(installSlice.StartPercent, Format(nameof(AppStrings.Installer_Progress_Installing_Format), payload.ApplicationName)));
         return await RunHeadlessInstallAsync(
-            executablePath, applicationDirectory, plan, payload.ApplicationName, installSlice, progress, cancellationToken)
+            executablePath, applicationDirectory, plan, payload.ApplicationName, installSlice, progress)
             .ConfigureAwait(false);
     }
 
@@ -462,8 +503,7 @@ public static class InstallEngine
         InstallPlan plan,
         string applicationName,
         ProgressSlice slice,
-        IProgress<InstallProgressLine> progress,
-        CancellationToken cancellationToken)
+        IProgress<TrayAppDotNETInstallProgress> progress)
     {
         ProcessStartInfo startInfo = new()
         {
@@ -477,12 +517,22 @@ public static class InstallEngine
             StandardErrorEncoding = Encoding.UTF8
         };
         // AddArgument stands in for ProcessStartInfo.ArgumentList, which the .NET Framework lacks
-        startInfo.AddArgument(HeadlessInstallArgument);
-        startInfo.AddArgument(plan.Mode == InstallMode.System ? SystemScope : LocalScope);
-        startInfo.AddArgument(DesktopShortcutArgument);
-        startInfo.AddArgument(plan.CreateDesktopShortcut ? TrueValue : FalseValue);
-        startInfo.AddArgument(StartMenuShortcutArgument);
-        startInfo.AddArgument(plan.CreateStartMenuShortcut ? TrueValue : FalseValue);
+        startInfo.AddArgument(TrayAppDotNETInstallContract.HeadlessInstallArgument);
+        startInfo.AddArgument(plan.Mode == InstallMode.System
+            ? TrayAppDotNETInstallContract.SystemScopeArgument
+            : TrayAppDotNETInstallContract.LocalScopeArgument);
+        // An unset choice is left out, so the app's installer keeps that shortcut as it is
+        if (plan.CreateDesktopShortcut is { } createDesktopShortcut)
+        {
+            startInfo.AddArgument(TrayAppDotNETInstallContract.DesktopShortcutArgument);
+            startInfo.AddArgument(createDesktopShortcut ? TrueValue : FalseValue);
+        }
+
+        if (plan.CreateStartMenuShortcut is { } createStartMenuShortcut)
+        {
+            startInfo.AddArgument(TrayAppDotNETInstallContract.StartMenuShortcutArgument);
+            startInfo.AddArgument(createStartMenuShortcut ? TrueValue : FalseValue);
+        }
         InstallerLog.Write($"InstallEngine: starting {executablePath} {startInfo.Arguments}");
 
         using Process process = new();
@@ -490,7 +540,12 @@ public static class InstallEngine
         if (!process.Start())
             return new AppInstallResult(Format(nameof(AppStrings.Installer_Error_AppStartFailed_Format), executablePath), InstalledExecutable: null);
 
-        HeadlessOutput output = new(slice, progress);
+        // Restarted by every output line; a child that stays silent this long is treated as hung. Cancelling the run
+        // never ends a child that has started: killing an app's installer mid-copy would leave its folder half
+        // replaced and the apps it stopped for a shared DLL stopped
+        using CancellationTokenSource stall = new();
+        stall.CancelAfter(ChildInactivityTimeoutMs);
+        HeadlessOutput output = new(slice, progress, () => RestartStallTimer(stall));
         StreamReader standardOutput = process.StandardOutput;
         StreamReader standardError = process.StandardError;
         // Grandchildren may inherit the pipes, so the readers are never awaited to EOF; each gets its own
@@ -508,12 +563,16 @@ public static class InstallEngine
 
         try
         {
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await process.WaitForExitAsync(stall.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             TryKill(process);
-            throw;
+            InstallerLog.Write($"InstallEngine: {applicationName} printed nothing for {ChildInactivityTimeoutMs / 1000} s; ended it");
+            return new AppInstallResult(
+                WithDiagnostics(Format(nameof(AppStrings.Installer_Error_AppInstallerStalled_Format), applicationName), output.Diagnostics),
+                InstalledExecutable: null,
+                ChildKilled: true);
         }
 
         await Task.WhenAny(
@@ -544,14 +603,14 @@ public static class InstallEngine
     internal static InstallOutcome Fail(
         string message,
         string? failedApplicationName,
-        IProgress<InstallProgressLine> progress,
+        IProgress<TrayAppDotNETInstallProgress> progress,
         IProgress<InstallApplicationStatus> applicationProgress,
         IReadOnlyList<string> installedExecutables)
     {
         if (failedApplicationName != null)
             applicationProgress.Report(new InstallApplicationStatus(failedApplicationName, InstallApplicationState.Failed));
 
-        progress.Report(InstallProgressLine.Failed(message));
+        progress.Report(TrayAppDotNETInstallProgress.Failed(message));
         return new InstallOutcome(Success: false, message, installedExecutables);
     }
 
@@ -561,9 +620,26 @@ public static class InstallEngine
     private static bool IsDirectoryEntry(ZipArchiveEntry entry) =>
         entry.FullName.Length > 0 && entry.FullName[^1] == ZipDirectorySeparator;
 
-    private static string CreateTemporaryRoot()
+    /// <summary>
+    /// The folder the packages are extracted into. A System install stages inside its own target folder under
+    /// %ProgramFiles%, which only administrators can change, so nothing an unelevated process could swap is ever
+    /// run elevated or copied into Program Files. Other modes run unelevated and stage under %TEMP%.
+    /// </summary>
+    internal static string CreateTemporaryRoot(InstallPlan plan)
     {
-        string temporaryRoot = InstallerTempPaths.NewPayloadDirectory();
+        string temporaryRoot;
+        if (plan.Mode == InstallMode.System)
+        {
+            Directory.CreateDirectory(plan.TargetDirectory);
+            if ((File.GetAttributes(plan.TargetDirectory) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException($"{plan.TargetDirectory} is a reparse point; the System install was stopped.");
+            temporaryRoot = Path.Combine(plan.TargetDirectory, $"{SystemStagingPrefix}{Guid.NewGuid():N}");
+        }
+        else
+        {
+            temporaryRoot = InstallerTempPaths.NewPayloadDirectory();
+        }
+
         Directory.CreateDirectory(temporaryRoot);
         return temporaryRoot;
     }
@@ -588,7 +664,9 @@ public static class InstallEngine
                 if (attempt == TemporaryDeleteAttempts)
                 {
                     InstallerLog.Write($"InstallEngine: could not delete {temporaryRoot}; deferring to a detached cleanup: {exception.Message}");
-                    DetachedDirectoryCleanup.Schedule(temporaryRoot);
+                    _ = DetachedCleanup.Schedule(
+                        [new DetachedCleanupTarget(DetachedCleanupAction.DeleteDirectoryTree, temporaryRoot)],
+                        InstallerLog.Write);
                     return;
                 }
 
@@ -618,8 +696,24 @@ public static class InstallEngine
         }
     }
 
-    /// <summary>Collects the child's output: progress lines are rescaled and forwarded, everything else is kept as diagnostics.</summary>
-    private sealed class HeadlessOutput(ProgressSlice slice, IProgress<InstallProgressLine> progress)
+    // Output readers outlive the wait (grandchildren may hold the pipes), so the timer can already be disposed
+    private static void RestartStallTimer(CancellationTokenSource stall)
+    {
+        try
+        {
+            stall.CancelAfter(ChildInactivityTimeoutMs);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The child already exited
+        }
+    }
+
+    /// <summary>
+    /// Collects the child's output: progress lines are rescaled and forwarded, everything else is kept as
+    /// diagnostics. <paramref name="activity"/> runs for every line, which keeps the stall timeout from firing.
+    /// </summary>
+    private sealed class HeadlessOutput(ProgressSlice slice, IProgress<TrayAppDotNETInstallProgress> progress, Action activity)
     {
         // Stands in for System.Threading.Lock, which the .NET Framework does not define
         private readonly object _gate = new();
@@ -656,7 +750,11 @@ public static class InstallEngine
             try
             {
                 string? line;
-                while ((line = reader.ReadLine()) != null) HandleStandardOutputLine(line);
+                while ((line = reader.ReadLine()) != null)
+                {
+                    activity();
+                    HandleStandardOutputLine(line);
+                }
             }
             catch (Exception exception) when (exception is IOException or ObjectDisposedException)
             {
@@ -669,7 +767,11 @@ public static class InstallEngine
             try
             {
                 string? line;
-                while ((line = reader.ReadLine()) != null) AppendDiagnostic(line);
+                while ((line = reader.ReadLine()) != null)
+                {
+                    activity();
+                    AppendDiagnostic(line);
+                }
             }
             catch (Exception exception) when (exception is IOException or ObjectDisposedException)
             {
@@ -679,7 +781,7 @@ public static class InstallEngine
 
         private void HandleStandardOutputLine(string line)
         {
-            if (InstallProgressLine.TryParseLine(line, out InstallProgressLine? parsed))
+            if (TrayAppDotNETInstallProgress.TryParseLine(line, out TrayAppDotNETInstallProgress? parsed))
             {
                 if (parsed.IsFailure)
                 {
@@ -687,13 +789,13 @@ public static class InstallEngine
                     return;
                 }
 
-                progress.Report(InstallProgressLine.At(slice.Map(parsed.Percent), parsed.Message));
+                progress.Report(TrayAppDotNETInstallProgress.At(slice.Map(parsed.Percent), parsed.Message));
                 return;
             }
 
-            if (line.StartsWith(InstalledToPrefix, StringComparison.Ordinal))
+            if (line.StartsWith(TrayAppDotNETInstallContract.InstalledToPrefix, StringComparison.Ordinal))
             {
-                string installedPath = line[InstalledToPrefix.Length..].Trim();
+                string installedPath = line[TrayAppDotNETInstallContract.InstalledToPrefix.Length..].Trim();
                 lock (_gate) _installedExecutable = installedPath.Length == 0 ? null : installedPath;
             }
 

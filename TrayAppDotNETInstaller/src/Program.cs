@@ -31,15 +31,16 @@ internal static class Program
             // Must precede the first touch of WPF, which reads the switch when its static state is built
             AppContext.SetSwitch(DoNotScaleForDpiChangesSwitch, isEnabled: false);
 
+#if DEBUG
+            // The example window is a development aid; a Release build, which every stamped installer is, ignores
+            // --example and --example-fail
             bool isExample = ExampleMode.IsRequested(args, out string? exampleApplicationName);
-            // The catalog holds a handle on the appended archive until the process is on its way out
+            bool exampleFails = ExampleMode.IsFailureRequested(args);
             EmbeddedPayloadCatalog catalog = isExample
                 ? ExampleMode.CreateCatalog(exampleApplicationName)
                 : EmbeddedPayloadCatalog.Load();
-#if DEBUG
             // Running the project produces a payload-free Debug build, which as a real installer could only
-            // report that it has nothing to install. A stamped installer is a Release build and always
-            // carries a payload, so this can never turn one of those into an example.
+            // report that it has nothing to install
             if (!isExample && catalog.Payloads.Count == 0)
             {
                 InstallerLog.Write("Program: a Debug build with no payload; opening the example window instead");
@@ -47,10 +48,14 @@ internal static class Program
                 catalog = ExampleMode.CreateCatalog(applicationName: null);
                 isExample = true;
             }
+#else
+            const bool isExample = false;
+            const bool exampleFails = false;
+            EmbeddedPayloadCatalog catalog = EmbeddedPayloadCatalog.Load();
 #endif
             using (catalog)
             {
-                App application = new(catalog, isExample, ExampleMode.IsFailureRequested(args));
+                App application = new(catalog, isExample, exampleFails);
                 return application.Run();
             }
         }

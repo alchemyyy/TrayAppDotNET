@@ -9,9 +9,9 @@ public sealed class InstallProgressAggregator
     // Stands in for System.Threading.Lock, which the .NET Framework does not define
     private readonly object _gate = new();
     private readonly int[] _applicationPercents;
-    private readonly IProgress<InstallProgressLine> _progress;
+    private readonly IProgress<TrayAppDotNETInstallProgress> _progress;
 
-    public InstallProgressAggregator(int applicationCount, IProgress<InstallProgressLine> progress)
+    public InstallProgressAggregator(int applicationCount, IProgress<TrayAppDotNETInstallProgress> progress)
     {
         FrameworkCompatibility.ThrowIfNull(progress, nameof(progress));
         if (applicationCount <= 0)
@@ -22,7 +22,7 @@ public sealed class InstallProgressAggregator
     }
 
     /// <summary>The sink for the application at <paramref name="index"/>; it reports on the application's own 0-100 scale.</summary>
-    public IProgress<InstallProgressLine> ForApplication(int index)
+    public IProgress<TrayAppDotNETInstallProgress> ForApplication(int index)
     {
         if (index < 0 || index >= _applicationPercents.Length)
             throw new ArgumentOutOfRangeException(nameof(index), index, message: "No such application.");
@@ -30,7 +30,7 @@ public sealed class InstallProgressAggregator
         return new ApplicationProgress(this, index);
     }
 
-    private void Report(int index, InstallProgressLine line)
+    private void Report(int index, TrayAppDotNETInstallProgress line)
     {
         // The engine reports failures itself once every application has stopped, so a failure line here would
         // only move the bar to the end
@@ -44,13 +44,13 @@ public sealed class InstallProgressAggregator
             int percentSum = 0;
             foreach (int applicationPercent in _applicationPercents) percentSum += applicationPercent;
 
-            _progress.Report(InstallProgressLine.At(percentSum / _applicationPercents.Length, line.Message));
+            _progress.Report(TrayAppDotNETInstallProgress.At(percentSum / _applicationPercents.Length, line.Message));
         }
     }
 
-    private sealed class ApplicationProgress(InstallProgressAggregator aggregator, int index) : IProgress<InstallProgressLine>
+    private sealed class ApplicationProgress(InstallProgressAggregator aggregator, int index) : IProgress<TrayAppDotNETInstallProgress>
     {
-        public void Report(InstallProgressLine value)
+        public void Report(TrayAppDotNETInstallProgress value)
         {
             FrameworkCompatibility.ThrowIfNull(value, nameof(value));
 

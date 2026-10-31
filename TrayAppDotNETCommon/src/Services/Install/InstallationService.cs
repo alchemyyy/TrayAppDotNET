@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Principal;
+using TrayAppDotNETCommon.Contracts;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services.Ipc;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;
@@ -15,20 +17,39 @@ public sealed record TrayAppDotNETInstallationOptions(
     int CurrentBuildNumber,
     Action<InstallScope?, bool>? SyncStartMenu = null,
     Action<Action>? PostToUIThread = null,
-    TrayAppDotNETDesktopShortcutOptions? DesktopShortcutOptions = null);
+    TrayAppDotNETDesktopShortcutOptions? DesktopShortcutOptions = null)
+{
+    /// <summary>
+    /// Starts the removal that runs after the uninstall helper exits. Tests replace it; everything else uses
+    /// <see cref="DetachedCleanup.Schedule"/>.
+    /// </summary>
+    internal Func<IReadOnlyList<DetachedCleanupTarget>, Action<string>, int?> ScheduleRemovalAfterExit { get; init; } =
+        static (targets, log) => DetachedCleanup.Schedule(targets, log);
+
+    /// <summary>
+    /// Returns why the uninstall of a scope must not start, or null to let it start. <see
+    /// cref="TrayAppDotNETInstallationService.RunUninstall"/> asks before it starts the helper, so the reason reaches
+    /// the uninstaller window or the <c>--uninstall-headless</c> output even when the helper would replace this
+    /// process. Comes from <see cref="TrayAppDotNETUninstallHook.CheckUninstall"/>.
+    /// </summary>
+    public Func<InstallScope, string?>? CheckUninstall { get; init; }
+}
 
 /// <summary>
 /// Describes an uninstall started by <see cref="TrayAppDotNETInstallationService.RunUninstall"/>.
 /// The caller owns <see cref="Process"/> when one is returned. <see cref="Completion"/> finishes after the
-/// final progress report has been delivered and never faults.
+/// final progress report has been delivered, never faults, and is true only when the app's files are gone.
 /// </summary>
-public sealed record TrayAppDotNETUninstallRun(Process? Process, bool UserCancelled, Task Completion)
+public sealed record TrayAppDotNETUninstallRun(Process? Process, bool UserCancelled, Task<bool> Completion)
 {
     public static readonly TrayAppDotNETUninstallRun WithoutProcess =
-        new(Process: null, UserCancelled: false, Task.CompletedTask);
+        new(Process: null, UserCancelled: false, Task.FromResult(false));
 
     public static readonly TrayAppDotNETUninstallRun Cancelled =
-        new(Process: null, UserCancelled: true, Task.CompletedTask);
+        new(Process: null, UserCancelled: true, Task.FromResult(false));
+
+    /// <summary>Why no uninstall process was started, when it was refused before starting.</summary>
+    public string? ErrorMessage { get; init; }
 }
 
 /// <summary>
@@ -52,7 +73,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     private const int InstallRegisteringPercent = 88;
     private const int InstallShortcutsPercent = 92;
 
-    // Uninstall stage percentages; the batch file removal stage follows the helper stages
+    // Uninstall stage percentages; the detached removal of the helper's own exe follows the helper stages
     private const int UninstallStartupShortcutPercent = 5;
     private const int UninstallStartMenuPercent = 20;
     private const int UninstallDesktopShortcutPercent = 35;
@@ -61,11 +82,16 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     private const int UninstallDeletingSettingsPercent = 75;
     private const int UninstallRemovingFilesPercent = 85;
 
+    private TrayAppDotNETStartupManager? _startup;
+
     public TrayAppDotNETInstallIdentity Identity => options.Identity;
 
     public TrayAppDotNETInstallLayout Layout => options.Layout;
 
     public TrayAppDotNETInstallPayload Payload => options.Payload;
+
+    /// <summary>The build of the running exe, which a transitional update worker records as the installed build.</summary>
+    public int CurrentBuildNumber => options.CurrentBuildNumber;
 
     public TrayAppDotNETDesktopShortcut DesktopShortcut { get; } = new(
         options.DesktopShortcutOptions
@@ -73,6 +99,13 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             options.Identity.ApplicationName,
             options.Layout,
             options.Identity.WriteLog));
+
+    private TrayAppDotNETStartupManager Startup => _startup ??= new TrayAppDotNETStartupManager(
+        new TrayAppDotNETStartupOptions(Identity.ApplicationName, Layout, DetectAll, Identity.WriteLog)
+        {
+            ShortcutPath = Identity.StartupShortcutPath,
+            LegacyRunKeyRegistryPath = Identity.LegacyRunKeyRegistryPath
+        });
 
     public static bool IsElevated(Action<string>? log = null)
     {
@@ -102,6 +135,17 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         {
             return false;
         }
+    }
+
+    /// <summary>The Local or System scope whose installed exe is <paramref name="executable"/>, or null (portable).</summary>
+    public InstallScope? ScopeOfExecutable(string executable)
+    {
+        string normalized = PathNormalization.Normalize(executable);
+        if (string.Equals(normalized, PathNormalization.Normalize(Layout.ProgramFilesInstallExecutable), StringComparison.OrdinalIgnoreCase))
+            return InstallScope.ProgramFiles;
+        if (string.Equals(normalized, PathNormalization.Normalize(Layout.LocalAppDataInstallExecutable), StringComparison.OrdinalIgnoreCase))
+            return InstallScope.LocalAppData;
+        return null;
     }
 
     public List<TrayAppDotNETInstallationInfo> DetectAll()
@@ -143,6 +187,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 TrayAppDotNETInstallStatus.CurrentlyRunning, entry?.DisplayVersion);
         }
 
+        // In-app updates rewrite DisplayVersion, so the entry tracks the installed build
         int? installed = entry?.DisplayVersion;
         if (installed.HasValue && installed.Value < options.CurrentBuildNumber)
         {
@@ -203,6 +248,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (IsElevated(Identity.WriteLog))
             return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber, installOptions, progress);
 
+        if (TrayAppDotNETElevationPolicy.ElevationWouldUseAnotherAccount(Identity.WriteLog))
+            return Fail(progress, L(nameof(CommonStrings.Elevation_Error_DifferentAdministratorAccount)));
+
         return InvokeElevatedInstall(sourceExe, installOptions, progress);
     }
 
@@ -244,9 +292,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         string destinationExecutable = allUsers
             ? Layout.ProgramFilesInstallExecutable
             : Layout.LocalAppDataInstallExecutable;
-
-        ReportStage(progress, InstallStoppingInstancesPercent, nameof(CommonStrings.Install_Progress_StoppingInstances));
-        StopInstalledProcesses(scope);
+        bool scopeWasInstalled = File.Exists(destinationExecutable);
 
         ReportStage(progress, InstallCheckingFilesPercent, nameof(CommonStrings.Install_Progress_CheckingFiles));
         TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
@@ -265,7 +311,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             Layout.InstalledExecutableFileName);
 
         ReportStage(progress, InstallShortcutsPercent, nameof(CommonStrings.Install_Progress_UpdatingShortcuts));
-        TrayAppDotNETInstallResult result = ApplyInstallOptions(scope, allUsers, installOptions);
+        TrayAppDotNETInstallResult result = ApplyInstallOptions(scope, allUsers, installOptions, scopeWasInstalled);
         if (!result.Success) return Fail(progress, result.ErrorMessage);
 
         ReportStage(
@@ -318,12 +364,18 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         return result;
     }
 
+    /// <summary>
+    /// Copies the payload under the install directory lock. When a shared native DLL changes, every app running
+    /// from the folder is stopped first and restarted afterwards; this app's own instances are always stopped.
+    /// Shared native DLLs are copied first and the app exe last.
+    /// </summary>
     public TrayAppDotNETInstallResult CopyInstallPayload(
         string sourceExe,
         string destinationDirectory,
         string destinationExe,
         IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
+        List<string> restartAfterCopy = [];
         try
         {
             if (!File.Exists(sourceExe))
@@ -370,6 +422,30 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             }
 
             Directory.CreateDirectory(destinationDirectory);
+            // An update of this app must not run while its files are overwritten; one left interrupted is rolled
+            // back first so its journal and backups do not outlive this install
+            using FileStream? updateLock = TryTakeUpdateLock(destinationDirectory);
+            if (updateLock == null)
+            {
+                return new TrayAppDotNETInstallResult(Success: false,
+                    string.Format(CultureInfo.CurrentCulture, L(nameof(CommonStrings.Install_Error_UpdateRunning_Format)), Identity.ApplicationName));
+            }
+
+            if (!UpdateFileTransaction.RecoverInterrupted(destinationDirectory, Layout.ApplicationName, Identity.WriteLog))
+                return new TrayAppDotNETInstallResult(Success: false, "An interrupted update could not be rolled back.");
+
+            bool sharedNativeDllChanges = ChangesSharedNativeDlls(copyPlan);
+            HashSet<string> stopExecutables = TrayAppDotNETInstalledProcesses.ExecutablePaths(destinationExe, sharedNativeDllChanges);
+            restartAfterCopy = TrayAppDotNETInstalledProcesses.RunningExecutables(stopExecutables)
+                .Where(executable => !string.Equals(executable, Path.GetFullPath(destinationExe), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            ReportStage(progress, InstallStoppingInstancesPercent, nameof(CommonStrings.Install_Progress_StoppingInstances));
+            TrayAppDotNETInstalledProcesses.Stop(
+                stopExecutables,
+                UninstallProcessStopAttempts,
+                TimeConstants.UninstallProcessRetryDelayMs,
+                Identity.WriteLog);
+
             int copiedCount = 0;
             foreach (InstallCopyItem item in copyPlan)
             {
@@ -387,6 +463,37 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             Identity.WriteLog($"TrayAppDotNETInstallationService.CopyInstallPayload: {ex}");
             return new TrayAppDotNETInstallResult(Success: false, ex.Message);
         }
+        finally
+        {
+            // The other apps were running before the shared DLLs changed; they come back whatever the outcome
+            if (restartAfterCopy.Count > 0)
+            {
+                TrayAppDotNETInstalledProcesses.Start(
+                    restartAfterCopy,
+                    _ => [TrayAppDotNETInstallContract.HiddenArgument],
+                    Identity.WriteLog);
+            }
+        }
+    }
+
+    /// <summary>Takes this app's update lock without waiting; null while an update of the app holds it.</summary>
+    private FileStream? TryTakeUpdateLock(string installDirectory)
+    {
+        try
+        {
+            return new FileStream(
+                UpdateFileTransaction.LockPath(installDirectory, Layout.ApplicationName),
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 1,
+                FileOptions.DeleteOnClose);
+        }
+        catch (IOException exception)
+        {
+            Identity.WriteLog($"TrayAppDotNETInstallationService: an update of {Layout.ApplicationName} is running: {exception.Message}");
+            return null;
+        }
     }
 
     /// <summary>Lists every file and directory to copy so progress can be reported against a known total.</summary>
@@ -397,25 +504,14 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         string destinationExe)
     {
         List<InstallCopyItem> copyPlan = [];
-        copyPlan.Add(new InstallCopyItem(sourceExe, destinationExe, IsDirectory: false));
 
         foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
-        {
-            copyPlan.Add(new InstallCopyItem(
-                Path.Combine(sourceDirectory, file.Name),
-                Path.Combine(destinationDirectory, file.Name),
-                IsDirectory: false));
-        }
+            AddFile(copyPlan, sourceDirectory, destinationDirectory, file.Name);
 
         foreach (TrayAppDotNETInstallFile file in Payload.OptionalFiles)
         {
-            string sourceFile = Path.Combine(sourceDirectory, file.Name);
-            if (!File.Exists(sourceFile)) continue;
-
-            copyPlan.Add(new InstallCopyItem(
-                sourceFile,
-                Path.Combine(destinationDirectory, file.Name),
-                IsDirectory: false));
+            if (File.Exists(Path.Combine(sourceDirectory, file.Name)))
+                AddFile(copyPlan, sourceDirectory, destinationDirectory, file.Name);
         }
 
         if (Payload.CopySourceDirectoryRootFiles)
@@ -425,10 +521,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 if (!ShouldCopySourceDirectoryRootFile(sourceFile, Layout.InstalledExecutableFileName))
                     continue;
 
-                copyPlan.Add(new InstallCopyItem(
-                    sourceFile,
-                    Path.Combine(destinationDirectory, Path.GetFileName(sourceFile)),
-                    IsDirectory: false));
+                AddFile(copyPlan, sourceDirectory, destinationDirectory, Path.GetFileName(sourceFile));
             }
         }
 
@@ -448,19 +541,56 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             AddDirectoryMergePlan(copyPlan, sourcePath, Path.Combine(destinationDirectory, directory.Name));
         }
 
-        return copyPlan;
+        // Native DLLs first and the exe last: a failure part way never leaves a new exe beside old native code
+        List<InstallCopyItem> ordered =
+        [
+            .. copyPlan.Where(item => item.IsSharedNativeDll),
+            .. copyPlan.Where(item => !item.IsSharedNativeDll)
+        ];
+        ordered.Add(new InstallCopyItem(sourceExe, destinationExe, IsDirectory: false));
+        return ordered;
     }
+
+    /// <summary>
+    /// The install's copy order and whether it replaces a shared native DLL that differs from the installed one,
+    /// which means every app in the folder must stop. Call it under the install directory lock.
+    /// </summary>
+    internal (IReadOnlyList<string> FileDestinations, bool ChangesSharedNativeDlls) PlanInstallCopy(
+        string sourceExe,
+        string destinationDirectory,
+        string destinationExe)
+    {
+        string sourceDirectory = Path.GetDirectoryName(sourceExe)
+                                 ?? throw new InvalidOperationException($"Cannot determine source directory for {sourceExe}");
+        List<InstallCopyItem> copyPlan = BuildCopyPlan(sourceExe, sourceDirectory, destinationDirectory, destinationExe);
+        return (
+            [.. copyPlan.Where(item => !item.IsDirectory).Select(item => item.Destination)],
+            ChangesSharedNativeDlls(copyPlan));
+    }
+
+    private static bool ChangesSharedNativeDlls(IEnumerable<InstallCopyItem> copyPlan) =>
+        copyPlan.Any(item => item.IsSharedNativeDll
+                             && File.Exists(item.Destination)
+                             && !SamePath(item.Source, item.Destination)
+                             && !DllContentsMatch(item.Source, item.Destination));
+
+    private static void AddFile(
+        List<InstallCopyItem> copyPlan,
+        string sourceDirectory,
+        string destinationDirectory,
+        string fileName) =>
+        copyPlan.Add(new InstallCopyItem(
+            Path.Combine(sourceDirectory, fileName),
+            Path.Combine(destinationDirectory, fileName),
+            IsDirectory: false,
+            TrayAppDotNETInstalledProcesses.IsSharedNativeDll(fileName)));
 
     private static void AddDirectoryMergePlan(
         List<InstallCopyItem> copyPlan,
         string sourceDirectory,
         string destinationDirectory)
     {
-        if (string.Equals(
-                PathNormalization.Normalize(sourceDirectory),
-                PathNormalization.Normalize(destinationDirectory),
-                StringComparison.OrdinalIgnoreCase))
-            return;
+        if (SamePath(sourceDirectory, destinationDirectory)) return;
 
         copyPlan.Add(new InstallCopyItem(sourceDirectory, destinationDirectory, IsDirectory: true));
 
@@ -499,8 +629,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     /// <summary>
-    /// Starts the batch uninstall. Stage reports from the helper arrive through a named pipe, the file
-    /// removal stage is reported when the helper finishes, and completion follows the batch exit code.
+    /// Starts the uninstall helper: the installed exe of <paramref name="scope"/> itself, run with
+    /// <c>--uninstall-prepare</c> and elevated for a System install. It never runs a script or an exe from a
+    /// user-writable folder elevated. Stage reports arrive through a named pipe; completion waits for the helper
+    /// and then for the detached removal of its own exe.
     /// </summary>
     public TrayAppDotNETUninstallRun RunUninstall(
         InstallScope scope,
@@ -517,6 +649,22 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (string.IsNullOrEmpty(installDirectory)) return TrayAppDotNETUninstallRun.WithoutProcess;
 
         TrayAppDotNETProgressTracker? tracker = progress == null ? null : new TrayAppDotNETProgressTracker(progress);
+        string? blockingReason = CheckUninstallAllowed(scope);
+        if (blockingReason != null) return RefuseUninstall(tracker, blockingReason);
+
+        string helperExecutable = Path.Combine(installDirectory, Layout.InstalledExecutableFileName);
+        if (!File.Exists(helperExecutable))
+        {
+            return RefuseUninstall(tracker, string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.Uninstall_Error_InstalledCopyMissing_Format)),
+                helperExecutable));
+        }
+
+        bool elevate = scope == InstallScope.ProgramFiles && !IsElevated(Identity.WriteLog);
+        if (elevate && TrayAppDotNETElevationPolicy.ElevationWouldUseAnotherAccount(Identity.WriteLog))
+            return RefuseUninstall(tracker, L(nameof(CommonStrings.Elevation_Error_DifferentAdministratorAccount)));
+
         TrayAppDotNETProgressPipeServer? pipeServer = tracker == null
             ? null
             : new TrayAppDotNETProgressPipeServer(
@@ -524,70 +672,155 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 tracker,
                 Identity.WriteLog);
 
-        Process? batProcess = UninstallScript.Run(
-            installDirectory,
-            scope,
-            deleteSettings,
-            Identity,
-            Layout.InstalledExecutableFileName,
-            Payload,
-            pipeServer?.PipeName,
-            out bool userCancelled);
+        Process? helper;
+        Process? observer;
+        try
+        {
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = helperExecutable,
+                WorkingDirectory = Path.GetDirectoryName(helperExecutable) ?? installDirectory,
+                UseShellExecute = elevate,
+                CreateNoWindow = !elevate,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            if (elevate) startInfo.Verb = "runas";
+            foreach (string argument in BuildHelperArguments(
+                         scope,
+                         deleteSettings,
+                         TrayAppDotNETProgram.SettingsDirectoryOverride,
+                         pipeServer?.PipeName))
+                startInfo.ArgumentList.Add(argument);
 
-        if (userCancelled)
+            helper = Process.Start(startInfo);
+            if (helper == null)
+            {
+                pipeServer?.Dispose();
+                tracker?.Report(TrayAppDotNETInstallProgress.Failed(L(nameof(CommonStrings.Uninstall_Progress_NotStarted))));
+                return TrayAppDotNETUninstallRun.WithoutProcess;
+            }
+
+            // A handle of its own, so the caller may dispose the returned process at once
+            observer = Process.GetProcessById(helper.Id);
+            _ = observer.SafeHandle;
+        }
+        catch (Win32Exception exception) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(exception))
         {
             pipeServer?.Dispose();
+            Identity.WriteLog("TrayAppDotNETInstallationService.RunUninstall: UAC prompt was declined");
             tracker?.Report(TrayAppDotNETInstallProgress.Failed(L(nameof(CommonStrings.Uninstall_Progress_Cancelled))));
             return TrayAppDotNETUninstallRun.Cancelled;
         }
-
-        if (batProcess == null)
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException
+                                              or ArgumentException or IOException)
         {
             pipeServer?.Dispose();
+            Identity.WriteLog($"TrayAppDotNETInstallationService.RunUninstall: {exception}");
             tracker?.Report(TrayAppDotNETInstallProgress.Failed(L(nameof(CommonStrings.Uninstall_Progress_NotStarted))));
             return TrayAppDotNETUninstallRun.WithoutProcess;
         }
 
         string runningExe = PathNormalization.Normalize(Environment.ProcessPath);
-        string installExecutable = PathNormalization.Normalize(
-            Path.Combine(installDirectory, Layout.InstalledExecutableFileName));
         bool runningFromInstall = !string.IsNullOrEmpty(runningExe)
-                                  && string.Equals(runningExe, installExecutable, StringComparison.OrdinalIgnoreCase);
+                                  && string.Equals(runningExe, PathNormalization.Normalize(helperExecutable),
+                                      StringComparison.OrdinalIgnoreCase);
 
         if (!runningFromInstall)
         {
-            Task completion = tracker == null
-                ? Task.CompletedTask
-                : MonitorUninstallAsync(batProcess.Id, pipeServer, tracker);
-            return new TrayAppDotNETUninstallRun(batProcess, UserCancelled: false, completion);
+            Task<bool> completion = MonitorUninstallAsync(
+                observer,
+                pipeServer,
+                tracker,
+                RemovalTargets(scope, deleteSettings));
+            return new TrayAppDotNETUninstallRun(helper, UserCancelled: false, completion);
         }
 
         // This process is the installed instance; it exits now and nothing remains to observe the stages
+        observer.Dispose();
         pipeServer?.Dispose();
         Action shutdown = shutdownCurrentProcess ?? (() => Environment.Exit(0));
         if (shutdownCurrentProcess != null) shutdown();
         else if (options.PostToUIThread != null) options.PostToUIThread(shutdown);
         else shutdown();
 
-        batProcess.Dispose();
+        helper.Dispose();
         return TrayAppDotNETUninstallRun.WithoutProcess;
     }
 
-    private async Task MonitorUninstallAsync(
-        int processID,
+    /// <summary>
+    /// The helper's arguments: scope, the settings choice, the settings folder override of this process (so the
+    /// helper deletes the folder the user sees, not the default one) and the progress pipe.
+    /// </summary>
+    internal static List<string> BuildHelperArguments(
+        InstallScope scope,
+        bool deleteSettings,
+        string? settingsDirectory,
+        string? progressPipeName)
+    {
+        List<string> arguments =
+        [
+            TrayAppDotNETInstallContract.PrepareUninstallArgument,
+            "--scope",
+            InstallScopeExtensions.ToArg(scope)
+        ];
+        if (deleteSettings)
+        {
+            arguments.Add(TrayAppDotNETInstallContract.DeleteSettingsArgument);
+            arguments.Add("true");
+        }
+
+        if (settingsDirectory != null)
+        {
+            arguments.Add(TrayAppDotNETProgram.SettingsDirectoryArgument);
+            arguments.Add(settingsDirectory);
+        }
+
+        if (!string.IsNullOrWhiteSpace(progressPipeName))
+        {
+            arguments.Add(TrayAppDotNETInstallContract.ProgressPipeArgument);
+            arguments.Add(progressPipeName);
+        }
+
+        return arguments;
+    }
+
+    private static TrayAppDotNETUninstallRun RefuseUninstall(TrayAppDotNETProgressTracker? tracker, string message)
+    {
+        tracker?.Report(TrayAppDotNETInstallProgress.Failed(message));
+        return TrayAppDotNETUninstallRun.WithoutProcess with { ErrorMessage = message };
+    }
+
+    private string? CheckUninstallAllowed(InstallScope scope)
+    {
+        if (options.CheckUninstall == null) return null;
+
+        try
+        {
+            string? reason = options.CheckUninstall(scope);
+            if (reason != null) Identity.WriteLog($"TrayAppDotNETInstallationService.RunUninstall: refused: {reason}");
+            return reason;
+        }
+        catch (Exception exception)
+        {
+            // The helper runs the app's uninstall hook again and stops there if its cleanup really fails
+            Identity.WriteLog($"TrayAppDotNETInstallationService.RunUninstall: uninstall check failed: {exception}");
+            return null;
+        }
+    }
+
+    private async Task<bool> MonitorUninstallAsync(
+        Process observer,
         TrayAppDotNETProgressPipeServer? pipeServer,
-        TrayAppDotNETProgressTracker tracker)
+        TrayAppDotNETProgressTracker? tracker,
+        IReadOnlyList<DetachedCleanupTarget> removalTargets)
     {
         try
         {
-            using Process observer = Process.GetProcessById(processID);
-            // Retain the handle so ExitCode remains available after the externally opened process exits
-            _ = observer.SafeHandle;
             Task exitTask = observer.WaitForExitAsync();
             if (pipeServer != null)
             {
                 await Task.WhenAny(pipeServer.Completion, exitTask).ConfigureAwait(false);
-                if (!exitTask.IsCompleted && !tracker.IsTerminal)
+                if (!exitTask.IsCompleted && tracker is { IsTerminal: false })
                 {
                     ReportStage(
                         tracker,
@@ -597,46 +830,99 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             }
 
             await exitTask.ConfigureAwait(false);
-            if (tracker.IsTerminal) return;
-
             int exitCode = observer.ExitCode;
-            if (exitCode == 0)
+            if (exitCode != 0)
             {
-                ReportStage(
-                    tracker,
-                    TrayAppDotNETInstallProgress.CompletePercent,
-                    nameof(CommonStrings.Uninstall_Progress_Complete));
-                return;
+                if (tracker is { IsTerminal: false })
+                {
+                    tracker.Report(TrayAppDotNETInstallProgress.Failed(string.Format(
+                        CultureInfo.CurrentCulture,
+                        L(nameof(CommonStrings.Uninstall_Progress_Failed_Format)),
+                        exitCode)));
+                }
+
+                return false;
             }
 
-            tracker.Report(TrayAppDotNETInstallProgress.Failed(string.Format(
-                CultureInfo.CurrentCulture,
-                L(nameof(CommonStrings.Uninstall_Progress_Failed_Format)),
-                exitCode)));
-        }
-        catch (ArgumentException)
-        {
-            // The batch finished before it could be observed
-            if (!tracker.IsTerminal)
+            // The helper's own exe and the settings folder it logged into go once it has exited
+            List<string> remaining = await WaitForRemovalAsync(removalTargets).ConfigureAwait(false);
+            if (remaining.Count == 0)
             {
-                ReportStage(
-                    tracker,
-                    TrayAppDotNETInstallProgress.CompletePercent,
-                    nameof(CommonStrings.Uninstall_Progress_Complete));
+                if (tracker is { IsTerminal: false })
+                {
+                    ReportStage(
+                        tracker,
+                        TrayAppDotNETInstallProgress.CompletePercent,
+                        nameof(CommonStrings.Uninstall_Progress_Complete));
+                }
+
+                return true;
             }
+
+            Identity.WriteLog($"TrayAppDotNETInstallationService.MonitorUninstall: still present: {string.Join(", ", remaining)}");
+            if (tracker is { IsTerminal: false })
+            {
+                tracker.Report(TrayAppDotNETInstallProgress.Failed(string.Format(
+                    CultureInfo.CurrentCulture,
+                    L(nameof(CommonStrings.Uninstall_Progress_ItemsRemain_Format)),
+                    string.Join(", ", remaining))));
+            }
+
+            return false;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
         {
             Identity.WriteLog($"TrayAppDotNETInstallationService.MonitorUninstall: {exception}");
-            if (!tracker.IsTerminal) tracker.Report(TrayAppDotNETInstallProgress.Failed(exception.Message));
+            if (tracker is { IsTerminal: false }) tracker.Report(TrayAppDotNETInstallProgress.Failed(exception.Message));
+            return false;
         }
         finally
         {
+            observer.Dispose();
             pipeServer?.Dispose();
         }
     }
 
-    /// <summary>Reconciles shell state and stops exact installed processes before file removal.</summary>
+    private static async Task<List<string>> WaitForRemovalAsync(IReadOnlyList<DetachedCleanupTarget> targets)
+    {
+        long deadline = Environment.TickCount64 + TimeConstants.UninstallCleanupWaitMs;
+        while (true)
+        {
+            List<string> remaining =
+            [
+                .. targets
+                    .Where(target => target.Action != DetachedCleanupAction.RemoveDirectoryIfEmpty)
+                    .Where(target => File.Exists(target.Path) || Directory.Exists(target.Path))
+                    .Select(target => target.Path)
+            ];
+            if (remaining.Count == 0 || Environment.TickCount64 >= deadline) return remaining;
+
+            await Task.Delay(TimeConstants.UninstallProcessRetryDelayMs).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>What the detached removal deletes once the uninstall helper has exited.</summary>
+    internal IReadOnlyList<DetachedCleanupTarget> RemovalTargets(InstallScope scope, bool deleteSettings)
+    {
+        bool allUsers = scope == InstallScope.ProgramFiles;
+        string installDirectory = allUsers ? Layout.ProgramFilesInstallDirectory : Layout.LocalAppDataInstallDirectory;
+        string installedExecutable = allUsers ? Layout.ProgramFilesInstallExecutable : Layout.LocalAppDataInstallExecutable;
+        List<DetachedCleanupTarget> targets =
+        [
+            new(DetachedCleanupAction.DeleteFile, installedExecutable),
+            new(DetachedCleanupAction.DeleteFile, TrayAppDotNETInstallLayout.PendingRemovalExecutablePath(installedExecutable))
+        ];
+        if (deleteSettings && !string.IsNullOrWhiteSpace(Identity.SettingsDirectory))
+            targets.Add(new DetachedCleanupTarget(DetachedCleanupAction.DeleteDirectoryTree, Identity.SettingsDirectory));
+        targets.Add(new DetachedCleanupTarget(DetachedCleanupAction.RemoveDirectoryIfEmpty, installDirectory));
+        return targets;
+    }
+
+    /// <summary>
+    /// The uninstall helper stage: reconciles shell state, stops this app's instances, removes the payload (the
+    /// shared files only when this is the last app) and starts the detached removal of what this process still
+    /// holds: its own exe and the settings folder its log lives in.
+    /// </summary>
     public TrayAppDotNETInstallResult PrepareUninstall(
         InstallScope scope,
         bool deleteSettings = false,
@@ -650,7 +936,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         try
         {
             ReportStage(progress, UninstallStartupShortcutPercent, nameof(CommonStrings.Uninstall_Progress_StartupShortcut));
-            ReconcileStartupShortcut(scope);
+            Startup.ReconcileForUninstall(scope);
 
             ReportStage(progress, UninstallStartMenuPercent, nameof(CommonStrings.Uninstall_Progress_StartMenu));
             options.SyncStartMenu?.Invoke(scope, scope == InstallScope.ProgramFiles);
@@ -661,8 +947,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 Identity.WriteLog($"PrepareUninstall: {desktopResult.ErrorMessage}");
 
             ReportStage(progress, UninstallRegistryPercent, nameof(CommonStrings.Uninstall_Progress_Registry));
-            _ = WindowsUninstallRegistry.Remove(scope, Identity);
-            RemoveLegacyRunEntry();
+            bool registryRemoved = WindowsUninstallRegistry.Remove(scope, Identity);
+            Startup.RemoveLegacyRunKey();
 
             ReportStage(progress, UninstallStoppingInstancesPercent, nameof(CommonStrings.Uninstall_Progress_StoppingInstances));
             StopInstalledProcesses(scope);
@@ -675,12 +961,21 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
             ReportStage(progress, UninstallRemovingFilesPercent, nameof(CommonStrings.Uninstall_Progress_RemovingFiles));
             TrayAppDotNETInstallResult sharedResult = RemoveSharedFilesIfLast(scope);
+            List<string> remainingFiles = RemoveAppFiles(scope);
+            _ = options.ScheduleRemovalAfterExit(RemovalTargets(scope, deleteSettings), Identity.WriteLog);
 
             if (!desktopResult.Success) return Fail(progress, desktopResult.ErrorMessage);
+            if (!registryRemoved) return Fail(progress, "The uninstall entry could not be removed.");
+            if (!sharedResult.Success) return Fail(progress, sharedResult.ErrorMessage);
+            if (remainingFiles.Count > 0)
+            {
+                return Fail(progress, string.Format(
+                    CultureInfo.CurrentCulture,
+                    L(nameof(CommonStrings.Uninstall_Progress_ItemsRemain_Format)),
+                    string.Join(", ", remainingFiles)));
+            }
 
-            return sharedResult.Success
-                ? new TrayAppDotNETInstallResult(true)
-                : Fail(progress, sharedResult.ErrorMessage);
+            return new TrayAppDotNETInstallResult(true);
         }
         catch (Exception exception)
         {
@@ -690,11 +985,67 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     /// <summary>
+    /// Deletes this app's own payload (everything not shared with the other apps) and anything an interrupted
+    /// update of the app left. Returns the paths that could not be deleted.
+    /// </summary>
+    private List<string> RemoveAppFiles(InstallScope scope)
+    {
+        string installDirectory = scope == InstallScope.ProgramFiles
+            ? Layout.ProgramFilesInstallDirectory
+            : Layout.LocalAppDataInstallDirectory;
+        List<string> remaining = [];
+        if (!Directory.Exists(installDirectory)) return remaining;
+
+        foreach (TrayAppDotNETInstallFile file in Payload.InstalledFiles(Layout.InstalledExecutableFileName))
+        {
+            if (file.RemoveOnlyWhenInstallRootHasNoExe
+                || string.Equals(file.Name, Layout.InstalledExecutableFileName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string path = Path.Combine(installDirectory, file.Name);
+            TryDeletePath(path, directory: false);
+            if (File.Exists(path)) remaining.Add(path);
+        }
+
+        foreach (TrayAppDotNETInstallDirectory directory in Payload.InstalledDirectories)
+        {
+            if (directory.RemoveOnlyWhenInstallRootHasNoExe) continue;
+
+            string path = Path.Combine(installDirectory, directory.Name);
+            TryDeletePath(path, directory: true);
+            if (Directory.Exists(path)) remaining.Add(path);
+        }
+
+        UpdateFileTransaction.DeleteArtifacts(installDirectory, Layout.ApplicationName, Identity.WriteLog);
+        return remaining;
+    }
+
+    private void TryDeletePath(string path, bool directory)
+    {
+        try
+        {
+            if (directory)
+            {
+                if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+            }
+            else if (File.Exists(path))
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+                File.Delete(path);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Identity.WriteLog($"PrepareUninstall: could not delete {path}: {exception.Message}");
+        }
+    }
+
+    /// <summary>
     /// Removes the files every app shares when this app is the last one in the install folder. The check and
     /// the deletes run under the install directory lock, so an install cannot land its exe in between. This
     /// app's exe is first renamed out of the "*.exe" pattern: a running image can be renamed but not deleted,
-    /// and another app uninstalling at the same time then only counts exes that are staying. The batch stage
-    /// deletes the renamed exe once its image is unmapped.
+    /// and another app uninstalling at the same time then only counts exes that are staying. The detached
+    /// removal deletes the renamed exe once its image is unmapped.
     /// </summary>
     private TrayAppDotNETInstallResult RemoveSharedFilesIfLast(InstallScope scope)
     {
@@ -725,8 +1076,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
         foreach (string executable in Directory.EnumerateFiles(installDirectory, searchPattern: "*.exe"))
         {
-            // The pattern also matches longer extensions that start with exe, which are not executables
-            if (!string.Equals(Path.GetExtension(executable), b: ".exe", StringComparison.OrdinalIgnoreCase)) continue;
+            // Only another TrayAppDotNET app needs the shared files; a stray exe in the folder does not
+            if (!TrayAppDotNETInstalledProcesses.IsAppExecutableName(Path.GetFileName(executable))) continue;
 
             Identity.WriteLog($"PrepareUninstall: {Path.GetFileName(executable)} still uses the shared files; keeping them");
             return new TrayAppDotNETInstallResult(true);
@@ -799,7 +1150,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         return remaining;
     }
 
-    /// <summary>Removes the settings directory; the batch stage repeats the removal once every process is gone.</summary>
+    /// <summary>Removes the settings directory; the detached removal repeats it once this process has exited.</summary>
     private void DeleteSettingsDirectory()
     {
         string settingsDirectory = Identity.SettingsDirectory;
@@ -812,145 +1163,20 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             Identity.WriteLog(
-                $"PrepareUninstall: settings removal deferred to the batch stage: {exception.Message}");
-        }
-    }
-
-    private void ReconcileStartupShortcut(InstallScope removingScope)
-    {
-        string shortcutPath = Identity.StartupShortcutPath;
-        if (!File.Exists(shortcutPath)) return;
-
-        string replacement = removingScope switch
-        {
-            InstallScope.LocalAppData when File.Exists(Layout.ProgramFilesInstallExecutable) =>
-                Layout.ProgramFilesInstallExecutable,
-            InstallScope.ProgramFiles when File.Exists(Layout.LocalAppDataInstallExecutable) =>
-                Layout.LocalAppDataInstallExecutable,
-            _ => string.Empty
-        };
-        if (!string.IsNullOrWhiteSpace(replacement))
-        {
-            Interop.ShellLink.Create(
-                shortcutPath,
-                replacement,
-                Identity.ApplicationName,
-                TrayAppDotNETProgram.AutostartArgument);
-            return;
-        }
-
-        string? currentTarget = Interop.ShellLink.TryRead(shortcutPath, Identity.WriteLog);
-        string removedDirectory = removingScope == InstallScope.ProgramFiles
-            ? Layout.ProgramFilesInstallDirectory
-            : Layout.LocalAppDataInstallDirectory;
-        if (currentTarget != null && IsPathWithin(currentTarget, removedDirectory))
-            File.Delete(shortcutPath);
-    }
-
-    private void RemoveLegacyRunEntry()
-    {
-        try
-        {
-            using Microsoft.Win32.RegistryKey? key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                Identity.LegacyRunKeyRegistryPath,
-                writable: true);
-            key?.DeleteValue(Identity.ApplicationName, throwOnMissingValue: false);
-        }
-        catch (Exception exception)
-        {
-            Identity.WriteLog($"PrepareUninstall: legacy Run entry cleanup failed: {exception.Message}");
+                $"PrepareUninstall: settings removal deferred until this helper exits: {exception.Message}");
         }
     }
 
     private void StopInstalledProcesses(InstallScope scope)
     {
-        string targetExecutable = Path.GetFullPath(scope == InstallScope.ProgramFiles
+        string targetExecutable = scope == InstallScope.ProgramFiles
             ? Layout.ProgramFilesInstallExecutable
-            : Layout.LocalAppDataInstallExecutable);
-
-        for (int attempt = 1; attempt <= UninstallProcessStopAttempts; attempt++)
-        {
-            List<Process> processes = FindInstalledProcesses(targetExecutable);
-            if (processes.Count == 0) return;
-
-            foreach (Process process in processes)
-            {
-                try
-                {
-                    if (!process.HasExited) process.Kill(true);
-                }
-                catch (Exception exception)
-                {
-                    Identity.WriteLog(
-                        $"PrepareUninstall: could not stop PID {SafeProcessID(process)}: {exception.Message}");
-                }
-                finally
-                {
-                    process.Dispose();
-                }
-            }
-
-            if (attempt < UninstallProcessStopAttempts)
-                Thread.Sleep(TimeConstants.UninstallProcessRetryDelayMs);
-        }
-
-        List<Process> remaining = FindInstalledProcesses(targetExecutable);
-        try
-        {
-            if (remaining.Count > 0)
-            {
-                string processIDs = string.Join(separator: ", ", remaining.Select(SafeProcessID));
-                throw new IOException($"Could not stop installed process IDs: {processIDs}");
-            }
-        }
-        finally
-        {
-            foreach (Process process in remaining) process.Dispose();
-        }
-    }
-
-    private static List<Process> FindInstalledProcesses(string targetExecutable)
-    {
-        List<Process> matches = [];
-        foreach (Process process in Process.GetProcesses())
-        {
-            bool keep = false;
-            try
-            {
-                if (process.Id == Environment.ProcessId) continue;
-                // A process that has exited no longer opens, so this also stands in for HasExited
-                string? executable = ProcessImagePath.TryGet(process.Id);
-                keep = executable != null
-                       && string.Equals(
-                           Path.GetFullPath(executable),
-                           targetExecutable,
-                           StringComparison.OrdinalIgnoreCase);
-                if (keep) matches.Add(process);
-            }
-            catch
-            {
-            }
-            finally
-            {
-                if (!keep) process.Dispose();
-            }
-        }
-
-        return matches;
-    }
-
-    private static int SafeProcessID(Process process)
-    {
-        try { return process.Id; }
-        catch { return 0; }
-    }
-
-    private static bool IsPathWithin(string path, string directory)
-    {
-        string normalizedPath = Path.GetFullPath(path);
-        string normalizedDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar)
-                                     + Path.DirectorySeparatorChar;
-        return normalizedPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
+            : Layout.LocalAppDataInstallExecutable;
+        TrayAppDotNETInstalledProcesses.Stop(
+            TrayAppDotNETInstalledProcesses.ExecutablePaths(targetExecutable, includeSiblings: false),
+            UninstallProcessStopAttempts,
+            TimeConstants.UninstallProcessRetryDelayMs,
+            Identity.WriteLog);
     }
 
     public TrayAppDotNETInstallResult TryInvokeElevated(string arguments, string sourceExe)
@@ -977,7 +1203,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 : new TrayAppDotNETInstallResult(Success: false,
                     $"Elevated process exited with code {process.ExitCode}");
         }
-        catch (Win32Exception ex) when ((uint)ex.NativeErrorCode == 0x800704C7 || ex.NativeErrorCode == 1223)
+        catch (Win32Exception ex) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(ex))
         {
             return new TrayAppDotNETInstallResult(Success: false, UserCancelled: true);
         }
@@ -988,31 +1214,30 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         }
     }
 
+    /// <summary>
+    /// Applies the shortcut choices. An unset desktop choice leaves the desktop shortcut as it is. An unset Start
+    /// Menu choice keeps the entries in step with the installation, except that a scope that was already installed
+    /// and had its entries removed by the user does not get them back.
+    /// </summary>
     internal TrayAppDotNETInstallResult ApplyInstallOptions(
         InstallScope scope,
         bool allUsers,
-        TrayAppDotNETInstallOptions? installOptions)
+        TrayAppDotNETInstallOptions? installOptions,
+        bool scopeWasInstalled)
     {
-        if (installOptions != null)
-        {
-            Identity.WriteLog(
-                $"TrayAppDotNETInstallationService.ApplyInstallOptions: scope={scope}, "
-                + $"desktopShortcut={installOptions.CreateDesktopShortcut}, "
-                + $"startMenuShortcut={installOptions.CreateStartMenuShortcut}");
-        }
+        Identity.WriteLog(
+            $"TrayAppDotNETInstallationService.ApplyInstallOptions: scope={scope}, "
+            + $"desktopShortcut={FormatChoice(installOptions?.CreateDesktopShortcut)}, "
+            + $"startMenuShortcut={FormatChoice(installOptions?.CreateStartMenuShortcut)}");
 
-        InstallScope? removingStartMenuScope = installOptions is { CreateStartMenuShortcut: false }
-            ? scope
-            : null;
+        bool startMenuWanted = installOptions?.CreateStartMenuShortcut
+                               ?? (!scopeWasInstalled || TrayAppDotNETStartMenuShortcut.HasAnyShortcut(Identity.ApplicationName));
+        options.SyncStartMenu?.Invoke(startMenuWanted ? null : scope, allUsers);
 
-        options.SyncStartMenu?.Invoke(removingStartMenuScope, allUsers);
+        if (installOptions?.CreateDesktopShortcut is not { } createDesktopShortcut)
+            return new TrayAppDotNETInstallResult(true);
 
-        // Existing callers did not manage desktop shortcuts. Only an explicit choice may alter one.
-        if (installOptions == null) return new TrayAppDotNETInstallResult(true);
-
-        TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(
-            scope,
-            installOptions.CreateDesktopShortcut);
+        TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(scope, createDesktopShortcut);
         if (desktopResult.Success) return desktopResult;
 
         return new TrayAppDotNETInstallResult(
@@ -1021,6 +1246,13 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             + desktopResult.ErrorMessage);
     }
 
+    private static string FormatChoice(bool? value) => value switch
+    {
+        true => "true",
+        false => "false",
+        null => "unchanged"
+    };
+
     internal static string BuildElevatedInstallArguments(
         string sourceExecutable,
         int buildNumber,
@@ -1028,19 +1260,23 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         string? progressPipeName = null)
     {
         string arguments =
-            $"{TrayAppDotNETInstallOptions.SystemInstallArgument} "
-            + $"{TrayAppDotNETInstallOptions.SourceExecutableArgument} \"{sourceExecutable}\" "
-            + $"{TrayAppDotNETInstallOptions.BuildNumberArgument} {buildNumber}";
-        if (installOptions != null)
+            $"{TrayAppDotNETInstallContract.SystemInstallArgument} "
+            + $"{TrayAppDotNETInstallContract.SourceExecutableArgument} \"{sourceExecutable}\" "
+            + $"{TrayAppDotNETInstallContract.BuildNumberArgument} {buildNumber}";
+        if (installOptions?.CreateDesktopShortcut is { } createDesktopShortcut)
         {
-            arguments += $" {TrayAppDotNETInstallOptions.DesktopShortcutArgument} "
-                         + FormatBooleanArgument(installOptions.CreateDesktopShortcut)
-                         + $" {TrayAppDotNETInstallOptions.StartMenuShortcutArgument} "
-                         + FormatBooleanArgument(installOptions.CreateStartMenuShortcut);
+            arguments += $" {TrayAppDotNETInstallContract.DesktopShortcutArgument} "
+                         + FormatBooleanArgument(createDesktopShortcut);
+        }
+
+        if (installOptions?.CreateStartMenuShortcut is { } createStartMenuShortcut)
+        {
+            arguments += $" {TrayAppDotNETInstallContract.StartMenuShortcutArgument} "
+                         + FormatBooleanArgument(createStartMenuShortcut);
         }
 
         if (!string.IsNullOrWhiteSpace(progressPipeName))
-            arguments += $" {TrayAppDotNETInstallOptions.ProgressPipeArgument} {progressPipeName}";
+            arguments += $" {TrayAppDotNETInstallContract.ProgressPipeArgument} {progressPipeName}";
 
         return arguments;
     }
@@ -1084,6 +1320,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (fileName.StartsWith(value: "TrayAppDotNETCommon.XmlSourceGenerator.", StringComparison.OrdinalIgnoreCase))
             return false;
 
+        // The app exe itself is added last by the copy plan
+        if (string.Equals(fileName, installedExecutableFileName, StringComparison.OrdinalIgnoreCase)) return false;
+
         string applicationName = Path.GetFileNameWithoutExtension(installedExecutableFileName);
         return !IsSiblingTrayAppRootFile(fileName, applicationName);
     }
@@ -1123,13 +1362,15 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         name.EndsWith(value: "TrayAppDotNET", StringComparison.OrdinalIgnoreCase)
         && !string.Equals(name, applicationName, StringComparison.OrdinalIgnoreCase);
 
+    private static bool SamePath(string first, string second) =>
+        string.Equals(
+            PathNormalization.Normalize(first),
+            PathNormalization.Normalize(second),
+            StringComparison.OrdinalIgnoreCase);
+
     private static void CopyFileIfDifferent(string sourceFile, string destinationFile)
     {
-        if (string.Equals(
-                PathNormalization.Normalize(sourceFile),
-                PathNormalization.Normalize(destinationFile),
-                StringComparison.OrdinalIgnoreCase))
-            return;
+        if (SamePath(sourceFile, destinationFile)) return;
 
         string? destinationDirectory = Path.GetDirectoryName(destinationFile);
         if (!string.IsNullOrEmpty(destinationDirectory)) Directory.CreateDirectory(destinationDirectory);
@@ -1152,7 +1393,11 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     /// <summary>One planned copy: a file to copy or a directory to create.</summary>
-    private readonly record struct InstallCopyItem(string Source, string Destination, bool IsDirectory);
+    private readonly record struct InstallCopyItem(
+        string Source,
+        string Destination,
+        bool IsDirectory,
+        bool IsSharedNativeDll = false);
 }
 
 /// <summary>Forwards progress updates and remembers whether a terminal update has been delivered.</summary>

@@ -109,12 +109,14 @@ public sealed class ExampleModeTests
     }
 
     [Fact]
-    public void ApplicationIconNames_CoverTheTrayApplicationsAndNotTheSuite()
+    public void ApplicationIconNames_AreTheCatalogAppsAndNotTheSuite()
     {
         IReadOnlyList<string> names = InstallerIcons.ApplicationIconNames();
 
-        Assert.Contains(SingleApplicationName, names);
-        Assert.Contains("BatteryTrayAppDotNET", names);
+        // The factory embeds one icon per TrayAppDotNET.Apps.props item
+        Assert.Equal(
+            TrayAppDotNETAppCatalog.ApplicationNames.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase),
+            names);
         Assert.DoesNotContain(InstallerIcons.SuiteIconName, names);
     }
 
@@ -131,7 +133,7 @@ public sealed class ExampleModeTests
         Assert.Single(outcome.InstalledExecutables);
         Assert.NotEmpty(progress.Lines);
         Assert.DoesNotContain(progress.Lines, line => line.IsFailure);
-        Assert.Equal(InstallProgressLine.CompletePercent, progress.Lines[^1].Percent);
+        Assert.Equal(TrayAppDotNETInstallProgress.CompletePercent, progress.Lines[^1].Percent);
         Assert.Equal(
             [
                 new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Installing),
@@ -140,7 +142,7 @@ public sealed class ExampleModeTests
             progress.Statuses);
 
         int previousPercent = 0;
-        foreach (InstallProgressLine line in progress.Lines)
+        foreach (TrayAppDotNETInstallProgress line in progress.Lines)
         {
             Assert.True(line.Percent >= previousPercent, $"Progress went backwards to {line.Percent}.");
             previousPercent = line.Percent;
@@ -161,7 +163,7 @@ public sealed class ExampleModeTests
         Assert.True(progress.Lines[^1].IsFailure);
         // The run has to get far enough to be worth looking at, but never reach the end
         Assert.NotEmpty(progress.Lines);
-        Assert.DoesNotContain(progress.Lines, line => !line.IsFailure && line.Percent >= InstallProgressLine.CompletePercent);
+        Assert.DoesNotContain(progress.Lines, line => !line.IsFailure && line.Percent >= TrayAppDotNETInstallProgress.CompletePercent);
         Assert.Equal(
             [
                 new InstallApplicationStatus(SingleApplicationName, InstallApplicationState.Installing),
@@ -298,14 +300,14 @@ public sealed class ExampleModeTests
     /// Collects every reported line and application status so the order and the end state can be asserted.
     /// Simulated applications resume on thread pool threads at once, so recording is locked.
     /// </summary>
-    private sealed class RecordingProgress : IProgress<InstallProgressLine>, IProgress<InstallApplicationStatus>
+    private sealed class RecordingProgress : IProgress<TrayAppDotNETInstallProgress>, IProgress<InstallApplicationStatus>
     {
         // Stands in for System.Threading.Lock, which the .NET Framework does not define
         private readonly object _gate = new();
-        private readonly List<InstallProgressLine> _lines = [];
+        private readonly List<TrayAppDotNETInstallProgress> _lines = [];
         private readonly List<InstallApplicationStatus> _statuses = [];
 
-        public List<InstallProgressLine> Lines
+        public List<TrayAppDotNETInstallProgress> Lines
         {
             get
             {
@@ -335,7 +337,7 @@ public sealed class ExampleModeTests
             return states;
         }
 
-        public void Report(InstallProgressLine value)
+        public void Report(TrayAppDotNETInstallProgress value)
         {
             lock (_gate) _lines.Add(value);
         }

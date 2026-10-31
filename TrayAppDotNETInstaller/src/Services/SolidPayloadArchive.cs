@@ -248,7 +248,8 @@ public static class SolidPayloadArchive
 
     /// <summary>
     /// Rejects anything that could resolve outside the destination. Checked while the table is parsed, so a
-    /// hostile payload is refused before a single byte is decompressed.
+    /// hostile payload is refused before a single byte is decompressed. Names are stored with '/' only, so a
+    /// backslash, which Windows also treats as a separator, can only come from a forged table.
     /// </summary>
     private static void ValidateName(string name)
     {
@@ -257,6 +258,9 @@ public static class SolidPayloadArchive
 
         if (name[0] == EntrySeparator || name.Contains(":", StringComparison.Ordinal))
             throw new InvalidDataException($"The solid payload entry {name} is not a relative path.");
+
+        if (name.IndexOf('\\') >= 0)
+            throw new InvalidDataException($"The solid payload entry {name} contains a backslash, a traversal segment separator.");
 
         foreach (string segment in name.Split(EntrySeparator))
         {

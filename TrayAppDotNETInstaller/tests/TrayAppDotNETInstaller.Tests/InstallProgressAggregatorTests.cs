@@ -8,26 +8,26 @@ public sealed class InstallProgressAggregatorTests
     [Fact]
     public void Report_ShowsTheMeanOfEveryApplicationWithTheLatestMessage()
     {
-        List<InstallProgressLine> lines = [];
+        List<TrayAppDotNETInstallProgress> lines = [];
         InstallProgressAggregator aggregator = new(applicationCount: 4, new ListProgress(lines));
 
-        aggregator.ForApplication(0).Report(InstallProgressLine.At(100, "first done"));
-        aggregator.ForApplication(2).Report(InstallProgressLine.At(50, "third halfway"));
+        aggregator.ForApplication(0).Report(TrayAppDotNETInstallProgress.At(100, "first done"));
+        aggregator.ForApplication(2).Report(TrayAppDotNETInstallProgress.At(50, "third halfway"));
 
         // (100 + 0 + 50 + 0) / 4
-        Assert.Equal(InstallProgressLine.At(37, "third halfway"), lines[^1]);
+        Assert.Equal(TrayAppDotNETInstallProgress.At(37, "third halfway"), lines[^1]);
         Assert.Equal(25, lines[0].Percent);
     }
 
     [Fact]
     public void Report_NeverMovesAnApplicationBackwards()
     {
-        List<InstallProgressLine> lines = [];
+        List<TrayAppDotNETInstallProgress> lines = [];
         InstallProgressAggregator aggregator = new(applicationCount: 2, new ListProgress(lines));
-        IProgress<InstallProgressLine> first = aggregator.ForApplication(0);
+        IProgress<TrayAppDotNETInstallProgress> first = aggregator.ForApplication(0);
 
-        first.Report(InstallProgressLine.At(80, "ahead"));
-        first.Report(InstallProgressLine.At(20, "late line"));
+        first.Report(TrayAppDotNETInstallProgress.At(80, "ahead"));
+        first.Report(TrayAppDotNETInstallProgress.At(20, "late line"));
 
         Assert.Equal(40, lines[^1].Percent);
         Assert.Equal("late line", lines[^1].Message);
@@ -36,23 +36,23 @@ public sealed class InstallProgressAggregatorTests
     [Fact]
     public void Report_ReachesCompleteOnlyWhenEveryApplicationHas()
     {
-        List<InstallProgressLine> lines = [];
+        List<TrayAppDotNETInstallProgress> lines = [];
         InstallProgressAggregator aggregator = new(applicationCount: 2, new ListProgress(lines));
 
-        aggregator.ForApplication(0).Report(InstallProgressLine.At(100, "first"));
+        aggregator.ForApplication(0).Report(TrayAppDotNETInstallProgress.At(100, "first"));
         Assert.False(lines[^1].IsComplete);
 
-        aggregator.ForApplication(1).Report(InstallProgressLine.At(100, "second"));
+        aggregator.ForApplication(1).Report(TrayAppDotNETInstallProgress.At(100, "second"));
         Assert.True(lines[^1].IsComplete);
     }
 
     [Fact]
     public void Report_DropsFailureLinesBecauseTheEngineReportsTheOutcome()
     {
-        List<InstallProgressLine> lines = [];
+        List<TrayAppDotNETInstallProgress> lines = [];
         InstallProgressAggregator aggregator = new(applicationCount: 2, new ListProgress(lines));
 
-        aggregator.ForApplication(1).Report(InstallProgressLine.Failed("broken"));
+        aggregator.ForApplication(1).Report(TrayAppDotNETInstallProgress.Failed("broken"));
 
         Assert.Empty(lines);
     }
@@ -67,8 +67,8 @@ public sealed class InstallProgressAggregatorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => aggregator.ForApplication(-1));
     }
 
-    private sealed class ListProgress(List<InstallProgressLine> lines) : IProgress<InstallProgressLine>
+    private sealed class ListProgress(List<TrayAppDotNETInstallProgress> lines) : IProgress<TrayAppDotNETInstallProgress>
     {
-        public void Report(InstallProgressLine value) => lines.Add(value);
+        public void Report(TrayAppDotNETInstallProgress value) => lines.Add(value);
     }
 }

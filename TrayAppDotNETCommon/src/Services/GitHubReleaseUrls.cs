@@ -16,10 +16,6 @@ public static class GitHubReleaseUrls
             : $"{applicationName}_{version}.zip";
     }
 
-    public static Uri LatestAppReleaseAssetUrl(string owner, string repositoryName, string applicationName,
-        int version) =>
-        LatestReleaseAssetUrl(owner, repositoryName, ReleaseAssetName(applicationName, version));
-
     /// <summary>Builds the public GitHub releases page URL.</summary>
     public static Uri ReleasesPageUrl(string owner, string repositoryName)
     {
@@ -55,16 +51,5 @@ public static class GitHubReleaseUrls
         return new Uri(
             $"https://github.com/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repositoryName)}"
             + $"/releases/download/{Uri.EscapeDataString(tagName)}/{Uri.EscapeDataString(assetName)}");
-    }
-
-    public static Uri LatestReleaseAssetUrl(string owner, string repositoryName, string assetName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
-
-        return new Uri(
-            $"https://github.com/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repositoryName)}"
-            + $"/releases/latest/download/{Uri.EscapeDataString(assetName)}");
     }
 }

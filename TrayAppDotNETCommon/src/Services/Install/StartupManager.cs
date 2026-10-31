@@ -12,7 +12,7 @@ public sealed record TrayAppDotNETStartupOptions(
 {
     public const string DefaultLegacyRunKeyRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
-    public string ShortcutPath =>
+    public string ShortcutPath { get; init; } =
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Startup),
             ApplicationName + ".lnk");
@@ -118,6 +118,52 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
         {
             options.Log?.Invoke($"TrayAppDotNETStartupManager.RemoveLegacyRunKey: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Keeps the startup shortcut valid while <paramref name="removingScope"/> is uninstalled. A shortcut that
+    /// points into the removed folder is retargeted to the other installed copy with its arguments (a settings
+    /// folder override, for one) preserved, or deleted when no other installed copy exists. A shortcut that points
+    /// at a portable copy or at the other scope is left untouched.
+    /// </summary>
+    public void ReconcileForUninstall(InstallScope removingScope)
+    {
+        try
+        {
+            if (!File.Exists(ShortcutPath)) return;
+
+            string? currentTarget = Interop.ShellLink.TryRead(ShortcutPath, options.Log);
+            string removedDirectory = removingScope == InstallScope.ProgramFiles
+                ? options.Layout.ProgramFilesInstallDirectory
+                : options.Layout.LocalAppDataInstallDirectory;
+            if (string.IsNullOrEmpty(currentTarget) || !IsPathWithin(currentTarget, removedDirectory)) return;
+
+            string replacement = removingScope switch
+            {
+                InstallScope.ProgramFiles when File.Exists(options.Layout.LocalAppDataInstallExecutable) =>
+                    options.Layout.LocalAppDataInstallExecutable,
+                InstallScope.LocalAppData when File.Exists(options.Layout.ProgramFilesInstallExecutable) =>
+                    options.Layout.ProgramFilesInstallExecutable,
+                _ => string.Empty
+            };
+            if (replacement.Length > 0)
+                CreateShortcut(ShortcutPath, replacement, PreservedShortcutArguments());
+            else
+                File.Delete(ShortcutPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+                                       or System.Runtime.InteropServices.COMException)
+        {
+            options.Log?.Invoke($"TrayAppDotNETStartupManager.ReconcileForUninstall: {ex.Message}");
+        }
+    }
+
+    private static bool IsPathWithin(string path, string directory)
+    {
+        string normalizedPath = Path.GetFullPath(path);
+        string normalizedDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar)
+                                     + Path.DirectorySeparatorChar;
+        return normalizedPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
     }
 
     public void RepairShortcutIfStale()

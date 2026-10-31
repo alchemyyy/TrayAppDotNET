@@ -45,7 +45,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             ("VolumeTrayAppDotNET.exe", "app"),
             ("tools/install.bat", "nested"));
         string destination = Path.Combine(_root, "script-out");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
 
         int files;
         using (FileStream stream = File.OpenRead(zipPath))
@@ -79,7 +79,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             ("sub/", null),
             ("sub/inner.txt", "inner"));
         string destination = Path.Combine(_root, "out");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         ProgressSlice slice = new(0, 50);
 
         int files;
@@ -108,7 +108,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             ("ok.txt", "fine"),
             ("../evil.txt", "escaped"));
         string destination = Path.Combine(_root, "victim");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
 
         using FileStream stream = File.OpenRead(zipPath);
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
@@ -140,7 +140,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         EmbeddedPayload payload = new("FakeTrayAppDotNET", 1, "FakeTrayAppDotNET_1.zip");
         string target = Path.Combine(_root, "portable");
         InstallPlan plan = new(InstallMode.Portable, target, [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
@@ -171,7 +171,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         string zipPath = CreateZip("FakeTrayAppDotNET_1.zip", ("readme.txt", "nothing to run"));
         EmbeddedPayload payload = new("FakeTrayAppDotNET", 1, "FakeTrayAppDotNET_1.zip");
         InstallPlan plan = new(InstallMode.Local, Path.Combine(_root, "local"), [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: true);
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
@@ -208,7 +208,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         };
         string target = Path.Combine(_root, "suite");
         InstallPlan plan = CreateSuitePlan(target, applicationNames);
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
@@ -243,7 +243,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             [SecondApplicationName] = CreatePackage(SecondApplicationName)
         };
         InstallPlan plan = CreateSuitePlan(Path.Combine(_root, "cancelled"), applicationNames);
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
         using CancellationTokenSource cancellation = new();
         // Cancelling as the first application finishes stops the run between the two applications
@@ -279,7 +279,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             zipPaths[applicationName] = CreatePackage(applicationName, (EntryName: SharedEntryName, Content: SharedEntryContent));
 
         string target = Path.Combine(_root, "concurrent");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
         // Every payload open waits for all of them, so a run that installs one at a time never gets past the first
         using CountdownEvent opened = new(applicationNames.Length);
@@ -325,7 +325,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             [ThirdApplicationName] = CreatePackage(ThirdApplicationName)
         };
         string target = Path.Combine(_root, "partial");
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
         // All three are running before the middle one fails
         using CountdownEvent opened = new(applicationNames.Length);
@@ -359,7 +359,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     public async Task RunAsync_EmptyPlanFails()
     {
         InstallPlan plan = new(InstallMode.Portable, _root, [], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
-        List<InstallProgressLine> reports = [];
+        List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
         InstallOutcome outcome = await InstallEngine.RunAsync(
@@ -420,7 +420,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     private static string ExecutableName(string applicationName) => applicationName + ".exe";
 
     /// <summary>Opens the package only once every application of the run has asked for its own.</summary>
-    private static Stream OpenOnceAllAreRunning(CountdownEvent opened, string zipPath)
+    private static FileStream OpenOnceAllAreRunning(CountdownEvent opened, string zipPath)
     {
         opened.Signal();
         if (!opened.Wait(ConcurrencyWaitTimeout)) throw new TimeoutException("The applications did not run at once.");
@@ -445,9 +445,9 @@ public sealed class InstallEngineExtractionTests : IDisposable
     private static string PackageName(string applicationName) => $"{applicationName}_{PackageVersion}.zip";
 
     // Applications report from several threads at once, so both recorders lock their list
-    private sealed class ListProgress(List<InstallProgressLine> lines) : IProgress<InstallProgressLine>
+    private sealed class ListProgress(List<TrayAppDotNETInstallProgress> lines) : IProgress<TrayAppDotNETInstallProgress>
     {
-        public void Report(InstallProgressLine value)
+        public void Report(TrayAppDotNETInstallProgress value)
         {
             lock (lines) lines.Add(value);
         }

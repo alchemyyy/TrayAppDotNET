@@ -1,5 +1,10 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
+using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;
@@ -10,13 +15,18 @@ namespace TrayAppDotNETCommon.Services.Install;
 /// would hit sharing violations. The bundle installer runs several apps' installers concurrently and relies
 /// on this to serialize only their copy phase; in-app updates take it around their file transaction, since
 /// several apps updating to one release at once write the same files.
-/// The lock is advisory: only code that takes it is excluded, so the uninstall batch script is not.
+/// The lock is advisory: only code that takes it is excluded. Its mutex grants only SYSTEM, Administrators and the
+/// installing user, so another signed-in user cannot hold it to stall an install.
 /// </summary>
-public sealed class TrayAppDotNETInstallDirectoryLock : IDisposable
+public sealed partial class TrayAppDotNETInstallDirectoryLock : IDisposable
 {
     // Global so a system install in one session excludes one in another; the path hash keeps the name short
     // and free of the backslashes a kernel object name cannot carry
     private const string MutexNamePrefix = @"Global\TrayAppDotNET.InstallDirectory.";
+    private const uint SddlRevision1 = 1;
+    // SYNCHRONIZE | MUTEX_MODIFY_STATE: wait and release, nothing else
+    private const uint MutexAccess = 0x00100000 | 0x0001;
+    private const int ErrorAccessDenied = 5;
 
     private readonly Mutex? _mutex;
 
@@ -48,7 +58,7 @@ public sealed class TrayAppDotNETInstallDirectoryLock : IDisposable
         Mutex mutex;
         try
         {
-            mutex = new Mutex(initiallyOwned: false, name);
+            mutex = CreateRestrictedMutex(name);
         }
         catch (UnauthorizedAccessException exception)
         {
@@ -95,4 +105,68 @@ public sealed class TrayAppDotNETInstallDirectoryLock : IDisposable
             return true;
         }
     }
+
+    /// <summary>
+    /// Creates or opens the named mutex with a protected DACL that grants only SYSTEM, Administrators and the
+    /// current user: the default DACL of a Global object would let any signed-in user hold another user's
+    /// install lock. Throws <see cref="UnauthorizedAccessException"/> when an existing mutex cannot be opened.
+    /// </summary>
+    private static Mutex CreateRestrictedMutex(string name)
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        string userSid = identity.User?.Value
+                         ?? throw new InvalidOperationException("The current Windows identity carries no user SID.");
+        string sddl = $"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;{userSid})";
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SddlRevision1, out IntPtr descriptor, IntPtr.Zero))
+            throw new Win32Exception(Marshal.GetLastPInvokeError());
+
+        try
+        {
+            SecurityAttributes attributes = new()
+            {
+                Length = Marshal.SizeOf<SecurityAttributes>(),
+                SecurityDescriptor = descriptor,
+                InheritHandle = 0
+            };
+            SafeWaitHandle handle = CreateMutexEx(ref attributes, name, flags: 0, MutexAccess);
+            if (handle.IsInvalid)
+            {
+                int error = Marshal.GetLastPInvokeError();
+                handle.Dispose();
+                if (error == ErrorAccessDenied) throw new UnauthorizedAccessException($"Access to the mutex {name} is denied.");
+                throw new Win32Exception(error);
+            }
+
+            Mutex mutex = new(initiallyOwned: false);
+            SafeWaitHandle unnamed = mutex.SafeWaitHandle;
+            mutex.SafeWaitHandle = handle;
+            unnamed.Dispose();
+            return mutex;
+        }
+        finally
+        {
+            _ = Kernel32.LocalFree(descriptor);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes
+    {
+        public int Length;
+        public IntPtr SecurityDescriptor;
+        public int InheritHandle;
+    }
+
+    [LibraryImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ConvertStringSecurityDescriptorToSecurityDescriptor(
+        string stringSecurityDescriptor,
+        uint revision,
+        out IntPtr securityDescriptor,
+        IntPtr securityDescriptorSize);
+
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateMutexExW", StringMarshalling = StringMarshalling.Utf16,
+        SetLastError = true)]
+    private static partial SafeWaitHandle CreateMutexEx(ref SecurityAttributes attributes, string name, uint flags, uint desiredAccess);
 }

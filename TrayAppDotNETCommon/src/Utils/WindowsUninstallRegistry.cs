@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Win32;
 using TrayAppDotNETCommon.Models;
 
@@ -80,6 +81,34 @@ public static class WindowsUninstallRegistry
         catch (Exception ex)
         {
             identity.WriteLog($"WindowsUninstallRegistry.Write({scope}): {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Rewrites the build number and size of an existing entry after an in-app update replaced the installed
+    /// files. Does nothing when the entry does not exist, so a portable copy never gains one. Returns false on error.
+    /// </summary>
+    public static bool UpdateVersion(
+        InstallScope scope,
+        TrayAppDotNETInstallIdentity identity,
+        int buildNumber,
+        string installExecutable)
+    {
+        try
+        {
+            using RegistryKey? key = OpenRoot(scope).OpenSubKey(identity.UninstallRegistrySubKeyPath, writable: true);
+            if (key == null) return true;
+
+            key.SetValue(name: "DisplayVersion", buildNumber.ToString(CultureInfo.InvariantCulture), RegistryValueKind.String);
+            if (File.Exists(installExecutable))
+                key.SetValue(name: "EstimatedSize", (int)(new FileInfo(installExecutable).Length / 1024L), RegistryValueKind.DWord);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       or System.Security.SecurityException)
+        {
+            identity.WriteLog($"WindowsUninstallRegistry.UpdateVersion({scope}): {ex.Message}");
             return false;
         }
     }
