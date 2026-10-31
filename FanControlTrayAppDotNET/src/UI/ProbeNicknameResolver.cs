@@ -7,17 +7,33 @@ namespace FanControlTrayAppDotNET.UI;
 /// </summary>
 internal sealed class ProbeNicknameResolver
 {
+    // The last compiled rule set, reused while the settings hold the same rules
+    private static ProbeNicknameResolver? s_cached;
+
+    private readonly string _signature;
     private readonly IReadOnlyList<CompiledProbeNicknameRule> _rules;
 
-    private ProbeNicknameResolver(IReadOnlyList<CompiledProbeNicknameRule> rules) => _rules = rules;
+    private ProbeNicknameResolver(string signature, IReadOnlyList<CompiledProbeNicknameRule> rules)
+    {
+        _signature = signature;
+        _rules = rules;
+    }
 
-    public static ProbeNicknameResolver Empty { get; } = new([]);
+    public static ProbeNicknameResolver Empty { get; } = new(string.Empty, []);
 
     /// <summary>
-    /// Builds a resolver from the current settings.
+    /// Returns the resolver for the current settings, compiling the rules only when they changed.
     /// </summary>
-    public static ProbeNicknameResolver Create(AppSettings settings) =>
-        new(CompileRules(settings.ProbeNicknameRules));
+    public static ProbeNicknameResolver Create(AppSettings settings)
+    {
+        string signature = NicknameRegex.Signature(settings.ProbeNicknameRules);
+        ProbeNicknameResolver? cached = Volatile.Read(ref s_cached);
+        if (cached != null && string.Equals(cached._signature, signature, StringComparison.Ordinal)) return cached;
+
+        ProbeNicknameResolver resolver = new(signature, CompileRules(settings.ProbeNicknameRules));
+        Volatile.Write(ref s_cached, resolver);
+        return resolver;
+    }
 
     /// <summary>
     /// Resolves the display name for a probe.
@@ -28,7 +44,7 @@ internal sealed class ProbeNicknameResolver
 
         string resolved = probeName;
         foreach (CompiledProbeNicknameRule rule in _rules)
-            resolved = rule.Regex.Replace(resolved, rule.ReplacementString);
+            resolved = NicknameRegex.Replace(rule.Regex, resolved, rule.ReplacementString);
 
         return resolved.Trim();
     }
@@ -41,17 +57,8 @@ internal sealed class ProbeNicknameResolver
         List<CompiledProbeNicknameRule> compiled = [];
         foreach (DeviceNicknameRule rule in rules)
         {
-            if (string.IsNullOrWhiteSpace(rule.TargetRegex)) continue;
-
-            try
-            {
-                Regex regex = new(rule.TargetRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (NicknameRegex.TryCreate(rule.TargetRegex, "Probe", out Regex? regex))
                 compiled.Add(new CompiledProbeNicknameRule(regex, rule.ReplacementString));
-            }
-            catch (ArgumentException ex)
-            {
-                TADNLog.Log($"Probe nickname regex ignored: {ex.Message}");
-            }
         }
 
         return compiled;

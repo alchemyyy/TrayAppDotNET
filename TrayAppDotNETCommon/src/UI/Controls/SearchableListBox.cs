@@ -54,6 +54,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     private readonly Border _listBorder;
     private UIResourceScope _rowResources;
     private List<SettingsSearchableListBoxItem> _visibleItems = [];
+    private List<SettingsSearchableListBoxItemRow> _rows = [];
     private SettingsSearchableListBoxItem? _selectedItem;
     private SettingsSearchableListBoxItem? _activeItem;
     private double _itemFontSize = SearchableListBoxLayout.ItemFontSize;
@@ -319,6 +320,23 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     }
 
     /// <summary>
+    /// Replaces every item with a single row rebuild. The selection survives when its item is still listed; a
+    /// dropped selection raises <see cref="SelectionChanged"/>.
+    /// </summary>
+    public void ReplaceItems(IEnumerable<SettingsSearchableListBoxItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        _items.ReplaceWithoutNotification(items);
+        SettingsSearchableListBoxItem? selectedItem =
+            _selectedItem != null && _items.Contains(_selectedItem) ? _selectedItem : null;
+        SettingsSearchableListBoxItem? activeItem =
+            _activeItem != null && _items.Contains(_activeItem) ? _activeItem : null;
+        bool selectionChanged = !ReferenceEquals(selectedItem, _selectedItem);
+        RebuildItems(selectedItem, activeItem);
+        if (selectionChanged) RaiseSelectionChanged();
+    }
+
+    /// <summary>
     /// Moves keyboard focus to the search box.
     /// </summary>
     public void FocusSearch() => _searchBox.Focus();
@@ -369,7 +387,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     /// </summary>
     internal void ActivateItem(SettingsSearchableListBoxItem item)
     {
-        RebuildItems(_selectedItem, item);
+        ApplyHighlight(_selectedItem, item);
         Focus();
     }
 
@@ -404,6 +422,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         StackPanel candidatePanel = new StackPanel { Margin = _listContentMargin }
             .MapTo(ControlMap.SearchableListBox.Results.ID);
         UIResourceScope candidateResources = new($"{nameof(SettingsSearchableListBox)}.Rows");
+        List<SettingsSearchableListBoxItemRow> candidateRows = new(candidateVisibleItems.Count);
         candidateResources.Add(candidatePanel.Children.Clear);
 
         try
@@ -436,6 +455,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
                     row.IsSelected = ReferenceEquals(item, selectedItem);
                     row.IsActive = ReferenceEquals(item, candidateActiveItem);
                     candidatePanel.Children.Add(row);
+                    candidateRows.Add(row);
                 }
             }
         }
@@ -452,6 +472,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             _itemsPanel = candidatePanel;
             _rowResources = candidateResources;
             _visibleItems = candidateVisibleItems;
+            _rows = candidateRows;
             _selectedItem = selectedItem;
             _activeItem = candidateActiveItem;
             _rowGenerationID++;
@@ -463,6 +484,27 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         }
 
         previousResources.Dispose();
+    }
+
+    /// <summary>
+    /// Moves the selected and active highlights over the current rows without rebuilding them.
+    /// </summary>
+    private void ApplyHighlight(
+        SettingsSearchableListBoxItem? selectedItem,
+        SettingsSearchableListBoxItem? activeItem)
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+
+        SettingsSearchableListBoxItem? candidateActiveItem = ActiveItemFor(_visibleItems, selectedItem, activeItem);
+        for (int i = 0; i < _rows.Count; i++)
+        {
+            SettingsSearchableListBoxItem item = _visibleItems[i];
+            _rows[i].IsSelected = ReferenceEquals(item, selectedItem);
+            _rows[i].IsActive = ReferenceEquals(item, candidateActiveItem);
+        }
+
+        _selectedItem = selectedItem;
+        _activeItem = candidateActiveItem;
     }
 
     private static string L(string key) => LocalizationManager.Instance[key];
@@ -505,7 +547,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
 
         int nextIndex = Math.Clamp(index + delta, min: 0, _visibleItems.Count - 1);
         SettingsSearchableListBoxItem activeItem = _visibleItems[nextIndex];
-        RebuildItems(_selectedItem, activeItem);
+        ApplyHighlight(_selectedItem, activeItem);
         QueueScrollActiveItemIntoView();
     }
 
@@ -515,7 +557,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     private void SetSelectedItem(SettingsSearchableListBoxItem? item, bool raiseChanged)
     {
         if (ReferenceEquals(_selectedItem, item)) return;
-        RebuildItems(item, item ?? _activeItem);
+        ApplyHighlight(item, item ?? _activeItem);
         QueueScrollActiveItemIntoView();
         if (raiseChanged)
             SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -588,6 +630,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         _itemsPanel = new StackPanel();
         _items.ClearWithoutNotification();
         _visibleItems.Clear();
+        _rows = [];
         _selectedItem = null;
         _activeItem = null;
         SelectionChanged = null;
@@ -726,6 +769,14 @@ public sealed class SettingsSearchableListBoxItemCollection(SettingsSearchableLi
     }
 
     internal void ClearWithoutNotification() => base.ClearItems();
+
+    /// <summary>Swaps in a new item set; the owner rebuilds its rows once afterwards.</summary>
+    internal void ReplaceWithoutNotification(IEnumerable<SettingsSearchableListBoxItem> items)
+    {
+        base.ClearItems();
+        foreach (SettingsSearchableListBoxItem item in items)
+            base.InsertItem(Count, item);
+    }
 }
 
 /// <summary>

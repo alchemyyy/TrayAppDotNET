@@ -31,11 +31,9 @@
         <sys:Double x:Key="FanProperties.RPMModeToggleColumnWidth">40</sys:Double>
         <sys:Double x:Key="FanProperties.RPMModeRightInset">8</sys:Double>
 
-        <!-- Typography and enabled states -->
+        <!-- Typography -->
         <sys:Double x:Key="FanProperties.TitleFontSize">13</sys:Double>
         <sys:Double x:Key="FanProperties.RPMModeHeaderFontSize">9</sys:Double>
-        <sys:Double x:Key="FanProperties.EnabledOpacity">1</sys:Double>
-        <sys:Double x:Key="FanProperties.DisabledOpacity">0.4</sys:Double>
 
         <!-- Window chrome and layout -->
         <Thickness x:Key="FanProperties.RootBorderThickness">1</Thickness>

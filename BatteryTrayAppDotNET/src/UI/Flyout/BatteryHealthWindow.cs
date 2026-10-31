@@ -18,6 +18,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     private SettingsButton? _closeButton;
     private bool _rebuildQueued;
     private bool _closed;
+    private bool _opened;
+    private bool _windowClosed;
 
     private static BatteryFlyoutResources.BatteryHealthAxamlProperties Layout =>
         BatteryFlyoutResources.Current.AxamlBatteryHealth;
@@ -26,7 +28,7 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     {
         _batteryMonitor = batteryMonitor;
         _settings = settings;
-        Title = "Battery health";
+        Title = L(nameof(AppStrings.BatteryHealth_Title));
         WindowDecorations = WindowDecorations.None;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         SizeToContent = SizeToContent.Height;
@@ -61,8 +63,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     private void RebuildContent()
     {
         bool restoreFocus = _closeButton?.IsFocused == true;
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
-        SettingsPalette palette = BatterySettingsPalette.Create(AppServices.Theme ?? AppTheme.Default, _settings, isLight);
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
+        SettingsPalette palette = AppSettingsPalette.Create(AppServices.Theme, _settings, isLight);
         StackPanel body = new() { Margin = Layout.BodyMargin, Spacing = Layout.SectionSpacing };
         body.Children.Add(TrayAppDotNETSettingsUI.Text(Title!, palette, Layout.TitleFontSize, FontWeight.SemiBold));
 
@@ -72,13 +74,13 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
             RowSpacing = Layout.MetricRowSpacing,
             ColumnSpacing = Layout.MetricValueSpacing
         };
-        TextBlock healthValue = AddMetric(metrics, "Health", palette);
-        TextBlock fullChargeValue = AddMetric(metrics, "Full charge", palette);
-        TextBlock designedValue = AddMetric(metrics, "Designed", palette);
+        TextBlock healthValue = AddMetric(metrics, L(nameof(AppStrings.BatteryHealth_Health_Label)), palette);
+        TextBlock fullChargeValue = AddMetric(metrics, L(nameof(AppStrings.BatteryHealth_FullCharge_Label)), palette);
+        TextBlock designedValue = AddMetric(metrics, L(nameof(AppStrings.BatteryHealth_Designed_Label)), palette);
         body.Children.Add(metrics);
 
         SettingsButton close = TrayAppDotNETSettingsUI.Button(
-            LocalizationManager.Instance[nameof(CommonStrings.UpdateDialog_Close)], palette)
+            L(nameof(CommonStrings.Common_Close)), palette)
             .MapTo(ControlMap.BatteryHealth.Close);
         close.HorizontalAlignment = HorizontalAlignment.Right;
         if (!_settings.EnableRoundedCorners) close.CornerRadius = default;
@@ -108,7 +110,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
         Grid.SetRow(labelText, row);
         grid.Children.Add(labelText);
 
-        TextBlock valueText = TrayAppDotNETSettingsUI.Text("N/A", palette, Layout.MetricFontSize, FontWeight.SemiBold);
+        TextBlock valueText = TrayAppDotNETSettingsUI.Text(
+            L(nameof(AppStrings.Flyout_NotAvailable)), palette, Layout.MetricFontSize, FontWeight.SemiBold);
         valueText.TextAlignment = TextAlignment.Right;
         Grid.SetRow(valueText, row);
         Grid.SetColumn(valueText, 1);
@@ -122,13 +125,19 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     {
         if (_closed) return;
         BatterySnapshot snapshot = _batteryMonitor.Snapshot;
-        _healthValue!.Text = snapshot.HealthPercent is { } health ? $"{health:F0}%" : "N/A";
+        _healthValue!.Text = snapshot.HealthPercent is { } health
+            ? $"{health:F0}%"
+            : L(nameof(AppStrings.Flyout_NotAvailable));
         _fullChargeValue!.Text = FormatCapacity(snapshot.FullChargeCapacityMilliwattHours);
         _designedValue!.Text = FormatCapacity(snapshot.DesignedCapacityMilliwattHours);
     }
 
     private static string FormatCapacity(float? milliwattHours) =>
-        milliwattHours.HasValue ? $"{milliwattHours.Value / 1000f:F1} Wh" : "N/A";
+        milliwattHours.HasValue
+            ? $"{milliwattHours.Value / 1000f:F1} Wh"
+            : L(nameof(AppStrings.Flyout_NotAvailable));
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private void QueueRebuild()
     {
@@ -153,11 +162,13 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        _opened = true;
         _closeButton?.Focus();
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _windowClosed = true;
         try { Dispose(); }
         finally { base.OnClosed(e); }
     }
@@ -168,7 +179,8 @@ internal sealed class BatteryHealthWindow : Window, IDisposable
         _closed = true;
         try
         {
-            if (IsVisible) Close();
+            // A window hidden by its owner is no longer visible but still open, and would leak if only hidden
+            if (_opened && !_windowClosed) Close();
         }
         finally
         {

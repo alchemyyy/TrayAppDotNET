@@ -1,12 +1,8 @@
-namespace TrayAppDotNETCommon.UI.Controls.Maps;
+namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
-public readonly record struct GeoCoordinate(double Latitude, double Longitude)
+internal readonly record struct GeoCoordinate(double Latitude, double Longitude)
 {
     public static readonly GeoCoordinate Zero = new(Latitude: 0.0, Longitude: 0.0);
-
-    public bool IsWithinWorldBounds =>
-        Latitude is >= -90.0 and <= 90.0 &&
-        Longitude is >= -180.0 and <= 180.0;
 
     public GeoCoordinate ClampToWorld() =>
         new(

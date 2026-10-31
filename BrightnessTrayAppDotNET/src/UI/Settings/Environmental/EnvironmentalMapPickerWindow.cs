@@ -10,7 +10,6 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI.Controls.Maps;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -22,8 +21,6 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private const double WindowHeight = 500.0;
     private const double WindowMinWidth = 560.0;
     private const double WindowMinHeight = 380.0;
-    private const double TitleBarHeight = 32.0;
-    private const double CloseButtonWidth = 46.0;
     private const double HudButtonSize = 28.0;
     private const double HudClusterSpacing = 8.0;
     private const double HudPadding = 6.0;
@@ -36,12 +33,11 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private readonly EnvironmentalMapPickerCanvas _map;
     private readonly TextBlock _coordinateText;
     private readonly List<(TextBlock Target, Func<Glyph> Resolve)> _glyphBindings = [];
+    private readonly UIResourceScope _resources = new(nameof(EnvironmentalMapPickerWindow));
     private Border _mapHud = null!;
     private bool _isRetiring;
 
     public EnvironmentalMapPickerWindow(
-        double latitude,
-        double longitude,
         SettingsPalette palette,
         AppTheme theme,
         AppSettings settings,
@@ -69,7 +65,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         _map = _controlNames.Assign(
             new EnvironmentalMapPickerCanvas(palette, theme.EnvironmentalMapPin.For(isLight))
             {
-                SelectedCoordinate = new GeoCoordinate(latitude, longitude).ClampToWorld(),
+                SelectedCoordinate = GeoCoordinate.Zero,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             },
@@ -93,43 +89,44 @@ public sealed class EnvironmentalMapPickerWindow : Window
 
     public event Action<double, double>? Applied;
 
+    /// <summary>
+    /// Shows the picker over <paramref name="owner"/> with its pin on the given saved coordinate, or activates it when
+    /// it is already open. A reused picker never shows the pin of an earlier, aborted session.
+    /// </summary>
+    internal void ShowAt(Window owner, double latitude, double longitude)
+    {
+        if (IsVisible)
+        {
+            Activate();
+            return;
+        }
+
+        _map.SelectedCoordinate = new GeoCoordinate(latitude, longitude).ClampToWorld();
+        Show(owner);
+    }
+
+    internal GeoCoordinate SelectedCoordinate => _map.SelectedCoordinate;
+
     private Border BuildContent()
     {
         Grid root = new();
-        root.RowDefinitions.Add(new RowDefinition(new GridLength(TitleBarHeight)));
+        root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        Grid titleBar = new() { Background = Brushes.Transparent, Height = TitleBarHeight };
-        titleBar.MapTo(ControlMap.MapPicker.TitleBar.ID);
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        titleBar.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
-            BeginMoveDrag(e);
-        };
-
-        TextBlock title =
-            TrayAppDotNETSettingsUI.Text(L(nameof(AppStrings.Settings_Environmental_PickOnMap_Title)), _palette);
-        title.VerticalAlignment = VerticalAlignment.Center;
-        title.Margin = new Thickness(left: 16, top: 0, right: 0, bottom: 0);
-        titleBar.Children.Add(title);
-
-        SettingsButton close = _controlNames.Assign(
-            new SettingsButton(GlyphCatalog.CHROME_CLOSE.Text, _palette, transparentBase: true)
+        Grid titleBar = TrayAppDotNETDialogChrome.TitleBar(
+            new TrayAppDotNETDialogTitleBarOptions
             {
-                Width = CloseButtonWidth,
-                Height = TitleBarHeight,
-                Padding = new Thickness(0),
-                Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
+                Window = this,
+                Title = L(nameof(AppStrings.Settings_Environmental_PickOnMap_Title)),
+                Palette = _palette,
+                CloseTooltip = L(nameof(CommonStrings.Common_Close)),
+                Close = Hide,
+                BarNode = ControlMap.MapPicker.TitleBar.ID,
+                CloseNode = ControlMap.MapPicker.TitleBar.Close,
+                TitleMargin = new Thickness(left: 16, top: 0, right: 0, bottom: 0)
             },
-            parentName: "TitleBar").MapTo(ControlMap.MapPicker.TitleBar.Close);
-        BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
-        close.Click += (_, _) => Hide();
-        TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Common_Close)));
-        TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        Grid.SetColumn(close, value: 1);
-        titleBar.Children.Add(close);
+            _resources);
+        _controlNames.Assign(titleBar, parentName: "TitleBar");
         root.Children.Add(titleBar);
 
         Grid body = new() { Margin = new Thickness(left: 20, top: 8, right: 20, bottom: 20) };
@@ -338,8 +335,8 @@ public sealed class EnvironmentalMapPickerWindow : Window
     {
         if (_isRetiring) return;
 
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
-        _palette.UpdateFrom(BrightnessSettingsWindow.CreatePalette(AppServices.Theme, _settings, isLight));
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
+        _palette.UpdateFrom(AppSettingsPalette.Create(AppServices.Theme, _settings, isLight));
         _map.SetPinColor(_theme.EnvironmentalMapPin.For(isLight));
         _mapHud.Background = TrayAppDotNETSettingsUI.Brush(
             _theme.ResolveEnvironmentalMapHudBackdrop(_settings, isLight));
@@ -412,6 +409,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
 #endif
+        _resources.Dispose();
         _glyphBindings.Clear();
         Applied = null;
         try

@@ -77,10 +77,10 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
             InitializeComponentState();
             this.MapTo(ControlMap.CurveEditor.ID);
 
-            _palette = FanSettingsWindow.CreatePalette(
+            _palette = AppSettingsPalette.Create(
                 AppServices.Theme,
                 settings,
-                AppTheme.ResolveEffectiveIsLightTheme(settings));
+                AppTheme.ResolveIsLight(settings, AppServices.Theme));
 
             _curve.EnsureEditorDefaults(DefaultMaxRPM(fan));
             ClampCurveLimits();
@@ -88,7 +88,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
             EnsureCurveNodesOnDataSourceAxis();
             Curve.Register(_curve);
 
-            Title = $"Fan Curve: {_curve.CurveName}";
+            Title = string.Format(CultureInfo.CurrentCulture, L(nameof(AppStrings.CurveEditor_Title_Format)), _curve.CurveName);
 
             _editor = ControlNames.Assign(
                 new FanCurveEditor
@@ -101,7 +101,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
                     Palette = FanCurveEditorPalette.FromSettingsPalette(
                         _palette,
                         AppServices.Theme ?? AppTheme.Default,
-                        AppTheme.ResolveEffectiveIsLightTheme(settings))
+                        AppTheme.ResolveIsLight(settings, AppServices.Theme))
                 },
                 parentName: "Graph");
             _windowResources.Own(_editor);
@@ -192,8 +192,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     {
         if (_windowResources.IsDisposed) return;
 
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
-        _palette.UpdateFrom(FanSettingsWindow.CreatePalette(AppServices.Theme, _settings, isLight));
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
+        _palette.UpdateFrom(AppSettingsPalette.Create(AppServices.Theme, _settings, isLight));
         _editor.Palette = FanCurveEditorPalette.FromSettingsPalette(
             _palette,
             AppServices.Theme ?? AppTheme.Default,
@@ -223,7 +223,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(
-            Title ?? "Fan Curve",
+            Title ?? L(nameof(AppStrings.CurveEditor_DefaultTitle)),
             _palette,
             Layout.TitleFontSize,
             FontWeight.SemiBold);
@@ -276,7 +276,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         _maxRPMBox.Margin = Layout.ControlGridNumberBoxMargin;
         _maxRPMBox.HorizontalAlignment = HorizontalAlignment.Right;
 
-        Grid row = ControlGridCardContent("Max RPM");
+        Grid row = ControlGridCardContent(L(nameof(AppStrings.CurveEditor_MaxRPM_Label)));
         Grid.SetColumn(_maxRPMBox, value: 1);
         row.Children.Add(_maxRPMBox);
         Border card = CompactCard(row);
@@ -289,7 +289,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     /// </summary>
     private Border BuildRPMModeRow()
     {
-        Grid toggleRow = ControlGridCardContent("RPM mode");
+        Grid toggleRow = ControlGridCardContent(L(nameof(AppStrings.CurveEditor_RPMMode_Label)));
         _rpmModeToggle.Margin = Layout.ControlGridControlMargin;
         _rpmModeToggle.HorizontalAlignment = HorizontalAlignment.Right;
         Grid.SetColumn(_rpmModeToggle, value: 1);
@@ -334,7 +334,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        TextBlock title = TrayAppDotNETSettingsUI.TitleText(text: "Data source", _palette);
+        TextBlock title = TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.CurveEditor_DataSource_Label)), _palette);
         title.Margin = Layout.DataSourceTitleMargin;
         title.VerticalAlignment = VerticalAlignment.Center;
         title.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -410,7 +410,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
                 ? Layout.DataSourceListItemCornerRadius
                 : Layout.ZeroCornerRadius,
             ItemFontSize = Layout.DataSourceListItemFontSize,
-            PlaceholderText = "Search data sources"
+            PlaceholderText = L(nameof(AppStrings.CurveEditor_SearchDataSources_Placeholder))
         };
         return list;
     }
@@ -431,14 +431,14 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
 
         StackPanel rpmModeColumn = BuildControlGridColumn(BuildRPMModeRow());
         StackPanel rpmLimitColumn = BuildControlGridColumn(
-            NumberGridBlock(label: "Min RPM", _minRPMBox),
+            NumberGridBlock(L(nameof(AppStrings.CurveEditor_MinRPM_Label)), _minRPMBox),
             _maxRPMRow);
         StackPanel dutyLimitColumn = BuildControlGridColumn(
-            NumberGridBlock(label: "Min duty", _minDutyBox),
-            NumberGridBlock(label: "Max duty", _maxDutyBox));
+            NumberGridBlock(L(nameof(AppStrings.CurveEditor_MinDuty_Label)), _minDutyBox),
+            NumberGridBlock(L(nameof(AppStrings.CurveEditor_MaxDuty_Label)), _maxDutyBox));
         StackPanel shapeColumn = BuildControlGridColumn(
-            NumberGridBlock(label: "Smoothness", _smoothnessBox),
-            ToggleGridBlock(label: "Monotonic", _preventDecreasingToggle));
+            NumberGridBlock(L(nameof(AppStrings.CurveEditor_Smoothness_Label)), _smoothnessBox),
+            ToggleGridBlock(L(nameof(AppStrings.CurveEditor_Monotonic_Label)), _preventDecreasingToggle));
 
         Grid.SetColumn(rpmModeColumn, value: 0);
         Grid.SetColumn(rpmLimitColumn, value: 1);
@@ -580,7 +580,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     /// </summary>
     private SettingsButton RescaleCurveButton()
     {
-        SettingsButton button = TrayAppDotNETSettingsUI.Button(text: "Rescale Curve", _palette)
+        SettingsButton button = TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.CurveEditor_RescaleCurve_Button)), _palette)
             .MapTo(ControlMap.CurveEditor.Options.RPMModeCard.RescaleCurve);
         button.MinHeight = Layout.RescaleCurveButtonHeight;
         button.Height = Layout.RescaleCurveButtonHeight;
@@ -689,21 +689,23 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
 
     private void PopulateDataSources()
     {
-        _dataSourceList.Items.Clear();
         DeviceNicknameResolver deviceNicknameResolver = DeviceNicknameResolver.Create(_settings);
         ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
-        foreach (DataSource source in DataSource.DataSources.Values
-                     .OrderBy(source => DataSourceDeviceName(source, deviceNicknameResolver),
-                         StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(source => DataSourceProbeName(source, probeNicknameResolver),
-                         StringComparer.OrdinalIgnoreCase))
-        {
-            string label = DataSourceListLabel(source, deviceNicknameResolver, probeNicknameResolver);
-            _dataSourceList.Items.Add(new SettingsSearchableListBoxItem(
-                source.DataSourceKey,
-                label,
-                DataSourceSearchText(source, label)));
-        }
+
+        // One row build for the whole list, sorted like the probe selector
+        _dataSourceList.ReplaceItems(DataSource.DataSources.Values
+            .OrderBy(source => DataSourceDeviceName(source, deviceNicknameResolver),
+                NaturalStringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => DataSourceProbeName(source, probeNicknameResolver),
+                NaturalStringComparer.OrdinalIgnoreCase)
+            .Select(source =>
+            {
+                string label = DataSourceListLabel(source, deviceNicknameResolver, probeNicknameResolver);
+                return new SettingsSearchableListBoxItem(
+                    source.DataSourceKey,
+                    label,
+                    DataSourceSearchText(source, label));
+            }));
 
         bool hasSources = _dataSourceList.Items.Count > 0;
         _dataSourceList.IsEnabled = hasSources;
@@ -740,11 +742,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
             return;
         }
 
-        if (_curve is { ClampXMin: 0, ClampXMax: 100 })
-        {
-            _curve.ClampXMin = (int)Math.Round(source.DisplayMinimum);
-            _curve.ClampXMax = (int)Math.Round(source.DisplayMaximum);
-        }
+        // The input clamp is the bound source's own axis, so a source change never leaves a stale range behind
+        _curve.FollowDataSourceRange(source);
 
         if (_curve.CurveNodes.Count != 0) return;
 
@@ -814,7 +813,7 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         string deviceName = deviceNicknameResolver.Resolve(source);
         if (!string.IsNullOrWhiteSpace(deviceName)) return deviceName;
         if (!string.IsNullOrWhiteSpace(source.ControllerName)) return source.ControllerName;
-        return "Data source";
+        return L(nameof(AppStrings.CurveEditor_DataSource_Label));
     }
 
     /// <summary>
@@ -856,7 +855,9 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     private void UpdateDataSourceSelectionText()
     {
         SettingsSearchableListBoxItem? item = _dataSourceList.SelectedItem;
-        _dataSourceSelectionText.Text = item == null ? "No data source" : SelectedDataSourceDisplayText(item);
+        _dataSourceSelectionText.Text = item == null
+            ? L(nameof(AppStrings.CurveEditor_NoDataSource))
+            : SelectedDataSourceDisplayText(item);
         _dataSourceSelectionText.Opacity = item == null ? 0.65 : 1.0;
     }
 
@@ -888,7 +889,6 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         double oldMax = _curve.ActiveYMaximum;
         if (_curve.RPMMode == enabled) return;
         _curve.RPMMode = enabled;
-        NotifyAssignedCardsCurveUnitChanged();
         ClampCurveLimits();
         MarkPendingNodeRescale(oldMax, _curve.ActiveYMaximum);
         LoadControlState();
@@ -969,11 +969,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         _editor.Redraw();
     }
 
-    private void OnEditorCurveChanged()
-    {
-        _curve.BumpVersion();
-        Save();
-    }
+    // The editor reports finished edits only: a released or lost drag, a key edit or a point removal
+    private void OnEditorCurveChanged() => Save();
 
     private void NotifyCurveShapeChanged()
     {
@@ -993,19 +990,8 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
     private void Save()
     {
         Curve.Register(_curve);
-        _settings.SyncFanControlRegistriesForSave();
         _settings.Save();
         _settings.RaiseChanged();
-    }
-
-    /// <summary>
-    /// Notifies assigned cards that curve-unit conversion inputs changed.
-    /// </summary>
-    private void NotifyAssignedCardsCurveUnitChanged()
-    {
-        IEnumerable<Fan>? liveFans = AppServices.LHMService?.Fans;
-        IEnumerable<Fan> fans = liveFans ?? _settings.Fans;
-        FanCurveModeSync.ApplyToCurveAssignments(_curve, fans, FanGroup.FanGroups.Values);
     }
 
     private static int DefaultMaxRPM(Fan fan)
@@ -1014,4 +1000,6 @@ public sealed partial class FanCurveEditorWindow : FlyoutCompanionWindow
         if (fan.CurrentRPM > 0) return Math.Max(val1: 100, fan.CurrentRPM);
         return 3000;
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -1,6 +1,7 @@
 #if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -12,6 +13,7 @@ using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.ControlMapping;
+using TrayAppDotNETCommon.UI.Drag;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -26,7 +28,6 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private const string NicknameReplacementControlAnchor = "NicknameReplacement";
     private const int UpDirection = -1;
     private const int DownDirection = 1;
-    private static readonly bool EnableReorderCardHoverCue = false;
 
     private static readonly ProbeSelectorTab[] Tabs =
     [
@@ -50,25 +51,6 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private TextBox? _focusedTransformTextBox;
     private ProbeFocusIdentity? _focusIdentity;
     private ProbeSelectorAxamlProperties? _layout;
-    private StackPanel? _selectedProbeDragPanel;
-    private ProbeCardProbe? _draggedSelectedProbe;
-    private Border? _draggedSelectedProbeRow;
-    private Point _selectedProbeDragStart;
-    private double _draggedSelectedProbePointerOffsetY;
-    private double _draggedSelectedProbeHeight;
-    private int _draggedSelectedProbeTargetIndex = -1;
-    private IPointer? _capturedSelectedProbePointer;
-    private StackPanel? _nicknameRuleListPanel;
-    private List<DeviceNicknameRule>? _draggedNicknameRuleList;
-    private DeviceNicknameRule? _draggedNicknameRule;
-    private Border? _draggedNicknameRuleRow;
-    private Point _nicknameRuleDragStart;
-    private double _draggedNicknameRulePointerOffsetY;
-    private double _draggedNicknameRuleHeight;
-    private int _draggedNicknameRuleTargetIndex = -1;
-    private IPointer? _capturedNicknameRulePointer;
-    private bool _isResettingGestures;
-    private bool _isPublishingContentGeneration;
     private bool _isKeyboardFocus;
 
     /// <summary>
@@ -107,10 +89,10 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         _changed = changed;
         _settings.EnsureFanProfileLayouts();
         _probeCard.EnsureProfileVisibility(_settings.SelectedFanProfileIndex);
-        _palette = FanSettingsWindow.CreatePalette(
+        _palette = AppSettingsPalette.Create(
             AppServices.Theme,
             settings,
-            AppTheme.ResolveEffectiveIsLightTheme(settings));
+            AppTheme.ResolveIsLight(settings, AppServices.Theme));
 
         _subscribedLHMService = AppServices.LHMService;
         try
@@ -118,7 +100,10 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
             InitializeComponent();
             InitializeComponentState();
             AttachSelectorInputHandlers();
-            Title = $"Probe Card Editor: {_probeCard.DisplayName}";
+            Title = string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(AppStrings.ProbeSelector_Title_Format)),
+                _probeCard.DisplayName);
             if (_subscribedLHMService != null)
             {
                 _subscribedLHMService.PollTickCompleted += OnPollTickCompleted;
@@ -182,10 +167,10 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     {
         if (_windowResources.IsDisposed || _activeVisualGeneration == null) return;
 
-        _palette.UpdateFrom(FanSettingsWindow.CreatePalette(
+        _palette.UpdateFrom(AppSettingsPalette.Create(
             AppServices.Theme,
             _settings,
-            AppTheme.ResolveEffectiveIsLightTheme(_settings)));
+            AppTheme.ResolveIsLight(_settings, AppServices.Theme)));
         RebuildContent();
     });
 
@@ -215,9 +200,6 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
 
     private double TruncateToggleThumbInset =>
         Math.Max(val1: 0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
-
-    private bool HasCapturedGesturePointer =>
-        _capturedSelectedProbePointer != null || _capturedNicknameRulePointer != null;
 
     /// <summary>
     /// Rebuilds the selector chrome and active tab body.
@@ -302,69 +284,40 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     {
         ProbeSelectorVisualGeneration? previous = _activeVisualGeneration;
         object? previousWindowContent = Content;
-        _isPublishingContentGeneration = true;
+        _activeVisualGeneration = replacement;
         try
         {
-            _activeVisualGeneration = replacement;
+            Content = replacement.ContentGeneration.Root;
+        }
+        catch (Exception exception)
+        {
+            _activeVisualGeneration = previous;
             try
             {
-                Content = replacement.ContentGeneration.Root;
+                Content = previousWindowContent;
             }
-            catch (Exception exception)
-            {
-                _activeVisualGeneration = previous;
-                try
-                {
-                    Content = previousWindowContent;
-                }
-                catch (Exception rollbackException)
-                {
-                    TADNLog.Log(
-                        $"ProbeDataSelectorWindow content rollback failed after {exception.GetType().Name}: " +
-                        $"{rollbackException.GetType().Name}: {rollbackException.Message}");
-                }
-
-                // A failed root assignment can still cause Avalonia to drop the previous capture
-                try
-                {
-                    ResetHomeGestureState();
-                }
-                catch (Exception resetException)
-                {
-                    TADNLog.Log(
-                        $"ProbeDataSelectorWindow rollback gesture reset failed: {resetException.Message}");
-                }
-                finally
-                {
-                    if (!replacement.ContentGeneration.IsDisposed)
-                        replacement.ContentGeneration.Dispose();
-                }
-
-                throw;
-            }
-
-            // Retire gestures and old resources only after the replacement root is live
-            try
-            {
-                ResetHomeGestureState();
-            }
-            catch (Exception resetException)
+            catch (Exception rollbackException)
             {
                 TADNLog.Log(
-                    $"ProbeDataSelectorWindow post-commit gesture reset failed: {resetException.Message}");
+                    $"ProbeDataSelectorWindow content rollback failed after {exception.GetType().Name}: " +
+                    $"{rollbackException.GetType().Name}: {rollbackException.Message}");
             }
             finally
             {
-                previous?.ContentGeneration.Dispose();
+                // The replacement's reorder gestures retire with it
+                if (!replacement.ContentGeneration.IsDisposed)
+                    replacement.ContentGeneration.Dispose();
             }
 
-            // Focus moves last, so the gesture reset cannot clear what a restored transform editor tracks on focus
-            RestoreFocus(replacement);
+            throw;
         }
-        finally
-        {
-            _isPublishingContentGeneration = false;
-        }
+
+        // Retire the old generation, and with it any reorder gesture, only after the replacement root is live
+        ClearHomeEditState();
+        previous?.ContentGeneration.Dispose();
+
+        // Focus moves last, so the reset cannot clear what a restored transform editor tracks on focus
+        RestoreFocus(replacement);
     }
 
     /// <summary>
@@ -654,7 +607,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
             parentName: "ProfileVisibility");
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         TextBlock label = TrayAppDotNETSettingsUI.Text(
-            "Profiles to display probe card on: ", _palette, Layout.SectionTitleFontSize);
+            L(nameof(AppStrings.ProbeSelector_ProfileVisibility_Label)), _palette, Layout.SectionTitleFontSize);
         label.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(label);
 
@@ -678,7 +631,12 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
                     Foreground = TrayAppDotNETSettingsUI.Brush(_palette.Foreground)
                 },
                 parentName: "ProfileVisibility").MapTo(ControlMap.ProbeDataSelector.HomePage.ProfileVisibility);
-            TrayAppDotNETToolTip.SetTip(checkBox, $"{profileName}: At least one profile must remain checked.");
+            TrayAppDotNETToolTip.SetTip(
+                checkBox,
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    L(nameof(AppStrings.ProbeSelector_LastProfile_Tooltip_Format)),
+                    profileName));
             checkBox.IsCheckedChanged += (_, _) =>
             {
                 if (_windowResources.IsDisposed || !ReferenceEquals(generation, _activeVisualGeneration)) return;
@@ -758,13 +716,28 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
                 .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
         ];
         generation.SelectedProbeListPanel = selectedProbeList;
+        VerticalReorderGesture reorder = generation.Resources.Own(new VerticalReorderGesture(
+            new VerticalReorderGestureOptions
+            {
+                List = selectedProbeList,
+                Threshold = Layout.ReorderDragThreshold,
+                ActiveRowChanged = (row, active) =>
+                    UpdateReorderRowVisual((Border)row, active, _palette.SearchListItemSelected),
+                Commit = (sourceIndex, targetIndex) =>
+                {
+                    ApplySelectedProbeOrder(selectedProbes[sourceIndex], targetIndex);
+                    RebuildContent();
+                }
+            }));
         foreach (ProbeCardProbe probe in selectedProbes)
         {
             DataSource? source = DataSource.Find(probe.DataSourceKey);
             Border card = source is null
                 ? BuildMissingProbeCard(probe, generation)
                 : BuildProbeChoiceCard(source, generation);
-            WireSelectedProbeDrag(card, probe, selectedProbeList);
+            // Each row carries the probe it stands for
+            card.Tag = probe;
+            WireSelectedProbeDrag(card, reorder);
             card.MapTo(ControlMap.ProbeDataSelector.HomePage.SelectedProbes.SelectedProbe.ID)
                 .MapCommand(
                     ControlMap.ProbeDataSelector.HomePage.SelectedProbes.SelectedProbe.MoveUp,
@@ -775,7 +748,9 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
             selectedProbeList.Children.Add(card);
         }
 
-        Control content = selectedProbes.Count == 0 ? EmptyText("No probes selected") : selectedProbeList;
+        Control content = selectedProbes.Count == 0
+            ? EmptyText(L(nameof(AppStrings.Flyout_NoProbesSelected)))
+            : selectedProbeList;
         SettingsScrollHost scrollHost = BuildVerticalScrollHost(
             content,
             Layout.HomeSectionScrollHostMargin,
@@ -795,13 +770,14 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        TextBlock title = TrayAppDotNETSettingsUI.Text(text: "Selected Probes", _palette,
+        TextBlock title = TrayAppDotNETSettingsUI.Text(L(nameof(AppStrings.ProbeSelector_SelectedProbes_Header)), _palette,
             Layout.SectionTitleFontSize, FontWeight.SemiBold);
         title.Margin = Layout.SectionHeaderMargin;
         title.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(title);
 
-        SettingsButton clearDeadSensors = TrayAppDotNETSettingsUI.Button(text: "Clear Dead Sensors", _palette)
+        SettingsButton clearDeadSensors = TrayAppDotNETSettingsUI.Button(
+                L(nameof(AppStrings.ProbeSelector_ClearDeadSensors_Button)), _palette)
             .MapTo(ControlMap.ProbeDataSelector.HomePage.SelectedProbes.ClearDeadSensors);
         clearDeadSensors.Width = Layout.HomeClearDeadSensorsButtonWidth;
         clearDeadSensors.Height = Layout.HomeActionButtonHeight;
@@ -819,128 +795,30 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     }
 
     /// <summary>
-    /// Wires drag reordering for a selected-probe row; Ctrl+Up and Ctrl+Down are its control map commands.
+    /// Wires drag reordering for a selected-probe row; Ctrl+Up and Ctrl+Down are its control map commands. A
+    /// double-click stays with the card's own toggle.
     /// </summary>
-    private void WireSelectedProbeDrag(
-        Border row,
-        ProbeCardProbe probe,
-        StackPanel selectedProbeList)
+    private void WireSelectedProbeDrag(Border row, VerticalReorderGesture reorder)
     {
-        row.Tag = probe;
         row.Cursor = TrayAppDotNETCursors.Hand;
-
-        bool pointerOver = false;
-        bool pointerPressed = false;
-        UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-
-        row.PointerEntered += (_, e) =>
-        {
-            pointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
-            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-        };
-        row.PointerExited += (_, _) =>
-        {
-            pointerOver = false;
-            pointerPressed = false;
-            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-        };
+        UpdateReorderRowVisual(row, active: false, _palette.SearchListItemSelected);
         row.PointerPressed += (_, e) =>
         {
-            if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
             if (e.ClickCount == 2) return;
-            if (HasCapturedGesturePointer)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            _selectedProbeDragPanel = selectedProbeList;
-            _draggedSelectedProbe = probe;
-            _draggedSelectedProbeRow = row;
-            _selectedProbeDragStart = e.GetPosition(selectedProbeList);
-            _draggedSelectedProbePointerOffsetY = e.GetPosition(row).Y;
-            _draggedSelectedProbeHeight = Math.Max(val1: 1, row.Bounds.Height);
-            _draggedSelectedProbeTargetIndex = SelectedProbeIndex(probe);
-            pointerPressed = true;
-            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-            CapturePointerOrRollback(
-                e.Pointer,
-                row,
-                ref _capturedSelectedProbePointer,
-                gestureName: "selected probe drag",
-                () =>
-                {
-                    pointerPressed = false;
-                    ResetSelectedProbeGesture(e.Pointer);
-                    UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-                });
-            e.Handled = true;
-        };
-        row.PointerMoved += (_, e) =>
-        {
-            if (HasCapturedGesturePointer
-                && !ReferenceEquals(_capturedSelectedProbePointer, e.Pointer))
-                return;
-
-            bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
-            if (pointerOver != nextPointerOver && !pointerPressed)
-            {
-                pointerOver = nextPointerOver;
-                UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-            }
-
-            if (!ReferenceEquals(_capturedSelectedProbePointer, e.Pointer)) return;
-            if (!ReferenceEquals(row, _draggedSelectedProbeRow)) return;
-            if (_draggedSelectedProbe is null || _selectedProbeDragPanel is null) return;
-
-            Point current = e.GetPosition(_selectedProbeDragPanel);
-            if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < Layout.ReorderDragThreshold) return;
-
-            double draggedMidpoint = current.Y - _draggedSelectedProbePointerOffsetY
-                                     + _draggedSelectedProbeHeight / 2.0;
-            _draggedSelectedProbeTargetIndex = SelectedProbeInsertionIndexFromMidpoint(draggedMidpoint);
-            ApplySelectedProbeDragPreview();
-            row.RenderTransform = new TranslateTransform(x: 0, current.Y - _selectedProbeDragStart.Y);
-            e.Handled = true;
-        };
-        row.PointerReleased += (_, e) =>
-        {
-            if (!ReferenceEquals(_capturedSelectedProbePointer, e.Pointer)) return;
-            pointerPressed = false;
-            EndSelectedProbeDrag(e.Pointer);
-            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
-        };
-        row.PointerCaptureLost += (_, e) =>
-        {
-            if (_isResettingGestures || _isPublishingContentGeneration) return;
-            if (!ReferenceEquals(_capturedSelectedProbePointer, e.Pointer)) return;
-            pointerPressed = false;
-            EndSelectedProbeDrag(e.Pointer);
-            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+            reorder.TryBegin(row, e);
         };
     }
 
     /// <summary>
-    /// Updates selected-probe row visuals during reorder interactions.
+    /// Shows a reorder row as pressed and lifted while its gesture holds the pointer.
     /// </summary>
-    private void UpdateSelectedProbeDragVisual(
-        Border row,
-        ProbeCardProbe probe,
-        bool pointerOver,
-        bool pointerPressed)
+    private void UpdateReorderRowVisual(Border row, bool active, Color restingBackground)
     {
-        bool dragging = ReferenceEquals(probe, _draggedSelectedProbe);
-        bool showHover = EnableReorderCardHoverCue && pointerOver;
-        Color background = pointerPressed
-            ? _palette.Pressed
-            : showHover
-                ? _palette.Hover
-                : _palette.SearchListItemSelected;
-        row.Background = TrayAppDotNETSettingsUI.Brush(background);
-        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
+        row.Background = TrayAppDotNETSettingsUI.Brush(active ? _palette.Pressed : restingBackground);
+        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(active ? _palette.Accent : _palette.Border);
         row.BorderThickness = Layout.RootBorderThickness;
-        row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
-        row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
+        row.Opacity = active ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
+        row.SetValue(ZIndexProperty, active ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
     }
 
     /// <summary>
@@ -948,102 +826,6 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     /// </summary>
     private int SelectedProbeIndex(ProbeCardProbe probe) =>
         ActiveProbeSettingsInOrder().IndexOf(probe);
-
-    /// <summary>
-    /// Resolves the insertion index from the dragged row midpoint.
-    /// </summary>
-    private int SelectedProbeInsertionIndexFromMidpoint(double draggedMidpointY)
-    {
-        if (_selectedProbeDragPanel is null) return -1;
-
-        int insertion = 0;
-        for (int i = 0; i < _selectedProbeDragPanel.Children.Count; i++)
-        {
-            Control child = _selectedProbeDragPanel.Children[i];
-            if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
-
-            Point? topLeft = child.TranslatePoint(new Point(x: 0, y: 0), _selectedProbeDragPanel);
-            if (topLeft is null) continue;
-            if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
-            else break;
-        }
-
-        int max = ActiveProbeSettingsInOrder().Count - (_draggedSelectedProbe is not null ? 1 : 0);
-        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
-    }
-
-    /// <summary>
-    /// Applies visual offsets to rows displaced by a drag reorder.
-    /// </summary>
-    private void ApplySelectedProbeDragPreview()
-    {
-        if (_selectedProbeDragPanel is null || _draggedSelectedProbe is null || _draggedSelectedProbeRow is null)
-            return;
-
-        ResetSelectedProbeDragPreview();
-
-        List<ProbeCardProbe> activeProbes = ActiveProbeSettingsInOrder();
-        int sourceIndex = activeProbes.IndexOf(_draggedSelectedProbe);
-        if (sourceIndex < 0) return;
-
-        int targetIndex = Math.Clamp(_draggedSelectedProbeTargetIndex, min: 0,
-            Math.Max(val1: 0, activeProbes.Count - 1));
-        double offset = Math.Max(val1: 1, _draggedSelectedProbeHeight
-                                          + Math.Max(val1: 0, _draggedSelectedProbeRow.Margin.Bottom));
-        if (targetIndex < sourceIndex)
-        {
-            for (int i = targetIndex; i < sourceIndex; i++)
-                SetSelectedProbePreviewOffset(i, offset);
-        }
-        else if (targetIndex > sourceIndex)
-        {
-            for (int i = sourceIndex + 1; i <= targetIndex && i < _selectedProbeDragPanel.Children.Count; i++)
-                SetSelectedProbePreviewOffset(i, -offset);
-        }
-    }
-
-    /// <summary>
-    /// Sets a reorder preview offset for a selected-probe row.
-    /// </summary>
-    private void SetSelectedProbePreviewOffset(int index, double offset)
-    {
-        if (_selectedProbeDragPanel is null) return;
-        if (index < 0 || index >= _selectedProbeDragPanel.Children.Count) return;
-        if (ReferenceEquals(_selectedProbeDragPanel.Children[index], _draggedSelectedProbeRow)) return;
-
-        _selectedProbeDragPanel.Children[index].RenderTransform = new TranslateTransform(x: 0, offset);
-    }
-
-    /// <summary>
-    /// Clears selected-probe reorder preview offsets.
-    /// </summary>
-    private void ResetSelectedProbeDragPreview()
-    {
-        if (_selectedProbeDragPanel is null) return;
-        foreach (Control child in _selectedProbeDragPanel.Children)
-        {
-            if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
-            child.RenderTransform = null;
-        }
-    }
-
-    /// <summary>
-    /// Ends a selected-probe drag reorder.
-    /// </summary>
-    private void EndSelectedProbeDrag(IPointer? pointer)
-    {
-        ProbeCardProbe? dragged = _draggedSelectedProbe;
-        int targetIndex = _draggedSelectedProbeTargetIndex;
-        bool orderChanged = dragged is not null
-                            && targetIndex >= 0
-                            && SelectedProbeIndex(dragged) != targetIndex;
-        ResetSelectedProbeGesture(pointer);
-
-        if (dragged is not null && orderChanged)
-            ApplySelectedProbeOrder(dragged, targetIndex);
-
-        if (orderChanged) RebuildContent();
-    }
 
     /// <summary>
     /// Moves a selected probe with keyboard shortcuts.
@@ -1099,7 +881,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private Grid BuildDeviceNicknamesSection(ProbeSelectorVisualGeneration generation)
     {
         return BuildNicknameSection(
-            titleText: "Device Nicknames",
+            controlName: "DeviceNicknames",
+            titleText: L(nameof(AppStrings.ProbeSelector_DeviceNicknames_Header)),
             _settings.DeviceNicknameRules,
             LoadDefaultDeviceNicknames,
             AddDeviceNicknameRule,
@@ -1115,7 +898,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private Grid BuildProbeNicknamesSection(ProbeSelectorVisualGeneration generation)
     {
         return BuildNicknameSection(
-            titleText: "Probe Nicknames",
+            controlName: "ProbeNicknames",
+            titleText: L(nameof(AppStrings.ProbeSelector_ProbeNicknames_Header)),
             _settings.ProbeNicknameRules,
             LoadDefaultProbeNicknames,
             AddProbeNicknameRule,
@@ -1129,6 +913,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     /// Builds a global nickname editor section.
     /// </summary>
     private Grid BuildNicknameSection(
+        string controlName,
         string titleText,
         List<DeviceNicknameRule> rulesList,
         Action loadDefaultRules,
@@ -1140,7 +925,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     {
         Grid section = ControlNames.Assign(
             new Grid { Margin = Layout.NicknameSectionMargin },
-            titleText);
+            controlName);
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
@@ -1156,8 +941,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         header.Children.Add(title);
 
         SettingsButton loadDefaultButton = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button(text: "Load Default Nicknames", _palette),
-            titleText).MapTo(ControlMap.NicknameSection.LoadDefaults);
+            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.ProbeSelector_LoadDefaultNicknames_Button)), _palette),
+            controlName).MapTo(ControlMap.NicknameSection.LoadDefaults);
         loadDefaultButton.Width = Layout.HomeLoadDefaultNicknamesButtonWidth;
         loadDefaultButton.Height = Layout.HomeActionButtonHeight;
         loadDefaultButton.MinHeight = Layout.HomeActionButtonHeight;
@@ -1172,8 +957,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         header.Children.Add(loadDefaultButton);
 
         SettingsButton addButton = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button(text: "Add", _palette),
-            titleText).MapTo(ControlMap.NicknameSection.AddRule);
+            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.ProbeSelector_AddRule_Button)), _palette),
+            controlName).MapTo(ControlMap.NicknameSection.AddRule);
         addButton.Width = Layout.NicknameAddButtonWidth;
         addButton.Height = Layout.NicknameAddButtonHeight;
         addButton.MinHeight = Layout.NicknameAddButtonHeight;
@@ -1185,13 +970,26 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         header.Children.Add(addButton);
         section.Children.Add(header);
 
-        StackPanel rules = ControlNames.Assign(new StackPanel(), titleText);
+        StackPanel rules = ControlNames.Assign(new StackPanel(), controlName);
+        VerticalReorderGesture reorder = generation.Resources.Own(new VerticalReorderGesture(
+            new VerticalReorderGestureOptions
+            {
+                List = rules,
+                Threshold = Layout.ReorderDragThreshold,
+                ActiveRowChanged = (row, active) =>
+                    UpdateReorderRowVisual((Border)row, active, _palette.CardBackground),
+                Commit = (sourceIndex, targetIndex) =>
+                {
+                    ApplyNicknameRuleOrder(rulesList, rulesList[sourceIndex], targetIndex);
+                    RebuildContent();
+                }
+            }));
         foreach (DeviceNicknameRule rule in rulesList)
         {
             rules.Children.Add(BuildNicknameRuleCard(
                 rule,
                 rulesList,
-                rules,
+                reorder,
                 deleteRule,
                 generation));
         }
@@ -1236,7 +1034,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private Border BuildNicknameRuleCard(
         DeviceNicknameRule rule,
         List<DeviceNicknameRule> rulesList,
-        StackPanel rulesPanel,
+        VerticalReorderGesture reorder,
         Action<DeviceNicknameRule> deleteRule,
         ProbeSelectorVisualGeneration generation)
     {
@@ -1253,7 +1051,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
             },
             parentName: "NicknameRule");
 
-        TextBox target = NicknameTextBox(rule.TargetRegex, placeholder: "Regex or {HardwareType.GPU}",
+        TextBox target = NicknameTextBox(rule.TargetRegex, L(nameof(AppStrings.ProbeSelector_Target_Placeholder)),
             Layout.NicknameTargetTextBoxWidth);
         ControlNames.Assign(target, NicknameTargetControlAnchor).MapTo(ControlMap.NicknameSection.Rule.Target);
         target.Tag = new NicknameRuleEditorTag(rule, NicknameRuleField.Target);
@@ -1273,7 +1071,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         Grid.SetColumn(arrow, value: 1);
         row.Children.Add(arrow);
 
-        TextBox replacement = NicknameTextBox(rule.ReplacementString, placeholder: "Replacement",
+        TextBox replacement = NicknameTextBox(rule.ReplacementString, L(nameof(AppStrings.ProbeSelector_Replacement_Placeholder)),
             Layout.NicknameReplacementTextBoxWidth);
         ControlNames.Assign(replacement, NicknameReplacementControlAnchor)
             .MapTo(ControlMap.NicknameSection.Rule.Replacement);
@@ -1301,126 +1099,19 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
             .MapCommand(
                 ControlMap.NicknameSection.Rule.MoveDown,
                 () => MoveNicknameRuleByKeyboard(rule, rulesList, DownDirection));
-        WireNicknameRuleDrag(card, arrow, rule, rulesList, rulesPanel);
+        card.Tag = rule;
+        WireNicknameRuleDrag(card, arrow, reorder);
         return card;
     }
 
     /// <summary>
-    /// Wires drag reordering for a nickname rule row; Ctrl+Up and Ctrl+Down are its control map commands.
+    /// Wires drag reordering for a nickname rule row from its arrow handle; Ctrl+Up and Ctrl+Down are its control
+    /// map commands.
     /// </summary>
-    private void WireNicknameRuleDrag(
-        Border row,
-        TextBlock dragHandle,
-        DeviceNicknameRule rule,
-        List<DeviceNicknameRule> rulesList,
-        StackPanel rulesPanel)
+    private void WireNicknameRuleDrag(Border row, TextBlock dragHandle, VerticalReorderGesture reorder)
     {
-        row.Tag = rule;
-
-        bool pointerOver = false;
-        bool pointerPressed = false;
-        UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-
-        row.PointerEntered += (_, e) =>
-        {
-            pointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
-            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-        };
-        row.PointerExited += (_, _) =>
-        {
-            pointerOver = false;
-            pointerPressed = false;
-            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-        };
-        dragHandle.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(dragHandle).Properties.IsLeftButtonPressed) return;
-            if (HasCapturedGesturePointer)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            _nicknameRuleListPanel = rulesPanel;
-            _draggedNicknameRuleList = rulesList;
-            _draggedNicknameRule = rule;
-            _draggedNicknameRuleRow = row;
-            _nicknameRuleDragStart = e.GetPosition(rulesPanel);
-            _draggedNicknameRulePointerOffsetY = e.GetPosition(row).Y;
-            _draggedNicknameRuleHeight = Math.Max(val1: 1, row.Bounds.Height);
-            _draggedNicknameRuleTargetIndex = rulesList.IndexOf(rule);
-            pointerPressed = true;
-            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-            CapturePointerOrRollback(
-                e.Pointer,
-                row,
-                ref _capturedNicknameRulePointer,
-                gestureName: "nickname rule drag",
-                () =>
-                {
-                    pointerPressed = false;
-                    ResetNicknameRuleGesture(e.Pointer);
-                    UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-                });
-            e.Handled = true;
-        };
-        row.PointerMoved += (_, e) =>
-        {
-            if (HasCapturedGesturePointer
-                && !ReferenceEquals(_capturedNicknameRulePointer, e.Pointer))
-                return;
-
-            bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
-            if (pointerOver != nextPointerOver && !pointerPressed)
-            {
-                pointerOver = nextPointerOver;
-                UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
-            }
-
-            if (!ReferenceEquals(_capturedNicknameRulePointer, e.Pointer)) return;
-            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
-            if (_draggedNicknameRule is null || _nicknameRuleListPanel is null) return;
-
-            Point current = e.GetPosition(_nicknameRuleListPanel);
-            if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < Layout.ReorderDragThreshold) return;
-
-            double draggedMidpoint = current.Y - _draggedNicknameRulePointerOffsetY
-                                     + _draggedNicknameRuleHeight / 2.0;
-            _draggedNicknameRuleTargetIndex = NicknameRuleInsertionIndexFromMidpoint(draggedMidpoint);
-            ApplyNicknameRuleDragPreview();
-            row.RenderTransform = new TranslateTransform(x: 0, current.Y - _nicknameRuleDragStart.Y);
-            e.Handled = true;
-        };
-        row.PointerReleased += (_, e) =>
-        {
-            if (!ReferenceEquals(_capturedNicknameRulePointer, e.Pointer)) return;
-            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
-
-            pointerPressed = false;
-            EndNicknameRuleDrag(e.Pointer);
-            e.Handled = true;
-        };
-        row.PointerCaptureLost += (_, e) =>
-        {
-            if (_isResettingGestures || _isPublishingContentGeneration) return;
-            if (!ReferenceEquals(_capturedNicknameRulePointer, e.Pointer)) return;
-            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
-
-            pointerPressed = false;
-            EndNicknameRuleDrag(e.Pointer);
-        };
-    }
-
-    /// <summary>
-    /// Determines whether a pointer event is over card chrome instead of child controls.
-    /// </summary>
-    private static bool IsCardBackgroundPointerSource(Border row, Visual? source)
-    {
-        if (source is null) return false;
-        if (ReferenceEquals(source, row)) return true;
-        if (source is not Grid) return false;
-
-        return ReferenceEquals(source.GetVisualParent(), row);
+        UpdateReorderRowVisual(row, active: false, _palette.CardBackground);
+        dragHandle.PointerPressed += (_, e) => reorder.TryBegin(row, e);
     }
 
     /// <summary>
@@ -1454,268 +1145,8 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
         return ReferenceEquals(current, card);
     }
 
-    /// <summary>
-    /// Updates nickname rule row visuals during reorder interactions.
-    /// </summary>
-    private void UpdateNicknameRuleDragVisual(
-        Border row,
-        DeviceNicknameRule rule,
-        bool pointerOver,
-        bool pointerPressed)
-    {
-        bool dragging = ReferenceEquals(rule, _draggedNicknameRule);
-        bool showHover = EnableReorderCardHoverCue && pointerOver;
-        Color background = pointerPressed
-            ? _palette.Pressed
-            : showHover
-                ? _palette.Hover
-                : _palette.CardBackground;
-        row.Background = TrayAppDotNETSettingsUI.Brush(background);
-        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
-        row.BorderThickness = Layout.RootBorderThickness;
-        row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
-        row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
-    }
-
-    /// <summary>
-    /// Resolves the insertion index from the dragged nickname rule midpoint.
-    /// </summary>
-    private int NicknameRuleInsertionIndexFromMidpoint(double draggedMidpointY)
-    {
-        if (_nicknameRuleListPanel is null || _draggedNicknameRuleList is null) return -1;
-
-        int insertion = 0;
-        for (int i = 0; i < _nicknameRuleListPanel.Children.Count; i++)
-        {
-            Control child = _nicknameRuleListPanel.Children[i];
-            if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
-
-            Point? topLeft = child.TranslatePoint(new Point(x: 0, y: 0), _nicknameRuleListPanel);
-            if (topLeft is null) continue;
-            if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
-            else break;
-        }
-
-        int max = _draggedNicknameRuleList.Count - (_draggedNicknameRule is not null ? 1 : 0);
-        return Math.Clamp(insertion, min: 0, Math.Max(val1: 0, max));
-    }
-
-    /// <summary>
-    /// Applies visual offsets to nickname rows displaced by a drag reorder.
-    /// </summary>
-    private void ApplyNicknameRuleDragPreview()
-    {
-        if (_nicknameRuleListPanel is null ||
-            _draggedNicknameRuleList is null ||
-            _draggedNicknameRule is null ||
-            _draggedNicknameRuleRow is null)
-            return;
-
-        ResetNicknameRuleDragPreview();
-
-        int sourceIndex = _draggedNicknameRuleList.IndexOf(_draggedNicknameRule);
-        if (sourceIndex < 0) return;
-
-        int targetIndex = Math.Clamp(_draggedNicknameRuleTargetIndex, min: 0,
-            Math.Max(val1: 0, _draggedNicknameRuleList.Count - 1));
-        double offset = Math.Max(val1: 1, _draggedNicknameRuleHeight
-                                          + Math.Max(val1: 0, _draggedNicknameRuleRow.Margin.Bottom));
-        if (targetIndex < sourceIndex)
-        {
-            for (int i = targetIndex; i < sourceIndex; i++)
-                SetNicknameRulePreviewOffset(i, offset);
-        }
-        else if (targetIndex > sourceIndex)
-        {
-            for (int i = sourceIndex + 1; i <= targetIndex && i < _nicknameRuleListPanel.Children.Count; i++)
-                SetNicknameRulePreviewOffset(i, -offset);
-        }
-    }
-
-    /// <summary>
-    /// Sets a reorder preview offset for a nickname rule row.
-    /// </summary>
-    private void SetNicknameRulePreviewOffset(int index, double offset)
-    {
-        if (_nicknameRuleListPanel is null) return;
-        if (index < 0 || index >= _nicknameRuleListPanel.Children.Count) return;
-        if (ReferenceEquals(_nicknameRuleListPanel.Children[index], _draggedNicknameRuleRow)) return;
-
-        _nicknameRuleListPanel.Children[index].RenderTransform = new TranslateTransform(x: 0, offset);
-    }
-
-    /// <summary>
-    /// Clears nickname rule reorder preview offsets.
-    /// </summary>
-    private void ResetNicknameRuleDragPreview()
-    {
-        if (_nicknameRuleListPanel is null) return;
-        foreach (Control child in _nicknameRuleListPanel.Children)
-        {
-            if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
-            child.RenderTransform = null;
-        }
-    }
-
-    /// <summary>
-    /// Ends a nickname rule drag reorder.
-    /// </summary>
-    private void EndNicknameRuleDrag(IPointer? pointer)
-    {
-        DeviceNicknameRule? dragged = _draggedNicknameRule;
-        List<DeviceNicknameRule>? rulesList = _draggedNicknameRuleList;
-        int targetIndex = _draggedNicknameRuleTargetIndex;
-        bool hadDrag = dragged is not null;
-        ResetNicknameRuleGesture(pointer);
-
-        if (dragged is not null && rulesList is not null && targetIndex >= 0)
-            ApplyNicknameRuleOrder(rulesList, dragged, targetIndex);
-
-        if (hadDrag) RebuildContent();
-    }
-
-    /// <summary>Clears Home-tab panels and releases captures during visual generation replacement.</summary>
-    private void ResetHomeGestureState()
-    {
-        if (_isResettingGestures) return;
-
-        _isResettingGestures = true;
-        _focusedTransformTextBox = null;
-        try
-        {
-            ResetSelectedProbeGesture(null);
-        }
-        finally
-        {
-            try
-            {
-                ResetNicknameRuleGesture(null);
-            }
-            finally
-            {
-                _isResettingGestures = false;
-            }
-        }
-    }
-
-    private void ResetSelectedProbeGesture(IPointer? fallbackPointer)
-    {
-        IPointer? capturedPointer = _capturedSelectedProbePointer ?? fallbackPointer;
-        _capturedSelectedProbePointer = null;
-        StackPanel? dragPanel = _selectedProbeDragPanel;
-        _selectedProbeDragPanel = null;
-        Border? draggedRow = _draggedSelectedProbeRow;
-        _draggedSelectedProbeRow = null;
-        _draggedSelectedProbe = null;
-        _selectedProbeDragStart = default;
-        _draggedSelectedProbeTargetIndex = -1;
-        _draggedSelectedProbePointerOffsetY = 0;
-        _draggedSelectedProbeHeight = 0;
-        try
-        {
-            draggedRow?.RenderTransform = null;
-            if (dragPanel != null)
-            {
-                foreach (Control child in dragPanel.Children)
-                    child.RenderTransform = null;
-            }
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"ProbeDataSelectorWindow selected probe visual reset failed: {exception.Message}");
-        }
-        finally
-        {
-            ReleasePointerCapture(capturedPointer, gestureName: "selected probe drag");
-        }
-    }
-
-    private void ResetNicknameRuleGesture(IPointer? fallbackPointer)
-    {
-        IPointer? capturedPointer = _capturedNicknameRulePointer ?? fallbackPointer;
-        _capturedNicknameRulePointer = null;
-        StackPanel? rulesPanel = _nicknameRuleListPanel;
-        _nicknameRuleListPanel = null;
-        _draggedNicknameRuleList = null;
-        Border? draggedRow = _draggedNicknameRuleRow;
-        _draggedNicknameRuleRow = null;
-        _draggedNicknameRule = null;
-        _nicknameRuleDragStart = default;
-        _draggedNicknameRuleTargetIndex = -1;
-        _draggedNicknameRulePointerOffsetY = 0;
-        _draggedNicknameRuleHeight = 0;
-        try
-        {
-            draggedRow?.RenderTransform = null;
-            if (rulesPanel != null)
-            {
-                foreach (Control child in rulesPanel.Children)
-                    child.RenderTransform = null;
-            }
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"ProbeDataSelectorWindow nickname rule visual reset failed: {exception.Message}");
-        }
-        finally
-        {
-            ReleasePointerCapture(capturedPointer, gestureName: "nickname rule drag");
-        }
-    }
-
-    private void CapturePointerOrRollback(
-        IPointer pointer,
-        Control target,
-        ref IPointer? capturedPointer,
-        string gestureName,
-        Action rollbackGesture)
-    {
-        if (HasCapturedGesturePointer)
-            throw new InvalidOperationException("The probe selector already owns a pointer capture.");
-
-        capturedPointer = pointer;
-        try
-        {
-            pointer.Capture(target);
-        }
-        catch
-        {
-            if (ReferenceEquals(capturedPointer, pointer))
-                capturedPointer = null;
-            bool wasResetting = _isResettingGestures;
-            _isResettingGestures = true;
-            try
-            {
-                rollbackGesture();
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log(
-                    $"ProbeDataSelectorWindow {gestureName} rollback reset failed: {exception.Message}");
-                ReleasePointerCapture(pointer, $"{gestureName} capture rollback");
-            }
-            finally
-            {
-                _isResettingGestures = wasResetting;
-            }
-
-            throw;
-        }
-    }
-
-    private static void ReleasePointerCapture(IPointer? pointer, string gestureName)
-    {
-        if (pointer == null) return;
-
-        try
-        {
-            pointer.Capture(null);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"ProbeDataSelectorWindow {gestureName} pointer release failed: {exception.Message}");
-        }
-    }
+    /// <summary>Forgets the transform editor of a retired Home tab during visual generation replacement.</summary>
+    private void ClearHomeEditState() => _focusedTransformTextBox = null;
 
     /// <summary>
     /// Moves a nickname rule with keyboard shortcuts.
@@ -1775,7 +1206,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
                     NaturalStringComparer.OrdinalIgnoreCase)
         ];
         if (sources.Count == 0)
-            return EmptyText("No probes found");
+            return EmptyText(L(nameof(AppStrings.ProbeSelector_NoProbesFound)));
 
         foreach (DataSource source in sources)
         {
@@ -2031,7 +1462,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private SettingsMiniToggle BuildProbeEnableToggle(DataSource source, bool isSelected)
     {
         return BuildLabeledMiniToggle(
-            labelText: "Enable",
+            labelText: L(nameof(AppStrings.ProbeSelector_Enable_Label)),
             isSelected,
             isEnabled: true,
             enabled => ToggleProbe(source, enabled)).MapTo(ControlMap.ProbeChoiceCard.Enabled);
@@ -2043,7 +1474,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private SettingsMiniToggle BuildMissingProbeEnableToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
-            labelText: "Enable",
+            labelText: L(nameof(AppStrings.ProbeSelector_Enable_Label)),
             isChecked: true,
             isEnabled: true,
             enabled =>
@@ -2062,7 +1493,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private SettingsMiniToggle BuildProbeTruncateToggle(DataSource source, ProbeCardProbe? probe)
     {
         SettingsMiniToggle toggle = BuildLabeledMiniToggle(
-            labelText: "Truncate",
+            labelText: L(nameof(AppStrings.ProbeSelector_Truncate_Label)),
             probe?.TruncateValue == true,
             isEnabled: true,
             truncateValue => SetProbeTruncateValue(source, truncateValue));
@@ -2075,7 +1506,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     private SettingsMiniToggle BuildMissingProbeTruncateToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
-            labelText: "Truncate",
+            labelText: L(nameof(AppStrings.ProbeSelector_Truncate_Label)),
             probe.TruncateValue,
             isEnabled: true,
             truncateValue =>
@@ -2813,14 +2244,7 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     {
         _windowResources.Dispose();
 
-        try
-        {
-            ResetHomeGestureState();
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"ProbeDataSelectorWindow gesture cleanup failed: {exception.Message}");
-        }
+        ClearHomeEditState();
 
         ProbeSelectorVisualGeneration? generation = _activeVisualGeneration;
         _activeVisualGeneration = null;
@@ -2848,14 +2272,16 @@ public sealed partial class ProbeDataSelectorWindow : FlyoutCompanionWindow
     /// </summary>
     private static string TabLabel(ProbeSelectorTab tab) => tab switch
     {
-        ProbeSelectorTab.Home => "Home",
-        ProbeSelectorTab.Temperatures => "Temperatures",
-        ProbeSelectorTab.Power => "Power",
-        ProbeSelectorTab.Load => "Load",
-        ProbeSelectorTab.Clocks => "Clocks",
-        ProbeSelectorTab.Voltages => "Voltages",
+        ProbeSelectorTab.Home => L(nameof(AppStrings.ProbeSelector_Tab_Home)),
+        ProbeSelectorTab.Temperatures => L(nameof(AppStrings.ProbeSelector_Tab_Temperatures)),
+        ProbeSelectorTab.Power => L(nameof(AppStrings.ProbeSelector_Tab_Power)),
+        ProbeSelectorTab.Load => L(nameof(AppStrings.ProbeSelector_Tab_Load)),
+        ProbeSelectorTab.Clocks => L(nameof(AppStrings.ProbeSelector_Tab_Clocks)),
+        ProbeSelectorTab.Voltages => L(nameof(AppStrings.ProbeSelector_Tab_Voltages)),
         _ => string.Empty
     };
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private enum ProbeSelectorTab
     {

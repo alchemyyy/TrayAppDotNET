@@ -17,6 +17,10 @@ public sealed class FanCurveEditor : Control, IDisposable
 
     private static readonly bool IsSelectedReadoutAutoSwitchEnabled = false;
 
+    // Arrow keys nudge a point by one plot pixel, or ten with Ctrl; this is input behavior, not an AXAML resource
+    private const double KeyboardStepFinePixels = 1;
+    private const double KeyboardStepCoarseMultiplier = 10;
+
     private Curve? _curve;
     private DataSource? _dataSource;
     private Curve? _subscribedCurve;
@@ -58,6 +62,10 @@ public sealed class FanCurveEditor : Control, IDisposable
         this.MapCommand(ControlMap.CurveEditor.Graph.ClearSelection, ClearSelectionFromKeyboard);
     }
 
+    /// <summary>
+    /// Raised when a graph edit is finished: a drag released or lost, a key edit or a point removal. Moves during a
+    /// drag only redraw, so the owner persists once per gesture.
+    /// </summary>
     public event Action? CurveChanged;
 
     /// <summary>
@@ -211,7 +219,6 @@ public sealed class FanCurveEditor : Control, IDisposable
         _selectedNode = added;
         CapturePointer(e);
         InvalidateVisual();
-        CurveChanged?.Invoke();
         e.Handled = true;
     }
 
@@ -229,7 +236,6 @@ public sealed class FanCurveEditor : Control, IDisposable
             if (!ReferenceEquals(_capturedPointer, e.Pointer)) return;
             DragNode(_dragNode, pos, plot);
             InvalidateVisual();
-            CurveChanged?.Invoke();
             e.Handled = true;
             return;
         }
@@ -333,7 +339,10 @@ public sealed class FanCurveEditor : Control, IDisposable
         DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
             WithOpacity(_palette.SecondaryForeground, opacity: 0.65), thickness: 1.0, dash: 4.0, gap: 3.0);
 
-        string label = $"Min {FormatYAxisValue(min)}";
+        string label = string.Format(
+            CultureInfo.CurrentCulture,
+            LocalizationManager.Instance[nameof(AppStrings.CurveEditor_MinimumLine_Format)],
+            FormatYAxisValue(min));
         using TextLayout text = Text(
             label,
             Layout.GraphLabelFontSize,
@@ -348,7 +357,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         List<DisplayNode> display = DisplayNodes();
         if (display.Count >= 2)
         {
-            StreamGeometry geometry = BuildCurveGeometry(display, plot);
+            StreamGeometry geometry = BuildCurveGeometry(_curve.CreateEvaluator(), plot);
             context.DrawGeometry(brush: null, new Pen(Brush(_palette.Curve), thickness: 2.0), geometry);
         }
 
@@ -361,27 +370,19 @@ public sealed class FanCurveEditor : Control, IDisposable
         }
     }
 
-    private StreamGeometry BuildCurveGeometry(List<DisplayNode> nodes, Rect plot)
+    /// <summary>
+    /// Traces the curve fan control applies: the runtime evaluator with its input clamp, end tangents and output
+    /// clamp, sampled once per plot pixel.
+    /// </summary>
+    private StreamGeometry BuildCurveGeometry(CurveEvaluator evaluator, Rect plot)
     {
-        double[] xs = new double[nodes.Count];
-        double[] ys = new double[nodes.Count];
-        for (int i = 0; i < nodes.Count; i++)
-        {
-            xs[i] = nodes[i].X;
-            ys[i] = nodes[i].Y;
-        }
-
-        double smoothness = Math.Clamp((_curve?.SmoothingFactor ?? 0) / 100.0, min: 0.0, max: 1.0);
-        double[] tangents = ComputeMonotonicTangents(xs, ys);
         int samples = Math.Max(val1: 2, (int)Math.Ceiling(plot.Width));
         StreamGeometry geometry = new();
         using StreamGeometryContext geometryContext = geometry.Open();
         for (int i = 0; i < samples; i++)
         {
             double x = XMinimum + (XMaximum - XMinimum) * i / Math.Max(val1: 1, samples - 1);
-            double linear = InterpolateLinear(xs, ys, x);
-            double cubic = InterpolateMonotonicCubic(xs, ys, tangents, x);
-            double yValue = linear + (cubic - linear) * smoothness;
+            double yValue = Math.Clamp(evaluator.Evaluate(x), YMinimum, YMaximum);
             Point current = new(ScreenX(x, plot), ScreenY(yValue, plot));
             if (i == 0)
                 geometryContext.BeginFigure(current, isFilled: false);
@@ -417,7 +418,13 @@ public sealed class FanCurveEditor : Control, IDisposable
         using TextLayout sourceText = Text(label, size: 12.0, _palette.Foreground);
         using TextLayout? curveText = _curve == null
             ? null
-            : Text($"Curve {FormatYAxisValue(_curve.Evaluate(value))}", size: 12.0, _palette.Curve);
+            : Text(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    LocalizationManager.Instance[nameof(AppStrings.CurveEditor_CurveValue_Format)],
+                    FormatYAxisValue(_curve.Evaluate(value))),
+                size: 12.0,
+                _palette.Curve);
         double bottom = plot.Bottom - Layout.GraphLegendInset;
 
         Rect sourcePill = GraphLegendPill(plot, sourceText, bottom);
@@ -521,12 +528,12 @@ public sealed class FanCurveEditor : Control, IDisposable
         if (!IsKeyboardEditable) return;
 
         Rect plot = PlotRect();
-        double xStep = (XMaximum - XMinimum) / Math.Max(val1: 1.0, plot.Width) * Layout.GraphKeyboardStepFinePixels;
-        double yStep = (YMaximum - YMinimum) / Math.Max(val1: 1.0, plot.Height) * Layout.GraphKeyboardStepFinePixels;
+        double xStep = (XMaximum - XMinimum) / Math.Max(val1: 1.0, plot.Width) * KeyboardStepFinePixels;
+        double yStep = (YMaximum - YMinimum) / Math.Max(val1: 1.0, plot.Height) * KeyboardStepFinePixels;
         if ((modifiers & KeyModifiers.Control) != 0)
         {
-            xStep *= Layout.GraphKeyboardStepCoarsePixels;
-            yStep *= Layout.GraphKeyboardStepCoarsePixels;
+            xStep *= KeyboardStepCoarseMultiplier;
+            yStep *= KeyboardStepCoarseMultiplier;
         }
 
         MoveSelected(horizontalDirection * xStep, verticalDirection * yStep);
@@ -1044,116 +1051,5 @@ public sealed class FanCurveEditor : Control, IDisposable
         _curve = null;
         _dataSource = null;
         Cursor = null;
-    }
-
-    private static double InterpolateLinear(double[] xs, double[] ys, double x)
-    {
-        int count = Math.Min(xs.Length, ys.Length);
-        if (count == 0) return 0.0;
-        if (count == 1 || x <= xs[0]) return ys[0];
-        if (x >= xs[count - 1]) return ys[count - 1];
-
-        int low = 0;
-        int high = count - 1;
-        while (high - low > 1)
-        {
-            int middle = (low + high) / 2;
-            if (xs[middle] <= x) low = middle;
-            else high = middle;
-        }
-
-        double dx = xs[high] - xs[low];
-        double t = dx > 0.0 ? (x - xs[low]) / dx : 0.0;
-        return ys[low] + t * (ys[high] - ys[low]);
-    }
-
-    private static double[] ComputeMonotonicTangents(double[] xs, double[] ys)
-    {
-        int count = Math.Min(xs.Length, ys.Length);
-        double[] tangents = new double[count];
-        if (count < 2) return tangents;
-
-        double[] intervals = new double[count - 1];
-        double[] slopes = new double[count - 1];
-        for (int i = 0; i < count - 1; i++)
-        {
-            intervals[i] = xs[i + 1] - xs[i];
-            slopes[i] = intervals[i] > 0.0 ? (ys[i + 1] - ys[i]) / intervals[i] : 0.0;
-        }
-
-        if (count == 2)
-        {
-            tangents[0] = slopes[0];
-            tangents[1] = slopes[0];
-            return tangents;
-        }
-
-        for (int i = 1; i < count - 1; i++)
-        {
-            if (slopes[i - 1] == 0.0 || slopes[i] == 0.0 || slopes[i - 1] * slopes[i] < 0.0)
-            {
-                tangents[i] = 0.0;
-                continue;
-            }
-
-            double w1 = 2.0 * intervals[i] + intervals[i - 1];
-            double w2 = intervals[i] + 2.0 * intervals[i - 1];
-            tangents[i] = (w1 + w2) / (w1 / slopes[i - 1] + w2 / slopes[i]);
-        }
-
-        tangents[0] = EndpointTangent(intervals[0], intervals[1], slopes[0], slopes[1]);
-        tangents[count - 1] = EndpointTangent(
-            intervals[count - 2],
-            intervals[count - 3],
-            slopes[count - 2],
-            slopes[count - 3]);
-        return tangents;
-    }
-
-    private static double InterpolateMonotonicCubic(
-        double[] xs,
-        double[] ys,
-        double[] tangents,
-        double x)
-    {
-        int count = Math.Min(Math.Min(xs.Length, ys.Length), tangents.Length);
-        if (count == 0) return 0.0;
-        if (count == 1 || x <= xs[0]) return ys[0];
-        if (x >= xs[count - 1]) return ys[count - 1];
-
-        int low = 0;
-        int high = count - 1;
-        while (high - low > 1)
-        {
-            int middle = (low + high) / 2;
-            if (xs[middle] <= x) low = middle;
-            else high = middle;
-        }
-
-        double h = xs[high] - xs[low];
-        if (h <= 0.0) return ys[low];
-
-        double t = (x - xs[low]) / h;
-        double t2 = t * t;
-        double t3 = t2 * t;
-        double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
-        double h10 = t3 - 2.0 * t2 + t;
-        double h01 = -2.0 * t3 + 3.0 * t2;
-        double h11 = t3 - t2;
-
-        return h00 * ys[low] +
-               h10 * h * tangents[low] +
-               h01 * ys[high] +
-               h11 * h * tangents[high];
-    }
-
-    private static double EndpointTangent(double hEnd, double hNext, double mEnd, double mNext)
-    {
-        double tangent = ((2.0 * hEnd + hNext) * mEnd - hEnd * mNext) / (hEnd + hNext);
-        if (tangent * mEnd <= 0.0) return 0.0;
-
-        double cap = 3.0 * Math.Abs(mEnd);
-        if (Math.Abs(tangent) > cap) return mEnd >= 0.0 ? cap : -cap;
-        return tangent;
     }
 }

@@ -4,14 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-    <!-- Slider track and input behavior -->
+    <!-- Slider track -->
     <sys:Double x:Key="FlyoutSlider.TrackHeight">4</sys:Double>
     <CornerRadius x:Key="FlyoutSlider.CapsuleCornerRadius">999</CornerRadius>
-    <sys:Double x:Key="FlyoutSlider.DefaultMaximum">100</sys:Double>
     <sys:Double x:Key="FlyoutSlider.SecondaryOpacity">0.33</sys:Double>
-    <sys:Double x:Key="FlyoutSlider.WheelStep">1</sys:Double>
-    <sys:Double x:Key="FlyoutSlider.KeyboardStep">1</sys:Double>
-    <sys:Double x:Key="FlyoutSlider.LargeKeyboardStep">10</sys:Double>
 
     <!-- Optional value ticks above and below the track -->
     <sys:Double x:Key="FlyoutSlider.TickHeight">4</sys:Double>

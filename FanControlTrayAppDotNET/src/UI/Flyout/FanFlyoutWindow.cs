@@ -33,7 +33,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 #else
     private static readonly bool EnableFanDragDebugOverlay = false;
 #endif
-    private static readonly bool EnableFanDragInstrumentation = false;
 
     private readonly LHMService? _lhmService;
     private readonly AppSettings _settings;
@@ -43,19 +42,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly List<ProbeCard> _probeCards = [];
     private readonly Dictionary<string, FanGroup> _groupSettingsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<Fan, FanPropertiesWindow> _fanPropertiesWindows = [];
-    private readonly List<FanCurveEditorWindow> _fanCurveEditorWindows = [];
+    private readonly Dictionary<Curve, FanCurveEditorWindow> _fanCurveEditorWindows = [];
     private readonly Dictionary<ProbeCard, ProbeDataSelectorWindow> _probeSelectorWindows = [];
     private readonly Dictionary<Window, UIResourceScope> _childWindowSubscriptionResources = [];
     private readonly List<Fan> _fanPropertiesOrder = [];
     private readonly Dictionary<Fan, UIResourceScope> _fanSubscriptionResources = [];
-    private readonly FlyoutWindowDragHelper _dragHelper = new();
-    private readonly FlyoutDockingController _dockingController;
-    private readonly FanDragInstrumentation _dragInstrumentation = new(log: static message => TADNLog.Log(message));
     private readonly List<Control> _dragDebugVisuals = [];
 
     private FanFlyoutVisualGeneration? _activeVisualGeneration;
     private ContextMenuWindow? _addItemMenu;
-    private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutAxamlProperties? _layout;
     private Border? _dragGhost;
     private UIResourceScope? _dragGhostResources;
@@ -76,7 +71,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     internal FanDragEvaluation? LastDragEvaluation { get; private set; }
     private FanDragGhostStyle _dragGhostStyle = FanDragGhostStyle.None;
     private Point _dragStart;
-    private Point? _lastDragInstrumentationPoint;
     private double _dragPointerOffsetY;
     private double _dragPointerOffsetRatio;
     private double _dragPlacementPointerOffsetY;
@@ -89,23 +83,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool _showNonFunctioningFans;
     private bool _showFanDragDebugVisuals = EnableFanDragDebugOverlay;
     private bool _suppressFanRebuild;
-    private bool _isUpdateDownloadInFlight;
-    private bool _isUpdateDialogOpen;
-    private bool _isDraggingWindow;
     private bool _isCompletingDrag;
     private bool _isResettingPointerGestures;
     private bool _dragMovingDown = true;
-    private bool _pendingFanRebuild;
-    private bool _fanRebuildQueued;
-    private bool _isRebuildingVisual;
     private bool _isPublishingVisualGeneration;
-    private long _visibilityGeneration;
     private int _activeSliderDrags;
     private int? _lastRequestedProfile;
-    private TaskCompletionSource<bool>? _confirmTcs;
     private IPointer? _capturedCardDragPointer;
     private IPointer? _capturedSliderPointer;
-    private IPointer? _capturedWindowDragPointer;
 
     public FanFlyoutWindow()
         : this(lhmService: null, new AppSettings(), static _ => { })
@@ -113,6 +98,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     }
 
     internal FanFlyoutWindow(LHMService? lhmService, AppSettings settings, Action<FanSettingsPage?> openSettings)
+        : base(ControlMap.Flyout.Close)
     {
         _lhmService = lhmService;
         _settings = settings;
@@ -124,17 +110,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             InitializeComponent();
 
-            _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
-            {
-                Settings = _settings,
-                DragHelper = _dragHelper,
-                CurrentPosition = () => Position,
-                SetPosition = position => Position = position,
-                ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
-                ResolveSavedPosition = ResolveSavedPosition,
-                ResolveSnapTolerance = ResolveSnapTolerance,
-                StateChanged = OnDockStateChanged
-            });
+            InitializeDocking(_settings);
 
             _settings.EnsureFanProfileLayouts();
             LoadGroupCatalog();
@@ -159,18 +135,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
 
             this.MapTo(ControlMap.Flyout.ID);
-            this.MapCommand(ControlMap.Flyout.Close, Hide);
 #if DEBUG
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             WindowResources.Add(() =>
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+            FanFlyoutCellResources.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            WindowResources.Add(() =>
+                FanFlyoutCellResources.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
 #endif
-            if (EnableFanDragInstrumentation)
-            {
-                AddHandler(KeyDownEvent, OnDragInstrumentationKeyDown, RoutingStrategies.Tunnel,
-                    handledEventsToo: true);
-                WindowResources.Add(() => RemoveHandler(KeyDownEvent, OnDragInstrumentationKeyDown));
-            }
 
             InitializeComponentState();
         }
@@ -186,9 +158,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
 #if DEBUG
     /// <summary>
-    /// Rebuilds code-created flyout glyphs after a catalog source reload.
+    /// Rebuilds code-created flyout glyphs and cell layout after a catalog or cell dictionary source reload.
     /// </summary>
-    private void OnGlyphCatalogResourcesReloaded() => RequestFanRebuild();
+    private void OnGlyphCatalogResourcesReloaded() => QueueRebuild();
 #endif
 
     /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
@@ -197,7 +169,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _layout = AxamlFlyout;
         SetFixedFlyoutWidth(Layout.WindowWidth);
 
-        RebuildVisual();
+        RebuildNow();
     }
 
     private FlyoutAxamlProperties Layout =>
@@ -221,7 +193,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private TextBlock? FanDragDebugVisualsButtonGlyph =>
         _activeVisualGeneration?.FanDragDebugVisualsButtonGlyph;
 
-    private Border? ConfirmOverlay => _activeVisualGeneration?.ConfirmOverlay;
+    private TrayAppDotNETConfirmOverlay? ConfirmOverlay => _activeVisualGeneration?.ConfirmOverlay;
 
     private Dictionary<Fan, List<FanRowVisualRefs>>? FanRowRefs =>
         _activeVisualGeneration?.FanRowRefs;
@@ -232,13 +204,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Dictionary<ProbeCard, List<ProbeCardRowVisualRefs>>? ProbeRowRefs =>
         _activeVisualGeneration?.ProbeRowRefs;
 
-    private int EdgePadding => (int)Math.Round(Layout.EdgePadding);
-
-    private int PixelMinSize => (int)Math.Round(Layout.PixelMinSize);
-
     public new event PropertyChangedEventHandler? PropertyChanged;
-
-    public bool IsUndocked => _dockingController.IsUndocked;
 
     private Glyph NonFunctioningFansGlyph => _showNonFunctioningFans ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
 
@@ -248,103 +214,43 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool FanDragDebugVisualsEnabled =>
         EnableFanDragDebugOverlay && _showFanDragDebugVisuals;
 
-    protected override bool HasOpenChildWindow =>
-        _addItemMenu?.IsVisible == true
-        || _isUpdateDialogOpen;
+    protected override bool HasOpenChildWindow => _addItemMenu?.IsVisible == true;
 
-    protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
+    // Card, group, probe and slider drags own the content until they finish
+    protected override bool IsContentInteractionActive =>
+        _activeSliderDrags > 0
+        || _draggedFan != null
+        || _draggedGroupCell != null
+        || _draggedProbeCard != null;
 
-    protected override void HideFlyout() => Hide();
+    protected override bool CanStartWindowDrag =>
+        ConfirmOverlay?.IsOpen != true
+        && !HasCapturedPointer
+        && _draggedFan == null
+        && _draggedGroupCell == null
+        && _draggedProbeCard == null;
 
-    public void Redock()
+    protected override void OnRevealing() => ShowPinnedFanPropertiesWindows();
+
+    protected override void OnPositionedNearTray() => PositionFanPropertiesWindows();
+
+    protected override void OnHiding()
     {
-        if (WindowResources.IsDisposed) return;
-        _dockingController.Redock();
-    }
-
-    public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
-    {
-        if (WindowResources.IsDisposed) return;
-
-        long visibilityGeneration = ++_visibilityGeneration;
-        _lastTrayIcon = trayIcon;
-        ShowActivated = activate;
-        ApplyWorkAreaMaxHeight();
-
-        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
-        ShowWithRetainedFrame(_dockingController.ResolvePosition());
-        ExecuteFanRebuild(false);
-
-        // Settle size and position before the dispatcher can render the fresh generation
-        ApplyWorkAreaMaxHeight();
-        UpdateLayout();
-        PositionNearTray();
-
-        // A rebuild committed before this runs still needs the reveal, so only the show itself is checked
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (WindowResources.IsDisposed || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
-
-            ApplyWorkAreaMaxHeight();
-            UpdateLayout();
-            PositionNearTray();
-            ShowPinnedFanPropertiesWindows();
-            CompleteReveal();
-            if (activate) Activate();
-        }, DispatcherPriority.Loaded);
-    }
-
-    public new void Hide()
-    {
-        // Keep opacity and the current generation so the next show presents this frame immediately
-        _visibilityGeneration++;
         CloseAddItemMenu();
         ResetPointerGestureState();
         CancelConfirmOverlay();
         ForceCloseAllFanCurveEditorWindows();
         ForceCloseAllProbeSelectorWindows();
         HideFanPropertiesWindowsForFlyoutHide();
-        base.Hide();
-        NotifyWarmDismissed();
-    }
-
-    /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
-    private FanVisualRebuildResult RebuildVisual()
-    {
-        try
-        {
-            return RebuildVisualCore();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"FanFlyoutWindow.RebuildVisual: {ex.GetType().Name}: {ex.Message}");
-            return FanVisualRebuildResult.Failed;
-        }
     }
 
     /// <summary>Builds the visual tree before replacing the existing content.</summary>
-    private FanVisualRebuildResult RebuildVisualCore()
+    protected override void RebuildContent()
     {
-        if (_layout == null) return FanVisualRebuildResult.Unavailable;
-        if (_isRebuildingVisual)
-        {
-            _pendingFanRebuild = true;
-            return FanVisualRebuildResult.Deferred;
-        }
+        if (_layout == null) return;
 
-        _isRebuildingVisual = true;
-        try
-        {
-            FanFlyoutVisualGeneration replacement = BuildVisualGeneration();
-            CommitVisualGeneration(replacement);
-            return FanVisualRebuildResult.Committed;
-        }
-        finally
-        {
-            _isRebuildingVisual = false;
-            if (_pendingFanRebuild)
-                RequestFanRebuild();
-        }
+        FanFlyoutVisualGeneration replacement = BuildVisualGeneration();
+        CommitVisualGeneration(replacement);
     }
 
     /// <summary>Builds cells, controls, maps, and disposable resources in an unpublished generation.</summary>
@@ -367,9 +273,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                         generation.GroupStage));
             }
 
-            bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+            bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
             AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-            SettingsPalette settingsPalette = FanSettingsWindow.CreatePalette(theme, _settings, isLight);
+            SettingsPalette settingsPalette = AppSettingsPalette.Create(theme, _settings, isLight);
             FlyoutControlPalette flyoutPalette = CreateFlyoutPalette(theme, settingsPalette, isLight);
 
             DockPanel body = ControlNames.Assign(
@@ -382,8 +288,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             Grid rootGrid = ControlNames.Assign(new Grid(), parentName: "FlyoutContent");
             rootGrid.Children.Add(body);
-            generation.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, isLight, generation);
-            generation.ConfirmOverlay.IsVisible = false;
+            generation.ConfirmOverlay = resources.Own(new TrayAppDotNETConfirmOverlay(
+                new TrayAppDotNETConfirmOverlayOptions
+                {
+                    Palette = settingsPalette,
+                    Backdrop = (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight),
+                    EnableRoundedCorners = _settings.EnableRoundedCorners,
+                    BackdropCornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
+                    Node = ControlMap.Flyout.ConfirmOverlay.ID
+                }));
+            ControlNames.Assign(generation.ConfirmOverlay, parentName: "ConfirmationOverlay");
             rootGrid.Children.Add(generation.ConfirmOverlay);
             Canvas dragOverlay = ControlNames.Assign(
                 new Canvas { IsHitTestVisible = false },
@@ -403,17 +317,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             // Focusable so clicks and card drags can pull focus out of inline editors; the map gives it no tab stop
             KeyboardNavigation.SetIsTabStop(rootCard, false);
             generation.RootCard = rootCard;
-            rootCard.PointerPressed += OnRootPointerPressed;
-            rootCard.PointerMoved += OnRootPointerMoved;
-            rootCard.PointerReleased += OnRootPointerReleased;
-            rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
-            resources.Add(() =>
-            {
-                rootCard.PointerPressed -= OnRootPointerPressed;
-                rootCard.PointerMoved -= OnRootPointerMoved;
-                rootCard.PointerReleased -= OnRootPointerReleased;
-                rootCard.PointerCaptureLost -= OnRootPointerCaptureLost;
-            });
+            AttachWindowDrag(rootCard, resources);
 
             generation.AttachContentGeneration(new UIContentGeneration(
                 $"{nameof(FanFlyoutWindow)}.Content",
@@ -559,21 +463,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ControlMap.Flyout.Header.Actions.Settings,
             GlyphCatalog.SETTINGS,
             flyoutControlPalette,
-            () => _openSettings(null),
-            L(nameof(AppStrings.Tray_Settings)),
-            controlName: "SettingsButton",
-            configureButton: SuppressNextAutoHideWhenPressed);
+            OpensWindow(() => _openSettings(null)),
+            L(nameof(CommonStrings.Flyout_Settings_Tooltip)),
+            controlName: "SettingsButton");
         AddHeaderButton(
             actions,
             column: 1,
             ControlMap.Flyout.Header.Actions.CurveEditor,
             GlyphCatalog.CURVE_WINDOW,
             flyoutControlPalette,
-            OpenHeaderCurveEditor,
-            tooltip: "Fan curve editor",
+            OpensWindow(OpenHeaderCurveEditor),
+            tooltip: L(nameof(AppStrings.Flyout_CurveEditor_Tooltip)),
             controlName: "CurveEditorButton",
-            Layout.HeaderManagerIconButtonFontSize,
-            SuppressNextAutoHideWhenPressed);
+            Layout.HeaderManagerIconButtonFontSize);
         generation.NonFunctioningFansButtonGlyph = AddHeaderButton(
             actions,
             column: 2,
@@ -581,7 +483,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             NonFunctioningFansGlyph,
             flyoutControlPalette,
             ToggleNonFunctioningFans,
-            tooltip: "Show/hide non-functioning fans",
+            tooltip: L(nameof(AppStrings.Flyout_NonFunctioningFans_Tooltip)),
             controlName: "NonFunctioningFansButton");
         AddItemButton(actions, column: 3, flyoutControlPalette);
 
@@ -622,7 +524,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     TrayAppDotNETFlyoutUI.Brush(
                         (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(
                             _settings,
-                            AppTheme.ResolveEffectiveIsLightTheme(_settings))),
+                            AppTheme.ResolveIsLight(_settings, AppServices.Theme))),
                 Child = grid
             },
             parentName: "FlyoutHeader");
@@ -694,7 +596,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         generation.ScrollViewer = scrollViewer;
         holder.Children.Add(scrollViewer);
 
-        TextBlock empty = TrayAppDotNETFlyoutUI.Text(text: "No fans detected", p, Layout.EmptyStateFontSize,
+        TextBlock empty = TrayAppDotNETFlyoutUI.Text(L(nameof(AppStrings.Flyout_NoFans)), p, Layout.EmptyStateFontSize,
             color: p.SecondaryForeground);
         empty.Opacity = Layout.EmptyStateOpacity;
         empty.HorizontalAlignment = HorizontalAlignment.Center;
@@ -953,7 +855,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ];
             if (selectedProbes.Count == 0)
             {
-                TextBlock empty = TrayAppDotNETFlyoutUI.Text(text: "No probes selected", p, Layout.ProbeEmptyFontSize,
+                TextBlock empty = TrayAppDotNETFlyoutUI.Text(L(nameof(AppStrings.Flyout_NoProbesSelected)), p, Layout.ProbeEmptyFontSize,
                     color: p.SecondaryForeground);
                 empty.Opacity = Layout.ProbeEmptyOpacity;
                 rows.Children.Add(empty);
@@ -1023,14 +925,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Border probeButton = IconButton(
             GlyphCatalog.PROBE,
             p,
-            _ => ToggleProbeSelectorWindow(probeCard),
+            OpensWindow(_ => ToggleProbeSelectorWindow(probeCard)),
             Layout.ProbeButtonWidth,
             Layout.ProbeButtonHeight,
             Layout.ProbeButtonFontSize,
             margin: Layout.ProbeButtonMargin,
-            tooltip: "Probe Card Editor");
+            tooltip: L(nameof(AppStrings.Flyout_ProbeCardEditor_Tooltip)));
         probeButton.VerticalAlignment = VerticalAlignment.Center;
-        SuppressNextAutoHideWhenPressed(probeButton);
         row.Children.Add(probeButton);
 
         Grid nameGrid = new();
@@ -1063,15 +964,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 probeCard.IsCollapsed = !probeCard.IsCollapsed;
                 SaveProbeCardChanges();
-                RebuildVisual();
+                RebuildNow();
             }, Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupExpandFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: ProbeExpansionTooltip(probeCard));
         Grid.SetColumn(expand, value: 2);
         row.Children.Add(expand);
 
-        Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteProbeCardAsync(probeCard),
+        Border delete = IconButton(GlyphCatalog.DELETE, p,
+            _ => DeleteProbeCardAsync(probeCard).ForgetLogged("FanFlyoutWindow.DeleteProbeCard"),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
-            margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete probe card");
+            margin: Layout.GroupHeaderButtonMargin, tooltip: L(nameof(AppStrings.Flyout_DeleteProbeCard_Title)));
         Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
 
@@ -1226,7 +1128,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.FanButtonHeight,
             Layout.FanButtonFontSize,
             margin: grouped ? Layout.FanButtonGroupedMargin : Layout.FanButtonUngroupedMargin,
-            tooltip: "Fan properties");
+            tooltip: L(nameof(AppStrings.Flyout_FanProperties_Tooltip)));
         fanButton.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetRow(fanButton, value: 0);
         Grid.SetColumn(fanButton, value: 0);
@@ -1482,7 +1384,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         Border groupIcon = IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
             Layout.GroupIconHeight, Layout.GroupIconFontSize, margin: Layout.FanButtonUngroupedMargin,
-            tooltip: "Group");
+            tooltip: L(nameof(AppStrings.Flyout_Group_Tooltip)));
         groupIcon.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(groupIcon, value: 0);
         row.Children.Add(groupIcon);
@@ -1492,7 +1394,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 if (cell.GroupSettings == null) return;
                 cell.GroupSettings.IsCollapsed = !cell.GroupSettings.IsCollapsed;
                 SaveGroupChanges();
-                RebuildVisual();
+                RebuildNow();
             }, Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupExpandFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: cell.GroupExpansionTooltip);
         Grid.SetColumn(expand, value: 2);
@@ -1520,9 +1422,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid.SetColumn(title, value: 1);
         row.Children.Add(title);
 
-        Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteGroupAsync(cell),
+        Border delete = IconButton(GlyphCatalog.DELETE, p,
+            _ => DeleteGroupAsync(cell).ForgetLogged("FanFlyoutWindow.DeleteGroup"),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
-            margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete group");
+            margin: Layout.GroupHeaderButtonMargin, tooltip: L(nameof(AppStrings.Flyout_DeleteGroup_Title)));
         Grid.SetColumn(delete, value: 3);
         row.Children.Add(delete);
 
@@ -1708,8 +1611,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             if (!ReferenceEquals(_capturedSliderPointer, e.Pointer)
                 && !ReferenceEquals(_capturedCardDragPointer, e.Pointer)
-                && !ReferenceEquals(UndockButtonController?.CapturedPointer, e.Pointer)
-                && !ReferenceEquals(_capturedWindowDragPointer, e.Pointer))
+                && !ReferenceEquals(UndockButtonController?.CapturedPointer, e.Pointer))
                 ReleasePointerCapture(e.Pointer, gestureName: "rejected slider press");
 
             e.Handled = true;
@@ -1809,7 +1711,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// Resolves the probe-card drawer expansion tooltip.
     /// </summary>
     private static string ProbeExpansionTooltip(ProbeCard probeCard) =>
-        probeCard.IsCollapsed ? "Expand probe card" : "Collapse probe card";
+        L(probeCard.IsCollapsed
+            ? nameof(AppStrings.Flyout_ExpandProbeCard_Tooltip)
+            : nameof(AppStrings.Flyout_CollapseProbeCard_Tooltip));
 
     /// <summary>
     /// Resolves a stable sort label for selected probes.
@@ -1930,7 +1834,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             : GlyphCatalog.FLYOUT_FAN_CONTROL_MODE_CURVE;
 
     private static string ControlModeTooltip(FanControlMode mode) =>
-        mode == FanControlMode.Manual ? "Manual" : "Curve";
+        L(mode == FanControlMode.Manual
+            ? nameof(AppStrings.Flyout_ControlMode_Manual)
+            : nameof(AppStrings.Flyout_ControlMode_Curve));
 
     private void ApplyControlModeGlyphVisual(TextBlock? glyph, FanControlMode mode)
     {
@@ -2297,23 +2203,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                         ? curve.MaxRPM
                         : fan.FanSliderMaximum);
 
-    /// <summary>
-    /// Creates a local-size icon TextBlock and applies glyph-owned metadata.
-    /// </summary>
     private static TextBlock IconText(
         Glyph glyph,
         FlyoutControlPalette palette,
         double fontSize,
-        FontWeight? fontWeight = null)
-    {
-        TextBlock text = TrayAppDotNETFlyoutUI.IconText(glyph.Text, palette, fontSize, weight: fontWeight);
-        GlyphApplicator.ApplyTo(text, glyph);
-        return text;
-    }
+        FontWeight? fontWeight = null) =>
+        TrayAppDotNETFlyoutUI.IconText(glyph, palette, fontSize, weight: fontWeight);
 
-    /// <summary>
-    /// Creates a local-layout icon button and applies glyph-owned metadata.
-    /// </summary>
     private static Border IconButton(
         Glyph glyph,
         FlyoutControlPalette palette,
@@ -2325,10 +2221,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Thickness? margin = null,
         string? tooltip = null,
         Action<ControlActivation>? rightClick = null,
-        FontWeight? fontWeight = null)
-    {
-        Border button = TrayAppDotNETFlyoutUI.IconButton(
-            glyph.Text,
+        FontWeight? fontWeight = null) =>
+        TrayAppDotNETFlyoutUI.IconButton(
+            glyph,
             palette,
             click,
             width,
@@ -2337,14 +2232,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             enabled,
             margin,
             tooltip,
-            fontFamily: null,
-            rightClick,
-            fontWeight);
-        if (button.Child is TextBlock textBlock)
-            GlyphApplicator.ApplyTo(textBlock, glyph);
-
-        return button;
-    }
+            rightClick: rightClick,
+            fontWeight: fontWeight);
 
     private TextBlock? AddHeaderButton(
         Grid grid,
@@ -2355,13 +2244,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Action click,
         string tooltip,
         string? controlName = null,
-        double? fontSize = null,
-        Action<Border>? configureButton = null)
+        double? fontSize = null)
     {
         Border button = IconButton(glyph, p, _ => click(), Layout.HeaderIconButtonWidth,
             Layout.HeaderIconButtonHeight, fontSize ?? Layout.HeaderIconButtonFontSize, tooltip: tooltip).MapTo(node);
         ControlNames.Assign(button, controlName ?? tooltip);
-        configureButton?.Invoke(button);
         TextBlock? text = button.Child as TextBlock;
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
@@ -2377,7 +2264,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.HeaderIconButtonWidth,
             Layout.HeaderIconButtonHeight,
             Layout.HeaderIconButtonFontSize,
-            tooltip: "Add item").MapTo(ControlMap.Flyout.Header.Actions.AddItem);
+            tooltip: L(nameof(AppStrings.Flyout_AddItem_Tooltip))).MapTo(ControlMap.Flyout.Header.Actions.AddItem);
         ControlNames.Assign(button, parentName: "AddItemButton");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
@@ -2394,15 +2281,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             : anchor;
 
         CloseAddItemMenu();
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         List<ContextMenuEntry> entries =
         [
-            new(Text: "Add Group Card", AddGroup)
+            new(Text: L(nameof(AppStrings.Flyout_AddGroupCard)), AddGroup)
             {
                 LeadingGlyph = GlyphCatalog.GROUP, Node = ControlMap.AddItemMenu.AddGroupCard
             },
-            new(Text: "Add Probe Card", AddProbeCard)
+            new(Text: L(nameof(AppStrings.Flyout_AddProbeCard)), AddProbeCard)
             {
                 LeadingGlyph = GlyphCatalog.PROBE, Node = ControlMap.AddItemMenu.AddProbeCard
             }
@@ -2411,7 +2298,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             entries,
             new ContextMenuWindowOptions
             {
-                Palette = FanSettingsWindow.CreatePalette(theme, _settings, isLight),
+                Palette = AppSettingsPalette.Create(theme, _settings, isLight),
                 Rounded = _settings.EnableRoundedCorners,
                 FontSize = _settings.ContextMenuFontSize,
                 ContextMenuSettings = _settings,
@@ -2502,16 +2389,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         content.Children.Add(label);
         content.Children.Add(underline);
         Border button = ControlNames.Assign(
-            TrayAppDotNETFlyoutUI.IconButton(
-                string.Empty,
+            TrayAppDotNETFlyoutUI.IconButtonCore(
+                content,
                 p,
                 _ => SelectFanProfile(profileNumber - 1),
                 Layout.ProfileButtonWidth,
                 Layout.ProfileButtonHeight,
-                fontSize: 0,
                 tooltip: _settings.FanProfiles[profileNumber - 1].DisplayName(profileNumber - 1)),
             $"ProfileButton{profileNumber}").MapTo(node);
-        button.Child = content;
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
@@ -2531,7 +2416,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 IsEnabled = _settings.AllowFlyoutUndock,
                 IsVisible = _settings.AllowFlyoutUndock,
                 Owner = this,
-                Docking = _dockingController,
+                Docking = Docking,
                 Palette = p,
                 CanStartInteraction = () =>
                 {
@@ -2540,14 +2425,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     if (!ReferenceEquals(_activeVisualGeneration, generation)) return false;
                     return !HasCapturedPointer;
                 },
-                DraggingChanged = isDragging => _isDraggingWindow = isDragging,
+                DraggingChanged = SetUndockButtonDragging,
                 InteractionCompleted = _ =>
                 {
                     if (WindowResources.IsDisposed || !ReferenceEquals(_activeVisualGeneration, generation)) return;
                     FlushPendingFanRebuild();
                 },
-                UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
-                RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
                 DragThreshold = Layout.DragThreshold
             }));
         generation.UndockButtonController = controller;
@@ -2555,74 +2438,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         // The controller handles only the pointer; Enter, Space and accelerators run what its click runs
         controller.Button.MapActivation(_ =>
         {
-            _dockingController.ToggleUndocked();
+            Docking.ToggleUndocked();
             FlushPendingFanRebuild();
         });
         return controller;
-    }
-
-    private Border BuildConfirmOverlay(
-        SettingsPalette p,
-        bool isLight,
-        FanFlyoutVisualGeneration generation)
-    {
-        generation.ConfirmTitle = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Text(
-                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultTitle)),
-                p,
-                Layout.ConfirmTitleFontSize,
-                FontWeight.SemiBold),
-            parentName: "ConfirmationOverlay");
-        generation.ConfirmTitle.TextWrapping = TextWrapping.Wrap;
-        generation.ConfirmTitle.Margin = Layout.ConfirmTitleMargin;
-        generation.ConfirmMessage = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.DescriptionText(
-                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
-                p,
-                Layout.ConfirmMessageMargin),
-            parentName: "ConfirmationOverlay");
-        generation.ConfirmOK = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p),
-            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.Confirm);
-        generation.ConfirmCancel = ControlNames.Assign(
-            TrayAppDotNETSettingsUI.Button(
-                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)),
-                p),
-            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.Cancel);
-        generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
-        generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
-        generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
-
-        StackPanel buttons = new()
-        {
-            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right
-        };
-        buttons.Children.Add(generation.ConfirmCancel);
-        buttons.Children.Add(generation.ConfirmOK);
-
-        Border dialog = new()
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(p.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
-            BorderThickness = Layout.ConfirmBorderThickness,
-            CornerRadius = Rounded(Layout.ConfirmCornerRadius),
-            Padding = Layout.ConfirmPadding,
-            MinWidth = Layout.ConfirmMinWidth,
-            MaxWidth = Layout.ConfirmMaxWidth,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { generation.ConfirmTitle, generation.ConfirmMessage, buttons } }
-        };
-        return ControlNames.Assign(
-            new Border
-            {
-                Background =
-                    TrayAppDotNETSettingsUI.Brush(
-                        (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight)),
-                CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
-                Child = dialog
-            },
-            parentName: "ConfirmationOverlay").MapTo(ControlMap.Flyout.ConfirmOverlay.ID);
     }
 
     private async Task DeleteGroupAsync(FanFlyoutCell cell)
@@ -2634,7 +2453,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 L(nameof(AppStrings.Flyout_DeleteGroup_MessageFormat)),
                 cell.GroupName),
             L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)),
-            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)));
+            L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)));
         if (!ok) return;
 
         _groupNames.RemoveAll(g => string.Equals(g, cell.GroupName, StringComparison.OrdinalIgnoreCase));
@@ -2650,7 +2469,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        ExecuteFanRebuild(true);
+        RebuildNow();
     }
 
     /// <summary>
@@ -2665,7 +2484,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 L(nameof(AppStrings.Flyout_DeleteProbeCard_MessageFormat)),
                 probeCard.DisplayName),
             L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)),
-            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)));
+            L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)));
         if (!ok) return;
 
         if (_probeSelectorWindows.TryGetValue(probeCard, out ProbeDataSelectorWindow? selector))
@@ -2677,55 +2496,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _probeCards.Remove(probeCard);
         ProbeRowRefs?.Remove(probeCard);
         SaveProbeCardChanges();
-        RebuildVisual();
-        QueuePositionNearTray();
+        RebuildNow();
     }
 
-    private Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
-    {
-        FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
-        if (generation == null) return Task.FromResult(false);
+    private Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText) =>
+        ConfirmOverlay?.ShowAsync(title, message, confirmText, cancelText) ?? Task.FromResult(false);
 
-        _confirmTcs?.TrySetResult(false);
-        generation.ConfirmTitle.Text = title;
-        generation.ConfirmMessage.Text = message;
-        generation.ConfirmOK.Text = confirmText;
-        generation.ConfirmCancel.Text = cancelText;
-        generation.ConfirmOverlay.IsVisible = true;
-        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        return _confirmTcs.Task;
-    }
-
-    private void CompleteConfirm(bool result)
-    {
-        ConfirmOverlay?.IsVisible = false;
-        TaskCompletionSource<bool>? tcs = _confirmTcs;
-        _confirmTcs = null;
-        tcs?.TrySetResult(result);
-    }
-
-    private void CancelConfirmOverlay()
-    {
-        TaskCompletionSource<bool>? tcs = _confirmTcs;
-        _confirmTcs = null;
-        try
-        {
-            ConfirmOverlay?.IsVisible = false;
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"FanFlyoutWindow confirmation visual reset failed: {exception.Message}");
-        }
-
-        try
-        {
-            tcs?.TrySetResult(false);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"FanFlyoutWindow confirmation completion failed: {exception.Message}");
-        }
-    }
+    private void CancelConfirmOverlay() => ConfirmOverlay?.Cancel();
 
     private void ToggleNonFunctioningFans()
     {
@@ -2741,7 +2518,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _settings.Save();
         _settings.RaiseChanged();
         OnPropertyChanged(nameof(NonFunctioningFansGlyph));
-        ExecuteFanRebuild(true);
+        RebuildNow();
     }
 
     private void UpdateNonFunctioningFansButtonVisual()
@@ -2786,7 +2563,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         _lhmService.PersistLiveState();
-        ExecuteFanRebuild(false);
+        RebuildNow();
     }
 
     private void AddGroup()
@@ -2796,7 +2573,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _groupNames.Insert(index: 0, groupName);
         GetOrCreateGroupSettings(groupName).DisplayOrder = 0;
         SaveGroupChanges();
-        ExecuteFanRebuild(true);
+        RebuildNow();
     }
 
     /// <summary>
@@ -2810,7 +2587,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         probeCard.EnsureProfileVisibility(_settings.SelectedFanProfileIndex);
         _probeCards.Insert(index: 0, probeCard);
         SaveProbeCardChanges();
-        RebuildVisual();
+        RebuildNow();
         QueuePositionNearTray();
     }
 
@@ -2820,7 +2597,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ? FanControlMode.Curve
             : FanControlMode.Manual;
         AppServices.LHMService?.PersistLiveState();
-        RebuildVisual();
+        RebuildNow();
     }
 
     private void ToggleGroupMode(FanFlyoutCell cell)
@@ -2834,7 +2611,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (cell.GroupCurrentControlMode == FanControlMode.Manual)
             ApplyGroupManualValueToFans(cell);
         SaveGroupChanges();
-        RebuildVisual();
+        RebuildNow();
     }
 
     private static void ApplyGroupManualValueToFans(FanFlyoutCell cell)
@@ -2866,8 +2643,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _lhmService.PersistLiveState(false);
         _settings.Save();
         _settings.RaiseChanged();
-        ExecuteFanRebuild(false);
-        _ = _lastRequestedProfile;
+        RebuildNow();
     }
 
     private bool IsFanVisibleInFlyout(Fan fan) =>
@@ -3188,7 +2964,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     OffsetY = Layout.DragGhostShadowOffsetY,
                     Blur = Layout.DragGhostShadowBlur,
                     Color = (AppServices.Theme ?? AppTheme.Default).FlyoutShadow.For(
-                        AppTheme.ResolveEffectiveIsLightTheme(_settings))
+                        AppTheme.ResolveIsLight(_settings, AppServices.Theme))
                 }),
                 Child = ghostContent,
                 IsHitTestVisible = false
@@ -3200,8 +2976,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         SetDragSourceOpacity(Layout.DragSourceOpacity);
         Canvas.SetLeft(_dragGhost, sourceTop?.X ?? 0);
         RootCard?.Focus();
-        if (EnableFanDragInstrumentation)
-            BeginDragInstrumentation();
     }
 
     private Control ReplaceDragGhostContent(FanDragGhostStyle style, Control source)
@@ -3231,7 +3005,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         UIResourceScope resources)
     {
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
         FlyoutControlPalette palette = CreateFlyoutPalette(theme, Palette(), isLight);
 
         if (_draggedFan != null && style == FanDragGhostStyle.TopLevelFan)
@@ -3344,7 +3118,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (style == FanDragGhostStyle.GroupedFan)
         {
             AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-            bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+            bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
             _dragGhost.Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveGroupCardBackground(_settings, isLight));
             _dragGhost.CornerRadius = Rounded(Layout.CardCornerRadius);
             return;
@@ -3708,8 +3482,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (FanDragDebugVisualsEnabled)
             UpdateDragDebugOverlay(current);
-        if (EnableFanDragInstrumentation)
-            RecordDragInstrumentationMovement(current);
     }
 
     private Point RefreshDragGeometryAfterPreview(Point current, PixelPoint pointerScreen)
@@ -3768,8 +3540,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             int upwardPixels = Math.Max(
                 val1: 0,
                 (int)Math.Ceiling(ResolveGroupDropPreviewExtent() * RenderScaling));
-            PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-            int minimumTop = workArea.Y + EdgePadding;
+            PixelRect workArea = Placement.ResolveWorkArea();
+            int minimumTop = workArea.Y + Placement.EdgePaddingPixels;
             top = Math.Max(minimumTop, basePosition.Y - upwardPixels);
         }
 
@@ -4076,189 +3848,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragDebugVisuals.Clear();
     }
 
-    private void OnDragInstrumentationKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (!EnableFanDragInstrumentation) return;
-        if (!_dragInstrumentation.IsActive || CellStack == null) return;
-
-        Point current = _lastDragInstrumentationPoint ?? _dragStart;
-        if (!_dragInstrumentation.RecordAnnotation(e.Key, current,
-                point => CaptureDragInstrumentation(point, stage: "key", interpolated: false)))
-            return;
-
-        e.Handled = true;
-    }
-
-    private void BeginDragInstrumentation()
-    {
-        if (!EnableFanDragInstrumentation) return;
-        if (_dragInstrumentation.IsActive) return;
-
-        string sourceKind = _draggedFan != null
-            ? "fan"
-            : _draggedGroupCell != null
-                ? "group"
-                : _draggedProbeCard != null
-                    ? "probe"
-                    : "unknown";
-        string sourceName = _draggedFan?.DisplayName
-                            ?? _draggedGroupCell?.GroupName
-                            ?? _draggedProbeCard?.DisplayName
-                            ?? DragInstrumentationCellLabel(_dragSourceCell)
-                            ?? "<unknown>";
-        _dragInstrumentation.Begin(new FanDragInstrumentationStart(
-            sourceKind,
-            sourceName,
-            DragInstrumentationCellLabel(_dragSourceCell),
-            _dragSourceTopLevelIndex,
-            _dragSourceSlotHeight,
-            _dragSourceFanSlotHeight));
-    }
-
-    private void RecordDragInstrumentationMovement(Point current)
-    {
-        if (!EnableFanDragInstrumentation) return;
-        _lastDragInstrumentationPoint = current;
-        _dragInstrumentation.RecordMovement(current,
-            (point, interpolated) => CaptureDragInstrumentation(point, stage: "move", interpolated));
-    }
-
-    private FanDragInstrumentationCapture CaptureDragInstrumentation(
-        Point current,
-        string stage,
-        bool interpolated)
-    {
-        FanDragSnapshot snapshot = CreateDragSnapshot();
-        FanDragBounds bounds = StableDragBounds(current);
-        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, bounds);
-        return new FanDragInstrumentationCapture(
-            current,
-            stage,
-            interpolated,
-            evaluation,
-            _dragPlacement,
-            _dragGhostStyle,
-            CaptureDragInstrumentationSlots(_dragSlots),
-            CaptureDragInstrumentationFanSlots(_dragFanSlots),
-            CaptureDragInstrumentationDebugMarkers(FanDragEngine.CalculateDebugMarkers(snapshot, bounds)),
-            CaptureDragInstrumentationGhost(),
-            CaptureDragInstrumentationGroupPreview());
-    }
-
-    private List<FanDragInstrumentationSlot> CaptureDragInstrumentationSlots(List<FanDragSlot> dragSlots)
-    {
-        List<FanDragInstrumentationSlot> slots = [];
-        for (int i = 0; i < dragSlots.Count; i++)
-        {
-            FanDragSlot slot = dragSlots[i];
-            double renderOffsetY = RenderTransformOffsetY(slot.Visual);
-            slots.Add(new FanDragInstrumentationSlot(
-                i,
-                slot.ProbeCard != null ? "probe" : slot.Cell?.HasGroupHeader == true ? "group" : "fan",
-                slot.ProbeCard?.DisplayName ?? DragInstrumentationCellLabel(slot.Cell) ?? "<unknown>",
-                slot.Top,
-                slot.Top + renderOffsetY,
-                slot.Height,
-                slot.SlotHeight,
-                renderOffsetY,
-                slot.GroupInsertionTop,
-                slot.GroupDropBottom,
-                IsDragInstrumentationSource(slot)));
-        }
-
-        return slots;
-    }
-
-    private List<FanDragInstrumentationFanSlot> CaptureDragInstrumentationFanSlots(
-        IReadOnlyList<FanDragFanSlot> dragFanSlots)
-    {
-        List<FanDragInstrumentationFanSlot> slots = [];
-        foreach (FanDragFanSlot slot in dragFanSlots)
-        {
-            double renderOffsetY = ResolveCellRenderOffset(slot.Cell)
-                                   + RenderTransformOffsetY(slot.Visual)
-                                   + ResolveGroupDropPreviewOffset(slot.Visual);
-            slots.Add(new FanDragInstrumentationFanSlot(
-                slot.Cell.GroupName,
-                slot.Fan.DisplayName,
-                slot.FanIndex,
-                slot.Top,
-                slot.Top + renderOffsetY,
-                slot.Height,
-                renderOffsetY,
-                ReferenceEquals(slot.Fan, _draggedFan)));
-        }
-
-        return slots;
-    }
-
-    private static List<FanDragInstrumentationDebugMarker> CaptureDragInstrumentationDebugMarkers(
-        IReadOnlyList<FanDragDebugMarker> markers)
-    {
-        List<FanDragInstrumentationDebugMarker> captured = [];
-        foreach (FanDragDebugMarker marker in markers)
-            captured.Add(new FanDragInstrumentationDebugMarker(marker.Y, marker.Placement));
-        return captured;
-    }
-
-    private bool IsDragInstrumentationSource(FanDragSlot slot)
-    {
-        if (_draggedProbeCard != null)
-            return ReferenceEquals(slot.ProbeCard, _draggedProbeCard);
-        if (_dragSourceTopLevelControl != null)
-            return ReferenceEquals(slot.Visual, _dragSourceTopLevelControl);
-        if (_dragSourceCell == null) return false;
-        return ReferenceEquals(slot.Cell, _dragSourceCell) || IsSameGroup(slot.Cell, _dragSourceCell);
-    }
-
-    private FanDragInstrumentationGhost? CaptureDragInstrumentationGhost()
-    {
-        if (_dragGhost == null) return null;
-
-        double left = Canvas.GetLeft(_dragGhost);
-        double top = Canvas.GetTop(_dragGhost);
-        if (double.IsNaN(left)) left = 0;
-        if (double.IsNaN(top)) top = 0;
-        return new FanDragInstrumentationGhost(
-            left,
-            top,
-            _dragGhost.Bounds.Width,
-            _dragGhost.Bounds.Height,
-            _dragGhost.Opacity);
-    }
-
-    private FanDragInstrumentationGroupPreview? CaptureDragInstrumentationGroupPreview()
-    {
-        StackPanel? cellStack = CellStack;
-        if (_groupDropPreview == null || _groupDropPreviewHost == null || cellStack == null) return null;
-
-        FanFlyoutCell? groupCell = null;
-        foreach (FanDragSlot slot in _dragSlots)
-        {
-            if (slot.Visual is Border { Child: StackPanel content }
-                && ReferenceEquals(content, _groupDropPreviewHost))
-            {
-                groupCell = slot.Cell;
-                break;
-            }
-        }
-
-        Point? top = _groupDropPreview.TranslatePoint(new Point(x: 0, y: 0), cellStack);
-        return new FanDragInstrumentationGroupPreview(
-            groupCell?.GroupName,
-            _groupDropPreviewHost.Children.IndexOf(_groupDropPreview),
-            top?.Y ?? 0,
-            _groupDropPreview.Bounds.Height,
-            ResolveGroupDropPreviewExtent());
-    }
-
-    private static string? DragInstrumentationCellLabel(FanFlyoutCell? cell)
-    {
-        if (cell == null) return null;
-        if (cell.HasGroupHeader) return cell.GroupName;
-        return cell.Fans.Count == 1 ? cell.Fans[0].DisplayName : "<empty>";
-    }
-
     private void CompleteDrag(Point current)
     {
         if (_dragGhost == null)
@@ -4279,7 +3868,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (_draggedFan != null) ApplyFanDrop(_draggedFan, _dragPlacement);
             else if (_draggedGroupCell != null) ApplyGroupDrop(_draggedGroupCell, _dragPlacement.TopLevelIndex);
             else if (_draggedProbeCard != null) ApplyProbeDrop(_draggedProbeCard, _dragPlacement.TopLevelIndex);
-            _dragInstrumentation.End("complete");
         }
         finally
         {
@@ -4287,22 +3875,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ClearDragState();
         }
 
-        ExecuteFanRebuild(true);
+        RebuildNow();
     }
 
-    private void CancelDrag()
-    {
-        try
-        {
-            _dragInstrumentation.End("cancel");
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"FanFlyoutWindow drag instrumentation cancel failed: {exception.Message}");
-        }
-
-        ClearDragState();
-    }
+    private void CancelDrag() => ClearDragState();
 
     private void ClearDragState()
     {
@@ -4316,7 +3892,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             try
             {
-                _dragInstrumentation.End("clear");
                 _dragSourceControl?.Opacity = 1;
                 _dragSourceTopLevelControl?.Opacity = 1;
                 ResetDragPreviewTransforms();
@@ -4364,7 +3939,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _dragSourceFanSlotHeight = 0;
             _dragGhostHeight = 0;
             _lastDragPointerY = 0;
-            _lastDragInstrumentationPoint = null;
             _dragMovingDown = true;
         }
         finally
@@ -4380,11 +3954,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_isResettingPointerGestures) return;
 
-        IPointer? windowPointer = _capturedWindowDragPointer;
-        _capturedWindowDragPointer = null;
         IPointer? sliderPointer = _capturedSliderPointer;
         _capturedSliderPointer = null;
-        _isDraggingWindow = false;
         _isCompletingDrag = false;
         _activeSliderDrags = 0;
 
@@ -4401,9 +3972,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
         finally
         {
-            ReleasePointerCapture(windowPointer, gestureName: "window drag");
-            if (!ReferenceEquals(sliderPointer, windowPointer))
-                ReleasePointerCapture(sliderPointer, gestureName: "slider drag");
+            ReleasePointerCapture(sliderPointer, gestureName: "slider drag");
             _isResettingPointerGestures = false;
         }
     }
@@ -4446,7 +4015,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragSourceFanSlotHeight = 0;
         _dragGhostHeight = 0;
         _lastDragPointerY = 0;
-        _lastDragInstrumentationPoint = null;
         _dragMovingDown = true;
         dragGhostResources?.Dispose();
         ReleasePointerCapture(cardPointer, gestureName: "card drag failure fallback");
@@ -4935,7 +4503,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         CancelInlineEdit(box);
-        ExecuteFanRebuild(false);
+        RebuildNow();
         if (returnsFocus && editedFan != null)
             FocusRebuiltDisplay(control => control is TextBlock { Tag: Fan fan } && ReferenceEquals(fan, editedFan));
     }
@@ -4978,7 +4546,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         CancelInlineEdit(box);
-        RebuildVisual();
+        RebuildNow();
         if (returnsFocus && editedProbeCard != null)
         {
             FocusRebuiltDisplay(control => control is TextBlock { Tag: ProbeCard probeCard }
@@ -5003,7 +4571,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         CancelInlineEdit(box);
-        RebuildVisual();
+        RebuildNow();
         if (returnsFocus && editedFan != null)
             FocusRebuiltDisplay(control => control is Viewbox { Tag: Fan fan } && ReferenceEquals(fan, editedFan));
     }
@@ -5093,7 +4661,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        ExecuteFanRebuild(false);
+        RebuildNow();
     }
 
     private void ToggleFanPropertiesWindow(Fan fan)
@@ -5179,48 +4747,36 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void OnProbeCardSelectorChanged(ProbeCard probeCard)
     {
         SaveProbeCardChanges();
-        RebuildVisual();
+        RebuildNow();
         QueuePositionNearTray();
     }
 
-    private async void ShowUpdateConfirmation()
+    private void ShowUpdateConfirmation() => ShowInstallUpdatePrompt(() =>
     {
-        if (_isUpdateDownloadInFlight) return;
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
-        if (service == null || info == null) return;
+        if (service == null || info == null) return null;
 
-        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
+        bool isLight = AppTheme.ResolveIsLight(_settings, AppServices.Theme);
+        return new TrayAppDotNETUpdatePromptOptions
         {
             Owner = this,
             Service = service,
             UpdateInfo = info,
-            Palette = FanSettingsWindow.CreatePalette(
-                AppServices.Theme,
-                _settings,
-                AppTheme.ResolveEffectiveIsLightTheme(_settings)),
-            OwnerBackdrop = (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(
-                AppTheme.ResolveEffectiveIsLightTheme(_settings)),
+            Palette = AppSettingsPalette.Create(AppServices.Theme, _settings, isLight),
+            OwnerBackdrop = (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight),
             EnableRoundedCorners = _settings.EnableRoundedCorners,
             L = L,
             Log = static message => TADNLog.Log(message),
             FlushLog = static () => TADNLog.Flush(),
-            Shutdown = static () =>
-            {
-                if (Application.Current?.ApplicationLifetime
-                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                    desktop.Shutdown();
-            },
-            SetPromptOpen = open => _isUpdateDialogOpen = open,
-            SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation
-        });
-    }
+            Shutdown = TrayAppDotNETAppLifetime.Exit
+        };
+    });
 
     private bool IsUpdateCardVisible =>
         _settings.ShowUpdateButtonInFlyout && AppServices.UpdateCheckService?.AvailableUpdate != null;
 
-    private void NotifyUpdateStateChanged() => RequestFanRebuild();
+    private void NotifyUpdateStateChanged() => QueueRebuild();
 
     private void OpenCurveEditor(Fan fan)
     {
@@ -5229,8 +4785,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         fan.CurrentControlMode = FanControlMode.Curve;
         PersistAndNotifyCurveEditorLaunch();
 
+        // One editor per curve, so two windows never edit and save the same curve
+        if (_fanCurveEditorWindows.TryGetValue(curve, out FanCurveEditorWindow? existing))
+        {
+            existing.Activate();
+            return;
+        }
+
         FanCurveEditorWindow window = new(fan, curve, _settings) { Topmost = Topmost, ShowInTaskbar = false };
-        _fanCurveEditorWindows.Add(window);
+        _fanCurveEditorWindows[curve] = window;
         RegisterChildWindowClosed(window, FanCurveEditorWindowClosed);
         try
         {
@@ -5239,7 +4802,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         catch
         {
             ReleaseChildWindowSubscription(window);
-            _fanCurveEditorWindows.Remove(window);
+            _fanCurveEditorWindows.Remove(curve);
             try { window.Close(); }
             catch (Exception exception)
             {
@@ -5256,7 +4819,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (sender is not FanCurveEditorWindow window) return;
         ReleaseChildWindowSubscription(window);
-        _fanCurveEditorWindows.Remove(window);
+        foreach (KeyValuePair<Curve, FanCurveEditorWindow> entry in _fanCurveEditorWindows)
+        {
+            if (!ReferenceEquals(entry.Value, window)) continue;
+            _fanCurveEditorWindows.Remove(entry.Key);
+            break;
+        }
     }
 
     /// <summary>
@@ -5291,22 +4859,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return curve;
     }
 
-    private void AssignCurveForEditor(Fan fan, string curveName)
+    private static void AssignCurveForEditor(Fan fan, string curveName)
     {
-        Curve? curve = Curve.Find(curveName);
-        IEnumerable<Fan>? liveFans = _lhmService?.Fans;
-        IEnumerable<Fan> fans = liveFans ?? [fan];
         if (!string.IsNullOrWhiteSpace(fan.Group) && FanGroup.Find(fan.Group) is { } group)
         {
             group.AssignedCurveName = curveName;
             group.CurrentControlMode = FanControlMode.Curve;
-            FanCurveModeSync.ApplyToGroup(group, fans, curve);
             FanGroup.Register(group);
             return;
         }
 
         fan.AssignedCurveName = curveName;
-        FanCurveModeSync.ApplyToFan(fan, curve);
     }
 
     private static string UniqueCurveName(string baseName)
@@ -5353,30 +4916,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void PositionFanPropertiesWindows()
     {
         if (!IsVisible) return;
-        List<FanPropertiesWindow> visible = [];
+        List<Window> visible = [];
         foreach (Fan fan in _fanPropertiesOrder)
         {
             if (_fanPropertiesWindows.TryGetValue(fan, out FanPropertiesWindow? window) && window.IsVisible)
                 visible.Add(window);
         }
 
-        if (visible.Count == 0) return;
-        double flyoutHeight = Bounds.Height > 0 ? Bounds.Height : 300;
-        int rows = Math.Min(Layout.FanPropertiesRowsPerColumn, visible.Count);
-        double windowHeight = visible[0].Height;
-        double stackHeight = rows * windowHeight + Math.Max(val1: 0, rows - 1) * Layout.FanPropertiesGap;
-        double stackTop = Math.Min(Position.Y, Position.Y + flyoutHeight - stackHeight);
-        for (int i = 0; i < visible.Count; i++)
-        {
-            FanPropertiesWindow window = visible[i];
-            int column = i / Layout.FanPropertiesRowsPerColumn;
-            int row = i % Layout.FanPropertiesRowsPerColumn;
-            double windowWidth = window.Width;
-            window.Position = new PixelPoint(
-                Position.X - (int)Math.Round(Layout.FanPropertiesGap) - (column + 1) * (int)Math.Round(windowWidth) -
-                column * (int)Math.Round(Layout.FanPropertiesGap),
-                (int)Math.Round(stackTop + row * (windowHeight + Layout.FanPropertiesGap)));
-        }
+        Placement.PlaceCompanionsBeside(visible, Layout.FanPropertiesRowsPerColumn);
     }
 
     private void ShowPinnedFanPropertiesWindows()
@@ -5445,7 +4992,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private void ForceCloseAllFanCurveEditorWindows()
     {
-        foreach (FanCurveEditorWindow window in _fanCurveEditorWindows.ToArray())
+        foreach (FanCurveEditorWindow window in _fanCurveEditorWindows.Values.ToArray())
         {
             ReleaseChildWindowSubscription(window);
             try { window.Close(); }
@@ -5480,7 +5027,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (WindowResources.IsDisposed) return;
         WireFanPropertySubscriptions();
-        RequestFanRebuild();
+        QueueRebuild();
     }
 
     private void WireFanPropertySubscriptions()
@@ -5547,7 +5094,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             and not nameof(Fan.FlyoutDisplayOrder)
             and not nameof(Fan.RPMMode)
             and not nameof(Fan.AssignedCurveDisplayLabel)) return;
-        RequestFanRebuild();
+        QueueRebuild();
     }
 
     private void OnPollTickCompleted()
@@ -5566,103 +5113,33 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {
         if (WindowResources.IsDisposed) return;
-        if (IsPointerGestureActive)
+        if (IsContentInteractionActive || IsWindowDragActive)
         {
-            _pendingFanRebuild = true;
+            QueueRebuild();
             return;
         }
 
-        if (_dockingController.IsUndocked && !_settings.AllowFlyoutUndock)
-        {
-            Redock();
-            return;
-        }
+        if (Docking.RedockIfUndockingDisabled()) return;
 
         _showNonFunctioningFans = _settings.ShowNonFunctioningFans;
         LoadGroupCatalog();
         UpdateNonFunctioningFansButtonVisual();
-        RequestFanRebuild();
+        QueueRebuild();
     });
 
-    private bool IsPointerGestureActive =>
-        _activeSliderDrags > 0
-        || _draggedFan != null
-        || _draggedGroupCell != null
-        || _draggedProbeCard != null
-        || _isDraggingWindow
-        || UndockButtonController?.IsPointerCaptured == true;
+    private bool IsPointerGestureActive => IsContentInteractionActive || IsWindowDragActive;
 
     private bool HasCapturedPointer =>
         _capturedCardDragPointer != null
         || _capturedSliderPointer != null
-        || UndockButtonController?.CapturedPointer != null
-        || _capturedWindowDragPointer != null;
-
-    /// <summary>Queues one coalesced fan rebuild and defers hidden warm-window churn.</summary>
-    private void RequestFanRebuild()
-    {
-        if (WindowResources.IsDisposed) return;
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            Dispatcher.UIThread.Post(RequestFanRebuild, DispatcherPriority.Background);
-            return;
-        }
-
-        if ((!IsVisible && !IsWarmPriming) || IsPointerGestureActive || _isRebuildingVisual)
-        {
-            _pendingFanRebuild = true;
-            return;
-        }
-
-        if (_fanRebuildQueued) return;
-
-        _fanRebuildQueued = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            _fanRebuildQueued = false;
-            if (WindowResources.IsDisposed) return;
-            if ((!IsVisible && !IsWarmPriming) || IsPointerGestureActive || _isRebuildingVisual)
-            {
-                _pendingFanRebuild = true;
-                return;
-            }
-
-            ExecuteFanRebuild(true);
-        }, DispatcherPriority.Background);
-    }
-
-    /// <summary>Runs a fan rebuild and keeps failures contained to the flyout.</summary>
-    private void ExecuteFanRebuild(bool reposition)
-    {
-        bool pendingAtStart = _pendingFanRebuild;
-        _pendingFanRebuild = false;
-        try
-        {
-            FanVisualRebuildResult result = RebuildVisual();
-            bool requestedDuringAttempt = _pendingFanRebuild;
-            _pendingFanRebuild = FanVisualRebuildLogic.ResolvePendingAfterAttempt(
-                pendingAtStart,
-                requestedDuringAttempt,
-                result);
-            if (result == FanVisualRebuildResult.Committed && reposition)
-                QueuePositionNearTray();
-        }
-        catch (Exception ex)
-        {
-            _pendingFanRebuild = pendingAtStart || _pendingFanRebuild;
-            TADNLog.Log($"FanFlyoutWindow.ExecuteFanRebuild: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
+        || UndockButtonController?.CapturedPointer != null;
 
     /// <summary>Runs a deferred rebuild after pointer gestures complete.</summary>
     private void FlushPendingFanRebuild()
     {
         if (IsPointerGestureActive) return;
-        _dockingController.RedockIfUndockingDisabled();
-        if (!_pendingFanRebuild) return;
-        if (!IsVisible && !IsWarmPriming) return;
-
-        ExecuteFanRebuild(true);
+        Docking.RedockIfUndockingDisabled();
+        FlushPendingRebuild();
     }
 
     private void LoadGroupCatalog()
@@ -5857,193 +5334,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static string? NormalizeGroupName(string? groupName) =>
         string.IsNullOrWhiteSpace(groupName) ? null : groupName;
 
-    private void OnDockStateChanged(FlyoutDockStateChange change)
+    protected override void OnDockStateChanged(FlyoutDockStateChange change)
     {
         UndockButtonController?.UpdateVisual();
         OnPropertyChanged(nameof(IsUndocked));
-        switch (change)
-        {
-            case FlyoutDockStateChange.Redocked:
-                QueuePositionNearTray();
-                break;
-            case FlyoutDockStateChange.Undocked:
-            case FlyoutDockStateChange.UndockedFromDrag:
-            case FlyoutDockStateChange.PositionSaved:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(change), change, message: null);
-        }
-    }
-
-    private void OnRootPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!_dockingController.IsUndocked || ConfirmOverlay?.IsVisible == true) return;
-        if (HasCapturedPointer)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        if (UndockButtonController?.IsPointerCaptured == true
-            || _draggedFan != null || _draggedGroupCell != null
-            || _draggedProbeCard != null) return;
-        if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-        if (sender is not Control control) return;
-        (PixelPoint docked, int snap) = _dockingController.CaptureDockedPosition();
-        PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
-        _dragHelper.BeginDrag(pointer, Position, docked, snap);
-        _isDraggingWindow = true;
-        CapturePointerOrRollback(
-            e.Pointer,
-            control,
-            ref _capturedWindowDragPointer,
-            gestureName: "window drag",
-            () => _isDraggingWindow = false);
-        e.Handled = true;
-    }
-
-    private void OnRootPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_isDraggingWindow || UndockButtonController?.IsPointerCaptured == true
-                               || sender is not Control control)
-            return;
-        if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
-        if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
-        {
-            EndWindowDrag(e.Pointer);
-            return;
-        }
-
-        PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
-        PixelPoint natural = _dragHelper.ComputeNatural(pointer);
-        _dragHelper.ApplyDragPosition(this, natural);
-        e.Handled = true;
-    }
-
-    private void OnRootPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (!_isDraggingWindow || UndockButtonController?.IsPointerCaptured == true) return;
-        if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
-        EndWindowDrag(e.Pointer);
-        e.Handled = true;
-    }
-
-    private void OnRootPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
-        _capturedWindowDragPointer = null;
-        if (_isResettingPointerGestures || _isPublishingVisualGeneration)
-        {
-            _isDraggingWindow = false;
-            return;
-        }
-
-        if (_isDraggingWindow) _dockingController.CommitDragPosition();
-        _isDraggingWindow = false;
-        FlushPendingFanRebuild();
-    }
-
-    private void EndWindowDrag(IPointer pointer)
-    {
-        IPointer? capturedPointer = _capturedWindowDragPointer ?? pointer;
-        _capturedWindowDragPointer = null;
-        _isDraggingWindow = false;
-        ReleasePointerCapture(capturedPointer, gestureName: "window drag");
-        _dockingController.CommitDragPosition();
-        FlushPendingFanRebuild();
-    }
-
-    private void PositionNearTray()
-    {
-        Position = _dockingController.ResolvePosition();
-        PositionFanPropertiesWindows();
-    }
-
-    private PixelRect FallbackWorkArea() => new(
-        Layout.FallbackWorkAreaX,
-        Layout.FallbackWorkAreaY,
-        Layout.FallbackWorkAreaWidth,
-        Layout.FallbackWorkAreaHeight);
-
-    private void QueuePositionNearTray()
-    {
-        if (!IsVisible || _isDraggingWindow) return;
-        FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (WindowResources.IsDisposed
-                || !IsVisible
-                || _isDraggingWindow
-                || !ReferenceEquals(_activeVisualGeneration, generation))
-                return;
-
-            ApplyWorkAreaMaxHeight();
-            UpdateLayout();
-            PositionNearTray();
-        }, DispatcherPriority.Loaded);
-    }
-
-    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
-    {
-        return TrayPopupPositioning.ClampToSavedMonitor(
-            Screens,
-            ResolveWorkArea(_lastTrayIcon),
-            CurrentPixelSize(),
-            savedPosition,
-            EdgePadding);
-    }
-
-    private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
-    {
-        PixelRect? iconRect = null;
-        if (trayIcon?.TryGetIconRect(out PixelRect resolvedIconRect) == true)
-            iconRect = resolvedIconRect;
-
-        PixelPoint anchor = iconRect?.Center ?? Position;
-        PixelRect workArea = TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-        return TrayPopupPositioning.ResolveDockedPosition(
-            workArea,
-            new PixelSize(width, height),
-            iconRect,
-            EdgePadding);
-    }
-
-    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
-
-    private int CurrentPixelWidth() =>
-        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
-
-    private int CurrentPixelHeight() =>
-        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
-
-    private int ResolveSnapTolerance()
-    {
-        PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        return Math.Max(PixelMinSize,
-            (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
-    }
-
-    private PixelRect ResolveWorkArea(TrayAppDotNETShellTrayIcon? trayIcon)
-    {
-        PixelPoint anchor = Position;
-        if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
-            anchor = iconRect.Center;
-        return TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
-    }
-
-    private void ApplyWorkAreaMaxHeight()
-    {
-        PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
-    }
-
-    protected override void ApplyRenderScalingLayoutConstraints()
-    {
-        if (_layout == null) return;
-        ApplyWorkAreaMaxHeight();
     }
 
     private FlyoutControlPalette CreateFlyoutPalette(AppTheme theme, SettingsPalette sp, bool isLight) =>
@@ -6061,7 +5355,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             sp.SliderThumb);
 
     private SettingsPalette Palette() =>
-        FanSettingsWindow.CreatePalette(AppServices.Theme, _settings, AppTheme.ResolveEffectiveIsLightTheme(_settings));
+        AppSettingsPalette.Create(AppServices.Theme, _settings, AppTheme.ResolveIsLight(_settings, AppServices.Theme));
 
     private TextBox InlineTextBox(string text, FlyoutControlPalette p) =>
         new()
@@ -6197,11 +5491,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         public FlyoutUndockButtonController UndockButtonController { get; set; } = null!;
         public TextBlock? NonFunctioningFansButtonGlyph { get; set; }
         public TextBlock? FanDragDebugVisualsButtonGlyph { get; set; }
-        public Border ConfirmOverlay { get; set; } = null!;
-        public TextBlock ConfirmTitle { get; set; } = null!;
-        public TextBlock ConfirmMessage { get; set; } = null!;
-        public SettingsButton ConfirmOK { get; set; } = null!;
-        public SettingsButton ConfirmCancel { get; set; } = null!;
+        public TrayAppDotNETConfirmOverlay? ConfirmOverlay { get; set; }
 
         public UIContentGeneration ContentGeneration =>
             _contentGeneration
@@ -6233,7 +5523,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
     }
 
-    protected override void OnClosed(EventArgs e)
+    protected override void OnFlyoutClosed()
     {
         // External publishers are detached before any fallible visual or child-window cleanup
         WindowResources.Dispose();
@@ -6248,15 +5538,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _childWindowSubscriptionResources.Clear();
         DisposeActiveContentResilient();
         _activeVisualGeneration = null;
-        try
-        {
-            base.OnClosed(e);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"FanFlyoutWindow base close cleanup failed: {exception.Message}");
-        }
-
         PropertyChanged = null;
     }
 

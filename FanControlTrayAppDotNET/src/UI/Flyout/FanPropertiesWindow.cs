@@ -2,6 +2,7 @@
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -30,7 +31,6 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private readonly AppSettings _settings;
     private readonly SettingsPalette _palette;
     private FanPropertiesAxamlProperties? _layout;
-    private readonly TextBlock _titleText;
     private readonly TextBlock _fanIDText;
     private readonly TextBlock _sensorControllerText;
     private readonly TextBox _nameBox;
@@ -49,7 +49,6 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private readonly List<FanPropertyUnitBinding> _propertyUnitBindings = [];
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
-    private readonly SettingsButton _closeButton;
     private ControlNameScope ControlNames { get; }
     private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
     private readonly Dictionary<FanCurveEditorWindow, UIResourceScope> _curveEditorSubscriptionResources = [];
@@ -64,7 +63,6 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         _fan = null!;
         _settings = null!;
         _palette = null!;
-        _titleText = null!;
         _fanIDText = null!;
         _sensorControllerText = null!;
         _nameBox = null!;
@@ -82,7 +80,6 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         _offsetBox = null!;
         _editCurveButton = null!;
         _pinButton = null!;
-        _closeButton = null!;
 
         InitializeComponent();
         InitializeComponentState();
@@ -100,20 +97,13 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             InitializeComponentState();
             this.MapTo(ControlMap.FanProperties.ID);
 
-            _palette = FanSettingsWindow.CreatePalette(
+            _palette = AppSettingsPalette.Create(
                 AppServices.Theme,
                 _settings,
-                AppTheme.ResolveEffectiveIsLightTheme(_settings));
+                AppTheme.ResolveIsLight(_settings, AppServices.Theme));
             SettingsPalette palette = _palette;
             bool rounded = _settings.EnableRoundedCorners;
 
-            _titleText = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.Text(
-                    text: "Fan Properties",
-                    palette,
-                    Layout.TitleFontSize,
-                    FontWeight.SemiBold),
-                parentName: "TitleBar");
             _fanIDText = ControlNames.Assign(ValueText(palette), parentName: "FanID");
             _sensorControllerText = ControlNames.Assign(ValueText(palette), parentName: "SensorController");
             _nameBox = ControlNames.Assign(
@@ -138,13 +128,13 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     parentName: "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
             _curveModeRadio = ControlNames.Assign(
-                CompactRadio(text: "Curve", palette).MapTo(ControlMap.FanProperties.Fields.Mode.CurveMode),
+                CompactRadio(L(nameof(AppStrings.Flyout_ControlMode_Curve)), palette).MapTo(ControlMap.FanProperties.Fields.Mode.CurveMode),
                 parentName: "FanMode");
             _manualModeRadio = ControlNames.Assign(
-                CompactRadio(text: "Manual", palette).MapTo(ControlMap.FanProperties.Fields.Mode.ManualMode),
+                CompactRadio(L(nameof(AppStrings.Flyout_ControlMode_Manual)), palette).MapTo(ControlMap.FanProperties.Fields.Mode.ManualMode),
                 parentName: "FanMode");
             _detachedModeRadio = ControlNames.Assign(
-                CompactRadio(text: "Detached", palette).MapTo(ControlMap.FanProperties.Fields.Mode.DetachedMode),
+                CompactRadio(L(nameof(AppStrings.FanProperties_Mode_Detached)), palette).MapTo(ControlMap.FanProperties.Fields.Mode.DetachedMode),
                 parentName: "FanMode");
             _jumpstartBox = _windowResources.Own(
                 ControlNames.Assign(
@@ -175,22 +165,16 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
                     Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix),
                     parentName: "Offset"));
             _editCurveButton = ControlNames.Assign(
-                TrayAppDotNETSettingsUI.Button(text: "Edit curve", palette)
+                TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.FanProperties_EditCurve_Button)), palette)
                     .MapTo(ControlMap.FanProperties.CurveAssignment.EditCurve),
                 parentName: "FanCurve");
 
             _pinButton = ControlNames.Assign(
                 CaptionButton(GlyphCatalog.PIN, palette).MapTo(ControlMap.FanProperties.TitleBar.Pin),
                 parentName: "TitleBar");
-            _closeButton = ControlNames.Assign(
-                CaptionButton(GlyphCatalog.EXIT, palette).MapTo(ControlMap.FanProperties.TitleBar.Close),
-                parentName: "TitleBar");
             _pinButton.Click += (_, _) => IsPinned = !IsPinned;
-            _closeButton.Click += (_, _) => RequestClose();
 
-            Grid titleBar = ControlNames.Assign(
-                BuildTitleBar(palette, _pinButton, _closeButton),
-                parentName: "Chrome");
+            Grid titleBar = ControlNames.Assign(BuildTitleBar(palette), parentName: "Chrome");
             Grid body = ControlNames.Assign(BuildBody(palette), parentName: "Chrome");
             Grid footer = ControlNames.Assign(BuildFooter(palette), parentName: "Chrome");
 
@@ -255,9 +239,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         if (_windowResources.IsDisposed) return;
 
         _pinButton.Label.RenderTransform = null;
-        _closeButton.Label.RenderTransform = null;
         GlyphApplicator.ApplyTo(_pinButton.Label, IsPinned ? GlyphCatalog.PINNED : GlyphCatalog.PIN);
-        GlyphApplicator.ApplyTo(_closeButton.Label, GlyphCatalog.EXIT);
     }
 #endif
 
@@ -333,40 +315,26 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             or WindowCloseReason.ApplicationShutdown
             or WindowCloseReason.OSShutdown);
 
-    private Grid BuildTitleBar(SettingsPalette p, SettingsButton pinButton, SettingsButton closeButton)
-    {
-        // TitleBar scope container; the caption buttons are its only focus targets
-        Grid titleBar = new Grid
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(
-                (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(_settings,
-                    AppTheme.ResolveEffectiveIsLightTheme(_settings)))
-        }.MapTo(ControlMap.FanProperties.TitleBar.ID);
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        titleBar.PointerPressed += (_, e) =>
-        {
-            if (e.Source is SettingsButton) return;
-            if (e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed)
-                BeginMoveDrag(e);
-        };
-
-        _titleText.VerticalAlignment = VerticalAlignment.Center;
-        _titleText.Margin = Layout.TitleMargin;
-        _titleText.TextTrimming = TextTrimming.CharacterEllipsis;
-        titleBar.Children.Add(_titleText);
-
-        StackPanel buttons = new()
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Children = { pinButton, closeButton }
-        };
-        Grid.SetColumn(buttons, value: 1);
-        titleBar.Children.Add(buttons);
-        return titleBar;
-    }
+    // The title follows the window's Title, which UpdateTitle keeps on the fan's name
+    private Grid BuildTitleBar(SettingsPalette p) =>
+        TrayAppDotNETDialogChrome.TitleBar(
+            new TrayAppDotNETDialogTitleBarOptions
+            {
+                Window = this,
+                Palette = p,
+                CloseTooltip = L(nameof(CommonStrings.Common_Close)),
+                Close = () => RequestClose(),
+                BarNode = ControlMap.FanProperties.TitleBar.ID,
+                CloseNode = ControlMap.FanProperties.TitleBar.Close,
+                FontSize = Layout.TitleFontSize,
+                TitleFontWeight = FontWeight.SemiBold,
+                TitleMargin = Layout.TitleMargin,
+                Background = (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(
+                    _settings,
+                    AppTheme.ResolveIsLight(_settings, AppServices.Theme)),
+                CaptionButtons = [_pinButton]
+            },
+            _windowResources);
 
     private Grid BuildBody(SettingsPalette p)
     {
@@ -379,30 +347,30 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             Margin = Layout.LeftMargin,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        left.Children.Add(Row(label: "Name", _nameBox, p));
-        left.Children.Add(Row(label: "Group", _groupCombo, p));
-        left.Children.Add(Row(label: "Mode",
+        left.Children.Add(Row(L(nameof(AppStrings.FanProperties_Name_Label)), _nameBox, p));
+        left.Children.Add(Row(L(nameof(AppStrings.FanProperties_Group_Label)), _groupCombo, p));
+        left.Children.Add(Row(L(nameof(AppStrings.FanProperties_Mode_Label)),
             new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
             }.MapTo(ControlMap.FanProperties.Fields.Mode.ID), p));
-        left.Children.Add(Row(label: "ID", _fanIDText, p));
-        left.Children.Add(Row(label: "Sensor", _sensorControllerText, p, bottomMargin: 6));
+        left.Children.Add(Row(L(nameof(AppStrings.FanProperties_ID_Label)), _fanIDText, p));
+        left.Children.Add(Row(L(nameof(AppStrings.FanProperties_Sensor_Label)), _sensorControllerText, p, bottomMargin: 6));
         left.Children.Add(RPMModeHeaderRow(p));
-        left.Children.Add(NumberRow(label: "Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_Jumpstart_Label)), _jumpstartBox, FanPropertyUnitKind.StartupSpeed,
             ControlMap.FanProperties.Fields.StartupSpeed.ID, p));
-        left.Children.Add(NumberRow(label: "Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_MaxDuty_Label)), _clampHighBox, FanPropertyUnitKind.ClampHigh,
             ControlMap.FanProperties.Fields.ClampHigh.ID, p));
-        left.Children.Add(NumberRow(label: "Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_MinDuty_Label)), _clampLowBox, FanPropertyUnitKind.ClampLow,
             ControlMap.FanProperties.Fields.ClampLow.ID, p));
-        left.Children.Add(NumberRow(label: "Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_WarnLow_Label)), _warnLowBox, FanPropertyUnitKind.WarnLow,
             ControlMap.FanProperties.Fields.WarnLow.ID, p));
-        left.Children.Add(NumberRow(label: "Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_WarnHigh_Label)), _warnHighBox, FanPropertyUnitKind.WarnHigh,
             ControlMap.FanProperties.Fields.WarnHigh.ID, p));
-        left.Children.Add(NumberRow(label: "Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_MaxDelta_Label)), _deltaMaxBox, FanPropertyUnitKind.DeltaMax,
             ControlMap.FanProperties.Fields.DeltaMax.ID, p));
-        left.Children.Add(NumberRow(label: "Offset", _offsetBox, FanPropertyUnitKind.Offset,
+        left.Children.Add(NumberRow(L(nameof(AppStrings.FanProperties_Offset_Label)), _offsetBox, FanPropertyUnitKind.Offset,
             ControlMap.FanProperties.Fields.Offset.ID, p, Layout.OffsetRowBottomMargin));
 
         ScrollViewer scroll = new()
@@ -456,9 +424,9 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         Grid footer = new() { Margin = Layout.FooterMargin };
         footer.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.BodyLeftColumnWidth)));
         footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        SettingsButton reset = TrayAppDotNETSettingsUI.Button(text: "Reset to defaults", p)
+        SettingsButton reset = TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.FanProperties_ResetToDefaults_Button)), p)
             .MapTo(ControlMap.FanProperties.Footer.ResetToDefaults);
-        SettingsButton save = TrayAppDotNETSettingsUI.Button(text: "Save", p)
+        SettingsButton save = TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.FanProperties_Save_Button)), p)
             .MapTo(ControlMap.FanProperties.Footer.Save);
         reset.Margin = Layout.ResetButtonMargin;
         reset.Click += (_, _) => ResetToDefaults();
@@ -503,7 +471,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private void PopulateGroupCombo()
     {
         _groupCombo.Items.Clear();
-        _groupCombo.Items.Add(new SettingsComboBoxItem(string.Empty, text: "None", Palette()));
+        _groupCombo.Items.Add(new SettingsComboBoxItem(string.Empty, L(nameof(AppStrings.FanProperties_NoGroup)), Palette()));
 
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         foreach (FanGroup group in _settings.FanGroups
@@ -530,7 +498,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     private void PopulateCurveCombo()
     {
         _curveCombo.Items.Clear();
-        _curveCombo.Items.Add(new SettingsComboBoxItem(string.Empty, text: "None", Palette()));
+        _curveCombo.Items.Add(new SettingsComboBoxItem(string.Empty, L(nameof(AppStrings.Settings_FanProperties_NoCurve)), Palette()));
         foreach (Curve curve in Curve.Curves.Values
                      .Where(c => !string.IsNullOrWhiteSpace(c.CurveName))
                      .OrderBy(c => c.CurveName, StringComparer.OrdinalIgnoreCase))
@@ -615,19 +583,14 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 
     private void ApplyCurveSelection(string curveName)
     {
-        Curve? curve = Curve.Find(curveName);
-        IEnumerable<Fan>? liveFans = AppServices.LHMService?.Fans;
-        IEnumerable<Fan> fans = liveFans ?? [_fan];
         if (!string.IsNullOrWhiteSpace(_fan.Group) && FanGroup.Find(_fan.Group) is { } group)
         {
             group.AssignedCurveName = curveName;
-            FanCurveModeSync.ApplyToGroup(group, fans, curve);
             FanGroup.Register(group);
             return;
         }
 
         _fan.AssignedCurveName = curveName;
-        FanCurveModeSync.ApplyToFan(_fan, curve);
     }
 
     private void OpenCurveEditor()
@@ -812,12 +775,8 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
         }
     }
 
-    private void UpdateTitle()
-    {
-        string title = $"Fan Properties: {_fan.DisplayName}";
-        Title = title;
-        _titleText.Text = title;
-    }
+    private void UpdateTitle() =>
+        Title = string.Format(CultureInfo.CurrentCulture, L(nameof(AppStrings.FanProperties_Title_Format)), _fan.DisplayName);
 
     protected override void OnClosed(EventArgs e)
     {
@@ -828,14 +787,14 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
     }
 
     private SettingsPalette Palette() =>
-        FanSettingsWindow.CreatePalette(AppServices.Theme, _settings, AppTheme.ResolveEffectiveIsLightTheme(_settings));
+        AppSettingsPalette.Create(AppServices.Theme, _settings, AppTheme.ResolveIsLight(_settings, AppServices.Theme));
 
     private SettingsNumberBox Number(SettingsPalette p, int min, int max, string suffix) =>
         TrayAppDotNETSettingsUI.NumberBox(p, value: 0, min, max, Layout.NumberBoxWidth, suffix);
 
     private Grid RPMModeHeaderRow(SettingsPalette p)
     {
-        TextBlock header = TrayAppDotNETSettingsUI.Text(text: "RPM Mode", p, Layout.RPMModeHeaderFontSize,
+        TextBlock header = TrayAppDotNETSettingsUI.Text(L(nameof(AppStrings.FanProperties_RPMMode_Header)), p, Layout.RPMModeHeaderFontSize,
             FontWeight.SemiBold);
         header.Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground);
         header.HorizontalAlignment = HorizontalAlignment.Center;
@@ -891,7 +850,7 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
-        TrayAppDotNETToolTip.SetTip(toggle, tip: "Use RPM units for this property");
+        TrayAppDotNETToolTip.SetTip(toggle, tip: L(nameof(AppStrings.FanProperties_RPMMode_Tooltip)));
         return toggle;
     }
 
@@ -1146,4 +1105,6 @@ public sealed partial class FanPropertiesWindow : FlyoutCompanionWindow
 
     private static int ReadInt(SettingsNumberBox box) =>
         box.Value.HasValue ? (int)Math.Round(box.Value.Value) : 0;
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

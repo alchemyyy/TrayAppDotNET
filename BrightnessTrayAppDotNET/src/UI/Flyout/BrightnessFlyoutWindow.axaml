@@ -9,9 +9,7 @@
     <ui:FlyoutWindowCommon.Resources>
         <!-- Window geometry and docking -->
         <sys:Double x:Key="Flyout.WindowWidth">330</sys:Double>
-        <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
         <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
-        <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">14</sys:Double>
         <sys:Double x:Key="Flyout.SliderRowHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>
@@ -30,14 +28,6 @@
         <sys:Double x:Key="Flyout.UndockButtonFontSize">20</sys:Double>
         <sys:Double x:Key="Flyout.UpdateButtonWidth">80</sys:Double>
         <sys:Double x:Key="Flyout.UpdateButtonHeight">32</sys:Double>
-        <sys:Double x:Key="Flyout.CoarseWheelStep">10</sys:Double>
-        <sys:Double x:Key="Flyout.WorkAreaMinHeight">220</sys:Double>
-        <sys:Double x:Key="Flyout.PixelMinSize">1</sys:Double>
-        <sys:Int32 x:Key="Flyout.OffscreenPosition">-32000</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaX">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaY">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaWidth">1920</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
 
         <!-- Root frame -->
         <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
@@ -112,16 +102,6 @@
         <Thickness x:Key="Flyout.UpdateButtonMargin">0,-10,40,0</Thickness>
         <Thickness x:Key="Flyout.UndockButtonMargin">0,-10,-5,0</Thickness>
         <CornerRadius x:Key="Flyout.UndockButtonCornerRadius">4</CornerRadius>
-
-        <!-- Confirmation dialog -->
-        <sys:Double x:Key="Flyout.ConfirmTitleFontSize">16</sys:Double>
-        <sys:Double x:Key="Flyout.ConfirmMessageFontSize">12</sys:Double>
-        <sys:Double x:Key="Flyout.ConfirmButtonsSpacing">8</sys:Double>
-        <sys:Double x:Key="Flyout.ConfirmPanelSpacing">12</sys:Double>
-        <Thickness x:Key="Flyout.ConfirmBorderThickness">1</Thickness>
-        <CornerRadius x:Key="Flyout.ConfirmCornerRadius">6</CornerRadius>
-        <Thickness x:Key="Flyout.ConfirmPadding">16</Thickness>
-        <sys:Double x:Key="Flyout.ConfirmWidth">300</sys:Double>
     </ui:FlyoutWindowCommon.Resources>
 
 </ui:FlyoutWindowCommon>

@@ -1,7 +1,7 @@
 #if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
-using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -11,7 +11,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using BatteryTrayAppDotNET.Services;
 using FlyoutPowerMode = BatteryTrayAppDotNET.Models.BatteryPowerMode;
-using Microsoft.Win32;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -20,10 +19,7 @@ namespace BatteryTrayAppDotNET.UI.Flyout;
 
 public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 {
-    private const int EdgePadding = 8;
     private const double DragThreshold = 4;
-    private const double SnapTolerancePercent = 0.02;
-    private const int PixelMinSize = 1;
     private const double HeaderHeight = 40;
     private const double HeaderIconButtonWidth = 40;
     private const double HeaderIconButtonHeight = 32;
@@ -50,14 +46,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private readonly BatteryPowerModeService _powerModes;
     private readonly AppSettings _settings;
     private readonly Action _openSettings;
-    private readonly FlyoutWindowDragHelper _dragHelper = new();
-    private readonly FlyoutDockingController _dockingController;
-    private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private BatteryHealthWindow? _healthWindow;
     private FlyoutUndockButtonController? _undockButtonController;
     private LiveContent? _live;
-    private Control? _chromeCaptureOwner;
-    private IPointer? _chromeCapturedPointer;
     private bool? _energySaverAlwaysEnabled;
     private bool _energySaverReadFailed;
     private bool? _energySaverRequest;
@@ -66,19 +57,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private bool _energySaverConfirmationReadDone;
     private bool _energySaverReadRunning;
     private long _energySaverStatusRevision;
-    private int _powerModeAdjustmentDepth;
-    private bool _isDraggingWindow;
-    private bool _isRebuilding;
-    private bool _rebuildPending;
-    private bool _rebuildQueued;
     private bool _liveUpdateQueued;
-    private bool _isClosed;
-    private long _visibilityGeneration;
 
     private static BatteryFlyoutResources.FlyoutAxamlProperties Layout => BatteryFlyoutResources.Current.AxamlFlyout;
 
     public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings,
         BatteryPowerModeService? powerModes = null)
+        : base(ControlMap.Flyout.Close)
     {
         _batteryMonitor = batteryMonitor;
         // The application shares its service across warm-window eviction and recreation.
@@ -86,17 +71,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _powerModes = powerModes ?? WindowResources.Own(new BatteryPowerModeService());
         _settings = settings;
         _openSettings = openSettings;
-        _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
-        {
-            Settings = _settings,
-            DragHelper = _dragHelper,
-            CurrentPosition = () => Position,
-            SetPosition = position => Position = position,
-            ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
-            ResolveSavedPosition = ResolveSavedPosition,
-            ResolveSnapTolerance = ResolveSnapTolerance,
-            StateChanged = OnDockStateChanged
-        });
+        InitializeDocking(_settings);
 
         SetFixedFlyoutWidth(Layout.WindowWidth);
         this.MapTo(ControlMap.Flyout.ID);
@@ -107,8 +82,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         WindowResources.Add(() => _powerModes.StateChanged -= OnPowerModeStateChanged);
         _settings.Changed += OnSettingsChanged;
         WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
-        SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        WindowResources.Add(() => SystemEvents.PowerModeChanged -= OnPowerModeChanged);
 #if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
@@ -117,73 +90,26 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         BatteryFlyoutResources.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => BatteryFlyoutResources.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
 #endif
-        _ = _powerModes.RefreshAsync();
+        RefreshPowerModes();
         RefreshEnergySaverStatus();
-        Rebuild();
+        RebuildNow();
     }
 
-    public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
+    protected override void OnShowing()
     {
-        if (_isClosed) return;
-
-        long visibilityGeneration = ++_visibilityGeneration;
-        _lastTrayIcon = trayIcon;
-        ShowActivated = activate;
-        _ = _powerModes.RefreshAsync();
+        RefreshPowerModes();
         RefreshEnergySaverStatus();
-        _dockingController.RedockIfUndockingDisabled();
-        ApplyWorkAreaMaxHeight();
-
-        // Present the retained frame at once. The fresh generation built below replaces it on the next render.
-        ShowWithRetainedFrame(_dockingController.ResolvePosition());
-        Rebuild();
-
-        // Settle size and position before the dispatcher can render the fresh generation
-        ApplyWorkAreaMaxHeight();
-        UpdateLayout();
-        PositionNearTray();
-
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (_isClosed
-                    || visibilityGeneration != _visibilityGeneration
-                    || cancellationToken.IsCancellationRequested
-                    || !IsVisible) return;
-
-                ApplyWorkAreaMaxHeight();
-                UpdateLayout();
-                PositionNearTray();
-                CompleteReveal();
-                if (activate) Activate();
-            },
-            DispatcherPriority.Loaded);
     }
 
-    public new void Hide()
-    {
-        // Keep opacity so the next show presents this frame immediately
-        _visibilityGeneration++;
-        base.Hide();
-        NotifyWarmDismissed();
-    }
+    // A gesture owns the power mode slider until it completes
+    protected override bool IsContentInteractionActive => _live?.PowerMode.Slider.IsUserAdjusting == true;
 
-    public void Redock()
-    {
-        if (_isClosed) return;
-        _dockingController.Redock();
-    }
-
-    protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
-
-    protected override bool HasOpenChildWindow => _healthWindow != null;
-
-    protected override void HideFlyout() => Hide();
+    private void RefreshPowerModes() =>
+        _powerModes.RefreshAsync().ForgetLogged("BatteryFlyoutWindow.RefreshPowerModes");
 
     private void OnBatteryStateChanged()
     {
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(OnBatteryStateChanged, DispatcherPriority.Background);
@@ -196,9 +122,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         QueueLiveUpdate();
 
         // Mode and Energy Saver changes made elsewhere reach an open flyout with the next reading.
-        // A hidden flyout reads both again when it is shown, so it runs no powercfg queries in the background.
+        // A hidden flyout reads both again when it is shown, so it runs no power plan queries in the background.
         if (!IsVisible) return;
-        _ = _powerModes.RefreshAsync();
+        RefreshPowerModes();
         RefreshEnergySaverStatus();
     }
 
@@ -212,7 +138,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void RefreshEnergySaverStatus(bool invalidate = false)
     {
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(() => RefreshEnergySaverStatus(invalidate), DispatcherPriority.Background);
@@ -223,7 +149,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         // A running write reads the result itself when it finishes
         if (_energySaverReadRunning || _energySaverWriteRunning) return;
         _energySaverReadRunning = true;
-        _ = RefreshEnergySaverStatusAsync(_energySaverStatusRevision);
+        RefreshEnergySaverStatusAsync(_energySaverStatusRevision)
+            .ForgetLogged("BatteryFlyoutWindow.RefreshEnergySaverStatus");
     }
 
     private async Task RefreshEnergySaverStatusAsync(long revision)
@@ -236,7 +163,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _energySaverReadRunning = false;
-                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                if (IsWindowClosed || cancellationToken.IsCancellationRequested) return;
                 if (revision != _energySaverStatusRevision || _energySaverWriteRunning)
                 {
                     RefreshEnergySaverStatus();
@@ -261,7 +188,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Dispatcher.UIThread.Post(() =>
             {
                 _energySaverReadRunning = false;
-                if (_isClosed) return;
+                if (IsWindowClosed) return;
                 _energySaverReadFailed = true;
                 UpdateLiveContent();
             }, DispatcherPriority.Background);
@@ -274,107 +201,49 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
 
         QueueRebuild();
     }
 #endif
 
-    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
-    {
-        if (e.Mode is not (PowerModes.StatusChange or PowerModes.Resume)) return;
-
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
-                // The fresh reading updates the content in place when it arrives
-                _batteryMonitor.ForceRefresh();
-            },
-            DispatcherPriority.Background);
-    }
-
     private void OnSettingsChanged()
     {
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
 
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         Dispatcher.UIThread.Post(() =>
         {
-            if (_isClosed || cancellationToken.IsCancellationRequested) return;
-            if (_dockingController.IsUndocked && !_settings.AllowFlyoutUndock)
-            {
-                Redock();
-                return;
-            }
+            if (IsWindowClosed || cancellationToken.IsCancellationRequested) return;
+            if (Docking.RedockIfUndockingDisabled()) return;
 
             QueueRebuild();
         });
     }
 
-    /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
-    private void Rebuild()
-    {
-        if (_isClosed) return;
-        if (IsRebuildBlockedByPointerCapture())
-        {
-            _rebuildPending = true;
-            return;
-        }
-
-        try { RebuildCore(); }
-        catch (Exception ex)
-        {
-            _rebuildPending = false;
-            _rebuildQueued = false;
-            TADNLog.Log($"BatteryFlyoutWindow.Rebuild: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
     /// <summary>
-    /// Rebuilds the flyout content transactionally so a failed build keeps the previous UI alive.
+    /// Builds a complete content generation and publishes it, so a failed build keeps the previous UI alive.
     /// </summary>
-    private void RebuildCore()
+    protected override void RebuildContent()
     {
-        if (_isRebuilding)
-        {
-            _rebuildPending = true;
-            return;
-        }
-
-        _rebuildQueued = false;
-        _rebuildPending = false;
-        _isRebuilding = true;
-
+        bool restorePowerModeFocus = FocusManager?.GetFocusedElement() is FlyoutSlider;
+        SetFixedFlyoutWidth(Layout.WindowWidth);
+        (UIContentGeneration replacement, FlyoutUndockButtonController? replacementUndockButtonController,
+            LiveContent replacementLive) = BuildContentGeneration();
+        FlyoutUndockButtonController? previousUndockButtonController = _undockButtonController;
+        _undockButtonController = replacementUndockButtonController;
         try
         {
-            bool restorePowerModeFocus = FocusManager?.GetFocusedElement() is FlyoutSlider;
-            SetFixedFlyoutWidth(Layout.WindowWidth);
-            (UIContentGeneration replacement, FlyoutUndockButtonController? replacementUndockButtonController,
-                LiveContent replacementLive) = BuildContentGeneration();
-            FlyoutUndockButtonController? previousUndockButtonController = _undockButtonController;
-            _undockButtonController = replacementUndockButtonController;
-            try
-            {
-                CommitContentGeneration(replacement);
-            }
-            catch
-            {
-                _undockButtonController = previousUndockButtonController;
-                throw;
-            }
-
-            _live = replacementLive;
-            if (restorePowerModeFocus) replacementLive.PowerMode.Slider.Focus();
-            QueuePositionNearTray();
+            CommitContentGeneration(replacement);
         }
-        finally
+        catch
         {
-            _isRebuilding = false;
+            _undockButtonController = previousUndockButtonController;
+            throw;
         }
 
-        FlushPendingRebuild();
+        _live = replacementLive;
+        if (restorePowerModeFocus) replacementLive.PowerMode.Slider.Focus();
     }
 
     private (UIContentGeneration Generation, FlyoutUndockButtonController? UndockButtonController, LiveContent Live)
@@ -383,9 +252,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         UIResourceScope resources = new($"{nameof(BatteryFlyoutWindow)}.Content");
         try
         {
-            bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
             AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-            SettingsPalette p = BatterySettingsPalette.Create(theme, _settings, isLight);
+            bool isLight = AppTheme.ResolveIsLight(_settings, theme);
+            SettingsPalette p = AppSettingsPalette.Create(theme, _settings, isLight);
             FlyoutControlPalette fp = ToFlyoutPalette(p, theme, isLight);
             Color flyoutBackground = theme.ResolveFlyoutBackground(_settings, isLight);
             Color headerBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
@@ -430,18 +299,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 _settings.EnableRoundedCorners);
             ControlNames.Assign(frame, parentName: "FlyoutFrame");
             frame.MapVariant(ControlMap.Variants.HeaderOnTop, !_settings.FlyoutHeaderAtBottom);
-            frame.PointerPressed += OnChromePointerPressed;
-            frame.PointerMoved += OnChromePointerMoved;
-            frame.PointerReleased += OnChromePointerReleased;
-            frame.PointerCaptureLost += OnChromePointerCaptureLost;
-            resources.Add(() =>
-            {
-                ReleaseChromeCapture(frame);
-                frame.PointerCaptureLost -= OnChromePointerCaptureLost;
-                frame.PointerReleased -= OnChromePointerReleased;
-                frame.PointerMoved -= OnChromePointerMoved;
-                frame.PointerPressed -= OnChromePointerPressed;
-            });
+            AttachWindowDrag(frame, resources);
 
             LiveContent live = new(theme, isLight, p, summary, metrics, powerMode, energySaver);
             resources.Add(() =>
@@ -467,68 +325,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    /// <summary>
-    /// Queues one coalesced rebuild and defers hidden warm-window churn until the next show.
-    /// </summary>
-    private void QueueRebuild()
-    {
-        if (_isClosed) return;
-
-        if (!Dispatcher.UIThread.CheckAccess())
-        {
-            CancellationToken cancellationToken = WindowResources.CancellationToken;
-            Dispatcher.UIThread.Post(
-                () =>
-                {
-                    if (_isClosed || cancellationToken.IsCancellationRequested) return;
-                    QueueRebuild();
-                },
-                DispatcherPriority.Background);
-            return;
-        }
-
-        if (_isClosed) return;
-        if ((!IsVisible && !IsWarmPriming) || _isRebuilding || IsRebuildBlockedByPointerCapture())
-        {
-            _rebuildPending = true;
-            return;
-        }
-
-        if (_rebuildQueued) return;
-
-        _rebuildQueued = true;
-        CancellationToken queuedCancellationToken = WindowResources.CancellationToken;
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                // A synchronous rebuild since queueing, such as a show, already published this change
-                if (_isClosed || queuedCancellationToken.IsCancellationRequested || !_rebuildQueued) return;
-
-                _rebuildQueued = false;
-                Rebuild();
-            },
-            DispatcherPriority.Background);
-    }
-
-    /// <summary>Runs a deferred rebuild after the current rebuild completes.</summary>
-    private void FlushPendingRebuild()
-    {
-        if (_isClosed || !_rebuildPending || _isRebuilding || IsRebuildBlockedByPointerCapture()) return;
-
-        _rebuildPending = false;
-        QueueRebuild();
-    }
-
-    private bool IsRebuildBlockedByPointerCapture() =>
-        _isDraggingWindow
-        || _powerModeAdjustmentDepth > 0
-        || _chromeCapturedPointer != null
-        || _undockButtonController?.IsPointerCaptured == true;
-
     /// <summary>Queues one coalesced in-place refresh of the visible content's values.</summary>
     private void QueueLiveUpdate()
     {
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(QueueLiveUpdate, DispatcherPriority.Background);
@@ -543,7 +343,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             () =>
             {
                 _liveUpdateQueued = false;
-                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                if (IsWindowClosed || cancellationToken.IsCancellationRequested) return;
                 UpdateLiveContent();
             },
             DispatcherPriority.Background);
@@ -552,7 +352,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void UpdateLiveContent()
     {
         // A hidden flyout rebuilds with current values when it is next shown
-        if (_isClosed || _live is not { } live || (!IsVisible && !IsWarmPriming)) return;
+        if (IsWindowClosed || _live is not { } live || (!IsVisible && !IsWarmPriming)) return;
         UpdateLiveContent(live);
     }
 
@@ -620,10 +420,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             GlyphCatalog.SETTINGS,
             p,
             HeaderIconButtonFontSize,
-            _openSettings,
-            L(nameof(AppStrings.Flyout_Settings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenSettings);
+            OpensWindow(_openSettings),
+            L(nameof(CommonStrings.Flyout_Settings_Tooltip))).MapTo(ControlMap.Flyout.Header.OpenSettings);
         ControlNames.Assign(settingsButton, parentName: "SettingsButton");
-        SuppressNextAutoHideWhenPressed(settingsButton);
 
         Border powerButton = BuildHeaderIconButton(
             GlyphCatalog.LIGHTNING_BOLT,
@@ -638,17 +437,16 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             HeaderIconButtonFontSize,
             ShowBatteryHealth,
-            "Battery health").MapTo(ControlMap.Flyout.Header.ShowBatteryHealth);
+            L(nameof(AppStrings.Flyout_BatteryHealth_Tooltip))).MapTo(ControlMap.Flyout.Header.ShowBatteryHealth);
         ControlNames.Assign(healthButton, parentName: "BatteryHealthButton");
         healthButton.Focusable = true;
-        AutomationProperties.SetName(healthButton, "Battery health");
+        AutomationProperties.SetName(healthButton, L(nameof(AppStrings.Flyout_BatteryHealth_Tooltip)));
         healthButton.KeyDown += (_, e) =>
         {
             if (e.Key is not (Key.Enter or Key.Space)) return;
             e.Handled = true;
             ShowBatteryHealth();
         };
-        SuppressNextAutoHideWhenPressed(healthButton);
 
         StackPanel actions = new()
         {
@@ -698,7 +496,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         bool isOn = IsEnergySaverShownOn();
         bool isAvailable = IsEnergySaverAvailable;
         string label = L(nameof(AppStrings.Flyout_EnergySaver));
-        string state = $"{label}: {(isOn ? "On" : "Off")}";
+        string state = F(
+            nameof(AppStrings.Flyout_LabeledValue_Format),
+            label,
+            L(isOn ? nameof(AppStrings.Flyout_State_On) : nameof(AppStrings.Flyout_State_Off)));
         button.Apply(
             isOn,
             isAvailable,
@@ -720,14 +521,15 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void ToggleEnergySaver()
     {
-        if (_isClosed || !IsEnergySaverAvailable) return;
+        if (IsWindowClosed || !IsEnergySaverAvailable) return;
 
         // Show the choice at once. The backend orders the write after any mode switch still in progress.
         _energySaverRequest = !IsEnergySaverShownOn();
         _energySaverAwaitingConfirmation = false;
         _energySaverConfirmationReadDone = false;
         UpdateLiveContent();
-        if (!_energySaverWriteRunning) _ = WriteEnergySaverAsync();
+        if (!_energySaverWriteRunning)
+            WriteEnergySaverAsync().ForgetLogged("BatteryFlyoutWindow.WriteEnergySaverAsync");
     }
 
     private async Task WriteEnergySaverAsync()
@@ -737,14 +539,14 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         try
         {
             // Rapid clicks end on the newest choice
-            while (!_isClosed && _energySaverRequest is { } requested)
+            while (!IsWindowClosed && _energySaverRequest is { } requested)
             {
                 bool success = await Task.Run(
                     () => WindowsPowerModeBackend.ApplyEnergySaverAsync(requested, cancellationToken),
                     cancellationToken);
                 if (!success)
                 {
-                    TADNLog.Log($"BatteryFlyoutWindow.WriteEnergySaverAsync({requested}): powercfg failed");
+                    TADNLog.Log($"BatteryFlyoutWindow.WriteEnergySaverAsync({requested}): power plan write failed");
                     // Show what Windows reports instead of holding a choice that did not apply
                     if (_energySaverRequest == requested) _energySaverRequest = null;
                     break;
@@ -767,7 +569,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             _energySaverWriteRunning = false;
         }
 
-        if (_isClosed) return;
+        if (IsWindowClosed) return;
         _energySaverAwaitingConfirmation = _energySaverRequest.HasValue;
         _energySaverConfirmationReadDone = false;
         _batteryMonitor.ForceRefresh();
@@ -793,32 +595,27 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void ShowBatteryHealth()
     {
-        if (_isClosed || !IsVisible) return;
+        if (IsWindowClosed || !IsVisible) return;
         if (_healthWindow != null)
         {
             _healthWindow.Activate();
             return;
         }
 
-        _ = ShowBatteryHealthAsync();
+        ShowBatteryHealthAsync().ForgetLogged("BatteryFlyoutWindow.ShowBatteryHealth");
     }
 
     private async Task ShowBatteryHealthAsync()
     {
+        using BatteryHealthWindow dialog = new(_batteryMonitor, _settings);
+        _healthWindow = dialog;
         try
         {
-            using BatteryHealthWindow dialog = new(_batteryMonitor, _settings);
-            _healthWindow = dialog;
-            await dialog.ShowDialog(this);
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryFlyoutWindow.ShowBatteryHealth: {ex.GetType().Name}: {ex.Message}");
+            await ShowOwnedDialogAsync(dialog);
         }
         finally
         {
             _healthWindow = null;
-            if (!_isClosed) NotifyChildWindowClosedFromDeactivation();
         }
     }
 
@@ -827,43 +624,17 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutControlPalette p,
         double fontSize,
         Action click,
-        string tooltip)
-    {
-        TextBlock text = new()
-        {
-            Text = glyph.Text,
-            FontFamily = TrayAppDotNETSettingsUI.IconFont,
-            FontSize = fontSize,
-            FontWeight = FontWeight.Normal,
-            Foreground = Brush(p.IconForeground),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.NoWrap,
-            LineHeight = Math.Ceiling(fontSize + 6),
-            IsHitTestVisible = false
-        };
-        GlyphApplicator.ApplyTo(text, glyph);
-
-        Border button = new()
-        {
-            Width = HeaderIconButtonWidth,
-            Height = HeaderIconButtonHeight,
-            CornerRadius = Rounded(HeaderIconButtonCornerRadius),
-            Background = Brushes.Transparent,
-            ClipToBounds = false,
-            Child = text,
-            Cursor = TrayAppDotNETCursors.Hand
-        };
-        TrayAppDotNETToolTip.SetTip(button, tooltip);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-        FlyoutButtonState.Attach(
-            button,
-            () => Brushes.Transparent,
-            () => Brush(p.Hover),
-            () => Brush(p.Pressed),
-            _ => click());
-        return button;
-    }
+        string tooltip) =>
+        TrayAppDotNETFlyoutUI.IconButton(
+            glyph,
+            p,
+            _ => click(),
+            HeaderIconButtonWidth,
+            HeaderIconButtonHeight,
+            fontSize,
+            tooltip: tooltip,
+            cornerRadius: Rounded(HeaderIconButtonCornerRadius),
+            lineHeight: TrayAppDotNETFlyoutUI.IconLineHeight(fontSize));
 
     private FlyoutUndockButtonController BuildUndockButton(
         FlyoutControlPalette p,
@@ -873,12 +644,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutUndockButtonController controller = new(new FlyoutUndockButtonOptions
         {
             Owner = this,
-            Docking = _dockingController,
+            Docking = Docking,
             Palette = p,
-            DraggingChanged = OnUndockDraggingChanged,
+            DraggingChanged = SetUndockButtonDragging,
             InteractionCompleted = _ => FlushPendingRebuild(),
-            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
-            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
             Width = UndockButtonWidth,
             Height = UndockButtonHeight,
             FontSize = UndockButtonFontSize,
@@ -907,8 +676,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return resources.Own(controller);
     }
 
-    private void OnUndockDraggingChanged(bool isDragging) => _isDraggingWindow = isDragging;
-
     private static void UseDefaultGlyphRendering(TextBlock glyph)
     {
         TextOptions.SetTextRenderingMode(glyph, TextRenderingMode.Unspecified);
@@ -919,215 +686,12 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private CornerRadius Rounded(CornerRadius radius) =>
         _settings.EnableRoundedCorners ? radius : new CornerRadius(0);
 
-    private void PositionNearTray() => Position = _dockingController.ResolvePosition();
-
-    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
+    protected override void OnDockStateChanged(FlyoutDockStateChange change)
     {
-        return TrayPopupPositioning.ClampToSavedMonitor(
-            Screens,
-            ResolveWorkArea(_lastTrayIcon),
-            CurrentPixelSize(),
-            savedPosition,
-            EdgePadding);
-    }
+        _undockButtonController?.UpdateVisual();
 
-    private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
-    {
-        PixelRect? iconRect = null;
-        if (trayIcon?.TryGetIconRect(out PixelRect resolvedIconRect) == true)
-            iconRect = resolvedIconRect;
-
-        PixelPoint anchor = iconRect?.Center ?? Position;
-        PixelRect workArea =
-            TrayWorkArea.Resolve(Screens, anchor, new PixelRect(x: 0, y: 0, width: 1920, height: 1080));
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-
-        return TrayPopupPositioning.ResolveDockedPosition(
-            workArea,
-            new PixelSize(width, height),
-            iconRect,
-            EdgePadding);
-    }
-
-    private PixelRect ResolveWorkArea(TrayAppDotNETShellTrayIcon? trayIcon)
-    {
-        PixelPoint anchor = Position;
-        if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
-            anchor = iconRect.Center;
-
-        return TrayWorkArea.Resolve(Screens, anchor, new PixelRect(x: 0, y: 0, width: 1920, height: 1080));
-    }
-
-    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
-
-    private int CurrentPixelWidth() =>
-        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
-
-    private int CurrentPixelHeight() =>
-        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, PixelMinSize) * RenderScaling));
-
-    private void ApplyWorkAreaMaxHeight()
-    {
-        PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = workArea.Height / RenderScaling - 2 * EdgePadding;
-    }
-
-    protected override void ApplyRenderScalingLayoutConstraints() => ApplyWorkAreaMaxHeight();
-
-    private int ResolveSnapTolerance()
-    {
-        PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        return Math.Max(
-            PixelMinSize,
-            (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * SnapTolerancePercent));
-    }
-
-    private void OnDockStateChanged(FlyoutDockStateChange change)
-    {
-        UpdateUndockButtonVisual();
-        switch (change)
-        {
-            case FlyoutDockStateChange.Undocked:
-                Rebuild();
-                break;
-            case FlyoutDockStateChange.Redocked:
-                Rebuild();
-                QueuePositionNearTray();
-                break;
-            case FlyoutDockStateChange.UndockedFromDrag:
-            case FlyoutDockStateChange.PositionSaved:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(change), change, message: null);
-        }
-    }
-
-    private void UpdateUndockButtonVisual() => _undockButtonController?.UpdateVisual();
-
-    private void QueuePositionNearTray()
-    {
-        if (_isClosed || !IsVisible || _isDraggingWindow) return;
-
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible || _isDraggingWindow)
-                    return;
-                ApplyWorkAreaMaxHeight();
-                UpdateLayout();
-                PositionNearTray();
-            },
-            DispatcherPriority.Loaded);
-    }
-
-    private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (_isClosed || !_dockingController.IsUndocked) return;
-        if (_undockButtonController?.IsPointerCaptured == true) return;
-        if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
-        if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
-        if (sender is not Control control) return;
-
-        (PixelPoint dockedPosition, int snapTolerance) = _dockingController.CaptureDockedPosition();
-        PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
-        _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        _chromeCaptureOwner = control;
-        _chromeCapturedPointer = e.Pointer;
-        _isDraggingWindow = true;
-        try
-        {
-            e.Pointer.Capture(control);
-        }
-        catch
-        {
-            _chromeCaptureOwner = null;
-            _chromeCapturedPointer = null;
-            _isDraggingWindow = false;
-            throw;
-        }
-
-        e.Handled = true;
-    }
-
-    private void OnChromePointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_isDraggingWindow || !_dockingController.IsUndocked
-                               || _undockButtonController?.IsPointerCaptured == true)
-            return;
-        if (sender is not Control control) return;
-        if (!ReferenceEquals(_chromeCaptureOwner, control)) return;
-        if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
-        {
-            EndChromeDrag(e.Pointer, commit: true);
-            e.Handled = true;
-            return;
-        }
-
-        PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
-        PixelPoint natural = _dragHelper.ComputeNatural(pointer);
-        _dragHelper.ApplyDragPosition(this, natural);
-        e.Handled = true;
-    }
-
-    private void OnChromePointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (!_isDraggingWindow || _undockButtonController?.IsPointerCaptured == true) return;
-        if (!ReferenceEquals(_chromeCaptureOwner, sender)) return;
-        EndChromeDrag(e.Pointer, commit: true);
-        e.Handled = true;
-    }
-
-    private void OnChromePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        if (!ReferenceEquals(_chromeCaptureOwner, sender)) return;
-
-        bool commit = _isDraggingWindow && _undockButtonController?.IsPointerCaptured != true;
-        _chromeCaptureOwner = null;
-        _chromeCapturedPointer = null;
-        _isDraggingWindow = false;
-        if (commit)
-            _dockingController.CommitDragPosition();
-        FlushPendingRebuild();
-    }
-
-    private void EndChromeDrag(IPointer pointer, bool commit)
-    {
-        _chromeCaptureOwner = null;
-        _chromeCapturedPointer = null;
-        _isDraggingWindow = false;
-        try
-        {
-            pointer.Capture(null);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"BatteryFlyoutWindow pointer release failed: {exception.Message}");
-        }
-
-        if (commit) _dockingController.CommitDragPosition();
-        FlushPendingRebuild();
-    }
-
-    private void ReleaseChromeCapture(Control captureOwner)
-    {
-        if (!ReferenceEquals(_chromeCaptureOwner, captureOwner)) return;
-
-        IPointer? capturedPointer = _chromeCapturedPointer;
-        _chromeCaptureOwner = null;
-        _chromeCapturedPointer = null;
-        _isDraggingWindow = false;
-        if (capturedPointer == null) return;
-
-        try
-        {
-            capturedPointer.Capture(null);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"BatteryFlyoutWindow pointer release failed: {exception.Message}");
-        }
+        // The header layout differs while undocked
+        if (change is FlyoutDockStateChange.Undocked or FlyoutDockStateChange.Redocked) RebuildNow();
     }
 
     private SummaryView BuildBatterySummary(SettingsPalette p)
@@ -1180,12 +744,14 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         if (snapshot is not { BatteryPresent: true, IsFullyCharged: false }) return null;
         if (snapshot.IsCharging)
-            return estimates.ChargeTime.HasValue ? $"{FormatEstimate(estimates.ChargeTime)} until full" : null;
+            return estimates.ChargeTime.HasValue
+                ? F(nameof(AppStrings.Flyout_UntilFull_Format), FormatEstimate(estimates.ChargeTime))
+                : null;
 
         // Predicted life is known on external power too, but only a draining battery has time remaining
         if (snapshot.IsOnExternalPower) return null;
         TimeSpan? remaining = estimates.PredictedLife ?? estimates.PresentDischarge;
-        return remaining.HasValue ? $"{FormatEstimate(remaining)} remaining" : null;
+        return remaining.HasValue ? F(nameof(AppStrings.Flyout_Remaining_Format), FormatEstimate(remaining)) : null;
     }
 
     private MetricsView BuildMetrics(SettingsPalette p)
@@ -1198,19 +764,18 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             ColumnSpacing = Layout.MetricColumnSpacing
         };
         Grid times = CreateMetricColumn();
-        TextBlock predictedLife = AddDetailRow(times, "Predicted life", p,
-            "How long the current charge would last, learned from the last 30 minutes on battery. " +
-            "Also shown while plugged in. Available after two minutes on battery.").Value;
-        TextBlock presentDischarge = AddDetailRow(times, "Present discharge", p,
-            "Time remaining at the recent discharge rate. Averaging and decay are adjustable in Flyout settings.").Value;
-        TextBlock chargeTime = AddDetailRow(times, "Time until full", p,
-            "Estimated time to full at the recent charging rate. Recalculates as charging slows.").Value;
+        TextBlock predictedLife = AddDetailRow(times, L(nameof(AppStrings.Flyout_PredictedLife_Label)), p,
+            L(nameof(AppStrings.Flyout_PredictedLife_Tooltip))).Value;
+        TextBlock presentDischarge = AddDetailRow(times, L(nameof(AppStrings.Flyout_PresentDischarge_Label)), p,
+            L(nameof(AppStrings.Flyout_PresentDischarge_Tooltip))).Value;
+        TextBlock chargeTime = AddDetailRow(times, L(nameof(AppStrings.Flyout_TimeUntilFull_Label)), p,
+            L(nameof(AppStrings.Flyout_TimeUntilFull_Tooltip))).Value;
         metrics.Children.Add(ControlNames.Assign(times, parentName: "BatteryTimeEstimates"));
 
         Grid usage = CreateMetricColumn();
-        TextBlock powerSource = AddDetailRow(usage, "Power source", p).Value;
-        (TextBlock rateLabel, TextBlock rate) = AddDetailRow(usage, "Discharge rate", p);
-        TextBlock remaining = AddDetailRow(usage, "Remaining", p).Value;
+        TextBlock powerSource = AddDetailRow(usage, L(nameof(AppStrings.Flyout_PowerSource_Label)), p).Value;
+        (TextBlock rateLabel, TextBlock rate) = AddDetailRow(usage, L(nameof(AppStrings.Flyout_DischargeRate_Label)), p);
+        TextBlock remaining = AddDetailRow(usage, L(nameof(AppStrings.Flyout_Remaining_Label)), p).Value;
         Grid.SetColumn(usage, 1);
         metrics.Children.Add(ControlNames.Assign(usage, parentName: "BatteryUsage"));
         return new MetricsView(
@@ -1229,19 +794,27 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         view.PredictedLife.Text = estimates.PredictedLife == null
                                   && snapshot is { BatteryPresent: true, IsOnExternalPower: false,
                                       RemainingCapacityMilliwattHours: > 0, DischargeRateWatts: > 0 }
-            ? "Learning…"
+            ? L(nameof(AppStrings.Flyout_Learning))
             : FormatEstimate(estimates.PredictedLife);
         view.PresentDischarge.Text = FormatEstimate(estimates.PresentDischarge);
         view.ChargeTime.Text = FormatEstimate(estimates.ChargeTime);
-        view.PowerSource.Text = snapshot.IsOnExternalPower ? "External" : "Battery";
+        view.PowerSource.Text = L(snapshot.IsOnExternalPower
+            ? nameof(AppStrings.Flyout_PowerSource_External)
+            : nameof(AppStrings.Flyout_PowerSource_Battery));
         // A charging battery has no discharge rate, so the row reports the rate it is charging at instead
-        view.RateLabel.Text = snapshot.IsCharging ? "Charge rate" : "Discharge rate";
+        view.RateLabel.Text = L(snapshot.IsCharging
+            ? nameof(AppStrings.Flyout_ChargeRate_Label)
+            : nameof(AppStrings.Flyout_DischargeRate_Label));
         view.Rate.Text = FormatPower(snapshot.CurrentBatteryPowerWatts);
         view.Remaining.Text = FormatCapacity(snapshot.RemainingCapacityMilliwattHours);
     }
 
     private static string FormatEstimate(TimeSpan? value) =>
-        value.HasValue ? value.Value <= TimeSpan.Zero ? "0m" : FormatTimeSpan(value.Value) : "N/A";
+        value.HasValue
+            ? value.Value <= TimeSpan.Zero
+                ? F(nameof(AppStrings.Tray_Tooltip_Duration_Minutes_Format), 0)
+                : FormatTimeSpan(value.Value)
+            : L(nameof(AppStrings.Flyout_NotAvailable));
 
     /// <summary>Labels give way with an ellipsis before any value is clipped.</summary>
     private static Grid CreateMetricColumn() => new()
@@ -1288,8 +861,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutPowerMode? requestedMode = null;
         slider.UserAdjustmentStarted += (_, _) =>
         {
-            // Wheel/key input can nest inside a pointer drag; retain its pending selection and capture guard.
-            if (_powerModeAdjustmentDepth++ > 0) return;
             // An unchanged thumb click is also a choice, even if a read/apply completes during the gesture.
             requestedMode = PowerModeAt(slider.Value);
         };
@@ -1300,12 +871,11 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             slider.ThumbOpacity = 1;
             slider.ProgressValueOverride = null;
             string modeLabel = PowerModeLabel(requestedMode);
-            heading.Text = $"{powerModeTitle}: {modeLabel}";
+            heading.Text = F(nameof(AppStrings.Flyout_LabeledValue_Format), powerModeTitle, modeLabel);
             TrayAppDotNETToolTip.SetTip(slider, modeLabel);
         };
         slider.UserAdjustmentCompleted += (_, _) =>
         {
-            if (--_powerModeAdjustmentDepth > 0) return;
             FlyoutPowerMode? mode = requestedMode;
             requestedMode = null;
             // The service compares against the newest intent, which may differ from this gesture's initial mode.
@@ -1342,17 +912,17 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void UpdatePowerMode(PowerModeView view)
     {
         // A gesture owns the slider and heading until it completes
-        if (_powerModeAdjustmentDepth > 0) return;
+        if (view.Slider.IsUserAdjusting) return;
 
         FlyoutPowerMode? activeMode = _powerModes.DisplayMode;
         string label = activeMode.HasValue || _powerModes.IsStateAvailable
             ? PowerModeLabel(activeMode)
-            : "Unknown";
+            : L(nameof(AppStrings.Flyout_PowerMode_Unknown));
         view.Slider.Value = PowerModeIndex(activeMode);
         view.Slider.ThumbOpacity = activeMode.HasValue ? 1 : 0;
         view.Slider.ProgressValueOverride = activeMode.HasValue ? null : 0;
 
-        string heading = $"{L(nameof(AppStrings.Flyout_PowerMode_Label))}: {label}";
+        string heading = F(nameof(AppStrings.Flyout_LabeledValue_Format), L(nameof(AppStrings.Flyout_PowerMode_Label)), label);
         if (view.Heading.Text == heading) return;
         view.Heading.Text = heading;
         TrayAppDotNETToolTip.SetTip(view.Slider, label);
@@ -1389,7 +959,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutPowerMode.PowerSaver => L(nameof(AppStrings.Flyout_PowerMode_PowerSaver)),
         FlyoutPowerMode.Balanced => L(nameof(AppStrings.Flyout_PowerMode_Balanced)),
         FlyoutPowerMode.Ultimate => L(nameof(AppStrings.Flyout_PowerMode_Ultimate)),
-        _ => "Custom"
+        _ => L(nameof(AppStrings.Flyout_PowerMode_Custom))
     };
 
     private static string FormatChargePercent(BatterySnapshot snapshot) =>
@@ -1457,77 +1027,62 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void SetPowerMode(FlyoutPowerMode mode)
     {
-        if (_isClosed) return;
-        _ = _powerModes.RequestAsync(mode);
+        if (IsWindowClosed) return;
+        _powerModes.RequestAsync(mode).ForgetLogged("BatteryFlyoutWindow.SetPowerMode");
     }
 
     internal static void OpenModernPowerSettings()
     {
-        try
-        {
-            using Process? _ = Process.Start(new ProcessStartInfo
-            {
-                FileName = "ms-settings:powersleep", UseShellExecute = true
-            });
-        }
-        catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenModernPowerSettings: {ex.Message}"); }
+        if (!ExplorerProcessLauncher.TryShellExecute(
+                "ms-settings:powersleep",
+                arguments: null,
+                workingDirectory: null,
+                verb: null,
+                out _,
+                out string errorMessage))
+            TADNLog.Log($"BatteryFlyoutWindow.OpenModernPowerSettings: {errorMessage}");
     }
 
     private static string BuildStatus(BatterySnapshot snapshot)
     {
-        if (!snapshot.BatteryPresent) return "No battery detected";
-        if (snapshot.IsFullyCharged) return "Plugged in, full";
+        if (!snapshot.BatteryPresent) return L(nameof(AppStrings.Tray_Tooltip_NoBattery));
+        if (snapshot.IsFullyCharged) return L(nameof(AppStrings.Tray_Tooltip_PluggedInFull));
         if (snapshot.IsCharging)
         {
             return snapshot.ChargeRateWatts.HasValue
-                ? $"Charging at {snapshot.ChargeRateWatts.Value:F1} W"
-                : "Charging";
+                ? F(nameof(AppStrings.Flyout_ChargingAt_Format), snapshot.ChargeRateWatts.Value)
+                : L(nameof(AppStrings.Tray_Tooltip_Charging));
         }
 
-        if (snapshot.IsOnExternalPower) return "Plugged in";
-        return "On battery";
+        if (snapshot.IsOnExternalPower) return L(nameof(AppStrings.Tray_Tooltip_PluggedIn));
+        return L(nameof(AppStrings.Tray_Tooltip_OnBattery));
     }
 
     private static string FormatPower(float? watts) =>
-        watts.HasValue ? $"{watts.Value:F1} W" : "N/A";
+        watts.HasValue ? $"{watts.Value:F1} W" : L(nameof(AppStrings.Flyout_NotAvailable));
 
     private static string FormatCapacity(float? milliwattHours) =>
-        milliwattHours.HasValue ? $"{milliwattHours.Value / 1000f:F1} Wh" : "N/A";
+        milliwattHours.HasValue ? $"{milliwattHours.Value / 1000f:F1} Wh" : L(nameof(AppStrings.Flyout_NotAvailable));
 
     private static string FormatTimeSpan(TimeSpan value)
     {
-        if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours}h";
-        if (value.TotalHours >= 1) return $"{(int)value.TotalHours}h {value.Minutes}m";
-        return $"{Math.Max(val1: 1, value.Minutes)}m";
+        if (value.TotalDays >= 1)
+            return F(nameof(AppStrings.Tray_Tooltip_Duration_DaysHours_Format), (int)value.TotalDays, value.Hours);
+        if (value.TotalHours >= 1)
+            return F(nameof(AppStrings.Tray_Tooltip_Duration_HoursMinutes_Format), (int)value.TotalHours, value.Minutes);
+        return F(nameof(AppStrings.Tray_Tooltip_Duration_Minutes_Format), Math.Max(val1: 1, value.Minutes));
     }
 
     private static string L(string key) => LocalizationManager.Instance[key];
 
-    protected override void OnClosed(EventArgs e)
+    private static string F(string key, params object[] arguments) =>
+        string.Format(CultureInfo.CurrentCulture, L(key), arguments);
+
+    protected override void OnFlyoutClosed()
     {
-        _isClosed = true;
-        _rebuildPending = false;
-        _rebuildQueued = false;
         _liveUpdateQueued = false;
-        _isRebuilding = false;
-
-        Control? chromeCaptureOwner = _chromeCaptureOwner;
-        if (chromeCaptureOwner != null)
-            ReleaseChromeCapture(chromeCaptureOwner);
-        _isDraggingWindow = false;
-
-        try
-        {
-            base.OnClosed(e);
-        }
-        finally
-        {
-            _undockButtonController = null;
-            _live = null;
-            _chromeCaptureOwner = null;
-            _chromeCapturedPointer = null;
-            _lastTrayIcon = null;
-        }
+        _undockButtonController = null;
+        _live = null;
     }
 
     private sealed record SummaryView(Grid Root, TextBlock Glyph, TextBlock Charge, TextBlock Time, TextBlock Status);

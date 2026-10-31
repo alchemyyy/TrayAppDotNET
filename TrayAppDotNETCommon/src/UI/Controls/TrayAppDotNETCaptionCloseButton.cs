@@ -96,6 +96,14 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
             Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         };
+        // A capture stolen mid-press, such as by Alt+Tab, never delivers the release
+        PointerCaptureLost += (_, _) =>
+        {
+            if (!_isPressed) return;
+
+            _isPressed = false;
+            UpdateVisual();
+        };
         KeyDown += (_, e) =>
         {
             if (e.Key is not (Key.Enter or Key.Space)) return;

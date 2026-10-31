@@ -27,8 +27,6 @@
         <sys:Double x:Key="FanCurveEditor.GraphLabelFontSize">11</sys:Double>
         <sys:Double x:Key="FanCurveEditor.GraphVerticalGridDivisions">5</sys:Double>
         <sys:Double x:Key="FanCurveEditor.GraphHorizontalGridDivisions">5</sys:Double>
-        <sys:Double x:Key="FanCurveEditor.GraphKeyboardStepFinePixels">1</sys:Double>
-        <sys:Double x:Key="FanCurveEditor.GraphKeyboardStepCoarsePixels">10</sys:Double>
         <sys:Double x:Key="FanCurveEditor.GraphMinimumMeasureWidth">360</sys:Double>
         <sys:Double x:Key="FanCurveEditor.GraphMinimumMeasureHeight">180</sys:Double>
         <sys:Double x:Key="FanCurveEditor.GraphDefaultMeasureWidth">540</sys:Double>

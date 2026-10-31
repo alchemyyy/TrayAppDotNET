@@ -19,6 +19,9 @@ internal sealed class DeviceNicknameResolver
     private static readonly Regex HardwareTypeRuleRegex =
         new(HardwareTypeRulePattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    // The last compiled rule set, reused while the settings hold the same rules
+    private static CompiledRuleSet? s_compiledRules;
+
     private readonly Dictionary<DeviceKey, string> _nicknamesByDevice;
     private readonly IReadOnlyList<CompiledDeviceNicknameRule> _rules;
 
@@ -38,7 +41,7 @@ internal sealed class DeviceNicknameResolver
     /// </summary>
     public static DeviceNicknameResolver Create(AppSettings settings)
     {
-        List<CompiledDeviceNicknameRule> rules = CompileRules(settings.DeviceNicknameRules);
+        List<CompiledDeviceNicknameRule> rules = CompiledRules(settings.DeviceNicknameRules);
         List<DeviceMetadata> devices = BuildDeviceMetadata();
 
         Dictionary<DeviceKey, string> baseNamesByDevice = [];
@@ -142,6 +145,21 @@ internal sealed class DeviceNicknameResolver
     }
 
     /// <summary>
+    /// Returns the compiled rules for a rule list, compiling only when its content changed.
+    /// </summary>
+    private static List<CompiledDeviceNicknameRule> CompiledRules(IReadOnlyList<DeviceNicknameRule> rules)
+    {
+        string signature = NicknameRegex.Signature(rules);
+        CompiledRuleSet? cached = Volatile.Read(ref s_compiledRules);
+        if (cached != null && string.Equals(cached.Signature, signature, StringComparison.Ordinal))
+            return cached.Rules;
+
+        CompiledRuleSet compiled = new(signature, CompileRules(rules));
+        Volatile.Write(ref s_compiledRules, compiled);
+        return compiled.Rules;
+    }
+
+    /// <summary>
     /// Compiles user rules and skips invalid regex entries.
     /// </summary>
     private static List<CompiledDeviceNicknameRule> CompileRules(IEnumerable<DeviceNicknameRule> rules)
@@ -163,24 +181,19 @@ internal sealed class DeviceNicknameResolver
                 continue;
             }
 
-            try
+            if (!NicknameRegex.TryCreate(rule.TargetRegex, "Device", out Regex? regex)) continue;
+            compiled.Add(new CompiledDeviceNicknameRule
             {
-                Regex regex = new(rule.TargetRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-                compiled.Add(new CompiledDeviceNicknameRule
-                {
-                    Kind = DeviceNicknameRuleKind.DeviceNameRegex,
-                    DeviceNameRegex = regex,
-                    ReplacementString = rule.ReplacementString
-                });
-            }
-            catch (ArgumentException ex)
-            {
-                TADNLog.Log($"Device nickname regex ignored: {ex.Message}");
-            }
+                Kind = DeviceNicknameRuleKind.DeviceNameRegex,
+                DeviceNameRegex = regex,
+                ReplacementString = rule.ReplacementString
+            });
         }
 
         return compiled;
     }
+
+    private sealed record CompiledRuleSet(string Signature, List<CompiledDeviceNicknameRule> Rules);
 
     /// <summary>
     /// Checks whether a hardware-type rule target matches a source hardware type.
@@ -252,8 +265,8 @@ internal sealed class DeviceNicknameResolver
                 case DeviceNicknameRuleKind.DeviceNameRegex:
                 {
                     if (DeviceNameRegex is null) return false;
-                    if (!DeviceNameRegex.IsMatch(device.DeviceName)) return false;
-                    replacement = DeviceNameRegex.Replace(device.DeviceName, ReplacementString);
+                    if (!NicknameRegex.IsMatch(DeviceNameRegex, device.DeviceName)) return false;
+                    replacement = NicknameRegex.Replace(DeviceNameRegex, device.DeviceName, ReplacementString);
                     return true;
                 }
                 case DeviceNicknameRuleKind.HardwareType:

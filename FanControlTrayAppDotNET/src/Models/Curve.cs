@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
+using TrayAppDotNETCommon.UI.Controls.Curves;
 
 namespace FanControlTrayAppDotNET.Models;
 
@@ -68,8 +69,8 @@ public class Curve : INotifyPropertyChanged
     [XmlAttribute]
     public int ClampDutyMax { get; set; } = 100;
 
-    // Input clamps. ClampXMin/Max bound the X lookup before sampling. Values outside this range
-    // clamp to the corresponding edge sample.
+    // Input clamps. ClampXMin/Max bound the X lookup before sampling and follow the bound data source's display
+    // range (FollowDataSourceRange). Values outside this range clamp to the corresponding edge sample.
     [XmlAttribute]
     public int ClampXMin { get; set; }
 
@@ -102,38 +103,34 @@ public class Curve : INotifyPropertyChanged
         OnPropertyChanged(nameof(Version));
     }
 
-    // Sample the curve at x. Returns a Y clamped to [ClampDutyMin, ClampDutyMax]. The X lookup is
-    // clamped to [ClampXMin, ClampXMax] before interpolation. Handles empty / single-node curves
-    // gracefully so callers don't need to defensive-check.
-    public double Evaluate(double x)
+    // Sample the curve at x. Returns a Y clamped to the active output range. The X lookup is clamped to
+    // [ClampXMin, ClampXMax] before interpolation. Handles empty / single-node curves gracefully so callers don't
+    // need to defensive-check.
+    public double Evaluate(double x) => CreateEvaluator().Evaluate(x);
+
+    /// <summary>
+    /// Prepares the effective nodes and tangents once, for callers such as the editor that sample the curve many
+    /// times. Its results are exactly those of <see cref="Evaluate"/>.
+    /// </summary>
+    public CurveEvaluator CreateEvaluator() => new(this);
+
+    /// <summary>
+    /// Sets the input clamp to the source's display range, so a curve evaluates the source it is bound to over that
+    /// source's own axis. Returns whether the clamp changed.
+    /// </summary>
+    public bool FollowDataSourceRange(DataSource source)
     {
-        if (CurveNodes.Count == 0) return ClampDutyMin;
+        ArgumentNullException.ThrowIfNull(source);
+        int minimum = (int)Math.Round(source.DisplayMinimum);
+        int maximum = (int)Math.Round(source.DisplayMaximum);
+        if (minimum > maximum || (ClampXMin == minimum && ClampXMax == maximum)) return false;
 
-        double xClamped = Math.Clamp(x, ClampXMin, ClampXMax);
-
-        if (CurveNodes.Count == 1) return ClampOutput(CurveNodes[0].Y);
-
-        List<CurveNode> ordered = EffectiveCurveNodes();
-        int n = ordered.Count;
-
-        double[] xs = new double[n];
-        double[] ys = new double[n];
-        for (int i = 0; i < n; i++)
-        {
-            xs[i] = ordered[i].X;
-            ys[i] = ordered[i].Y;
-        }
-
-        double smoothness = Math.Clamp(SmoothingFactor / 100.0, min: 0.0, max: 1.0);
-        double linear = InterpolateLinear(xs, ys, xClamped);
-        if (smoothness <= 0.0) return ClampOutput(linear);
-
-        double[] tangents = ComputeMonotonicTangents(xs, ys);
-        double cubic = InterpolateMonotonicCubic(xs, ys, tangents, xClamped);
-        return ClampOutput(linear + (cubic - linear) * smoothness);
+        ClampXMin = minimum;
+        ClampXMax = maximum;
+        return true;
     }
 
-    private double ClampOutput(double y) => RPMMode
+    internal double ClampOutput(double y) => RPMMode
         ? Math.Clamp(y, MinRPM, Math.Max(MinRPM, MaxRPM))
         : Math.Clamp(y, MinDutyCycle, Math.Max(MinDutyCycle, MaxDutyCycle));
 
@@ -208,89 +205,50 @@ public class Curve : INotifyPropertyChanged
         return Curves.GetValueOrDefault(name);
     }
 
-    // Piecewise-linear sample. Clamps out-of-range to nearest edge.
-    private static double InterpolateLinear(double[] xs, double[] ys, double x)
-    {
-        int n = xs.Length;
-        if (x <= xs[0]) return ys[0];
-        if (x >= xs[n - 1]) return ys[n - 1];
-
-        for (int i = 0; i < n - 1; i++)
-        {
-            if (x >= xs[i] && x <= xs[i + 1])
-            {
-                double span = xs[i + 1] - xs[i];
-                if (span <= 0.0) return ys[i];
-                double t = (x - xs[i]) / span;
-                return ys[i] + t * (ys[i + 1] - ys[i]);
-            }
-        }
-
-        return ys[n - 1];
-    }
-
-    // Fritsch-Butland monotonic tangents. Preserves monotonicity in the cubic-Hermite output so
-    // a non-decreasing curve stays non-decreasing after smoothing. One tangent per node.
-    private static double[] ComputeMonotonicTangents(double[] xs, double[] ys)
-    {
-        int n = xs.Length;
-        double[] tangents = new double[n];
-        if (n < 2) return tangents;
-
-        double[] slopes = new double[n - 1];
-        for (int i = 0; i < n - 1; i++)
-        {
-            double dx = xs[i + 1] - xs[i];
-            slopes[i] = dx == 0.0 ? 0.0 : (ys[i + 1] - ys[i]) / dx;
-        }
-
-        tangents[0] = slopes[0];
-        tangents[n - 1] = slopes[n - 2];
-
-        for (int i = 1; i < n - 1; i++)
-        {
-            if (slopes[i - 1] * slopes[i] <= 0.0)
-            {
-                tangents[i] = 0.0;
-                continue;
-            }
-
-            double w1 = 2.0 * (xs[i + 1] - xs[i]) + (xs[i] - xs[i - 1]);
-            double w2 = xs[i + 1] - xs[i] + 2.0 * (xs[i] - xs[i - 1]);
-            tangents[i] = (w1 + w2) / (w1 / slopes[i - 1] + w2 / slopes[i]);
-        }
-
-        return tangents;
-    }
-
-    // Monotonic cubic Hermite spline through (xs[i], ys[i]) with tangents[i]. Clamps out-of-range.
-    private static double InterpolateMonotonicCubic(double[] xs, double[] ys, double[] tangents, double x)
-    {
-        int n = xs.Length;
-        if (x <= xs[0]) return ys[0];
-        if (x >= xs[n - 1]) return ys[n - 1];
-
-        for (int i = 0; i < n - 1; i++)
-        {
-            if (x >= xs[i] && x <= xs[i + 1])
-            {
-                double h = xs[i + 1] - xs[i];
-                if (h <= 0.0) return ys[i];
-                double t = (x - xs[i]) / h;
-                double t2 = t * t;
-                double t3 = t2 * t;
-                double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
-                double h10 = t3 - 2.0 * t2 + t;
-                double h01 = -2.0 * t3 + 3.0 * t2;
-                double h11 = t3 - t2;
-                return h00 * ys[i] + h10 * h * tangents[i]
-                                   + h01 * ys[i + 1] + h11 * h * tangents[i + 1];
-            }
-        }
-
-        return ys[n - 1];
-    }
-
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+/// <summary>
+/// One curve shape prepared for sampling: the effective (sorted, optionally non-decreasing) nodes and their secant-end
+/// monotonic tangents. The input is clamped to the curve's input range first and the output to its active range last,
+/// the order fan control applies.
+/// </summary>
+public sealed class CurveEvaluator
+{
+    private readonly Curve _curve;
+    private readonly double[] _xs;
+    private readonly double[] _ys;
+    private readonly double[] _tangents;
+    private readonly double _smoothness;
+
+    internal CurveEvaluator(Curve curve)
+    {
+        _curve = curve;
+        List<CurveNode> ordered = curve.CurveNodes.Count > 1 ? curve.EffectiveCurveNodes() : [];
+        int count = ordered.Count;
+        _xs = new double[count];
+        _ys = new double[count];
+        _tangents = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            _xs[i] = ordered[i].X;
+            _ys[i] = ordered[i].Y;
+        }
+
+        _smoothness = Math.Clamp(curve.SmoothingFactor / 100.0, min: 0.0, max: 1.0);
+        if (_smoothness > 0.0)
+            MonotonicCurveSampler.ComputeMonotonicTangents(_xs, _ys, _tangents, MonotonicEndTangent.Secant);
+    }
+
+    public double Evaluate(double x)
+    {
+        List<CurveNode> nodes = _curve.CurveNodes;
+        if (nodes.Count == 0) return _curve.ClampDutyMin;
+
+        double xClamped = Math.Clamp(x, _curve.ClampXMin, _curve.ClampXMax);
+        if (nodes.Count == 1) return _curve.ClampOutput(nodes[0].Y);
+
+        return _curve.ClampOutput(MonotonicCurveSampler.Sample(_xs, _ys, _tangents, xClamped, _smoothness));
+    }
 }

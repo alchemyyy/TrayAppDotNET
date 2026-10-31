@@ -17,11 +17,14 @@ internal static class FlyoutCardsLayout
 
     public static Thickness ZeroThickness => AXAMLResources.AxamlFlyoutCards.ZeroThickness;
     public static CornerRadius IconButtonCornerRadius => AXAMLResources.AxamlFlyoutCards.IconButtonCornerRadius;
+
+    public static double IconButtonLineHeightPadding =>
+        AXAMLResources.AxamlFlyoutCards.IconButtonLineHeightPadding;
+
     public static double TextButtonFontSize => AXAMLResources.AxamlFlyoutCards.TextButtonFontSize;
     public static Thickness TextButtonBorderThickness => AXAMLResources.AxamlFlyoutCards.TextButtonBorderThickness;
     public static CornerRadius TextButtonCornerRadius => AXAMLResources.AxamlFlyoutCards.TextButtonCornerRadius;
     public static Thickness TextButtonPadding => AXAMLResources.AxamlFlyoutCards.TextButtonPadding;
-    public static double SlotCoverOpacity => AXAMLResources.AxamlFlyoutCards.SlotCoverOpacity;
 }
 
 public readonly record struct FlyoutControlPalette(
@@ -134,53 +137,9 @@ public static class TrayAppDotNETFlyoutUI
             Child = content
         };
 
-    public static Border IconButton(
-        string glyph,
-        FlyoutControlPalette palette,
-        Action<ControlActivation> click,
-        double width,
-        double height,
-        double fontSize,
-        bool enabled = true,
-        Thickness? margin = null,
-        string? tooltip = null,
-        string? fontFamily = null,
-        Action<ControlActivation>? rightClick = null,
-        FontWeight? fontWeight = null)
-    {
-        Control content = string.IsNullOrEmpty(glyph) || fontSize <= 0
-            ? new Grid { IsHitTestVisible = false }
-            : IconText(glyph, palette, fontSize, fontFamily, fontWeight);
-
-        Border button = new()
-        {
-            Width = width,
-            Height = height,
-            Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
-            CornerRadius = FlyoutCardsLayout.IconButtonCornerRadius,
-            Background = Brushes.Transparent,
-            Child = content,
-            Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
-            IsEnabled = enabled
-        };
-
-        if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-        FlyoutButtonState.Attach(
-            button,
-            () => Brushes.Transparent,
-            () => Brush(palette.Hover),
-            () => Brush(palette.Pressed),
-            click,
-            enabled,
-            rightClick);
-
-        DebugUIProvenance.RecordBuilder(button);
-        return button;
-    }
-
     /// <summary>
-    /// Creates an icon button from a glyph object while preserving caller-owned layout metrics.
+    /// Creates a flyout icon button from a glyph object. <paramref name="lineHeight"/> pins the glyph's line box; a
+    /// non-positive <paramref name="fontSize"/> leaves the button empty for caller-built content.
     /// </summary>
     public static Border IconButton(
         Glyph glyph,
@@ -194,18 +153,50 @@ public static class TrayAppDotNETFlyoutUI
         string? tooltip = null,
         string? fontFamily = null,
         Action<ControlActivation>? rightClick = null,
-        FontWeight? fontWeight = null)
+        FontWeight? fontWeight = null,
+        CornerRadius? cornerRadius = null,
+        double? lineHeight = null)
     {
-        Control content = string.IsNullOrEmpty(glyph.Text) || fontSize <= 0
-            ? new Grid { IsHitTestVisible = false }
-            : IconText(glyph, palette, fontSize, fontFamily, fontWeight);
+        Control content;
+        if (string.IsNullOrEmpty(glyph.Text) || fontSize <= 0)
+        {
+            content = new Grid { IsHitTestVisible = false };
+        }
+        else
+        {
+            TextBlock icon = IconText(glyph, palette, fontSize, fontFamily, fontWeight);
+            if (lineHeight is { } pinnedLineHeight) icon.LineHeight = pinnedLineHeight;
+            content = icon;
+        }
 
+        return IconButtonCore(content, palette, click, width, height, enabled, margin, tooltip, rightClick,
+            cornerRadius);
+    }
+
+    /// <summary>
+    /// Creates the transparent flyout button every icon button uses: palette hover and pressed backgrounds, a hand
+    /// cursor, a tooltip that hides while the button is engaged, and click and keyboard activation through
+    /// <see cref="FlyoutButtonState"/>.
+    /// </summary>
+    public static Border IconButtonCore(
+        Control content,
+        FlyoutControlPalette palette,
+        Action<ControlActivation> click,
+        double width,
+        double height,
+        bool enabled = true,
+        Thickness? margin = null,
+        string? tooltip = null,
+        Action<ControlActivation>? rightClick = null,
+        CornerRadius? cornerRadius = null)
+    {
+        ArgumentNullException.ThrowIfNull(content);
         Border button = new()
         {
             Width = width,
             Height = height,
             Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
-            CornerRadius = FlyoutCardsLayout.IconButtonCornerRadius,
+            CornerRadius = cornerRadius ?? FlyoutCardsLayout.IconButtonCornerRadius,
             Background = Brushes.Transparent,
             Child = content,
             Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
@@ -214,25 +205,22 @@ public static class TrayAppDotNETFlyoutUI
 
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-        FlyoutButtonState.Attach(
-            button,
-            () => Brushes.Transparent,
-            () => Brush(palette.Hover),
-            () => Brush(palette.Pressed),
-            click,
-            enabled,
-            rightClick);
-
+        AttachButtonState(button, Colors.Transparent, palette, click, enabled, rightClick);
         DebugUIProvenance.RecordBuilder(button);
         return button;
     }
+
+    /// <summary>Gets the line height that centers an icon glyph of <paramref name="fontSize"/> in its button.</summary>
+    public static double IconLineHeight(double fontSize) =>
+        Math.Ceiling(fontSize + FlyoutCardsLayout.IconButtonLineHeightPadding);
 
     public static Border TextButton(
         string text,
         FlyoutControlPalette palette,
         Action click,
         double fontSize = double.NaN,
-        Thickness? padding = null)
+        Thickness? padding = null,
+        CornerRadius? cornerRadius = null)
     {
         double effectiveFontSize = double.IsNaN(fontSize) ? FlyoutCardsLayout.TextButtonFontSize : fontSize;
         TextBlock label = Text(text, palette, effectiveFontSize, FontWeight.SemiBold);
@@ -245,34 +233,35 @@ public static class TrayAppDotNETFlyoutUI
             Background = Brush(palette.ControlBackground),
             BorderBrush = Brush(palette.Border),
             BorderThickness = FlyoutCardsLayout.TextButtonBorderThickness,
-            CornerRadius = FlyoutCardsLayout.TextButtonCornerRadius,
+            CornerRadius = cornerRadius ?? FlyoutCardsLayout.TextButtonCornerRadius,
             Padding = padding ?? FlyoutCardsLayout.TextButtonPadding,
             Child = label,
             Cursor = TrayAppDotNETCursors.Hand
         };
 
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-        FlyoutButtonState.Attach(
-            button,
-            () => Brush(palette.ControlBackground),
-            () => Brush(palette.Hover),
-            () => Brush(palette.Pressed),
-            _ => click());
+        AttachButtonState(button, palette.ControlBackground, palette, _ => click(), enabled: true, rightClick: null);
         DebugUIProvenance.RecordBuilder(button);
         return button;
     }
 
-    public static Border SlotCover(
-        Color color,
-        CornerRadius cornerRadius,
-        double opacity = double.NaN) =>
-        new()
-        {
-            Background = Brush(color, double.IsNaN(opacity) ? FlyoutCardsLayout.SlotCoverOpacity : opacity),
-            CornerRadius = cornerRadius,
-            IsVisible = false,
-            IsHitTestVisible = false
-        };
+    /// <summary>
+    /// Attaches the one hover and pressed rule every flyout button follows: the resting colour, then the palette's
+    /// Hover while the pointer is over it, then its Pressed while the left button is held.
+    /// </summary>
+    public static FlyoutButtonState AttachButtonState(
+        Border button,
+        Color restingColor,
+        FlyoutControlPalette palette,
+        Action<ControlActivation> click,
+        bool enabled = true,
+        Action<ControlActivation>? rightClick = null)
+    {
+        IBrush resting = Brush(restingColor);
+        IBrush hover = Brush(palette.Hover);
+        IBrush pressed = Brush(palette.Pressed);
+        return FlyoutButtonState.Attach(button, () => resting, () => hover, () => pressed, click, enabled, rightClick);
+    }
 
     public static bool IsPointerInside(Control control, PointerEventArgs e)
     {
@@ -282,12 +271,13 @@ public static class TrayAppDotNETFlyoutUI
                && point.Y <= control.Bounds.Height;
     }
 
+    /// <summary>Gets whether a press on <paramref name="source"/> belongs to a control instead of the window chrome.</summary>
     public static bool IsInteractiveDragSource(Visual? source)
     {
         while (source != null)
         {
             if (source is FlyoutSlider or TextBox or Button or Slider or Thumb or RepeatButton or ComboBox
-                or ScrollViewer) return true;
+                or ScrollViewer or Image) return true;
             if (source is Control { Cursor: not null }) return true;
             source = source.GetVisualParent();
         }

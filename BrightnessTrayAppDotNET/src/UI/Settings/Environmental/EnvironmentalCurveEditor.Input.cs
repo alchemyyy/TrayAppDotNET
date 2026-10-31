@@ -238,30 +238,28 @@ public sealed partial class EnvironmentalCurveEditor
         });
     }
 
-    // Shift moves one minute or one value unit, Ctrl a coarse step, and no modifier a fine step
+    // Shift moves one minute or one value unit, Ctrl an hour or a coarse value step, and no modifier a quarter hour or
+    // a fine value step
     private void NudgeSelected(ControlActivation activation, int horizontalDirection, int verticalDirection)
     {
         if (!CanHandleKeys) return;
 
-        double xStep;
-        double yStep;
-        if ((activation.KeyModifiers & KeyModifiers.Shift) != 0)
+        (double xStep, double yStep) = ResolveNudgeSteps(activation.KeyModifiers, _offsetMode);
+        AdjustSelected(horizontalDirection * xStep, verticalDirection * yStep);
+    }
+
+    /// <summary>Gets the time (day fraction) and value steps of one arrow-key nudge.</summary>
+    internal static (double TimeStep, double ValueStep) ResolveNudgeSteps(KeyModifiers modifiers, bool offsetMode)
+    {
+        if ((modifiers & KeyModifiers.Shift) != 0)
         {
-            xStep = KeyboardStepOneMinute;
-            yStep = _offsetMode ? KeyboardStepOneYUnitOffset : KeyboardStepOneYUnitAbsolute;
-        }
-        else if ((activation.KeyModifiers & KeyModifiers.Control) != 0)
-        {
-            xStep = KeyboardStepCoarse;
-            yStep = KeyboardStepCoarse;
-        }
-        else
-        {
-            xStep = KeyboardStepFine;
-            yStep = KeyboardStepFine;
+            return (KeyboardTimeStepOneMinute,
+                offsetMode ? KeyboardValueStepOneUnitOffset : KeyboardValueStepOneUnitAbsolute);
         }
 
-        AdjustSelected(horizontalDirection * xStep, verticalDirection * yStep);
+        return (modifiers & KeyModifiers.Control) != 0
+            ? (KeyboardTimeStepCoarse, KeyboardValueStepCoarse)
+            : (KeyboardTimeStepFine, KeyboardValueStepFine);
     }
 
     // Keys are inactive while previewing another date or dragging

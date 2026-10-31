@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using BrightnessTrayAppDotNET.SunriseSunset;
 using BrightnessTrayAppDotNET.Utils;
+using TrayAppDotNETCommon.UI.Controls.Curves;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
@@ -277,7 +278,8 @@ public sealed partial class EnvironmentalCurveEditor
                 ys[i] = ordered[i].Value;
             }
 
-            double[] tangents = EnvironmentalCurveSampler.ComputeMonotonicTangents(xs, ys);
+            double[] tangents = new double[xs.Length];
+            MonotonicCurveSampler.ComputeMonotonicTangents(xs, ys, tangents, EnvironmentalCurveSampler.EndTangent);
             int samples = Math.Max(val1: 2, (int)Math.Ceiling(plot.Width));
             StreamGeometry geometry = new();
             using (StreamGeometryContext geometryContext = geometry.Open())
@@ -285,9 +287,7 @@ public sealed partial class EnvironmentalCurveEditor
                 for (int i = 0; i < samples; i++)
                 {
                     double t = (double)i / (samples - 1);
-                    double linear = EnvironmentalCurveSampler.InterpolateLinear(xs, ys, t);
-                    double cubic = EnvironmentalCurveSampler.InterpolateMonotonicCubic(xs, ys, tangents, t);
-                    double v = linear + (cubic - linear) * _smoothness;
+                    double v = MonotonicCurveSampler.Sample(xs, ys, tangents, t, _smoothness);
                     Point current = new(ScreenX(t, plot), ScreenY(v, plot));
                     if (i == 0)
                         geometryContext.BeginFigure(current, isFilled: false);
@@ -548,7 +548,7 @@ public sealed partial class EnvironmentalCurveEditor
 
     private void DrawCurrentTimeLine(DrawingContext context, Rect plot)
     {
-        double t = _previewSweepRunning ? _previewSweepCursor : EnvironmentalCurveSampler.CurrentDayFraction();
+        double t = _previewSweepRunning ? _previewSweepCursor : MonotonicCurveSampler.CurrentDayFraction();
         double x = ScreenX(Math.Clamp(t, min: 0.0, max: 1.0), plot);
         DrawDashedLine(
             context,

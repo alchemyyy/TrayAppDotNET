@@ -608,9 +608,14 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         resources?.Dispose();
     }
 
+    // GetAsyncKeyState reports physical buttons, so with swapped buttons the primary (logical left) one is VK_RBUTTON
     private static bool IsLeftMouseButtonDown() =>
         OperatingSystem.IsWindows()
-        && (User32.GetAsyncKeyState(User32.VK_LBUTTON) & unchecked((short)0x8000)) != 0;
+        && (User32.GetAsyncKeyState(PrimaryMouseButtonVirtualKey(User32.GetSystemMetrics(User32.SM_SWAPBUTTON) != 0))
+            & unchecked((short)0x8000)) != 0;
+
+    internal static int PrimaryMouseButtonVirtualKey(bool buttonsSwapped) =>
+        buttonsSwapped ? User32.VK_RBUTTON : User32.VK_LBUTTON;
 
     private static bool IsPointerOnSettingsDismissButton(Window settingsWindow)
     {

@@ -7,5 +7,4 @@
     <!-- Group slider values -->
     <sys:Int32 x:Key="FanFlyoutCell.GroupFanDisplayedValueSlotWidth">44</sys:Int32>
     <sys:Int32 x:Key="FanFlyoutCell.GroupRPMDisplayedValueSlotWidth">84</sys:Int32>
-    <sys:Int32 x:Key="FanFlyoutCell.GroupFanSliderMaximum">100</sys:Int32>
 </ResourceDictionary>

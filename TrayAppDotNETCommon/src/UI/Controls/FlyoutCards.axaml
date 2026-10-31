@@ -7,11 +7,21 @@
     <!-- Flyout card buttons -->
     <Thickness x:Key="FlyoutCards.ZeroThickness">0</Thickness>
     <CornerRadius x:Key="FlyoutCards.IconButtonCornerRadius">4</CornerRadius>
+    <sys:Double x:Key="FlyoutCards.IconButtonLineHeightPadding">6</sys:Double>
     <sys:Double x:Key="FlyoutCards.TextButtonFontSize">13</sys:Double>
     <Thickness x:Key="FlyoutCards.TextButtonBorderThickness">1</Thickness>
     <CornerRadius x:Key="FlyoutCards.TextButtonCornerRadius">4</CornerRadius>
     <Thickness x:Key="FlyoutCards.TextButtonPadding">10,5</Thickness>
 
-    <!-- Empty card slots -->
-    <sys:Double x:Key="FlyoutCards.SlotCoverOpacity">0.22</sys:Double>
+    <!-- In-window confirmation overlay -->
+    <sys:Double x:Key="FlyoutCards.ConfirmTitleFontSize">14</sys:Double>
+    <Thickness x:Key="FlyoutCards.ConfirmTitleMargin">0,0,0,8</Thickness>
+    <Thickness x:Key="FlyoutCards.ConfirmMessageMargin">0,0,0,14</Thickness>
+    <Thickness x:Key="FlyoutCards.ConfirmCancelMargin">0,0,8,0</Thickness>
+    <Thickness x:Key="FlyoutCards.ConfirmBorderThickness">1</Thickness>
+    <CornerRadius x:Key="FlyoutCards.ConfirmCornerRadius">4</CornerRadius>
+    <Thickness x:Key="FlyoutCards.ConfirmPadding">16</Thickness>
+    <Thickness x:Key="FlyoutCards.ConfirmMargin">12</Thickness>
+    <sys:Double x:Key="FlyoutCards.ConfirmMinWidth">260</sys:Double>
+    <sys:Double x:Key="FlyoutCards.ConfirmMaxWidth">300</sys:Double>
 </ResourceDictionary>

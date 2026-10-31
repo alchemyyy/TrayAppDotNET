@@ -9,17 +9,8 @@
     <ui:FlyoutWindowCommon.Resources>
         <!-- Window geometry and docking -->
         <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
-        <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
         <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
-        <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
-        <sys:Double x:Key="Flyout.WorkAreaMinHeight">220</sys:Double>
         <sys:Double x:Key="Flyout.ContentHeightReserve">48</sys:Double>
-        <sys:Double x:Key="Flyout.PixelMinSize">1</sys:Double>
-        <sys:Int32 x:Key="Flyout.OffscreenPosition">-32000</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaX">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaY">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaWidth">1920</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
         <sys:Double x:Key="Flyout.IconGlyphLineHeightPadding">6</sys:Double>
 
         <!-- Root frame -->
@@ -133,24 +124,12 @@
 
         <!-- Text buttons -->
         <sys:Double x:Key="Flyout.TextButtonFontSize">13</sys:Double>
-        <Thickness x:Key="Flyout.TextButtonBorderThickness">1</Thickness>
         <CornerRadius x:Key="Flyout.TextButtonCornerRadius">4</CornerRadius>
 
         <!-- Format menu -->
         <sys:Double x:Key="Flyout.FormatMenuItemHeight">34</sys:Double>
         <sys:Int32 x:Key="Flyout.FormatMenuMaxVisibleItems">8</sys:Int32>
         <sys:Double x:Key="Flyout.FormatMenuPaddingReserve">8</sys:Double>
-        <Thickness x:Key="Flyout.MenuScrollHostPadding">0</Thickness>
-        <Thickness x:Key="Flyout.MenuBorderThickness">0</Thickness>
-        <Thickness x:Key="Flyout.MenuPadding">2</Thickness>
-        <CornerRadius x:Key="Flyout.MenuCornerRadius">8</CornerRadius>
-        <sys:Double x:Key="Flyout.MenuShadowOffsetY">2</sys:Double>
-        <sys:Double x:Key="Flyout.MenuShadowBlur">20</sys:Double>
-        <CornerRadius x:Key="Flyout.MenuRowCornerRadius">4</CornerRadius>
-        <Thickness x:Key="Flyout.MenuRowMargin">2,0</Thickness>
-        <Thickness x:Key="Flyout.MenuRowPadding">6,6</Thickness>
-        <sys:Double x:Key="Flyout.MenuMarkerColumnWidth">16</sys:Double>
-        <sys:Double x:Key="Flyout.MenuMarkerFontSize">8</sys:Double>
 
         <!-- Inline name editor -->
         <sys:Double x:Key="Flyout.InlineEditorFontSize">14</sys:Double>

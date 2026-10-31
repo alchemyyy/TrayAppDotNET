@@ -10,7 +10,6 @@ using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI.Controls.Maps;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
@@ -43,6 +42,9 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     private readonly SettingsPalette _palette;
     private Color _pinColor;
     private readonly AnimationGenerationTracker _autoPanFrames = new();
+
+    // A mutable struct: a readonly field would run every Add on a defensive copy and lose the remainder
+    private WheelStepAccumulator _wheelSteps;
     private GeoCoordinate _selectedCoordinate = GeoCoordinate.Zero;
     private MapViewportTransform _viewport = MapViewportTransform.Identity;
     private bool _needsCenterOnPin = true;
@@ -119,6 +121,9 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
 
     public void SetPinToViewportCenter() =>
         SetCoordinateFromMapPoint(_viewport.ViewportToMap(new Point(Bounds.Width / 2.0, Bounds.Height / 2.0)));
+
+    /// <summary>Gets the current map zoom, for tests.</summary>
+    internal double ViewportScale => _viewport.Scale;
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -266,11 +271,16 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         e.Handled = true;
     }
 
+    // Horizontal wheels leave the event unhandled; fine touchpad deltas add up to whole zoom steps
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        double factor = e.Delta.Y > 0 ? WheelZoomStep : 1.0 / WheelZoomStep;
-        ZoomAt(e.GetPosition(this), factor);
+        if (e.Delta.Y == 0) return;
+
         e.Handled = true;
+        int steps = _wheelSteps.Add(e.Delta.Y);
+        if (steps == 0) return;
+
+        ZoomAt(e.GetPosition(this), Math.Pow(WheelZoomStep, steps));
     }
 
     private void ZoomAt(Point viewport, double factor)

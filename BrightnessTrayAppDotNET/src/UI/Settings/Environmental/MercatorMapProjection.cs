@@ -1,12 +1,12 @@
 using Avalonia;
 
-namespace TrayAppDotNETCommon.UI.Controls.Maps;
+namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
 /// <summary>
 /// Web Mercator-like projection for cropped world maps.
 /// The latitude range is configurable because bundled map assets often crop Antarctica.
 /// </summary>
-public readonly record struct MercatorMapProjection(
+internal readonly record struct MercatorMapProjection(
     double Width,
     double Height,
     double MinimumLatitude,

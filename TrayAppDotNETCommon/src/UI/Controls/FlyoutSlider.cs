@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Media.TextFormatting;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.Visuals;
@@ -11,15 +12,17 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutSliderLayout
 {
+    // Range and step defaults decide what a gesture does, so they are behavior constants rather than AXAML resources
+    public const double DefaultMaximum = 100;
+    public const double WheelStep = 1;
+    public const double KeyboardStep = 1;
+    public const double LargeKeyboardStep = 10;
+
     private static FlyoutSliderResources AXAMLResources => FlyoutSliderResources.Current;
 
     public static double TrackHeight => AXAMLResources.AxamlFlyoutSlider.TrackHeight;
     public static CornerRadius CapsuleCornerRadius => AXAMLResources.AxamlFlyoutSlider.CapsuleCornerRadius;
-    public static double DefaultMaximum => AXAMLResources.AxamlFlyoutSlider.DefaultMaximum;
     public static double SecondaryOpacity => AXAMLResources.AxamlFlyoutSlider.SecondaryOpacity;
-    public static double WheelStep => AXAMLResources.AxamlFlyoutSlider.WheelStep;
-    public static double KeyboardStep => AXAMLResources.AxamlFlyoutSlider.KeyboardStep;
-    public static double LargeKeyboardStep => AXAMLResources.AxamlFlyoutSlider.LargeKeyboardStep;
     public static double TickHeight => AXAMLResources.AxamlFlyoutSlider.TickHeight;
     public static double TickGap => AXAMLResources.AxamlFlyoutSlider.TickGap;
     public static double TickThickness => AXAMLResources.AxamlFlyoutSlider.TickThickness;
@@ -41,6 +44,13 @@ public readonly record struct FlyoutSliderPeakValues(float Min, float Max)
 
 public sealed class FlyoutSlider : Control, IDisposable
 {
+    private const int MaxCachedBrushes = 32;
+
+    private readonly Dictionary<Color, ImmutableSolidColorBrush> _brushes = [];
+    private ImmutablePen? _tickPen;
+    private Color _tickPenColor;
+    private WheelStepAccumulator _wheelSteps;
+    private int _userAdjustmentDepth;
     private bool _dragging;
     private bool _disposed;
     private IPointer? _capturedPointer;
@@ -253,12 +263,6 @@ public sealed class FlyoutSlider : Control, IDisposable
         get;
         set => field = Math.Max(val1: 0, value);
     } = FlyoutSliderLayout.WheelStep;
-
-    public double WheelStepPercent
-    {
-        get => WheelStep;
-        set => WheelStep = value;
-    }
 
     public double? CoarseWheelStep
     {
@@ -563,12 +567,23 @@ public sealed class FlyoutSlider : Control, IDisposable
         double step = (e.KeyModifiers & KeyModifiers.Control) != 0
             ? CoarseWheelStep ?? WheelStep
             : WheelStep;
-        if (step <= 0) return;
+
+        // A horizontal wheel or swipe is left to an enclosing horizontal scroller
+        if (step <= 0 || e.Delta.Y == 0) return;
+
+        e.Handled = true;
+        int steps = _wheelSteps.Add(e.Delta.Y);
+        if (steps == 0) return;
 
         BeginUserAdjustment();
-        ApplyValueDelta(e.Delta.Y > 0 ? step : -step);
+        ApplyValueDelta(steps * step);
         EndUserAdjustment();
-        e.Handled = true;
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _wheelSteps.Reset();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -658,6 +673,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         IPointer? capturedPointer = _capturedPointer;
         _capturedPointer = null;
         _dragging = false;
+        _userAdjustmentDepth = 0;
         if (capturedPointer != null)
         {
             try
@@ -678,9 +694,23 @@ public sealed class FlyoutSlider : Control, IDisposable
         Cursor = null;
     }
 
-    private void BeginUserAdjustment() => UserAdjustmentStarted?.Invoke(this, EventArgs.Empty);
+    /// <summary>
+    /// Gets whether a user adjustment is in progress: a pointer drag, or a wheel notch or key press while it runs.
+    /// <see cref="UserAdjustmentStarted"/> and <see cref="UserAdjustmentCompleted"/> fire once per outermost
+    /// adjustment, so a wheel notch or key during a drag never ends the drag's gesture early.
+    /// </summary>
+    public bool IsUserAdjusting => _userAdjustmentDepth > 0;
 
-    private void EndUserAdjustment() => UserAdjustmentCompleted?.Invoke(this, EventArgs.Empty);
+    private void BeginUserAdjustment()
+    {
+        if (_userAdjustmentDepth++ == 0) UserAdjustmentStarted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void EndUserAdjustment()
+    {
+        if (_userAdjustmentDepth == 0) return;
+        if (--_userAdjustmentDepth == 0) UserAdjustmentCompleted?.Invoke(this, EventArgs.Empty);
+    }
 
     private double Range => Math.Max(val1: 0.001, Maximum - Minimum);
 
@@ -705,7 +735,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         double tickThickness = FlyoutSliderLayout.TickThickness;
         if (tickHeight <= 0 || tickThickness <= 0) return;
 
-        Pen pen = new(new SolidColorBrush(WithOpacity(TickColor, FlyoutSliderLayout.TickOpacity)), tickThickness);
+        IPen pen = TickPen(WithOpacity(TickColor, FlyoutSliderLayout.TickOpacity), tickThickness);
         double topEnd = trackY - tickGap;
         double bottomStart = trackY + FlyoutSliderLayout.TrackHeight + tickGap;
         for (int index = 0; index < ticks.Count; index++)
@@ -784,7 +814,7 @@ public sealed class FlyoutSlider : Control, IDisposable
     /// <summary>
     /// Draws the slider thumb geometry with an explicit color.
     /// </summary>
-    private static void DrawThumbShape(
+    private void DrawThumbShape(
         DrawingContext context,
         Rect thumbBounds,
         SliderThumbGlyphOption thumb,
@@ -793,7 +823,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         if (thumb.IsCapsule)
         {
             context.DrawRectangle(
-                new SolidColorBrush(color),
+                BrushFor(color),
                 pen: null,
                 new RoundedRect(thumbBounds, FlyoutSliderLayout.CapsuleCornerRadius));
             return;
@@ -803,7 +833,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             thumb.Glyph,
             new Typeface(thumb.FontFamily),
             thumb.FontSize,
-            new SolidColorBrush(color),
+            BrushFor(color),
             textWrapping: TextWrapping.NoWrap,
             maxLines: 1);
 
@@ -843,16 +873,37 @@ public sealed class FlyoutSlider : Control, IDisposable
             WithOpacity(IndicatorColor, IndicatorOpacity));
     }
 
-    private static void DrawRoundedRect(DrawingContext context, Rect rect, Color color, double radius = double.NaN) =>
+    private void DrawRoundedRect(DrawingContext context, Rect rect, Color color, double radius = double.NaN) =>
         context.DrawRectangle(
-            new SolidColorBrush(color),
+            BrushFor(color),
             pen: null,
             new RoundedRect(rect, double.IsNaN(radius) ? FlyoutSliderLayout.TrackHeight / 2.0 : radius));
+
+    /// <summary>Returns a shared immutable brush, so rendering a frame allocates no brushes.</summary>
+    private ImmutableSolidColorBrush BrushFor(Color color)
+    {
+        if (_brushes.TryGetValue(color, out ImmutableSolidColorBrush? brush)) return brush;
+
+        // The slider draws a handful of colours; a palette or opacity change replaces the whole set
+        if (_brushes.Count >= MaxCachedBrushes) _brushes.Clear();
+        brush = new ImmutableSolidColorBrush(color);
+        _brushes[color] = brush;
+        return brush;
+    }
+
+    private ImmutablePen TickPen(Color color, double thickness)
+    {
+        if (_tickPen is { } pen && _tickPenColor == color && Math.Abs(pen.Thickness - thickness) < 0.001) return pen;
+
+        _tickPenColor = color;
+        _tickPen = new ImmutablePen(BrushFor(color), thickness);
+        return _tickPen;
+    }
 
     /// <summary>
     /// Draws a full-height slider progress segment.
     /// </summary>
-    private static void DrawProgress(
+    private void DrawProgress(
         DrawingContext context,
         double trackY,
         double width,

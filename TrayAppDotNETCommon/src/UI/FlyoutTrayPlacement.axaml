@@ -1,0 +1,19 @@
+<ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.FlyoutTrayPlacementResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Tray flyout placement; DIP values scale with the flyout's monitor -->
+    <sys:Double x:Key="FlyoutPlacement.EdgePadding">8</sys:Double>
+    <sys:Double x:Key="FlyoutPlacement.WorkAreaMinHeight">220</sys:Double>
+    <sys:Double x:Key="FlyoutPlacement.SnapTolerancePercent">0.02</sys:Double>
+    <sys:Double x:Key="FlyoutPlacement.CompanionGap">2</sys:Double>
+    <sys:Int32 x:Key="FlyoutPlacement.PixelMinSize">1</sys:Int32>
+
+    <!-- Work area used only when neither Win32 nor Avalonia reports a monitor -->
+    <sys:Int32 x:Key="FlyoutPlacement.FallbackWorkAreaX">0</sys:Int32>
+    <sys:Int32 x:Key="FlyoutPlacement.FallbackWorkAreaY">0</sys:Int32>
+    <sys:Int32 x:Key="FlyoutPlacement.FallbackWorkAreaWidth">1920</sys:Int32>
+    <sys:Int32 x:Key="FlyoutPlacement.FallbackWorkAreaHeight">1080</sys:Int32>
+</ResourceDictionary>

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
@@ -16,8 +17,6 @@ public sealed class FlyoutUndockButtonOptions
     public Func<bool>? CanStartInteraction { get; init; }
     public Action<bool>? DraggingChanged { get; init; }
     public Action<FlyoutDockStateChange?>? InteractionCompleted { get; init; }
-    public Func<string> UndockTooltip { get; init; } = static () => "Undock";
-    public Func<string> RedockTooltip { get; init; } = static () => "Redock";
     public double Width { get; init; } = FlyoutUndockButtonLayout.Width;
     public double Height { get; init; } = FlyoutUndockButtonLayout.Height;
     public double FontSize { get; init; } = FlyoutUndockButtonLayout.FontSize;
@@ -38,8 +37,6 @@ public sealed class FlyoutUndockButtonController : IDisposable
     private readonly Func<bool>? _canStartInteraction;
     private readonly Action<bool>? _draggingChanged;
     private readonly Action<FlyoutDockStateChange?>? _interactionCompleted;
-    private readonly Func<string> _undockTooltip;
-    private readonly Func<string> _redockTooltip;
     private readonly double _dragThreshold;
     private readonly bool _applyGlyphFontFamily;
 
@@ -56,8 +53,6 @@ public sealed class FlyoutUndockButtonController : IDisposable
         _canStartInteraction = options.CanStartInteraction;
         _draggingChanged = options.DraggingChanged;
         _interactionCompleted = options.InteractionCompleted;
-        _undockTooltip = options.UndockTooltip ?? throw new ArgumentNullException(nameof(options.UndockTooltip));
-        _redockTooltip = options.RedockTooltip ?? throw new ArgumentNullException(nameof(options.RedockTooltip));
         _dragThreshold = options.DragThreshold;
         _applyGlyphFontFamily = options.FontFamily == null;
 
@@ -96,7 +91,11 @@ public sealed class FlyoutUndockButtonController : IDisposable
     public void UpdateVisual()
     {
         GlyphApplicator.ApplyTo(Glyph, CurrentGlyph(), _applyGlyphFontFamily);
-        TrayAppDotNETToolTip.SetTip(Button, _docking.IsUndocked ? _redockTooltip() : _undockTooltip());
+        TrayAppDotNETToolTip.SetTip(
+            Button,
+            LocalizationManager.Instance[_docking.IsUndocked
+                ? nameof(CommonStrings.Flyout_Redock_Tooltip)
+                : nameof(CommonStrings.Flyout_Undock_Tooltip)]);
     }
 
     private Glyph CurrentGlyph() =>

@@ -13,6 +13,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 public sealed class FlyoutButtonState
 {
     private readonly Border _button;
+    private readonly Border _surface;
     private readonly Func<IBrush> _normalBrush;
     private readonly Func<IBrush> _hoverBrush;
     private readonly Func<IBrush> _pressedBrush;
@@ -29,9 +30,11 @@ public sealed class FlyoutButtonState
         Func<IBrush> pressedBrush,
         Action<ControlActivation> click,
         bool enabled,
-        Action<ControlActivation>? rightClick)
+        Action<ControlActivation>? rightClick,
+        Border? surface)
     {
         _button = button;
+        _surface = surface ?? button;
         _normalBrush = normalBrush;
         _hoverBrush = hoverBrush;
         _pressedBrush = pressedBrush;
@@ -72,6 +75,10 @@ public sealed class FlyoutButtonState
         }
     }
 
+    /// <summary>
+    /// Attaches hover, press and activation behavior to <paramref name="button"/>. A <paramref name="surface"/> inside
+    /// the button receives the state brushes instead, for a hit target larger than its visible face.
+    /// </summary>
     public static FlyoutButtonState Attach(
         Border button,
         Func<IBrush> normalBrush,
@@ -79,12 +86,13 @@ public sealed class FlyoutButtonState
         Func<IBrush> pressedBrush,
         Action<ControlActivation> click,
         bool enabled = true,
-        Action<ControlActivation>? rightClick = null) =>
-        new(button, normalBrush, hoverBrush, pressedBrush, click, enabled, rightClick);
+        Action<ControlActivation>? rightClick = null,
+        Border? surface = null) =>
+        new(button, normalBrush, hoverBrush, pressedBrush, click, enabled, rightClick, surface);
 
     public void Refresh()
     {
-        _button.Background = !_isEnabled
+        _surface.Background = !_isEnabled
             ? _normalBrush()
             : _isPressed
                 ? _pressedBrush()

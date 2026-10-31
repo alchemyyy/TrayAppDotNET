@@ -91,7 +91,6 @@
         <!-- Transform layout -->
         <Thickness x:Key="ProbeSelector.TruncateToggleMargin">0,2,-12,0</Thickness>
         <Thickness x:Key="ProbeSelector.TruncateToggleLabelMargin">4,0,0,0</Thickness>
-        <Thickness x:Key="ProbeSelector.TransformRowMargin">0,6,0,0</Thickness>
         <Thickness x:Key="ProbeSelector.TransformLabelMargin">2,0,1,0</Thickness>
         <Thickness x:Key="ProbeSelector.TransformBoxPadding">4,0</Thickness>
 

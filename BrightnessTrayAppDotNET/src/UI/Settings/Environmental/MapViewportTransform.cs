@@ -1,8 +1,8 @@
 using Avalonia;
 
-namespace TrayAppDotNETCommon.UI.Controls.Maps;
+namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
-public readonly record struct MapViewportTransform(double Scale, Vector Offset)
+internal readonly record struct MapViewportTransform(double Scale, Vector Offset)
 {
     public static readonly MapViewportTransform Identity = new(Scale: 1.0, Offset: default);
 

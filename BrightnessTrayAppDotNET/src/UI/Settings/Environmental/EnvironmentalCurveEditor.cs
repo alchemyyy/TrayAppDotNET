@@ -31,7 +31,7 @@ public readonly record struct EnvironmentalCurveEditorPalette(
 
     public static EnvironmentalCurveEditorPalette FromAppTheme(AppTheme theme, bool isLight) =>
         FromSettingsPalette(
-            CreateSettingsPalette(theme, isLight),
+            AppSettingsPalette.Create(theme, settings: null, isLight),
             theme.EnvironmentalBrightnessCurve.For(isLight),
             theme.EnvironmentalNightLightCurve.For(isLight),
             theme.EnvironmentalCurrentTime.For(isLight),
@@ -68,30 +68,6 @@ public readonly record struct EnvironmentalCurveEditorPalette(
             previewTint,
             palette.Accent);
     }
-
-    private static SettingsPalette CreateSettingsPalette(AppTheme theme, bool isLight) =>
-        new(
-            theme.Background.For(isLight),
-            theme.Foreground.For(isLight),
-            theme.Border.For(isLight),
-            theme.Hover.For(isLight),
-            theme.Pressed.For(isLight),
-            theme.CardBackground.For(isLight),
-            theme.ControlBackground.For(isLight),
-            theme.SecondaryForeground.For(isLight),
-            theme.DisabledForeground.For(isLight),
-            theme.Accent.For(isLight),
-            theme.ToggleSwitchOnTrack.For(isLight),
-            theme.ToggleSwitchOnThumb.For(isLight),
-            theme.TextBoxFocused.For(isLight),
-            theme.SearchListItemSelected.For(isLight),
-            theme.SearchListItemHover.For(isLight),
-            theme.SliderProgress.For(isLight),
-            theme.SliderTrack.For(isLight),
-            theme.SliderThumb.For(isLight),
-            theme.CloseButtonHover.For(isLight),
-            theme.CloseButtonPressed.For(isLight),
-            theme.CloseButtonGlyphActive.For(isLight));
 }
 
 /// <summary>
@@ -137,12 +113,15 @@ public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
     private const double TimeAxisLabelFontSize = 11.0;
     private const int VerticalGridDivisions = 4;
     private const int HorizontalGridDivisions = 8;
-    private const double KeyboardStepFine = 1.0;
-    private const double KeyboardStepCoarse = 6.0;
+    // X is a day fraction, Y a value on the 0..100 storage scale
+    internal const double KeyboardTimeStepFine = 15.0 / (24.0 * 60.0);
+    internal const double KeyboardTimeStepCoarse = 1.0 / 24.0;
+    internal const double KeyboardTimeStepOneMinute = 1.0 / (24.0 * 60.0);
+    internal const double KeyboardValueStepFine = 1.0;
+    internal const double KeyboardValueStepCoarse = 6.0;
     private const double KeyboardSpacebarOffset = 0.04;
-    private const double KeyboardStepOneMinute = 1.0 / (24.0 * 60.0);
-    private const double KeyboardStepOneYUnitAbsolute = 1.0;
-    private const double KeyboardStepOneYUnitOffset = 0.5;
+    internal const double KeyboardValueStepOneUnitAbsolute = 1.0;
+    internal const double KeyboardValueStepOneUnitOffset = 0.5;
     private const double NodeCreationSnapWindowDayFraction = 5.0 / (24.0 * 60.0);
     private const double MinimumPointSeparation = 0.001;
     private const double MinimumLimitSeparation = 0.5;

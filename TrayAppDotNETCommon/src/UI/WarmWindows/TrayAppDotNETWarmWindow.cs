@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.WarmWindows;
 
@@ -123,6 +124,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         if (_disposed) return;
         if (Cached == null) return;
         if (Cached.IsVisible) return;
+        if (DefersEvictionForUpdate(Cached)) return;
 
         EvictNow();
     }
@@ -160,8 +162,6 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
                 Detach(window);
                 Cached = null;
             }
-
-            TrayAppDotNETWarmWindowResourcePurger.RequestAfterEviction(logError);
         }
     }
 
@@ -227,8 +227,19 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         CancelIdleEviction();
         if (Cached is { IsVisible: true }) return;
         if (isKeepWarmEnabled()) return;
+        if (DefersEvictionForUpdate(Cached)) return;
 
         EvictNow();
+    }
+
+    // A hidden window that owns a confirmed update download, or a prompt for one, stays until that flow ends, so idle
+    // eviction never strands it; the next idle period after the flow evicts it as usual
+    private bool DefersEvictionForUpdate(TWindow? window)
+    {
+        if (window == null || !TrayAppDotNETUpdatePromptPresenter.IsBusy(window)) return false;
+
+        ScheduleIdleEviction();
+        return true;
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)

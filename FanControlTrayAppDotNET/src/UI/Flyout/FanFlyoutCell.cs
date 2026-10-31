@@ -8,7 +8,6 @@ namespace FanControlTrayAppDotNET.UI.Flyout;
 
 public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
 {
-    private static readonly Lazy<FanFlyoutCellResources> Resources = new(LoadResources);
     private bool _disposed;
 
     public FanFlyoutCell(FanGroup? groupSettings, IEnumerable<Fan> fans)
@@ -39,7 +38,9 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
         IsGroupCollapsed ? GlyphCatalog.COLLAPSED : GlyphCatalog.EXPANDED;
 
     public string GroupExpansionTooltip =>
-        IsGroupCollapsed ? "Expand group" : "Collapse group";
+        LocalizationManager.Instance[IsGroupCollapsed
+            ? nameof(AppStrings.Flyout_ExpandGroup_Tooltip)
+            : nameof(AppStrings.Flyout_CollapseGroup_Tooltip)];
 
     public FanControlMode GroupCurrentControlMode
     {
@@ -63,15 +64,15 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
 
     public string GroupFanDisplayedValueSuffix => GroupRPMMode ? " RPM" : "%";
 
-    public static int GroupFanDisplayedValueSlotWidth =>
-        Resources.Value.AxamlFanFlyoutCell.GroupFanDisplayedValueSlotWidth;
+    // Group sliders edit a fan duty cycle in percent, so their range is behavior rather than an AXAML resource
+    public const int GroupFanSliderMaximum = 100;
 
-    public static int GroupFanSliderMaximum =>
-        Resources.Value.AxamlFanFlyoutCell.GroupFanSliderMaximum;
+    public static int GroupFanDisplayedValueSlotWidth =>
+        FanFlyoutCellResources.Current.AxamlFanFlyoutCell.GroupFanDisplayedValueSlotWidth;
 
     public int GroupDisplayedValueSlotWidth =>
         GroupRPMMode
-            ? Resources.Value.AxamlFanFlyoutCell.GroupRPMDisplayedValueSlotWidth
+            ? FanFlyoutCellResources.Current.AxamlFanFlyoutCell.GroupRPMDisplayedValueSlotWidth
             : GroupFanDisplayedValueSlotWidth;
 
     public int GroupSliderMaximum => GroupRPMMode ? ResolveGroupRPMMaximum() : GroupFanSliderMaximum;
@@ -81,13 +82,13 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
         get
         {
             if (GroupSettings != null) return GroupSettings.AssignedCurveDisplayLabel;
-            if (Fans.Count == 0) return "Curve: None";
+            if (Fans.Count == 0) return LocalizationManager.Instance[nameof(AppStrings.Fan_CurveLabel_None)];
 
             string first = Fans[0].AssignedCurveDisplayLabel;
             foreach (Fan fan in Fans)
             {
                 if (!string.Equals(first, fan.AssignedCurveDisplayLabel, StringComparison.Ordinal))
-                    return "Mixed curves";
+                    return LocalizationManager.Instance[nameof(AppStrings.Flyout_MixedCurves)];
             }
 
             return first;
@@ -185,9 +186,4 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
 
         return Math.Max(val1: 100, maximum);
     }
-
-    /// <summary>
-    /// Loads flyout-cell layout resources from AXAML.
-    /// </summary>
-    private static FanFlyoutCellResources LoadResources() => new();
 }

@@ -9,18 +9,8 @@
     <ui:FlyoutWindowCommon.Resources>
         <!-- Window geometry and docking -->
         <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
-        <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
         <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
-        <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
-        <sys:Double x:Key="Flyout.WorkAreaMinHeight">220</sys:Double>
-        <sys:Double x:Key="Flyout.PixelMinSize">1</sys:Double>
-        <sys:Int32 x:Key="Flyout.OffscreenPosition">-32000</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaX">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaY">0</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaWidth">1920</sys:Int32>
-        <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
         <sys:Int32 x:Key="Flyout.FanPropertiesRowsPerColumn">2</sys:Int32>
-        <sys:Double x:Key="Flyout.FanPropertiesGap">2</sys:Double>
         <sys:Double x:Key="Flyout.MaxSettingSpacing">48</sys:Double>
 
         <!-- Root frame -->
@@ -37,7 +27,6 @@
         <sys:Double x:Key="Flyout.HeaderIconButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.HeaderIconButtonFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.HeaderManagerIconButtonFontSize">17</sys:Double>
-        <CornerRadius x:Key="Flyout.HeaderIconButtonCornerRadius">4</CornerRadius>
 
         <!-- Profile buttons -->
         <sys:Double x:Key="Flyout.ProfileLabelFontSize">14</sys:Double>
@@ -88,7 +77,6 @@
         <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonHeight">24</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonFontSize">16</sys:Double>
-        <Thickness x:Key="Flyout.ModeButtonGroupedMargin">0,0,8,0</Thickness>
         <Thickness x:Key="Flyout.ModeButtonUngroupedMargin">-4,-2,12,0</Thickness>
         <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
         <Thickness x:Key="Flyout.SliderRowMargin">-5,2,3,0</Thickness>
@@ -128,26 +116,13 @@
         <sys:Double x:Key="Flyout.ProbeEmptyFontSize">11</sys:Double>
         <sys:Double x:Key="Flyout.ProbeEmptyOpacity">0.7</sys:Double>
 
-        <!-- Confirmation dialog -->
-        <sys:Double x:Key="Flyout.ConfirmTitleFontSize">14</sys:Double>
-        <Thickness x:Key="Flyout.ConfirmTitleMargin">0,0,0,8</Thickness>
-        <Thickness x:Key="Flyout.ConfirmMessageMargin">0,0,0,14</Thickness>
-        <Thickness x:Key="Flyout.ConfirmCancelMargin">0,0,8,0</Thickness>
-        <Thickness x:Key="Flyout.ConfirmBorderThickness">1</Thickness>
-        <CornerRadius x:Key="Flyout.ConfirmCornerRadius">4</CornerRadius>
-        <Thickness x:Key="Flyout.ConfirmPadding">16</Thickness>
-        <sys:Double x:Key="Flyout.ConfirmMinWidth">260</sys:Double>
-        <sys:Double x:Key="Flyout.ConfirmMaxWidth">300</sys:Double>
-
         <!-- Drag-and-drop feedback -->
         <sys:Double x:Key="Flyout.FullOpacity">1</sys:Double>
         <sys:Double x:Key="Flyout.RelinquishedControlOpacity">0.42</sys:Double>
         <sys:Double x:Key="Flyout.InactiveSliderValueOpacity">0.2</sys:Double>
-        <sys:Double x:Key="Flyout.DragGhostOpacity">0.84</sys:Double>
         <sys:Double x:Key="Flyout.DragGhostShadowOffsetY">2</sys:Double>
         <sys:Double x:Key="Flyout.DragGhostShadowBlur">18</sys:Double>
         <sys:Double x:Key="Flyout.DropMarkerHeight">3</sys:Double>
-        <CornerRadius x:Key="Flyout.DropMarkerCornerRadius">2</CornerRadius>
         <sys:Double x:Key="Flyout.DragSourceOpacity">0</sys:Double>
         <sys:Double x:Key="Flyout.DragDebugMarkerHeight">1</sys:Double>
         <sys:Double x:Key="Flyout.DragDebugMarkerOpacity">0.85</sys:Double>
