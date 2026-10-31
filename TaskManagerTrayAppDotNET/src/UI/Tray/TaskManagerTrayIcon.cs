@@ -8,7 +8,7 @@ internal sealed record TaskManagerTrayIconRenderInput(
     double[] Values,
     double[]? CPUHighestCoreValues = null);
 
-internal sealed class TaskManagerTrayIcon : IDisposable
+internal sealed class TaskManagerTrayIcon : ITrayIconRenderer<TaskManagerTrayIconRenderInput>
 {
     public const int HistoryCapacity = 16;
 
@@ -43,11 +43,13 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     private static readonly SKColor TopAndLeftBorderColor = new(red: 100, green: 100, blue: 100);
     private static readonly SKColor RightAndBottomBorderColor = new(red: 185, green: 185, blue: 185);
 
-    private readonly Lock _gate = new();
     private readonly SystemPerformanceSample[] _history = new SystemPerformanceSample[HistoryCapacity];
     private int _historyStart;
     private int _historyCount;
-    private bool _disposed;
+
+    public TrayGraphStyle Style { get; set; }
+    public TrayGraphDataSource DataSource { get; set; }
+    public bool ShowCPUHighestCoreTrace { get; set; }
 
     /// <summary>Adds one sample to the fixed-size chronological history.</summary>
     public void AddSample(SystemPerformanceSample sample)
@@ -63,6 +65,10 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         _history[_historyStart] = sample;
         _historyStart = (_historyStart + 1) % _history.Length;
     }
+
+    /// <summary>Creates the render input of the current settings and history; every sample changes it.</summary>
+    public TaskManagerTrayIconRenderInput CreateRenderInput() =>
+        CreateRenderInput(Style, DataSource, ShowCPUHighestCoreTrace);
 
     /// <summary>Creates an immutable background-render input from the selected metric.</summary>
     public TaskManagerTrayIconRenderInput CreateRenderInput(
@@ -94,38 +100,21 @@ internal sealed class TaskManagerTrayIcon : IDisposable
             cpuHighestCoreValues);
     }
 
-    /// <summary>Renders a caller-owned native icon for the shared background render queue.</summary>
-    public NativeIcon? RenderIcon(TaskManagerTrayIconRenderInput input)
+    /// <summary>Renders a caller-owned native icon on the presenter's render thread.</summary>
+    public NativeIcon RenderIcon(TaskManagerTrayIconRenderInput input, int iconSize)
     {
         ArgumentNullException.ThrowIfNull(input);
-        try
-        {
-            lock (_gate)
-            {
-                if (_disposed) return null;
-
-                int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-                byte[] png = RenderPng(iconSize, input);
-                return NativeIcon.FromIconImage(png, iconSize);
-            }
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"TaskManagerTrayIcon.RenderIcon: {exception.Message}");
-            return AppThemeStore.LoadAppNativeIcon();
-        }
+        return TrayIconRasterizer.Render(iconSize, input, Draw);
     }
 
     internal static byte[] RenderPng(int size, TaskManagerTrayIconRenderInput input)
     {
-        if (size <= 0) throw new ArgumentOutOfRangeException(nameof(size));
         ArgumentNullException.ThrowIfNull(input);
+        return TrayIconRasterizer.RenderPng(size, input, Draw);
+    }
 
-        SKImageInfo imageInfo = new(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using SKBitmap bitmap = new(imageInfo);
-        using SKCanvas canvas = new(bitmap);
-        canvas.Clear(SKColors.Transparent);
-
+    private static void Draw(SKCanvas canvas, int size, TaskManagerTrayIconRenderInput input)
+    {
         float renderedIconScaleX = RenderedIconScale * RenderedIconWidthScale;
         float renderedIconInsetX = size * (1.0f - renderedIconScaleX) / 2.0f;
         float renderedIconInsetY = size * (1.0f - RenderedIconScale) / 2.0f
@@ -169,10 +158,6 @@ internal sealed class TaskManagerTrayIcon : IDisposable
         canvas.Restore();
         canvas.Restore();
         DrawBorder(canvas, size, borderWidth, cornerRadius);
-
-        using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
-        return data.ToArray();
     }
 
     private static void DrawGraph(
@@ -242,11 +227,11 @@ internal sealed class TaskManagerTrayIcon : IDisposable
 
     private static void BuildCurrentGraphPaths(
         SKRect graphBounds,
-        IReadOnlyList<double> values,
+        double[] values,
         SKPath underfillPath,
         SKPath linePath)
     {
-        double currentPercent = values.Count > 0 ? NormalizePercent(values[^1]) : 0;
+        double currentPercent = values.Length > 0 ? NormalizePercent(values[^1]) : 0;
         float graphTop = PercentToY(graphBounds, currentPercent);
         underfillPath.MoveTo(graphBounds.Left, graphBounds.Bottom);
         underfillPath.LineTo(graphBounds.Left, graphTop);
@@ -259,20 +244,20 @@ internal sealed class TaskManagerTrayIcon : IDisposable
 
     private static void BuildMarqueeGraphPaths(
         SKRect graphBounds,
-        IReadOnlyList<double> values,
+        double[] values,
         SKPath underfillPath,
         SKPath linePath)
     {
-        if (values.Count == 0) return;
-        if (values.Count == 1)
+        if (values.Length == 0) return;
+        if (values.Length == 1)
         {
             BuildCurrentGraphPaths(graphBounds, values, underfillPath, linePath);
             return;
         }
 
-        double[] samplePositions = TaskManagerTrayGraphSampler.CreateSamplePositions(values.Count);
+        double[] samplePositions = TaskManagerTrayGraphSampler.CreateSamplePositions(values.Length);
         underfillPath.MoveTo(graphBounds.Left, graphBounds.Bottom);
-        for (int sampleIndex = 0; sampleIndex < values.Count; sampleIndex++)
+        for (int sampleIndex = 0; sampleIndex < values.Length; sampleIndex++)
         {
             float graphX = graphBounds.Left
                            + (float)samplePositions[sampleIndex] * graphBounds.Width;
@@ -481,9 +466,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
     private static double NormalizePercent(double value) =>
         double.IsFinite(value) ? Math.Clamp(value, min: 0, max: 100) : 0;
 
+    // Nothing to release: each render owns its bitmap and the history is managed memory
     public void Dispose()
     {
-        lock (_gate)
-            _disposed = true;
     }
 }

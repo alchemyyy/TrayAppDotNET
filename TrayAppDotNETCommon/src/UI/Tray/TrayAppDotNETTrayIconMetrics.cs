@@ -1,10 +1,9 @@
 using TrayAppDotNETCommon.Interop;
 
-namespace TrayAppDotNETCommon.UI;
+namespace TrayAppDotNETCommon.UI.Tray;
 
 public static class TrayAppDotNETTrayIconMetrics
 {
-    private const string TaskbarWindowClassName = "Shell_TrayWnd";
     private const uint DefaultDPI = 96;
     private const int DefaultSmallIconSize = 16;
 
@@ -13,7 +12,7 @@ public static class TrayAppDotNETTrayIconMetrics
 
     public static uint GetTaskbarDPI()
     {
-        IntPtr taskbarHwnd = User32.FindWindow(TaskbarWindowClassName, lpWindowName: null);
+        IntPtr taskbarHwnd = User32.FindWindow(TrayAppDotNETConstants.TaskbarWindowClassName, lpWindowName: null);
         if (taskbarHwnd != IntPtr.Zero)
         {
             uint dpi = User32.GetDpiForWindow(taskbarHwnd);

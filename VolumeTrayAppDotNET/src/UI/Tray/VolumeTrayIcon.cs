@@ -4,115 +4,40 @@ using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace VolumeTrayAppDotNET.UI.Tray;
 
-internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
+/// <summary>
+/// Volume's tray glyph: the volume tier over a translucent full-volume backdrop. The render input holds only the tier
+/// glyphs and the color, so a volume change within one tier never renders.
+/// </summary>
+internal sealed class VolumeTrayIcon(AppTheme? theme) : ITrayIconRenderer<TrayIconRenderInput>
 {
     private const double BackdropOpacityValue = 0.21;
-    private const float MeasureFontScale = 1f;
-
-    private static readonly SKFontStyle IconFontStyle = new(
-        SKFontStyleWeight.Normal,
-        SKFontStyleWidth.Normal,
-        SKFontStyleSlant.Upright);
 
     private readonly TrayIconRenderer _renderer = new(new TrayIconRenderOptions
     {
         IconFontFamilies = [GlyphCatalog.SEGOE_FLUENT_ICONS, GlyphCatalog.SEGOE_MDL2_ASSETS],
-        IconFontStyle = IconFontStyle,
+        IconFontStyle = SKFontStyle.Normal,
         FontEdging = SKFontEdging.Antialias,
         Subpixel = false,
-        MeasureFontScale = MeasureFontScale,
-        FallbackIcon = AppTheme.LoadAppNativeIcon,
         Log = TADNLog.Log
     });
 
     private readonly AppTheme _theme = theme ?? AppTheme.Default;
-    private bool _isDirty = true;
 
-    public bool IsLightTheme
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            _isDirty = true;
-        }
-    }
+    public bool IsLightTheme { get; set; }
 
     public float Volume
     {
         get;
-        set
-        {
-            float clamped = Math.Clamp(value, min: 0f, max: 1f);
-            if (Math.Abs(field - clamped) < 0.0001f) return;
-            Glyph oldGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
-            field = clamped;
-            Glyph newGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
-            if (oldGlyph != newGlyph) _isDirty = true;
-        }
+        set => field = Math.Clamp(value, min: 0f, max: 1f);
     }
 
-    public bool IsMuted
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            _isDirty = true;
-        }
-    }
+    public bool IsMuted { get; set; }
+    public Color? TrayIconColorOverride { get; set; }
 
-    public Color? TrayIconColorOverride
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            _isDirty = true;
-        }
-    }
-
-    /// <summary>
-    /// Forces the next dirty-check render path to create a new icon input.
-    /// </summary>
-    public void InvalidateCache() => _isDirty = true;
-
-    /// <summary>
-    /// Creates and caches a tray icon for the current dirty render state.
-    /// </summary>
-    public NativeIcon? CreateIcon()
-    {
-        if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
-
-        return _renderer.Render(input);
-    }
-
-    /// <summary>
-    /// Creates the render input for the current tray icon state.
-    /// </summary>
     public TrayIconRenderInput CreateRenderInput() =>
         new(ResolveGlyphs(), ResolveColor(), BackdropOpacityValue);
 
-    /// <summary>
-    /// Creates a render input only when the renderer's dirty state requires it.
-    /// </summary>
-    public bool TryCreateRenderInput(out TrayIconRenderInput? input)
-    {
-        input = null;
-        if (!_isDirty) return false;
-
-        _isDirty = false;
-        input = CreateRenderInput();
-        return true;
-    }
-
-    /// <summary>
-    /// Renders a caller-owned tray icon from a precomputed render input.
-    /// </summary>
-    public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
+    public NativeIcon RenderIcon(TrayIconRenderInput input, int iconSize) => _renderer.Render(input, iconSize);
 
     private TrayIconGlyphLayer ResolveGlyphs()
     {

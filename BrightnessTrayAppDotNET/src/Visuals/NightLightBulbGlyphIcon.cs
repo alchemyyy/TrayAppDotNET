@@ -1,4 +1,5 @@
 using SkiaSharp;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 

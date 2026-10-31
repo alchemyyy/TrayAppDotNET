@@ -15,12 +15,6 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.ContextMenus;
 
-public enum ContextMenuPlacement
-{
-    Classic,
-    Modern
-}
-
 public sealed record ContextMenuEntry(string Text, Action Click)
 {
     public Glyph? LeadingGlyph { get; init; }
@@ -47,12 +41,6 @@ public sealed class ContextMenuEntryBuilder
     private bool _nextHasTopRule;
 
     public int Count => _entries.Count;
-
-    public void Add(string text, Action click, string? trailingGlyph = null) =>
-        Add(new ContextMenuEntry(text, click) { TrailingGlyph = trailingGlyph });
-
-    public void AddSubmenu(string text, Func<IReadOnlyList<ContextMenuEntry>> submenuFactory) =>
-        Add(new ContextMenuEntry(text, static () => { }) { SubmenuFactory = submenuFactory });
 
     public void Add(ContextMenuEntry entry)
     {
@@ -95,21 +83,7 @@ public class ContextMenuWindowOptions
     /// <summary>Controls whether showing the menu transfers keyboard focus into its window.</summary>
     public bool ActivateOnShow { get; init; } = true;
 
-    public double LeadingGlyphFontSize { get; init; } = 16;
-    public double LeadingGlyphColumnWidth { get; init; } = 24;
-    public double TrailingGlyphFontSize { get; init; } = 12;
-    public string SubmenuGlyph { get; init; } = "\uE76C";
     public ITrayAppDotNETTrayMenuSettings? ContextMenuSettings { get; init; }
-    public bool UseSystemSubmenuShowDelay { get; init; }
-
-    public int SubmenuShowDelayMilliseconds { get; init; } =
-        TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
-
-    public int EdgePadding { get; init; } = 8;
-    public int OffscreenPosition { get; init; } = -32000;
-    public int FallbackWorkAreaWidth { get; init; } = 1920;
-    public int FallbackWorkAreaHeight { get; init; } = 1080;
-    public int PixelMinSize { get; init; } = 1;
 
     public Thickness RootBorderThickness { get; init; } = new(0);
     public CornerRadius RootCornerRadius { get; init; } = new(8);
@@ -117,20 +91,32 @@ public class ContextMenuWindowOptions
     public CornerRadius ItemCornerRadius { get; init; } = new(4);
     public Thickness ItemPadding { get; init; } = new(6);
     public Thickness ItemMargin { get; init; } = new(horizontal: 2, vertical: 0);
-    public Thickness RuleMargin { get; init; } = new(horizontal: -2, vertical: 0);
-    public Thickness LeadingGlyphMargin { get; init; } = new(left: 0, top: 0, right: 8, bottom: 0);
-    public Thickness TrailingGlyphMargin { get; init; } = new(left: 24, top: 0, right: 0, bottom: 0);
     public double ItemMinWidth { get; init; } = 150;
-    public double RuleHeight { get; init; } = 1;
-    public double RowRuleSpacing { get; init; } = 4;
     public double RowSpacing { get; init; } = 2;
-    public double ShadowOffsetY { get; init; } = 2;
-    public double ShadowBlur { get; init; } = 20;
+
+    /// <summary>Caps the height of the rows' scroll viewer in DIPs, below the work-area or owner limit.</summary>
+    public double MaxHeight { get; init; } = double.PositiveInfinity;
 }
 
 public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 {
     internal static readonly int SystemSubmenuShowDelayMilliseconds = ResolveSystemSubmenuShowDelayMilliseconds();
+
+    private const double LeadingGlyphFontSize = 16;
+    private const double LeadingGlyphColumnWidth = 24;
+    private const double TrailingGlyphFontSize = 12;
+    private const int EdgePadding = 8;
+    private const int OffscreenPosition = -32000;
+    private const int FallbackWorkAreaWidth = 1920;
+    private const int FallbackWorkAreaHeight = 1080;
+    private const int PixelMinSize = 1;
+    private const double RuleHeight = 1;
+    private const double RowRuleSpacing = 4;
+    private const double ShadowOffsetY = 2;
+    private const double ShadowBlur = 20;
+    private static readonly Thickness RuleMargin = new(horizontal: -2, vertical: 0);
+    private static readonly Thickness LeadingGlyphMargin = new(left: 0, top: 0, right: 8, bottom: 0);
+    private static readonly Thickness TrailingGlyphMargin = new(left: 24, top: 0, right: 0, bottom: 0);
 
     private readonly ContextMenuWindowOptions _options;
     private readonly UIResourceScope _windowResources;
@@ -355,7 +341,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             root.BoxShadow = new BoxShadows(new BoxShadow
             {
-                OffsetY = _options.ShadowOffsetY, Blur = _options.ShadowBlur, Color = shadowColor
+                OffsetY = ShadowOffsetY, Blur = ShadowBlur, Color = shadowColor
             });
         }
 
@@ -370,7 +356,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
-        ContextMenuPlacement placement)
+        TrayAppDotNETContextMenuPosition placement)
     {
         if (_closed) return;
 
@@ -414,15 +400,15 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private bool TrySettleTrayMenu(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
-        ContextMenuPlacement placement)
+        TrayAppDotNETContextMenuPosition placement)
     {
         ScrollViewer? scrollViewer = _scrollViewer;
         if (scrollViewer == null) return false;
 
         PixelRect workArea = ResolveWorkArea(cursorPoint);
-        scrollViewer.MaxHeight = Math.Max(
-            _options.PixelMinSize,
-            (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+        scrollViewer.MaxHeight = CapHeight(Math.Max(
+            PixelMinSize,
+            (workArea.Height - 2 * EdgePadding) / RenderScaling));
 
         UpdateLayout();
         Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);
@@ -492,16 +478,16 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                               + _options.RootBorderThickness.Bottom
                               + _options.RootPadding.Top
                               + _options.RootPadding.Bottom;
-        scrollViewer.MaxHeight = Math.Max(
-            _options.PixelMinSize,
-            availableHeight / RenderScaling - chromeHeight);
+        scrollViewer.MaxHeight = CapHeight(Math.Max(
+            PixelMinSize,
+            availableHeight / RenderScaling - chromeHeight));
 
         UpdateLayout();
         int menuWidth = Math.Max(
-            _options.PixelMinSize,
+            PixelMinSize,
             (int)Math.Ceiling(Bounds.Width * RenderScaling));
         int menuHeight = Math.Max(
-            _options.PixelMinSize,
+            PixelMinSize,
             (int)Math.Ceiling(Bounds.Height * RenderScaling));
         Position = ResolveOverlayPosition(
             containingBounds,
@@ -634,7 +620,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         ContextMenuWindow parentMenu = _parentMenu
                                        ?? throw new InvalidOperationException("A submenu requires a parent menu.");
         Opacity = 0;
-        Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
+        Position = new PixelPoint(OffscreenPosition, OffscreenPosition);
         Show(parentMenu);
 
         Dispatcher.UIThread.Post(() =>
@@ -648,22 +634,22 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 ownerBounds.X + ownerBounds.Width / 2,
                 ownerBounds.Y + ownerBounds.Height / 2);
             PixelRect workArea = ResolveWorkArea(ownerCenter);
-            scrollViewer.MaxHeight = Math.Max(
-                _options.PixelMinSize,
-                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+            scrollViewer.MaxHeight = CapHeight(Math.Max(
+                PixelMinSize,
+                (workArea.Height - 2 * EdgePadding) / RenderScaling));
 
             UpdateLayout();
             int menuWidth = Math.Max(
-                _options.PixelMinSize,
+                PixelMinSize,
                 (int)Math.Ceiling(Bounds.Width * RenderScaling));
             int menuHeight = Math.Max(
-                _options.PixelMinSize,
+                PixelMinSize,
                 (int)Math.Ceiling(Bounds.Height * RenderScaling));
             Position = ResolveSubmenuPosition(
                 workArea,
                 ownerBounds,
                 new PixelSize(menuWidth, menuHeight),
-                _options.EdgePadding);
+                EdgePadding);
             Opacity = 1;
             if (!_selectsFirstRowOnShow) return;
 
@@ -713,21 +699,21 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     private PixelPoint ResolvePosition(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
-        ContextMenuPlacement placement,
+        TrayAppDotNETContextMenuPosition placement,
         PixelRect workArea)
     {
         double scale = RenderScaling;
         int menuWidth = Math.Max(
-            _options.PixelMinSize,
+            PixelMinSize,
             (int)Math.Ceiling(Bounds.Width * scale));
         int menuHeight = Math.Max(
-            _options.PixelMinSize,
+            PixelMinSize,
             (int)Math.Ceiling(Bounds.Height * scale));
 
-        int minTop = workArea.Y + _options.EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - menuHeight - _options.EdgePadding);
+        int minTop = workArea.Y + EdgePadding;
+        int maxTop = Math.Max(minTop, workArea.Bottom - menuHeight - EdgePadding);
 
-        if (placement == ContextMenuPlacement.Modern)
+        if (placement == TrayAppDotNETContextMenuPosition.Modern)
         {
             PixelRect? iconRect = null;
             if (trayIcon.TryGetIconRect(out PixelRect resolvedIconRect))
@@ -737,7 +723,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 workArea,
                 new PixelSize(menuWidth, menuHeight),
                 iconRect,
-                _options.EdgePadding);
+                EdgePadding);
         }
 
         return new PixelPoint(cursorPoint.X, Math.Clamp(cursorPoint.Y, minTop, maxTop));
@@ -750,7 +736,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         _closedFromDeactivation = false;
         _closedFromSelection = false;
         Opacity = 0;
-        Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
+        Position = new PixelPoint(OffscreenPosition, OffscreenPosition);
         if (owner == null)
             Show();
         else
@@ -763,33 +749,35 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (scrollViewer == null) return;
 
             PixelRect workArea = ResolveWorkArea(screenPosition);
-            scrollViewer.MaxHeight = Math.Max(
-                _options.PixelMinSize,
-                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+            scrollViewer.MaxHeight = CapHeight(Math.Max(
+                PixelMinSize,
+                (workArea.Height - 2 * EdgePadding) / RenderScaling));
 
             UpdateLayout();
             int menuWidth = Math.Max(
-                _options.PixelMinSize,
+                PixelMinSize,
                 (int)Math.Ceiling(Bounds.Width * RenderScaling));
             int menuHeight = Math.Max(
-                _options.PixelMinSize,
+                PixelMinSize,
                 (int)Math.Ceiling(Bounds.Height * RenderScaling));
             Position = ResolveScreenPointPosition(
                 workArea,
                 screenPosition,
                 new PixelSize(menuWidth, menuHeight),
-                _options.EdgePadding);
+                EdgePadding);
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
             if (_options.ActivateOnShow) Activate();
         }, DispatcherPriority.Loaded);
     }
 
+    private double CapHeight(double availableHeight) => Math.Min(availableHeight, _options.MaxHeight);
+
     private PixelRect ResolveWorkArea(PixelPoint cursorPoint) =>
         TrayWorkArea.Resolve(
             Screens,
             cursorPoint,
-            new PixelRect(x: 0, y: 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight));
+            new PixelRect(x: 0, y: 0, FallbackWorkAreaWidth, FallbackWorkAreaHeight));
 
     internal static PixelPoint ResolveOverlayPosition(
         PixelRect containingBounds,
@@ -1033,10 +1021,10 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
     }
 
     private int ResolveSubmenuShowDelayMilliseconds() =>
-        _options.ContextMenuSettings?.UseSystemSubmenuShowDelay ?? _options.UseSystemSubmenuShowDelay
+        _options.ContextMenuSettings?.UseSystemSubmenuShowDelay == true
             ? SystemSubmenuShowDelayMilliseconds
             : Math.Clamp(
-                _options.ContextMenuSettings?.SubmenuShowDelayMs ?? _options.SubmenuShowDelayMilliseconds,
+                _options.ContextMenuSettings?.SubmenuShowDelayMs ?? TimeConstants.TrayMenuSubmenuShowDelayDefaultMs,
                 TimeConstants.TrayMenuSubmenuShowDelayMinMs,
                 TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
 
@@ -1086,20 +1074,20 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
 
             Grid layout = new();
             layout.RowDefinitions.Add(
-                new RowDefinition(new GridLength(entry.HasTopRule ? options.RowRuleSpacing : options.RowSpacing)));
+                new RowDefinition(new GridLength(entry.HasTopRule ? RowRuleSpacing : options.RowSpacing)));
             layout.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             layout.RowDefinitions.Add(
-                new RowDefinition(new GridLength(entry.HasBottomRule ? options.RowRuleSpacing : options.RowSpacing)));
-            layout.RowDefinitions.Add(new RowDefinition(new GridLength(entry.HasBottomRule ? options.RuleHeight : 0)));
+                new RowDefinition(new GridLength(entry.HasBottomRule ? RowRuleSpacing : options.RowSpacing)));
+            layout.RowDefinitions.Add(new RowDefinition(new GridLength(entry.HasBottomRule ? RuleHeight : 0)));
 
             Grid.SetRow(_itemBorder, value: 1);
             layout.Children.Add(_itemBorder);
 
             Border rule = new()
             {
-                Height = options.RuleHeight,
+                Height = RuleHeight,
                 Background = TrayAppDotNETSettingsUI.Brush(options.SeparatorColor ?? options.Palette.Border),
-                Margin = options.RuleMargin,
+                Margin = RuleMargin,
                 IsVisible = entry.HasBottomRule
             };
             Grid.SetRow(rule, value: 3);
@@ -1129,12 +1117,10 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             label.FontWeight = options.FontWeight;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;
-            Glyph? trailingGlyphMetadata = entry.SubmenuFactory == null
-                ? entry.TrailingGlyphMetadata
-                : null;
-            string? resolvedTrailingGlyph = entry.SubmenuFactory != null
-                ? options.SubmenuGlyph
-                : trailingGlyphMetadata?.Text ?? entry.TrailingGlyph;
+            Glyph? trailingGlyphMetadata = entry.SubmenuFactory != null
+                ? GlyphCatalog.CHEVRON_RIGHT
+                : entry.TrailingGlyphMetadata;
+            string? resolvedTrailingGlyph = trailingGlyphMetadata?.Text ?? entry.TrailingGlyph;
 
             if (entry.LeadingGlyph == null && string.IsNullOrEmpty(resolvedTrailingGlyph))
                 return label;
@@ -1144,7 +1130,7 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 ColumnDefinitions =
                 {
                     new ColumnDefinition(new GridLength(
-                        entry.LeadingGlyph == null ? 0 : options.LeadingGlyphColumnWidth)),
+                        entry.LeadingGlyph == null ? 0 : LeadingGlyphColumnWidth)),
                     new ColumnDefinition(GridLength.Star),
                     new ColumnDefinition(
                         string.IsNullOrEmpty(resolvedTrailingGlyph) ? new GridLength(0) : GridLength.Auto)
@@ -1156,9 +1142,9 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 TextBlock leadingGlyphText = TrayAppDotNETSettingsUI.Text(
                     string.Empty,
                     options.Palette,
-                    options.LeadingGlyphFontSize);
+                    LeadingGlyphFontSize);
                 GlyphApplicator.ApplyTo(leadingGlyphText, leadingGlyph);
-                leadingGlyphText.Margin = options.LeadingGlyphMargin;
+                leadingGlyphText.Margin = LeadingGlyphMargin;
                 leadingGlyphText.HorizontalAlignment = HorizontalAlignment.Center;
                 leadingGlyphText.VerticalAlignment = VerticalAlignment.Center;
                 Grid.SetColumn(leadingGlyphText, value: 0);
@@ -1174,12 +1160,12 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             TextBlock trailingGlyphText = TrayAppDotNETSettingsUI.Text(
                 resolvedTrailingGlyph,
                 options.Palette,
-                options.TrailingGlyphFontSize);
+                TrailingGlyphFontSize);
             if (trailingGlyphMetadata != null)
                 GlyphApplicator.ApplyTo(trailingGlyphText, trailingGlyphMetadata);
             else
                 trailingGlyphText.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-            trailingGlyphText.Margin = options.TrailingGlyphMargin;
+            trailingGlyphText.Margin = TrailingGlyphMargin;
             trailingGlyphText.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(trailingGlyphText, value: 2);
             content.Children.Add(trailingGlyphText);

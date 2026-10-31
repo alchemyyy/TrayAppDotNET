@@ -9,5 +9,7 @@ public enum TADNFont
     SegoeFluentIcons,
     SegoeMDL2Assets,
     SegoeFluentIconsThenMDL2Assets,
-    FanFont
+
+    /// <summary>The app's own icon font, registered with <see cref="TADNFontResolver.RegisterAppFont"/>.</summary>
+    AppFont
 }

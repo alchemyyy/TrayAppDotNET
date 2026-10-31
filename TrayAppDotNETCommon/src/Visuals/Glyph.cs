@@ -39,29 +39,6 @@ public sealed class Glyph(string text, TADNFont font)
         Create(text, TADNFont.SegoeFluentIcons, fontWeight, scaleX, scaleY, translateX, translateY);
 
     /// <summary>
-    /// Creates a Segoe Fluent Icons glyph with MDL2 fallback.
-    /// </summary>
-    public static Glyph Fluent(
-        string text,
-        FontWeight? fontWeight = null,
-        double? scaleX = null,
-        double? scaleY = null,
-        double? translateX = null,
-        double? translateY = null) =>
-        Create(text, TADNFont.SegoeFluentIconsThenMDL2Assets, fontWeight, scaleX, scaleY, translateX, translateY);
-
-    /// <summary>
-    /// Copies a glyph text and correction data into the Fluent fallback font.
-    /// </summary>
-    public static Glyph Fluent(Glyph glyph)
-    {
-        ArgumentNullException.ThrowIfNull(glyph);
-
-        return Create(glyph.Text, TADNFont.SegoeFluentIconsThenMDL2Assets, glyph.FontWeight, glyph.ScaleX, glyph.ScaleY,
-            glyph.TranslateX, glyph.TranslateY);
-    }
-
-    /// <summary>
     /// Creates a Segoe MDL2 Assets glyph.
     /// </summary>
     public static Glyph MDL2(
@@ -72,18 +49,6 @@ public sealed class Glyph(string text, TADNFont font)
         double? translateX = null,
         double? translateY = null) =>
         Create(text, TADNFont.SegoeMDL2Assets, fontWeight, scaleX, scaleY, translateX, translateY);
-
-    /// <summary>
-    /// Creates a glyph from the Fan app's custom icon font.
-    /// </summary>
-    public static Glyph FanFont(
-        string text,
-        FontWeight? fontWeight = null,
-        double? scaleX = null,
-        double? scaleY = null,
-        double? translateX = null,
-        double? translateY = null) =>
-        Create(text, TADNFont.FanFont, fontWeight, scaleX, scaleY, translateX, translateY);
 
     private static Glyph Create(
         string text,

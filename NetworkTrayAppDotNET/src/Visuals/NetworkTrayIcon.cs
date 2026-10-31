@@ -3,135 +3,31 @@ using NetworkTrayAppDotNET.Models;
 
 namespace NetworkTrayAppDotNET.Visuals;
 
-internal sealed class NetworkTrayIcon : IDisposable
+/// <summary>Network's tray glyph: the connection state over a translucent full-signal backdrop.</summary>
+internal sealed class NetworkTrayIcon(AppTheme? theme) : ITrayIconRenderer<TrayIconRenderInput>
 {
     private const double BackdropOpacity = 0.55;
 
-    private static readonly string[] IconFontFamilies =
-    [
-        GlyphCatalog.SEGOE_FLUENT_ICONS,
-        GlyphCatalog.SEGOE_MDL2_ASSETS
-    ];
+    private readonly AppTheme _theme = theme ?? AppTheme.Default;
 
-    private readonly AppTheme _theme;
-    private readonly TrayIconRenderer _renderer;
-    private bool _isDirty = true;
-    private bool _isLightTheme;
-    private TrayIconStyle _iconStyle = TrayIconStyle.Dynamic;
-    private NetworkIconState _state = NetworkIconState.NoNetwork;
-    private Color? _customColor;
-    private Color? _connectedOverride;
-    private Color? _noInternetOverride;
-    private Color? _disconnectedOverride;
-
-    public NetworkTrayIcon(AppTheme? theme)
+    private readonly TrayIconRenderer _renderer = new(new TrayIconRenderOptions
     {
-        _theme = theme ?? AppTheme.Default;
-        _renderer = new TrayIconRenderer(new TrayIconRenderOptions
-        {
-            IconFontFamilies = IconFontFamilies,
-            FallbackIcon = AppTheme.LoadAppNativeIcon,
-            Log = message => TADNLog.Log("NetworkTrayIcon." + message)
-        });
-    }
+        IconFontFamilies = [GlyphCatalog.SEGOE_FLUENT_ICONS, GlyphCatalog.SEGOE_MDL2_ASSETS],
+        Log = message => TADNLog.Log("NetworkTrayIcon." + message)
+    });
 
-    public bool IsLightTheme
-    {
-        get => _isLightTheme;
-        set
-        {
-            if (_isLightTheme == value) return;
-            _isLightTheme = value;
-            _isDirty = true;
-        }
-    }
+    public bool IsLightTheme { get; set; }
+    public TrayAppDotNETTrayIconStyle IconStyle { get; set; } = TrayAppDotNETTrayIconStyle.Dynamic;
+    public NetworkIconState State { get; set; } = NetworkIconState.NoNetwork;
+    public Color? CustomColor { get; set; }
+    public Color? ConnectedColorOverride { get; set; }
+    public Color? NoInternetColorOverride { get; set; }
+    public Color? DisconnectedColorOverride { get; set; }
 
-    public TrayIconStyle IconStyle
-    {
-        get => _iconStyle;
-        set
-        {
-            if (_iconStyle == value) return;
-            _iconStyle = value;
-            _isDirty = true;
-        }
-    }
+    public TrayIconRenderInput CreateRenderInput() =>
+        new(ResolveGlyphs(State), ResolveColor(State), BackdropOpacity);
 
-    public NetworkIconState State
-    {
-        get => _state;
-        set
-        {
-            if (_state == value) return;
-            _state = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? CustomColor
-    {
-        get => _customColor;
-        set
-        {
-            if (_customColor == value) return;
-            _customColor = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? ConnectedColorOverride
-    {
-        get => _connectedOverride;
-        set
-        {
-            if (_connectedOverride == value) return;
-            _connectedOverride = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? NoInternetColorOverride
-    {
-        get => _noInternetOverride;
-        set
-        {
-            if (_noInternetOverride == value) return;
-            _noInternetOverride = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? DisconnectedColorOverride
-    {
-        get => _disconnectedOverride;
-        set
-        {
-            if (_disconnectedOverride == value) return;
-            _disconnectedOverride = value;
-            _isDirty = true;
-        }
-    }
-
-    public void InvalidateCache() => _isDirty = true;
-
-    public NativeIcon? CreateIcon()
-    {
-        if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
-
-        return _renderer.Render(input);
-    }
-
-    public bool TryCreateRenderInput(out TrayIconRenderInput? input)
-    {
-        input = null;
-        if (!_isDirty) return false;
-
-        _isDirty = false;
-        input = new TrayIconRenderInput(ResolveGlyphs(_state), ResolveColor(_state), BackdropOpacity);
-        return true;
-    }
-
-    public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
+    public NativeIcon RenderIcon(TrayIconRenderInput input, int iconSize) => _renderer.Render(input, iconSize);
 
     private TrayIconGlyphLayer ResolveGlyphs(NetworkIconState state) =>
         state switch
@@ -164,8 +60,8 @@ internal sealed class NetworkTrayIcon : IDisposable
 
     private Color ResolveColor(NetworkIconState state)
     {
-        if (_iconStyle == TrayIconStyle.Static)
-            return _customColor ?? _theme.Foreground.For(_isLightTheme);
+        if (IconStyle == TrayAppDotNETTrayIconStyle.Static)
+            return CustomColor ?? _theme.Foreground.For(IsLightTheme);
 
         return state switch
         {
@@ -186,13 +82,13 @@ internal sealed class NetworkTrayIcon : IDisposable
     }
 
     private Color ConnectedColor() =>
-        _connectedOverride ?? _theme.NetworkConnectedTrayIconColor.For(_isLightTheme);
+        ConnectedColorOverride ?? _theme.NetworkConnectedTrayIconColor.For(IsLightTheme);
 
     private Color NoInternetColor() =>
-        _noInternetOverride ?? _theme.NetworkNoInternetTrayIconColor.For(_isLightTheme);
+        NoInternetColorOverride ?? _theme.NetworkNoInternetTrayIconColor.For(IsLightTheme);
 
     private Color DisconnectedColor() =>
-        _disconnectedOverride ?? _theme.NetworkDisconnectedTrayIconColor.For(_isLightTheme);
+        DisconnectedColorOverride ?? _theme.NetworkDisconnectedTrayIconColor.For(IsLightTheme);
 
     public void Dispose() => _renderer.Dispose();
 }

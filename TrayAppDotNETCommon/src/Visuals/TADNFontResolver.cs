@@ -13,7 +13,18 @@ public static class TADNFontResolver
     public const string SegoeUIFamilyName = "Segoe UI";
     public const string SegoeFluentIconsFamilyName = "Segoe Fluent Icons";
     public const string SegoeMDL2AssetsFamilyName = "Segoe MDL2 Assets";
-    public const string FanFontFamilyName = "avares://FanControlTrayAppDotNET/Visuals/FanFont.ttf#Untitled1";
+
+    private static string? _appFontFamilyName;
+
+    /// <summary>
+    /// Registers the font family behind <see cref="TADNFont.AppFont"/>, such as an app's embedded icon font. An app
+    /// whose glyph catalog uses that font registers it before its first glyph is resolved.
+    /// </summary>
+    public static void RegisterAppFont(string familyName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(familyName);
+        _appFontFamilyName = familyName;
+    }
 
     /// <summary>
     /// Returns the font-family string for a glyph font identity.
@@ -26,7 +37,8 @@ public static class TADNFontResolver
             TADNFont.SegoeMDL2Assets => SegoeMDL2AssetsFamilyName,
             TADNFont.SegoeFluentIconsThenMDL2Assets =>
                 $"{SegoeFluentIconsFamilyName}, {SegoeMDL2AssetsFamilyName}",
-            TADNFont.FanFont => FanFontFamilyName,
+            TADNFont.AppFont => _appFontFamilyName
+                                ?? throw new InvalidOperationException("No app font has been registered."),
             _ => throw new ArgumentOutOfRangeException(nameof(font), font, message: null)
         };
 

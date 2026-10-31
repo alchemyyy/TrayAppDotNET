@@ -9,11 +9,14 @@ namespace TrayAppDotNETCommon.UI.Tray;
 public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 {
     private const int WM_CALLBACKMOUSEMSG = User32.WM_USER + 1024;
+    private const int WM_DISPLAYCHANGE = 0x007E;
+    private const int WM_DPICHANGED = 0x02E0;
+    private const uint MSGFLT_ALLOW = 1;
     private const int TrayIconLocationRefreshCooldownMs = 250;
     private const int TaskbarRecoveryRetryCount = 5;
     private const int TaskbarRecoveryRetryDelayMs = 500;
-    private const bool TrayInputDiagnosticsEnabled = true;
-    private const int MaxTooltipTextLength = 127;
+    private const int RawInputBufferInitialSize = 256;
+#if DEBUG
     private const uint GestureIdZoom = 3;
     private const uint GestureIdPan = 4;
     private const uint GestureIdTwoFingerTap = 6;
@@ -24,13 +27,15 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         0x00000004 | // GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY
         0x00000008 | // GC_PAN_WITH_GUTTER
         0x00000010; // GC_PAN_WITH_INERTIA
+#endif
 
     private const int DefaultPrecisionTouchpadUnitsPerScrollStep = 90;
 
     private readonly Guid _iconGUID;
     private readonly Win32Window _window = new();
     private readonly AsyncThrottler<TrayUpdateKind> _trayUpdateThrottler = new(0);
-    private readonly HashSet<uint> _registeredPointerTargets = [];
+    private readonly TrayWheelNotchAccumulator _wheelNotches = new();
+    private byte[] _rawInputBuffer = new byte[RawInputBufferInitialSize];
 
     private readonly PrecisionTouchpadScrollRecognizer _precisionTouchpadScroll = new(
         DefaultPrecisionTouchpadUnitsPerScrollStep);
@@ -46,6 +51,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _isPrecisionTouchpadScrollEnabled = true;
     private bool _isListeningForInput;
     private bool _taskbarRecoveryQueued;
+    private bool _displayRefreshQueued;
+    private bool _staleIconCleared;
     private bool _trayIconLocationValid;
     private bool _forceFullIconUpdate;
     private long _lastTrayIconLocationRefreshTick;
@@ -56,8 +63,12 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _tooltipKeepOpenRequested;
     private bool _tooltipHoverSyncPending = true;
     private bool _isPointerOverIcon;
+    private Action<int>? _scrolled;
+    private Action<int>? _precisionTouchpadScrolled;
+#if DEBUG
     private bool _isTouchWindowRegistered;
     private bool _isGestureConfigured;
+#endif
 
     public TrayAppDotNETShellTrayIcon(string trayIconGUID, string messageWindowClassPrefix)
     {
@@ -69,6 +80,15 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             WndProc,
             // TaskbarCreated is broadcast only to top-level windows, not HWND_MESSAGE windows.
             IntPtr.Zero);
+
+        // An elevated instance would otherwise never hear TaskbarCreated from the unelevated Explorer (UIPI), and
+        // its icon would stay missing after an Explorer restart
+        if (!ChangeWindowMessageFilterEx(_window.Handle, (uint)Shell32.WM_TASKBARCREATED, MSGFLT_ALLOW, IntPtr.Zero))
+        {
+            TADNLog.Log(
+                "TrayAppDotNETShellTrayIcon: ChangeWindowMessageFilterEx(TaskbarCreated) failed "
+                + $"(0x{Marshal.GetLastWin32Error():X8}).");
+        }
     }
 
     public event Action? LeftMouseDown;
@@ -82,8 +102,41 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     /// </summary>
     public event Action? KeySelect;
     public event Action<Point>? RightClick;
-    public event Action<int>? Scrolled;
-    public event Action<int>? PrecisionTouchpadScrolled;
+
+    /// <summary>
+    /// Raised with whole wheel notches (positive away from the user) while the cursor is over the icon. Partial
+    /// deltas from high-resolution wheels accumulate until they make a notch. Raw input is registered only while
+    /// this or <see cref="PrecisionTouchpadScrolled"/> has a handler and <see cref="IsScrollEnabled"/> is set.
+    /// </summary>
+    public event Action<int>? Scrolled
+    {
+        add
+        {
+            _scrolled += value;
+            RefreshMouseInputRegistration();
+        }
+        remove
+        {
+            _scrolled -= value;
+            RefreshMouseInputRegistration();
+        }
+    }
+
+    /// <summary>Raised once per precision touchpad scroll step, with +1 or -1.</summary>
+    public event Action<int>? PrecisionTouchpadScrolled
+    {
+        add
+        {
+            _precisionTouchpadScrolled += value;
+            RefreshMouseInputRegistration();
+        }
+        remove
+        {
+            _precisionTouchpadScrolled -= value;
+            RefreshMouseInputRegistration();
+        }
+    }
+
     public event Action? RefreshNeeded;
     public event Action? TooltipPopup;
     public event Action? BalloonClicked;
@@ -95,8 +148,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         {
             if (_isScrollEnabled == value) return;
             _isScrollEnabled = value;
-            if (value) RefreshMouseInputRegistration();
-            else StopListeningForInput();
+            RefreshMouseInputRegistration();
         }
     }
 
@@ -128,16 +180,12 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         }
     }
 
-    public void SetIcon(NativeIcon icon)
-    {
-        if (_disposed) return;
+    /// <summary>Gets whether wheel or touchpad input over the icon has anyone to deliver it to.</summary>
+    private bool WantsWheelInput => _isScrollEnabled && (_scrolled != null || _precisionTouchpadScrolled != null);
 
-        NativeIcon? clone = CloneIcon(icon, nameof(SetIcon));
-        if (clone == null) return;
+    internal string TooltipText => _tooltipText;
 
-        ReplaceCurrentIcon(clone);
-        RequestIconAndTooltipUpdate();
-    }
+    internal NativeIcon? CurrentIcon => _currentIcon;
 
     /// <summary>
     /// Applies a caller-owned tray icon without cloning it.
@@ -150,37 +198,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             return;
         }
 
-        ReplaceCurrentIcon(icon);
-        RequestIconAndTooltipUpdate();
-    }
-
-    /// <summary>
-    /// Applies a tray icon and tooltip through one shell update.
-    /// </summary>
-    public void SetIconAndTooltip(NativeIcon icon, string text)
-    {
-        if (_disposed) return;
-
-        NativeIcon? clone = CloneIcon(icon, nameof(SetIconAndTooltip));
-        if (clone == null) return;
-
-        SetTooltipText(text);
-        ReplaceCurrentIcon(clone);
-        RequestIconAndTooltipUpdate();
-    }
-
-    /// <summary>
-    /// Applies a caller-owned tray icon and tooltip without cloning the icon.
-    /// </summary>
-    public void SetOwnedIconAndTooltip(NativeIcon icon, string text)
-    {
-        if (_disposed)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        SetTooltipText(text);
         ReplaceCurrentIcon(icon);
         RequestIconAndTooltipUpdate();
     }
@@ -275,7 +292,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             uFlags = flags | NotifyIconFlags.NIF_GUID,
             uCallbackMessage = (flags & NotifyIconFlags.NIF_MESSAGE) != 0 ? (uint)WM_CALLBACKMOUSEMSG : 0,
             hIcon = (flags & NotifyIconFlags.NIF_ICON) != 0 ? _currentIcon?.Handle ?? IntPtr.Zero : IntPtr.Zero,
-            szTip = TruncateTooltipText(_tooltipText),
+            szTip = TrayTooltipText.Truncate(_tooltipText),
             guidItem = _iconGUID
         };
 
@@ -419,6 +436,15 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             return;
         }
 
+        // A killed instance leaves its icon behind until the pointer crosses it. The first add of this process removes
+        // whatever is still registered under the same GUID, so the new icon never sits next to a ghost
+        if (!_staleIconCleared)
+        {
+            _staleIconCleared = true;
+            NOTIFYICONDATAW staleData = MakeData(0);
+            _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref staleData);
+        }
+
         if (TryModifyTrayIcon(
                 ref iconData,
                 syncsTooltip,
@@ -537,22 +563,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private static bool IncludesTooltipText(NotifyIconFlags flags) =>
         (flags & NotifyIconFlags.NIF_TIP) != 0;
 
-    private static string TruncateTooltipText(string text) =>
-        text.Length > MaxTooltipTextLength ? text[..MaxTooltipTextLength] : text;
-
-    private static NativeIcon? CloneIcon(NativeIcon icon, string caller)
-    {
-        try
-        {
-            return icon.Clone();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"TrayAppDotNETShellTrayIcon.{caller}: {ex.Message}");
-            return null;
-        }
-    }
-
     private void ReplaceCurrentIcon(NativeIcon icon)
     {
         NativeIcon? oldIcon = _currentIcon;
@@ -647,9 +657,17 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             return IntPtr.Zero;
         }
 
+        // The taskbar's icon size follows the primary display's scale, so a display or DPI change asks the app for a
+        // refresh; the presenter re-renders only when the icon size actually moved
+        if (msg is WM_DISPLAYCHANGE or WM_DPICHANGED)
+        {
+            QueueDisplayRefresh();
+            return IntPtr.Zero;
+        }
+
         if (msg == User32.WM_INPUT)
         {
-            if (!_isScrollEnabled || !_isVisible || _disposed || !TryUpdateTrayIconLocation())
+            if (!WantsWheelInput || !_isVisible || _disposed || !TryUpdateTrayIconLocation())
             {
                 StopListeningForInput();
                 handled = true;
@@ -662,30 +680,28 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 return IntPtr.Zero;
             }
 
-            if (InputHelper.TryReadRawInputMessage(lParam, out InputHelper.RawInputDiagnostics rawInput))
-            {
-                LogRawInputDiagnostics(rawInput);
-                if (rawInput.WheelDelta != 0)
-                    PostEvent(Scrolled, rawInput.WheelDelta, nameof(Scrolled));
-                else if (TryProcessPrecisionTouchpadScroll(rawInput, out int touchpadSteps))
-                    PostTouchpadScrollEvents(touchpadSteps);
-            }
+            if (InputHelper.TryReadRawInput(lParam, ref _rawInputBuffer, out InputHelper.RawInputPacket packet))
+                ProcessRawInput(packet);
 
             handled = true;
             return IntPtr.Zero;
         }
 
-        if (TrayInputDiagnosticsEnabled && TryHandleShotgunInputMessage(msg, wParam, lParam))
+#if DEBUG
+        if (TryHandleShotgunInputMessage(msg, wParam, lParam))
         {
             handled = true;
             return IntPtr.Zero;
         }
+#endif
 
         if (msg != WM_CALLBACKMOUSEMSG) return IntPtr.Zero;
 
         _isCreated = true;
         short notificationCode = (short)lParam.ToInt32();
+#if DEBUG
         LogShellCallbackDiagnostics(notificationCode, wParam, lParam);
+#endif
         switch (notificationCode)
         {
             case User32.WM_LBUTTONDOWN:
@@ -756,16 +772,49 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         RefreshMouseInputRegistration();
     }
 
-    private bool StartShotgunInputDiagnostics()
+    private void ProcessRawInput(InputHelper.RawInputPacket packet)
     {
-        bool anyRegistered = false;
-        anyRegistered |= TryRegisterTouchWindow();
-        anyRegistered |= TrySetGestureConfig();
-        anyRegistered |= TryRegisterPointerTarget(User32.PT_TOUCHPAD);
-        anyRegistered |= TryRegisterPointerTarget(User32.PT_TOUCH);
-        anyRegistered |= TryRegisterPointerTarget(User32.PT_MOUSE);
-        anyRegistered |= TryRegisterPointerTarget(User32.PT_POINTER);
-        return anyRegistered;
+#if DEBUG
+        LogRawInputDiagnostics(packet);
+#endif
+        if (packet.WheelDelta != 0)
+        {
+            int notches = _wheelNotches.Add(packet.WheelDelta);
+            if (notches != 0) PostEvent(_scrolled, notches, nameof(Scrolled));
+            return;
+        }
+
+        if (!_isPrecisionTouchpadScrollEnabled || !packet.IsHid) return;
+
+        int steps = 0;
+        long now = Environment.TickCount64;
+        for (int reportIndex = 0; reportIndex < packet.HidReportCount; reportIndex++)
+        {
+            ReadOnlySpan<byte> report = packet.HidReport(_rawInputBuffer, reportIndex);
+            if (_precisionTouchpadScroll.TryProcess(report, now, out int reportSteps))
+                steps += reportSteps;
+        }
+
+        if (steps == 0) return;
+
+        TADNLog.LogDebug($"TrayInputDiag.PrecisionTouchpad.Scroll: steps={steps}");
+        PostTouchpadScrollEvents(steps);
+    }
+
+    private void PostTouchpadScrollEvents(int steps)
+    {
+        int direction = Math.Sign(steps);
+        int count = Math.Abs(steps);
+        for (int i = 0; i < count; i++)
+            PostEvent(_precisionTouchpadScrolled, direction, nameof(PrecisionTouchpadScrolled));
+    }
+
+#if DEBUG
+    // Debug builds also observe touch and gesture messages over the icon to investigate tray input
+    private void StartShotgunInputDiagnostics()
+    {
+        TryRegisterTouchWindow();
+        TrySetGestureConfig();
     }
 
     private void StopShotgunInputDiagnostics()
@@ -785,42 +834,30 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             _isTouchWindowRegistered = false;
         }
 
-        if (_registeredPointerTargets.Count > 0)
-        {
-            uint[] pointerTargets = new uint[_registeredPointerTargets.Count];
-            _registeredPointerTargets.CopyTo(pointerTargets);
-            foreach (uint pointerType in pointerTargets)
-                TryUnregisterPointerTarget(pointerType);
-        }
-
         _isGestureConfigured = false;
     }
 
-    private bool TryRegisterTouchWindow()
+    private void TryRegisterTouchWindow()
     {
-        if (_isTouchWindowRegistered) return true;
+        if (_isTouchWindowRegistered) return;
 
         try
         {
             const uint twfFineTouch = 0x00000001;
             const uint twfWantPalm = 0x00000002;
             _isTouchWindowRegistered = User32.RegisterTouchWindow(_window.Handle, twfFineTouch | twfWantPalm);
-            TADNLog.Log(
-                _isTouchWindowRegistered
-                    ? "TrayInputDiag.Touch.Register: ok"
-                    : $"TrayInputDiag.Touch.Register failed: error={Marshal.GetLastWin32Error()}");
-            return _isTouchWindowRegistered;
+            if (!_isTouchWindowRegistered)
+                TADNLog.Log($"TrayInputDiag.Touch.Register failed: error={Marshal.GetLastWin32Error()}");
         }
         catch (Exception ex)
         {
             TADNLog.Log($"TrayInputDiag.Touch.Register threw: {ex.GetType().Name}: {ex.Message}");
-            return false;
         }
     }
 
-    private bool TrySetGestureConfig()
+    private void TrySetGestureConfig()
     {
-        if (_isGestureConfigured) return true;
+        if (_isGestureConfigured) return;
 
         try
         {
@@ -838,67 +875,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 (uint)configs.Length,
                 configs,
                 (uint)Marshal.SizeOf<User32.GESTURECONFIG>());
-
-            TADNLog.Log(
-                _isGestureConfigured
-                    ? "TrayInputDiag.Gesture.SetConfig: ok"
-                    : $"TrayInputDiag.Gesture.SetConfig failed: error={Marshal.GetLastWin32Error()}");
-            return _isGestureConfigured;
+            if (!_isGestureConfigured)
+                TADNLog.Log($"TrayInputDiag.Gesture.SetConfig failed: error={Marshal.GetLastWin32Error()}");
         }
         catch (Exception ex)
         {
             TADNLog.Log($"TrayInputDiag.Gesture.SetConfig threw: {ex.GetType().Name}: {ex.Message}");
-            return false;
         }
-    }
-
-    private bool TryRegisterPointerTarget(uint pointerType)
-    {
-        if (_registeredPointerTargets.Contains(pointerType)) return true;
-
-        try
-        {
-            bool registered = User32.RegisterPointerInputTargetEx(_window.Handle, pointerType, observe: true);
-            if (registered)
-            {
-                _registeredPointerTargets.Add(pointerType);
-                TADNLog.Log($"TrayInputDiag.Pointer.Register: {PointerTypeName(pointerType)} observe=true");
-                return true;
-            }
-
-            TADNLog.Log(
-                $"TrayInputDiag.Pointer.Register failed: {PointerTypeName(pointerType)} "
-                + $"error={Marshal.GetLastWin32Error()}");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log(
-                $"TrayInputDiag.Pointer.Register threw: {PointerTypeName(pointerType)} "
-                + $"{ex.GetType().Name}: {ex.Message}");
-            return false;
-        }
-    }
-
-    private void TryUnregisterPointerTarget(uint pointerType)
-    {
-        try
-        {
-            if (!User32.UnregisterPointerInputTargetEx(_window.Handle, pointerType))
-            {
-                TADNLog.Log(
-                    $"TrayInputDiag.Pointer.Unregister failed: {PointerTypeName(pointerType)} "
-                    + $"error={Marshal.GetLastWin32Error()}");
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log(
-                $"TrayInputDiag.Pointer.Unregister threw: {PointerTypeName(pointerType)} "
-                + $"{ex.GetType().Name}: {ex.Message}");
-        }
-
-        _registeredPointerTargets.Remove(pointerType);
     }
 
     private bool TryHandleShotgunInputMessage(int msg, IntPtr wParam, IntPtr lParam)
@@ -937,53 +920,24 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         }
     }
 
-    private void LogRawInputDiagnostics(InputHelper.RawInputDiagnostics rawInput)
+    private void LogRawInputDiagnostics(InputHelper.RawInputPacket packet)
     {
-        if (!TrayInputDiagnosticsEnabled || rawInput is { HasWheelDelta: false, IsHid: false }) return;
+        if (packet is { WheelDelta: 0, HorizontalWheelDelta: 0, IsHid: false }) return;
 
         string cursor = User32.GetCursorPos(out User32.POINT cursorPoint)
             ? $"{cursorPoint.X},{cursorPoint.Y} {DescribeTrayBounds(cursorPoint)}"
             : "unknown";
+        ReadOnlySpan<byte> firstReport = packet.HidReport(_rawInputBuffer, index: 0);
 
         TADNLog.Log(
             "TrayInputDiag.RawInput: "
-            + $"type={RawInputTypeName(rawInput.Type)} "
-            + $"device=0x{rawInput.Device.ToInt64():X} "
-            + $"wParam=0x{rawInput.RawWParam.ToInt64():X} "
-            + $"buttonFlags=0x{rawInput.MouseButtonFlags:X4} "
-            + $"wheel={rawInput.WheelDelta} hwheel={rawInput.HorizontalWheelDelta} "
-            + $"last={rawInput.LastX},{rawInput.LastY} rawButtons=0x{rawInput.RawButtons:X8} "
-            + $"hidSize={rawInput.HidSize} hidCount={rawInput.HidCount} "
-            + $"hidData={rawInput.HidData} "
+            + $"type={RawInputTypeName(packet.Type)} "
+            + $"device=0x{packet.Device.ToInt64():X} "
+            + $"buttonFlags=0x{packet.MouseButtonFlags:X4} "
+            + $"wheel={packet.WheelDelta} hwheel={packet.HorizontalWheelDelta} "
+            + $"hidSize={packet.HidReportSize} hidCount={packet.HidReportCount} "
+            + $"hidData={Convert.ToHexString(firstReport)} "
             + $"cursor={cursor}");
-    }
-
-    private bool TryProcessPrecisionTouchpadScroll(
-        InputHelper.RawInputDiagnostics rawInput,
-        out int steps)
-    {
-        steps = 0;
-        if (!_isPrecisionTouchpadScrollEnabled) return false;
-        if (!rawInput.IsHid) return false;
-
-        if (!_precisionTouchpadScroll.TryProcess(rawInput.HidData, Environment.TickCount64, out steps))
-            return false;
-
-        if (steps == 0) return true;
-
-        TADNLog.Log(
-            "TrayInputDiag.PrecisionTouchpad.Scroll: "
-            + $"steps={steps} "
-            + $"accumulator={_precisionTouchpadScroll.Accumulator:0.##}");
-        return true;
-    }
-
-    private void PostTouchpadScrollEvents(int steps)
-    {
-        int direction = Math.Sign(steps);
-        int count = Math.Abs(steps);
-        for (int i = 0; i < count; i++)
-            PostEvent(PrecisionTouchpadScrolled, direction, nameof(PrecisionTouchpadScrolled));
     }
 
     private void LogClassicWheelDiagnostics(int msg, IntPtr wParam, IntPtr lParam)
@@ -1154,10 +1108,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         return "inBounds=" + _trayIconLocation.Contains(point);
     }
+#endif
 
     private void RefreshMouseInputRegistration()
     {
-        if (!_isScrollEnabled || !_isVisible || !_isCreated || _disposed || _window.Handle == IntPtr.Zero)
+        if (!WantsWheelInput || !_isVisible || !_isCreated || _disposed || _window.Handle == IntPtr.Zero)
         {
             StopListeningForInput();
             return;
@@ -1264,11 +1219,10 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private void StartListeningForInput()
     {
         if (_isListeningForInput) return;
-        bool rawInputRegistered = InputHelper.RegisterForMouseInput(_window.Handle);
-        bool shotgunRegistered = TrayInputDiagnosticsEnabled && StartShotgunInputDiagnostics();
-        _isListeningForInput = rawInputRegistered || shotgunRegistered;
-        if (_isListeningForInput)
-            TADNLog.Log("TrayInputDiag.StartListening: tray input diagnostics active");
+        _isListeningForInput = InputHelper.RegisterForMouseInput(_window.Handle);
+#if DEBUG
+        StartShotgunInputDiagnostics();
+#endif
     }
 
     private void StopListeningForInput()
@@ -1276,9 +1230,25 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (!_isListeningForInput) return;
         _isListeningForInput = false;
         _precisionTouchpadScroll.Reset();
+        _wheelNotches.Reset();
         _ = InputHelper.UnregisterForMouseInput();
+#if DEBUG
         StopShotgunInputDiagnostics();
-        TADNLog.Log("TrayInputDiag.StopListening: tray input diagnostics inactive");
+#endif
+    }
+
+    /// <summary>Coalesces a burst of display and DPI messages into one refresh request.</summary>
+    private void QueueDisplayRefresh()
+    {
+        if (_disposed || _displayRefreshQueued) return;
+
+        _displayRefreshQueued = true;
+        PostAction(() =>
+        {
+            _displayRefreshQueued = false;
+            ClearTrayIconLocation();
+            RefreshNeeded?.Invoke();
+        }, nameof(QueueDisplayRefresh));
     }
 
     private void QueueTaskbarRecovery()
@@ -1368,6 +1338,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         return ExtractMessagePoint(packed);
     }
 
+#if DEBUG
     private static ushort LoWord(IntPtr value) => unchecked((ushort)(value.ToInt64() & 0xFFFF));
 
     private static ushort HiWord(IntPtr value) => unchecked((ushort)((value.ToInt64() >> 16) & 0xFFFF));
@@ -1428,6 +1399,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             User32.WM_POINTERHWHEEL => "WM_POINTERHWHEEL",
             _ => "0x" + msg.ToString("X")
         };
+#endif
 
     private sealed class PrecisionTouchpadScrollRecognizer
     {
@@ -1450,8 +1422,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         public PrecisionTouchpadScrollRecognizer(int unitsPerScrollStep) =>
             UnitsPerScrollStep = unitsPerScrollStep;
 
-        public double Accumulator => _accumulator;
-
         public int UnitsPerScrollStep
         {
             get => _unitsPerScrollStep;
@@ -1464,19 +1434,19 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             }
         }
 
-        public bool TryProcess(string hidData, long now, out int notches)
+        public bool TryProcess(ReadOnlySpan<byte> report, long now, out int notches)
         {
             notches = 0;
-            if (!TryDecodeReport(hidData, out TouchpadContactReport report))
+            if (!TryDecodeReport(report, out TouchpadContactReport contact))
                 return false;
 
-            if (!_hasFrame || report.ScanTime != _frameScanTime)
+            if (!_hasFrame || contact.ScanTime != _frameScanTime)
             {
                 notches += CompleteFrame(now);
-                StartFrame(report.ScanTime);
+                StartFrame(contact.ScanTime);
             }
 
-            AddReport(report);
+            AddReport(contact);
             return true;
         }
 
@@ -1567,20 +1537,10 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             _frameYSum = 0;
         }
 
-        private static bool TryDecodeReport(string hidData, out TouchpadContactReport report)
+        private static bool TryDecodeReport(ReadOnlySpan<byte> bytes, out TouchpadContactReport report)
         {
             report = default;
-            if (hidData.Length < ReportByteCount * 2) return false;
-            Span<byte> bytes = stackalloc byte[ReportByteCount];
-            for (int i = 0; i < bytes.Length; i++)
-            {
-                int high = HexNibble(hidData[i * 2]);
-                int low = HexNibble(hidData[i * 2 + 1]);
-                if (high < 0 || low < 0) return false;
-                bytes[i] = (byte)((high << 4) | low);
-            }
-
-            if (bytes[0] != ReportId) return false;
+            if (bytes.Length < ReportByteCount || bytes[0] != ReportId) return false;
 
             int contactAndFlags = bytes[1];
             int flags = contactAndFlags & 0x0F;
@@ -1591,15 +1551,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 (ushort)(bytes[6] | (bytes[7] << 8)));
             return true;
         }
-
-        private static int HexNibble(char c) =>
-            c switch
-            {
-                >= '0' and <= '9' => c - '0',
-                >= 'A' and <= 'F' => c - 'A' + 10,
-                >= 'a' and <= 'f' => c - 'a' + 10,
-                _ => -1
-            };
 
         private readonly record struct TouchpadContactReport(
             int ContactId,
@@ -1633,6 +1584,14 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         _trayUpdateThrottler.Dispose();
         _window.Dispose();
     }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ChangeWindowMessageFilterEx(
+        IntPtr windowHandle,
+        uint message,
+        uint action,
+        IntPtr changeFilterStruct);
 
     private enum TrayUpdateKind
     {

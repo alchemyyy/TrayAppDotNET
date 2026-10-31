@@ -6,8 +6,6 @@ namespace TaskManagerTrayAppDotNET.UI.Tray;
 /// <summary>Formats the latest performance snapshot for the tray tooltip.</summary>
 internal static class TaskManagerTrayTooltipFormatter
 {
-    private const string UnavailableText = "Unavailable";
-
     /// <summary>Builds the compact four-line tooltip.</summary>
     public static string Format(
         PerformanceSnapshot snapshot,
@@ -30,7 +28,12 @@ internal static class TaskManagerTrayTooltipFormatter
             snapshot.Networks.Span,
             performanceDeviceOrder,
             effectiveCulture);
-        return $"CPU {CPU}\nMemory {memory}\nDisk {disk}\nNetwork {network}";
+        return string.Join(
+            separator: '\n',
+            string.Format(effectiveCulture, AppStrings.Tray_Tooltip_CPU_Format, CPU),
+            string.Format(effectiveCulture, AppStrings.Tray_Tooltip_Memory_Format, memory),
+            string.Format(effectiveCulture, AppStrings.Tray_Tooltip_Disk_Format, disk),
+            string.Format(effectiveCulture, AppStrings.Tray_Tooltip_Network_Format, network));
     }
 
     private static string FormatDisk(
@@ -78,7 +81,7 @@ internal static class TaskManagerTrayTooltipFormatter
             orderItems,
             priority: null,
             explicitDeviceIDs: performanceDeviceOrder);
-        if (sortedItems.Count == 0) return UnavailableText;
+        if (sortedItems.Count == 0) return AppStrings.Tray_Tooltip_Unavailable;
 
         string firstDeviceID = sortedItems[0].ID;
         for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
@@ -95,7 +98,7 @@ internal static class TaskManagerTrayTooltipFormatter
             return FormatPercent(hasUtilization, utilizationPercent, culture);
         }
 
-        return UnavailableText;
+        return AppStrings.Tray_Tooltip_Unavailable;
     }
 
     private static string FormatPercent(
@@ -103,7 +106,7 @@ internal static class TaskManagerTrayTooltipFormatter
         double percent,
         CultureInfo culture)
     {
-        if (!isAvailable || !double.IsFinite(percent)) return UnavailableText;
+        if (!isAvailable || !double.IsFinite(percent)) return AppStrings.Tray_Tooltip_Unavailable;
 
         int roundedPercent = (int)Math.Round(
             Math.Clamp(percent, min: 0, max: 100),

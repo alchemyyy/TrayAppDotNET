@@ -12,191 +12,93 @@ public sealed record TrayIconRenderInput(
 
 public sealed class TrayIconRenderOptions
 {
-    public required IReadOnlyList<string> IconFontFamilies { get; init; }
+    /// <summary>Installed font families tried in order. Ignored when <see cref="TypefaceFactory"/> is set.</summary>
+    public IReadOnlyList<string> IconFontFamilies { get; init; } = [];
+
+    /// <summary>Creates the typeface itself, for an app font that is not installed, such as Fan's icon font.</summary>
+    public Func<SKTypeface>? TypefaceFactory { get; init; }
+
     public SKFontStyle IconFontStyle { get; init; } = SKFontStyle.Normal;
     public SKFontEdging FontEdging { get; init; } = SKFontEdging.Antialias;
     public bool Subpixel { get; init; }
     public float MeasureFontScale { get; init; } = 1.0f;
     public float DrawFontScale { get; init; } = 1.0f;
-    public Func<NativeIcon?>? FallbackIcon { get; init; }
     public Action<string>? Log { get; init; }
 }
 
+/// <summary>
+/// Draws a tray icon from one glyph, optionally over a translucent backdrop glyph. Render inputs are values, so the
+/// presenter decides when a render is needed.
+/// </summary>
 public sealed class TrayIconRenderer : IDisposable
 {
     private readonly Lock _gate = new();
     private readonly TrayIconRenderOptions _options;
     private SKTypeface? _typeface;
-    private NativeIcon? _currentIcon;
-    private TrayIconRenderCacheKey? _currentRequest;
 
     public TrayIconRenderer(TrayIconRenderOptions options)
     {
-        if (options.IconFontFamilies.Count == 0)
-            throw new ArgumentException(message: "At least one icon font family is required.", nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.TypefaceFactory == null && options.IconFontFamilies.Count == 0)
+            throw new ArgumentException(message: "An icon font family or a typeface factory is required.", nameof(options));
 
         _options = options;
     }
 
-    private SKTypeface IconTypeface => _typeface ??= ResolveIconTypeface();
-
-    public NativeIcon? Render(TrayIconGlyphLayer glyphs, Color foregroundColor, double backdropOpacity)
-        => Render(new TrayIconRenderInput(glyphs, foregroundColor, backdropOpacity));
-
-    public NativeIcon? Render(TrayIconRenderInput input)
+    /// <summary>Renders a caller-owned icon of <paramref name="size"/> pixels.</summary>
+    public NativeIcon Render(TrayIconRenderInput input, int size)
     {
-        try
-        {
-            lock (_gate)
-            {
-                NativeIcon? icon = RenderOwnedCore(input, useCache: true);
-                if (icon == null) return null;
+        ArgumentNullException.ThrowIfNull(input);
 
-                NativeIcon? oldIcon = _currentIcon;
-                _currentIcon = icon;
-                oldIcon?.Dispose();
-                return _currentIcon;
-            }
-        }
-        catch (Exception ex)
+        lock (_gate)
         {
-            _options.Log?.Invoke($"TrayIconRenderer.Render: {ex.Message}");
-            lock (_gate)
-                return _currentIcon ?? _options.FallbackIcon?.Invoke();
+            SKTypeface typeface = _typeface ??= CreateTypeface();
+            return TrayIconRasterizer.Render(
+                size,
+                (Renderer: this, Typeface: typeface, Input: input),
+                static (canvas, canvasSize, state) => state.Renderer.Draw(canvas, canvasSize, state.Typeface, state.Input));
         }
     }
 
-    /// <summary>
-    /// Renders a caller-owned icon for background render pipelines.
-    /// </summary>
-    public NativeIcon? RenderOwned(TrayIconRenderInput input)
+    private void Draw(SKCanvas canvas, int size, SKTypeface typeface, TrayIconRenderInput input)
     {
-        try
-        {
-            lock (_gate)
-                return RenderOwnedCore(input, useCache: false);
-        }
-        catch (Exception ex)
-        {
-            _options.Log?.Invoke($"TrayIconRenderer.RenderOwned: {ex.Message}");
-            return _options.FallbackIcon?.Invoke();
-        }
-    }
+        SKColor foreground = TrayIconRasterizer.ToSKColor(input.ForegroundColor);
+        string? backdropGlyph = input.Glyphs.BackdropGlyph;
+        string foregroundGlyph = input.Glyphs.ForegroundGlyph;
 
-    private NativeIcon? RenderOwnedCore(TrayIconRenderInput input, bool useCache)
-    {
-        int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-        TrayIconRenderCacheKey request = new(iconSize, input);
-        if (useCache && _currentRequest == request)
-            return null;
+        using SKFont measureFont = CreateFont(typeface, size * _options.MeasureFontScale);
+        using SKFont drawFont = CreateFont(typeface, size * _options.DrawFontScale);
+        using SKPaint paint = new();
+        paint.IsAntialias = true;
 
-        byte[] png = RenderLayeredPng(
-            iconSize,
-            input.Glyphs.BackdropGlyph,
-            input.Glyphs.ForegroundGlyph,
-            input.ForegroundColor,
-            input.BackdropOpacity);
-        NativeIcon icon = NativeIcon.FromIconImage(png, iconSize);
-        if (useCache) _currentRequest = request;
-        return icon;
-    }
-
-    private byte[] RenderLayeredPng(
-        int size,
-        string? backdropGlyph,
-        string foregroundGlyph,
-        Color foregroundColor,
-        double backdropOpacity)
-    {
-        SKImageInfo info = new(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using SKBitmap bitmap = new(info);
-        using SKCanvas canvas = new(bitmap);
-        canvas.Clear(SKColors.Transparent);
-
-        SKColor foreground = ToSkColor(foregroundColor);
-        SKColor backdrop = foreground.WithAlpha((byte)(foreground.Alpha * backdropOpacity));
-
+        SKPoint foregroundOrigin = TrayGlyphLayout.Center(measureFont, foregroundGlyph, size);
         if (!string.IsNullOrEmpty(backdropGlyph))
         {
-            GlyphPlacement backdropPlacement = MeasureGlyph(backdropGlyph, size);
-            DrawGlyph(canvas, backdropGlyph, backdropPlacement, backdrop);
-
-            GlyphPlacement foregroundPlacement = MeasureGlyph(foregroundGlyph, size)
-                .WithLayoutLeft(backdropPlacement.X);
-            DrawGlyph(canvas, foregroundGlyph, foregroundPlacement, foreground);
-        }
-        else
-            DrawGlyph(canvas, foregroundGlyph, MeasureGlyph(foregroundGlyph, size), foreground);
-
-        using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
-        return data.ToArray();
-    }
-
-    private GlyphPlacement MeasureGlyph(string glyph, int canvasSize)
-    {
-        using SKFont font = new(IconTypeface, canvasSize * _options.MeasureFontScale);
-        font.Edging = _options.FontEdging;
-        font.Subpixel = _options.Subpixel;
-        using SKPaint paint = new();
-        paint.IsAntialias = true;
-        paint.Color = SKColors.Transparent;
-
-        float advanceWidth = font.MeasureText(glyph, out SKRect bounds, paint);
-        font.GetFontMetrics(out SKFontMetrics metrics);
-        float lineHeight = metrics.Descent - metrics.Ascent;
-        float x = (canvasSize - advanceWidth) / 2f;
-        float y = (canvasSize - lineHeight) / 2f - metrics.Ascent;
-        return new GlyphPlacement(canvasSize * _options.DrawFontScale, bounds, x, y);
-    }
-
-    private void DrawGlyph(SKCanvas canvas, string glyph, GlyphPlacement placement, SKColor color)
-    {
-        using SKFont font = new(IconTypeface, placement.FontSize);
-        font.Edging = _options.FontEdging;
-        font.Subpixel = _options.Subpixel;
-        using SKPaint paint = new();
-        paint.IsAntialias = true;
-        paint.Color = color;
-
-        canvas.DrawText(glyph, placement.X, placement.Y, font, paint);
-    }
-
-    private static SKColor ToSkColor(Color color) => new(color.R, color.G, color.B, color.A);
-
-    private SKTypeface ResolveIconTypeface()
-    {
-        foreach (string family in _options.IconFontFamilies)
-        {
-            SKTypeface typeface = SKTypeface.FromFamilyName(family, _options.IconFontStyle);
-            if (typeface.FamilyName.Equals(family, StringComparison.OrdinalIgnoreCase))
-                return typeface;
-
-            typeface.Dispose();
+            // The foreground layer shares the backdrop's left edge, so partial glyphs line up with the full one
+            SKPoint backdropOrigin = TrayGlyphLayout.Center(measureFont, backdropGlyph, size);
+            paint.Color = foreground.WithAlpha((byte)(foreground.Alpha * input.BackdropOpacity));
+            canvas.DrawText(backdropGlyph, backdropOrigin.X, backdropOrigin.Y, drawFont, paint);
+            foregroundOrigin = foregroundOrigin with { X = backdropOrigin.X };
         }
 
-        return SKTypeface.Default;
+        paint.Color = foreground;
+        canvas.DrawText(foregroundGlyph, foregroundOrigin.X, foregroundOrigin.Y, drawFont, paint);
     }
+
+    private SKFont CreateFont(SKTypeface typeface, float size) =>
+        new(typeface, size) { Edging = _options.FontEdging, Subpixel = _options.Subpixel };
+
+    private SKTypeface CreateTypeface() =>
+        _options.TypefaceFactory?.Invoke()
+        ?? TrayGlyphLayout.ResolveTypeface(_options.IconFontFamilies, _options.IconFontStyle, _options.Log);
 
     public void Dispose()
     {
         lock (_gate)
         {
-            _currentIcon?.Dispose();
-            _currentIcon = null;
-            _currentRequest = null;
-            _typeface?.Dispose();
+            if (_typeface != null && !ReferenceEquals(_typeface, SKTypeface.Default))
+                _typeface.Dispose();
             _typeface = null;
         }
-    }
-
-    private sealed record TrayIconRenderCacheKey(
-        int Size,
-        TrayIconRenderInput Input);
-
-    private readonly record struct GlyphPlacement(float FontSize, SKRect Bounds, float X, float Y)
-    {
-        public GlyphPlacement WithLayoutLeft(float layoutLeft) =>
-            this with { X = layoutLeft };
     }
 }

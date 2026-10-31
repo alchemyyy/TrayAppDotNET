@@ -1,13 +1,19 @@
 using Avalonia.Media;
 using SkiaSharp;
-using TrayAppDotNETCommon.UI;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
-internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
+/// <summary>
+/// Brightness's eclipse tray glyph: a sun whose disc is eclipsed in proportion to the tracked brightness. In the
+/// static style the input is fixed, so brightness changes never render.
+/// </summary>
+internal sealed class BrightnessTrayIcon(AppTheme? theme) : ITrayIconRenderer<BrightnessTrayIconRenderInput>
 {
+    private const int StaticStyleBrightness = 50;
+
     private static readonly string[] IconFontFamilies =
     [
         GlyphCatalog.SEGOE_FLUENT_ICONS,
@@ -17,156 +23,62 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
     private readonly Lock _gate = new();
     private readonly AppTheme _theme = theme ?? AppTheme.Default;
     private SKTypeface? _iconTypeface;
-    private NativeIcon? _currentIcon;
-    private bool _isDirty = true;
-    private bool _isLightTheme;
-    private TrayIconStyle _iconStyle = TrayIconStyle.Dynamic;
-    private int _brightnessPercent = 50;
-    private Color? _customColor;
-    private Color? _brightColor;
-    private Color? _dimColor;
 
-    public bool IsLightTheme
-    {
-        get => _isLightTheme;
-        set
-        {
-            if (_isLightTheme == value) return;
-            _isLightTheme = value;
-            _isDirty = true;
-        }
-    }
-
-    public TrayIconStyle IconStyle
-    {
-        get => _iconStyle;
-        set
-        {
-            if (_iconStyle == value) return;
-            _iconStyle = value;
-            _isDirty = true;
-        }
-    }
+    public bool IsLightTheme { get; set; }
+    public TrayAppDotNETTrayIconStyle IconStyle { get; set; } = TrayAppDotNETTrayIconStyle.Dynamic;
 
     public int BrightnessPercent
     {
-        get => _brightnessPercent;
-        set
-        {
-            int clamped = Math.Clamp(value, min: 0, max: 100);
-            if (_brightnessPercent == clamped) return;
-            _brightnessPercent = clamped;
-            _isDirty = true;
-        }
+        get;
+        set => field = Math.Clamp(value, min: 0, max: 100);
+    } = 50;
+
+    public Color? CustomColor { get; set; }
+    public Color? BrightColor { get; set; }
+    public Color? DimColor { get; set; }
+
+    public BrightnessTrayIconRenderInput CreateRenderInput()
+    {
+        int visualBrightness = IconStyle == TrayAppDotNETTrayIconStyle.Static
+            ? StaticStyleBrightness
+            : BrightnessPercent;
+        return new BrightnessTrayIconRenderInput(visualBrightness, ResolveColor(visualBrightness));
     }
 
-    public Color? CustomColor
+    public NativeIcon RenderIcon(BrightnessTrayIconRenderInput input, int iconSize)
     {
-        get => _customColor;
-        set
-        {
-            if (_customColor == value) return;
-            _customColor = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? BrightColor
-    {
-        get => _brightColor;
-        set
-        {
-            if (_brightColor == value) return;
-            _brightColor = value;
-            _isDirty = true;
-        }
-    }
-
-    public Color? DimColor
-    {
-        get => _dimColor;
-        set
-        {
-            if (_dimColor == value) return;
-            _dimColor = value;
-            _isDirty = true;
-        }
-    }
-
-    public void InvalidateCache() => _isDirty = true;
-
-    public NativeIcon? CreateIcon()
-    {
-        if (!TryCreateRenderInput(out BrightnessTrayIconRenderInput? input) || input == null) return null;
-
-        NativeIcon? icon = RenderIcon(input);
-        if (icon == null) return null;
-
         lock (_gate)
         {
-            NativeIcon? oldIcon = _currentIcon;
-            _currentIcon = icon;
-            oldIcon?.Dispose();
-            return _currentIcon;
-        }
-    }
-
-    public bool TryCreateRenderInput(out BrightnessTrayIconRenderInput? input)
-    {
-        input = null;
-        if (!_isDirty) return false;
-
-        int visualBrightness = _iconStyle == TrayIconStyle.Static ? 50 : _brightnessPercent;
-        input = new BrightnessTrayIconRenderInput(visualBrightness, ResolveColor(visualBrightness));
-        _isDirty = false;
-        return true;
-    }
-
-    public NativeIcon? RenderIcon(BrightnessTrayIconRenderInput input)
-    {
-        try
-        {
-            lock (_gate)
-            {
-                int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-                byte[] png = RenderPng(size, input.VisualBrightness, input.ForegroundColor);
-                return NativeIcon.FromIconImage(png, size);
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BrightnessTrayIcon.CreateIcon: {ex.Message}");
-            lock (_gate)
-                return _currentIcon?.Clone() ?? AppTheme.LoadAppNativeIcon();
+            SKTypeface typeface = _iconTypeface ??=
+                TrayGlyphLayout.ResolveTypeface(IconFontFamilies, SKFontStyle.Normal, TADNLog.Log);
+            return TrayIconRasterizer.Render(
+                iconSize,
+                (Typeface: typeface, Input: input),
+                static (canvas, size, state) => Draw(canvas, size, state.Typeface, state.Input));
         }
     }
 
     private Color ResolveColor(int brightnessPercent)
     {
-        if (_iconStyle == TrayIconStyle.Static)
-            return _customColor ?? _theme.Foreground.For(_isLightTheme);
+        if (IconStyle == TrayAppDotNETTrayIconStyle.Static)
+            return CustomColor ?? _theme.Foreground.For(IsLightTheme);
 
-        if (_brightColor.HasValue || _dimColor.HasValue)
+        if (BrightColor.HasValue || DimColor.HasValue)
         {
-            Color fallback = _theme.Foreground.For(_isLightTheme);
-            Color bright = _brightColor ?? fallback;
-            Color dim = _dimColor ?? fallback;
+            Color fallback = _theme.Foreground.For(IsLightTheme);
+            Color bright = BrightColor ?? fallback;
+            Color dim = DimColor ?? fallback;
             double t = Math.Clamp(brightnessPercent / 100.0, min: 0, max: 1);
             return Blend(dim, bright, t);
         }
 
-        return _theme.Foreground.For(_isLightTheme);
+        return _theme.Foreground.For(IsLightTheme);
     }
 
-    private byte[] RenderPng(int size, int brightnessPercent, Color foregroundColor)
+    private static void Draw(SKCanvas canvas, int size, SKTypeface typeface, BrightnessTrayIconRenderInput input)
     {
-        SKImageInfo info = new(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using SKBitmap bitmap = new(info);
-        using SKCanvas canvas = new(bitmap);
-        canvas.Clear(SKColors.Transparent);
-
-        SKColor color = ToSKColor(foregroundColor);
-        brightnessPercent = Math.Clamp(brightnessPercent, min: 0, max: 100);
+        SKColor color = TrayIconRasterizer.ToSKColor(input.ForegroundColor);
+        int brightnessPercent = Math.Clamp(input.VisualBrightness, min: 0, max: 100);
 
         double t = brightnessPercent / 100.0;
         double x = 2 * t - 1;
@@ -176,7 +88,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         double eclipseOffset = (x + d) * 50;
 
         SKPath? eclipseClip = brightnessPercent is > 0 and < 100
-            ? GetEclipsePath(size, size, eclipseOffset, offsetYPercent: 0)
+            ? GetEclipsePath(typeface, size, size, eclipseOffset, offsetYPercent: 0)
             : null;
         bool isClipped = false;
         try
@@ -191,17 +103,17 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
             switch (brightnessPercent)
             {
                 case > 99:
-                    DrawGlyph(canvas, GlyphCatalog.HALF_SUN, size, size, color);
-                    DrawMirroredGlyph(canvas, GlyphCatalog.HALF_SUN, size, size, color);
+                    DrawGlyph(canvas, typeface, GlyphCatalog.HALF_SUN, size, size, color);
+                    DrawMirroredGlyph(canvas, typeface, GlyphCatalog.HALF_SUN, size, size, color);
                     break;
 
                 case > 0:
-                    DrawGlyph(canvas, GlyphCatalog.HALF_SUN, size, size, color);
-                    DrawGlyph(canvas, GlyphCatalog.FILLED_CIRCLE_SMALL, size + 2, size, color);
+                    DrawGlyph(canvas, typeface, GlyphCatalog.HALF_SUN, size, size, color);
+                    DrawGlyph(canvas, typeface, GlyphCatalog.FILLED_CIRCLE_SMALL, size + 2, size, color);
                     break;
 
                 default:
-                    DrawGlyph(canvas, GlyphCatalog.ECLIPSED_SUN, size, size, color);
+                    DrawGlyph(canvas, typeface, GlyphCatalog.ECLIPSED_SUN, size, size, color);
                     break;
             }
         }
@@ -210,43 +122,50 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
             if (isClipped) canvas.Restore();
             eclipseClip?.Dispose();
         }
-
-        using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
-        return data.ToArray();
     }
 
-    private void DrawMirroredGlyph(SKCanvas canvas, Glyph glyph, double fontSize, int canvasSize, SKColor color)
+    private static void DrawMirroredGlyph(
+        SKCanvas canvas,
+        SKTypeface typeface,
+        Glyph glyph,
+        double fontSize,
+        int canvasSize,
+        SKColor color)
     {
         canvas.Save();
         float center = canvasSize / 2f;
         canvas.Scale(sx: -1, sy: 1, center, center);
-        DrawGlyph(canvas, glyph, fontSize, canvasSize, color);
+        DrawGlyph(canvas, typeface, glyph, fontSize, canvasSize, color);
         canvas.Restore();
     }
 
-    private void DrawGlyph(SKCanvas canvas, Glyph glyph, double fontSize, int canvasSize, SKColor color)
+    private static void DrawGlyph(
+        SKCanvas canvas,
+        SKTypeface typeface,
+        Glyph glyph,
+        double fontSize,
+        int canvasSize,
+        SKColor color)
     {
-        using SKFont font = new(IconTypeface, (float)fontSize);
-        font.Edging = SKFontEdging.Antialias;
-        font.Hinting = SKFontHinting.Normal;
-        font.Subpixel = false;
+        using SKFont font = CreateFont(typeface, fontSize);
         using SKPaint paint = new();
         paint.IsAntialias = true;
         paint.Color = color;
 
-        GlyphPlacement placement = MeasureGlyph(font, paint, glyph.Text, canvasSize);
-        canvas.DrawText(glyph.Text, placement.X, placement.Y, font, paint);
+        SKPoint origin = TrayGlyphLayout.Center(font, glyph.Text, canvasSize);
+        canvas.DrawText(glyph.Text, origin.X, origin.Y, font, paint);
     }
 
-    private SKPath? GetEclipsePath(double fontSize, int canvasSize, double offsetXPercent, double offsetYPercent)
+    private static SKPath? GetEclipsePath(
+        SKTypeface typeface,
+        double fontSize,
+        int canvasSize,
+        double offsetXPercent,
+        double offsetYPercent)
     {
         if (offsetXPercent >= 100 && offsetYPercent >= 100) return null;
 
-        using SKFont font = new(IconTypeface, (float)fontSize);
-        font.Edging = SKFontEdging.Antialias;
-        font.Hinting = SKFontHinting.Normal;
-        font.Subpixel = false;
+        using SKFont font = CreateFont(typeface, fontSize);
         using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL.Text, new SKPoint(x: 0, y: 0));
         if (glyphPath.IsEmpty) return null;
 
@@ -266,32 +185,11 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         return null;
     }
 
-    private SKTypeface IconTypeface => _iconTypeface ??= ResolveIconTypeface();
-
-    private static SKTypeface ResolveIconTypeface()
-    {
-        foreach (string family in IconFontFamilies)
+    private static SKFont CreateFont(SKTypeface typeface, double fontSize) =>
+        new(typeface, (float)fontSize)
         {
-            SKTypeface typeface = SKTypeface.FromFamilyName(family, SKFontStyle.Normal);
-            if (typeface.FamilyName.Equals(family, StringComparison.OrdinalIgnoreCase))
-                return typeface;
-
-            typeface.Dispose();
-        }
-
-        TADNLog.Log("BrightnessTrayIcon.ResolveIconTypeface: icon fonts unavailable; using Skia default typeface");
-        return SKTypeface.Default;
-    }
-
-    private static GlyphPlacement MeasureGlyph(SKFont font, SKPaint paint, string glyph, int canvasSize)
-    {
-        float advanceWidth = font.MeasureText(glyph, out _, paint);
-        font.GetFontMetrics(out SKFontMetrics metrics);
-        float lineHeight = metrics.Descent - metrics.Ascent;
-        float x = (canvasSize - advanceWidth) / 2f;
-        float y = (canvasSize - lineHeight) / 2f - metrics.Ascent;
-        return new GlyphPlacement(x, y);
-    }
+            Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false
+        };
 
     private static SKPath CreateTranslatedPath(SKPath source, float x, float y)
     {
@@ -299,8 +197,6 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         source.Transform(SKMatrix.CreateTranslation(x, y), translated);
         return translated;
     }
-
-    private static SKColor ToSKColor(Color color) => new(color.R, color.G, color.B, color.A);
 
     private static Color Blend(Color from, Color to, double t)
     {
@@ -312,14 +208,11 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
     {
         lock (_gate)
         {
-            _currentIcon?.Dispose();
-            _currentIcon = null;
-            _iconTypeface?.Dispose();
+            if (_iconTypeface != null && !ReferenceEquals(_iconTypeface, SKTypeface.Default))
+                _iconTypeface.Dispose();
             _iconTypeface = null;
         }
     }
-
-    private readonly record struct GlyphPlacement(float X, float Y);
 }
 
 internal sealed record BrightnessTrayIconRenderInput(int VisualBrightness, Color ForegroundColor);
