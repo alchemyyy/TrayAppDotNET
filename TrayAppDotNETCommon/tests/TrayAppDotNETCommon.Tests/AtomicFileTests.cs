@@ -43,14 +43,13 @@ public sealed class AtomicFileTests : IDisposable
     public async Task ReplaceWaitsForAReaderThatBrieflyHoldsTheDestination()
     {
         AtomicFile.WriteAllText(FilePath, "old");
-        Task write;
-        using (new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-        {
-            write = Task.Run(() => AtomicFile.WriteAllText(FilePath, "new"));
-            await Task.Delay(100);
-        }
 
-        await write;
+        // Held for one retry delay after the write staged its temporary file
+        using (new SiblingReader(
+                   FilePath,
+                   stagedFilePattern: "data.txt.*.tmp",
+                   TimeSpan.FromMilliseconds(TimeConstants.SettingsFileReplaceRetryDelayMs)))
+            await Task.Run(() => AtomicFile.WriteAllText(FilePath, "new"));
 
         Assert.Equal(expected: "new", await File.ReadAllTextAsync(FilePath));
         Assert.Single(Directory.GetFiles(TestDirectory));

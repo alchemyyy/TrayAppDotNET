@@ -13,13 +13,13 @@ internal sealed class QuiescenceOptions
     // Every participant thread is parked or idle and nothing changed for this long
     public double IdleWindowMicroseconds = 40;
 
-    // Some thread is busy outside the simulator's accounting (a SemaphoreSlim, lock or Task wait, or JIT). After this
-    // long without observable progress, CPU cycle counters and the threads' scheduler states decide whether it is
-    // blocked or still computing
+    // Some thread is busy outside the simulator's accounting (a SemaphoreSlim, lock or Task wait, real I/O, or JIT).
+    // After this long without observable progress, CPU cycle counters and the threads' scheduler states and wait
+    // reasons decide whether it is blocked on another thread or still working
     public double ProbeWindowMicroseconds = 300;
 
-    // Other threads using less than this share of one core over the probe window, with none of them runnable, are
-    // treated as blocked
+    // Other threads using less than this share of one core over the probe window, with none of them running, ready or
+    // waiting on the real world, are treated as blocked
     public double BlockedCPUFraction = 0.05;
 
     // A single wait for quiescence that lasts this long is a hang; the run fails with a state dump
@@ -293,7 +293,6 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
         long lastCompleted = long.MinValue;
         long quietSince = waitStart;
         ulong othersAtQuietStart = OtherThreadsCycles();
-        SampleMachineLoad(s_loadAtQuietStart, out uint pageFaultsAtQuietStart);
         while (true)
         {
             long activity = Volatile.Read(ref _activity);
@@ -308,7 +307,6 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
                 lastCompleted = completed;
                 quietSince = Stopwatch.GetTimestamp();
                 othersAtQuietStart = OtherThreadsCycles();
-                SampleMachineLoad(s_loadAtQuietStart, out pageFaultsAtQuietStart);
                 YieldOrFail(waitStart, driverPoolThreads);
                 continue;
             }
@@ -320,16 +318,16 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
             }
             else if (quietMicroseconds >= Options.ProbeWindowMicroseconds)
             {
-                // Busy threads that burned almost no CPU over the window are blocked, not computing. Low CPU alone is
-                // not enough: on a loaded machine (a full solution test run) a computing thread can be preempted, or
-                // wait on a page-in, for the whole window, and advancing then would let virtual time run ahead of app
-                // work in flight. With a processor idle all window and no page fault, nothing of ours was starved;
-                // otherwise the threads' scheduler states decide (exact, but a system-wide snapshot costs milliseconds)
+                // Busy threads that burned almost no CPU over the window are waiting, not computing. Advancing is
+                // right only when they wait on each other or on a parked participant (a lock, SemaphoreSlim or Task
+                // wait), never while one is preempted or waits on the real world: a disk write or flush, a real-time
+                // sleep or retry delay, a page-in. Those finish on their own, and moving virtual time under them lets
+                // it run ahead of app work in flight (on a CI runner's slow disk, the displays.json write at app start
+                // jumped every scenario to its first script step). CPU counters cannot tell these waits apart; each
+                // thread's scheduler state and wait reason can
                 ulong othersNow = OtherThreadsCycles();
                 double busyMicroseconds = (othersNow - othersAtQuietStart) / CyclesPerMicrosecond.Value;
-                if (busyMicroseconds < quietMicroseconds * Options.BlockedCPUFraction
-                    && (HadSpareProcessorWithoutPaging(quietMicroseconds, pageFaultsAtQuietStart)
-                        || !AnyOtherThreadRunnable()))
+                if (busyMicroseconds < quietMicroseconds * Options.BlockedCPUFraction && !AnyOtherThreadInFlight())
                 {
                     Interlocked.Increment(ref _stallAdvances);
                     return;
@@ -337,7 +335,6 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
 
                 quietSince = Stopwatch.GetTimestamp();
                 othersAtQuietStart = othersNow;
-                SampleMachineLoad(s_loadAtQuietStart, out pageFaultsAtQuietStart);
             }
 
             YieldOrFail(waitStart, driverPoolThreads);
@@ -389,147 +386,101 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
     }
 
     /// <summary>
-    /// True when a thread of this process other than the calling driver is running or waiting for a CPU (ready,
-    /// standby, deferred ready, or in transition): it is computing or was preempted, not blocked on a wait. Reads the
-    /// kernel's process snapshot directly into a reused buffer and parses only this process's entry, because the
-    /// managed <see cref="Process.Threads"/> builds objects for every process on the machine on each call.
+    /// True when a thread of this process other than the calling driver is doing real work (see
+    /// <see cref="IsInFlight"/>). Walks this process's threads and asks the kernel for each one's scheduler state: about
+    /// 1 µs a thread, where the system-wide process snapshot (and <see cref="Process.Threads"/>, built on it) costs
+    /// milliseconds on a busy machine and would run on every quiet probe window.
     /// </summary>
-    internal static bool AnyOtherThreadRunnable()
+    internal static bool AnyOtherThreadInFlight()
     {
         uint driverThreadID = TrayAppDotNETCommon.Interop.Kernel32.GetCurrentThreadId();
-        long processID = Environment.ProcessId;
-        while (true)
+        IntPtr thread = IntPtr.Zero;
+        try
         {
-            int status = NtQuerySystemInformation(
-                SystemProcessInformation,
-                s_processSnapshot,
-                (uint)s_processSnapshotLength,
-                out uint requiredLength);
-            if (status >= 0) return HasRunnableThread(requiredLength, processID, driverThreadID);
-            if (status != StatusInfoLengthMismatch) return false;
-
-            int grownLength = (int)Math.Max(requiredLength + 64 * 1024, (uint)s_processSnapshotLength * 2);
-            Marshal.FreeHGlobal(s_processSnapshot);
-            s_processSnapshot = Marshal.AllocHGlobal(grownLength);
-            s_processSnapshotLength = grownLength;
-        }
-    }
-
-    private static bool HasRunnableThread(uint length, long processID, uint driverThreadID)
-    {
-        IntPtr buffer = s_processSnapshot;
-        long offset = 0;
-        while (offset + ProcessEntrySize <= length)
-        {
-            if (Marshal.ReadInt64(buffer, (int)(offset + ProcessIDOffset)) == processID)
+            while (NtGetNextThread(
+                       CurrentProcessPseudoHandle,
+                       thread,
+                       ThreadQueryLimitedInformation,
+                       handleAttributes: 0,
+                       flags: 0,
+                       out IntPtr next) >= 0)
             {
-                uint threadCount = (uint)Marshal.ReadInt32(buffer, (int)(offset + ThreadCountOffset));
-                for (long index = 0; index < threadCount; index++)
-                {
-                    long thread = offset + ProcessEntrySize + index * ThreadEntrySize;
-                    if (thread + ThreadEntrySize > length) break;
-                    if ((uint)Marshal.ReadInt64(buffer, (int)(thread + ThreadIDOffset)) == driverThreadID) continue;
+                if (thread != IntPtr.Zero) TrayAppDotNETCommon.Interop.Kernel32.CloseHandle(thread);
+                thread = next;
 
-                    // KTHREAD_STATE: 1 Ready, 2 Running, 3 Standby, 6 Transition, 7 DeferredReady
-                    int state = Marshal.ReadInt32(buffer, (int)(thread + ThreadStateOffset));
-                    if (state is 1 or 2 or 3 or 6 or 7) return true;
+                int status = NtQueryInformationThread(
+                    thread,
+                    ThreadSystemThreadInformation,
+                    s_threadInformation,
+                    ThreadInformationSize,
+                    out _);
+                if (status < 0)
+                    throw new InvalidOperationException($"NtQueryInformationThread failed with 0x{status:X8}.");
 
-                    // A wait for memory is not a synchronization wait: 1/8 FreePage, 2/9 PageIn, 3/10 PoolAllocation
-                    int waitReason = Marshal.ReadInt32(buffer, (int)(thread + WaitReasonOffset));
-                    if (state == 5 && waitReason is 1 or 2 or 3 or 8 or 9 or 10) return true;
-                }
-
-                return false;
+                if ((uint)Marshal.ReadInt64(s_threadInformation, ThreadIDOffset) == driverThreadID) continue;
+                if (IsInFlight(
+                        Marshal.ReadInt32(s_threadInformation, ThreadStateOffset),
+                        Marshal.ReadInt32(s_threadInformation, WaitReasonOffset)))
+                    return true;
             }
 
-            uint next = (uint)Marshal.ReadInt32(buffer, (int)offset);
-            if (next == 0) return false;
-            offset += next;
+            return false;
         }
-
-        return false;
-    }
-
-    // x64 SYSTEM_PROCESS_INFORMATION and SYSTEM_THREAD_INFORMATION (information class 5)
-    private const int SystemProcessInformation = 5;
-    private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
-    private const long ProcessEntrySize = 0x100;
-    private const long ThreadCountOffset = 4;
-    private const long ProcessIDOffset = 0x50;
-    private const long ThreadEntrySize = 0x50;
-    private const long ThreadIDOffset = 0x30;
-    private const long ThreadStateOffset = 0x44;
-    private const long WaitReasonOffset = 0x48;
-
-    // Driver-thread only (WaitForQuiescence runs on the thread that drives the clock); kept for the process lifetime
-    private static int s_processSnapshotLength = 4 * 1024 * 1024;
-    private static IntPtr s_processSnapshot = Marshal.AllocHGlobal(s_processSnapshotLength);
-    private static readonly ulong[] s_loadAtQuietStart = new ulong[Environment.ProcessorCount];
-    private static readonly ulong[] s_loadNow = new ulong[Environment.ProcessorCount];
-
-    [DllImport("ntdll.dll")]
-    private static extern int NtQuerySystemInformation(
-        int systemInformationClass,
-        IntPtr systemInformation,
-        uint systemInformationLength,
-        out uint returnLength);
-
-    /// <summary>Per-processor idle cycle counts of this processor group, and this process's page-fault count.</summary>
-    private static void SampleMachineLoad(ulong[] idleCycles, out uint pageFaults)
-    {
-        uint idleBytes = (uint)(idleCycles.Length * sizeof(ulong));
-        if (!QueryIdleProcessorCycleTime(ref idleBytes, idleCycles)) Array.Clear(idleCycles);
-
-        ProcessMemoryCounters counters = new() { Size = (uint)Marshal.SizeOf<ProcessMemoryCounters>() };
-        pageFaults = K32GetProcessMemoryInfo(CurrentProcessPseudoHandle, ref counters, counters.Size)
-            ? counters.PageFaultCount
-            : uint.MaxValue;
+        finally
+        {
+            if (thread != IntPtr.Zero) TrayAppDotNETCommon.Interop.Kernel32.CloseHandle(thread);
+        }
     }
 
     /// <summary>
-    /// True when some processor stayed idle for (nearly) the whole window and this process took no page fault: a
-    /// thread of ours that was ready to run would have run, so low CPU really means blocked.
+    /// Whether a thread in this scheduler state does real work that virtual time must wait for. Running or waiting for
+    /// a CPU does. A wait (KTHREAD_STATE 5) does not when it waits on another thread, which may be parked on virtual
+    /// time: an event, mutex or semaphore (KWAIT_REASON 6 UserRequest, 13 WrUserRequest: .NET locks, Monitor,
+    /// SemaphoreSlim and Task waits), an I/O completion port (15 WrQueue: idle pool threads), a keyed event or address
+    /// wait (21 WrKeyedEvent, 37 WrAlertByThreadId: critical sections and SRW locks), or a port listening for a request
+    /// (16 WrLpcReceive). Every other wait is on the real world and ends on its own: synchronous file I/O such as a
+    /// flush (0/7 Executive), a sleep or retry delay (4/11 DelayExecution), memory (1-3, 8-10), a file system's kernel
+    /// lock (27 WrResource, 28 WrPushLock, 34 WrFastMutex, 35 WrGuardedMutex), or another process's reply (17 WrLpcReply).
     /// </summary>
-    private static bool HadSpareProcessorWithoutPaging(double windowMicroseconds, uint pageFaultsAtStart)
+    internal static bool IsInFlight(int threadState, int waitReason) => threadState switch
     {
-        SampleMachineLoad(s_loadNow, out uint pageFaultsNow);
-        if (pageFaultsNow != pageFaultsAtStart || pageFaultsNow == uint.MaxValue) return false;
+        ThreadStateTerminated => false,
+        ThreadStateWaiting => waitReason is not (6 or 13 or 15 or 16 or 21 or 37),
+        _ => true
+    };
 
-        double windowCycles = windowMicroseconds * CyclesPerMicrosecond.Value;
-        for (int processor = 0; processor < s_loadNow.Length; processor++)
-        {
-            if (s_loadNow[processor] - s_loadAtQuietStart[processor] >= windowCycles * SpareProcessorIdleFraction)
-                return true;
-        }
+    // KTHREAD_STATE values the classification singles out
+    private const int ThreadStateTerminated = 4;
+    private const int ThreadStateWaiting = 5;
 
-        return false;
-    }
+    // NtQueryInformationThread's ThreadSystemThreadInformation (Windows 10 1709 and later) returns the x64
+    // SYSTEM_THREAD_INFORMATION that the system process snapshot lists for each thread
+    private const uint ThreadQueryLimitedInformation = 0x0800;
+    private const int ThreadSystemThreadInformation = 40;
+    private const uint ThreadInformationSize = 0x50;
+    private const int ThreadIDOffset = 0x30;
+    private const int ThreadStateOffset = 0x44;
+    private const int WaitReasonOffset = 0x48;
 
-    // A processor idle for this share of the probe window counts as spare capacity
-    private const double SpareProcessorIdleFraction = 0.9;
+    // Driver-thread only (WaitForQuiescence runs on the thread that drives the clock); kept for the process lifetime
+    private static readonly IntPtr s_threadInformation = Marshal.AllocHGlobal((int)ThreadInformationSize);
 
-    [DllImport("kernel32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool QueryIdleProcessorCycleTime(ref uint bufferLength, [Out] ulong[] processorIdleCycleTime);
+    [DllImport("ntdll.dll")]
+    private static extern int NtGetNextThread(
+        IntPtr processHandle,
+        IntPtr threadHandle,
+        uint desiredAccess,
+        uint handleAttributes,
+        uint flags,
+        out IntPtr newThreadHandle);
 
-    [DllImport("kernel32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool K32GetProcessMemoryInfo(IntPtr process, ref ProcessMemoryCounters counters, uint size);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessMemoryCounters
-    {
-        public uint Size;
-        public uint PageFaultCount;
-        public nuint PeakWorkingSetSize;
-        public nuint WorkingSetSize;
-        public nuint QuotaPeakPagedPoolUsage;
-        public nuint QuotaPagedPoolUsage;
-        public nuint QuotaPeakNonPagedPoolUsage;
-        public nuint QuotaNonPagedPoolUsage;
-        public nuint PagefileUsage;
-        public nuint PeakPagefileUsage;
-    }
+    [DllImport("ntdll.dll")]
+    private static extern int NtQueryInformationThread(
+        IntPtr threadHandle,
+        int threadInformationClass,
+        IntPtr threadInformation,
+        uint threadInformationLength,
+        out uint returnLength);
 
     /// <summary>CPU cycles consumed by every thread in this process except the calling driver thread.</summary>
     private static ulong OtherThreadsCycles()

@@ -100,42 +100,4 @@ public sealed class DeviceSettingsTests
             if (File.Exists(path + ".tmp")) File.Delete(path + ".tmp");
         }
     }
-
-    [Fact]
-    public async Task WriteFileRetriesWhileDestinationIsTemporarilyOpen()
-    {
-        string path = Path.Combine(
-            Path.GetTempPath(),
-            $"VolumeTrayAppDotNET.DeviceSettingsTests.{Guid.NewGuid():N}.xml");
-        DeviceSettings initialSettings = new();
-        initialSettings.GetOrCreate("initial-device").CustomFriendlyName = "Initial";
-        TrayXmlSerializer.WriteFile(path, initialSettings);
-
-        FileStream? destinationLock = null;
-        try
-        {
-            destinationLock = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read);
-            DeviceSettings replacementSettings = new();
-            replacementSettings.GetOrCreate("replacement-device").CustomFriendlyName = "Replacement";
-            Task write = Task.Run(() => TrayXmlSerializer.WriteFile(path, replacementSettings));
-
-            await Task.Delay(100);
-            destinationLock.Dispose();
-            destinationLock = null;
-            await write;
-
-            DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
-            Assert.Equal(expected: "Replacement", loaded.Find("replacement-device")?.CustomFriendlyName);
-        }
-        finally
-        {
-            destinationLock?.Dispose();
-            if (File.Exists(path)) File.Delete(path);
-            if (File.Exists(path + ".tmp")) File.Delete(path + ".tmp");
-        }
-    }
 }

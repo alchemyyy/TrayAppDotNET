@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using Xunit;
@@ -119,13 +120,26 @@ public sealed class PerformanceSnapshotServiceTests
         Assert.Equal(
             snapshot.Memory.AvailablePhysicalBytes,
             snapshot.Memory.Composition.StandbyBytes + snapshot.Memory.Composition.FreeBytes);
-        Assert.True(snapshot.Memory.Composition.HasCompressionData);
-        Assert.True(snapshot.Memory.Composition.EstimatedDataBytes
-                    >= snapshot.Memory.Composition.CompressedBytes);
-        Assert.Equal(
-            snapshot.Memory.Composition.EstimatedDataBytes
-            - snapshot.Memory.Composition.CompressedBytes,
-            snapshot.Memory.Composition.SavedBytes);
+
+        // Windows Server keeps memory compression off (Get-MMAgent), so a CI runner has no store to read. Where the
+        // store's process holds compressed pages, the snapshot must report them
+        MemoryCompositionSnapshot composition = snapshot.Memory.Composition;
+        bool storeHoldsPages = Process.GetProcessesByName("Memory Compression")
+            .Any(static store => store.WorkingSet64 >= 1024 * 1024);
+        if (storeHoldsPages) Assert.True(composition.HasCompressionData);
+
+        if (composition.HasCompressionData)
+        {
+            Assert.True(composition.EstimatedDataBytes >= composition.CompressedBytes);
+            Assert.Equal(composition.EstimatedDataBytes - composition.CompressedBytes, composition.SavedBytes);
+        }
+        else
+        {
+            Assert.Equal(expected: 0UL, composition.CompressedBytes);
+            Assert.Equal(expected: 0UL, composition.EstimatedDataBytes);
+            Assert.Equal(expected: 0UL, composition.SavedBytes);
+        }
+
         Assert.All(
             snapshot.Memory.Hardware.Modules.ToArray(),
             static module => Assert.Empty(module.SerialNumber));

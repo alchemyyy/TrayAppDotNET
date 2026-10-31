@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Pipes;
 using BrightnessTrayAppDotNET.DDCCI;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Hardware;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Simulation;
@@ -11,10 +12,10 @@ public sealed class SimulatorSelfTests
 {
     /// <summary>
     /// A thread that is computing keeps virtual time still even when the CPU heuristic would call it blocked: the
-    /// scheduler-state check sees it running or ready. This also proves the snapshot finds this process's threads.
+    /// scheduler-state check sees it running or ready. This also proves the walk finds this process's threads.
     /// </summary>
     [Fact]
-    public void ComputingThreadCountsAsRunnable()
+    public void ComputingThreadCountsAsInFlight()
     {
         using ManualResetEventSlim stop = new();
         using ManualResetEventSlim started = new();
@@ -27,13 +28,97 @@ public sealed class SimulatorSelfTests
         try
         {
             Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
-            Assert.True(SimulationClock.AnyOtherThreadRunnable());
+            Assert.True(SimulationClock.AnyOtherThreadInFlight());
         }
         finally
         {
             stop.Set();
             spinner.Join();
         }
+    }
+
+    /// <summary>
+    /// UI-thread work that sleeps in real time, as a retry delay does, holds virtual time: the far-off timer fires only
+    /// after the work is done.
+    /// </summary>
+    [Fact]
+    public async Task RealTimeSleepOnTheUIThreadHoldsVirtualTime()
+    {
+        SimulationClock clock = new(DateTimeOffset.UnixEpoch);
+        using SimulationDispatcher dispatcher = new(clock, static _ => { });
+        clock.Dispatcher = dispatcher;
+        TaskCompletionSource<TimeSpan> slept = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        dispatcher.Post(() =>
+        {
+            Thread.Sleep(50);
+            slept.SetResult(clock.Elapsed);
+        });
+        TimeSpan firedAt = TimeSpan.MinValue;
+        clock.ScheduleAt(TimeSpan.FromSeconds(10).Ticks, () => firedAt = clock.Elapsed);
+
+        clock.RunUntil(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(TimeSpan.Zero, await slept.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(TimeSpan.FromSeconds(10), firedAt);
+    }
+
+    /// <summary>
+    /// UI-thread work blocked in synchronous I/O holds virtual time until the I/O completes. On a CI runner's slow disk
+    /// the app's displays.json flush at startup used to let every scenario jump to its first script step before the
+    /// app had finished starting; a pipe read whose data arrives in real time is the same kernel wait, made slow on
+    /// purpose.
+    /// </summary>
+    [Fact]
+    public async Task SynchronousIOOnTheUIThreadHoldsVirtualTime()
+    {
+        SimulationClock clock = new(DateTimeOffset.UnixEpoch);
+        using SimulationDispatcher dispatcher = new(clock, static _ => { });
+        clock.Dispatcher = dispatcher;
+        using AnonymousPipeServerStream writer = new(PipeDirection.Out);
+        using AnonymousPipeClientStream reader = new(PipeDirection.In, writer.ClientSafePipeHandle);
+        using Timer reply = new(_ => writer.WriteByte(1), state: null, dueTime: 50, period: Timeout.Infinite);
+        TaskCompletionSource<TimeSpan> read = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        dispatcher.Post(() =>
+        {
+            _ = reader.ReadByte();
+            read.SetResult(clock.Elapsed);
+        });
+        TimeSpan firedAt = TimeSpan.MinValue;
+        clock.ScheduleAt(TimeSpan.FromSeconds(10).Ticks, () => firedAt = clock.Elapsed);
+
+        clock.RunUntil(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(TimeSpan.Zero, await read.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(TimeSpan.FromSeconds(10), firedAt);
+    }
+
+    /// <summary>
+    /// The other side of the rule: UI-thread work blocked on a semaphore that a thread parked on virtual time releases
+    /// waits on the simulation, so time must move for either to finish.
+    /// </summary>
+    [Fact]
+    public async Task UIThreadWaitingOnAParkedThreadLetsVirtualTimeAdvance()
+    {
+        SimulationClock clock = new(DateTimeOffset.UnixEpoch);
+        using SimulationDispatcher dispatcher = new(clock, static _ => { });
+        clock.Dispatcher = dispatcher;
+        using SemaphoreSlim released = new(initialCount: 0);
+        Task holder = Task.Run(() =>
+        {
+            clock.Sleep(TimeSpan.FromSeconds(1));
+            released.Release();
+        });
+        TimeSpan acquiredAt = TimeSpan.MinValue;
+        dispatcher.Post(() =>
+        {
+            released.Wait();
+            acquiredAt = clock.Elapsed;
+        });
+
+        clock.RunUntil(TimeSpan.FromSeconds(2));
+
+        await holder.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(TimeSpan.FromSeconds(1), acquiredAt);
     }
 
     [Fact]

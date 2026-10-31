@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net;
 using System.Text;
 using TrayAppDotNETCommon.Services;
@@ -15,7 +14,6 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
     // Shorter than the 250 ms the replace retries span, so a retrying writer outlasts the reader
     private static readonly TimeSpan SiblingReaderHoldAfterStaging = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan SiblingReaderStagingTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ManifestCacheWatcherTimeout = TimeSpan.FromSeconds(10);
 
     private readonly TempDirectory _temp = new();
@@ -121,26 +119,10 @@ public sealed class UpdateCheckServiceTests : IDisposable
         using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
 
         // Hold the cache open like a sibling app's read until the writer has staged its replacement
-        FileStream siblingReader = new(CachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        Task releaseTask = Task.Run(async () =>
-        {
-            try
-            {
-                // A writer that gives up deletes its temporary file at once, so the wait can miss it and time out
-                Stopwatch stagingWait = Stopwatch.StartNew();
-                while (stagingWait.Elapsed < SiblingReaderStagingTimeout
-                       && !Directory.EnumerateFiles(TestDirectory, searchPattern: "versions.xml.*.tmp").Any())
-                    await Task.Delay(millisecondsDelay: 1);
-                await Task.Delay(SiblingReaderHoldAfterStaging);
-            }
-            finally
-            {
-                await siblingReader.DisposeAsync();
-            }
-        });
+        UpdateInfo? update;
+        using (new SiblingReader(CachePath, stagedFilePattern: "versions.xml.*.tmp", SiblingReaderHoldAfterStaging))
+            update = await service.CheckNowAsync();
 
-        UpdateInfo? update = await service.CheckNowAsync();
-        await releaseTask;
         string cachedManifest = await File.ReadAllTextAsync(CachePath);
 
         Assert.NotNull(update);
