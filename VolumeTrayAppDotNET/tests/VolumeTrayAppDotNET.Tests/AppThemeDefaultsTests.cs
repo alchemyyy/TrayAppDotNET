@@ -1,6 +1,7 @@
 using Avalonia.Media;
 using VolumeTrayAppDotNET.Models;
 using VolumeTrayAppDotNET.Visuals;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 using ThemeColor = TrayAppDotNETCommon.Visuals.ThemeColor;
 
@@ -13,17 +14,15 @@ public sealed class AppThemeDefaultsTests
     {
         AppThemeResources resources = new();
 
-        Assert.Equal(resources.Color(nameof(AppTheme.MeterPeakColorDefault)), AppTheme.MeterPeakColorDefault);
-        Assert.Equal(
-            resources.Color(nameof(AppTheme.MeterPeakStereoColorDefault)),
-            AppTheme.MeterPeakStereoColorDefault);
+        Assert.Equal(resources.AxamlVolumeAppTheme.MeterPeakColorDefault, AppTheme.MeterPeakColorDefault);
+        Assert.Equal(resources.AxamlVolumeAppTheme.MeterPeakStereoColorDefault, AppTheme.MeterPeakStereoColorDefault);
         Assert.Equal(expected: "#FFFFFFFF", AppTheme.MeterPeakColorDefaultHex);
         Assert.Equal(expected: "#80FFFFFF", AppTheme.MeterPeakStereoColorDefaultHex);
         Assert.Equal(
-            resources.Color("LegacyMeterPeakColorDefault"),
+            resources.AxamlVolumeAppTheme.LegacyMeterPeakColorDefault,
             Color.Parse(AppTheme.LegacyMeterPeakColorDefaultHex));
         Assert.Equal(
-            resources.Color("LegacyMeterPeakStereoColorDefault"),
+            resources.AxamlVolumeAppTheme.LegacyMeterPeakStereoColorDefault,
             Color.Parse(AppTheme.LegacyMeterPeakStereoColorDefaultHex));
     }
 
@@ -58,7 +57,7 @@ public sealed class AppThemeDefaultsTests
 
         try
         {
-            source.Save(path);
+            TrayXmlSerializer.WriteFile(path, source);
             using AppTheme loaded = AppTheme.Load(path);
             using AppTheme untouched = new();
 

@@ -148,9 +148,14 @@ public sealed class GPUPerformanceDetailsReaderTests
     [InlineData("VideoEncode#4", "Video Encode")]
     [InlineData("optical-flow", "Optical Flow")]
     [InlineData("custom engine", "custom engine")]
+    [InlineData("legacyoverlay", "Legacy Overlay")]
+    [InlineData("Legacy-Overlay", "Legacy Overlay")]
+    [InlineData("Security", "Security")]
+    [InlineData("3D#2", "3D")]
     [InlineData(null, "GPU Engine")]
+    [InlineData("  ", "GPU Engine")]
     public void NormalizesKernelAndCounterEngineNames(string? input, string expected) =>
-        Assert.Equal(expected, GPUPerformanceDetailsReader.NormalizeEngineName(input));
+        Assert.Equal(expected, GPUEngineNames.Normalize(input));
 
     [Theory]
     [InlineData(16_000UL, 15_500UL, 500UL)]

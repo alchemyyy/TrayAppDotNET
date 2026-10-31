@@ -32,23 +32,6 @@ public sealed class SystemPerformanceSamplerTests
         Assert.True(memoryStatus.AvailablePhysicalBytes <= memoryStatus.TotalPhysicalBytes);
     }
 
-    [Fact]
-    public void ResetProcessorBaselineSuppressesTheNextDelta()
-    {
-        using SystemPerformanceSampler sampler = new();
-        _ = sampler.Sample();
-        Thread.Sleep(25);
-        _ = sampler.Sample();
-        Assert.True(sampler.LastProcessorSampleAvailable);
-
-        sampler.ResetProcessorBaseline();
-        SystemPerformanceSample baselineSample = sampler.Sample();
-
-        Assert.False(sampler.LastProcessorSampleAvailable);
-        Assert.Equal(expected: 0, baselineSample.CPUAveragePercent);
-        Assert.Equal(expected: 0, baselineSample.CPUHighestCorePercent);
-    }
-
     [Theory]
     [InlineData(50, 150, 66.6666666667)]
     [InlineData(0, 100, 100)]

@@ -1,6 +1,7 @@
 using FanControlTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace FanControlTrayAppDotNET.Tests;
@@ -39,9 +40,8 @@ public sealed class HotkeyMigrationTests
             ]
         };
 
-        Assert.True(settings.RetireLegacyOpenSettingsHotkey());
+        Retire(settings.Hotkeys);
 
-        Assert.True(settings.LegacyOpenSettingsHotkeyRetired);
         Assert.Equal(expected: 2, settings.Hotkeys.Count);
         Assert.Contains(settings.Hotkeys, b => b.Matches(HotkeyAction.OpenFlyout, string.Empty, 0));
         Assert.Contains(settings.Hotkeys, b => b.Matches(HotkeyAction.OpenSettings, string.Empty, 1));
@@ -65,26 +65,10 @@ public sealed class HotkeyMigrationTests
             ]
         };
 
-        Assert.True(settings.RetireLegacyOpenSettingsHotkey());
+        Retire(settings.Hotkeys);
 
         HotkeyBinding kept = Assert.Single(settings.Hotkeys);
         Assert.Equal(VirtualKeyF, kept.VirtualKey);
-    }
-
-    /// <summary>
-    /// Verifies the migration runs once: a binding re-added after it ran is never removed again.
-    /// </summary>
-    [Fact]
-    public void RetireRunsOnlyOnce()
-    {
-        AppSettings settings = new() { Hotkeys = [LegacyOpenSettings()] };
-        Assert.True(settings.RetireLegacyOpenSettingsHotkey());
-        Assert.Empty(settings.Hotkeys);
-
-        settings.Hotkeys.Add(LegacyOpenSettings());
-
-        Assert.False(settings.RetireLegacyOpenSettingsHotkey());
-        Assert.Single(settings.Hotkeys);
     }
 
     /// <summary>
@@ -108,7 +92,7 @@ public sealed class HotkeyMigrationTests
                     }
                 ]
             };
-            legacy.Save(path);
+            TrayXmlSerializer.WriteFile(path, legacy);
 
             AppSettings migrated = AppSettings.LoadOrDefault(path);
             Assert.True(migrated.LegacyOpenSettingsHotkeyRetired);
@@ -116,7 +100,8 @@ public sealed class HotkeyMigrationTests
             Assert.Contains(migrated.Hotkeys, b => b.Action == HotkeyAction.OpenFlyout);
 
             migrated.Hotkeys.Add(LegacyOpenSettings());
-            migrated.Save(path);
+            migrated.Save();
+            migrated.Store!.Flush();
 
             AppSettings reloaded = AppSettings.LoadOrDefault(path);
             Assert.True(reloaded.LegacyOpenSettingsHotkeyRetired);
@@ -150,6 +135,9 @@ public sealed class HotkeyMigrationTests
             File.Delete(path);
         }
     }
+
+    private static void Retire(List<HotkeyBinding> hotkeys) =>
+        HotkeyDefaults.RetireLegacyBinding(hotkeys, HotkeyAction.OpenSettings, LegacyModifiers, VirtualKeyS);
 
     private static HotkeyBinding LegacyOpenSettings() => new()
     {

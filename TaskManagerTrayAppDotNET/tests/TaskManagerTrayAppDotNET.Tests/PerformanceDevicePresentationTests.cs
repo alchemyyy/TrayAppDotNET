@@ -1,12 +1,16 @@
 using System.Globalization;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI.Performance;
+using static TaskManagerTrayAppDotNET.Tests.TestLocalization;
+using AppStrings = TaskManagerTrayAppDotNET.Localization.Strings;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class PerformanceDevicePresentationTests
 {
+    private static string Unavailable => L(nameof(AppStrings.Perf_Unavailable));
+
     [Fact]
     public void EmptySnapshotStillExposesCPUAndMemoryRowsAsUnavailable()
     {
@@ -43,22 +47,22 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Value);
 
         Assert.Equal(expected: "42%  5.40 GHz", device.Summary);
-        Assert.Equal(expected: "5.40 GHz", valuesByLabel["Speed"]);
-        Assert.Equal(expected: "5.70 GHz", valuesByLabel["Highest recorded speed"]);
-        Assert.Equal(expected: "4.20 GHz", valuesByLabel["Base speed"]);
-        Assert.Equal(expected: "73%", valuesByLabel["Highest logical processor"]);
-        Assert.Equal(expected: "16", valuesByLabel["Physical cores"]);
-        Assert.Equal(expected: "32", valuesByLabel["Logical processors"]);
+        Assert.Equal(expected: "5.40 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_Speed))]);
+        Assert.Equal(expected: "5.70 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_HighestRecordedSpeed))]);
+        Assert.Equal(expected: "4.20 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_BaseSpeed))]);
+        Assert.Equal(expected: "73%", valuesByLabel[L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor))]);
+        Assert.Equal(expected: "16", valuesByLabel[L(nameof(AppStrings.Perf_Label_PhysicalCores))]);
+        Assert.Equal(expected: "32", valuesByLabel[L(nameof(AppStrings.Perf_Label_LogicalProcessors))]);
         Assert.Equal(
             [
-                "Utilization",
-                "Speed",
-                "Highest logical processor",
-                "Processes",
-                "Threads",
-                "Handles",
-                "Up time",
-                "Highest recorded speed"
+                L(nameof(AppStrings.Perf_Label_Utilization)),
+                L(nameof(AppStrings.Perf_Label_Speed)),
+                L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor)),
+                L(nameof(AppStrings.Perf_Label_Processes)),
+                L(nameof(AppStrings.Perf_Label_Threads)),
+                L(nameof(AppStrings.Perf_Label_Handles)),
+                L(nameof(AppStrings.Perf_Label_UpTime)),
+                L(nameof(AppStrings.Perf_Label_HighestRecordedSpeed))
             ],
             statistics.Take(8).Select(static statistic => statistic.Label));
         Assert.DoesNotContain(statistics, static statistic => statistic.Label is
@@ -67,12 +71,12 @@ public sealed class PerformanceDevicePresentationTests
 
     [Theory]
     [InlineData(true, "988", "19,241", "930,762")]
-    [InlineData(false, "Unavailable", "Unavailable", "Unavailable")]
+    [InlineData(false, null, null, null)]
     public void CPUProcessTotalsShowOnlyWhenMeasured(
         bool hasProcessTotals,
-        string expectedProcesses,
-        string expectedThreads,
-        string expectedHandles)
+        string? expectedProcesses,
+        string? expectedThreads,
+        string? expectedHandles)
     {
         CultureInfo previousCulture = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
@@ -92,9 +96,9 @@ public sealed class PerformanceDevicePresentationTests
                 .Statistics.ToArray()
                 .ToDictionary(static statistic => statistic.Label, static statistic => statistic.Value);
 
-            Assert.Equal(expectedProcesses, valuesByLabel["Processes"]);
-            Assert.Equal(expectedThreads, valuesByLabel["Threads"]);
-            Assert.Equal(expectedHandles, valuesByLabel["Handles"]);
+            Assert.Equal(expectedProcesses ?? Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_Processes))]);
+            Assert.Equal(expectedThreads ?? Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_Threads))]);
+            Assert.Equal(expectedHandles ?? Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_Handles))]);
         }
         finally
         {
@@ -251,7 +255,7 @@ public sealed class PerformanceDevicePresentationTests
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
-        Assert.Equal(expected: "Disk 12 (C:, D:)", device.Title);
+        Assert.Equal(expected: F(nameof(AppStrings.Perf_Title_DiskWithVolumesFormat), 12, "C:, D:"), device.Title);
         Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.Subtitle);
         Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.HardwareName);
         Assert.Equal(expected: "25%", device.Summary);
@@ -259,11 +263,11 @@ public sealed class PerformanceDevicePresentationTests
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,
             static statistic => statistic.Value);
-        Assert.Equal(expected: "Yes", valuesByLabel["System disk"]);
-        Assert.Equal(expected: "No", valuesByLabel["Page file"]);
-        Assert.Equal(expected: "SSD (NVMe)", valuesByLabel["Type"]);
+        Assert.Equal(expected: L(nameof(AppStrings.Perf_Yes)), valuesByLabel[L(nameof(AppStrings.Perf_Label_SystemDisk))]);
+        Assert.Equal(expected: L(nameof(AppStrings.Perf_No)), valuesByLabel[L(nameof(AppStrings.Perf_Label_PageFile))]);
+        Assert.Equal(expected: "SSD (NVMe)", valuesByLabel[L(nameof(AppStrings.Perf_Label_Type))]);
         Assert.Equal(
-            ["Active time", "Average response time", "Read speed", "Write speed"],
+            [L(nameof(AppStrings.Perf_Label_ActiveTime)), L(nameof(AppStrings.Perf_Label_AverageResponseTime)), L(nameof(AppStrings.Perf_Label_ReadSpeed)), L(nameof(AppStrings.Perf_Label_WriteSpeed))],
             device.Statistics.Span[..4].ToArray().Select(static statistic => statistic.Label));
     }
 
@@ -308,14 +312,14 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.Equal(expected: "3.0/16.0 GB", valuesByLabel["Dedicated GPU memory"]);
-        Assert.Equal(expected: "3.5/80.0 GB", valuesByLabel["GPU Memory"]);
-        Assert.Equal(expected: "0.5/64.0 GB", valuesByLabel["Shared GPU memory"]);
-        Assert.Equal(expected: "32 \u00B0C", valuesByLabel["Temperature"]);
-        Assert.Equal(expected: "32.0.15.9660", valuesByLabel["Driver version"]);
-        Assert.Equal(expected: "12 (FL 12.2)", valuesByLabel["DirectX version"]);
-        Assert.Equal(expected: "PCI bus 33, device 0, function 0", valuesByLabel["Physical location"]);
-        Assert.Equal(expected: "1.0 GB", valuesByLabel["Hardware reserved memory"]);
+        Assert.Equal(expected: "3.0/16.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory))]);
+        Assert.Equal(expected: "3.5/80.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUMemory))]);
+        Assert.Equal(expected: "0.5/64.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_SharedGPUMemory))]);
+        Assert.Equal(expected: "32 \u00B0C", valuesByLabel[L(nameof(AppStrings.Perf_Label_Temperature))]);
+        Assert.Equal(expected: "32.0.15.9660", valuesByLabel[L(nameof(AppStrings.Perf_Label_DriverVersion))]);
+        Assert.Equal(expected: "12 (FL 12.2)", valuesByLabel[L(nameof(AppStrings.Perf_Label_DirectXVersion))]);
+        Assert.Equal(expected: "PCI bus 33, device 0, function 0", valuesByLabel[L(nameof(AppStrings.Perf_Label_PhysicalLocation))]);
+        Assert.Equal(expected: "1.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_HardwareReservedMemory))]);
     }
 
     [Fact]
@@ -346,9 +350,9 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.NotEqual(expected: "Unavailable", valuesByLabel["Dedicated GPU memory"]);
-        Assert.Equal(expected: "Unavailable", valuesByLabel["Shared GPU memory"]);
-        Assert.Equal(expected: "Unavailable", valuesByLabel["GPU Memory"]);
+        Assert.NotEqual(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory))]);
+        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_SharedGPUMemory))]);
+        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUMemory))]);
     }
 
     [Fact]
@@ -398,29 +402,31 @@ public sealed class PerformanceDevicePresentationTests
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
-        Assert.Equal(expected: "Disk 4", device.Title);
+        Assert.Equal(expected: F(nameof(AppStrings.Perf_Title_DiskFormat), 4), device.Title);
         Assert.Equal(expected: "Microsoft Storage Space Device", device.Subtitle);
         Assert.Equal(expected: "Microsoft Storage Space Device", device.HardwareName);
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,
             static statistic => statistic.Value);
-        Assert.Equal(expected: "Unavailable", valuesByLabel["System disk"]);
-        Assert.Equal(expected: "Unavailable", valuesByLabel["Page file"]);
+        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_SystemDisk))]);
+        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_PageFile))]);
     }
 
     [Theory]
-    [InlineData(1, "% Utilization over 1 minute")]
-    [InlineData(5, "% Utilization over 5 minutes")]
+    [InlineData(1, nameof(AppStrings.Perf_MinuteFormat))]
+    [InlineData(5, nameof(AppStrings.Perf_MinutesFormat))]
     public void GraphLabelUsesConfiguredHistoryLength(
         int historyLengthMinutes,
-        string expectedLabel)
+        string historyWindowKey)
     {
         PerformanceDevicePresentation CPU = PerformanceDevicePresentationFactory.Create(
                 PerformanceSnapshot.Empty,
                 historyLengthMinutes)
             .Single(static candidate => candidate.Kind == PerformanceDeviceKind.CPU);
 
-        Assert.Equal(expectedLabel, CPU.GraphLabel);
+        Assert.Equal(
+            F(nameof(AppStrings.Perf_Graph_UtilizationOverFormat), F(historyWindowKey, historyLengthMinutes)),
+            CPU.GraphLabel);
         Assert.DoesNotContain(expectedSubstring: "60 seconds", CPU.GraphLabel, StringComparison.Ordinal);
     }
 }

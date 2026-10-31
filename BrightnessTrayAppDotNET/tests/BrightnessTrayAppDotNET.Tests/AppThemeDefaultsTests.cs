@@ -25,7 +25,7 @@ public sealed class AppThemeDefaultsTests
 
         using AppTheme theme = new();
         Assert.Equal(
-            resources.SingleColor(nameof(AppTheme.EnvironmentalMapHudBackdropAlpha)).A,
+            resources.AxamlBrightnessAppTheme.EnvironmentalMapHudBackdropAlpha.A,
             theme.EnvironmentalMapHudBackdropAlpha);
     }
 

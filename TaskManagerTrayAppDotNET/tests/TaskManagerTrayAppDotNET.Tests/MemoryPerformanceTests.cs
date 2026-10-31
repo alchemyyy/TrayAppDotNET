@@ -1,6 +1,7 @@
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI.Performance;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
@@ -46,6 +47,11 @@ public sealed class MemoryPerformanceTests
     {
         PhysicalMemoryMetadataReader reader = new();
 
+        // The first calls only start the background reads and never block the sampler thread
+        _ = reader.Get(includeSerialNumbers: false, out _);
+        _ = reader.Get(includeSerialNumbers: true, out _);
+        Assert.True(reader.WaitForPendingReads(TimeSpan.FromSeconds(30)));
+
         PhysicalMemoryHardwareMetadata publicMetadata = reader.Get(
             includeSerialNumbers: false,
             out string? publicError);
@@ -60,6 +66,17 @@ public sealed class MemoryPerformanceTests
         Assert.All(
             publicMetadata.Modules.ToArray(),
             static module => Assert.Empty(module.SerialNumber));
+    }
+
+    [Fact]
+    public void FailedMemoryMetadataReadsRetryWithCappedBackoff()
+    {
+        TimeSpan first = PhysicalMemoryMetadataReader.RetryDelay(consecutiveFailures: 1);
+        TimeSpan second = PhysicalMemoryMetadataReader.RetryDelay(consecutiveFailures: 2);
+
+        Assert.True(first > TimeSpan.Zero);
+        Assert.Equal(first * 2, second);
+        Assert.Equal(TimeSpan.FromMinutes(10), PhysicalMemoryMetadataReader.RetryDelay(consecutiveFailures: 1_000));
     }
 
     [Fact]
@@ -131,7 +148,7 @@ public sealed class MemoryPerformanceTests
 
             defaults.Autosave = false;
             defaults.ShowMemoryModuleSerialNumbers = true;
-            defaults.Save(settingsPath);
+            TrayXmlSerializer.WriteFile(settingsPath, defaults);
             AppSettings loaded = AppSettings.LoadOrDefault(settingsPath);
 
             Assert.True(loaded.ShowMemoryModuleSerialNumbers);

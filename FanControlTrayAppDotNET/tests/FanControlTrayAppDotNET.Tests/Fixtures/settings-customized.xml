@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings written before Fan derived from AppSettingsCommon (element names and enum member names taken from
+  git HEAD FanControlTrayAppDotNET/src/Models/AppSettings.cs and the generated serializer's naming rules).
+  Every value differs from its default. <Autosave> here is Fan's old meaning: capture control state on profile switch.
+-->
+<AppSettings>
+  <RunOnStartup>false</RunOnStartup>
+  <Autosave>false</Autosave>
+  <DefaultToRPMMode>false</DefaultToRPMMode>
+  <ContextMenuPosition>Classic</ContextMenuPosition>
+  <ContextMenuFontSize>21</ContextMenuFontSize>
+  <UseSystemSubmenuShowDelay>true</UseSystemSubmenuShowDelay>
+  <SubmenuShowDelayMs>650</SubmenuShowDelayMs>
+  <ThemeMode>Light</ThemeMode>
+  <TextColor>
+    <LightHex>#FF112233</LightHex>
+    <DarkHex />
+  </TextColor>
+  <BackgroundColor>
+    <LightHex />
+    <DarkHex>#FF0A0B0C</DarkHex>
+  </BackgroundColor>
+  <FanCardBackgroundColor>
+    <LightHex />
+    <DarkHex>#FF303132</DarkHex>
+  </FanCardBackgroundColor>
+  <TrayIconStyle>Static</TrayIconStyle>
+  <TrayIconColor>
+    <LightHex>#FF998877</LightHex>
+    <DarkHex />
+  </TrayIconColor>
+  <EnableRoundedCorners>false</EnableRoundedCorners>
+  <UseWindows11SettingsNavigation>true</UseWindows11SettingsNavigation>
+  <SettingsSidebarWidth>211.5</SettingsSidebarWidth>
+  <AllowFlyoutUndock>false</AllowFlyoutUndock>
+  <ClampUndockedFlyoutToScreen>false</ClampUndockedFlyoutToScreen>
+  <RestoreFlyoutUndockedOnStartup>false</RestoreFlyoutUndockedOnStartup>
+  <FlyoutUndocked>true</FlyoutUndocked>
+  <FlyoutHasSavedPosition>true</FlyoutHasSavedPosition>
+  <FlyoutLeft>64.5</FlyoutLeft>
+  <FlyoutTop>99.75</FlyoutTop>
+  <CheckForUpdatesEnabled>false</CheckForUpdatesEnabled>
+  <ShowUpdateNotificationsEnabled>true</ShowUpdateNotificationsEnabled>
+  <ShowUpdateButtonInFlyout>false</ShowUpdateButtonInFlyout>
+  <UpdateCheckIntervalMs>7200000</UpdateCheckIntervalMs>
+  <SkippedUpdateVersion>1234</SkippedUpdateVersion>
+  <KeepFlyoutWarm>false</KeepFlyoutWarm>
+  <KeepTrayContextMenuWarm>false</KeepTrayContextMenuWarm>
+  <RenderingBackend>Software</RenderingBackend>
+  <Language>en-US</Language>
+  <Hotkeys>
+    <Binding Action="OpenFlyout" Parameter="" Modifiers="3" VirtualKey="70" Enabled="true" BindingID="0" RemovedByUser="false" />
+    <Binding Action="OpenSettings" Parameter="" Modifiers="6" VirtualKey="83" Enabled="false" BindingID="2" RemovedByUser="false" />
+    <Binding Action="ActionFromANewerBuild" Parameter="" Modifiers="6" VirtualKey="84" Enabled="true" BindingID="0" RemovedByUser="false" />
+  </Hotkeys>
+  <LegacyOpenSettingsHotkeyRetired>true</LegacyOpenSettingsHotkeyRetired>
+</AppSettings>

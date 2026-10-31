@@ -29,9 +29,15 @@ module initializer points settings, `displays.json` and logs at that folder, so 
 `SimulationClock` is a `TimeProvider`. `MonitorService`, `DDCRecoveryService` and `AsyncThrottler` take it through
 their internal constructors; production passes the system clock and keeps `Thread.Sleep`. Timers fire only when the
 clock advances, and the clock advances only when every participant is parked in a simulator wait, idle, or blocked.
-Blocked versus computing is decided from CPU cycle counters (`QueryProcessCycleTime` minus the driver thread), so JIT
-or real work holds time still while a thread waiting on a `SemaphoreSlim` does not. A 30 s watchdog turns a deadlock
-into a `SimulationHangException` with a state dump, and each scenario has a 20 s real-time budget.
+Blocked versus computing is decided from CPU cycle counters (`QueryProcessCycleTime` minus the driver thread) and the
+threads' scheduler states, so JIT or real work holds time still while a thread waiting on a `SemaphoreSlim` does not.
+Low CPU alone is not enough: on a loaded machine (a full solution test run) a computing thread can be preempted, or wait
+on a page-in, for a whole probe window. So a low-CPU window advances time only when some processor stayed idle through
+it and the process took no page fault (a ready thread would have run), or else when the kernel's thread snapshot shows
+no other thread of the process running, ready, or waiting for memory. Without that check virtual time could run ahead
+of app work in flight (`SlowDragReadsBackOnlyWhereItStops` once failed that way, its script firing before the app had
+finished starting). A 30 s watchdog turns a deadlock into a
+`SimulationHangException` with a state dump, and each scenario has a 20 s real-time budget.
 
 The simulated UI thread (`SimulationDispatcher`) carries a `SynchronizationContext`, so `await` continuations in
 `MonitorService` resume on it exactly as on Avalonia's UI thread.

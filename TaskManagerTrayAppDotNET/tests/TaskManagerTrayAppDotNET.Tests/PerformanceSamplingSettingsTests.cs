@@ -29,9 +29,10 @@ public sealed class PerformanceSamplingSettingsTests
         Assert.Equal(expected, PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(value));
 
     [Theory]
-    [InlineData(int.MinValue, 1)]
-    [InlineData(0, 1)]
-    [InlineData(1, 1)]
+    [InlineData(int.MinValue, 250)]
+    [InlineData(0, 250)]
+    [InlineData(1, 250)]
+    [InlineData(250, 250)]
     [InlineData(1_000, 1_000)]
     [InlineData(60_000, 60_000)]
     [InlineData(60_001, 60_000)]
@@ -42,11 +43,11 @@ public sealed class PerformanceSamplingSettingsTests
         Assert.Equal(expected, PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
 
     [Theory]
-    [InlineData(1, 1, 60_000)]
+    [InlineData(1, 1, 240)]
     [InlineData(1, 700, 85)]
     [InlineData(1, 60_000, 1)]
     [InlineData(5, 1_000, 300)]
-    [InlineData(60, 1, 3_600_000)]
+    [InlineData(60, 1, 14_400)]
     [InlineData(0, int.MaxValue, 1)]
     public void MaximumHistoryCountUsesNormalizedIntegerDivision(
         int historyLengthMinutes,
@@ -58,5 +59,19 @@ public sealed class PerformanceSamplingSettingsTests
             PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                 historyLengthMinutes,
                 sampleIntervalMilliseconds));
+    }
+
+    [Fact]
+    public void NoAllowedCombinationExceedsTheSampleCap()
+    {
+        for (int minutes = PerformanceSamplingSettings.MinimumHistoryLengthMinutes;
+             minutes <= PerformanceSamplingSettings.MaximumHistoryLengthMinutes;
+             minutes++)
+        {
+            Assert.InRange(
+                PerformanceSamplingSettings.CalculateMaximumHistoryCount(minutes, sampleIntervalMilliseconds: 1),
+                low: 1,
+                PerformanceSamplingSettings.MaximumHistorySampleCount);
+        }
     }
 }

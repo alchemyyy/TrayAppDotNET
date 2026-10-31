@@ -1,0 +1,154 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AppSettings>
+  <RunOnStartup>false</RunOnStartup>
+  <ApplyBrightnessOnStartup>true</ApplyBrightnessOnStartup>
+  <Autosave>false</Autosave>
+  <TrayScrollEnabled>true</TrayScrollEnabled>
+  <PrecisionTouchpadScrollEnabled>true</PrecisionTouchpadScrollEnabled>
+  <PrecisionTouchpadUnitsPerScrollStep>90</PrecisionTouchpadUnitsPerScrollStep>
+  <TrayWheelAction>Brightness</TrayWheelAction>
+  <TrayCtrlWheelAction>NightLight</TrayCtrlWheelAction>
+  <TrayAltWheelAction>Nothing</TrayAltWheelAction>
+  <FlyoutNumberKeysSwitchProfile>true</FlyoutNumberKeysSwitchProfile>
+  <PreserveMasterSliderOffsets>false</PreserveMasterSliderOffsets>
+  <TrayDoubleClickAction>Nothing</TrayDoubleClickAction>
+  <TrayCtrlLeftClickAction>Nothing</TrayCtrlLeftClickAction>
+  <TrayAltLeftClickAction>Nothing</TrayAltLeftClickAction>
+  <TrayCtrlRightClickAction>Nothing</TrayCtrlRightClickAction>
+  <TrayAltRightClickAction>Nothing</TrayAltRightClickAction>
+  <TrayCtrlDoubleLeftClickAction>Nothing</TrayCtrlDoubleLeftClickAction>
+  <TrayAltDoubleLeftClickAction>Nothing</TrayAltDoubleLeftClickAction>
+  <ShowProfileSelectorsInMenu>true</ShowProfileSelectorsInMenu>
+  <ShowMonitorPowerButtons>false</ShowMonitorPowerButtons>
+  <ShowAllDisplaysPowerButton>true</ShowAllDisplaysPowerButton>
+  <PowerOffMode>Sleep</PowerOffMode>
+  <ContextMenuPosition>Classic</ContextMenuPosition>
+  <UseSystemSubmenuShowDelay>true</UseSystemSubmenuShowDelay>
+  <SubmenuShowDelayMs>650</SubmenuShowDelayMs>
+  <KeepFlyoutWarm>false</KeepFlyoutWarm>
+  <KeepTrayContextMenuWarm>false</KeepTrayContextMenuWarm>
+  <RenderingBackend>Software</RenderingBackend>
+  <Language>en-US</Language>
+  <BrightnessUpdateRateMs>50</BrightnessUpdateRateMs>
+  <ValidationDwellMs>500</ValidationDwellMs>
+  <ValidationAttempts>4</ValidationAttempts>
+  <DDCOperationTimeoutMs>3000</DDCOperationTimeoutMs>
+  <AllowBlindDDCWritesDuringDegradedState>true</AllowBlindDDCWritesDuringDegradedState>
+  <MasterSliderMode>Average</MasterSliderMode>
+  <ShowFlyoutMonitorPowerButtons>false</ShowFlyoutMonitorPowerButtons>
+  <ShowFlyoutMonitorNumberBadge>false</ShowFlyoutMonitorNumberBadge>
+  <ShowFlyoutDisplaySettingsButton>true</ShowFlyoutDisplaySettingsButton>
+  <ShowFlyoutFooterPowerButton>false</ShowFlyoutFooterPowerButton>
+  <FooterPowerButtonOnlyEnabledMonitors>false</FooterPowerButtonOnlyEnabledMonitors>
+  <ShowMasterSlider>true</ShowMasterSlider>
+  <ShowIndividualSliders>true</ShowIndividualSliders>
+  <ShowNightLightSlider>true</ShowNightLightSlider>
+  <FlyoutScrollWheelStep>2</FlyoutScrollWheelStep>
+  <AllowFlyoutUndock>false</AllowFlyoutUndock>
+  <ClampUndockedFlyoutToScreen>false</ClampUndockedFlyoutToScreen>
+  <RestoreFlyoutUndockedOnStartup>false</RestoreFlyoutUndockedOnStartup>
+  <FlyoutUndocked>true</FlyoutUndocked>
+  <HasAcknowledgedHardPowerOffWarning>false</HasAcknowledgedHardPowerOffWarning>
+  <FlyoutHasSavedPosition>true</FlyoutHasSavedPosition>
+  <FlyoutLeft>120.25</FlyoutLeft>
+  <FlyoutTop>340.5</FlyoutTop>
+  <ShowEnvironmentalCurvesButton>true</ShowEnvironmentalCurvesButton>
+  <ShowNightLightKelvinLabel>false</ShowNightLightKelvinLabel>
+  <InvertNightLightSlider>false</InvertNightLightSlider>
+  <NightLightFallbackMode>SettingsHandler</NightLightFallbackMode>
+  <NightLightLastNonZeroStrength>50</NightLightLastNonZeroStrength>
+  <MaxRecoveryAttempts>60</MaxRecoveryAttempts>
+  <LastMasterBrightness>100</LastMasterBrightness>
+  <TurnOffNightLightAtZeroStrength>false</TurnOffNightLightAtZeroStrength>
+  <NightLightGammaRampEnabled>false</NightLightGammaRampEnabled>
+  <NightLightGammaRampStrength>50</NightLightGammaRampStrength>
+  <NightLightPDBDownloadTimeoutSeconds>60</NightLightPDBDownloadTimeoutSeconds>
+  <CheckForUpdatesEnabled>false</CheckForUpdatesEnabled>
+  <ShowUpdateNotificationsEnabled>true</ShowUpdateNotificationsEnabled>
+  <ShowUpdateButtonInFlyout>false</ShowUpdateButtonInFlyout>
+  <UpdateCheckIntervalMs>7200000</UpdateCheckIntervalMs>
+  <SkippedUpdateVersion>4321</SkippedUpdateVersion>
+  <DefaultDisplaySortMode>Arrangement</DefaultDisplaySortMode>
+  <DefaultDisplaySortDirection>Standard</DefaultDisplaySortDirection>
+  <MonitorIdentityStrategy>DisplayNumber</MonitorIdentityStrategy>
+  <MonitorOrder />
+  <MonitorOverrides />
+  <KnownDisplays>
+    <Display EDIDKey="DEL4321_ABC" OriginalName="Dell U2720Q" EDIDSerial="" WasEverDDCCapable="false" />
+  </KnownDisplays>
+  <Hotkeys>
+    <Binding Action="FullBright" Parameter="" Modifiers="11" VirtualKey="70" Enabled="true" BindingID="0" RemovedByUser="true" />
+    <Binding Action="ProfileSelect" Parameter="2" Modifiers="6" VirtualKey="51" Enabled="false" BindingID="1" RemovedByUser="false" />
+    <Binding Action="MonitorOff" Parameter="edid:DEL4321_ABC" Modifiers="9" VirtualKey="79" Enabled="true" BindingID="0" RemovedByUser="false" />
+  </Hotkeys>
+  <ContextMenuFontSize>19</ContextMenuFontSize>
+  <ThemeMode>Dark</ThemeMode>
+  <TextColor>
+    <LightHex>#FF102030</LightHex>
+    <DarkHex>#FFA0B0C0</DarkHex>
+  </TextColor>
+  <BackgroundColor>
+    <LightHex />
+    <DarkHex>#FF010203</DarkHex>
+  </BackgroundColor>
+  <TrayIconStyle>Static</TrayIconStyle>
+  <DynamicIconBrightnessTracking>Average</DynamicIconBrightnessTracking>
+  <DynamicIconTrackEnabledOnly>false</DynamicIconTrackEnabledOnly>
+  <TrayIconColor>
+    <LightHex>#FF445566</LightHex>
+    <DarkHex />
+  </TrayIconColor>
+  <TrayIconBrightColor>
+    <LightHex />
+    <DarkHex>#FFFFEE00</DarkHex>
+  </TrayIconBrightColor>
+  <TrayIconDimColor>
+    <LightHex />
+    <DarkHex />
+  </TrayIconDimColor>
+  <FooterBackgroundColor>
+    <LightHex>#FF778899</LightHex>
+    <DarkHex />
+  </FooterBackgroundColor>
+  <EnableRoundedCorners>false</EnableRoundedCorners>
+  <UseWindows11SettingsNavigation>true</UseWindows11SettingsNavigation>
+  <SettingsSidebarWidth>233.5</SettingsSidebarWidth>
+  <EnvironmentalBrightnessCurveColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalBrightnessCurveColor>
+  <EnvironmentalNightLightCurveColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalNightLightCurveColor>
+  <EnvironmentalCurrentTimeColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalCurrentTimeColor>
+  <EnvironmentalTwilightBackdropColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalTwilightBackdropColor>
+  <EnvironmentalNightBackdropColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalNightBackdropColor>
+  <EnvironmentalGridLineColor>
+    <LightHex />
+    <DarkHex />
+  </EnvironmentalGridLineColor>
+  <EnvironmentalLatitude>47.7542814</EnvironmentalLatitude>
+  <EnvironmentalLongitude>-122.2795275</EnvironmentalLongitude>
+  <EnvironmentalShowBrightnessCurve>true</EnvironmentalShowBrightnessCurve>
+  <EnvironmentalShowNightLightCurve>true</EnvironmentalShowNightLightCurve>
+  <EnvironmentalBrightnessCurveEnabled>false</EnvironmentalBrightnessCurveEnabled>
+  <EnvironmentalNightLightCurveEnabled>false</EnvironmentalNightLightCurveEnabled>
+  <AutoEngageEnvironmentalCurveEnabled>false</AutoEngageEnvironmentalCurveEnabled>
+  <AutoEngageEnvironmentalCurveDelaySeconds>60</AutoEngageEnvironmentalCurveDelaySeconds>
+  <CurveStopwatches />
+  <EnvironmentalOffsetMode>false</EnvironmentalOffsetMode>
+  <EnvironmentalShowCursorReadout>false</EnvironmentalShowCursorReadout>
+  <EnvironmentalShowSunOverlay>true</EnvironmentalShowSunOverlay>
+  <EnvironmentalCurveSmoothness>100</EnvironmentalCurveSmoothness>
+  <EnvironmentalCurveTickIntervalMs>120000</EnvironmentalCurveTickIntervalMs>
+</AppSettings>

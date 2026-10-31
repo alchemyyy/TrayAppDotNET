@@ -66,12 +66,20 @@ public sealed class ProbeCardProfileTests
     }
 
     [Theory]
-    [InlineData("", 0, "Profile 1")]
-    [InlineData(" ", 2, "Profile 3")]
-    [InlineData("Gaming", 1, "Gaming")]
-    public void ProfileLabelsUseCustomNamesOrNumberedFallback(string name, int profileIndex, string expected)
+    [InlineData("", 0, 1)]
+    [InlineData(" ", 2, 3)]
+    public void BlankProfileNamesUseTheNumberedFallback(string name, int profileIndex, int expectedNumber)
     {
         FanProfile profile = new() { Name = name };
-        Assert.Equal(expected, profile.DisplayName(profileIndex));
+        Assert.Equal(
+            TestLocalization.F(nameof(Localization.Strings.Fan_Profile_DefaultName_Format), expectedNumber),
+            profile.DisplayName(profileIndex));
+    }
+
+    [Fact]
+    public void CustomProfileNamesAreShownAsIs()
+    {
+        FanProfile profile = new() { Name = "Gaming" };
+        Assert.Equal("Gaming", profile.DisplayName(1));
     }
 }

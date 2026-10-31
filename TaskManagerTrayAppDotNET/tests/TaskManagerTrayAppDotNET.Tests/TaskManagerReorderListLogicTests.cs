@@ -5,6 +5,20 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class TaskManagerReorderListLogicTests
 {
+    [Theory]
+    [InlineData(-1, 2, 5, -1)]  // moved up into the middle: keep the Move up button
+    [InlineData(-1, 0, 5, 1)]   // reached the top: Move up is disabled, use Move down
+    [InlineData(1, 2, 5, 1)]    // moved down into the middle: keep the Move down button
+    [InlineData(1, 4, 5, -1)]   // reached the bottom: Move down is disabled, use Move up
+    public void KeyboardFocusStaysOnAnEnabledMoveButtonOfTheMovedItem(
+        int direction,
+        int newVisibleIndex,
+        int visibleCount,
+        int expected) =>
+        Assert.Equal(
+            expected,
+            TaskManagerReorderListLogic.FocusDirectionAfterMove(direction, newVisibleIndex, visibleCount));
+
     [Fact]
     public void FilterItemsPreservesCurrentOrderInsteadOfScoreRanking()
     {
@@ -112,32 +126,6 @@ public sealed class TaskManagerReorderListLogicTests
             visibleCount);
 
         Assert.Equal(expectedTargetIndex, targetIndex);
-    }
-
-    [Theory]
-    [InlineData(0, 2, 0, 35, 0)]
-    [InlineData(0, 2, 1, 35, -35)]
-    [InlineData(0, 2, 2, 35, -35)]
-    [InlineData(0, 2, 3, 35, 0)]
-    [InlineData(2, 0, 0, 35, 35)]
-    [InlineData(2, 0, 1, 35, 35)]
-    [InlineData(2, 0, 2, 35, 0)]
-    [InlineData(2, 0, 3, 35, 0)]
-    [InlineData(1, 1, 0, 35, 0)]
-    public void ResolvePreviewOffsetMovesOnlyDisplacedSiblings(
-        int sourceIndex,
-        int targetIndex,
-        int rowIndex,
-        double displacement,
-        double expectedOffset)
-    {
-        double offset = TaskManagerReorderListLogic.ResolvePreviewOffset(
-            rowIndex,
-            sourceIndex,
-            targetIndex,
-            displacement);
-
-        Assert.Equal(expectedOffset, offset);
     }
 
     private sealed class ReorderItem(string name, bool isIncluded = true)

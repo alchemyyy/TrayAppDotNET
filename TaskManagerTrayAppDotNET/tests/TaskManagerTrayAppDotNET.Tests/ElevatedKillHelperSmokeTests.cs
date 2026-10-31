@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using Xunit;
@@ -16,7 +14,6 @@ public sealed class ElevatedKillHelperSmokeTests
     {
         List<string> logMessages = [];
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
-            IntPtr.Zero,
             elevate: false,
             log: logMessages.Add);
         Assert.Equal(ElevatedKillHelperStartOutcome.Ready, startResult.Outcome);
@@ -51,20 +48,11 @@ public sealed class ElevatedKillHelperSmokeTests
         }
     }
 
-    [Fact]
+    [EnvironmentFact(SmokeTestEnvironmentVariable)]
     public void ElevatedHelperTerminatesThroughTheSharedMailbox()
     {
-        if (!string.Equals(
-                Environment.GetEnvironmentVariable(SmokeTestEnvironmentVariable),
-                b: "1",
-                StringComparison.Ordinal))
-            return;
-
         List<string> logMessages = [];
-        using TemporaryVisibleOwnerWindow ownerWindow = new();
-        Assert.NotEqual(IntPtr.Zero, ownerWindow.Handle);
         ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
-            ownerWindow.Handle,
             elevate: true,
             log: logMessages.Add);
         Assert.Equal(ElevatedKillHelperStartOutcome.Ready, startResult.Outcome);
@@ -134,166 +122,5 @@ public sealed class ElevatedKillHelperSmokeTests
         startInfo.ArgumentList.Add("30");
         Process? process = Process.Start(startInfo);
         return process ?? throw new InvalidOperationException("The helper smoke test could not start ping.exe.");
-    }
-
-    private sealed class TemporaryVisibleOwnerWindow : IDisposable
-    {
-        private const int CreateUseDefault = unchecked((int)0x80000000);
-        private const int ShowWindowNormal = 5;
-        private const uint WindowStyleOverlapped = 0x00CF0000;
-        private const uint WindowStyleVisible = 0x10000000;
-        private const uint WindowMessageQuit = 0x0012;
-
-        private readonly ManualResetEventSlim _windowCreated = new(false);
-        private readonly Thread _windowThread;
-        private Exception? _creationException;
-        private uint _windowThreadID;
-        private bool _disposed;
-
-        public TemporaryVisibleOwnerWindow()
-        {
-            _windowThread = new Thread(RunWindowMessageLoop)
-            {
-                IsBackground = true, Name = "Elevated helper smoke test owner window"
-            };
-            _windowThread.SetApartmentState(ApartmentState.STA);
-            _windowThread.Start();
-            if (!_windowCreated.Wait(TimeSpan.FromSeconds(10)))
-                throw new TimeoutException("The helper smoke test owner window was not created in time.");
-            if (_creationException != null)
-            {
-                throw new InvalidOperationException(
-                    message: "The helper smoke test owner window could not be created.",
-                    _creationException);
-            }
-        }
-
-        public IntPtr Handle { get; private set; }
-
-        private void RunWindowMessageLoop()
-        {
-            _windowThreadID = GetCurrentThreadID();
-            try
-            {
-                Handle = CreateWindowExW(
-                    extendedStyle: 0,
-                    className: "STATIC",
-                    windowName: "Task Manager elevated helper smoke test",
-                    WindowStyleOverlapped | WindowStyleVisible,
-                    CreateUseDefault,
-                    CreateUseDefault,
-                    width: 360,
-                    height: 120,
-                    IntPtr.Zero,
-                    IntPtr.Zero,
-                    IntPtr.Zero,
-                    IntPtr.Zero);
-                if (Handle == IntPtr.Zero)
-                    throw new Win32Exception(Marshal.GetLastPInvokeError());
-                _ = ShowWindow(Handle, ShowWindowNormal);
-                _ = UpdateWindow(Handle);
-            }
-            catch (Exception exception)
-            {
-                _creationException = exception;
-            }
-            finally
-            {
-                _windowCreated.Set();
-            }
-
-            if (Handle == IntPtr.Zero) return;
-
-            while (GetMessageW(out WindowMessage message, IntPtr.Zero, messageFilterMinimum: 0,
-                       messageFilterMaximum: 0) > 0)
-            {
-                _ = TranslateMessage(ref message);
-                _ = DispatchMessageW(ref message);
-            }
-
-            _ = DestroyWindow(Handle);
-            Handle = IntPtr.Zero;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            if (_windowThreadID != 0)
-                _ = PostThreadMessageW(_windowThreadID, WindowMessageQuit, UIntPtr.Zero, IntPtr.Zero);
-            _ = _windowThread.Join(TimeSpan.FromSeconds(5));
-            _windowCreated.Dispose();
-        }
-
-        [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern IntPtr CreateWindowExW(
-            uint extendedStyle,
-            string className,
-            string windowName,
-            uint style,
-            int x,
-            int y,
-            int width,
-            int height,
-            IntPtr parentWindow,
-            IntPtr menu,
-            IntPtr instance,
-            IntPtr parameter);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool DestroyWindow(IntPtr windowHandle);
-
-        [DllImport("user32.dll", EntryPoint = "GetMessageW", SetLastError = true)]
-        private static extern int GetMessageW(
-            out WindowMessage message,
-            IntPtr windowHandle,
-            uint messageFilterMinimum,
-            uint messageFilterMaximum);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool TranslateMessage(ref WindowMessage message);
-
-        [DllImport("user32.dll", EntryPoint = "DispatchMessageW")]
-        private static extern IntPtr DispatchMessageW(ref WindowMessage message);
-
-        [DllImport("user32.dll", EntryPoint = "PostThreadMessageW", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool PostThreadMessageW(
-            uint threadID,
-            uint message,
-            UIntPtr wordParameter,
-            IntPtr longParameter);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ShowWindow(IntPtr windowHandle, int commandShow);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool UpdateWindow(IntPtr windowHandle);
-
-        [DllImport("kernel32.dll", EntryPoint = "GetCurrentThreadId")]
-        private static extern uint GetCurrentThreadID();
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct WindowMessage
-        {
-            public IntPtr WindowHandle;
-            public uint Message;
-            public UIntPtr WordParameter;
-            public IntPtr LongParameter;
-            public uint Time;
-            public WindowPoint Point;
-            public uint Private;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct WindowPoint
-        {
-            public int X;
-            public int Y;
-        }
     }
 }

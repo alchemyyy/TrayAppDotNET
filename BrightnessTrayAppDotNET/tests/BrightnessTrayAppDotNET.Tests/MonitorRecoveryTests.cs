@@ -316,12 +316,13 @@ public sealed class MonitorRecoveryTests
         display.SetRead(key: "DISPLAY\\PORT-C", ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
-        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        KnownDisplaysStore store = CreateStore();
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, knownDisplays: store);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         display.ConfigureWriteReadBack(false);
         display.SetRead(key: "DISPLAY\\PORT-C", ok: false, error: "reads wedged");
@@ -359,12 +360,13 @@ public sealed class MonitorRecoveryTests
         display.SetRead(key: "DISPLAY\\PORT-N", ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
-        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        KnownDisplaysStore store = CreateStore();
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, knownDisplays: store);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         display.SetRead(key: "DISPLAY\\PORT-N", ok: false, error: "reads wedged");
         service.Refresh();
@@ -523,16 +525,18 @@ public sealed class MonitorRecoveryTests
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
+        KnownDisplaysStore store = CreateStore();
         using MonitorService service = CreateService(
             display,
             MonitorIdentityStrategy.EDIDSerial,
             validationAttempts: 1,
+            knownDisplays: store,
             configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = false);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         display.ConfigureWriteReadBack(false);
         display.SetRead(DeviceID, ok: false, error: "reads wedged");
@@ -1310,6 +1314,51 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
+    public async Task ProductionStartupEnumeratesOffTheConstructingThread()
+    {
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-S", displayNumber: 17, serial: "SERIAL-S"));
+        display.SetRead(key: "DISPLAY\\PORT-S", ok: true, current: 50, max: 100);
+
+        using ManualResetEventSlim enumerationEntered = new();
+        using ManualResetEventSlim releaseEnumeration = new();
+        display.EnumerationEnteredSignal = enumerationEntered;
+        display.EnumerationReleaseSignal = releaseEnumeration;
+        AppSettings settings = new()
+        {
+            MonitorIdentityStrategy = MonitorIdentityStrategy.EDIDSerial,
+            BrightnessUpdateRateMs = 0,
+            DDCOperationTimeoutMs = 0
+        };
+        KnownDisplaysStore store = new(Path.Combine(
+            Path.GetTempPath(),
+            path2: "BrightnessTrayAppDotNET.Tests",
+            $"{Guid.NewGuid():N}.displays.json"));
+
+        MonitorService service;
+        try
+        {
+            // The enumeration (WMI attach included in production) is blocked; the constructor must still return
+            service = new MonitorService(
+                display,
+                settings,
+                store,
+                new InlineMonitorServiceDispatcher(),
+                enumerateInitialSnapshotOnWorker: true);
+
+            Assert.Empty(service.Monitors);
+            Assert.True(enumerationEntered.Wait(1000));
+        }
+        finally
+        {
+            releaseEnumeration.Set();
+        }
+
+        using MonitorService started = service;
+        await WaitUntil(() => started.Monitors.Count == 1);
+    }
+
+    [Fact]
     public async Task TopologyReplayUsesFreshBrightnessMaximum()
     {
         FakeDisplayService display = new();
@@ -1384,15 +1433,17 @@ public sealed class MonitorRecoveryTests
         display.SetRead(key: "DISPLAY\\PORT-H", ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
+        KnownDisplaysStore store = CreateStore();
         using MonitorService service = CreateService(
             display,
             MonitorIdentityStrategy.EDIDSerial,
-            validationAttempts: 2);
+            validationAttempts: 2,
+            knownDisplays: store);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         display.ConfigureWriteReadBack(false);
         display.SetRead(key: "DISPLAY\\PORT-H", ok: false, error: "reads wedged");
@@ -2158,11 +2209,12 @@ public sealed class MonitorRecoveryTests
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
-        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        KnownDisplaysStore store = CreateStore();
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, knownDisplays: store);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         // An adapter keeps accepting SETs for its dark panel while every read fails, so the row turns read-degraded
         display.ConfigureWriteReadBack(false);
@@ -2565,11 +2617,12 @@ public sealed class MonitorRecoveryTests
         display.SetRead(DeviceID, ok: true, current: 60, max: 100);
         display.ConfigureWriteReadBack(true);
 
-        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        KnownDisplaysStore store = CreateStore();
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial, knownDisplays: store);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
-        await WaitUntil(() => display.HasReadValue(42));
+        await WaitForConfirmedBusBrightness(store, monitor, percent: 42);
 
         // Writes still land while every read fails, so recovery leaves the row read-degraded
         display.ConfigureWriteReadBack(false);
@@ -2612,12 +2665,24 @@ public sealed class MonitorRecoveryTests
         };
         configureSettings?.Invoke(settings);
 
-        KnownDisplaysStore store = knownDisplays ?? new KnownDisplaysStore(Path.Combine(
+        KnownDisplaysStore store = knownDisplays ?? CreateStore();
+        return new MonitorService(display, settings, store, dispatcher ?? new InlineMonitorServiceDispatcher());
+    }
+
+    private static KnownDisplaysStore CreateStore() =>
+        new(Path.Combine(
             Path.GetTempPath(),
             path2: "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json"));
-        return new MonitorService(display, settings, store, dispatcher ?? new InlineMonitorServiceDispatcher());
-    }
+
+    /// <summary>
+    /// Waits until the write loop's verify read confirmed <paramref name="percent"/> and stamped it as the last bus
+    /// value. The fake reports the written value at once, before that verify read runs, so waiting for the fake's
+    /// value alone lets a test wedge reads first: the verify read then fails, nothing is confirmed, and read-degraded
+    /// recovery (which needs a confirmed bus value) never happens.
+    /// </summary>
+    private static Task WaitForConfirmedBusBrightness(KnownDisplaysStore store, MonitorInfo monitor, int percent) =>
+        WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == percent);
 
     private static DDCMonitor CreateMonitor(
         string deviceID,
@@ -2875,17 +2940,6 @@ public sealed class MonitorRecoveryTests
                 error = null;
                 return true;
             }
-        }
-
-        public bool TryGetVCPCapabilities(
-            DDCMonitor monitor,
-            out IReadOnlyList<VCPCapability> capabilities,
-            out string? error,
-            CancellationToken ct = default)
-        {
-            capabilities = [];
-            error = null;
-            return true;
         }
 
         public bool TryGetVCPFeature(

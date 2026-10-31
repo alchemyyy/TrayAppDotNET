@@ -37,10 +37,10 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         Assert.Contains(expectedSubstring: "public global::Avalonia.Media.Color BorderColor =>", generatedSource);
         Assert.Contains(expectedSubstring: "internal FlyoutAxamlProperties AxamlFlyout", generatedSource);
         Assert.Contains(expectedSubstring: "public double WindowWidth =>", generatedSource);
-        Assert.Contains(expectedSubstring: "internal static class AxamlFlyoutButton", generatedSource);
-        Assert.Contains(expectedSubstring: "public static double Width(object owner) =>", generatedSource);
-        Assert.Contains(expectedSubstring: "internal static class AxamlFlyout", generatedSource);
-        Assert.Contains(expectedSubstring: "public static double WindowWidth(object owner) =>", generatedSource);
+        Assert.DoesNotContain(expectedSubstring: "StaticAccessors", string.Join(
+            Environment.NewLine,
+            result.RunResult.GeneratedTrees.Select(static tree => tree.FilePath)));
+        Assert.DoesNotContain(expectedSubstring: "internal static class AxamlFlyoutButton", generatedSource);
     }
 
     [Fact]
@@ -292,6 +292,147 @@ public sealed class AxamlPropertyLinkerGeneratorTests
                     IReadOnlyList<AXAMLProvenanceEntry> entries)
                 {
                 }
+
+                public static List<string> RegisteredGlyphKeys { get; } = new List<string>();
+
+                public static void RegisterGlyphResource(TrayAppDotNETCommon.Visuals.Glyph glyph, string resourceKey) =>
+                    RegisteredGlyphKeys.Add(resourceKey);
+            }
+        }
+
+        namespace TrayAppDotNETCommon.Visuals
+        {
+            public sealed class Glyph
+            {
+                public Glyph(string text) => Text = text;
+
+                public string Text { get; }
+            }
+
+            public sealed class GlyphDefinition
+            {
+                public string Text { get; set; } = string.Empty;
+
+                public Glyph ToGlyph() => new Glyph(Text);
+            }
+
+            public sealed class ThemeColor
+            {
+                public string LightHex { get; set; } = "#000000";
+            }
+
+            public static class GlyphCatalogHotReload
+            {
+                public static int NotificationCount { get; private set; }
+
+                public static void NotifyResourcesReloaded(string label) => NotificationCount++;
+            }
+
+            public static class AppThemeHotReload
+            {
+                public static int NotificationCount { get; private set; }
+
+                public static void NotifyResourcesReloaded(string label) => NotificationCount++;
+
+                public static void SynchronizeColors(
+                    Avalonia.Controls.ResourceDictionary currentResources,
+                    Avalonia.Controls.ResourceDictionary candidateResources)
+                {
+                }
+            }
+        }
+
+        namespace TrayAppDotNETCommon.UI
+        {
+            public enum AxamlReloadMode
+            {
+                Common,
+                CommonPerOwner,
+                Synchronized,
+                Replaced,
+                GlyphCatalog,
+                AppTheme
+            }
+
+            [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false)]
+            public sealed class AxamlResourceStoreAttribute : System.Attribute
+            {
+                public AxamlResourceStoreAttribute(AxamlReloadMode mode, string label)
+                {
+                }
+            }
+
+            public sealed class AXAMLResourceHotReloadStore<TResource>
+                where TResource : Avalonia.Controls.ResourceDictionary
+            {
+                private readonly System.Func<TResource> _factory;
+                private readonly System.Action _reloaded;
+                private readonly System.Action<TResource, TResource>? _synchronize;
+
+                private AXAMLResourceHotReloadStore(
+                    System.Func<TResource> factory,
+                    System.Action reloaded,
+                    string sourcePath,
+                    System.Action<TResource, TResource>? synchronize)
+                {
+                    _factory = factory;
+                    _reloaded = reloaded;
+                    _synchronize = synchronize;
+                    SourcePath = sourcePath;
+                    Current = factory();
+                }
+
+                public TResource Current { get; private set; }
+
+                public string SourcePath { get; }
+
+                public static AXAMLResourceHotReloadStore<TResource> CreateForSource(
+                    string resourceName,
+                    System.Func<TResource> resourceFactory,
+                    System.Action resourcesReloaded,
+                    string sourcePath,
+                    System.Action<TResource, TResource>? synchronizeReload) =>
+                    new AXAMLResourceHotReloadStore<TResource>(
+                        resourceFactory,
+                        resourcesReloaded,
+                        sourcePath,
+                        synchronizeReload);
+
+                public void ReloadNow()
+                {
+                    TResource candidate = _factory();
+                    if (_synchronize != null) _synchronize(Current, candidate);
+                    else Current = candidate;
+                    _reloaded();
+                }
+            }
+
+            public static class AXAMLHotReload
+            {
+                public static void NotifyEach(System.Action? handlers, string label) => handlers?.Invoke();
+
+                public static void SynchronizeResources(
+                    Avalonia.Controls.ResourceDictionary currentResources,
+                    Avalonia.Controls.ResourceDictionary candidateResources)
+                {
+                }
+            }
+
+            public static class CommonAXAMLHotReload
+            {
+                public static int NotificationCount { get; private set; }
+
+                public static void NotifyResourcesReloaded(string label) => NotificationCount++;
+            }
+        }
+
+        namespace Avalonia.Markup.Xaml
+        {
+            public static class AvaloniaXamlLoader
+            {
+                public static void Load(object target)
+                {
+                }
             }
         }
         """;
@@ -301,9 +442,12 @@ internal static class AxamlGeneratorHost
 {
     private static readonly MetadataReference[] References = CreateReferences();
 
-    public static AxamlGeneratedAssembly CompileAndLoad(string source, IReadOnlyList<AxamlTestFile> axamlFiles)
+    public static AxamlGeneratedAssembly CompileAndLoad(
+        string source,
+        IReadOnlyList<AxamlTestFile> axamlFiles,
+        bool isDebug = false)
     {
-        AxamlGeneratorResult result = RunGenerator(source, axamlFiles);
+        AxamlGeneratorResult result = RunGenerator(source, axamlFiles, isDebug);
         ThrowIfErrors(result.CompilationDiagnostics);
 
         using MemoryStream pe = new();

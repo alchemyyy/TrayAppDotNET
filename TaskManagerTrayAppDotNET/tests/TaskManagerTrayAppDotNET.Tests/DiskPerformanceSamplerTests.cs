@@ -7,6 +7,16 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class DiskPerformanceSamplerTests
 {
+    [Theory]
+    [InlineData(2, true)]     // ERROR_FILE_NOT_FOUND: the PhysicalDrive name is gone
+    [InlineData(3, true)]     // ERROR_PATH_NOT_FOUND
+    [InlineData(433, true)]   // ERROR_NO_SUCH_DEVICE
+    [InlineData(1167, true)]  // ERROR_DEVICE_NOT_CONNECTED
+    [InlineData(5, false)]    // ERROR_ACCESS_DENIED: the disk is there, keep its card
+    [InlineData(32, false)]   // ERROR_SHARING_VIOLATION
+    public void OnlyNotFoundOpenFailuresDropADisk(int win32Error, bool expectedGone) =>
+        Assert.Equal(expectedGone, DiskPerformanceSampler.IsDiskGone(win32Error));
+
     [Fact]
     public void ParsesSortedDistinctPhysicalDriveNamesFromDeviceMultiString()
     {

@@ -14,10 +14,12 @@ internal sealed class QuiescenceOptions
     public double IdleWindowMicroseconds = 40;
 
     // Some thread is busy outside the simulator's accounting (a SemaphoreSlim, lock or Task wait, or JIT). After this
-    // long without observable progress, CPU cycle counters decide whether it is blocked or still computing
+    // long without observable progress, CPU cycle counters and the threads' scheduler states decide whether it is
+    // blocked or still computing
     public double ProbeWindowMicroseconds = 300;
 
-    // Other threads using less than this share of one core over the probe window are treated as blocked
+    // Other threads using less than this share of one core over the probe window, with none of them runnable, are
+    // treated as blocked
     public double BlockedCPUFraction = 0.05;
 
     // A single wait for quiescence that lasts this long is a hang; the run fails with a state dump
@@ -291,6 +293,7 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
         long lastCompleted = long.MinValue;
         long quietSince = waitStart;
         ulong othersAtQuietStart = OtherThreadsCycles();
+        SampleMachineLoad(s_loadAtQuietStart, out uint pageFaultsAtQuietStart);
         while (true)
         {
             long activity = Volatile.Read(ref _activity);
@@ -305,6 +308,7 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
                 lastCompleted = completed;
                 quietSince = Stopwatch.GetTimestamp();
                 othersAtQuietStart = OtherThreadsCycles();
+                SampleMachineLoad(s_loadAtQuietStart, out pageFaultsAtQuietStart);
                 YieldOrFail(waitStart, driverPoolThreads);
                 continue;
             }
@@ -316,10 +320,16 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
             }
             else if (quietMicroseconds >= Options.ProbeWindowMicroseconds)
             {
-                // Busy threads that burned almost no CPU over the window are blocked, not computing
+                // Busy threads that burned almost no CPU over the window are blocked, not computing. Low CPU alone is
+                // not enough: on a loaded machine (a full solution test run) a computing thread can be preempted, or
+                // wait on a page-in, for the whole window, and advancing then would let virtual time run ahead of app
+                // work in flight. With a processor idle all window and no page fault, nothing of ours was starved;
+                // otherwise the threads' scheduler states decide (exact, but a system-wide snapshot costs milliseconds)
                 ulong othersNow = OtherThreadsCycles();
                 double busyMicroseconds = (othersNow - othersAtQuietStart) / CyclesPerMicrosecond.Value;
-                if (busyMicroseconds < quietMicroseconds * Options.BlockedCPUFraction)
+                if (busyMicroseconds < quietMicroseconds * Options.BlockedCPUFraction
+                    && (HadSpareProcessorWithoutPaging(quietMicroseconds, pageFaultsAtQuietStart)
+                        || !AnyOtherThreadRunnable()))
                 {
                     Interlocked.Increment(ref _stallAdvances);
                     return;
@@ -327,6 +337,7 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
 
                 quietSince = Stopwatch.GetTimestamp();
                 othersAtQuietStart = othersNow;
+                SampleMachineLoad(s_loadAtQuietStart, out pageFaultsAtQuietStart);
             }
 
             YieldOrFail(waitStart, driverPoolThreads);
@@ -375,6 +386,149 @@ internal sealed class SimulationClock(DateTimeOffset epochUtc, QuiescenceOptions
         ThreadPool.GetMaxThreads(out int maximumWorkers, out _);
         ThreadPool.GetAvailableThreads(out int availableWorkers, out _);
         return maximumWorkers - availableWorkers;
+    }
+
+    /// <summary>
+    /// True when a thread of this process other than the calling driver is running or waiting for a CPU (ready,
+    /// standby, deferred ready, or in transition): it is computing or was preempted, not blocked on a wait. Reads the
+    /// kernel's process snapshot directly into a reused buffer and parses only this process's entry, because the
+    /// managed <see cref="Process.Threads"/> builds objects for every process on the machine on each call.
+    /// </summary>
+    internal static bool AnyOtherThreadRunnable()
+    {
+        uint driverThreadID = TrayAppDotNETCommon.Interop.Kernel32.GetCurrentThreadId();
+        long processID = Environment.ProcessId;
+        while (true)
+        {
+            int status = NtQuerySystemInformation(
+                SystemProcessInformation,
+                s_processSnapshot,
+                (uint)s_processSnapshotLength,
+                out uint requiredLength);
+            if (status >= 0) return HasRunnableThread(requiredLength, processID, driverThreadID);
+            if (status != StatusInfoLengthMismatch) return false;
+
+            int grownLength = (int)Math.Max(requiredLength + 64 * 1024, (uint)s_processSnapshotLength * 2);
+            Marshal.FreeHGlobal(s_processSnapshot);
+            s_processSnapshot = Marshal.AllocHGlobal(grownLength);
+            s_processSnapshotLength = grownLength;
+        }
+    }
+
+    private static bool HasRunnableThread(uint length, long processID, uint driverThreadID)
+    {
+        IntPtr buffer = s_processSnapshot;
+        long offset = 0;
+        while (offset + ProcessEntrySize <= length)
+        {
+            if (Marshal.ReadInt64(buffer, (int)(offset + ProcessIDOffset)) == processID)
+            {
+                uint threadCount = (uint)Marshal.ReadInt32(buffer, (int)(offset + ThreadCountOffset));
+                for (long index = 0; index < threadCount; index++)
+                {
+                    long thread = offset + ProcessEntrySize + index * ThreadEntrySize;
+                    if (thread + ThreadEntrySize > length) break;
+                    if ((uint)Marshal.ReadInt64(buffer, (int)(thread + ThreadIDOffset)) == driverThreadID) continue;
+
+                    // KTHREAD_STATE: 1 Ready, 2 Running, 3 Standby, 6 Transition, 7 DeferredReady
+                    int state = Marshal.ReadInt32(buffer, (int)(thread + ThreadStateOffset));
+                    if (state is 1 or 2 or 3 or 6 or 7) return true;
+
+                    // A wait for memory is not a synchronization wait: 1/8 FreePage, 2/9 PageIn, 3/10 PoolAllocation
+                    int waitReason = Marshal.ReadInt32(buffer, (int)(thread + WaitReasonOffset));
+                    if (state == 5 && waitReason is 1 or 2 or 3 or 8 or 9 or 10) return true;
+                }
+
+                return false;
+            }
+
+            uint next = (uint)Marshal.ReadInt32(buffer, (int)offset);
+            if (next == 0) return false;
+            offset += next;
+        }
+
+        return false;
+    }
+
+    // x64 SYSTEM_PROCESS_INFORMATION and SYSTEM_THREAD_INFORMATION (information class 5)
+    private const int SystemProcessInformation = 5;
+    private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
+    private const long ProcessEntrySize = 0x100;
+    private const long ThreadCountOffset = 4;
+    private const long ProcessIDOffset = 0x50;
+    private const long ThreadEntrySize = 0x50;
+    private const long ThreadIDOffset = 0x30;
+    private const long ThreadStateOffset = 0x44;
+    private const long WaitReasonOffset = 0x48;
+
+    // Driver-thread only (WaitForQuiescence runs on the thread that drives the clock); kept for the process lifetime
+    private static int s_processSnapshotLength = 4 * 1024 * 1024;
+    private static IntPtr s_processSnapshot = Marshal.AllocHGlobal(s_processSnapshotLength);
+    private static readonly ulong[] s_loadAtQuietStart = new ulong[Environment.ProcessorCount];
+    private static readonly ulong[] s_loadNow = new ulong[Environment.ProcessorCount];
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtQuerySystemInformation(
+        int systemInformationClass,
+        IntPtr systemInformation,
+        uint systemInformationLength,
+        out uint returnLength);
+
+    /// <summary>Per-processor idle cycle counts of this processor group, and this process's page-fault count.</summary>
+    private static void SampleMachineLoad(ulong[] idleCycles, out uint pageFaults)
+    {
+        uint idleBytes = (uint)(idleCycles.Length * sizeof(ulong));
+        if (!QueryIdleProcessorCycleTime(ref idleBytes, idleCycles)) Array.Clear(idleCycles);
+
+        ProcessMemoryCounters counters = new() { Size = (uint)Marshal.SizeOf<ProcessMemoryCounters>() };
+        pageFaults = K32GetProcessMemoryInfo(CurrentProcessPseudoHandle, ref counters, counters.Size)
+            ? counters.PageFaultCount
+            : uint.MaxValue;
+    }
+
+    /// <summary>
+    /// True when some processor stayed idle for (nearly) the whole window and this process took no page fault: a
+    /// thread of ours that was ready to run would have run, so low CPU really means blocked.
+    /// </summary>
+    private static bool HadSpareProcessorWithoutPaging(double windowMicroseconds, uint pageFaultsAtStart)
+    {
+        SampleMachineLoad(s_loadNow, out uint pageFaultsNow);
+        if (pageFaultsNow != pageFaultsAtStart || pageFaultsNow == uint.MaxValue) return false;
+
+        double windowCycles = windowMicroseconds * CyclesPerMicrosecond.Value;
+        for (int processor = 0; processor < s_loadNow.Length; processor++)
+        {
+            if (s_loadNow[processor] - s_loadAtQuietStart[processor] >= windowCycles * SpareProcessorIdleFraction)
+                return true;
+        }
+
+        return false;
+    }
+
+    // A processor idle for this share of the probe window counts as spare capacity
+    private const double SpareProcessorIdleFraction = 0.9;
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryIdleProcessorCycleTime(ref uint bufferLength, [Out] ulong[] processorIdleCycleTime);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool K32GetProcessMemoryInfo(IntPtr process, ref ProcessMemoryCounters counters, uint size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessMemoryCounters
+    {
+        public uint Size;
+        public uint PageFaultCount;
+        public nuint PeakWorkingSetSize;
+        public nuint WorkingSetSize;
+        public nuint QuotaPeakPagedPoolUsage;
+        public nuint QuotaPagedPoolUsage;
+        public nuint QuotaPeakNonPagedPoolUsage;
+        public nuint QuotaNonPagedPoolUsage;
+        public nuint PagefileUsage;
+        public nuint PeakPagefileUsage;
     }
 
     /// <summary>CPU cycles consumed by every thread in this process except the calling driver thread.</summary>

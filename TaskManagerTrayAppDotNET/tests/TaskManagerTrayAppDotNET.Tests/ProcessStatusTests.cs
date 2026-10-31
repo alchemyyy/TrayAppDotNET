@@ -180,16 +180,10 @@ public sealed class ProcessStatusTests
         }
     }
 
-    [Fact]
+    // Opt-in because it shows an off-screen window with a taskbar button for several seconds
+    [EnvironmentFact(HungWindowTestEnvironmentVariable)]
     public void HungWindowMarksItsOwningProcessNotResponding()
     {
-        // Opt-in because it shows an off-screen window with a taskbar button for several seconds
-        if (!string.Equals(
-                Environment.GetEnvironmentVariable(HungWindowTestEnvironmentVariable),
-                b: "1",
-                StringComparison.Ordinal))
-            return;
-
         ProcessHungWindowCollector collector = new();
         using HungTestWindow window = new();
         bool isNotResponding = false;

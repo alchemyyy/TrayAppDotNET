@@ -12,20 +12,15 @@ public sealed class NightLightPDBTimeoutTests
     [InlineData(600_000)]
     public void HelperCommandLineCarriesTheDownloadTimeout(int timeoutMs)
     {
-        string[] args = NightLightHelperServer.BuildArguments(parentProcessID: 1234, "pipe", timeoutMs);
+        string[] args = [NightLightHelperServer.ServerArg, .. NightLightHelperServer.BuildArguments(timeoutMs)];
 
-        Assert.Contains(NightLightHelperServer.ServerArg, args);
         Assert.Equal(timeoutMs, NightLightHelperServer.ParsePDBDownloadTimeoutMs(args));
     }
 
     [Fact]
     public void HelperWithoutTimeoutArgumentKeepsItsDefault()
     {
-        string[] args =
-        [
-            NightLightHelperServer.ServerArg,
-            NightLightHelperServer.PipeNameArg, "pipe"
-        ];
+        string[] args = [NightLightHelperServer.ServerArg];
 
         Assert.Null(NightLightHelperServer.ParsePDBDownloadTimeoutMs(args));
     }

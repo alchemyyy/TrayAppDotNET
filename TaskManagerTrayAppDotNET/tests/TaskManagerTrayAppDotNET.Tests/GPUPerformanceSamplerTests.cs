@@ -7,6 +7,42 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class GPUPerformanceSamplerTests
 {
     [Fact]
+    public void AdapterListIsReadAgainWhenAListedAdapterStopsReporting()
+    {
+        HashSet<ulong> listed = [1, 2];
+
+        // Both adapters reported last tick and still do: keep the cached list
+        Assert.False(GPUPerformanceSampler.NeedsAdapterRefresh(true, listed, [], [1, 2], [1, 2]));
+
+        // Adapter 2 was unplugged: its card must go now, not at the next periodic refresh
+        Assert.True(GPUPerformanceSampler.NeedsAdapterRefresh(true, listed, [], [1, 2], [1]));
+
+        // A tick without counters cannot tell a disappearance from a failed read
+        Assert.False(GPUPerformanceSampler.NeedsAdapterRefresh(false, listed, [], [1, 2], []));
+
+        // A listed adapter that never reports does not force a refresh every tick
+        Assert.False(GPUPerformanceSampler.NeedsAdapterRefresh(true, listed, [], [1], [1]));
+    }
+
+    [Fact]
+    public void AdapterListIsReadAgainForANewLUIDUnlessItIsKnownUnlisted()
+    {
+        HashSet<ulong> listed = [1];
+
+        Assert.True(GPUPerformanceSampler.NeedsAdapterRefresh(true, listed, [], [1], [1, 7]));
+        Assert.False(GPUPerformanceSampler.NeedsAdapterRefresh(true, listed, [7], [1, 7], [1, 7]));
+    }
+
+    [Fact]
+    public void OnlyIdentitiesWithAValueAreCached()
+    {
+        Assert.False(GPUPerformanceSampler.IsKnownIdentity(default));
+        Assert.False(GPUPerformanceSampler.IsKnownIdentity(new GPUAdapterPersistentIdentity(" ", Guid.Empty)));
+        Assert.True(GPUPerformanceSampler.IsKnownIdentity(new GPUAdapterPersistentIdentity("pci/ven_10de", Guid.Empty)));
+        Assert.True(GPUPerformanceSampler.IsKnownIdentity(new GPUAdapterPersistentIdentity(null, Guid.NewGuid())));
+    }
+
+    [Fact]
     public void ParsesAdapterMemoryCounterIdentity()
     {
         const string instanceName = "luid_0x00000001_0x0000C85A_phys_2";

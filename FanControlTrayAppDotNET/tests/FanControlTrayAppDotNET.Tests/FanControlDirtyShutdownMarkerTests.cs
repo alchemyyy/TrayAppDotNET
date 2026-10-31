@@ -56,36 +56,75 @@ public sealed class FanControlDirtyShutdownMarkerTests
     [Fact]
     public void MarkerFileLifecycle()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "FanControlTrayAppDotNET.Tests", "ShutdownMarker",
-            Guid.NewGuid().ToString("N"));
-        string path = Path.Combine(directory, FanControlDirtyShutdownMarker.FileName);
-        try
-        {
-            FanControlDirtyShutdownMarker clean = new(path);
-            clean.Load(Boot);
-            Assert.True(clean.FirmwareDefaultsTrusted);
-            clean.MarkSoftwareControl(Boot);
-            Assert.True(File.Exists(path));
+        using TempDirectory temp = new();
+        // The marker creates its folder on first write
+        string path = Path.Combine(temp.Combine("marker"), FanControlDirtyShutdownMarker.FileName);
 
-            FanControlDirtyShutdownMarker afterCrash = new(path);
-            afterCrash.Load(Boot.AddSeconds(2));
-            Assert.False(afterCrash.FirmwareDefaultsTrusted);
-            afterCrash.ClearAfterCleanRestore();
-            Assert.True(File.Exists(path));
+        FanControlDirtyShutdownMarker clean = new(path);
+        clean.Load(Boot);
+        Assert.True(clean.FirmwareDefaultsTrusted);
+        clean.MarkSoftwareControl(Boot);
+        Assert.True(File.Exists(path));
 
-            FanControlDirtyShutdownMarker afterReboot = new(path);
-            afterReboot.Load(Boot.AddHours(2));
-            Assert.True(afterReboot.FirmwareDefaultsTrusted);
-            Assert.False(File.Exists(path));
+        FanControlDirtyShutdownMarker afterCrash = new(path);
+        afterCrash.Load(Boot.AddSeconds(2));
+        Assert.False(afterCrash.FirmwareDefaultsTrusted);
+        afterCrash.ClearAfterCleanRestore();
+        Assert.True(File.Exists(path));
 
-            afterReboot.MarkSoftwareControl(Boot.AddHours(2));
-            Assert.True(File.Exists(path));
-            afterReboot.ClearAfterCleanRestore();
-            Assert.False(File.Exists(path));
-        }
-        finally
-        {
-            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
-        }
+        FanControlDirtyShutdownMarker afterReboot = new(path);
+        afterReboot.Load(Boot.AddHours(2));
+        Assert.True(afterReboot.FirmwareDefaultsTrusted);
+        Assert.False(File.Exists(path));
+
+        afterReboot.MarkSoftwareControl(Boot.AddHours(2));
+        Assert.True(File.Exists(path));
+        afterReboot.ClearAfterCleanRestore();
+        Assert.False(File.Exists(path));
+    }
+
+    /// <summary>
+    /// Verifies a same-boot marker an older build left beside its settings still makes defaults untrusted, moves to
+    /// the shared path, and the legacy file is deleted.
+    /// </summary>
+    [Fact]
+    public void SameBootLegacyMarkerIsHonouredAndMoved()
+    {
+        using TempDirectory temp = new();
+        string path = temp.Combine(Path.Combine("shared", FanControlDirtyShutdownMarker.FileName));
+        string legacyPath = temp.Combine(Path.Combine("app", FanControlDirtyShutdownMarker.FileName));
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(legacyPath, FanControlDirtyShutdownMarker.Format(Boot));
+
+        FanControlDirtyShutdownMarker marker = new(path, legacyPath);
+        marker.Load(Boot.AddSeconds(1));
+
+        Assert.False(marker.FirmwareDefaultsTrusted);
+        Assert.False(File.Exists(legacyPath));
+        Assert.True(File.Exists(path));
+
+        FanControlDirtyShutdownMarker nextStart = new(path, legacyPath);
+        nextStart.Load(Boot.AddSeconds(5));
+        Assert.False(nextStart.FirmwareDefaultsTrusted);
+    }
+
+    /// <summary>
+    /// Verifies a legacy marker from an earlier boot is deleted and leaves defaults trusted.
+    /// </summary>
+    [Fact]
+    public void EarlierBootLegacyMarkerIsDeleted()
+    {
+        using TempDirectory temp = new();
+        string path = temp.Combine(Path.Combine("shared", FanControlDirtyShutdownMarker.FileName));
+        string legacyPath = temp.Combine(Path.Combine("app", FanControlDirtyShutdownMarker.FileName));
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(legacyPath, FanControlDirtyShutdownMarker.Format(Boot.AddHours(-3)));
+
+        FanControlDirtyShutdownMarker marker = new(path, legacyPath);
+        marker.Load(Boot);
+
+        Assert.True(marker.FirmwareDefaultsTrusted);
+        Assert.False(File.Exists(legacyPath));
+        Assert.False(File.Exists(path));
     }
 }

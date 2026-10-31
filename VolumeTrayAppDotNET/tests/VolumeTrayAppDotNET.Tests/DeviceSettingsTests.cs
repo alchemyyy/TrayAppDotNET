@@ -18,7 +18,7 @@ public sealed class DeviceSettingsTests
             DeviceSettings settings = new();
             DeviceSettingsEntry entry = settings.GetOrCreate("bluetooth-endpoint-id");
             entry.CustomFriendlyName = "My Bluetooth Headphones";
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
 
@@ -92,6 +92,7 @@ public sealed class DeviceSettingsTests
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);
             Assert.Single(loaded.Devices);
             Assert.NotNull(loaded.Devices[0].CustomFriendlyName);
+            Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.*.tmp"));
         }
         finally
         {

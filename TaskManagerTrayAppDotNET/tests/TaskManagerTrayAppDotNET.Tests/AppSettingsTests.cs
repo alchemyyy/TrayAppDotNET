@@ -1,6 +1,7 @@
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
@@ -39,7 +40,7 @@ public sealed class AppSettingsTests
         {
             settings.ProcessGroupingStyle = ProcessGroupingStyle.ParentProcess;
             settings.GroupProcesses = false;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -58,7 +59,7 @@ public sealed class AppSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            new AppSettings { Autosave = false }.Save(path);
+            TrayXmlSerializer.WriteFile(path, new AppSettings { Autosave = false });
             Assert.Equal(ProcessGroupingStyle.Semantic, AppSettings.LoadOrDefault(path).ProcessGroupingStyle);
 
             File.WriteAllText(path, contents: "<AppSettings />");
@@ -84,7 +85,7 @@ public sealed class AppSettingsTests
         {
             settings.ProcessTreeDefaultState = ProcessTreeDefaultState.Expanded;
             settings.ExpandSemanticSectionsByDefault = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -111,7 +112,7 @@ public sealed class AppSettingsTests
         {
             settings.UseRootProcessForSemanticGroups = false;
             settings.UseRootProcessForSemanticSubgroups = false;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -136,7 +137,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.GroupWindowsProcesses = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             Assert.True(AppSettings.LoadOrDefault(path).GroupWindowsProcesses);
         }
@@ -163,7 +164,7 @@ public sealed class AppSettingsTests
         {
             settings.GridFontSizeBaseline = 14.5;
             settings.GridRowSpacingBaseline = 6;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -224,7 +225,7 @@ public sealed class AppSettingsTests
             settings.LiveTotalHorizontalScale = 0.9;
             settings.LiveTotalTextGap = 6;
             settings.ShowLiveTotalsAboveColumnNames = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             ProcessLiveTotalAppearance loaded =
                 ProcessLiveTotalAppearance.FromSettings(AppSettings.LoadOrDefault(path));
@@ -256,7 +257,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.UpdateHideUnusedProcessColumns(hideUnusedColumns: true);
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             Assert.Equal(expected: 0, changedCount);
             Assert.True(AppSettings.LoadOrDefault(path).HideUnusedProcessColumns);
@@ -413,7 +414,7 @@ public sealed class AppSettingsTests
                     ProcessHeaderButtonKind.RestartExplorer
                 ]
             };
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -483,18 +484,44 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
-    public void OnlyTheLiveAppSettingsInstanceCanAutosaveToTheDefaultPath()
+    public void HardwareNameRuleEditsAreExplicitSavesEvenWithAutosaveOff()
     {
-        AppSettings settings = new();
-        AppSettings otherSettings = new();
-
-        Assert.False(settings.CanAutosaveToDefaultPath(null));
-        Assert.False(settings.CanAutosaveToDefaultPath(otherSettings));
-        Assert.True(settings.CanAutosaveToDefaultPath(settings));
-
+        using TempDirectory temp = new();
+        // The settings store creates its folder on the first save
+        string path = Path.Combine(temp.Combine("settings"), "settings.xml");
+        AppSettings settings = AppSettings.LoadOrDefault(path);
         settings.Autosave = false;
+        settings.Store!.Flush();
 
-        Assert.False(settings.CanAutosaveToDefaultPath(settings));
+        settings.UpdatePerformanceHardwareNameReplacementRules(
+        [
+            new PerformanceHardwareNameReplacementRule
+            {
+                DeviceKind = PerformanceDeviceKind.Network, MatchPattern = "Adapter", Replacement = "NIC"
+            }
+        ]);
+        settings.Store.Flush();
+
+        AppSettings reloaded = TrayXmlSerializer.ReadFile<AppSettings>(path);
+        Assert.Single(reloaded.PerformanceHardwareNameReplacementRules);
+    }
+
+    [Fact]
+    public void ImplicitSavesWaitForAutosaveAndDetachedInstancesNeverWrite()
+    {
+        using TempDirectory temp = new();
+        // The settings store creates its folder on the first save
+        string path = Path.Combine(temp.Combine("settings"), "settings.xml");
+        AppSettings settings = AppSettings.LoadOrDefault(path);
+        settings.Autosave = false;
+        settings.Store!.Flush();
+        DateTime written = File.GetLastWriteTimeUtc(path);
+
+        settings.GroupProcesses = !settings.GroupProcesses;
+        settings.SaveOnExit();
+
+        Assert.Equal(written, File.GetLastWriteTimeUtc(path));
+        Assert.Null(new AppSettings().Store);
     }
 
     [Fact]
@@ -531,7 +558,7 @@ public sealed class AppSettingsTests
                 PerformanceHistoryLengthMinutes = 15,
                 PerformanceSampleIntervalMilliseconds = 2_500
             };
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -554,7 +581,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.ShowCPUHighestCoreTrace = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -578,7 +605,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.ShowPerformanceGraphUnderfill = false;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -602,7 +629,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.CPUPerformanceGraphView = CPUPerformanceGraphView.DetailedView;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -712,7 +739,7 @@ public sealed class AppSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -839,7 +866,7 @@ public sealed class AppSettingsTests
             $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -911,7 +938,7 @@ public sealed class AppSettingsTests
             settings.TrayGraphStyle = TrayGraphStyle.Current;
             settings.TrayGraphDataSource = TrayGraphDataSource.Memory;
             settings.ShowTrayCPUHighestCoreTrace = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -935,17 +962,16 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
-    public void SubmenuDelayClampsAndRoundTripsThroughSettingsXml()
+    public void SubmenuDelayRoundTripsThroughSettingsXml()
     {
-        AppSettings settings = new() { Autosave = false, SubmenuShowDelayMs = int.MaxValue };
-        Assert.Equal(TimeConstants.TrayMenuSubmenuShowDelayMaxMs, settings.SubmenuShowDelayMs);
+        AppSettings settings = new() { Autosave = false };
 
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
             settings.UseSystemSubmenuShowDelay = true;
             settings.SubmenuShowDelayMs = 275;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -968,7 +994,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.GridFontWeight = TaskManagerGridFontWeight.SemiBold;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -990,7 +1016,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.GridRowSpacing = 7.25;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1042,7 +1068,7 @@ public sealed class AppSettingsTests
             settings.AlwaysOnTop = true;
             settings.CloseToTray = false;
             settings.MinimizeToTray = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1066,7 +1092,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.CollapseSidebarWhenNarrow = false;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1088,7 +1114,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.LeftAlignProcessSearchBar = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1110,7 +1136,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.SkipRestartExplorerConfirmation = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1132,7 +1158,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.OverrideWindowsTaskManagerHotkey = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -1154,7 +1180,7 @@ public sealed class AppSettingsTests
         try
         {
             settings.SettingsSidebarWidth = 337.5;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 

@@ -1,5 +1,4 @@
 using TaskManagerTrayAppDotNET.Services;
-using TrayAppDotNETCommon.Utils;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
@@ -28,24 +27,37 @@ public sealed class TaskManagerReplacementTests
         Assert.False(TaskManagerReplacement.IsRedirectedLaunch([""]));
     }
 
+    private const string SystemExecutable = @"C:\Program Files\TrayAppDotNET\TaskManagerTrayAppDotNET.exe";
+
     [Theory]
     [InlineData(@"C:\Program Files\TrayAppDotNET\TaskManagerTrayAppDotNET.exe")]
-    [InlineData(@"D:\portable\TaskManagerTrayAppDotNET.exe")]
-    [InlineData("taskmanagertrayappdotnet.exe")]
-    public void PointsAtThisAppMatchesOurExecutableRegardlessOfDirectory(string registeredExecutable)
+    [InlineData(@"c:\program files\trayappdotnet\taskmanagertrayappdotnet.exe")]
+    [InlineData("\"C:\\Program Files\\TrayAppDotNET\\TaskManagerTrayAppDotNET.exe\"")]
+    [InlineData(@"C:\Program Files\TrayAppDotNET\.\TaskManagerTrayAppDotNET.exe")]
+    public void OwnershipMatchesTheExactExecutablePath(string registeredExecutable)
     {
-        Assert.True(TaskManagerReplacement.PointsAtThisApp(registeredExecutable));
+        Assert.True(TaskManagerReplacement.IsOwnedBy(registeredExecutable, [SystemExecutable]));
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData(@"D:\portable\TaskManagerTrayAppDotNET.exe")]
+    [InlineData(@"C:\Users\someone\AppData\Local\TrayAppDotNET\apps\TaskManagerTrayAppDotNET.exe")]
+    [InlineData("TaskManagerTrayAppDotNET.exe")]
     [InlineData(@"C:\Windows\System32\Taskmgr.exe")]
     [InlineData(@"C:\Tools\SystemInformer\SystemInformer.exe")]
-    public void PointsAtThisAppRejectsOtherTargets(string? registeredExecutable)
+    public void OwnershipRejectsTheSameFileNameElsewhereAndOtherTargets(string? registeredExecutable)
     {
-        Assert.False(TaskManagerReplacement.PointsAtThisApp(registeredExecutable));
+        Assert.False(TaskManagerReplacement.IsOwnedBy(registeredExecutable, [SystemExecutable]));
+    }
+
+    [Fact]
+    public void OwnershipIgnoresMissingOrRelativeCandidates()
+    {
+        Assert.False(TaskManagerReplacement.IsOwnedBy(SystemExecutable, [null, "", "TaskManagerTrayAppDotNET.exe"]));
+        Assert.True(TaskManagerReplacement.IsOwnedBy(SystemExecutable, [null, SystemExecutable]));
     }
 
     [Fact]
@@ -96,5 +108,18 @@ public sealed class TaskManagerReplacementTests
     public void ExtractExecutableReturnsNullForEmptyOrMalformedValues(string? debuggerValue)
     {
         Assert.Null(IfeoRegistry.ExtractExecutable(debuggerValue));
+    }
+
+    [Fact]
+    public void ToggleNeedsASystemInstallUnlessTurningOurRedirectOff()
+    {
+        TaskManagerReplacementState off = new(IsEnabled: false, PointsElsewhere: false, RegisteredExecutable: null);
+        TaskManagerReplacementState elsewhere = new(IsEnabled: false, PointsElsewhere: true, @"C:\Tools\pe.exe");
+        TaskManagerReplacementState ours = new(IsEnabled: true, PointsElsewhere: false, SystemExecutable);
+
+        Assert.False(TaskManagerReplacement.CanToggle(systemInstallExists: false, off));
+        Assert.False(TaskManagerReplacement.CanToggle(systemInstallExists: false, elsewhere));
+        Assert.True(TaskManagerReplacement.CanToggle(systemInstallExists: false, ours));
+        Assert.True(TaskManagerReplacement.CanToggle(systemInstallExists: true, off));
     }
 }

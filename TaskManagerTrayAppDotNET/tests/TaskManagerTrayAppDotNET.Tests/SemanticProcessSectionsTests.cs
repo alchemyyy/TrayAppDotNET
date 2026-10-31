@@ -29,17 +29,23 @@ public sealed class SemanticProcessSectionsTests
             SemanticProcessGroupClassification.Windows,
             SemanticProcessSections.GetClassification(sectionIndex: 2));
         Assert.Equal(
-            "Apps (18)",
+            SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 18),
             SemanticProcessSections.GetTitle(SemanticProcessGroupClassification.App, 18));
         Assert.Equal(
-            "Background processes (280)",
+            SectionTitle(nameof(Localization.Strings.Processes_Section_Background), 280),
             SemanticProcessSections.GetTitle(
                 SemanticProcessGroupClassification.Background,
                 280));
         Assert.Equal(
-            "Windows processes (92)",
+            SectionTitle(nameof(Localization.Strings.Processes_Section_Windows), 92),
             SemanticProcessSections.GetTitle(SemanticProcessGroupClassification.Windows, 92));
     }
+
+    internal static string SectionTitle(string labelKey, int entryCount) =>
+        TestLocalization.F(
+            nameof(Localization.Strings.Processes_Section_Title_Format),
+            TestLocalization.L(labelKey),
+            entryCount);
 
     [Fact]
     public void SectionRowKeysAreDistinctFromGroupSyntheticKeys()

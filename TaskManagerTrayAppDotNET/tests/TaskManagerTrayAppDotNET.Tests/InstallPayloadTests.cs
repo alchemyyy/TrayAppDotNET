@@ -8,7 +8,7 @@ public sealed class InstallPayloadTests
     public void StandaloneKillHelperIsARequiredManagedBuildInstallFile()
     {
         Assert.Contains(
-            AppServices.Installation.Payload.RequiredFiles,
+            AppServices.Install.Installation.Payload.RequiredFiles,
             file => string.Equals(file.Name, Constants.KillHelperFileName, StringComparison.Ordinal));
     }
 }

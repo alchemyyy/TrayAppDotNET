@@ -1,6 +1,4 @@
 using Avalonia;
-using Avalonia.Headless;
-using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
@@ -16,66 +14,45 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class ProcessTableCanvasViewStateTests
 {
     [Fact]
-    public async Task RestoredSortAppliesToAShownColumn()
+    public void RestoredSortAppliesToAShownColumn() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateCanvas(processIconService);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateCanvas(processIconService);
 
-                canvas.RestoreSort(ProcessTableColumnKind.CPU, descending: false);
+        canvas.RestoreSort(ProcessTableColumnKind.CPU, descending: false);
 
-                Assert.Equal(ProcessTableColumnKind.CPU, canvas.SortColumn);
-                Assert.False(canvas.SortDescending);
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(ProcessTableColumnKind.CPU, canvas.SortColumn);
+        Assert.False(canvas.SortDescending);
+    });
 
     [Fact]
-    public async Task RestoredSortOnAHiddenColumnKeepsTheCurrentOrder()
+    public void RestoredSortOnAHiddenColumnKeepsTheCurrentOrder() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateCanvas(processIconService);
-                ProcessTableColumnKind initialColumn = canvas.SortColumn;
-                bool initialDescending = canvas.SortDescending;
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateCanvas(processIconService);
+        ProcessTableColumnKind initialColumn = canvas.SortColumn;
+        bool initialDescending = canvas.SortDescending;
 
-                canvas.RestoreSort(ProcessTableColumnKind.WorkingSet, !initialDescending);
+        canvas.RestoreSort(ProcessTableColumnKind.WorkingSet, !initialDescending);
 
-                Assert.Equal(initialColumn, canvas.SortColumn);
-                Assert.Equal(initialDescending, canvas.SortDescending);
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(initialColumn, canvas.SortColumn);
+        Assert.Equal(initialDescending, canvas.SortDescending);
+    });
 
     [Fact]
-    public async Task SelectionCannotRestoreBeforeASnapshotArrives()
+    public void SelectionCannotRestoreBeforeASnapshotArrives() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateCanvas(processIconService);
-                ProcessTerminationTarget target = new(ProcessID: 4321, CreationTimeFileTime: 1234);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateCanvas(processIconService);
+        ProcessTerminationTarget target = new(ProcessID: 4321, CreationTimeFileTime: 1234);
 
-                // A canvas built while the window is hidden has no rows, which is why the page defers its restore
-                Assert.False(canvas.HasRows);
-                canvas.RestoreSelectedProcesses([target], target);
+        // A canvas built while the window is hidden has no rows, which is why the page defers its restore
+        Assert.False(canvas.HasRows);
+        canvas.RestoreSelectedProcesses([target], target);
 
-                Assert.Empty(canvas.SelectedTerminationTargets);
-                Assert.Null(canvas.SelectedTerminationTarget);
-            },
-            CancellationToken.None);
-    }
+        Assert.Empty(canvas.SelectedTerminationTargets);
+        Assert.Null(canvas.SelectedTerminationTarget);
+    });
 
     private static ProcessTableCanvas CreateCanvas(ProcessIconService processIconService)
     {
@@ -97,43 +74,8 @@ public sealed class ProcessTableCanvasViewStateTests
             TaskManagerGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,
             ProcessLiveTotalAppearance.Default,
-            CreatePalette(),
+            TestPalettes.Default(),
             new TaskManagerWindowResources(),
             isLightTheme: false);
-    }
-
-    private static SettingsPalette CreatePalette() => new(
-        Colors.Black,
-        Colors.White,
-        Colors.Gray,
-        Colors.DarkGray,
-        Colors.DimGray,
-        Colors.Black,
-        Colors.DarkGray,
-        Colors.LightGray,
-        Colors.Gray,
-        Colors.Blue,
-        Colors.Blue,
-        Colors.White,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.Gray,
-        Colors.White,
-        Colors.Red,
-        Colors.DarkRed,
-        Colors.White);
-
-    private sealed class TestApplication : Application
-    {
-        public override void Initialize() => Styles.Add(new FluentTheme());
-    }
-
-    private static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder
-            .Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 }

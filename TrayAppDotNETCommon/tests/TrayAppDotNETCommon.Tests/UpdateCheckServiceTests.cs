@@ -1,0 +1,887 @@
+using System.Diagnostics;
+using System.Net;
+using System.Text;
+using TrayAppDotNETCommon.Services;
+using Xunit;
+
+namespace TrayAppDotNETCommon.Tests;
+
+public sealed class UpdateCheckServiceTests : IDisposable
+{
+    private const string ApplicationName = "TestTrayApp";
+    private const string LatestReleaseTag = "TrayAppDotNET_110";
+    private const string PreviousReleaseTag = "TrayAppDotNET_109";
+    private const int CurrentBuild = 100;
+
+    // Shorter than the 250 ms the replace retries span, so a retrying writer outlasts the reader
+    private static readonly TimeSpan SiblingReaderHoldAfterStaging = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan SiblingReaderStagingTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ManifestCacheWatcherTimeout = TimeSpan.FromSeconds(10);
+
+    private readonly TempDirectory _temp = new();
+
+    // Created by the test or the code under test, so a test can also start from a missing folder
+    private string TestDirectory => _temp.Combine("data");
+
+    private string CachePath => Path.Combine(TestDirectory, GitHubReleaseUrls.VersionsManifestFileName);
+
+    [Fact]
+    public async Task CheckNowAsync_IgnoresOnlyThePersistedSkippedRelease()
+    {
+        int skippedUpdateVersion = 200;
+        using ManifestMessageHandler messageHandler = new(200, 201);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            () => skippedUpdateVersion,
+            version => skippedUpdateVersion = version);
+
+        UpdateInfo? skippedUpdate = await service.CheckNowAsync();
+        UpdateInfo? nextUpdate = await service.CheckNowAsync();
+
+        Assert.Null(skippedUpdate);
+        Assert.NotNull(nextUpdate);
+        Assert.Equal(expected: 201, nextUpdate.Version);
+        Assert.Equal(expected: 200, service.SkippedUpdateVersion);
+        Assert.Equal(expected: 2, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ScheduledCheck_UsesFreshSharedManifestAndWaitsOnlyUntilItExpires()
+    {
+        const int cachedVersion = 200;
+        DateTime currentTimeUTC = new(year: 2026, month: 8, day: 20, hour: 12, minute: 0, second: 0, DateTimeKind.Utc);
+        TimeSpan pollInterval = TimeSpan.FromHours(1);
+        WriteCachedManifest(cachedVersion, currentTimeUTC - TimeSpan.FromMinutes(45));
+        using ManifestMessageHandler messageHandler = new(999);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            static () => 0,
+            static _ => { },
+            pollInterval: () => pollInterval,
+            getCurrentUTCTime: () => currentTimeUTC);
+
+        await service.PollOnceAsync(CancellationToken.None, bypassLatestManifestCache: false);
+        UpdateInfo? update = service.AvailableUpdate;
+        TimeSpan nextPollInterval = service.NextPollInterval();
+
+        Assert.NotNull(update);
+        Assert.Equal(cachedVersion, update.Version);
+        Assert.Equal(expected: 0, messageHandler.RequestCount);
+        Assert.Equal(TimeSpan.FromMinutes(15), nextPollInterval);
+    }
+
+    [Fact]
+    public async Task ScheduledCheck_RefreshesStaleSharedManifestAndCachesTheResponse()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        DateTime staleWriteTimeUTC = DateTime.UtcNow - TimeSpan.FromHours(2);
+        WriteCachedManifest(cachedVersion, staleWriteTimeUTC);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        await service.PollOnceAsync(CancellationToken.None, bypassLatestManifestCache: false);
+        UpdateInfo? update = service.AvailableUpdate;
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Equal(receivedVersion, update.Version);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.True(File.GetLastWriteTimeUtc(CachePath) > staleWriteTimeUTC);
+        Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_BypassesFreshSharedManifestAndCachesTheResponse()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        WriteCachedManifest(cachedVersion, DateTime.UtcNow);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Equal(receivedVersion, update.Version);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_ReplacesTheSharedManifestWhileASiblingAppIsReadingIt()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        WriteCachedManifest(cachedVersion, DateTime.UtcNow);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        // Hold the cache open like a sibling app's read until the writer has staged its replacement
+        FileStream siblingReader = new(CachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        Task releaseTask = Task.Run(async () =>
+        {
+            try
+            {
+                // A writer that gives up deletes its temporary file at once, so the wait can miss it and time out
+                Stopwatch stagingWait = Stopwatch.StartNew();
+                while (stagingWait.Elapsed < SiblingReaderStagingTimeout
+                       && !Directory.EnumerateFiles(TestDirectory, searchPattern: "versions.xml.*.tmp").Any())
+                    await Task.Delay(millisecondsDelay: 1);
+                await Task.Delay(SiblingReaderHoldAfterStaging);
+            }
+            finally
+            {
+                await siblingReader.DisposeAsync();
+            }
+        });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+        await releaseTask;
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.Empty(Directory.EnumerateFiles(TestDirectory, searchPattern: "versions.xml.*.tmp"));
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_UsesTheAppVersionAndPinsTheAssetToTheManifestRelease()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        using AggregateManifestMessageHandler messageHandler = new(aggregateVersion, appVersion, includeApp: true);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(appVersion, update.Version);
+        Assert.Equal($"TrayAppDotNET_{aggregateVersion}", update.TagName);
+        Assert.Equal($"{ApplicationName} {appVersion}", update.ReleaseName);
+        Assert.Equal(
+            $"https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_{aggregateVersion}/"
+            + $"{ApplicationName}_{appVersion}.zip",
+            update.AssetUrl);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_UsesTheArtifactReleaseTagFromTheVersionEndpoint()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        const string appReleaseTag = "TrayAppDotNET_108";
+        using AggregateManifestMessageHandler messageHandler = new(
+            aggregateVersion,
+            appVersion,
+            includeApp: true,
+            appReleaseTag);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(appReleaseTag, update.TagName);
+        Assert.Equal(
+            $"https://github.com/test-owner/test-repository/releases/download/{appReleaseTag}/"
+            + $"{ApplicationName}_{appVersion}.zip",
+            update.AssetUrl);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_DoesNotOfferTheAggregateVersionWhenTheAppIsCurrent()
+    {
+        const int aggregateVersion = 999;
+        using AggregateManifestMessageHandler messageHandler = new(
+            aggregateVersion,
+            CurrentBuild,
+            includeApp: true);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.Null(update);
+        Assert.Equal(UpdateCheckResult.Success, service.LastResult);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_DoesNotFallBackToGitHubWhenTheVersionEndpointOmitsTheApp()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        using AggregateManifestMessageHandler messageHandler = new(aggregateVersion, appVersion, includeApp: false);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.Null(update);
+        Assert.Equal(["https://updates.test/versions.xml"], messageHandler.RequestUrls);
+    }
+
+    [Fact]
+    public async Task SkipReleaseAsync_PersistsAndClearsTheAvailableRelease()
+    {
+        int skippedUpdateVersion = 0;
+        int persistCount = 0;
+        using ManifestMessageHandler messageHandler = new(200, 200);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            () => skippedUpdateVersion,
+            version =>
+            {
+                skippedUpdateVersion = version;
+                persistCount++;
+            });
+
+        UpdateInfo? availableUpdate = await service.CheckNowAsync();
+        Assert.NotNull(availableUpdate);
+
+        int stateChangeCount = 0;
+        service.StateChanged += () => stateChangeCount++;
+        await service.SkipReleaseAsync(availableUpdate);
+
+        Assert.Equal(expected: 200, skippedUpdateVersion);
+        Assert.Equal(expected: 1, persistCount);
+        Assert.Equal(expected: 1, stateChangeCount);
+        Assert.Null(service.AvailableUpdate);
+        Assert.Equal(expected: 200, service.SkippedUpdateVersion);
+
+        UpdateInfo? repeatedUpdate = await service.CheckNowAsync();
+        Assert.Null(repeatedUpdate);
+    }
+
+    [Fact]
+    public async Task UnskipReleaseAsync_ClearsTheSkipAndOffersTheReleaseAgain()
+    {
+        int skippedUpdateVersion = 0;
+        using ManifestMessageHandler messageHandler = new(200);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            () => skippedUpdateVersion,
+            version => skippedUpdateVersion = version);
+        UpdateInfo? availableUpdate = await service.CheckNowAsync();
+        Assert.NotNull(availableUpdate);
+        await service.SkipReleaseAsync(availableUpdate);
+        Assert.Null(service.AvailableUpdate);
+
+        int stateChangeCount = 0;
+        service.StateChanged += () => stateChangeCount++;
+        await service.UnskipReleaseAsync();
+
+        Assert.Equal(expected: 0, skippedUpdateVersion);
+        Assert.Equal(expected: 0, service.SkippedUpdateVersion);
+        Assert.Equal(availableUpdate, service.AvailableUpdate);
+        Assert.Equal(expected: 1, stateChangeCount);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ManifestCacheWatcher_OffersAReleaseAnotherAppFetchedWithoutARequest()
+    {
+        const int fetchedVersion = 200;
+        using ManifestMessageHandler fetchingHandler = new(fetchedVersion);
+        using UpdateCheckService fetchingApp = CreateService(fetchingHandler, static () => 0, static _ => { });
+        using ManifestMessageHandler watchingHandler = new(999);
+        using UpdateCheckService watchingApp = CreateService(watchingHandler, static () => 0, static _ => { });
+        Task offered = WaitForStateAsync(watchingApp, static service => service.AvailableUpdate != null);
+        watchingApp.Start();
+
+        await fetchingApp.CheckNowAsync();
+        await offered;
+
+        Assert.Equal(fetchedVersion, watchingApp.AvailableUpdate?.Version);
+        Assert.Equal(UpdateCheckResult.Success, watchingApp.LastResult);
+        Assert.Equal(expected: 0, watchingHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ManifestCacheWatcher_KeepsTheSkippedReleaseWithheld()
+    {
+        const int skippedVersion = 200;
+        using ManifestMessageHandler fetchingHandler = new(skippedVersion);
+        using UpdateCheckService fetchingApp = CreateService(fetchingHandler, static () => 0, static _ => { });
+        using ManifestMessageHandler watchingHandler = new(999);
+        using UpdateCheckService watchingApp = CreateService(
+            watchingHandler,
+            static () => skippedVersion,
+            static _ => { });
+        Task checkedCache = WaitForStateAsync(watchingApp, static service => service.LastCheckTimeUtc != null);
+        watchingApp.Start();
+
+        await fetchingApp.CheckNowAsync();
+        await checkedCache;
+
+        Assert.Null(watchingApp.AvailableUpdate);
+        Assert.Equal(skippedVersion, watchingApp.SkippedUpdateVersion);
+        Assert.Equal(expected: 0, watchingHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task GetPreviousReleaseAsync_UsesThePreviousIndexedTagWithoutListingReleases()
+    {
+        using PreviousReleaseMessageHandler messageHandler = new(true);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? previousRelease = await service.GetPreviousReleaseAsync();
+        UpdateInfo? cachedPreviousRelease = await service.GetPreviousReleaseAsync();
+
+        Assert.NotNull(previousRelease);
+        Assert.Same(previousRelease, cachedPreviousRelease);
+        Assert.Equal(CurrentBuild - 1, previousRelease.Version);
+        Assert.Equal(expected: "TrayAppDotNET_109", previousRelease.TagName);
+        Assert.Equal(
+            $"https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_109/"
+            + $"{ApplicationName}_{CurrentBuild - 1}.zip",
+            previousRelease.AssetUrl);
+        Assert.Equal(
+            [
+                "https://updates.test/versions.xml",
+                "https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_109/versions.xml"
+            ],
+            messageHandler.RequestUrls);
+    }
+
+    [Fact]
+    public async Task GetPreviousReleaseAsync_ListsReleasesOnlyWhenThePreviousIndexedTagIsUnavailable()
+    {
+        using PreviousReleaseMessageHandler messageHandler = new(false);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? previousRelease = await service.GetPreviousReleaseAsync();
+
+        Assert.NotNull(previousRelease);
+        Assert.Equal(CurrentBuild - 1, previousRelease.Version);
+        Assert.Equal(expected: "TrayAppDotNET_109", previousRelease.TagName);
+        Assert.Equal(expected: 123L, previousRelease.AssetSize);
+        Assert.Equal(expected: 3, messageHandler.RequestUrls.Count);
+        Assert.Equal(
+            expected: "https://api.github.com/repos/test-owner/test-repository/releases?per_page=10&page=1",
+            messageHandler.RequestUrls[2]);
+        Assert.Equal(expected: "2026-03-10", messageHandler.GitHubApiVersion);
+        Assert.True(messageHandler.RequestedGitHubJSON);
+    }
+
+    [Fact]
+    public async Task GetPreviousReleaseAsync_DerivesThePinnedTagWhenTheRunningBuildIsBehindLatest()
+    {
+        using PreviousReleaseMessageHandler messageHandler = new(
+            directManifestAvailable: true,
+            CurrentBuild + 1,
+            latestTag: "TrayAppDotNET_110",
+            directTag: "TrayAppDotNET_108");
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? previousRelease = await service.GetPreviousReleaseAsync();
+
+        Assert.NotNull(previousRelease);
+        Assert.Equal(CurrentBuild - 1, previousRelease.Version);
+        Assert.Equal(expected: "TrayAppDotNET_108", previousRelease.TagName);
+        Assert.Equal(expected: 2, messageHandler.RequestUrls.Count);
+        Assert.Equal(
+            expected: "https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_108/versions.xml",
+            messageHandler.RequestUrls[1]);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task SetCurrentVersionSkippedAsync_ControlsWhetherTheCurrentReleaseIsOfferedAfterBackdating(
+        bool skipCurrentVersion,
+        bool expectUpdate)
+    {
+        int skippedUpdateVersion = 0;
+        using (ManifestMessageHandler choiceHandler = new(CurrentBuild))
+        using (UpdateCheckService currentService = CreateService(
+                   choiceHandler,
+                   () => skippedUpdateVersion,
+                   version => skippedUpdateVersion = version))
+            await currentService.SetCurrentVersionSkippedAsync(skipCurrentVersion);
+
+        using ManifestMessageHandler backdatedHandler = new(CurrentBuild);
+        using UpdateCheckService backdatedService = CreateService(
+            backdatedHandler,
+            () => skippedUpdateVersion,
+            version => skippedUpdateVersion = version,
+            CurrentBuild - 1);
+
+        UpdateInfo? availableUpdate = await backdatedService.CheckNowAsync();
+
+        Assert.Equal(skipCurrentVersion ? CurrentBuild : 0, skippedUpdateVersion);
+        Assert.Equal(expectUpdate, availableUpdate != null);
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RetriesAndRemovesPartialDownloads()
+    {
+        byte[] partialAsset = "partial zip response"u8.ToArray();
+        using FixedAssetMessageHandler messageHandler = new(partialAsset);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+        UpdateInfo update = CreateUpdate(partialAsset.Length + 1, Sha256Hex(partialAsset));
+
+        UpdateStageResult result = await service.DownloadAndStageAsync(update);
+
+        Assert.Equal(UpdateStageResult.Failed, result);
+        Assert.Equal(expected: 3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(TestDirectory, searchPattern: "*_update_*"));
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RetriesAndRemovesCorruptArchives()
+    {
+        byte[] corruptArchive = "not a zip archive"u8.ToArray();
+        using FixedAssetMessageHandler messageHandler = new(corruptArchive);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+        UpdateInfo update = CreateUpdate(corruptArchive.Length, Sha256Hex(corruptArchive));
+
+        UpdateStageResult result = await service.DownloadAndStageAsync(update);
+
+        Assert.Equal(UpdateStageResult.Failed, result);
+        Assert.Equal(expected: 3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(TestDirectory, searchPattern: "*_update_*"));
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RejectsAPackageWhoseHashDiffersWithoutExtractingOrRetrying()
+    {
+        byte[] package = CreateZip(("TestTrayApp.exe", "replaced executable"));
+        using FixedAssetMessageHandler messageHandler = new(package);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+        UpdateInfo update = CreateUpdate(package.Length, Sha256Hex("the published package"u8.ToArray()));
+
+        UpdateStageResult result = await service.DownloadAndStageAsync(update);
+
+        Assert.Equal(UpdateStageResult.Failed, result);
+        Assert.Equal(expected: 1, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(TestDirectory, searchPattern: "*_update_*"));
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RefusesAPackageWithoutAPublishedHash()
+    {
+        byte[] package = CreateZip(("TestTrayApp.exe", "executable"));
+        using FixedAssetMessageHandler messageHandler = new(package);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateStageResult result = await service.DownloadAndStageAsync(CreateUpdate(package.Length, sha256: string.Empty));
+
+        Assert.Equal(UpdateStageResult.Failed, result);
+        Assert.Equal(expected: 0, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RetriesADownloadThatStopsDelivering()
+    {
+        using StalledAssetMessageHandler messageHandler = new();
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            static () => 0,
+            static _ => { },
+            inactivityTimeout: TimeSpan.FromMilliseconds(100));
+
+        UpdateStageResult result = await service.DownloadAndStageAsync(CreateUpdate(10, Sha256Hex([1])))
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(UpdateStageResult.Failed, result);
+        Assert.Equal(expected: 3, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_CarriesTheManifestHashIntoTheOfferedRelease()
+    {
+        const string publishedHash = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
+        string manifest = $"""
+                           <?xml version="1.0" encoding="utf-8"?>
+                           <versions>
+                             <release tag="TrayAppDotNET_110" name="TrayAppDotNET 110" />
+                             <artifacts>
+                               <artifact profile="release" kind="app" appId="{ApplicationName}" version="200"
+                                         fileName="{ApplicationName}_200.zip" size="10" sha256="{publishedHash}" />
+                             </artifacts>
+                           </versions>
+                           """;
+        using FixedAssetMessageHandler messageHandler = new(Encoding.UTF8.GetBytes(manifest));
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(publishedHash.ToLowerInvariant(), update.Sha256);
+    }
+
+    [Theory]
+    [InlineData("sha256:ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789",
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")]
+    [InlineData("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")]
+    [InlineData("sha512:abcdef", "")]
+    [InlineData("sha256:not-hex-not-hex-not-hex-not-hex-not-hex-not-hex-not-hex-not-hex-", "")]
+    [InlineData(null, "")]
+    public void NormalizeSha256_AcceptsOnlyASha256Digest(string? value, string expected) =>
+        Assert.Equal(expected, UpdateCheckService.NormalizeSha256(value));
+
+    private static UpdateInfo CreateUpdate(long size, string sha256) =>
+        new(
+            CurrentBuild + 1,
+            LatestReleaseTag,
+            ReleaseName: "Download test",
+            string.Empty,
+            AssetUrl: "https://downloads.test/TestTrayApp.zip",
+            AssetName: "TestTrayApp.zip",
+            size,
+            sha256);
+
+    private static string Sha256Hex(byte[] content) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
+
+    private static byte[] CreateZip(params (string Name, string Content)[] entries)
+    {
+        using MemoryStream stream = new();
+        using (System.IO.Compression.ZipArchive archive = new(stream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach ((string name, string content) in entries)
+            {
+                using StreamWriter writer = new(archive.CreateEntry(name).Open());
+                writer.Write(content);
+            }
+        }
+
+        return stream.ToArray();
+    }
+
+    private UpdateCheckService CreateService(
+        HttpMessageHandler messageHandler,
+        Func<int> getSkippedUpdateVersion,
+        Action<int> persistSkippedUpdateVersion,
+        int currentBuild = CurrentBuild,
+        Func<TimeSpan>? pollInterval = null,
+        Func<DateTime>? getCurrentUTCTime = null,
+        TimeSpan? inactivityTimeout = null) =>
+        new(
+            new UpdateCheckOptions
+            {
+                VersionsManifestUrl = new Uri("https://updates.test/versions.xml"),
+                VersionsManifestCachePath = CachePath,
+                RepositoryOwner = "test-owner",
+                RepositoryName = "test-repository",
+                ApplicationName = ApplicationName,
+                CurrentBuild = currentBuild,
+                UserAgent = ApplicationName + "-Updater",
+                StagingDirectory = () => TestDirectory,
+                IsEnabled = static () => true,
+                PollInterval = pollInterval ?? (static () => TimeSpan.FromHours(1)),
+                GetSkippedUpdateVersion = getSkippedUpdateVersion,
+                PersistSkippedUpdateVersion = persistSkippedUpdateVersion,
+                InvokeOnUIThread = static action =>
+                {
+                    action();
+                    return Task.CompletedTask;
+                },
+                AssetDownloadMaxAttempts = 3,
+                AssetDownloadInitialBackoff = TimeSpan.FromMilliseconds(1),
+                GetCurrentUTCTime = getCurrentUTCTime ?? (static () => DateTime.UtcNow),
+                // Start only arms the manifest cache watcher here; the first scheduled poll never comes due
+                StartupDelay = TimeSpan.FromHours(1),
+                AssetDownloadInactivityTimeout = inactivityTimeout ?? TimeSpan.FromSeconds(30)
+            },
+            messageHandler);
+
+    // Completes on the first state change that satisfies the condition
+    private static Task WaitForStateAsync(UpdateCheckService service, Func<UpdateCheckService, bool> condition)
+    {
+        TaskCompletionSource stateReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StateChanged += () =>
+        {
+            if (condition(service)) stateReached.TrySetResult();
+        };
+        return stateReached.Task.WaitAsync(ManifestCacheWatcherTimeout);
+    }
+
+    private void WriteCachedManifest(int version, DateTime writeTimeUTC)
+    {
+        Directory.CreateDirectory(TestDirectory);
+        File.WriteAllText(CachePath, CreateManifest(version), Encoding.UTF8);
+        File.SetLastWriteTimeUtc(CachePath, writeTimeUTC);
+    }
+
+    private static string CreateManifest(int version) =>
+        $"""
+         <?xml version="1.0" encoding="utf-8"?>
+         <versions>
+           <release tag="v{version}" name="Release {version}" />
+           <artifacts>
+             <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
+                       fileName="{ApplicationName}_{version}.zip" size="0" />
+           </artifacts>
+         </versions>
+         """;
+
+    public void Dispose() => _temp.Dispose();
+
+    private sealed class ManifestMessageHandler(params int[] versions) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int index = Math.Min(RequestCount, versions.Length - 1);
+            RequestCount++;
+            int version = versions[index];
+            string manifest = CreateManifest(version);
+            HttpResponseMessage response = new(HttpStatusCode.OK)
+            {
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
+                RequestMessage = request
+            };
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class FixedAssetMessageHandler(byte[] content) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestCount++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content), RequestMessage = request
+            });
+        }
+    }
+
+    /// <summary>Sends headers and two bytes, then never delivers another byte until the request is cancelled.</summary>
+    private sealed class StalledAssetMessageHandler : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new StalledStream()), RequestMessage = request
+            });
+        }
+
+        private sealed class StalledStream : Stream
+        {
+            private int _delivered;
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+            public override void Flush() { }
+
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                if (_delivered < 2)
+                {
+                    buffer.Span[0] = 1;
+                    _delivered++;
+                    return 1;
+                }
+
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+                return 0;
+            }
+
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
+    private sealed class AggregateManifestMessageHandler(
+        int aggregateVersion,
+        int appVersion,
+        bool includeApp,
+        string appReleaseTag = "") : HttpMessageHandler
+    {
+        public List<string> RequestUrls { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Uri requestUri = request.RequestUri
+                             ?? throw new InvalidOperationException("The test request did not have a URL.");
+            RequestUrls.Add(requestUri.AbsoluteUri);
+
+            HttpResponseMessage response = requestUri.Host switch
+            {
+                "updates.test" => ManifestResponse(request),
+                "api.github.com" => ReleasesResponse(request),
+                _ => throw new InvalidOperationException($"Unexpected test request: {requestUri}")
+            };
+            return Task.FromResult(response);
+        }
+
+        private HttpResponseMessage ManifestResponse(HttpRequestMessage request)
+        {
+            string releaseTagAttribute = string.IsNullOrWhiteSpace(appReleaseTag)
+                ? string.Empty
+                : $" releaseTag=\"{appReleaseTag}\"";
+            string appArtifact = includeApp
+                ? $"""
+                       <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
+                                 fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} size="0" />
+                   """
+                : string.Empty;
+            string manifest = $"""
+                               <?xml version="1.0" encoding="utf-8"?>
+                               <versions>
+                                 <release tag="TrayAppDotNET_{aggregateVersion}" name="TrayAppDotNET {aggregateVersion}" />
+                                 <artifacts>
+                                   <artifact profile="release" kind="aggregate" appId="TrayAppDotNET" version="{aggregateVersion}"
+                                             fileName="TrayAppDotNET_{aggregateVersion}.zip" size="0" />
+                               {appArtifact}
+                                 </artifacts>
+                               </versions>
+                               """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
+                RequestMessage = request
+            };
+        }
+
+        private HttpResponseMessage ReleasesResponse(HttpRequestMessage request)
+        {
+            string releases = $$"""
+                                [
+                                  {
+                                    "tag_name": "TrayAppDotNET_{{aggregateVersion - 1}}",
+                                    "body": "App release notes",
+                                    "draft": false,
+                                    "prerelease": false,
+                                    "assets": [
+                                      {
+                                        "name": "{{ApplicationName}}_{{appVersion}}.zip",
+                                        "size": 123
+                                      }
+                                    ]
+                                  }
+                                ]
+                                """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(releases, Encoding.UTF8, mediaType: "application/json"),
+                RequestMessage = request
+            };
+        }
+    }
+
+    private sealed class PreviousReleaseMessageHandler(
+        bool directManifestAvailable,
+        int latestVersion = CurrentBuild,
+        string latestTag = LatestReleaseTag,
+        string directTag = PreviousReleaseTag) : HttpMessageHandler
+    {
+        public List<string> RequestUrls { get; } = [];
+        public string GitHubApiVersion { get; private set; } = string.Empty;
+        public bool RequestedGitHubJSON { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Uri requestUri = request.RequestUri
+                             ?? throw new InvalidOperationException("The test request did not have a URL.");
+            RequestUrls.Add(requestUri.AbsoluteUri);
+
+            HttpResponseMessage response;
+            switch (requestUri.Host)
+            {
+                case "updates.test":
+                    response = ManifestResponse(request, latestVersion, latestTag);
+                    break;
+                case "github.com" when directManifestAvailable:
+                    response = ManifestResponse(request, CurrentBuild - 1, directTag);
+                    break;
+                case "github.com":
+                    response = new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = request };
+                    break;
+                case "api.github.com":
+                    GitHubApiVersion = request.Headers.TryGetValues(
+                        name: "X-GitHub-Api-Version",
+                        out IEnumerable<string>? apiVersions)
+                        ? apiVersions.Single()
+                        : string.Empty;
+                    RequestedGitHubJSON = request.Headers.Accept.Any(value =>
+                        string.Equals(value.MediaType, b: "application/vnd.github+json", StringComparison.Ordinal));
+                    response = ReleasesResponse(request, directTag);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unexpected test request: {requestUri}");
+            }
+
+            return Task.FromResult(response);
+        }
+
+        private static HttpResponseMessage ManifestResponse(
+            HttpRequestMessage request,
+            int version,
+            string tagName)
+        {
+            string manifest = $"""
+                               <?xml version="1.0" encoding="utf-8"?>
+                               <versions>
+                                 <release tag="{tagName}" name="Release {version}" />
+                                 <artifacts>
+                                   <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
+                                             fileName="{ApplicationName}_{version}.zip" size="0" />
+                                 </artifacts>
+                               </versions>
+                               """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(manifest, Encoding.UTF8, mediaType: "application/xml"),
+                RequestMessage = request
+            };
+        }
+
+        private static HttpResponseMessage ReleasesResponse(HttpRequestMessage request, string tagName)
+        {
+            string releases = $$"""
+                                [
+                                  {
+                                    "tag_name": "{{tagName}}",
+                                    "body": "Previous release notes",
+                                    "draft": false,
+                                    "prerelease": false,
+                                    "assets": [
+                                      {
+                                        "name": "{{ApplicationName}}_{{CurrentBuild - 1}}.zip",
+                                        "size": 123
+                                      }
+                                    ]
+                                  }
+                                ]
+                                """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(releases, Encoding.UTF8, mediaType: "application/json"),
+                RequestMessage = request
+            };
+        }
+    }
+}

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Defaults as written before Fan derived from AppSettingsCommon (see settings-customized.xml). -->
+<AppSettings>
+  <RunOnStartup>true</RunOnStartup>
+  <Autosave>true</Autosave>
+  <ContextMenuPosition>Modern</ContextMenuPosition>
+  <ContextMenuFontSize>15</ContextMenuFontSize>
+  <UseSystemSubmenuShowDelay>false</UseSystemSubmenuShowDelay>
+  <SubmenuShowDelayMs>150</SubmenuShowDelayMs>
+  <ThemeMode>System</ThemeMode>
+  <TextColor>
+    <LightHex />
+    <DarkHex />
+  </TextColor>
+  <BackgroundColor>
+    <LightHex />
+    <DarkHex />
+  </BackgroundColor>
+  <TrayIconStyle>Dynamic</TrayIconStyle>
+  <TrayIconColor>
+    <LightHex />
+    <DarkHex />
+  </TrayIconColor>
+  <EnableRoundedCorners>true</EnableRoundedCorners>
+  <UseWindows11SettingsNavigation>false</UseWindows11SettingsNavigation>
+  <SettingsSidebarWidth>0</SettingsSidebarWidth>
+  <AllowFlyoutUndock>true</AllowFlyoutUndock>
+  <ClampUndockedFlyoutToScreen>true</ClampUndockedFlyoutToScreen>
+  <RestoreFlyoutUndockedOnStartup>true</RestoreFlyoutUndockedOnStartup>
+  <FlyoutUndocked>false</FlyoutUndocked>
+  <FlyoutHasSavedPosition>false</FlyoutHasSavedPosition>
+  <FlyoutLeft>0</FlyoutLeft>
+  <FlyoutTop>0</FlyoutTop>
+  <CheckForUpdatesEnabled>true</CheckForUpdatesEnabled>
+  <ShowUpdateNotificationsEnabled>false</ShowUpdateNotificationsEnabled>
+  <ShowUpdateButtonInFlyout>true</ShowUpdateButtonInFlyout>
+  <UpdateCheckIntervalMs>3600000</UpdateCheckIntervalMs>
+  <SkippedUpdateVersion>0</SkippedUpdateVersion>
+  <KeepFlyoutWarm>true</KeepFlyoutWarm>
+  <KeepTrayContextMenuWarm>true</KeepTrayContextMenuWarm>
+  <RenderingBackend>GPUPreferred</RenderingBackend>
+  <Language>Auto</Language>
+  <Hotkeys />
+  <LegacyOpenSettingsHotkeyRetired>true</LegacyOpenSettingsHotkeyRetired>
+</AppSettings>

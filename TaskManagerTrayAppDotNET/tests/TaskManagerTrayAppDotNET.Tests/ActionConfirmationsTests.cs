@@ -1,4 +1,6 @@
 using TaskManagerTrayAppDotNET.Models;
+using TrayAppDotNETCommon.Localization;
+using AppStrings = TaskManagerTrayAppDotNET.Localization.Strings;
 using TaskManagerTrayAppDotNET.UI;
 using Xunit;
 
@@ -56,45 +58,43 @@ public sealed class ActionConfirmationsTests
         ActionConfirmation multiple = ActionConfirmations.EndProcessTree(
             [CreateProcess(10, "app.exe"), CreateProcess(11, "other.exe")]);
 
-        Assert.Equal("Do you want to end the process tree of app.exe?", single.Title);
-        Assert.Equal("End process tree", single.ConfirmText);
-        Assert.Contains("unsaved data", single.Message);
-        Assert.Contains("system instability", single.Message);
-        Assert.Equal("Do you want to end the process trees of 2 selected processes?", multiple.Title);
-        Assert.Equal("End process trees", multiple.ConfirmText);
-        Assert.Contains("system instability", multiple.Message);
-        Assert.Equal("Cancel", single.CancelText);
-        Assert.Equal("Cancel", multiple.CancelText);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_EndTaskTree_SingleTitleFormat), "app.exe"), single.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTaskTree_SingleButton)), single.ConfirmText);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTaskTree_SingleMessage)), single.Message);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_EndTaskTree_MultipleTitleFormat), 2), multiple.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTaskTree_MultipleButton)), multiple.ConfirmText);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTaskTree_MultipleMessage)), multiple.Message);
+        Assert.Equal(L(nameof(CommonStrings.Common_Cancel)), single.CancelText);
+        Assert.Equal(single.CancelText, multiple.CancelText);
     }
 
     [Fact]
-    public void SetPriorityWarnsAboutInstabilityForOneOrSeveralProcesses()
+    public void SetPriorityFallsBackToThePIDAndSharesTheWarning()
     {
         ActionConfirmation single = ActionConfirmations.SetPriority([CreateProcess(10, string.Empty)]);
         ActionConfirmation multiple = ActionConfirmations.SetPriority(
             [CreateProcess(10, "app.exe"), CreateProcess(11, "other.exe"), CreateProcess(12, "third.exe")]);
 
-        Assert.Equal("Do you want to change the priority of PID 10?", single.Title);
-        Assert.Equal("Change priority", single.ConfirmText);
         Assert.Equal(
-            "Changing the priority of certain processes could cause system instability.",
-            single.Message);
-        Assert.Equal("Do you want to change the priority of 3 selected processes?", multiple.Title);
-        Assert.Equal("Change priorities", multiple.ConfirmText);
+            Format(nameof(AppStrings.Confirm_SetPriority_SingleTitleFormat), Format(nameof(AppStrings.Confirm_ProcessIDFormat), 10)),
+            single.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_SetPriority_SingleButton)), single.ConfirmText);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_SetPriority_MultipleTitleFormat), 3), multiple.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_SetPriority_MultipleButton)), multiple.ConfirmText);
         Assert.Equal(single.Message, multiple.Message);
     }
 
     [Fact]
-    public void EndTaskKeepsItsSingularAndPluralWording()
+    public void EndTaskUsesTheEndTaskWordingForOneOrSeveralProcesses()
     {
         ActionConfirmation single = ActionConfirmations.EndTask([CreateProcess(10, "app.exe")]);
         ActionConfirmation multiple = ActionConfirmations.EndTask(
             [CreateProcess(10, "app.exe"), CreateProcess(11, "other.exe")]);
 
-        Assert.Equal("Do you want to end app.exe?", single.Title);
-        Assert.Equal("End process", single.ConfirmText);
-        Assert.Equal("Do you want to end 2 selected processes?", multiple.Title);
-        Assert.Equal("End processes", multiple.ConfirmText);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_EndTask_SingleTitleFormat), "app.exe"), single.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTask_SingleButton)), single.ConfirmText);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_EndTask_MultipleTitleFormat), 2), multiple.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_EndTask_MultipleButton)), multiple.ConfirmText);
     }
 
     [Fact]
@@ -110,13 +110,17 @@ public sealed class ActionConfirmationsTests
         ActionConfirmation other = ActionConfirmations.Disconnect(session, currentSessionID: 1);
         ActionConfirmation own = ActionConfirmations.Disconnect(session, currentSessionID: 2);
 
-        Assert.Equal("Do you want to disconnect PC\\alex?", other.Title);
-        Assert.DoesNotContain("your own session", other.Message);
-        Assert.Equal("Do you want to disconnect your own session (PC\\alex)?", own.Title);
-        Assert.Contains("your own session", own.Message);
-        Assert.Equal("Disconnect user", own.ConfirmText);
-        Assert.Equal("Cancel", own.CancelText);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_Disconnect_TitleFormat), "PC\\alex"), other.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_Disconnect_Message)), other.Message);
+        Assert.Equal(Format(nameof(AppStrings.Confirm_Disconnect_OwnTitleFormat), "PC\\alex"), own.Title);
+        Assert.Equal(L(nameof(AppStrings.Confirm_Disconnect_OwnMessage)), own.Message);
+        Assert.Equal(L(nameof(AppStrings.Confirm_Disconnect_Button)), own.ConfirmText);
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
+
+    private static string Format(string key, object argument) =>
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, L(key), argument);
 
     private static ProcessEndTaskItem CreateProcess(int processID, string processName) =>
         new(

@@ -39,7 +39,7 @@ public sealed class FanUIProfileTests
                 checkBoxes.Select(checkBox => Assert.IsType<TextBlock>(checkBox.Content).Text));
 
             TextBlock label = window.GetVisualDescendants().OfType<TextBlock>()
-                .Single(text => text.Text == "Profiles to display probe card on: ");
+                .Single(text => text.Text == TestLocalization.L(nameof(Localization.Strings.ProbeSelector_ProfileVisibility_Label)));
             Point firstPosition = checkBoxes[0].TranslatePoint(default, window)!.Value;
             foreach (CheckBox checkBox in checkBoxes)
             {
@@ -131,11 +131,11 @@ public sealed class FanUIProfileTests
             Assert.True(ruleBoxes[0].Focus(NavigationMethod.Tab));
 
             // The rule is a Local group inside the Once page: Tab walks it, then the page hands Tab to the strip
-            PressTab(window);
+            KeyboardInput.PressKey(window, Key.Tab, PhysicalKey.Tab);
             Assert.Same(ruleBoxes[1], window.FocusManager?.GetFocusedElement());
-            PressTab(window);
+            KeyboardInput.PressKey(window, Key.Tab, PhysicalKey.Tab);
             Assert.Same(NicknameRuleDeleteButton(window, rule), window.FocusManager?.GetFocusedElement());
-            PressTab(window);
+            KeyboardInput.PressKey(window, Key.Tab, PhysicalKey.Tab);
             Assert.Same(ProbeEditorTabHeader(window, "Home"), window.FocusManager?.GetFocusedElement());
         }
         finally
@@ -251,7 +251,7 @@ public sealed class FanUIProfileTests
         }
 
         AssertEveryInteractiveControlIsMapped(
-            new FanSettingsWindow(settings, static (_, _, _) => { }),
+            new FanSettingsWindow(settings, static (_, _) => Task.FromResult(false)),
             static window => window.Close());
     });
 
@@ -414,19 +414,19 @@ public sealed class FanUIProfileTests
             Assert.True(name.Focus(NavigationMethod.Tab));
 
             // Enter on the focused name opens its rename box; Escape cancels back to the name
-            PressKey(window, Key.Enter, PhysicalKey.Enter);
+            KeyboardInput.PressKey(window, Key.Enter, PhysicalKey.Enter);
             TextBox editor = Assert.IsType<TextBox>(window.FocusManager?.GetFocusedElement());
             Assert.False(name.IsVisible);
-            PressKey(window, Key.Escape, PhysicalKey.Escape);
+            KeyboardInput.PressKey(window, Key.Escape, PhysicalKey.Escape);
             Assert.False(editor.IsVisible);
             Assert.Same(name, window.FocusManager?.GetFocusedElement());
             Assert.Equal("Sensors", card.Name);
 
             // Space opens it too; Enter commits, the cards rebuild, and focus lands on the renamed card's name
-            PressKey(window, Key.Space, PhysicalKey.Space);
+            KeyboardInput.PressKey(window, Key.Space, PhysicalKey.Space);
             Assert.Same(editor, window.FocusManager?.GetFocusedElement());
             editor.Text = "Temperatures";
-            PressKey(window, Key.Enter, PhysicalKey.Enter);
+            KeyboardInput.PressKey(window, Key.Enter, PhysicalKey.Enter);
             Assert.Equal("Temperatures", card.Name);
             Assert.Same(ProbeCardName(window, card), window.FocusManager?.GetFocusedElement());
         }
@@ -440,20 +440,6 @@ public sealed class FanUIProfileTests
         window.GetVisualDescendants()
             .OfType<TextBlock>()
             .Single(text => ReferenceEquals(text.Tag, card) && text.IsEffectivelyVisible);
-
-    private static void PressKey(Window window, Key key, PhysicalKey physicalKey)
-    {
-        window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
-        window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    private static void PressTab(Window window)
-    {
-        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        window.KeyRelease(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        Dispatcher.UIThread.RunJobs();
-    }
 
     // Nickname rule cards carry their rule in Tag; the delete button is the card's only SettingsButton
     private static SettingsButton NicknameRuleDeleteButton(Window window, DeviceNicknameRule rule) =>
@@ -475,21 +461,5 @@ public sealed class FanUIProfileTests
     private static T Invoke<T>(object target, string name, params object[] arguments) =>
         (T)target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(target, arguments)!;
 
-    private static void RunUI(Action test)
-    {
-        using HeadlessUnitTestSession session = HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
-        session.Dispatch(test, timeout.Token).GetAwaiter().GetResult();
-    }
-
-    public sealed class TestApplication : Application
-    {
-        public override void Initialize() => Styles.Add(new FluentTheme());
-    }
-
-    public static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
-    }
+    private static void RunUI(Action test) => AvaloniaTestHost.RunWithFluentTheme(test, TimeSpan.FromSeconds(30));
 }

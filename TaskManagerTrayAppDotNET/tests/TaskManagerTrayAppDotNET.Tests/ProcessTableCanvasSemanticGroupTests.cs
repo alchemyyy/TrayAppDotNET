@@ -1,8 +1,6 @@
 using System.Reflection;
 using Avalonia;
-using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
@@ -51,376 +49,306 @@ public sealed class ProcessTableCanvasSemanticGroupTests
     private const double NameColumnClickX = 10;
 
     [Fact]
-    public async Task SubgroupHeadsShowSubtreeTotalsAboveTheirOwnRootLine()
+    public void SubgroupHeadsShowSubtreeTotalsAboveTheirOwnRootLine() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true,
-                    useRootProcessForSemanticSubgroups: true,
-                    CreateRowsWithGrandchild());
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            useRootProcessForSemanticSubgroups: true,
+            CreateRowsWithGrandchild());
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("alpha.exe", 12),
-                    ("Root", SubgroupRootLineProcessID),
-                    ("gamma.exe", 14),
-                    ("browser.exe", 11),
-                    ("zeta.exe", 13),
-                    ("other.exe", 20)
-                ], GetVisibleRows(canvas));
-                Assert.Equal(GroupPrivateBytes + GammaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
-                Assert.Equal(AlphaPrivateBytes + GammaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 4));
-                Assert.Equal(AlphaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 5));
-                Assert.Equal(
-                    string.Empty,
-                    GetVisibleCellText(canvas, visibleIndex: 4, ProcessTableColumnKind.Status));
-                Assert.Equal(
-                    ProcessStatusFunctions.SuspendedText,
-                    GetVisibleCellText(canvas, visibleIndex: 5, ProcessTableColumnKind.Status));
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("alpha.exe", 12),
+            ("Root", SubgroupRootLineProcessID),
+            ("gamma.exe", 14),
+            ("browser.exe", 11),
+            ("zeta.exe", 13),
+            ("other.exe", 20)
+        ], GetVisibleRows(canvas));
+        Assert.Equal(GroupPrivateBytes + GammaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
+        Assert.Equal(AlphaPrivateBytes + GammaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 4));
+        Assert.Equal(AlphaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 5));
+        Assert.Equal(
+            string.Empty,
+            GetVisibleCellText(canvas, visibleIndex: 4, ProcessTableColumnKind.Status));
+        Assert.Equal(
+            ProcessStatusFunctions.SuspendedText,
+            GetVisibleCellText(canvas, visibleIndex: 5, ProcessTableColumnKind.Status));
 
-                InvokePrivate(canvas, methodName: "ApplyPointerSelection", 4, KeyModifiers.None);
-                ProcessEndTaskRequest? subgroupRequest = canvas.SelectedEndTaskRequest;
-                InvokePrivate(canvas, methodName: "ApplyPointerSelection", 5, KeyModifiers.None);
-                ProcessEndTaskRequest? subgroupRootLineRequest = canvas.SelectedEndTaskRequest;
-                Assert.NotNull(subgroupRequest);
-                Assert.Equal([12, 14], subgroupRequest.Processes.Select(static process => process.Target.ProcessID));
-                Assert.NotNull(subgroupRootLineRequest);
-                Assert.Equal(
-                    [12],
-                    subgroupRootLineRequest.Processes.Select(static process => process.Target.ProcessID));
-            },
-            CancellationToken.None);
-    }
+        InvokePrivate(canvas, methodName: "ApplyPointerSelection", 4, KeyModifiers.None);
+        ProcessEndTaskRequest? subgroupRequest = canvas.SelectedEndTaskRequest;
+        InvokePrivate(canvas, methodName: "ApplyPointerSelection", 5, KeyModifiers.None);
+        ProcessEndTaskRequest? subgroupRootLineRequest = canvas.SelectedEndTaskRequest;
+        Assert.NotNull(subgroupRequest);
+        Assert.Equal([12, 14], subgroupRequest.Processes.Select(static process => process.Target.ProcessID));
+        Assert.NotNull(subgroupRootLineRequest);
+        Assert.Equal(
+            [12],
+            subgroupRootLineRequest.Processes.Select(static process => process.Target.ProcessID));
+    });
 
     [Fact]
-    public async Task SubgroupHeadsKeepTheirOwnUsageByDefault()
+    public void SubgroupHeadsKeepTheirOwnUsageByDefault() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true,
-                    useRootProcessForSemanticSubgroups: false,
-                    CreateRowsWithGrandchild());
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            useRootProcessForSemanticSubgroups: false,
+            CreateRowsWithGrandchild());
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("alpha.exe", 12),
-                    ("gamma.exe", 14),
-                    ("browser.exe", 11),
-                    ("zeta.exe", 13),
-                    ("other.exe", 20)
-                ], GetVisibleRows(canvas));
-                Assert.Equal(AlphaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 4));
-                Assert.Equal(
-                    ProcessStatusFunctions.SuspendedText,
-                    GetVisibleCellText(canvas, visibleIndex: 4, ProcessTableColumnKind.Status));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("alpha.exe", 12),
+            ("gamma.exe", 14),
+            ("browser.exe", 11),
+            ("zeta.exe", 13),
+            ("other.exe", 20)
+        ], GetVisibleRows(canvas));
+        Assert.Equal(AlphaPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 4));
+        Assert.Equal(
+            ProcessStatusFunctions.SuspendedText,
+            GetVisibleCellText(canvas, visibleIndex: 4, ProcessTableColumnKind.Status));
+    });
 
     [Fact]
-    public async Task RootProcessRowShowsGroupTotalsAboveItsRootLine()
+    public void RootProcessRowShowsGroupTotalsAboveItsRootLine() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
 
-                // Ascending names would otherwise place alpha.exe and browser.exe ahead of the Root line
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("alpha.exe", 12),
-                    ("browser.exe", 11),
-                    ("zeta.exe", 13),
-                    ("other.exe", 20)
-                ], GetVisibleRows(canvas));
-                Assert.Equal(GroupPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
-                Assert.Equal(BrowserRootPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 3));
-                Assert.Equal(
-                    "10",
-                    GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.ProcessID));
-                Assert.Equal(
-                    string.Empty,
-                    GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.ProcessID));
+        // Ascending names would otherwise place alpha.exe and browser.exe ahead of the Root line
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("alpha.exe", 12),
+            ("browser.exe", 11),
+            ("zeta.exe", 13),
+            ("other.exe", 20)
+        ], GetVisibleRows(canvas));
+        Assert.Equal(GroupPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
+        Assert.Equal(BrowserRootPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 3));
+        Assert.Equal(
+            "10",
+            GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.ProcessID));
+        Assert.Equal(
+            string.Empty,
+            GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.ProcessID));
 
-                // A column that cannot be summed shows the root process rather than the windowed representative
-                Assert.Equal(
-                    RootBasePriority.ToString(),
-                    GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.BasePriority));
-                Assert.Equal(
-                    RootBasePriority.ToString(),
-                    GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.BasePriority));
-            },
-            CancellationToken.None);
-    }
+        // A column that cannot be summed shows the root process rather than the windowed representative
+        Assert.Equal(
+            RootBasePriority.ToString(),
+            GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.BasePriority));
+        Assert.Equal(
+            RootBasePriority.ToString(),
+            GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.BasePriority));
+    });
 
     [Fact]
-    public async Task RootProcessRowShowsNoStatusWhileRootLineKeepsTheRootsOwn()
+    public void RootProcessRowShowsNoStatusWhileRootLineKeepsTheRootsOwn() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
 
-                Assert.Equal(
-                    string.Empty,
-                    GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.Status));
-                Assert.Equal(
-                    ProcessStatusFunctions.EfficiencyModeText,
-                    GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.Status));
-                Assert.Equal(
-                    ProcessStatusFunctions.SuspendedText,
-                    GetVisibleCellText(canvas, visibleIndex: 5, ProcessTableColumnKind.Status));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+            string.Empty,
+            GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.Status));
+        Assert.Equal(
+            ProcessStatusFunctions.EfficiencyModeText,
+            GetVisibleCellText(canvas, visibleIndex: 3, ProcessTableColumnKind.Status));
+        Assert.Equal(
+            ProcessStatusFunctions.SuspendedText,
+            GetVisibleCellText(canvas, visibleIndex: 5, ProcessTableColumnKind.Status));
+    });
 
     [Fact]
-    public async Task RootLineStaysFirstWhenTheSortReverses()
+    public void RootLineStaysFirstWhenTheSortReverses() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
 
-                // A second click on the sorted Name header reverses it, which would put zeta.exe first
-                InvokePrivate(canvas, methodName: "SortFromHeader", 1.0);
+        // A second click on the sorted Name header reverses it, which would put zeta.exe first
+        InvokePrivate(canvas, methodName: "SortFromHeader", 1.0);
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("other.exe", 20),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("zeta.exe", 13),
-                    ("browser.exe", 11),
-                    ("alpha.exe", 12)
-                ], GetVisibleRows(canvas));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("other.exe", 20),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("zeta.exe", 13),
+            ("browser.exe", 11),
+            ("alpha.exe", 12)
+        ], GetVisibleRows(canvas));
+    });
 
     [Fact]
-    public async Task RootLineFollowsItsRootProcessIntoSearchResults()
+    public void RootLineFollowsItsRootProcessIntoSearchResults() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
 
-                canvas.SetFilter("alpha");
+        canvas.SetFilter("alpha");
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("alpha.exe", 12)
-                ], GetVisibleRows(canvas));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("alpha.exe", 12)
+        ], GetVisibleRows(canvas));
+    });
 
     [Fact]
-    public async Task SearchResultsCollapseWithoutChangingTheTreeOutsideTheSearch()
+    public void SearchResultsCollapseWithoutChangingTheTreeOutsideTheSearch() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
-                List<(string Name, int ProcessID)> unfilteredRows = GetVisibleRows(canvas);
-                List<(string Name, int ProcessID)> searchRows =
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe", 10),
-                    ("Root", GroupRowProcessID),
-                    ("alpha.exe", 12)
-                ];
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
+        List<(string Name, int ProcessID)> unfilteredRows = GetVisibleRows(canvas);
+        List<(string Name, int ProcessID)> searchRows =
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe", 10),
+            ("Root", GroupRowProcessID),
+            ("alpha.exe", 12)
+        ];
 
-                canvas.SetFilter("alpha");
-                Assert.Equal(searchRows, GetVisibleRows(canvas));
+        canvas.SetFilter("alpha");
+        Assert.Equal(searchRows, GetVisibleRows(canvas));
 
-                ClickTreeName(canvas, visibleIndex: 2);
-                Assert.Equal(searchRows[..3], GetVisibleRows(canvas));
+        ClickTreeName(canvas, visibleIndex: 2);
+        Assert.Equal(searchRows[..3], GetVisibleRows(canvas));
 
-                ClickTreeName(canvas, visibleIndex: 1);
-                Assert.Equal(searchRows[..2], GetVisibleRows(canvas));
+        ClickTreeName(canvas, visibleIndex: 1);
+        Assert.Equal(searchRows[..2], GetVisibleRows(canvas));
 
-                // Collapsing inside a search leaves the unfiltered tree as it was
-                canvas.SetFilter(filterText: null);
-                Assert.Equal(unfilteredRows, GetVisibleRows(canvas));
+        // Collapsing inside a search leaves the unfiltered tree as it was
+        canvas.SetFilter(filterText: null);
+        Assert.Equal(unfilteredRows, GetVisibleRows(canvas));
 
-                // A new search starts expanded again so every match shows
-                canvas.SetFilter("alpha");
-                Assert.Equal(searchRows, GetVisibleRows(canvas));
-            },
-            CancellationToken.None);
-    }
+        // A new search starts expanded again so every match shows
+        canvas.SetFilter("alpha");
+        Assert.Equal(searchRows, GetVisibleRows(canvas));
+    });
 
     [Fact]
-    public async Task RootProcessRowEndsTheGroupWhileRootLineEndsOnlyTheRoot()
+    public void RootProcessRowEndsTheGroupWhileRootLineEndsOnlyTheRoot() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true);
 
-                InvokePrivate(canvas, methodName: "ApplyPointerSelection", 2, KeyModifiers.None);
-                ProcessEndTaskRequest? groupRequest = canvas.SelectedEndTaskRequest;
-                int groupSelectionCount = canvas.SelectedProcessCount;
-                InvokePrivate(canvas, methodName: "ApplyPointerSelection", 3, KeyModifiers.None);
-                ProcessEndTaskRequest? rootLineRequest = canvas.SelectedEndTaskRequest;
-                int rootLineSelectionCount = canvas.SelectedProcessCount;
+        InvokePrivate(canvas, methodName: "ApplyPointerSelection", 2, KeyModifiers.None);
+        ProcessEndTaskRequest? groupRequest = canvas.SelectedEndTaskRequest;
+        int groupSelectionCount = canvas.SelectedProcessCount;
+        InvokePrivate(canvas, methodName: "ApplyPointerSelection", 3, KeyModifiers.None);
+        ProcessEndTaskRequest? rootLineRequest = canvas.SelectedEndTaskRequest;
+        int rootLineSelectionCount = canvas.SelectedProcessCount;
 
-                // The root leads the group request, so single-target menu actions act on the process shown
-                Assert.NotNull(groupRequest);
-                Assert.Equal(
-                    [10, 11, 12, 13],
-                    groupRequest.Processes.Select(static process => process.Target.ProcessID));
-                Assert.Equal(expected: 4, groupSelectionCount);
-                Assert.NotNull(rootLineRequest);
-                Assert.Equal([10], rootLineRequest.Processes.Select(static process => process.Target.ProcessID));
-                Assert.Equal(expected: 1, rootLineSelectionCount);
-            },
-            CancellationToken.None);
-    }
+        // The root leads the group request, so single-target menu actions act on the process shown
+        Assert.NotNull(groupRequest);
+        Assert.Equal(
+            [10, 11, 12, 13],
+            groupRequest.Processes.Select(static process => process.Target.ProcessID));
+        Assert.Equal(expected: 4, groupSelectionCount);
+        Assert.NotNull(rootLineRequest);
+        Assert.Equal([10], rootLineRequest.Processes.Select(static process => process.Target.ProcessID));
+        Assert.Equal(expected: 1, rootLineSelectionCount);
+    });
 
     [Fact]
-    public async Task SyntheticGroupRowRemainsTheDefault()
+    public void SyntheticGroupRowRemainsTheDefault() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: false);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: false);
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (2)", AppHeaderProcessID),
-                    ("browser.exe (4)", GroupRowProcessID),
-                    ("browser.exe", 10),
-                    ("alpha.exe", 12),
-                    ("browser.exe", 11),
-                    ("zeta.exe", 13),
-                    ("other.exe", 20)
-                ], GetVisibleRows(canvas));
-                Assert.Equal(GroupPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
-                Assert.Equal(BrowserRootPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 3));
-                Assert.Equal(
-                    ProcessStatusFunctions.EfficiencyModeText,
-                    GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.Status));
-                Assert.Equal(
-                    WindowBasePriority.ToString(),
-                    GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.BasePriority));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 2), AppHeaderProcessID),
+            ("browser.exe (4)", GroupRowProcessID),
+            ("browser.exe", 10),
+            ("alpha.exe", 12),
+            ("browser.exe", 11),
+            ("zeta.exe", 13),
+            ("other.exe", 20)
+        ], GetVisibleRows(canvas));
+        Assert.Equal(GroupPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 2));
+        Assert.Equal(BrowserRootPrivateBytes, GetVisiblePrivateBytes(canvas, visibleIndex: 3));
+        Assert.Equal(
+            ProcessStatusFunctions.EfficiencyModeText,
+            GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.Status));
+        Assert.Equal(
+            WindowBasePriority.ToString(),
+            GetVisibleCellText(canvas, visibleIndex: 2, ProcessTableColumnKind.BasePriority));
+    });
 
     [Fact]
-    public async Task WindowsProcessesGetTheirOwnSectionOnlyWhenEnabled()
+    public void WindowsProcessesGetTheirOwnSectionOnlyWhenEnabled() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas groupedCanvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true,
-                    rows: CreateRowsWithWindowsProcess(),
-                    groupWindowsProcesses: true);
-                using ProcessTableCanvas ungroupedCanvas = CreateSemanticCanvas(
-                    processIconService,
-                    useRootProcessForSemanticGroups: true,
-                    rows: CreateRowsWithWindowsProcess());
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas groupedCanvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            rows: CreateRowsWithWindowsProcess(),
+            groupWindowsProcesses: true);
+        using ProcessTableCanvas ungroupedCanvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            rows: CreateRowsWithWindowsProcess());
 
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (1)", AppHeaderProcessID),
-                    ("other.exe", 20),
-                    ("", BackgroundSpacerProcessID),
-                    ("Background processes (1)", BackgroundHeaderProcessID),
-                    ("service.exe", 40),
-                    ("", WindowsSpacerProcessID),
-                    ("Windows processes (1)", WindowsHeaderProcessID),
-                    ("svchost.exe", 30)
-                ], GetVisibleRows(groupedCanvas));
-                Assert.Equal(
-                [
-                    ("", AppSpacerProcessID),
-                    ("Apps (1)", AppHeaderProcessID),
-                    ("other.exe", 20),
-                    ("", BackgroundSpacerProcessID),
-                    ("Background processes (2)", BackgroundHeaderProcessID),
-                    ("service.exe", 40),
-                    ("svchost.exe", 30)
-                ], GetVisibleRows(ungroupedCanvas));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 1), AppHeaderProcessID),
+            ("other.exe", 20),
+            ("", BackgroundSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Background), 1), BackgroundHeaderProcessID),
+            ("service.exe", 40),
+            ("", WindowsSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Windows), 1), WindowsHeaderProcessID),
+            ("svchost.exe", 30)
+        ], GetVisibleRows(groupedCanvas));
+        Assert.Equal(
+        [
+            ("", AppSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Apps), 1), AppHeaderProcessID),
+            ("other.exe", 20),
+            ("", BackgroundSpacerProcessID),
+            (SemanticProcessSectionsTests.SectionTitle(nameof(Localization.Strings.Processes_Section_Background), 2), BackgroundHeaderProcessID),
+            ("service.exe", 40),
+            ("svchost.exe", 30)
+        ], GetVisibleRows(ungroupedCanvas));
+    });
 
     /// <summary>
     /// Builds a canvas over one four-process browser group and one singleton unless other rows are given. The
@@ -449,7 +377,7 @@ public sealed class ProcessTableCanvasSemanticGroupTests
             TaskManagerGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,
             ProcessLiveTotalAppearance.Default,
-            CreatePalette(),
+            TestPalettes.Default(),
             new TaskManagerWindowResources(),
             isLightTheme: false);
         try
@@ -645,29 +573,6 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         return method.Invoke(canvas, arguments);
     }
 
-    private static SettingsPalette CreatePalette() => new(
-        Colors.Black,
-        Colors.White,
-        Colors.Gray,
-        Colors.DarkGray,
-        Colors.DimGray,
-        Colors.Black,
-        Colors.DarkGray,
-        Colors.LightGray,
-        Colors.Gray,
-        Colors.Blue,
-        Colors.Blue,
-        Colors.White,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.Gray,
-        Colors.White,
-        Colors.Red,
-        Colors.DarkRed,
-        Colors.White);
-
     private readonly record struct ProcessRow(
         int ProcessID,
         long CreationTime,
@@ -678,16 +583,4 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         long PrivateBytes,
         long BasePriority,
         ProcessStatus Status = ProcessStatus.None);
-
-    private sealed class TestApplication : Application
-    {
-        public override void Initialize() => Styles.Add(new FluentTheme());
-    }
-
-    private static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder
-            .Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
-    }
 }

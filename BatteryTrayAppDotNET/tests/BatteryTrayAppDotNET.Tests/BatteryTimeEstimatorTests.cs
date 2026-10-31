@@ -303,20 +303,15 @@ public sealed class BatteryTimeEstimatorTests
     [Fact]
     public void StoreSavesAndLoadsAFile()
     {
-        string directory = Path.Combine(Path.GetTempPath(), $"BatteryLearnedUsageStore-{Guid.NewGuid():N}");
+        using TempDirectory temp = new();
+        // The store creates its folder on save
+        string directory = temp.Combine("battery");
         string path = Path.Combine(directory, "learned-battery-usage.txt");
-        try
-        {
-            Assert.Null(BatteryLearnedUsageStore.Load(path));
+        Assert.Null(BatteryLearnedUsageStore.Load(path));
 
-            BatteryLearnedUsage usage = new(Seconds: 1800, Watts: 12.5);
-            BatteryLearnedUsageStore.Save(path, usage);
-            Assert.Equal(usage, BatteryLearnedUsageStore.Load(path));
-        }
-        finally
-        {
-            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
-        }
+        BatteryLearnedUsage usage = new(Seconds: 1800, Watts: 12.5);
+        BatteryLearnedUsageStore.Save(path, usage);
+        Assert.Equal(usage, BatteryLearnedUsageStore.Load(path));
     }
 
     [Fact]

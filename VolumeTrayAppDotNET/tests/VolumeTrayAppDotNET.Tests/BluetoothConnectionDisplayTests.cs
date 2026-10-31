@@ -115,6 +115,16 @@ public sealed class BluetoothConnectionDisplayTests
         Assert.Equal(expected, actual, precision: 6);
     }
 
+    // Frames that land on the same degree reuse the pie, and any time left still draws a sliver
+    [Theory]
+    [InlineData(1.0, BluetoothConnectionCountdownOverlay.PieSteps)]
+    [InlineData(0.5, 180)]
+    [InlineData(0.5001, 181)]
+    [InlineData(0.0001, 1)]
+    [InlineData(0.0, 0)]
+    public void CountdownPieQuantizesToWholeDegrees(double remainingFraction, int expectedStep) =>
+        Assert.Equal(expectedStep, BluetoothConnectionCountdownOverlay.ResolvePieStep(remainingFraction));
+
     [Theory]
     [InlineData(true, true, KeyModifiers.None, (int)BluetoothButtonAction.Retry)]
     [InlineData(true, false, KeyModifiers.None, (int)BluetoothButtonAction.Connect)]

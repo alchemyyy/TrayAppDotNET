@@ -1,10 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using BrightnessTrayAppDotNET.DDCCI;
-using BrightnessTrayAppDotNET.DDCCI.Parser;
-using BrightnessTrayAppDotNET.DDCCI.Parser.Nodes;
-using BrightnessTrayAppDotNET.DDCCI.Tokenizer;
-using BrightnessTrayAppDotNET.DDCCI.Tokenizer.Tokens;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Hardware;
 using BrightnessTrayAppDotNET.DDCSimulator.Tests.Simulation;
 using BrightnessTrayAppDotNET.Interop.DDCCI;
@@ -220,53 +216,6 @@ internal sealed class SimulatedDisplayService(
         {
             helper.Slot.Exit();
         }
-    }
-
-    public bool TryGetVCPCapabilities(
-        DDCMonitor monitor,
-        out IReadOnlyList<VCPCapability> capabilities,
-        out string? error,
-        CancellationToken ct = default)
-    {
-        capabilities = [];
-        DDCCallOutcome<HelperReply> outcome = RunHelperCommand(
-            monitor,
-            HelperCommandKind.Capabilities,
-            code: 0,
-            value: 0,
-            $"GetCapabilities('{monitor.Name}')",
-            ct);
-        error = outcome.Error;
-        if (!outcome.Success) return false;
-
-        // Same walk as DisplayService.TryGetVCPCapabilities over the real tokenizer and parser
-        IEnumerable<IToken> tokens = new CapabilitiesTokenizer().GetTokens(outcome.Value.Capabilities);
-        INode root = new CapabilitiesParser().Parse(tokens);
-        INode? vcpNode = (root.Nodes ?? [])
-            .RecursiveSelect(node => node.Nodes ?? [])
-            .FirstOrDefault(node => string.Equals(node.Value, b: "vcp", StringComparison.OrdinalIgnoreCase));
-        if (vcpNode?.Nodes == null) return true;
-
-        NodeFormatter formatter = new();
-        List<VCPCapability> collected = [];
-        foreach (INode capabilityNode in vcpNode.Nodes)
-        {
-            if (!byte.TryParse(capabilityNode.Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
-                continue;
-
-            string? formatted = formatter.FormatNode(capabilityNode);
-            if (formatted == null) continue;
-            if (!TryGetVCPFeature(monitor, code, out uint current, out uint maximum, out _, ct) || maximum == 0) continue;
-
-            collected.Add(new VCPCapability
-            {
-                Name = $"{formatted} (0x{capabilityNode.Value})", OptCode = code, Value = current, MaxValue = maximum
-            });
-        }
-
-        capabilities = collected;
-        error = null;
-        return true;
     }
 
     public bool TryGetVCPFeature(

@@ -1,5 +1,6 @@
 using BrightnessTrayAppDotNET.Models;
 using BrightnessTrayAppDotNET.UI.Flyout;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace BrightnessTrayAppDotNET.Tests;
@@ -121,7 +122,7 @@ public sealed class CurveOverridePersistenceTests
             {
                 SliderKey = "monitor:edid:test", IsCurveReleased = true
             });
-            settings.Save(settingsPath);
+            TrayXmlSerializer.WriteFile(settingsPath, settings);
 
             AppSettings restored = AppSettings.LoadOrDefault(settingsPath);
 

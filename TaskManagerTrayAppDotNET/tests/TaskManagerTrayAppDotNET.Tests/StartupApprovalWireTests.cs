@@ -9,7 +9,7 @@ public sealed class StartupApprovalWireTests
     [Theory]
     [InlineData(0, 2, @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", "My App")]
     [InlineData(1, 1, @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32", "name with spaces")]
-    [InlineData(1, 2, @"Software\...\StartupApproved\StartupFolder", "value|with|pipes")]
+    [InlineData(1, 2, @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder", "value|with|pipes")]
     public void RoundTripsThroughTheWire(int scope, int view, string subKey, string valueName)
     {
         StartupAppApprovalTarget original = new(
@@ -29,7 +29,7 @@ public sealed class StartupApprovalWireTests
         StartupAppApprovalTarget original = new(
             StartupAppScope.AllUsers,
             StartupAppRegistryView.Registry64,
-            @"Software\X\StartupApproved\Run",
+            StartupAppApprovalTarget.RunSubKey,
             "odd|name");
         BrokerRequest request = new(1, ElevationOp.SetStartupApproval, 0, 0, 1UL, StartupApprovalWire.Encode(original));
 

@@ -214,15 +214,6 @@ internal sealed class AppEventBridge(
         }
     }
 
-    private bool AllProfileMonitorsLoaded()
-    {
-        try
-        {
-            return DisplayEventManager.AreProfileMonitorsLoaded(profileIdentities(), monitorService.Monitors);
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-    }
+    private bool AllProfileMonitorsLoaded() =>
+        DisplayEventManager.AreProfileMonitorsLoaded(profileIdentities(), monitorService.CaptureIdentityKeys());
 }

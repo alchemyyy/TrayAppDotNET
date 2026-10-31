@@ -3,6 +3,7 @@ using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
 using VolumeTrayAppDotNET.Models;
 using VolumeTrayAppDotNET.UI.Flyout;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace VolumeTrayAppDotNET.Tests;
@@ -34,7 +35,7 @@ public sealed class BluetoothRadioPowerTests
             settings.ShowBluetoothRadioButtonInFlyoutHeader = false;
             settings.FlyoutBluetoothRadioButtonClickGesture = BluetoothRadioButtonClickGesture.AltLeftClick;
             settings.OnTrayXmlDeserialized();
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -51,23 +52,94 @@ public sealed class BluetoothRadioPowerTests
 
     [Theory]
     [InlineData(BluetoothRadioButtonClickGesture.LeftClick, KeyModifiers.None, true)]
-    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.Control, true)]
-    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.Alt, true)]
-    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.Shift, true)]
     [InlineData(BluetoothRadioButtonClickGesture.LeftClick, KeyModifiers.Control, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.LeftClick, KeyModifiers.Alt, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.LeftClick, KeyModifiers.Shift, false)]
     [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.None, false)]
-    [InlineData(
-        BluetoothRadioButtonClickGesture.ControlLeftClick,
-        KeyModifiers.Control | KeyModifiers.Shift,
-        false)]
-    public void BluetoothHeaderButtonRequiresTheConfiguredGesture(
-        BluetoothRadioButtonClickGesture gesture,
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.Control, true)]
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.Alt, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.Shift, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.None, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.Control, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.Alt, true)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.Shift, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.None, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.Control, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.Alt, false)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.Shift, true)]
+    public void BluetoothHeaderButtonTogglesOnPowerGestureAndOpensQuickSettingsOtherwise(
+        BluetoothRadioButtonClickGesture powerGesture,
         KeyModifiers modifiers,
-        bool expected)
+        bool expectsToggle)
     {
-        bool actual = VolumeFlyoutWindow.IsBluetoothRadioToggleGesture(gesture, modifiers);
+        VolumeFlyoutWindow.BluetoothRadioButtonAction expected = expectsToggle
+            ? VolumeFlyoutWindow.BluetoothRadioButtonAction.ToggleRadio
+            : VolumeFlyoutWindow.BluetoothRadioButtonAction.OpenQuickSettings;
+
+        VolumeFlyoutWindow.BluetoothRadioButtonAction actual =
+            VolumeFlyoutWindow.ResolveBluetoothRadioButtonAction(powerGesture, modifiers, canToggleRadio: true);
 
         Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(BluetoothRadioButtonClickGesture.LeftClick, KeyModifiers.Control | KeyModifiers.Shift)]
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, KeyModifiers.Control | KeyModifiers.Shift)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, KeyModifiers.Control | KeyModifiers.Alt)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, KeyModifiers.Shift | KeyModifiers.Alt)]
+    public void BluetoothHeaderButtonOpensQuickSettingsWhenExtraModifiersAreHeld(
+        BluetoothRadioButtonClickGesture powerGesture,
+        KeyModifiers modifiers)
+    {
+        Assert.Equal(
+            VolumeFlyoutWindow.BluetoothRadioButtonAction.OpenQuickSettings,
+            VolumeFlyoutWindow.ResolveBluetoothRadioButtonAction(powerGesture, modifiers, canToggleRadio: true));
+    }
+
+    [Theory]
+    [InlineData(BluetoothRadioButtonClickGesture.LeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick)]
+    public void BluetoothHeaderButtonPowerGestureDoesNothingWhileToggleIsUnavailable(
+        BluetoothRadioButtonClickGesture powerGesture)
+    {
+        KeyModifiers powerModifiers = VolumeFlyoutWindow.BluetoothRadioButtonClickGestureModifiers(powerGesture);
+        KeyModifiers quickSettingsModifiers = VolumeFlyoutWindow.BluetoothRadioButtonClickGestureModifiers(
+            VolumeFlyoutWindow.BluetoothQuickSettingsClickGesture(powerGesture));
+
+        Assert.Equal(
+            VolumeFlyoutWindow.BluetoothRadioButtonAction.None,
+            VolumeFlyoutWindow.ResolveBluetoothRadioButtonAction(powerGesture, powerModifiers, canToggleRadio: false));
+        Assert.Equal(
+            VolumeFlyoutWindow.BluetoothRadioButtonAction.OpenQuickSettings,
+            VolumeFlyoutWindow.ResolveBluetoothRadioButtonAction(
+                powerGesture,
+                quickSettingsModifiers,
+                canToggleRadio: false));
+    }
+
+    [Theory]
+    [InlineData(BluetoothRadioButtonClickGesture.LeftClick, BluetoothRadioButtonClickGesture.ControlLeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.ControlLeftClick, BluetoothRadioButtonClickGesture.LeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.AltLeftClick, BluetoothRadioButtonClickGesture.LeftClick)]
+    [InlineData(BluetoothRadioButtonClickGesture.ShiftLeftClick, BluetoothRadioButtonClickGesture.LeftClick)]
+    public void BluetoothHeaderButtonTooltipNamesAClickThatOpensQuickSettings(
+        BluetoothRadioButtonClickGesture powerGesture,
+        BluetoothRadioButtonClickGesture expectedQuickSettingsGesture)
+    {
+        BluetoothRadioButtonClickGesture quickSettingsGesture =
+            VolumeFlyoutWindow.BluetoothQuickSettingsClickGesture(powerGesture);
+        KeyModifiers quickSettingsModifiers =
+            VolumeFlyoutWindow.BluetoothRadioButtonClickGestureModifiers(quickSettingsGesture);
+
+        Assert.Equal(expectedQuickSettingsGesture, quickSettingsGesture);
+        Assert.Equal(
+            VolumeFlyoutWindow.BluetoothRadioButtonAction.OpenQuickSettings,
+            VolumeFlyoutWindow.ResolveBluetoothRadioButtonAction(
+                powerGesture,
+                quickSettingsModifiers,
+                canToggleRadio: true));
     }
 
     [Fact]

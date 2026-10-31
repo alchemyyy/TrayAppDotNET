@@ -135,10 +135,10 @@ public sealed class UserSnapshotBuilderTests
                 bytesPerSecond: 1_000_000,
                 CultureInfo.InvariantCulture));
         Assert.Equal(
-            expected: "Unavailable",
+            TestLocalization.L(nameof(TrayAppDotNETCommon.Localization.CommonStrings.Common_Unavailable)),
             TaskManagerUsageFormatter.FormatDiskRate(isAvailable: false, bytesPerSecond: 0,
                 CultureInfo.InvariantCulture));
-        Assert.Equal(expected: "Disconnected",
+        Assert.Equal(TestLocalization.L(nameof(Localization.Strings.Users_SessionState_Disconnected)),
             TaskManagerUsageFormatter.FormatSessionState(UserSessionState.Disconnected));
     }
 

@@ -25,20 +25,4 @@ public sealed class FanPropertyUnitTests
         Assert.Equal(expected: 900, fan.ClampLowForCurve(rpmCurve));
         Assert.Equal(expected: 80, fan.ClampHighForCurve(dutyCycleCurve));
     }
-
-    /// <summary>
-    /// Verifies curve assignment no longer forces the fan display unit.
-    /// </summary>
-    [Fact]
-    public void AssignedCurveDoesNotForceFanRPMMode()
-    {
-        string curveName = $"Unit Test Curve {Guid.NewGuid():N}";
-        Curve curve = new() { CurveName = curveName, RPMMode = true };
-        Curve.Register(curve);
-        Fan fan = new() { RPMMode = false, AssignedCurveName = curveName };
-
-        FanCurveModeSync.ApplyToFan(fan, curve);
-
-        Assert.False(fan.RPMMode);
-    }
 }

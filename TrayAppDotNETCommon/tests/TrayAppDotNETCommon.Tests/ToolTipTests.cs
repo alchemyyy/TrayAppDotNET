@@ -1,0 +1,22 @@
+using Avalonia.Controls;
+using TrayAppDotNETCommon.UI;
+using Xunit;
+
+namespace TrayAppDotNETCommon.Tests;
+
+public sealed class ToolTipTests
+{
+    [Fact]
+    public void SetTipUsesNonOccludingTargetPlacement() => AvaloniaTestHost.Run(() =>
+    {
+        Button target = new();
+
+        TrayAppDotNETToolTip.SetTip(target, tip: "Tooltip");
+
+        Assert.Equal(expected: "Tooltip", ToolTip.GetTip(target));
+        Assert.Equal(PlacementMode.Custom, ToolTip.GetPlacement(target));
+        Assert.Equal(expected: 0, ToolTip.GetHorizontalOffset(target));
+        Assert.Equal(expected: 0, ToolTip.GetVerticalOffset(target));
+        Assert.NotNull(ToolTip.GetCustomPopupPlacementCallback(target));
+    });
+}

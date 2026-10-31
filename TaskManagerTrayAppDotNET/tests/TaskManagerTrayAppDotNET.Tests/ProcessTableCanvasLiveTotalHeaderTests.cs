@@ -1,6 +1,4 @@
 using Avalonia;
-using Avalonia.Headless;
-using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
@@ -18,59 +16,45 @@ public sealed class ProcessTableCanvasLiveTotalHeaderTests
     private const int StackedHeaderLineCount = 2;
 
     [Fact]
-    public async Task StackedTotalsDoubleTheHeaderOnlyWhileAColumnShowsATotal()
+    public void StackedTotalsDoubleTheHeaderOnlyWhileAColumnShowsATotal() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                TaskManagerWindowResources resources = new();
-                double singleLineHeight = resources.AxamlProcessTable.HeaderHeight;
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateCanvas(
-                    processIconService,
-                    resources,
-                    showTotalsAboveColumnNames: true,
-                    cpuShowsLiveTotal: false);
-                int headerHeightChanges = 0;
-                canvas.HeaderHeightChanged += () => headerHeightChanges++;
+        TaskManagerWindowResources resources = new();
+        double singleLineHeight = resources.AxamlProcessTable.HeaderHeight;
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateCanvas(
+            processIconService,
+            resources,
+            showTotalsAboveColumnNames: true,
+            cpuShowsLiveTotal: false);
+        int headerHeightChanges = 0;
+        canvas.HeaderHeightChanged += () => headerHeightChanges++;
 
-                Assert.Equal(singleLineHeight, canvas.HeaderHeight);
+        Assert.Equal(singleLineHeight, canvas.HeaderHeight);
 
-                canvas.ApplyColumnProperties(WithLiveTotal(canvas, ProcessTableColumnKind.CPU, showLiveTotal: true));
+        canvas.ApplyColumnProperties(WithLiveTotal(canvas, ProcessTableColumnKind.CPU, showLiveTotal: true));
 
-                Assert.Equal(singleLineHeight * StackedHeaderLineCount, canvas.HeaderHeight);
-                Assert.Equal(expected: 1, headerHeightChanges);
+        Assert.Equal(singleLineHeight * StackedHeaderLineCount, canvas.HeaderHeight);
+        Assert.Equal(expected: 1, headerHeightChanges);
 
-                canvas.ApplyColumnProperties(WithLiveTotal(canvas, ProcessTableColumnKind.CPU, showLiveTotal: false));
+        canvas.ApplyColumnProperties(WithLiveTotal(canvas, ProcessTableColumnKind.CPU, showLiveTotal: false));
 
-                Assert.Equal(singleLineHeight, canvas.HeaderHeight);
-                Assert.Equal(expected: 2, headerHeightChanges);
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(singleLineHeight, canvas.HeaderHeight);
+        Assert.Equal(expected: 2, headerHeightChanges);
+    });
 
     [Fact]
-    public async Task SideBySideTotalsKeepTheSingleLineHeader()
+    public void SideBySideTotalsKeepTheSingleLineHeader() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                TaskManagerWindowResources resources = new();
-                using ProcessIconService processIconService = new();
-                using ProcessTableCanvas canvas = CreateCanvas(
-                    processIconService,
-                    resources,
-                    showTotalsAboveColumnNames: false,
-                    cpuShowsLiveTotal: true);
+        TaskManagerWindowResources resources = new();
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateCanvas(
+            processIconService,
+            resources,
+            showTotalsAboveColumnNames: false,
+            cpuShowsLiveTotal: true);
 
-                Assert.Equal(resources.AxamlProcessTable.HeaderHeight, canvas.HeaderHeight);
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(resources.AxamlProcessTable.HeaderHeight, canvas.HeaderHeight);
+    });
 
     private static ProcessTableCanvas CreateCanvas(
         ProcessIconService processIconService,
@@ -99,7 +83,7 @@ public sealed class ProcessTableCanvasLiveTotalHeaderTests
             TaskManagerGridFontWeight.Normal,
             AppSettings.GridRowSpacingDefault,
             ProcessLiveTotalAppearance.Default with { ShowAboveColumnNames = showTotalsAboveColumnNames },
-            CreatePalette(),
+            TestPalettes.Default(),
             resources,
             isLightTheme: false);
     }
@@ -112,40 +96,5 @@ public sealed class ProcessTableCanvasLiveTotalHeaderTests
         ProcessColumnSetting setting = canvas.GetColumnSetting(column);
         setting.ShowLiveTotal = showLiveTotal;
         return setting;
-    }
-
-    private static SettingsPalette CreatePalette() => new(
-        Colors.Black,
-        Colors.White,
-        Colors.Gray,
-        Colors.DarkGray,
-        Colors.DimGray,
-        Colors.Black,
-        Colors.DarkGray,
-        Colors.LightGray,
-        Colors.Gray,
-        Colors.Blue,
-        Colors.Blue,
-        Colors.White,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.Gray,
-        Colors.White,
-        Colors.Red,
-        Colors.DarkRed,
-        Colors.White);
-
-    private sealed class TestApplication : Application
-    {
-        public override void Initialize() => Styles.Add(new FluentTheme());
-    }
-
-    private static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder
-            .Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 }

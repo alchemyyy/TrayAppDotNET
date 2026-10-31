@@ -331,6 +331,24 @@ public sealed class FanCurveControlTests
     }
 
     /// <summary>
+    /// Verifies a transform sees the reading in display units, so a documented example like "x * 1.8 + 32"
+    /// converts 20 C to 68 F (stored as 68 000 milli-units), and that a broken transform passes the raw value through.
+    /// </summary>
+    [Fact]
+    public void TransformEvaluatesInDisplayUnits()
+    {
+        DataSource source = CreateSource(20.0, T0);
+        source.TransformString = "x * 1.8 + 32";
+
+        Assert.True(source.SetValue(20_000));
+        Assert.Equal(expected: 68_000L, source.Value);
+
+        source.TransformString = "x +";
+        Assert.True(source.SetValue(25_000));
+        Assert.Equal(expected: 25_000L, source.Value);
+    }
+
+    /// <summary>
     /// Verifies an empty curve and a missing curve or data source both hand the fan back.
     /// </summary>
     [Fact]

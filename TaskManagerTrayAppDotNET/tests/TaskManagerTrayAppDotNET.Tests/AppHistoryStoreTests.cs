@@ -9,6 +9,42 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class AppHistoryStoreTests
 {
     [Fact]
+    public void InactivePageGapDoesNotMultiplyTheNetworkRate()
+    {
+        AppHistoryStore store = new(DateTimeOffset.UnixEpoch);
+        long start = Stopwatch.Frequency * 10L;
+        ProcessSnapshotBuffer sample = CreateSnapshot(
+            new ProcessSample(ProcessID: 10, CreationTimeTicks: 100, ImageKey: "app", Name: "app.exe",
+                CPUTimeTicks: 100, NetworkBytesPerSecond: 1_000_000));
+
+        Assert.True(store.Consume(sample, start));
+        Assert.True(store.Consume(sample, start + Stopwatch.Frequency));
+        store.PauseSampling();
+        // Thirty minutes on another page, then the page comes back
+        Assert.True(store.Consume(sample, start + Stopwatch.Frequency * 1_801L));
+        Assert.True(store.Consume(sample, start + Stopwatch.Frequency * 1_802L));
+
+        Assert.Equal(expected: 2_000_000, Assert.Single(store.GetSnapshot().Entries).NetworkBytes);
+    }
+
+    [Fact]
+    public void OneLongSampleGapIsCappedToAFewSamplerIntervals()
+    {
+        AppHistoryStore store = new(DateTimeOffset.UnixEpoch);
+        long start = Stopwatch.Frequency * 10L;
+        ProcessSnapshotBuffer sample = CreateSnapshot(
+            new ProcessSample(ProcessID: 10, CreationTimeTicks: 100, ImageKey: "app", Name: "app.exe",
+                CPUTimeTicks: 100, NetworkBytesPerSecond: 1_000));
+
+        Assert.True(store.Consume(sample, start));
+        Assert.True(store.Consume(sample, start + Stopwatch.Frequency * 3_600L));
+
+        Assert.Equal(
+            expected: 1_000 * AppHistoryStore.MaximumNetworkStepSeconds,
+            Assert.Single(store.GetSnapshot().Entries).NetworkBytes);
+    }
+
+    [Fact]
     public void AggregatesCPUAndNetworkDeltasByStableImageIdentity()
     {
         DateTimeOffset startedAt = new(year: 2026, month: 8, day: 30, hour: 12, minute: 0, second: 0, TimeSpan.Zero);
@@ -124,7 +160,7 @@ public sealed class AppHistoryStoreTests
                 1.5 * 1_048_576,
                 CultureInfo.InvariantCulture));
         Assert.Equal(
-            expected: "Unavailable",
+            TestLocalization.L(nameof(TrayAppDotNETCommon.Localization.CommonStrings.Common_Unavailable)),
             TaskManagerUsageFormatter.FormatAppHistoryNetwork(double.NaN, CultureInfo.InvariantCulture));
     }
 

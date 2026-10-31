@@ -6,25 +6,25 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class WindowsServiceStateTests
 {
     [Theory]
-    [InlineData(0, 0, "Unknown")]
-    [InlineData(1, 1, "Stopped")]
-    [InlineData(2, 2, "Starting")]
-    [InlineData(3, 3, "Stopping")]
-    [InlineData(4, 4, "Running")]
-    [InlineData(5, 5, "Continuing")]
-    [InlineData(6, 6, "Pausing")]
-    [InlineData(7, 7, "Paused")]
-    [InlineData(99, 0, "Unknown")]
+    [InlineData(0, 0, nameof(Localization.Strings.Services_Status_Unknown))]
+    [InlineData(1, 1, nameof(Localization.Strings.Services_Status_Stopped))]
+    [InlineData(2, 2, nameof(Localization.Strings.Services_Status_Starting))]
+    [InlineData(3, 3, nameof(Localization.Strings.Services_Status_Stopping))]
+    [InlineData(4, 4, nameof(Localization.Strings.Services_Status_Running))]
+    [InlineData(5, 5, nameof(Localization.Strings.Services_Status_Continuing))]
+    [InlineData(6, 6, nameof(Localization.Strings.Services_Status_Pausing))]
+    [InlineData(7, 7, nameof(Localization.Strings.Services_Status_Paused))]
+    [InlineData(99, 0, nameof(Localization.Strings.Services_Status_Unknown))]
     public void NativeStatusMapsToStablePresentation(
         uint nativeStatus,
         int expectedStatusValue,
-        string expectedText)
+        string expectedTextKey)
     {
         WindowsServiceStatus status = WindowsServiceState.FromNativeStatus(nativeStatus);
         WindowsServiceStatus expectedStatus = (WindowsServiceStatus)expectedStatusValue;
 
         Assert.Equal(expectedStatus, status);
-        Assert.Equal(expectedText, WindowsServiceState.GetStatusText(status));
+        Assert.Equal(TestLocalization.L(expectedTextKey), WindowsServiceState.GetStatusText(status));
     }
 
     [Theory]

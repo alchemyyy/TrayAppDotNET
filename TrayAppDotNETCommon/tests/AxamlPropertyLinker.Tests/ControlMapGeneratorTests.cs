@@ -642,6 +642,153 @@ public sealed class ControlMapGeneratorTests
         Assert.Equal(expected: 6, span.StartLinePosition.Line + 1);
     }
 
+    [Fact]
+    public void NestedMapNameIDIsReportedInsteadOfShadowingTheGeneratedConstant() =>
+        AssertSingleDiagnostic(Map(
+            """
+            <Surface ID="Flyout" Kind="Popup">
+                <Scope ID="Header">
+                    <Leaf ID="MapName" Kind="Button" />
+                </Scope>
+            </Surface>
+            """), expectedID: "TADNCM004");
+
+    [Fact]
+    public void VariantNamedVariantsIsReportedInsteadOfCollidingWithTheVariantsClass() =>
+        AssertSingleDiagnostic(Map(
+            """
+            <Surface ID="Flyout" Kind="Popup">
+                <Variant ID="Variants" Order="Body" />
+                <Leaf ID="Body" Kind="Slider" />
+            </Surface>
+            """), expectedID: "TADNCM004");
+
+    private const string OtherMap =
+        """
+        <ControlMap
+            x:Class="Samples.Other.ControlMap"
+            xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+            <Surface ID="Flyout" Kind="Popup">
+                <Leaf ID="Close" Kind="Button" />
+            </Surface>
+        </ControlMap>
+        """;
+
+    [Theory]
+    [InlineData("MapName")]
+    [InlineData("ControlMap.MapName")]
+    [InlineData("Samples.Other.ControlMap.MapName")]
+    [InlineData("global::Samples.Other.ControlMap.MapName")]
+    public void ConstructorInAPartialPartWithoutBaseListPassesItsOwnMapName(string argument)
+    {
+        string owner =
+            $$"""
+              namespace Samples.Other
+              {
+                  public sealed partial class ControlMap : TrayAppDotNETCommon.UI.ControlMapping.ControlMap;
+
+                  public sealed partial class ControlMap
+                  {
+                      public ControlMap() : base({{argument}}) { }
+                  }
+              }
+              """;
+
+        ControlMapGeneratorResult result = ControlMapGeneratorHost.Run(
+            [new ControlMapTestFile(Path: "Other/ControlMap.axaml", OtherMap)],
+            owner);
+
+        Assert.Empty(result.Diagnostics);
+    }
+
+    [Fact]
+    public void AnotherMapsMapNameDoesNotCountAsTheOwnersOwn()
+    {
+        const string owner =
+            """
+            namespace Samples.Other
+            {
+                public sealed partial class ControlMap : TrayAppDotNETCommon.UI.ControlMapping.ControlMap
+                {
+                    public ControlMap() : base(Samples.UI.ControlMap.MapName) { }
+                }
+            }
+            """;
+
+        ControlMapGeneratorResult result = ControlMapGeneratorHost.Run(
+            [new ControlMapTestFile(Path: "Other/ControlMap.axaml", OtherMap)],
+            owner);
+
+        Diagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(expected: "TADNCM018", diagnostic.Id);
+    }
+
+    [Fact]
+    public void OwnerThatDoesNotPassMapNameToTheBaseIsReported()
+    {
+        const string otherMap =
+            """
+            <ControlMap
+                x:Class="Samples.Other.ControlMap"
+                xmlns="using:TrayAppDotNETCommon.UI.ControlMapping"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <Surface ID="Flyout" Kind="Popup">
+                    <Leaf ID="Close" Kind="Button" />
+                </Surface>
+            </ControlMap>
+            """;
+        const string owner =
+            """
+            namespace Samples.Other
+            {
+                public sealed partial class ControlMap : TrayAppDotNETCommon.UI.ControlMapping.ControlMap
+                {
+                    public ControlMap() : base("Samples.Other.ControlMap") { }
+                }
+            }
+            """;
+
+        ControlMapGeneratorResult result = ControlMapGeneratorHost.Run(
+            [new ControlMapTestFile(Path: "Other/ControlMap.axaml", otherMap)],
+            owner);
+
+        Diagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(expected: "TADNCM018", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+    }
+
+    [Fact]
+    public void UnchangedMapsAndOwnersStayCachedAcrossUnrelatedEdits()
+    {
+        CSharpParseOptions parseOptions = new(LanguageVersion.Preview);
+        CSharpCompilation compilation = CSharpCompilation.Create(
+            assemblyName: "ControlMapCachingTest",
+            [CSharpSyntaxTree.ParseText(RuntimeStubs, parseOptions)],
+            ControlMapGeneratorHost.References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [new ControlMapGenerator().AsSourceGenerator()],
+            [new StringAdditionalText("UI/ControlMap.axaml", ValidMap)],
+            parseOptions,
+            new ReferenceMetadataOptionsProvider([]),
+            new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+
+        compilation = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Samples { public sealed class Unrelated : System.Object; }", parseOptions));
+        driver = driver.RunGenerators(compilation);
+
+        GeneratorRunResult run = Assert.Single(driver.GetRunResult().Results);
+        foreach (string stepName in new[] { "ControlMapDocuments", "ControlMapOwners" })
+        {
+            foreach ((object _, IncrementalStepRunReason reason) in run.TrackedSteps[stepName]
+                         .SelectMany(static step => step.Outputs))
+                Assert.True(reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                    $"{stepName}: {reason}");
+        }
+    }
+
     private static string Map(string body) => MapHeader + Environment.NewLine + body + Environment.NewLine + MapFooter;
 
     private static void AssertSingleDiagnostic(string map, string expectedID)
@@ -666,7 +813,7 @@ public sealed class ControlMapGeneratorTests
 
     private static class ControlMapGeneratorHost
     {
-        private static readonly MetadataReference[] References = CreateReferences();
+        public static readonly MetadataReference[] References = CreateReferences();
 
         public static ControlMapGeneratorResult Run(IReadOnlyList<ControlMapTestFile> files, string extraSource = "")
         {

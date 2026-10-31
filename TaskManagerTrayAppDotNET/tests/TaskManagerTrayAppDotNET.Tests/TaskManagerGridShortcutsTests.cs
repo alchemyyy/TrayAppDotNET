@@ -119,21 +119,26 @@ public sealed class TaskManagerGridShortcutsTests
     public void GesturesFormatModifiersBeforeTheirTrigger()
     {
         Assert.Equal(
-            expected: "Ctrl + Alt + Middle click",
+            expected: Join(
+                nameof(CommonStrings.Settings_Hotkeys_Modifier_Ctrl),
+                nameof(CommonStrings.Settings_Hotkeys_Modifier_Alt),
+                nameof(Strings.Settings_Hotkeys_Gesture_MiddleClick)),
             TaskManagerGridShortcuts.FormatGesture(new TaskManagerGridShortcut(
                 TaskManagerGridShortcutAction.SetZoomBaseline,
                 UI.ControlMap.TaskManagerGrid.SetZoomBaseline,
                 TaskManagerGridShortcutTrigger.MiddleClick,
                 KeyModifiers.Alt | KeyModifiers.Control)));
         Assert.Equal(
-            expected: "Shift + Mouse wheel",
+            expected: Join(
+                nameof(CommonStrings.Settings_Hotkeys_Modifier_Shift),
+                nameof(Strings.Settings_Hotkeys_Gesture_MouseWheel)),
             TaskManagerGridShortcuts.FormatGesture(new TaskManagerGridShortcut(
                 TaskManagerGridShortcutAction.Stretch,
                 UI.ControlMap.TaskManagerGrid.Stretch,
                 TaskManagerGridShortcutTrigger.MouseWheel,
                 KeyModifiers.Shift)));
         Assert.Equal(
-            expected: "Delete",
+            expected: TestLocalization.L(nameof(CommonStrings.Settings_Hotkeys_Key_Delete)),
             TaskManagerGridShortcuts.FormatGesture(new TaskManagerGridShortcut(
                 TaskManagerGridShortcutAction.EndTask,
                 UI.ControlMap.Main.ProcessesPage.TableViewport.Table.EndTask,
@@ -141,6 +146,10 @@ public sealed class TaskManagerGridShortcutsTests
                 KeyModifiers.None,
                 Key.Delete)));
     }
+
+    // Modifiers come first, in Ctrl, Shift, Alt order, each joined by " + " like the hotkey cards
+    private static string Join(params string[] keys) =>
+        string.Join(separator: " + ", keys.Select(TestLocalization.L));
 
     [Theory]
     [InlineData(TaskManagerGridShortcutAction.ResetZoom, true)]

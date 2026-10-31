@@ -80,6 +80,25 @@ public sealed class NightLightHelperTests
             Constants.NightLightHelperRecycleOperationCount));
     }
 
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    public void StrengthIsKeptDuringTheRetryBackoffButNotOnceUnsupported(
+        bool initializationRunningOrSucceeded,
+        bool backendAvailable,
+        bool expected) =>
+        Assert.Equal(
+            expected,
+            NightLightHelperClient.ShouldKeepQueuedStrength(initializationRunningOrSucceeded, backendAvailable));
+
+    [Fact]
+    public void UnsupportedReplyIsPermanentOnlyBeforeAnyHelperWorked()
+    {
+        Assert.True(NightLightHelperClient.IsUnsupportedReplyPermanent(anyHelperReportedReady: false));
+        Assert.False(NightLightHelperClient.IsUnsupportedReplyPermanent(anyHelperReportedReady: true));
+    }
+
     [Fact]
     public void PingProtocolDoesNotEnterNativeBackend()
     {

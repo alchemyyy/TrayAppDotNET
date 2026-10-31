@@ -1,8 +1,6 @@
 #if DEBUG
 using System.Reflection;
 using Avalonia;
-using Avalonia.Headless;
-using Avalonia.Media;
 using TaskManagerTrayAppDotNET.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
@@ -20,43 +18,36 @@ public sealed class TaskManagerReorderListLifetimeTestCollection
 public sealed class TaskManagerReorderListLifetimeTests
 {
     [Fact]
-    public async Task FailedInitialRowBuildDoesNotSubscribeToStaticHotReloadEvents()
+    public void FailedInitialRowBuildDoesNotSubscribeToStaticHotReloadEvents() => AvaloniaTestHost.Run(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                int reorderSubscriberCount = GetStaticEventSubscriberCount(
-                    typeof(TaskManagerReorderResources),
-                    nameof(TaskManagerReorderResources.ResourcesReloaded));
-                int glyphSubscriberCount = GetStaticEventSubscriberCount(
-                    typeof(GlyphCatalogHotReload),
-                    nameof(GlyphCatalogHotReload.ResourcesReloaded));
-                List<ReorderItem> items = [new("Item")];
+        int reorderSubscriberCount = GetStaticEventSubscriberCount(
+            typeof(TaskManagerReorderResources),
+            nameof(TaskManagerReorderResources.ResourcesReloaded));
+        int glyphSubscriberCount = GetStaticEventSubscriberCount(
+            typeof(GlyphCatalogHotReload),
+            nameof(GlyphCatalogHotReload.ResourcesReloaded));
+        List<ReorderItem> items = [new("Item")];
 
-                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
-                    _ = new TaskManagerReorderList<ReorderItem>(
-                        items,
-                        static item => item.Name,
-                        static item => throw new InvalidOperationException("expected builder failure"),
-                        CreatePalette(),
-                        enableRoundedCorners: true));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            _ = new TaskManagerReorderList<ReorderItem>(
+                items,
+                static item => item.Name,
+                static item => throw new InvalidOperationException("expected builder failure"),
+                TestPalettes.Default(),
+                enableRoundedCorners: true));
 
-                Assert.Equal(expected: "expected builder failure", exception.Message);
-                Assert.Equal(
-                    reorderSubscriberCount,
-                    GetStaticEventSubscriberCount(
-                        typeof(TaskManagerReorderResources),
-                        nameof(TaskManagerReorderResources.ResourcesReloaded)));
-                Assert.Equal(
-                    glyphSubscriberCount,
-                    GetStaticEventSubscriberCount(
-                        typeof(GlyphCatalogHotReload),
-                        nameof(GlyphCatalogHotReload.ResourcesReloaded)));
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(expected: "expected builder failure", exception.Message);
+        Assert.Equal(
+            reorderSubscriberCount,
+            GetStaticEventSubscriberCount(
+                typeof(TaskManagerReorderResources),
+                nameof(TaskManagerReorderResources.ResourcesReloaded)));
+        Assert.Equal(
+            glyphSubscriberCount,
+            GetStaticEventSubscriberCount(
+                typeof(GlyphCatalogHotReload),
+                nameof(GlyphCatalogHotReload.ResourcesReloaded)));
+    });
 
     private static int GetStaticEventSubscriberCount(Type ownerType, string eventName)
     {
@@ -69,41 +60,9 @@ public sealed class TaskManagerReorderListLifetimeTests
         return handlers?.GetInvocationList().Length ?? 0;
     }
 
-    private static SettingsPalette CreatePalette() => new(
-        Colors.Black,
-        Colors.White,
-        Colors.Gray,
-        Colors.DarkGray,
-        Colors.DimGray,
-        Colors.Black,
-        Colors.DarkGray,
-        Colors.LightGray,
-        Colors.Gray,
-        Colors.Blue,
-        Colors.Blue,
-        Colors.White,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.Gray,
-        Colors.White,
-        Colors.Red,
-        Colors.DarkRed,
-        Colors.White);
-
     private sealed class ReorderItem(string name)
     {
         public string Name { get; } = name;
-    }
-
-    private sealed class TestApplication : Application;
-
-    private static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder
-            .Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 }
 #endif

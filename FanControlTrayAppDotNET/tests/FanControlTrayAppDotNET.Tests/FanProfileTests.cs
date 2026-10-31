@@ -97,7 +97,7 @@ public sealed class FanProfileTests
     public void LayoutChangesPersistIndependentlyOfControlAutosave()
     {
         Fan fan = CreateFan();
-        AppSettings settings = new() { Autosave = false, Fans = [fan.CloneForPersistence()] };
+        AppSettings settings = new() { CaptureControlStateOnProfileSwitch = false, Fans = [fan.CloneForPersistence()] };
         settings.EnsureFanProfileLayouts();
         fan.UserDefinedName = "Renamed";
         fan.Group = "Custom";
@@ -230,7 +230,7 @@ public sealed class FanProfileTests
         string path = Path.GetTempFileName();
         try
         {
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
             AppSettings restored = AppSettings.LoadOrDefault(path);
             Assert.Equal("Saved name", Assert.Single(restored.FanProfiles[0].Fans).UserDefinedName);
             Assert.Equal("Saved group", Assert.Single(restored.FanProfiles[0].Groups).Name);

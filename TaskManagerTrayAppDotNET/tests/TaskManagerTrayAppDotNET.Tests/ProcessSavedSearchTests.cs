@@ -1,4 +1,5 @@
 using TaskManagerTrayAppDotNET.Models;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
@@ -161,7 +162,7 @@ public sealed class ProcessSavedSearchTests
                     new ProcessSavedSearch { Name = "Browsers", Query = "{Name}=~\"^(chrome|firefox)\\.exe$\"" }
                 ]
             };
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 

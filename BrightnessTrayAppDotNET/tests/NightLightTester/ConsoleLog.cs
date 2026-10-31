@@ -2,7 +2,7 @@ namespace BrightnessTrayAppDotNET.Tests.NightLight;
 
 /// <summary>
 /// Console logger for the night-light tester. Timestamped, color-coded, and lock-serialized
-/// so multi-threaded callers (e.g. the MTA init thread inside NightLightSettingsHandlerTester)
+/// so multi-threaded callers (e.g. the probe's helper threads)
 /// don't interleave their output with the driver loop.
 /// </summary>
 internal static class ConsoleLog

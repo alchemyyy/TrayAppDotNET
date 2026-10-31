@@ -17,7 +17,7 @@ public sealed class PawnIoDriverInstallerTests
             Path.GetTempPath(),
             $"missing-pawnio-{Guid.NewGuid():N}.exe");
 
-        Assert.False(PawnIoDriverInstaller.HasExpectedInstaller(missingPath));
+        Assert.Null(PawnIoDriverInstaller.TryOpenVerified(missingPath));
     }
 
     /// <summary>
@@ -41,11 +41,24 @@ public sealed class PawnIoDriverInstallerTests
                 output.SetLength(ExpectedInstallerLength);
             }
 
-            Assert.False(PawnIoDriverInstaller.HasExpectedInstaller(temporaryPath));
+            Assert.Null(PawnIoDriverInstaller.TryOpenVerified(temporaryPath));
         }
         finally
         {
             File.Delete(temporaryPath);
         }
+    }
+
+    /// <summary>The download cache lives under the shared TrayAppDotNET root that Fan's uninstall cleans.</summary>
+    [Fact]
+    public void DownloadCacheLivesUnderTheSharedRoot()
+    {
+        string cache = PawnIoDriverInstaller.DownloadCacheDirectory;
+
+        Assert.StartsWith(
+            TrayAppDotNETCommon.Services.Install.TrayAppDotNETAppInstallServices.LocalAppDataRoot
+            + Path.DirectorySeparatorChar,
+            cache,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

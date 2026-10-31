@@ -9,6 +9,33 @@ namespace BrightnessTrayAppDotNET.DDCSimulator.Tests;
 /// <summary>Checks the simulator's own building blocks against the DDC/CI and EDID formats and its virtual clock.</summary>
 public sealed class SimulatorSelfTests
 {
+    /// <summary>
+    /// A thread that is computing keeps virtual time still even when the CPU heuristic would call it blocked: the
+    /// scheduler-state check sees it running or ready. This also proves the snapshot finds this process's threads.
+    /// </summary>
+    [Fact]
+    public void ComputingThreadCountsAsRunnable()
+    {
+        using ManualResetEventSlim stop = new();
+        using ManualResetEventSlim started = new();
+        Thread spinner = new(() =>
+        {
+            started.Set();
+            while (!stop.IsSet) Thread.SpinWait(iterations: 100);
+        }) { IsBackground = true, Name = "RunnableProbeSpinner" };
+        spinner.Start();
+        try
+        {
+            Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(SimulationClock.AnyOtherThreadRunnable());
+        }
+        finally
+        {
+            stop.Set();
+            spinner.Join();
+        }
+    }
+
     [Fact]
     public void GetVCPRequestMatchesTheDDCCIWireFormat()
     {

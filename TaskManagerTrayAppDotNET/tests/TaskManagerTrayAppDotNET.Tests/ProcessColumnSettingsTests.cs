@@ -1,4 +1,5 @@
 using TaskManagerTrayAppDotNET.Models;
+using TrayAppDotNETCommon.Serialization;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
@@ -481,7 +482,7 @@ public sealed class ProcessColumnSettingsTests
         try
         {
             AppSettings settings = new() { Autosave = false, EnableLiveDetailsColumnResizing = false };
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
@@ -517,7 +518,7 @@ public sealed class ProcessColumnSettingsTests
                 settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Status);
             status.StatusDisplayMode = ProcessStatusDisplayMode.Text;
             status.CenterStatusGlyphs = true;
-            settings.Save(path);
+            TrayXmlSerializer.WriteFile(path, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
             ProcessColumnSetting loadedMemory = loaded.DetailsColumns.Single(static setting =>

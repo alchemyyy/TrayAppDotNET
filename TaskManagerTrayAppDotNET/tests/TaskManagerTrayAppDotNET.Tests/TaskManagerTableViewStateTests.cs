@@ -1,8 +1,6 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
-using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
@@ -23,256 +21,221 @@ public sealed class TaskManagerTableViewStateTestCollection
 public sealed class TaskManagerTableViewStateTests
 {
     [Fact]
-    public async Task RestoreBeforeRowsRetainsSortCollapsedGroupsAndSelection()
+    public void RestoreBeforeRowsRetainsSortCollapsedGroupsAndSelection() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                TaskManagerTableSchema schema = CreateSchema(nameWidth: 100, valueWidth: 120);
-                using ProcessIconService processIconService = new();
-                using TaskManagerTableControl table = new(
-                    schema,
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
-                TaskManagerTableViewState state = new(
-                    SelectedRowKey: "process-b",
-                    SortColumnIndex: 1,
-                    SortDescending: true,
-                    ["group-a"],
-                    [100, 120],
-                    [100, 120]);
-                List<string?> selectionNotifications = [];
-                table.SelectedRowChanged += row => selectionNotifications.Add(row?.Key);
+        TaskManagerTableSchema schema = CreateSchema(nameWidth: 100, valueWidth: 120);
+        using ProcessIconService processIconService = new();
+        using TaskManagerTableControl table = new(
+            schema,
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
+        TaskManagerTableViewState state = new(
+            SelectedRowKey: "process-b",
+            SortColumnIndex: 1,
+            SortDescending: true,
+            ["group-a"],
+            [100, 120],
+            [100, 120]);
+        List<string?> selectionNotifications = [];
+        table.SelectedRowChanged += row => selectionNotifications.Add(row?.Key);
 
-                table.RestoreViewState(state);
+        table.RestoreViewState(state);
 
-                Assert.Empty(table.VisibleRows);
-                Assert.Null(table.SelectedRow);
+        Assert.Empty(table.VisibleRows);
+        Assert.Null(table.SelectedRow);
 
-                table.SetRows(CreateGroupedRows());
+        table.SetRows(CreateGroupedRows());
 
-                Assert.Equal(
-                    ["group-b", "process-b", "group-a"],
-                    table.VisibleRows.Select(static row => row.Key));
-                Assert.Equal(expected: "process-b", table.SelectedRow?.Key);
-                Assert.Equal(["process-b"], selectionNotifications);
-                TaskManagerTableViewState restored = table.CaptureViewState();
-                Assert.Equal(expected: 1, restored.SortColumnIndex);
-                Assert.True(restored.SortDescending);
-                Assert.Equal(["group-a"], restored.CollapsedGroupKeys);
-            },
-            CancellationToken.None);
-    }
+        Assert.Equal(
+            ["group-b", "process-b", "group-a"],
+            table.VisibleRows.Select(static row => row.Key));
+        Assert.Equal(expected: "process-b", table.SelectedRow?.Key);
+        Assert.Equal(["process-b"], selectionNotifications);
+        TaskManagerTableViewState restored = table.CaptureViewState();
+        Assert.Equal(expected: 1, restored.SortColumnIndex);
+        Assert.True(restored.SortDescending);
+        Assert.Equal(["group-a"], restored.CollapsedGroupKeys);
+    });
 
     [Fact]
-    public async Task RestoreUsesNewAXAMLBaselinesButRetainsUserResizedWidths()
+    public void RestoreUsesNewAXAMLBaselinesButRetainsUserResizedWidths() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
+        using ProcessIconService processIconService = new();
+        using TaskManagerTableControl previousTable = new(
+            CreateSchema(nameWidth: 100, valueWidth: 120),
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
+        TaskManagerTableViewState previousState =
+            previousTable.CaptureViewState() with
             {
-                using ProcessIconService processIconService = new();
-                using TaskManagerTableControl previousTable = new(
-                    CreateSchema(nameWidth: 100, valueWidth: 120),
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
-                TaskManagerTableViewState previousState =
-                    previousTable.CaptureViewState() with
-                    {
-                        // The second width differs from its AXAML baseline, as it would after a drag
-                        ColumnWidths = [100, 190]
-                    };
+                // The second width differs from its AXAML baseline, as it would after a drag
+                ColumnWidths = [100, 190]
+            };
 
-                using TaskManagerTableControl rebuiltTable = new(
-                    CreateSchema(nameWidth: 140, valueWidth: 120),
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
-                rebuiltTable.RestoreViewState(previousState);
+        using TaskManagerTableControl rebuiltTable = new(
+            CreateSchema(nameWidth: 140, valueWidth: 120),
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
+        rebuiltTable.RestoreViewState(previousState);
 
-                TaskManagerTableViewState restoredState =
-                    rebuiltTable.CaptureViewState();
-                Assert.Equal([140, 190], restoredState.ColumnWidths);
-                Assert.Equal([140, 120], restoredState.BaselineColumnWidths);
-            },
-            CancellationToken.None);
-    }
+        TaskManagerTableViewState restoredState =
+            rebuiltTable.CaptureViewState();
+        Assert.Equal([140, 190], restoredState.ColumnWidths);
+        Assert.Equal([140, 120], restoredState.BaselineColumnWidths);
+    });
 
     [Fact]
-    public async Task SchemaMinimumNormalizesRenderedAndCapturedColumnBaseline()
+    public void SchemaMinimumNormalizesRenderedAndCapturedColumnBaseline() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                const double minimumColumnWidth = 48;
-                TaskManagerTableSchema schema = new(
-                    [new TaskManagerTableColumn(Key: "name", Title: "Name", Width: 20)],
-                    minimumColumnWidth);
+        const double minimumColumnWidth = 48;
+        TaskManagerTableSchema schema = new(
+            [new TaskManagerTableColumn(Key: "name", Title: "Name", Width: 20)],
+            minimumColumnWidth);
 
-                Assert.Equal(minimumColumnWidth, schema.Columns[0].Width);
+        Assert.Equal(minimumColumnWidth, schema.Columns[0].Width);
 
-                using ProcessIconService processIconService = new();
-                using TaskManagerTableControl table = new(
-                    schema,
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
+        using ProcessIconService processIconService = new();
+        using TaskManagerTableControl table = new(
+            schema,
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
 
-                TaskManagerTableViewState state = table.CaptureViewState();
-                Assert.Equal([minimumColumnWidth], state.ColumnWidths);
-                Assert.Equal([minimumColumnWidth], state.BaselineColumnWidths);
-            },
-            CancellationToken.None);
-    }
+        TaskManagerTableViewState state = table.CaptureViewState();
+        Assert.Equal([minimumColumnWidth], state.ColumnWidths);
+        Assert.Equal([minimumColumnWidth], state.BaselineColumnWidths);
+    });
 
     [Fact]
-    public async Task RestoreDefersBothScrollOffsetsUntilRowsAndLayoutExist()
+    public void RestoreDefersBothScrollOffsetsUntilRowsAndLayoutExist() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                const double horizontalOffset = 75;
-                const double verticalOffset = 90;
-                TaskManagerTableSchema schema = CreateSchema(nameWidth: 600, valueWidth: 600);
-                using ProcessIconService processIconService = new();
-                using TestTaskManagerTablePage page = new(
-                    schema,
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
-                Window window = new() { Width = 360, Height = 240, Content = page };
+        const double horizontalOffset = 75;
+        const double verticalOffset = 90;
+        TaskManagerTableSchema schema = CreateSchema(nameWidth: 600, valueWidth: 600);
+        using ProcessIconService processIconService = new();
+        using TestTaskManagerTablePage page = new(
+            schema,
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
+        Window window = new() { Width = 360, Height = 240, Content = page };
 
-                try
-                {
-                    window.Show();
-                    window.UpdateLayout();
-                    TaskManagerTableViewState tableState = new(
-                        SelectedRowKey: null,
-                        SortColumnIndex: 0,
-                        SortDescending: false,
-                        [],
-                        [600, 600],
-                        [600, 600]);
-                    TaskManagerTablePageViewState state = new(
-                        string.Empty,
-                        string.Empty,
-                        RunPanelVisible: false,
-                        horizontalOffset,
-                        verticalOffset,
-                        tableState);
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            TaskManagerTableViewState tableState = new(
+                SelectedRowKey: null,
+                SortColumnIndex: 0,
+                SortDescending: false,
+                [],
+                [600, 600],
+                [600, 600]);
+            TaskManagerTablePageViewState state = new(
+                string.Empty,
+                string.Empty,
+                RunPanelVisible: false,
+                horizontalOffset,
+                verticalOffset,
+                tableState);
 
-                    page.RestoreViewState(state);
+            page.RestoreViewState(state);
 
-                    TaskManagerTablePageViewState beforeRows = page.CaptureViewState();
-                    SettingsScrollViewport viewport = GetPrivateField<SettingsScrollViewport>(
-                        page,
-                        fieldName: "_tableScrollViewport");
-                    Assert.True(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
-                    Assert.Equal(horizontalOffset, beforeRows.HorizontalOffset);
-                    Assert.Equal(verticalOffset, beforeRows.VerticalOffset);
-                    Assert.Equal(expected: 0, viewport.HorizontalOffset);
-                    Assert.Equal(expected: 0, viewport.VerticalOffset);
+            TaskManagerTablePageViewState beforeRows = page.CaptureViewState();
+            SettingsScrollViewport viewport = GetPrivateField<SettingsScrollViewport>(
+                page,
+                fieldName: "_tableScrollViewport");
+            Assert.True(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
+            Assert.Equal(horizontalOffset, beforeRows.HorizontalOffset);
+            Assert.Equal(verticalOffset, beforeRows.VerticalOffset);
+            Assert.Equal(expected: 0, viewport.HorizontalOffset);
+            Assert.Equal(expected: 0, viewport.VerticalOffset);
 
-                    page.SupplyRows(CreateFlatRows(80));
-                    window.UpdateLayout();
+            page.SupplyRows(CreateFlatRows(80));
+            window.UpdateLayout();
 
-                    TaskManagerTablePageViewState afterRows = page.CaptureViewState();
-                    ScrollViewer scrollViewer = Assert.Single(
-                        viewport.Children.OfType<ScrollViewer>());
-                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
-                    Assert.True(
-                        afterRows.HorizontalOffset.Equals(horizontalOffset)
-                        && afterRows.VerticalOffset.Equals(verticalOffset),
-                        $"Expected ({horizontalOffset}, {verticalOffset}); actual "
-                        + $"({afterRows.HorizontalOffset}, {afterRows.VerticalOffset}); extent "
-                        + $"{scrollViewer.Extent}; viewport {scrollViewer.Viewport}; bounds "
-                        + $"{viewport.Bounds}.");
-                }
-                finally
-                {
-                    window.Close();
-                }
-            },
-            CancellationToken.None);
-    }
+            TaskManagerTablePageViewState afterRows = page.CaptureViewState();
+            ScrollViewer scrollViewer = Assert.Single(
+                viewport.Children.OfType<ScrollViewer>());
+            Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
+            Assert.True(
+                afterRows.HorizontalOffset.Equals(horizontalOffset)
+                && afterRows.VerticalOffset.Equals(verticalOffset),
+                $"Expected ({horizontalOffset}, {verticalOffset}); actual "
+                + $"({afterRows.HorizontalOffset}, {afterRows.VerticalOffset}); extent "
+                + $"{scrollViewer.Extent}; viewport {scrollViewer.Viewport}; bounds "
+                + $"{viewport.Bounds}.");
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 
     [Fact]
-    public async Task RestoreAppliesPendingOffsetsWhenSuppliedRowsAreFilteredOut()
+    public void RestoreAppliesPendingOffsetsWhenSuppliedRowsAreFilteredOut() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
-        await using HeadlessUnitTestSession session =
-            HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
-        await session.Dispatch(
-            static () =>
-            {
-                const double horizontalOffset = 75;
-                TaskManagerTableSchema schema = CreateSchema(nameWidth: 600, valueWidth: 600);
-                using ProcessIconService processIconService = new();
-                using TestTaskManagerTablePage page = new(
-                    schema,
-                    processIconService,
-                    new AppSettings(),
-                    CreatePalette(),
-                    new TaskManagerWindowResources(),
-                    isLightTheme: false);
-                Window window = new() { Width = 360, Height = 240, Content = page };
+        const double horizontalOffset = 75;
+        TaskManagerTableSchema schema = CreateSchema(nameWidth: 600, valueWidth: 600);
+        using ProcessIconService processIconService = new();
+        using TestTaskManagerTablePage page = new(
+            schema,
+            processIconService,
+            new AppSettings(),
+            TestPalettes.Default(),
+            new TaskManagerWindowResources(),
+            isLightTheme: false);
+        Window window = new() { Width = 360, Height = 240, Content = page };
 
-                try
-                {
-                    window.Show();
-                    window.UpdateLayout();
-                    TaskManagerTableViewState tableState = new(
-                        SelectedRowKey: null,
-                        SortColumnIndex: 0,
-                        SortDescending: false,
-                        [],
-                        [600, 600],
-                        [600, 600]);
-                    TaskManagerTablePageViewState state = new(
-                        SearchText: "no matching row",
-                        string.Empty,
-                        RunPanelVisible: false,
-                        horizontalOffset,
-                        VerticalOffset: 90,
-                        tableState);
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            TaskManagerTableViewState tableState = new(
+                SelectedRowKey: null,
+                SortColumnIndex: 0,
+                SortDescending: false,
+                [],
+                [600, 600],
+                [600, 600]);
+            TaskManagerTablePageViewState state = new(
+                SearchText: "no matching row",
+                string.Empty,
+                RunPanelVisible: false,
+                horizontalOffset,
+                VerticalOffset: 90,
+                tableState);
 
-                    page.RestoreViewState(state);
-                    page.SupplyRows(CreateFlatRows(80));
-                    window.UpdateLayout();
+            page.RestoreViewState(state);
+            page.SupplyRows(CreateFlatRows(80));
+            window.UpdateLayout();
 
-                    TaskManagerTablePageViewState restored = page.CaptureViewState();
-                    TaskManagerTableControl table = GetPrivateField<TaskManagerTableControl>(
-                        page,
-                        fieldName: "_table");
-                    Assert.Empty(table.VisibleRows);
-                    Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
-                    Assert.Equal(horizontalOffset, restored.HorizontalOffset);
-                }
-                finally
-                {
-                    window.Close();
-                }
-            },
-            CancellationToken.None);
-    }
+            TaskManagerTablePageViewState restored = page.CaptureViewState();
+            TaskManagerTableControl table = GetPrivateField<TaskManagerTableControl>(
+                page,
+                fieldName: "_table");
+            Assert.Empty(table.VisibleRows);
+            Assert.False(GetPrivateField<bool>(page, fieldName: "_hasPendingRestoredOffsets"));
+            Assert.Equal(horizontalOffset, restored.HorizontalOffset);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 
     private static TaskManagerTableSchema CreateSchema(double nameWidth, double valueWidth) =>
         new(
@@ -327,29 +290,6 @@ public sealed class TaskManagerTableViewStateTests
         return Assert.IsType<T>(value);
     }
 
-    private static SettingsPalette CreatePalette() => new(
-        Colors.Black,
-        Colors.White,
-        Colors.Gray,
-        Colors.DarkGray,
-        Colors.DimGray,
-        Colors.Black,
-        Colors.DarkGray,
-        Colors.LightGray,
-        Colors.Gray,
-        Colors.Blue,
-        Colors.Blue,
-        Colors.White,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.DarkBlue,
-        Colors.Blue,
-        Colors.Gray,
-        Colors.White,
-        Colors.Red,
-        Colors.DarkRed,
-        Colors.White);
-
     private sealed class TestTaskManagerTablePage(
         TaskManagerTableSchema schema,
         ProcessIconService processIconService,
@@ -370,17 +310,5 @@ public sealed class TaskManagerTableViewStateTests
             searchPlaceholder: "Search")
     {
         public void SupplyRows(IReadOnlyList<TaskManagerTableRow> rows) => SetRows(rows);
-    }
-
-    private sealed class TestApplication : Application
-    {
-        public override void Initialize() => Styles.Add(new FluentTheme());
-    }
-
-    private static class TestAppBuilder
-    {
-        public static AppBuilder BuildAvaloniaApp() => AppBuilder
-            .Configure<TestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 }

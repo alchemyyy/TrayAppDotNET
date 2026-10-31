@@ -15,7 +15,7 @@ public sealed class ProcessTerminationServiceTests
         int launchCount = 0;
         using ProcessTerminationService service = new(
             log: null,
-            (_, _, _) =>
+            (_, _) =>
             {
                 Interlocked.Increment(ref launchCount);
                 return FailedStart("Unexpected launch");
@@ -28,28 +28,10 @@ public sealed class ProcessTerminationServiceTests
     }
 
     [Fact]
-    public void LowLevelLauncherRejectsAZeroOwnerHandle()
-    {
-        List<string> logMessages = [];
-
-        ElevatedKillHelperStartResult startResult = ElevatedKillHelperClient.TryStart(
-            IntPtr.Zero,
-            elevate: true,
-            log: logMessages.Add);
-
-        Assert.Equal(ElevatedKillHelperStartOutcome.Failed, startResult.Outcome);
-        Assert.Null(startResult.Session);
-        Assert.Contains(expectedSubstring: "window is not ready", startResult.ErrorMessage,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Single(logMessages);
-    }
-
-    [Fact]
-    public async Task StandardHelperLaunchUsesStandardIntegrityWithoutAnOwner()
+    public async Task StandardHelperLaunchUsesStandardIntegrity()
     {
         int launchCount = 0;
         int disposeCount = 0;
-        IntPtr receivedOwnerWindowHandle = new(1);
         bool? requestedElevation = null;
         string? launcherThreadName = null;
         ApartmentState launcherApartmentState = ApartmentState.Unknown;
@@ -60,10 +42,9 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref disposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (ownerWindowHandle, elevate, _) =>
+            (elevate, _) =>
             {
                 Interlocked.Increment(ref launchCount);
-                receivedOwnerWindowHandle = ownerWindowHandle;
                 requestedElevation = elevate;
                 launcherThreadName = Thread.CurrentThread.Name;
                 launcherApartmentState = Thread.CurrentThread.GetApartmentState();
@@ -79,7 +60,6 @@ public sealed class ProcessTerminationServiceTests
 
             Assert.True(helperReady);
             Assert.Equal(expected: 1, Volatile.Read(ref launchCount));
-            Assert.Equal(IntPtr.Zero, receivedOwnerWindowHandle);
             Assert.False(requestedElevation);
             Assert.Equal(expected: "Task Manager native helper launcher", launcherThreadName);
             Assert.Equal(ApartmentState.STA, launcherApartmentState);
@@ -111,7 +91,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref elevatedDisposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 ElevatedKillHelperSession session;
                 if (elevate)
@@ -135,7 +115,7 @@ public sealed class ProcessTerminationServiceTests
             Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
 
             ElevatedHelperStatus status = await service
-                .EnableElevatedHelperAsync(new IntPtr(1))
+                .EnableElevatedHelperAsync()
                 .WaitAsync(TestTimeout);
 
             Assert.Equal(ElevatedHelperState.Ready, status.State);
@@ -162,7 +142,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref standardDisposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) => elevate
+            (elevate, _) => elevate
                 ? new ElevatedKillHelperStartResult(
                     ElevatedKillHelperStartOutcome.Declined,
                     Session: null,
@@ -176,7 +156,7 @@ public sealed class ProcessTerminationServiceTests
             Assert.True(await service.EnsureStandardHelperAsync().WaitAsync(TestTimeout));
 
             ElevatedHelperStatus status = await service
-                .EnableElevatedHelperAsync(new IntPtr(1))
+                .EnableElevatedHelperAsync()
                 .WaitAsync(TestTimeout);
 
             Assert.Equal(ElevatedHelperState.Declined, status.State);
@@ -197,20 +177,18 @@ public sealed class ProcessTerminationServiceTests
         using ManualResetEventSlim launcherEntered = new(false);
         using ManualResetEventSlim releaseLauncher = new(false);
         int launchCount = 0;
-        IntPtr receivedOwnerWindowHandle = IntPtr.Zero;
         string? launcherThreadName = null;
         ApartmentState launcherApartmentState = ApartmentState.Unknown;
         bool isLauncherBackground = false;
         using ProcessTerminationService service = new(
             log: null,
-            (ownerWindowHandle, elevate, _) =>
+            (elevate, _) =>
             {
                 if (!elevate)
                     return FailedStart("Expected standard helper failure");
 
                 Assert.True(elevate);
                 Interlocked.Increment(ref launchCount);
-                receivedOwnerWindowHandle = ownerWindowHandle;
                 launcherThreadName = Thread.CurrentThread.Name;
                 launcherApartmentState = Thread.CurrentThread.GetApartmentState();
                 isLauncherBackground = Thread.CurrentThread.IsBackground;
@@ -219,15 +197,13 @@ public sealed class ProcessTerminationServiceTests
                 return FailedStart("Expected test failure");
             });
 
-        IntPtr ownerWindowHandle = new(0x2468);
-        Task<ElevatedHelperStatus> firstAttempt = service.EnableElevatedHelperAsync(ownerWindowHandle);
+        Task<ElevatedHelperStatus> firstAttempt = service.EnableElevatedHelperAsync();
         Assert.True(launcherEntered.Wait(TestTimeout));
-        Task<ElevatedHelperStatus> duplicateAttempt = service.EnableElevatedHelperAsync(ownerWindowHandle);
+        Task<ElevatedHelperStatus> duplicateAttempt = service.EnableElevatedHelperAsync();
 
         Assert.Same(firstAttempt, duplicateAttempt);
         Assert.False(firstAttempt.IsCompleted);
         Assert.Equal(expected: 1, Volatile.Read(ref launchCount));
-        Assert.Equal(ownerWindowHandle, receivedOwnerWindowHandle);
         Assert.Equal(expected: "Task Manager elevation launcher", launcherThreadName);
         Assert.Equal(ApartmentState.STA, launcherApartmentState);
         Assert.True(isLauncherBackground);
@@ -254,7 +230,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref disposeCount));
         using ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 if (!elevate)
                     return FailedStart("Expected standard helper failure");
@@ -271,7 +247,7 @@ public sealed class ProcessTerminationServiceTests
         ProcessTerminationTarget latestTarget = new(ProcessID: 2_000_000_002, CreationTimeFileTime: 200);
         service.Arm(firstTarget);
 
-        Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync(new IntPtr(1));
+        Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync();
         Assert.True(launcherEntered.Wait(TestTimeout));
         service.Arm(latestTarget);
         releaseLauncher.Set();
@@ -297,7 +273,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref disposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (_, _, _) =>
+            (_, _) =>
             {
                 Interlocked.Increment(ref launchCount);
                 return new ElevatedKillHelperStartResult(
@@ -308,9 +284,9 @@ public sealed class ProcessTerminationServiceTests
         try
         {
             ElevatedHelperStatus firstStatus = await service
-                .EnableElevatedHelperAsync(new IntPtr(1))
+                .EnableElevatedHelperAsync()
                 .WaitAsync(TestTimeout);
-            Task<ElevatedHelperStatus> secondAttempt = service.EnableElevatedHelperAsync(new IntPtr(2));
+            Task<ElevatedHelperStatus> secondAttempt = service.EnableElevatedHelperAsync();
             ElevatedHelperStatus secondStatus = await secondAttempt;
 
             Assert.Equal(ElevatedHelperState.Ready, firstStatus.State);
@@ -334,7 +310,7 @@ public sealed class ProcessTerminationServiceTests
         int standardLaunchCount = 0;
         using ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 if (!elevate)
                 {
@@ -353,10 +329,10 @@ public sealed class ProcessTerminationServiceTests
             });
 
         ElevatedHelperStatus declinedStatus = await service
-            .EnableElevatedHelperAsync(new IntPtr(1))
+            .EnableElevatedHelperAsync()
             .WaitAsync(TestTimeout);
         ElevatedHelperStatus failedStatus = await service
-            .EnableElevatedHelperAsync(new IntPtr(1))
+            .EnableElevatedHelperAsync()
             .WaitAsync(TestTimeout);
 
         Assert.Equal(ElevatedHelperState.Declined, declinedStatus.State);
@@ -364,26 +340,6 @@ public sealed class ProcessTerminationServiceTests
         Assert.Equal(expected: "Second attempt failed", failedStatus.ErrorMessage);
         Assert.Equal(expected: 2, Volatile.Read(ref elevatedLaunchCount));
         Assert.Equal(expected: 1, Volatile.Read(ref standardLaunchCount));
-    }
-
-    [Fact]
-    public async Task ZeroOwnerHandleFailsWithoutLaunching()
-    {
-        int launchCount = 0;
-        using ProcessTerminationService service = new(
-            log: null,
-            (_, _, _) =>
-            {
-                Interlocked.Increment(ref launchCount);
-                return FailedStart("Unexpected launch");
-            });
-
-        ElevatedHelperStatus status = await service.EnableElevatedHelperAsync(IntPtr.Zero);
-
-        Assert.Equal(ElevatedHelperState.Failed, status.State);
-        Assert.Contains(expectedSubstring: "window is not ready", status.ErrorMessage,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(expected: 0, Volatile.Read(ref launchCount));
     }
 
     [Fact]
@@ -403,7 +359,7 @@ public sealed class ProcessTerminationServiceTests
             });
         ProcessTerminationService service = new(
             log: null,
-            (_, _, _) =>
+            (_, _) =>
             {
                 launcherEntered.Set();
                 if (!releaseLauncher.Wait(TestTimeout))
@@ -414,7 +370,7 @@ public sealed class ProcessTerminationServiceTests
                     string.Empty);
             });
 
-        Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync(new IntPtr(1));
+        Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync();
         Assert.True(launcherEntered.Wait(TestTimeout));
         Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -441,7 +397,7 @@ public sealed class ProcessTerminationServiceTests
         using ManualResetEventSlim releaseLauncher = new(false);
         using ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 if (!elevate)
                     return FailedStart("Expected standard helper failure");
@@ -453,7 +409,7 @@ public sealed class ProcessTerminationServiceTests
         using Process process = StartSleepingProcess();
         try
         {
-            Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync(new IntPtr(1));
+            Task<ElevatedHelperStatus> pendingAttempt = service.EnableElevatedHelperAsync();
             Assert.True(launcherEntered.Wait(TestTimeout));
             ProcessTerminationTarget target = new(process.Id, process.StartTime.ToFileTimeUtc());
 
@@ -483,7 +439,7 @@ public sealed class ProcessTerminationServiceTests
             SuccessfulResponse);
         using ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 Assert.False(elevate);
                 return new ElevatedKillHelperStartResult(
@@ -541,7 +497,7 @@ public sealed class ProcessTerminationServiceTests
             FailedResponse);
         using ProcessTerminationService service = new(
             log: null,
-            (_, _, _) => new ElevatedKillHelperStartResult(
+            (_, _) => new ElevatedKillHelperStartResult(
                 ElevatedKillHelperStartOutcome.Ready,
                 nativeSession,
                 string.Empty));
@@ -601,7 +557,7 @@ public sealed class ProcessTerminationServiceTests
             () => Interlocked.Increment(ref replacementDisposeCount));
         ProcessTerminationService service = new(
             log: null,
-            (_, elevate, _) =>
+            (elevate, _) =>
             {
                 int currentLaunch = Interlocked.Increment(ref launchCount);
                 Assert.Equal(expected: currentLaunch == 1, actual: elevate);
@@ -621,7 +577,7 @@ public sealed class ProcessTerminationServiceTests
         try
         {
             ElevatedHelperStatus elevatedStatus = await service
-                .EnableElevatedHelperAsync(new IntPtr(1))
+                .EnableElevatedHelperAsync()
                 .WaitAsync(TestTimeout);
             Assert.Equal(ElevatedHelperState.Ready, elevatedStatus.State);
             using Process process = StartSleepingProcess();

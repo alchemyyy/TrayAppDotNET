@@ -6,6 +6,7 @@ using BrightnessTrayAppDotNET.Models;
 using BrightnessTrayAppDotNET.UI.Settings;
 using BrightnessTrayAppDotNET.Visuals;
 using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Serialization;
 using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
 
@@ -28,7 +29,7 @@ public sealed class SettingsNavigationTests
         try
         {
             AppSettings settings = new() { UseWindows11SettingsNavigation = true };
-            settings.Save(settingsPath);
+            TrayXmlSerializer.WriteFile(settingsPath, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(settingsPath);
 
@@ -47,7 +48,7 @@ public sealed class SettingsNavigationTests
         try
         {
             AppSettings settings = new() { SettingsSidebarWidth = 312.5 };
-            settings.Save(settingsPath);
+            TrayXmlSerializer.WriteFile(settingsPath, settings);
 
             AppSettings loaded = AppSettings.LoadOrDefault(settingsPath);
 
@@ -60,12 +61,12 @@ public sealed class SettingsNavigationTests
     }
 
     [Fact]
-    public void Windows11SettingsNavigationBuildsAllBrightnessPageIcons() => AvaloniaTestHost.Run(() =>
+    public void Windows11SettingsNavigationBuildsAllBrightnessPageIcons() => AvaloniaTestHost.RunWithFluentTheme(() =>
     {
         LocalizationManager.Instance.Initialize(Strings.ResourceManager);
         AppSettings settings = new() { UseWindows11SettingsNavigation = true };
         settings.OnTrayXmlDeserialized();
-        BrightnessSettingsWindow window = new(settings);
+        BrightnessSettingsWindow window = new(settings, static (_, _) => Task.FromResult(false));
         try
         {
             window.Show();
