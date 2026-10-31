@@ -1,12 +1,13 @@
-using System.Diagnostics;
-
 namespace TrayAppDotNETCommon.Services;
 
+/// <summary>
+/// Ends the app when its crash watcher process dies. Waits on the watcher's process handle through
+/// <see cref="ProcessExitWatch"/>, so nothing wakes up until the watcher actually exits.
+/// </summary>
 public sealed class WatcherMonitor(
     int? watcherPid,
     Func<Action, Task> postToUiThread,
-    Action onWatcherDied,
-    TimeSpan? pollInterval = null)
+    Action onWatcherDied)
     : IDisposable
 {
     private readonly Func<Action, Task> _postToUIThread =
@@ -14,81 +15,53 @@ public sealed class WatcherMonitor(
 
     private readonly Action _onWatcherDied = onWatcherDied ?? throw new ArgumentNullException(nameof(onWatcherDied));
 
-    private readonly TimeSpan _pollInterval =
-        pollInterval ?? TimeSpan.FromMilliseconds(TimeConstants.WatcherLivenessPollIntervalMs);
-
-    private CancellationTokenSource? _cts;
-    private Task? _pollTask;
+    private IDisposable? _registration;
     private bool _disposed;
 
-    public bool IsRunning => _cts != null;
+    public bool IsRunning => Volatile.Read(ref _registration) != null;
 
     public void Start()
     {
         if (_disposed) return;
         if (watcherPid is not { } watcherPID) return;
-        if (_cts != null) return;
+        if (IsRunning) return;
 
-        _cts = new CancellationTokenSource();
-        CancellationToken token = _cts.Token;
-
-        _pollTask = Task.Run(async () =>
+        switch (ProcessExitWatch.TryRegister(watcherPID, expectedStartFileTime: null, OnWatcherExited, out IDisposable? registration))
         {
-            try
-            {
-                using Process watcherProcess = Process.GetProcessById(watcherPID);
-
-                while (!token.IsCancellationRequested)
-                {
-                    if (watcherProcess.HasExited)
-                    {
-                        await _postToUIThread(_onWatcherDied).ConfigureAwait(false);
-                        return;
-                    }
-
-                    await Task.Delay(_pollInterval, token).ConfigureAwait(false);
-                }
-            }
-            catch (ArgumentException)
-            {
-                await _postToUIThread(_onWatcherDied).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"WatcherMonitor poll loop: {ex.Message}");
-            }
-        }, token);
-    }
-
-    public void Stop()
-    {
-        CancellationTokenSource? cts = Interlocked.Exchange(ref _cts, value: null);
-        if (cts == null) return;
-
-        try { cts.Cancel(); }
-        catch (Exception ex) { TADNLog.Log($"WatcherMonitor.Stop: cancel: {ex.Message}"); }
-
-        Task? pollTask = Interlocked.Exchange(ref _pollTask, value: null);
-        if (pollTask == null)
-        {
-            cts.Dispose();
-            return;
+            case ProcessExitWatchResult.Watching:
+                Volatile.Write(ref _registration, registration);
+                break;
+            case ProcessExitWatchResult.Exited:
+                // Start runs on the UI thread during startup; the death callback must arrive as a later posted job,
+                // after startup has finished, never inline in the middle of it
+                _ = Task.Run(PostWatcherDiedAsync);
+                break;
+            default:
+                TADNLog.Log($"WatcherMonitor: watcher PID {watcherPID} cannot be watched; the app keeps running without it.");
+                break;
         }
-
-        _ = pollTask.ContinueWith(
-            _ => cts.Dispose(),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
     }
+
+    public void Stop() => Interlocked.Exchange(ref _registration, value: null)?.Dispose();
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         Stop();
+    }
+
+    private void OnWatcherExited() => _ = PostWatcherDiedAsync();
+
+    private async Task PostWatcherDiedAsync()
+    {
+        try
+        {
+            await _postToUIThread(_onWatcherDied).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"WatcherMonitor: watcher-death handling failed: {exception}");
+        }
     }
 }

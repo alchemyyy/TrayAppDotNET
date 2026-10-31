@@ -4,13 +4,11 @@ internal static class Constants
 {
     public const string ApplicationName = "TaskManagerTrayAppDotNET";
     public const string DisplayName = "Task Manager";
-    public const string SharedRootFolderName = "TrayAppDotNET";
-    public const string Publisher = "alchemyyy";
-    public const string HelpLink = "https://github.com/alchemyyy/TrayAppDotNET";
     public const string AppBaseURI = "avares://" + ApplicationName + "/";
-    public const string AppIconFileName = "app.ico";
-    public const string AppIconRelativePath = "Assets/" + AppIconFileName;
-    public const string AppIconResourceUri = AppBaseURI + AppIconRelativePath;
+    public const string AppIconResourceUri = AppBaseURI + "Assets/" + AppIconLoader.DefaultFileName;
+
+    /// <summary>The app icon frame the main window draws in its title bar and sidebar.</summary>
+    public const int ApplicationBitmapSize = 256;
     public const string KillHelperFileName = "TaskManagerTrayAppDotNET.KillHelper.exe";
     public const string KillHelperModeArgument = "--kill-helper";
     public const string AppGUID = "4ae62894-9d4e-44fb-97d7-622d90f594ae";

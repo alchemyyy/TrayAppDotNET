@@ -8,7 +8,6 @@ using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.WarmWindows;
@@ -17,36 +16,32 @@ using VolumeTrayAppDotNET.UI.Flyout;
 using VolumeTrayAppDotNET.UI.Settings;
 using VolumeTrayAppDotNET.UI.Tray;
 using VolumeHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
-using VolumeHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
-using VolumeHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
+using VolumeHotkeyFiredEventArgs =
+    TrayAppDotNETCommon.Services.HotkeyFiredEventArgs<TrayAppDotNETCommon.Models.HotkeyAction>;
+using VolumeHotkeyService =
+    TrayAppDotNETCommon.Services.GlobalHotkeyService<TrayAppDotNETCommon.Models.HotkeyAction,
+        TrayAppDotNETCommon.Models.HotkeyBinding>;
 using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
-using VolumeWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 
 namespace VolumeTrayAppDotNET;
 
 internal static class VolumeAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<VolumeAvaloniaApp>(
-            args,
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<VolumeAvaloniaApp>(args, AppSettings.GetDefaultPath, configure: Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
 internal sealed class VolumeAvaloniaApp : Application
 {
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
     private AppTheme? _theme;
     private AppSettings? _settings;
     private DeviceSettings? _deviceSettings;
@@ -55,58 +50,26 @@ internal sealed class VolumeAvaloniaApp : Application
     private readonly HashSet<AudioDevice> _trayMenuTrackedDevices = [];
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private VolumeTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
-    private TrayIconRenderInput? _appliedTrayIconRenderInput;
-    private VolumeTrayMenuWindow? _trayMenuWindow;
+    private TrayIconPresenter<TrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
+    private TrayWindowToggle? _trayToggle;
     private VolumeFlyoutWindow? _volumeFlyout;
     private VolumeSettingsWindow? _settingsWindow;
     private SettingsFlyoutKeepOpenCoordinator? _settingsFlyoutKeepOpen;
     private TrayAppDotNETWarmWindowSlot<VolumeFlyoutWindow>? _volumeFlyoutWarmSlot;
-    private TrayAppDotNETWarmWindowSlot<VolumeTrayMenuWindow>? _trayMenuWarmSlot;
     private VolumeHotkeyService? _hotkeyService;
-    private VolumeWatcherMonitor? _watcherMonitor;
-    private UpdateCheckService? _updateCheckService;
     private AppVolumeFeedbackPlayer? _trayVolumeFeedback;
-    private int _lastNotifiedUpdateVersion;
     private bool _shuttingDown;
 
     public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("VolumeAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        WireCrashHandlers();
-
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this,
-                new TrayAppDotNETInstallerWindowOptions
-                {
-                    Layout = AppServices.InstallLayout,
-                    Icon = AppTheme.LoadAppIcon(),
-                    Palette = TrayMenuPalette(),
-                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-                });
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
-        if (Program.IsUninstallerMode)
-        {
-            LoadSettingsAndTheme();
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -115,37 +78,45 @@ internal sealed class VolumeAvaloniaApp : Application
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
 #endif
-        LoadSettingsAndTheme();
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
+        _settings = host.Settings;
+        LoadDeviceSettings();
         StartServices();
         CreateTrayIcon();
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = (title, body) => _trayIcon?.ShowBalloon(title, body)
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
         RequestTrayRefresh();
         RestoreStartupUndockedFlyoutIfRequested();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void WireCrashHandlers() => TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
+    private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
+        {
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettingsCommon.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppTheme.GetDefaultPath,
+            LoadTheme = AppTheme.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit()
+        };
 
-    private void LoadSettingsAndTheme()
+    private void LoadDeviceSettings()
     {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => TADNLog.Log($"VolumeAvaloniaApp settings load failed: {ex}"),
-                GetThemePath = AppTheme.GetDefaultPath,
-                LoadTheme = AppTheme.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"VolumeAvaloniaApp theme load failed: {ex}")
-            });
-
-        _settings = loaded.Settings;
-
         try
         {
             _deviceSettings = DeviceSettings.LoadOrDefault();
@@ -161,11 +132,8 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void ConfigureSettings(AppSettings settings)
     {
-        settings.PropertyChanged += OnSettingsPropertyChanged;
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
-        TrayAppDotNETAnimationPolicy.Apply(this, settings.AnimationMode);
-        TrayAppDotNETToolTip.ShowDelayMs = settings.ToolTipShowDelayMs;
     }
 
     private void ConfigureTheme(AppTheme theme)
@@ -204,49 +172,15 @@ internal sealed class VolumeAvaloniaApp : Application
             TADNLog.Log($"VolumeAvaloniaApp tray renderer init failed: {ex}");
         }
 
-        try
-        {
-            _hotkeyService = new VolumeHotkeyService(Program.ApplicationName + ".HotkeySink");
-            _hotkeyService.Initialize();
-            _hotkeyService.Fired += OnHotkeyFired;
-            _hotkeyService.Apply(_settings?.Hotkeys ?? []);
-            AppServices.HotkeyService = _hotkeyService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"VolumeAvaloniaApp hotkey init failed: {ex}");
-        }
-
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"VolumeAvaloniaApp watcher init failed: {ex}");
-        }
-
-        if (_settings != null)
-        {
-            try
+        _hotkeyService = _host?.StartHotkeyService(
+            static prefix => new VolumeHotkeyService(prefix),
+            service =>
             {
-                _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                    _settings,
-                    repositoryName: "TrayAppDotNET",
-                    Program.ApplicationName,
-                    BuildInfo.BuildNumber,
-                    _settings.Save,
-                    Program.LocalAppDataRoot);
-                _updateCheckService.StateChanged += OnUpdateStateChanged;
-                _updateCheckService.Start();
-                AppServices.UpdateCheckService = _updateCheckService;
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"VolumeAvaloniaApp update service init failed: {ex}");
-            }
-        }
+                service.Initialize();
+                service.Fired += OnHotkeyFired;
+                service.Apply(_settings?.Hotkeys ?? []);
+            });
+        AppServices.HotkeyService = _hotkeyService;
     }
 
     private void CreateTrayIcon()
@@ -267,19 +201,30 @@ internal sealed class VolumeAvaloniaApp : Application
         _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+        _trayIconPresenter = new TrayIconPresenter<TrayIconRenderInput>(
+            _trayIcon,
+            _trayIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon());
+        _trayToggle = new TrayWindowToggle();
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            () => _settings?.KeepTrayContextMenuWarm ?? true,
+            _settings,
+            _theme,
+            TADNLog.Log);
     }
 
     private void OnAudioManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AudioDeviceManager.DefaultDevice))
             AttachToTrackedDevice(_audioManager?.DefaultDevice);
-        InvalidateTrayMenuSnapshot();
+        InvalidateTrayMenu();
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         SyncTrayMenuDeviceSubscriptions();
-        InvalidateTrayMenuSnapshot();
+        InvalidateTrayMenu();
     }
 
     private void SyncTrayMenuDeviceSubscriptions()
@@ -314,16 +259,7 @@ internal sealed class VolumeAvaloniaApp : Application
             or nameof(AudioDevice.IsDefault)
             or nameof(AudioDevice.IsDefaultCommunications)
             or nameof(AudioDevice.IsBluetoothOrphaned))
-            InvalidateTrayMenuSnapshot();
-    }
-
-    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(AppSettings.ShowTrayMenuRecordingLink)
-            or nameof(AppSettings.ShowTrayMenuSoundsLink)
-            or nameof(AppSettings.ShowTrayMenuCommunicationsLink)
-            or nameof(AppSettings.ShowTrayMenuDeviceLinks))
-            InvalidateTrayMenuSnapshot();
+            InvalidateTrayMenu();
     }
 
     private void ClearTrayMenuDeviceSubscriptions()
@@ -333,30 +269,19 @@ internal sealed class VolumeAvaloniaApp : Application
         _trayMenuTrackedDevices.Clear();
     }
 
-    /// <summary>Evicts menus whose immutable entries capture superseded device or settings state.</summary>
-    private void InvalidateTrayMenuSnapshot()
+    /// <summary>
+    /// Rebuilds the tray menu's device entries. Settings and theme changes reach the menu through its controller.
+    /// </summary>
+    private void InvalidateTrayMenu()
     {
         if (_shuttingDown) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(InvalidateTrayMenuSnapshot, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(InvalidateTrayMenu, DispatcherPriority.Background);
             return;
         }
 
-        if (_trayMenuWarmSlot != null)
-        {
-            _trayMenuWarmSlot.EvictNow();
-            return;
-        }
-
-        VolumeTrayMenuWindow? menuWindow = _trayMenuWindow;
-        if (menuWindow == null) return;
-
-        try { menuWindow.Close(); }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"Volume tray menu invalidation failed: {exception.Message}");
-        }
+        _trayMenu?.Invalidate();
     }
 
     private void AttachToTrackedDevice(AudioDevice? device)
@@ -403,8 +328,6 @@ internal sealed class VolumeAvaloniaApp : Application
         Dispatcher.UIThread.Post(() =>
         {
             ApplyThemeVariant();
-            if (_settings != null)
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
             ApplyTrayIconColorOverride();
             RequestTrayRefresh();
         });
@@ -418,12 +341,7 @@ internal sealed class VolumeAvaloniaApp : Application
         {
             ApplyThemeVariant();
             ApplyTrayIconColorOverride();
-            if (_settings != null)
-            {
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
-                TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
-                ApplyToolTipDelayToOpenWindows();
-            }
+            if (_settings != null) ApplyToolTipDelayToOpenWindows();
 
             ApplyTrayIconScrollSettings();
             if (_hotkeyService != null && _settings != null)
@@ -447,44 +365,24 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         if (_volumeFlyoutWarmSlot != null || _settings?.KeepFlyoutWarm == true)
             VolumeFlyoutWarmSlot.ApplyKeepWarmPolicy(CreateManagedVolumeFlyout);
-        if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
-            TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);
+        _trayMenu?.ApplyKeepWarmPolicy();
     }
 
     private void ApplyToolTipDelayToOpenWindows()
     {
         if (_settingsWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_settingsWindow);
         if (_volumeFlyout != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_volumeFlyout);
-        if (_trayMenuWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_trayMenuWindow);
-    }
-
-    private void OnUpdateStateChanged()
-    {
-        _volumeFlyout?.NotifyUpdateStateChanged();
-
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
-
-        _lastNotifiedUpdateVersion = info.Version;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+        if (_trayMenu?.Current is { } trayMenu) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(trayMenu);
     }
 
     private void OnUpdateBalloonClicked()
     {
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
 
         ShowVolumeFlyout();
     }
 
-    private bool ResolveEffectiveIsLightTheme() => _settings?.ThemeMode switch
-    {
-        ThemeMode.Light => true,
-        ThemeMode.Dark => false,
-        _ => _theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
-    };
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ApplyThemeVariant()
     {
@@ -504,124 +402,78 @@ internal sealed class VolumeAvaloniaApp : Application
 
 #if DEBUG
     /// <summary>
-    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// Renders the tray icon again so tray glyph edits are visible immediately.
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        _trayIconRenderer?.InvalidateCache();
+        _trayIconPresenter?.Invalidate();
         RequestTrayRefresh();
     }
 
-    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChangedForThemeReload();
 #endif
 
     private void RequestTrayRefresh()
     {
-        if (_trayIcon == null) return;
+        if (_trayIconPresenter == null) return;
 
-        if (_trackedDevice == null)
+        AudioDevice? device = _trackedDevice;
+        if (device == null)
         {
-            string missingTooltip = L(nameof(AppStrings.TrayTooltip_NoAudioDevice));
             _audioManager?.RequestMissingDefaultRecovery("tray-null-default");
             if (_trayIconRenderer != null)
             {
-                VolumeTrayIcon renderer = _trayIconRenderer;
-                renderer.Volume = 0;
-                renderer.IsMuted = true;
-                if (renderer.TryCreateRenderInput(out TrayIconRenderInput? missingInput) && missingInput != null)
-                {
-                    _trayIcon.SetTooltip(missingTooltip);
-                    if (missingInput == _appliedTrayIconRenderInput)
-                        return;
-
-                    _trayIconRenderQueue.Request(
-                        () => renderer.RenderIcon(missingInput),
-                        icon => ApplyRenderedTrayIcon(icon, missingTooltip, missingInput));
-                    return;
-                }
-            }
-            else if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
-            {
-                using (fallbackIcon)
-                    _trayIcon.SetIconAndTooltip(fallbackIcon, missingTooltip);
-                ClearTrayIconRenderState();
-                return;
+                _trayIconRenderer.Volume = 0;
+                _trayIconRenderer.IsMuted = true;
             }
 
-            _trayIcon.SetTooltip(missingTooltip);
+            _trayIconPresenter.Refresh(L(nameof(AppStrings.TrayTooltip_NoAudioDevice)));
             return;
         }
-
-        int percent = (int)Math.Round(_trackedDevice.Volume * 100);
-        string tooltip = _trackedDevice.IsMuted
-            ? string.Format(L(nameof(AppStrings.TrayTooltip_Muted_Format)), _trackedDevice.FriendlyName)
-            : string.Format(L(nameof(AppStrings.TrayTooltip_Volume_Format)), _trackedDevice.FriendlyName, percent);
 
         if (_trayIconRenderer != null)
         {
-            VolumeTrayIcon renderer = _trayIconRenderer;
-            renderer.Volume = _trackedDevice.Volume;
-            renderer.IsMuted = _trackedDevice.IsMuted;
-            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
-            {
-                _trayIcon.SetTooltip(tooltip);
-                if (input == _appliedTrayIconRenderInput)
-                    return;
-
-                _trayIconRenderQueue.Request(
-                    () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip, input));
-                return;
-            }
+            _trayIconRenderer.Volume = device.Volume;
+            _trayIconRenderer.IsMuted = device.IsMuted;
         }
 
-        _trayIcon.SetTooltip(tooltip);
+        int percent = (int)Math.Round(device.Volume * 100);
+        _trayIconPresenter.Refresh(device.IsMuted
+            ? string.Format(L(nameof(AppStrings.TrayTooltip_Muted_Format)), device.FriendlyName)
+            : string.Format(L(nameof(AppStrings.TrayTooltip_Volume_Format)), device.FriendlyName, percent));
     }
-
-    /// <summary>
-    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
-    /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip, TrayIconRenderInput input)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
-        _appliedTrayIconRenderInput = input;
-    }
-
-    /// <summary>
-    /// Clears tracked render inputs when a non-renderer icon is applied.
-    /// </summary>
-    private void ClearTrayIconRenderState() => _appliedTrayIconRenderInput = null;
 
     private void OnTrayLeftClick()
     {
-        if (TryDispatchModifiedTrayAction(
+        if (TryDispatchTrayAction(TrayClickModifiers.Resolve(
                 _settings?.TrayCtrlLeftClickAction ?? TrayClickAction.Nothing,
-                _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing))
+                _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing,
+                TrayClickAction.Nothing,
+                TrayClickAction.Nothing)))
             return;
 
-        if (_volumeFlyout is { IsVisible: true })
+        switch (_trayToggle?.Decide(_volumeFlyout) ?? TrayToggleAction.Show)
         {
-            _volumeFlyout.Hide();
-            return;
+            case TrayToggleAction.Hide:
+                _volumeFlyout?.Hide();
+                break;
+            // A floating flyout behind another window comes forward where it is instead of docking again
+            case TrayToggleAction.Activate:
+                _volumeFlyout?.Activate();
+                break;
+            case TrayToggleAction.Show:
+                ShowVolumeFlyout();
+                break;
         }
-
-        ShowVolumeFlyout();
     }
 
     private void OnTrayLeftDoubleClick()
     {
-        if (TryDispatchModifiedTrayAction(
-                _settings?.TrayCtrlDoubleLeftClickAction ?? TrayClickAction.Nothing,
-                _settings?.TrayAltDoubleLeftClickAction ?? TrayClickAction.Nothing))
-            return;
-
-        TrayClickAction action = _settings?.TrayDoubleClickAction ?? TrayClickAction.Nothing;
+        TrayClickAction action = TrayClickModifiers.Resolve(
+            _settings?.TrayCtrlDoubleLeftClickAction ?? TrayClickAction.Nothing,
+            _settings?.TrayAltDoubleLeftClickAction ?? TrayClickAction.Nothing,
+            _settings?.TrayDoubleClickAction ?? TrayClickAction.Nothing,
+            TrayClickAction.Nothing);
         if (!TryDispatchTrayAction(action))
             ShowVolumeFlyout();
     }
@@ -632,20 +484,15 @@ internal sealed class VolumeAvaloniaApp : Application
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() =>
         {
-            if (TryDispatchModifiedTrayAction(
+            if (TryDispatchTrayAction(TrayClickModifiers.Resolve(
                     _settings?.TrayCtrlRightClickAction ?? TrayClickAction.Nothing,
-                    _settings?.TrayAltRightClickAction ?? TrayClickAction.Nothing))
+                    _settings?.TrayAltRightClickAction ?? TrayClickAction.Nothing,
+                    TrayClickAction.Nothing,
+                    TrayClickAction.Nothing)))
                 return;
 
             ShowTrayContextMenu(point);
         });
-
-    /// <summary>Runs the Ctrl or Alt variant of a tray click; Nothing falls through to the plain click.</summary>
-    private bool TryDispatchModifiedTrayAction(TrayClickAction controlAction, TrayClickAction altAction)
-    {
-        if (IsCtrlDown() && TryDispatchTrayAction(controlAction)) return true;
-        return IsAltDown() && TryDispatchTrayAction(altAction);
-    }
 
     private bool TryDispatchTrayAction(TrayClickAction action)
     {
@@ -660,32 +507,23 @@ internal sealed class VolumeAvaloniaApp : Application
         }
     }
 
-    private void OnTrayScrolled(int delta)
+    private void OnTrayScrolled(int notches)
     {
         if (_settings == null) return;
 
-        TrayWheelVolumeStep action = ResolveTrayWheelAction(_settings);
+        TrayWheelVolumeStep action = TrayClickModifiers.Resolve(
+            _settings.TrayCtrlWheelAction,
+            _settings.TrayAltWheelAction,
+            _settings.TrayWheelAction,
+            TrayWheelVolumeStep.Nothing);
         int stepPercent = ResolveTrayWheelStepPercent(_settings, action);
         if (stepPercent == 0) return;
 
-        AdjustTrackedDeviceVolume(delta, stepPercent);
+        AdjustTrackedDeviceVolume(notches, stepPercent);
     }
 
-    private void OnTrayPrecisionTouchpadScrolled(int delta) =>
-        AdjustTrackedDeviceVolume(delta, stepPercent: 1);
-
-    private static TrayWheelVolumeStep ResolveTrayWheelAction(AppSettings settings)
-    {
-        bool isCtrlDown = IsCtrlDown();
-        bool isAltDown = IsAltDown();
-        TrayWheelVolumeStep action = settings.TrayWheelAction;
-        if (isCtrlDown) action = settings.TrayCtrlWheelAction;
-        else if (isAltDown) action = settings.TrayAltWheelAction;
-
-        return action == TrayWheelVolumeStep.Nothing && (isCtrlDown || isAltDown)
-            ? settings.TrayWheelAction
-            : action;
-    }
+    private void OnTrayPrecisionTouchpadScrolled(int steps) =>
+        AdjustTrackedDeviceVolume(steps, stepPercent: 1);
 
     private static int ResolveTrayWheelStepPercent(AppSettings settings, TrayWheelVolumeStep action) =>
         action switch
@@ -696,17 +534,13 @@ internal sealed class VolumeAvaloniaApp : Application
             _ => 0
         };
 
-    private static bool IsCtrlDown() => (User32.GetAsyncKeyState(User32.VK_CONTROL) & 0x8000) != 0;
-
-    private static bool IsAltDown() => (User32.GetAsyncKeyState(User32.VK_MENU) & 0x8000) != 0;
-
-    private void AdjustTrackedDeviceVolume(int delta, int stepPercent)
+    private void AdjustTrackedDeviceVolume(int steps, int stepPercent)
     {
         AudioDevice? device = _trackedDevice;
-        if (device == null) return;
+        if (device == null || steps == 0) return;
 
         double currentPercent = device.Volume * 100.0;
-        double next = Math.Clamp(currentPercent + (delta > 0 ? stepPercent : -stepPercent), min: 0, max: 100);
+        double next = Math.Clamp(currentPercent + steps * stepPercent, min: 0, max: 100);
         if (Math.Abs(currentPercent - next) >= 0.001)
         {
             device.Volume = (float)(next / 100.0);
@@ -722,46 +556,31 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void ShowTrayContextMenu(Point point)
     {
-        if (_trayIcon == null || _settings == null) return;
-
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.DismissForWarmCache();
-
-        VolumeTrayMenuWindow menuWindow = TrayMenuWarmSlot.TakeOrCreate(CreateTrayMenuWindow);
-        _trayMenuWindow = menuWindow;
+        if (_trayIcon == null || _settings == null || _trayMenu == null) return;
 
         PixelPoint cursorPoint = new((int)Math.Round(point.X), (int)Math.Round(point.Y));
-        menuWindow.ShowAt(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
+        _trayMenu.Show(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
     }
 
-    private VolumeTrayMenuWindow CreateTrayMenuWindow()
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
         if (_settings == null)
             throw new InvalidOperationException("Volume tray menu requires settings.");
+
         AudioDevice[] devices = _audioManager?.Devices.ToArray() ?? [];
-        VolumeTrayMenuWindow menuWindow = new(
-            devices,
-            _settings,
-            TrayMenuPalette(),
-            _settings.EnableRoundedCorners,
-            _settings.ContextMenuFontSize,
-            OpenSettings,
-            ExitApplication);
-        _trayMenuWindow = menuWindow;
-        menuWindow.Closed += OnTrayMenuClosed;
-        return menuWindow;
+        return new TrayMenuWindow(
+            VolumeTrayMenuEntries.Build(devices, _settings),
+            TrayMenuWindowOptions.Create(
+                _settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                TrayMenuStandardEntry.Settings(OpenSettings, UI.ControlMap.TrayMenu.OpenSettings),
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)) with
+            {
+                // The device list can be long; the standard entries sit right above the taskbar
+                ScrollToBottom = true
+            });
     }
-
-    private void OnTrayMenuClosed(object? sender, EventArgs e)
-    {
-        if (sender is VolumeTrayMenuWindow menu)
-            menu.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(_trayMenuWindow, sender))
-            _trayMenuWindow = null;
-    }
-
-    private SettingsPalette TrayMenuPalette() =>
-        VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLightTheme());
 
     private void ShowVolumeFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
@@ -800,11 +619,6 @@ internal sealed class VolumeAvaloniaApp : Application
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => TADNLog.Log($"Volume flyout keep-warm: {ex.Message}"));
 
-    private TrayAppDotNETWarmWindowSlot<VolumeTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<VolumeTrayMenuWindow>(
-            () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => TADNLog.Log($"Volume tray menu keep-warm: {ex.Message}"));
-
     private void ScheduleKeepWarmPriming()
     {
         Dispatcher.UIThread.Post(async void () =>
@@ -813,8 +627,8 @@ internal sealed class VolumeAvaloniaApp : Application
             {
                 if (_settings?.KeepFlyoutWarm == true && _audioManager != null)
                     await VolumeFlyoutWarmSlot.PrimeAsync(CreateManagedVolumeFlyout);
-                if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
-                    await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
+                if (_trayMenu != null)
+                    await _trayMenu.PrimeAsync();
             }
             catch (Exception ex)
             {
@@ -831,9 +645,8 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnVolumeFlyoutClosed(object? sender, EventArgs e)
     {
-        if (_volumeFlyout == null) return;
-        _volumeFlyout.Closed -= OnVolumeFlyoutClosed;
-        _volumeFlyout = null;
+        if (sender is VolumeFlyoutWindow flyout) flyout.Closed -= OnVolumeFlyoutClosed;
+        if (ReferenceEquals(_volumeFlyout, sender)) _volumeFlyout = null;
     }
 
     private void OpenSettings()
@@ -861,15 +674,10 @@ internal sealed class VolumeAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(
-        string installDir,
+    private Task<bool> ShowUninstallerWindow(
         VolumeInstallScope scope,
-        IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        VolumeUninstallerWindow window = new(installDir, scope, progress);
-        if (_settingsWindow != null) window.Show(_settingsWindow);
-        else window.Show();
-    }
+        IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 
     private void ShutdownServices()
     {
@@ -882,31 +690,11 @@ internal sealed class VolumeAvaloniaApp : Application
 
         try
         {
-            if (_hotkeyService != null)
-            {
-                _hotkeyService.Fired -= OnHotkeyFired;
-                Safe.Dispose(_hotkeyService);
-                _hotkeyService = null;
-                AppServices.HotkeyService = null;
-            }
+            _hotkeyService = null;
+            AppServices.HotkeyService = null;
+            AppServices.UpdateCheckService = null;
 
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
-
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
-
-            if (_settings != null)
-            {
-                _settings.PropertyChanged -= OnSettingsPropertyChanged;
-                _settings.Changed -= OnSettingsChanged;
-                _settings.Save();
-            }
+            if (_settings != null) _settings.Changed -= OnSettingsChanged;
 
             AppServices.Settings = null;
 
@@ -928,24 +716,20 @@ internal sealed class VolumeAvaloniaApp : Application
             CommunicationsDucking.Stop();
             EqualizerAPOMonitor.Dispose();
 
+            // Writes any queued per-device save before the reference goes away
+            _deviceSettings?.Flush();
             AppServices.DeviceSettings = null;
             _deviceSettings = null;
 
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
 
-            if (_trayMenuWindow != null)
-            {
-                try { _trayMenuWindow.Close(); }
-                catch { }
-
-                _trayMenuWindow = null;
-            }
+            Safe.Dispose(_trayMenu);
+            _trayMenu = null;
 
             Safe.Dispose(_settingsFlyoutKeepOpen);
             _settingsFlyoutKeepOpen = null;
@@ -955,8 +739,6 @@ internal sealed class VolumeAvaloniaApp : Application
 
             Safe.Dispose(_volumeFlyoutWarmSlot);
             _volumeFlyoutWarmSlot = null;
-            Safe.Dispose(_trayMenuWarmSlot);
-            _trayMenuWarmSlot = null;
 
             if (_volumeFlyout != null)
             {
@@ -971,6 +753,7 @@ internal sealed class VolumeAvaloniaApp : Application
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
+                _trayIcon.KeySelect -= OnTrayKeySelect;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.Scrolled -= OnTrayScrolled;
                 _trayIcon.PrecisionTouchpadScrolled -= OnTrayPrecisionTouchpadScrolled;
@@ -978,12 +761,13 @@ internal sealed class VolumeAvaloniaApp : Application
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _trayIconRenderer = null;
+            Safe.Dispose(_trayToggle);
+            _trayToggle = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_trayIconRenderer);
-            _trayIconRenderer = null;
 
             if (_settingsWindow != null)
             {
@@ -1010,13 +794,7 @@ internal sealed class VolumeAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        TADNLog.Log("VolumeAvaloniaApp.ExitApplication");
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string L(string key) => LocalizationManager.Instance[key];
 }

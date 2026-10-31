@@ -111,33 +111,82 @@ public sealed class SingleInstanceCoordinator : IDisposable
         _view.Flush();
     }
 
+    /// <summary>
+    /// Takes the single instance over from the running owner. The running app is first asked to exit through
+    /// <see cref="TrayAppDotNETExitRequest"/>, so it runs its normal exit (hardware handed back, settings saved) and its
+    /// watcher follows; only when the mutex is still held after a bounded wait are the old processes killed, each one
+    /// proven by image name and start time first.
+    /// </summary>
     private static void TakeoverFromExistingOwner(
         SingleInstanceIdentity identity,
         Mutex mutex,
         Action<string>? log)
     {
+        TrayAppDotNETProcessIdentity? oldWatcher = null;
+        TrayAppDotNETProcessIdentity? oldMonitored = null;
         if (TryReadExistingOwner(identity, out int oldWatcherPID, out int oldMonitoredPID))
         {
-            KillByPID(oldWatcherPID);
-            if (oldMonitoredPID != 0 && oldMonitoredPID != oldWatcherPID) KillByPID(oldMonitoredPID);
+            oldWatcher = CaptureOwner(identity, oldWatcherPID, log);
+            if (oldMonitoredPID != oldWatcherPID) oldMonitored = CaptureOwner(identity, oldMonitoredPID, log);
         }
 
+        if (oldMonitored != null && TrayAppDotNETExitRequest.TryRequest(oldMonitored, log))
+        {
+            log?.Invoke($"SingleInstanceCoordinator: asked PID {oldMonitored.ProcessId} to exit");
+            if (WaitForMutex(mutex, TimeConstants.GracefulExitRequestTimeoutMs)) return;
+
+            log?.Invoke($"SingleInstanceCoordinator: PID {oldMonitored.ProcessId} did not exit in time");
+        }
+
+        if (oldWatcher != null) TrayAppDotNETExitRequest.TryKill(oldWatcher, entireProcessTree: true, log);
+        if (oldMonitored != null) TrayAppDotNETExitRequest.TryKill(oldMonitored, entireProcessTree: true, log);
+
+        if (!WaitForMutex(mutex, TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
+            throw new InvalidOperationException("Timed out waiting for single-instance mutex.");
+
+        // A killed watcher can die after CreateProcess but before it publishes the child PID. Sweep same-name
+        // processes only after owning the mutex, when the old watcher can no longer spawn.
+        StopUnrecordedApplicationProcesses(identity.ApplicationName, log);
+    }
+
+    private static bool WaitForMutex(Mutex mutex, int timeoutMs)
+    {
         try
         {
-            if (!mutex.WaitOne(TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
-                throw new InvalidOperationException("Timed out waiting for single-instance mutex.");
+            return mutex.WaitOne(timeoutMs);
         }
         catch (AbandonedMutexException)
         {
-            // Expected - previous owner was killed. We now own the mutex.
+            // The previous owner was killed or crashed; this process now owns the mutex
+            return true;
         }
-
-        // The previous watcher can be killed after CreateProcess but before it publishes the child PID.
-        // Sweep same-name processes only after owning the mutex, when the old watcher can no longer spawn.
-        TerminateUnrecordedApplicationProcesses(identity.ApplicationName, log);
     }
 
-    private static void TerminateUnrecordedApplicationProcesses(string applicationName, Action<string>? log)
+    /// <summary>
+    /// Captures a PID from the owner bulletin, or null when it is gone or now names a process that is not this app.
+    /// </summary>
+    private static TrayAppDotNETProcessIdentity? CaptureOwner(
+        SingleInstanceIdentity identity,
+        int processID,
+        Action<string>? log)
+    {
+        if (processID <= 0 || processID == Environment.ProcessId) return null;
+
+        TrayAppDotNETProcessIdentity? owner = TrayAppDotNETProcessIdentity.TryCapture(processID);
+        if (owner == null) return null;
+        if (IsApplicationImage(owner, identity.ApplicationName)) return owner;
+
+        log?.Invoke($"SingleInstanceCoordinator: PID {processID} is {owner.ImagePath}, not {identity.ApplicationName}");
+        return null;
+    }
+
+    private static bool IsApplicationImage(TrayAppDotNETProcessIdentity process, string applicationName) =>
+        string.Equals(
+            Path.GetFileNameWithoutExtension(process.ImagePath),
+            Path.GetFileNameWithoutExtension(applicationName),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static void StopUnrecordedApplicationProcesses(string applicationName, Action<string>? log)
     {
         string processName = Path.GetFileNameWithoutExtension(applicationName);
         if (string.IsNullOrWhiteSpace(processName)) return;
@@ -156,59 +205,36 @@ public sealed class SingleInstanceCoordinator : IDisposable
             return;
         }
 
+        List<TrayAppDotNETProcessIdentity> unrecorded = [];
         foreach (Process process in processes)
         {
             using (process)
             {
-                int processID = 0;
                 try
                 {
-                    processID = process.Id;
-                    if (processID == Environment.ProcessId ||
-                        process.SessionId != currentSessionID ||
-                        process.HasExited)
-                        continue;
+                    if (process.Id == Environment.ProcessId || process.SessionId != currentSessionID) continue;
 
-                    // A transient launcher can be the current watcher's parent, so never kill its tree.
-                    process.Kill(false);
-                    if (!process.WaitForExit(TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
-                    {
-                        log?.Invoke(
-                            $"SingleInstanceCoordinator: unrecorded {applicationName} PID {processID} did not exit.");
-                    }
+                    TrayAppDotNETProcessIdentity? captured = TrayAppDotNETProcessIdentity.TryCapture(process.Id);
+                    if (captured != null && IsApplicationImage(captured, applicationName)) unrecorded.Add(captured);
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (exception is InvalidOperationException
+                                                      or System.ComponentModel.Win32Exception)
                 {
-                    log?.Invoke(
-                        $"SingleInstanceCoordinator: unrecorded {applicationName} PID {processID} cleanup failed: "
-                        + exception.Message);
+                    log?.Invoke($"SingleInstanceCoordinator: process sweep skipped a process: {exception.Message}");
                 }
             }
         }
-    }
 
-    private static void KillByPID(int pid)
-    {
-        if (pid <= 0 || pid == Environment.ProcessId) return;
+        if (unrecorded.Count == 0) return;
 
-        try
-        {
-            using Process proc = Process.GetProcessById(pid);
-            proc.Kill(true);
-            proc.WaitForExit(5000);
-        }
-        catch (ArgumentException)
-        {
-            // PID not running - stale entry, ignore.
-        }
-        catch (InvalidOperationException)
-        {
-            // Process already exited between lookup and Kill.
-        }
-        catch
-        {
-            // Access denied or other - takeover will still proceed.
-        }
+        // A transient launcher can be the current watcher's parent, so never kill its tree.
+        IReadOnlyList<TrayAppDotNETProcessIdentity> remaining = TrayAppDotNETExitRequest.StopProcesses(
+            unrecorded,
+            TimeConstants.GracefulExitRequestTimeoutMs,
+            killEntireProcessTree: false,
+            log);
+        foreach (TrayAppDotNETProcessIdentity process in remaining)
+            log?.Invoke($"SingleInstanceCoordinator: unrecorded {applicationName} PID {process.ProcessId} did not exit.");
     }
 
     private static bool TryReadExistingOwner(

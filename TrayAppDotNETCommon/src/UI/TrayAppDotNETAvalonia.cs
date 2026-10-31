@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.ExceptionServices;
 using System.Xml;
 using Avalonia;
 using Avalonia.Controls;
@@ -34,46 +33,12 @@ public static class TrayAppDotNETAvalonia
         string[] args,
         Func<AppBuilder, AppBuilder>? configureAfterPlatformDetect = null)
         where TApp : Application, new() =>
-        RunOnStaThreadIfNeeded(() =>
+        TrayAppDotNETProgram.RunOnStaThreadIfNeeded(() =>
             Configure<TApp>(configureAfterPlatformDetect)
                 .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown));
 
-    private static int RunOnStaThreadIfNeeded(Func<int> run)
-    {
-        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
-            return run();
-
-        int exitCode = 0;
-        Exception? exception = null;
-        Thread staThread = new(() =>
-        {
-            try { exitCode = run(); }
-            catch (Exception ex) { exception = ex; }
-        });
-        staThread.SetApartmentState(ApartmentState.STA);
-        staThread.Start();
-        staThread.Join();
-
-        if (exception != null) ExceptionDispatchInfo.Capture(exception).Throw();
-        return exitCode;
-    }
-
     public static FontManagerOptions DefaultFontOptions() =>
         new() { DefaultFamilyName = DefaultFontFamilyName };
-
-    /// <summary>Applies the rendering backend selected in persisted user settings.</summary>
-    public static AppBuilder UseConfiguredRenderingBackend(
-        AppBuilder builder,
-        Func<string> getSettingsPath,
-        Action<string>? log = null,
-        TrayAppDotNETRenderingBackend defaultBackend = TrayAppDotNETRenderingBackend.GPUPreferred)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(getSettingsPath);
-
-        TrayAppDotNETRenderingBackend backend = LoadRenderingBackendOrDefault(getSettingsPath, log, defaultBackend);
-        return UseRenderingBackend(builder, backend);
-    }
 
     /// <summary>Applies an explicit Avalonia rendering backend choice.</summary>
     public static AppBuilder UseRenderingBackend(AppBuilder builder, TrayAppDotNETRenderingBackend backend)
@@ -87,50 +52,25 @@ public static class TrayAppDotNETAvalonia
         };
     }
 
-    /// <summary>Reads only the rendering backend value from settings XML without hydrating app settings.</summary>
-    public static TrayAppDotNETRenderingBackend LoadRenderingBackendOrDefault(
-        Func<string> getSettingsPath,
-        Action<string>? log = null,
-        TrayAppDotNETRenderingBackend defaultBackend = TrayAppDotNETRenderingBackend.GPUPreferred)
-    {
-        string? text = ReadRootSettingOrNull(
-            getSettingsPath,
-            nameof(ITrayAppDotNETRenderingSettings.RenderingBackend),
-            log);
-        return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend)
-            ? backend
-            : defaultBackend;
-    }
-
     /// <summary>
-    /// Reads the Language setting from settings XML without hydrating app settings and resolves it to the culture
-    /// to apply, so startup can localize before the settings load.
+    /// Reads the settings startup needs before the full load (rendering backend and language) in one pass over the
+    /// file. Only top-level elements count; a value missing, or a file missing or unreadable, reads as null.
     /// </summary>
-    public static CultureInfo LoadConfiguredCulture(
-        Func<string> getSettingsPath,
-        IReadOnlyList<string> availableLanguages,
-        Action<string>? log = null)
-    {
-        string language = ReadRootSettingOrNull(getSettingsPath, nameof(AppSettingsCommon.Language), log)
-                          ?? LocalizationManager.AutoLanguage;
-        return LocalizationManager.ResolveCulture(language, availableLanguages, log);
-    }
-
-    /// <summary>
-    /// Returns the text of one top-level settings element, or null when the file or element is missing or the file
-    /// cannot be read.
-    /// </summary>
-    private static string? ReadRootSettingOrNull(Func<string> getSettingsPath, string elementName, Action<string>? log)
+    internal static TrayAppDotNETStartupSettings ReadStartupSettings(Func<string> getSettingsPath, Action<string>? log)
     {
         ArgumentNullException.ThrowIfNull(getSettingsPath);
 
         // Settings properties are the root's direct children; nested objects may reuse a property name
         const int RootSettingDepth = 1;
+        const string RenderingBackendElement = nameof(ITrayAppDotNETRenderingSettings.RenderingBackend);
+        const string LanguageElement = nameof(AppSettingsCommon.Language);
 
+        string? renderingBackend = null;
+        string? language = null;
         try
         {
             string settingsPath = getSettingsPath();
-            if (!File.Exists(settingsPath)) return null;
+            if (!File.Exists(settingsPath)) return new TrayAppDotNETStartupSettings(null, null);
 
             XmlReaderSettings readerSettings = new()
             {
@@ -146,22 +86,36 @@ public static class TrayAppDotNETAvalonia
                 FileAccess.Read,
                 FileShare.Read | FileShare.Delete);
             using XmlReader reader = XmlReader.Create(settingsStream, readerSettings);
-            while (reader.Read())
+            bool advanced = reader.Read();
+            while (advanced && (renderingBackend == null || language == null))
             {
-                if (reader.NodeType != XmlNodeType.Element ||
-                    reader.Depth != RootSettingDepth ||
-                    !string.Equals(reader.LocalName, elementName, StringComparison.Ordinal))
-                    continue;
+                if (reader.NodeType == XmlNodeType.Element && reader.Depth == RootSettingDepth)
+                {
+                    if (string.Equals(reader.LocalName, RenderingBackendElement, StringComparison.Ordinal))
+                    {
+                        // Reading the content moves the reader past the element, onto the next node
+                        renderingBackend = reader.ReadElementContentAsString();
+                        advanced = !reader.EOF;
+                        continue;
+                    }
 
-                return reader.ReadElementContentAsString();
+                    if (string.Equals(reader.LocalName, LanguageElement, StringComparison.Ordinal))
+                    {
+                        language = reader.ReadElementContentAsString();
+                        advanced = !reader.EOF;
+                        continue;
+                    }
+                }
+
+                advanced = reader.Read();
             }
         }
         catch (Exception ex)
         {
-            log?.Invoke($"TrayAppDotNETAvalonia: reading {elementName} from settings failed: {ex.Message}");
+            log?.Invoke($"TrayAppDotNETAvalonia: reading startup settings failed: {ex.Message}");
         }
 
-        return null;
+        return new TrayAppDotNETStartupSettings(renderingBackend, language);
     }
 
     /// <summary>Forces Avalonia's Win32 backend onto CPU software rendering.</summary>
@@ -176,58 +130,32 @@ public static class TrayAppDotNETAvalonia
         });
     }
 
-    public static void InitializeDefaults(
-        Application app,
-        TrayAppDotNETAnimationMode animationMode = TrayAppDotNETAnimationMode.System,
-        int? toolTipShowDelayMs = null)
+    public static void InitializeDefaults(Application app)
     {
         ArgumentNullException.ThrowIfNull(app);
 
         app.Styles.Add(new FluentTheme());
         TextBlockLayoutLifetime.Install(app);
-        TrayAppDotNETAnimationPolicy.Apply(app, animationMode);
-        if (toolTipShowDelayMs.HasValue)
-            TrayAppDotNETToolTip.ShowDelayMs = toolTipShowDelayMs.Value;
+        TrayAppDotNETAnimationPolicy.Apply(app, TrayAppDotNETAnimationMode.System);
     }
 
-    public static void ConfigureExplicitShutdown(Application app, Action shutdownServices)
-    {
-        ArgumentNullException.ThrowIfNull(app);
-        ArgumentNullException.ThrowIfNull(shutdownServices);
-
-        if (app.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
-
-#if DEBUG
-        Debugging.TrayAppDotNETControlHoverInspector.Attach(desktop);
-#endif
-        desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        desktop.ShutdownRequested += (_, _) => shutdownServices();
-    }
-
-    public static void ConfigureShutdownOnLastWindowClose(Application app)
-    {
-        ArgumentNullException.ThrowIfNull(app);
-
-        if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
-    }
-
-    /// <summary>Wires process and Avalonia dispatcher exception handling for tray apps.</summary>
-    public static void WireCrashHandlers(
-        Action? processExit = null,
-        Action<UnobservedTaskExceptionEventArgs>? unobservedTaskException = null)
+    /// <summary>
+    /// Wires the Common crash policy (<see cref="CrashHandler"/>) and the Avalonia dispatcher handler, plus optional
+    /// last-chance work on process exit.
+    /// </summary>
+    public static void WireCrashHandlers(Action? processExit = null)
     {
         CrashHandler.WireCrashHandlers();
         WireDispatcherUnhandledExceptionHandler();
 
         if (processExit != null)
             AppDomain.CurrentDomain.ProcessExit += (_, _) => processExit();
-
-        if (unobservedTaskException != null)
-            TaskScheduler.UnobservedTaskException += (_, args) => unobservedTaskException(args);
     }
 
-    /// <summary>Prevents dispatcher callback failures from killing the tray message thread.</summary>
+    /// <summary>
+    /// Keeps a failing dispatcher callback from killing the tray message thread, and logs it in full (stack trace and
+    /// inner exceptions).
+    /// </summary>
     private static void WireDispatcherUnhandledExceptionHandler()
     {
         if (Interlocked.Exchange(ref _dispatcherUnhandledExceptionHandlerWired, value: 1) == 1) return;
@@ -237,7 +165,7 @@ public static class TrayAppDotNETAvalonia
             try
             {
                 CrashHandler.LogNonFatal(
-                    $"Avalonia DispatcherUnhandledException: {args.Exception.GetType().Name}: {args.Exception.Message}");
+                    $"Avalonia DispatcherUnhandledException: {CrashHandler.DescribeException(args.Exception)}");
             }
             catch (Exception ex)
             {
@@ -280,82 +208,31 @@ public static class TrayAppDotNETAvalonia
 
     public static UpdateCheckService CreateGitHubUpdateCheckService(
         ITrayAppDotNETUpdateSettings settings,
-        string repositoryName,
         string applicationName,
         int currentBuild,
         Action saveSettings,
         string sharedSettingsDirectory,
-        string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null) =>
         new(CreateGitHubUpdateOptions(
             settings,
-            repositoryName,
             applicationName,
             currentBuild,
             saveSettings,
             sharedSettingsDirectory,
-            owner,
             invokeOnUIThread));
-
-    public static TrayAppDotNETLoadResult<TSettings, TTheme> LoadSettingsAndTheme<TSettings, TTheme>(
-        TrayAppDotNETLoadOptions<TSettings, TTheme> options)
-        where TSettings : class
-        where TTheme : class
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        TSettings settings;
-        try
-        {
-            string settingsPath = options.GetSettingsPath();
-            bool firstRun = !File.Exists(settingsPath);
-            settings = options.LoadSettings(settingsPath);
-            // The startup shortcut is shared by every settings folder, so a fresh override folder leaves it alone
-            if (firstRun && TrayAppDotNETProgram.SettingsDirectoryOverride == null)
-                options.Startup?.SetRunOnStartup(options.GetRunOnStartup(settings));
-        }
-        catch (Exception ex)
-        {
-            options.LogSettingsLoadFailed(ex);
-            settings = options.CreateDefaultSettings();
-        }
-
-        options.Startup?.RemoveLegacyRunKey();
-        options.Startup?.RepairShortcutIfStale();
-        options.ConfigureSettings(settings);
-
-        TTheme? theme = null;
-        try
-        {
-            theme = options.LoadTheme(options.GetThemePath());
-            options.ConfigureTheme(theme);
-        }
-        catch (Exception ex)
-        {
-            if (theme is IDisposable disposableTheme) Safe.Dispose(disposableTheme);
-            theme = null;
-            options.LogThemeLoadFailed(ex);
-        }
-
-        return new TrayAppDotNETLoadResult<TSettings, TTheme>(settings, theme);
-    }
 
     public static UpdateCheckOptions CreateGitHubUpdateOptions(
         ITrayAppDotNETUpdateSettings settings,
-        string repositoryName,
         string applicationName,
         int currentBuild,
         Action saveSettings,
         string sharedSettingsDirectory,
-        string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
         ArgumentNullException.ThrowIfNull(saveSettings);
         ArgumentException.ThrowIfNullOrWhiteSpace(sharedSettingsDirectory);
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
 
         return new UpdateCheckOptions
         {
@@ -363,8 +240,8 @@ public static class TrayAppDotNETAvalonia
             VersionsManifestCachePath = Path.Combine(
                 sharedSettingsDirectory,
                 GitHubReleaseUrls.VersionsManifestFileName),
-            RepositoryOwner = owner,
-            RepositoryName = repositoryName,
+            RepositoryOwner = TrayAppDotNETConstants.RepositoryOwner,
+            RepositoryName = TrayAppDotNETConstants.RepositoryName,
             ApplicationName = applicationName,
             CurrentBuild = currentBuild,
             UserAgent = applicationName + "-Updater",
@@ -385,26 +262,3 @@ public static class TrayAppDotNETAvalonia
         };
     }
 }
-
-public sealed class TrayAppDotNETLoadOptions<TSettings, TTheme>
-    where TSettings : class
-    where TTheme : class
-{
-    public required Func<string> GetSettingsPath { get; init; }
-    public required Func<string, TSettings> LoadSettings { get; init; }
-    public required Func<TSettings> CreateDefaultSettings { get; init; }
-    public required Func<TSettings, bool> GetRunOnStartup { get; init; }
-    public TrayAppDotNETStartupManager? Startup { get; init; }
-    public required Action<TSettings> ConfigureSettings { get; init; }
-    public required Action<Exception> LogSettingsLoadFailed { get; init; }
-    public required Func<string> GetThemePath { get; init; }
-    public required Func<string, TTheme> LoadTheme { get; init; }
-    public required Action<TTheme> ConfigureTheme { get; init; }
-    public required Action<Exception> LogThemeLoadFailed { get; init; }
-}
-
-public sealed record TrayAppDotNETLoadResult<TSettings, TTheme>(
-    TSettings Settings,
-    TTheme? Theme)
-    where TSettings : class
-    where TTheme : class;

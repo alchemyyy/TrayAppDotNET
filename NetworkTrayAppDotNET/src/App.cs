@@ -5,106 +5,60 @@ using HotAvalonia;
 using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
-using System.Diagnostics;
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Microsoft.Win32;
 using NetworkTrayAppDotNET.Interop;
 using NetworkTrayAppDotNET.Models;
 using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
-using TrayAppDotNETCommon.UI.ControlMapping;
-using TrayAppDotNETCommon.UI.WarmWindows;
-using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 
 namespace NetworkTrayAppDotNET;
 
 internal static class NetworkAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<NetworkAvaloniaApp>(
+    // Defaults to the old software-rendering mitigation unless the user selects GPU preferred
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<NetworkAvaloniaApp>(
             args,
-            // Defaults to the old software-rendering mitigation unless the user selects GPU preferred.
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log,
-                    TrayAppDotNETRenderingBackend.Software);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+            AppSettings.GetDefaultPath,
+            TrayAppDotNETRenderingBackend.Software,
+            Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
 internal sealed class NetworkAvaloniaApp : Application
 {
     private TrayAppDotNETShellTrayIcon? _trayIcon;
-    private NetworkTrayMenuWindow? _trayMenuWindow;
     private NetworkSettingsWindow? _settingsWindow;
-    private TrayAppDotNETWarmWindowSlot<NetworkTrayMenuWindow>? _trayMenuWarmSlot;
+    private TrayIconPresenter<TrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
     private AppSettings? _settings;
     private AppTheme? _theme;
-    private GlobalHotkeyService? _hotkeyService;
-    private WatcherMonitor? _watcherMonitor;
-    private UpdateCheckService? _updateCheckService;
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
+    private GlobalHotkeyService<NetworkHotkeyAction, NetworkHotkeyBinding>? _hotkeyService;
     private NetworkMonitor? _networkMonitor;
     private NetworkTrayIcon? _networkIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private DispatcherTimer? _refreshTimer;
     private bool _shuttingDown;
-    private int _lastNotifiedUpdateVersion;
 
-    public override void Initialize()
-    {
-        TrayAppDotNETAvalonia.InitializeDefaults(
-            this,
-            toolTipShowDelayMs: TimeConstants.ToolTipShowDelayDefaultMs);
-    }
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("NetworkAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        WireCrashHandlers();
-
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this,
-                new TrayAppDotNETInstallerWindowOptions
-                {
-                    Layout = AppServices.InstallLayout,
-                    Icon = AppTheme.LoadAppIcon(),
-                    Palette = TrayMenuPalette(),
-                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-                });
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
-        if (Program.IsUninstallerMode)
-        {
-            LoadSettingsAndTheme();
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -113,43 +67,45 @@ internal sealed class NetworkAvaloniaApp : Application
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
 #endif
-        LoadSettingsAndTheme();
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
+        _settings = host.Settings;
         StartServices();
         CreateTrayIcon();
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = (title, body) => _trayIcon?.ShowBalloon(title, body)
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
         RequestTrayRefresh();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void WireCrashHandlers() => TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
-
-    private void LoadSettingsAndTheme()
-    {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => TADNLog.Log($"NetworkAvaloniaApp settings load failed: {ex}"),
-                GetThemePath = AppTheme.GetDefaultPath,
-                LoadTheme = AppTheme.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"NetworkAvaloniaApp theme load failed: {ex}")
-            });
-
-        _settings = loaded.Settings;
-    }
+    private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
+        {
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettingsCommon.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppTheme.GetDefaultPath,
+            LoadTheme = AppTheme.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit()
+        };
 
     private void ConfigureSettings(AppSettings settings)
     {
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
-        TrayAppDotNETAnimationPolicy.Apply(this, settings.AnimationMode);
-        TrayAppDotNETToolTip.ShowDelayMs = settings.ToolTipShowDelayMs;
     }
 
     private void ConfigureTheme(AppTheme theme)
@@ -190,58 +146,15 @@ internal sealed class NetworkAvaloniaApp : Application
             TADNLog.Log($"NetworkAvaloniaApp refresh timer init failed: {ex}");
         }
 
-        try
-        {
-            SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NetworkAvaloniaApp display settings hook failed: {ex}");
-        }
-
-        try
-        {
-            _hotkeyService = new GlobalHotkeyService();
-            _hotkeyService.Initialize();
-            _hotkeyService.Fired += OnHotkeyFired;
-            _hotkeyService.Apply(_settings?.Hotkeys ?? []);
-            AppServices.HotkeyService = _hotkeyService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NetworkAvaloniaApp hotkey init failed: {ex}");
-        }
-
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NetworkAvaloniaApp watcher init failed: {ex}");
-        }
-
-        if (_settings != null)
-        {
-            try
+        _hotkeyService = _host?.StartHotkeyService(
+            static prefix => new GlobalHotkeyService<NetworkHotkeyAction, NetworkHotkeyBinding>(prefix),
+            service =>
             {
-                _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                    _settings,
-                    repositoryName: "TrayAppDotNET",
-                    Program.ApplicationName,
-                    BuildInfo.BuildNumber,
-                    _settings.Save,
-                    Program.LocalAppDataRoot);
-                _updateCheckService.StateChanged += OnUpdateStateChanged;
-                _updateCheckService.Start();
-                AppServices.UpdateCheckService = _updateCheckService;
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"NetworkAvaloniaApp update service init failed: {ex}");
-            }
-        }
+                service.Initialize();
+                service.Fired += OnHotkeyFired;
+                service.Apply(_settings?.Hotkeys ?? []);
+            });
+        AppServices.HotkeyService = _hotkeyService;
     }
 
     private void CreateTrayIcon()
@@ -258,28 +171,38 @@ internal sealed class NetworkAvaloniaApp : Application
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+        _trayIconPresenter = new TrayIconPresenter<TrayIconRenderInput>(
+            _trayIcon,
+            _networkIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon());
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            () => _settings?.KeepTrayContextMenuWarm ?? true,
+            _settings,
+            _theme,
+            TADNLog.Log);
     }
 
-    private void OnHotkeyFired(object? sender, HotkeyFiredEventArgs e)
+    private void OnHotkeyFired(object? sender, HotkeyFiredEventArgs<NetworkHotkeyAction> e)
     {
         try { HandleHotkey(e.Action); }
         catch (Exception ex) { TADNLog.Log($"NetworkAvaloniaApp.OnHotkeyFired: {ex}"); }
     }
 
-    private void HandleHotkey(HotkeyAction action)
+    private void HandleHotkey(NetworkHotkeyAction action)
     {
         switch (action)
         {
-            case HotkeyAction.OpenSettings:
+            case NetworkHotkeyAction.OpenSettings:
                 OpenSettings();
                 break;
-            case HotkeyAction.OpenFlyout:
+            case NetworkHotkeyAction.OpenFlyout:
                 OpenNetworkFlyout();
                 break;
-            case HotkeyAction.OpenNetworkSettings:
+            case NetworkHotkeyAction.OpenNetworkSettings:
                 OpenNetworkSettings();
                 break;
-            case HotkeyAction.OpenAdapterSettings:
+            case NetworkHotkeyAction.OpenAdapterSettings:
                 OpenAdapterSettings();
                 break;
         }
@@ -288,41 +211,14 @@ internal sealed class NetworkAvaloniaApp : Application
     private void OnNetworkStateChanged(NetworkIconState state) =>
         Dispatcher.UIThread.Post(RequestTrayRefresh);
 
-    private void OnUpdateStateChanged()
-    {
-        _settingsWindow?.StopAboutUpdateRefresh();
-
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
-
-        _lastNotifiedUpdateVersion = info.Version;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
-    }
-
     private void OnUpdateBalloonClicked()
     {
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
 
         OpenSettings(NetworkSettingsPage.About);
     }
 
-    private void OnRefreshTimerTick(object? sender, EventArgs e)
-    {
-        try { _networkMonitor?.RefreshState(); }
-        catch (Exception ex) { TADNLog.Log($"NetworkAvaloniaApp refresh tick failed: {ex.Message}"); }
-
-        RequestTrayRefresh();
-    }
-
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
-        Dispatcher.UIThread.Post(() =>
-        {
-            _networkIconRenderer?.InvalidateCache();
-            RequestTrayRefresh();
-        });
+    private void OnRefreshTimerTick(object? sender, EventArgs e) => _networkMonitor?.RequestRefresh();
 
     private void OnThemeChanged(bool isLightTheme) =>
         Dispatcher.UIThread.Post(() =>
@@ -337,12 +233,7 @@ internal sealed class NetworkAvaloniaApp : Application
         Dispatcher.UIThread.Post(() =>
         {
             ApplyThemeVariant();
-            if (_settings != null)
-            {
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
-                TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
-                ApplyToolTipDelayToOpenWindows();
-            }
+            if (_settings != null) ApplyToolTipDelayToOpenWindows();
 
             ApplyNetworkColorOverrides();
             if (_hotkeyService != null && _settings != null) _hotkeyService.Apply(_settings.Hotkeys);
@@ -353,22 +244,16 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private void ApplyKeepWarmPolicies()
     {
-        if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
-            TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);
+        _trayMenu?.ApplyKeepWarmPolicy();
     }
 
     private void ApplyToolTipDelayToOpenWindows()
     {
         if (_settingsWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_settingsWindow);
-        if (_trayMenuWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_trayMenuWindow);
+        if (_trayMenu?.Current is { } trayMenu) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(trayMenu);
     }
 
-    private bool ResolveEffectiveIsLightTheme() => _settings?.ThemeMode switch
-    {
-        ThemeMode.Light => true,
-        ThemeMode.Dark => false,
-        _ => _theme?.IsLightTheme ?? false
-    };
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ApplyThemeVariant()
     {
@@ -379,62 +264,24 @@ internal sealed class NetworkAvaloniaApp : Application
 
 #if DEBUG
     /// <summary>
-    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// Renders the tray icon again so tray glyph edits are visible immediately.
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        _networkIconRenderer?.InvalidateCache();
+        _trayIconPresenter?.Invalidate();
         RequestTrayRefresh();
     }
 
-    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChangedForThemeReload();
 #endif
 
     private void RequestTrayRefresh()
     {
-        if (_trayIcon == null) return;
-        string tooltip = _networkMonitor?.GetTooltipText()
-                         ?? L(nameof(AppStrings.Tray_Tooltip_Default));
+        if (_trayIconPresenter == null) return;
 
-        if (_networkMonitor != null && _networkIconRenderer != null)
-        {
-            NetworkTrayIcon renderer = _networkIconRenderer;
-            renderer.State = _networkMonitor.CurrentState;
-            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
-            {
-                _trayIcon.SetTooltip(tooltip);
-                _trayIconRenderQueue.Request(
-                    () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip));
-                return;
-            }
-
-            _trayIcon.SetTooltip(tooltip);
-            return;
-        }
-
-        if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
-        {
-            using (fallbackIcon)
-                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
-            return;
-        }
-
-        _trayIcon.SetTooltip(tooltip);
-    }
-
-    /// <summary>
-    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
-    /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
+        if (_networkMonitor != null) _networkIconRenderer?.State = _networkMonitor.CurrentState;
+        _trayIconPresenter.Refresh(
+            _networkMonitor?.GetTooltipText() ?? L(nameof(AppStrings.Tray_Tooltip_Default)));
     }
 
     private void OnTrayLeftClick()
@@ -451,10 +298,11 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         if (_settings == null) return;
 
-        ExecuteTrayAction(ModifierOf(
+        ExecuteTrayAction(TrayClickModifiers.Resolve(
             _settings.TrayCtrlDoubleLeftClickAction,
             _settings.TrayAltDoubleLeftClickAction,
-            _settings.TrayDoubleClickAction));
+            _settings.TrayDoubleClickAction,
+            TrayClickAction.Nothing));
     }
 
     private void OnTrayRightClick(Point point) =>
@@ -468,25 +316,13 @@ internal sealed class NetworkAvaloniaApp : Application
             ShowTrayContextMenu(new PixelPoint((int)Math.Round(point.X), (int)Math.Round(point.Y)));
         });
 
-    private static bool IsCtrlDown() => (CommonUser32.GetAsyncKeyState(CommonUser32.VK_CONTROL) & 0x8000) != 0;
-
-    private static bool IsAltDown() => (CommonUser32.GetAsyncKeyState(CommonUser32.VK_MENU) & 0x8000) != 0;
-
-    private static TrayClickAction ModifierOf(TrayClickAction ctrl, TrayClickAction alt, TrayClickAction fallback)
-    {
-        if (IsCtrlDown() && ctrl != TrayClickAction.Nothing) return ctrl;
-        if (IsAltDown() && alt != TrayClickAction.Nothing) return alt;
-        return fallback;
-    }
-
     private bool TryRunModifiedClickAction(TrayClickAction? ctrl, TrayClickAction? alt)
     {
-        TrayClickAction action = TrayClickAction.Nothing;
-        if (IsCtrlDown() && ctrl is { } ctrlAction && ctrlAction != TrayClickAction.Nothing)
-            action = ctrlAction;
-        else if (IsAltDown() && alt is { } altAction && altAction != TrayClickAction.Nothing)
-            action = altAction;
-
+        TrayClickAction action = TrayClickModifiers.Resolve(
+            ctrl ?? TrayClickAction.Nothing,
+            alt ?? TrayClickAction.Nothing,
+            TrayClickAction.Nothing,
+            TrayClickAction.Nothing);
         if (action == TrayClickAction.Nothing) return false;
 
         ExecuteTrayAction(action);
@@ -508,53 +344,41 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private void ShowTrayContextMenu(PixelPoint cursorPoint)
     {
-        if (_trayIcon == null) return;
+        if (_trayIcon == null || _trayMenu == null) return;
 
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.DismissForWarmCache();
-
-        NetworkTrayMenuWindow menuWindow = TrayMenuWarmSlot.TakeOrCreate(CreateTrayMenuWindow);
-        _trayMenuWindow = menuWindow;
-
-        ContextMenuPosition placement = _settings?.ContextMenuPosition ?? ContextMenuPosition.Classic;
-        menuWindow.ShowAt(_trayIcon, cursorPoint, placement);
+        _trayMenu.Show(
+            _trayIcon,
+            cursorPoint,
+            _settings?.ContextMenuPosition ?? TrayAppDotNETContextMenuPosition.Modern);
     }
 
-    private NetworkTrayMenuWindow CreateTrayMenuWindow()
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
         AppSettings settings = _settings
                                ?? throw new InvalidOperationException("Network tray menu requires settings.");
-        NetworkTrayMenuWindow menuWindow = new(
-            settings,
-            TrayMenuPalette(),
-            settings.EnableRoundedCorners,
-            settings.ContextMenuFontSize,
-            L(nameof(AppStrings.Tray_NetworkSettings)),
-            L(nameof(AppStrings.Tray_AdapterSettings)),
-            L(nameof(AppStrings.Tray_Settings)),
-            L(nameof(AppStrings.Tray_Exit)),
-            OpenNetworkSettings,
-            OpenAdapterSettings,
-            () => OpenSettings(),
-            ExitApplication);
-        menuWindow.MapTo(UI.ControlMap.TrayMenu.ID);
-        _trayMenuWindow = menuWindow;
-        menuWindow.Closed += OnTrayMenuClosed;
-        return menuWindow;
-    }
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_NetworkSettings)), OpenNetworkSettings)
+        {
+            Node = UI.ControlMap.TrayMenu.OpenNetworkSettings
+        });
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_AdapterSettings)), OpenAdapterSettings)
+        {
+            Node = UI.ControlMap.TrayMenu.OpenAdapterSettings
+        });
 
-    private void OnTrayMenuClosed(object? sender, EventArgs e)
-    {
-        if (sender is NetworkTrayMenuWindow menu)
-            menu.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(_trayMenuWindow, sender))
-            _trayMenuWindow = null;
+        // "App Settings" tells this app's settings apart from Windows' network settings above it
+        return new TrayMenuWindow(
+            entries,
+            TrayMenuWindowOptions.Create(
+                settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                TrayMenuStandardEntry.Settings(
+                    () => OpenSettings(),
+                    UI.ControlMap.TrayMenu.OpenSettings,
+                    L(nameof(AppStrings.Tray_AppSettings))),
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)));
     }
-
-    private TrayAppDotNETWarmWindowSlot<NetworkTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<NetworkTrayMenuWindow>(
-            () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => TADNLog.Log($"Network tray menu keep-warm: {ex.Message}"));
 
     private void ScheduleKeepWarmPriming()
     {
@@ -562,20 +386,14 @@ internal sealed class NetworkAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
-                    await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
+                if (_trayMenu != null)
+                    await _trayMenu.PrimeAsync();
             }
             catch (Exception ex)
             {
                 TADNLog.Log($"NetworkAvaloniaApp.ScheduleKeepWarmPriming: {ex.Message}");
             }
         }, DispatcherPriority.ApplicationIdle);
-    }
-
-    private SettingsPalette TrayMenuPalette()
-    {
-        bool isLight = ResolveEffectiveIsLightTheme();
-        return NetworkSettingsWindow.CreatePalette(_theme, _settings, isLight);
     }
 
     private void ApplyNetworkColorOverrides()
@@ -585,7 +403,7 @@ internal sealed class NetworkAvaloniaApp : Application
         bool isLight = ResolveEffectiveIsLightTheme();
         _networkIconRenderer.IsLightTheme = isLight;
         _networkIconRenderer.IconStyle = _settings.TrayIconStyle;
-        if (_settings.TrayIconStyle == TrayIconStyle.Static)
+        if (_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Static)
         {
             _networkIconRenderer.CustomColor = _settings.TrayIconColor.Resolve(isLight);
             _networkIconRenderer.ConnectedColorOverride = null;
@@ -618,18 +436,20 @@ internal sealed class NetworkAvaloniaApp : Application
         if (!success) TryOpenUri("ms-availablenetworks:");
     }
 
+    // Explorer opens the link, so an elevated instance does not start Settings elevated
     private static bool TryOpenUri(string uri)
     {
-        try
-        {
-            using Process? _ = Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
+        if (ExplorerProcessLauncher.TryShellExecute(
+                uri,
+                arguments: null,
+                workingDirectory: null,
+                verb: null,
+                out int errorCode,
+                out string errorMessage))
             return true;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NetworkAvaloniaApp.TryOpenUri({uri}): {ex.Message}");
-            return false;
-        }
+
+        TADNLog.Log($"NetworkAvaloniaApp.TryOpenUri({uri}): {errorMessage} (0x{errorCode:X8})");
+        return false;
     }
 
     private static void OpenNetworkSettings() => TryOpenUri("ms-settings:network");
@@ -679,12 +499,8 @@ internal sealed class NetworkAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(string installDir, InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        NetworkUninstallerWindow window = new(installDir, scope, progress);
-        if (_settingsWindow != null) window.Show(_settingsWindow);
-        else window.Show();
-    }
+    private Task<bool> ShowUninstallerWindow(InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 
     private void ShutdownServices()
     {
@@ -697,36 +513,15 @@ internal sealed class NetworkAvaloniaApp : Application
 
         try
         {
-            if (_hotkeyService != null)
-            {
-                _hotkeyService.Fired -= OnHotkeyFired;
-                Safe.Dispose(_hotkeyService);
-                _hotkeyService = null;
-                AppServices.HotkeyService = null;
-            }
-
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
-
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
+            _hotkeyService = null;
+            AppServices.HotkeyService = null;
+            AppServices.UpdateCheckService = null;
 
             if (_refreshTimer != null)
             {
                 _refreshTimer.Stop();
                 _refreshTimer.Tick -= OnRefreshTimerTick;
                 _refreshTimer = null;
-            }
-
-            try { SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged; }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"NetworkAvaloniaApp.DisplaySettingsChanged unhook failed: {ex.Message}");
             }
 
             AdapterSettingsShellMonitor.Shutdown();
@@ -738,44 +533,31 @@ internal sealed class NetworkAvaloniaApp : Application
                 _networkMonitor = null;
             }
 
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_networkIconRenderer);
-            _networkIconRenderer = null;
-
             if (_settings != null) _settings.Changed -= OnSettingsChanged;
             AppServices.Settings = null;
 
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
-
-            if (_trayMenuWindow != null)
-            {
-                try { _trayMenuWindow.Close(); }
-                catch (Exception ex)
-                {
-                    TADNLog.Log($"NetworkAvaloniaApp tray menu close failed: {ex.Message}");
-                }
-
-                _trayMenuWindow = null;
-            }
-
-            Safe.Dispose(_trayMenuWarmSlot);
-            _trayMenuWarmSlot = null;
 
             if (_trayIcon != null)
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
+                _trayIcon.KeySelect -= OpenNetworkFlyout;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
+            Safe.Dispose(_trayMenu);
+            _trayMenu = null;
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _networkIconRenderer = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
 
@@ -799,13 +581,7 @@ internal sealed class NetworkAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        TADNLog.Log("NetworkAvaloniaApp.ExitApplication");
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string L(string key)
     {

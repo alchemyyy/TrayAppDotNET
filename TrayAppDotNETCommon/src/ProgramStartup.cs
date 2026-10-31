@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using TrayAppDotNETCommon.Contracts;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
@@ -31,6 +32,7 @@ public sealed record TrayAppDotNETProgramOptions(
     Func<TrayAppDotNETInstallOptions?, IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETProgramInstallResult> InstallSystemWide,
     Func<string> LocalAppDataInstallExecutable,
     Func<string> ProgramFilesInstallExecutable,
+    Func<TrayAppDotNETInstallationService> Installation,
     Action<string>? Log = null,
     Action? FlushLog = null);
 
@@ -40,24 +42,15 @@ public static class TrayAppDotNETProgram
     public const string AutostartArgument = "--autostart";
 
     /// <summary>
-    /// Starts the app in the notification area without showing a window, whatever its startup settings say. The
-    /// installer launches apps this way once it finishes.
-    /// </summary>
-    public const string HiddenArgument = "--hidden";
-
-    /// <summary>
     /// Followed by a folder path, replaces the per-app folder under %LOCALAPPDATA%\TrayAppDotNET that holds
     /// settings.xml, the theme, logs and the other per-app data files.
     /// </summary>
     public const string SettingsDirectoryArgument = "--settings-dir";
 
-    private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-    private const int ProgressPipeConnectTimeoutMs = 5000;
-    private const int ProgressCompletionTimeoutMs = 5000;
     private const int UsageErrorExitCode = 2;
 
     // The launch arguments the watcher passes on to every monitored process it starts, in this order
-    private static readonly string[] ForwardedLaunchArguments = [AutostartArgument, HiddenArgument];
+    private static readonly string[] ForwardedLaunchArguments = [AutostartArgument, TrayAppDotNETInstallContract.HiddenArgument];
 
     // Characters Windows rejects in a path, wildcards and control characters included
     private static readonly SearchValues<char> InvalidSettingsDirectoryCharacters = SearchValues.Create(
@@ -73,7 +66,10 @@ public static class TrayAppDotNETProgram
     /// <summary>Gets whether this process was started, directly or through the watcher, by the startup shortcut.</summary>
     public static bool IsStartupLaunch { get; private set; }
 
-    /// <summary>Gets whether this process was started, directly or through the watcher, with <see cref="HiddenArgument"/>.</summary>
+    /// <summary>
+    /// Gets whether this process was started, directly or through the watcher, with
+    /// <see cref="TrayAppDotNETInstallContract.HiddenArgument"/>.
+    /// </summary>
     public static bool IsHiddenLaunch { get; private set; }
 
     public static bool IsUninstallerMode { get; private set; }
@@ -86,6 +82,14 @@ public static class TrayAppDotNETProgram
 
     /// <summary>Gets the absolute folder passed with <see cref="SettingsDirectoryArgument"/>, or null without one.</summary>
     public static string? SettingsDirectoryOverride { get; private set; }
+
+    /// <summary>
+    /// Applies a settings folder override as <see cref="SettingsDirectoryArgument"/> does, for a process that never
+    /// goes through <see cref="Run"/>: test assemblies use it so settings, themes, logs and data stores stay out of
+    /// the user's folders.
+    /// </summary>
+    internal static void UseSettingsDirectory(string directory) =>
+        SettingsDirectoryOverride = Path.GetFullPath(directory);
 
     public static string LocalAppDataRoot(string sharedRootFolderName) =>
         Path.Combine(
@@ -104,6 +108,54 @@ public static class TrayAppDotNETProgram
         SettingsDirectoryOverride == null
             ? null
             : SettingsDirectoryArgument + " " + QuoteCommandLineArgument(SettingsDirectoryOverride);
+
+    /// <summary>
+    /// Returns the arguments a helper process this app starts (outside <see cref="Run"/>) must receive, so it uses
+    /// the same settings folder: the settings folder override, when one is active.
+    /// </summary>
+    public static IReadOnlyList<string> HelperProcessArguments() => HelperProcessArguments(SettingsDirectoryOverride);
+
+    internal static IReadOnlyList<string> HelperProcessArguments(string? settingsDirectory) =>
+        settingsDirectory == null ? [] : [SettingsDirectoryArgument, settingsDirectory];
+
+    /// <summary>
+    /// Prepares the start of a helper process: appends <see cref="HelperProcessArguments()"/> and keeps the helper
+    /// from starting a crash watcher should its own mode not be recognized.
+    /// </summary>
+    public static void ConfigureHelperProcess(ProcessStartInfo startInfo)
+    {
+        ArgumentNullException.ThrowIfNull(startInfo);
+
+        foreach (string argument in HelperProcessArguments()) startInfo.ArgumentList.Add(argument);
+        startInfo.Environment[TrayAppDotNETConstants.NoWatcherEnvironmentVariable] = "1";
+    }
+
+    /// <summary>
+    /// Initializes a helper process before it does anything else: applies the settings folder override its parent
+    /// passed, then starts logging to <c>&lt;helperLogName&gt;.log</c> in the app's log folder. Returns false, after
+    /// reporting, when the override is unusable; the helper should then exit with a usage error.
+    /// </summary>
+    public static bool InitializeHelperProcess(string[] args, string applicationName, string helperLogName)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        string sharedRootFolderName = TrayAppDotNETConstants.SharedRootFolderName;
+        if (!TryResolveSettingsDirectory(args, out string? settingsDirectory, out string? errorMessage))
+        {
+            TADNLog.InitializeHelper(
+                Path.Combine(LocalAppDataRoot(sharedRootFolderName), applicationName),
+                helperLogName);
+            TADNLog.Log($"TrayAppDotNETProgram.InitializeHelperProcess: {errorMessage}");
+            TADNLog.Flush();
+            return false;
+        }
+
+        SettingsDirectoryOverride = settingsDirectory;
+        TADNLog.InitializeHelper(AppLocalAppDataDirectory(applicationName, sharedRootFolderName), helperLogName);
+        // Helpers end through Environment.Exit when their parent goes away, between periodic flushes
+        AppDomain.CurrentDomain.ProcessExit += static (_, _) => TADNLog.Shutdown();
+        return true;
+    }
 
     public static int Run(
         string[] args,
@@ -138,13 +190,6 @@ public static class TrayAppDotNETProgram
         return RunConfigured(args, createOptions());
     }
 
-    public static int Run(string[] args, TrayAppDotNETProgramOptions options)
-    {
-        ResetState();
-        if (!ApplySettingsDirectoryArgument(args, options.ApplicationName)) return UsageErrorExitCode;
-        return RunConfigured(args, options);
-    }
-
     private static int RunConfigured(string[] args, TrayAppDotNETProgramOptions options)
     {
         Action<string> log = options.Log ?? TADNLog.Log;
@@ -169,13 +214,15 @@ public static class TrayAppDotNETProgram
             log,
             flush));
 
-        if (HasArg(args, TrayAppDotNETInstallOptions.SystemInstallArgument))
+        if (IsHeadlessInstallCommand(args)) CrashHandler.WireCrashHandlers();
+
+        if (HasArg(args, TrayAppDotNETInstallContract.SystemInstallArgument))
             return RunOnStaThreadIfNeeded(() => RunElevatedSystemInstall(args, options, log));
 
-        if (HasArg(args, TrayAppDotNETInstallOptions.SyncStartMenuArgument))
-            return RunOnStaThreadIfNeeded(() => RunStartMenuSync(args, options));
+        if (HasArg(args, TrayAppDotNETInstallContract.SyncStartMenuArgument))
+            return RunOnStaThreadIfNeeded(() => RunStartMenuSync(args, options, log));
 
-        if (HasArg(args, TrayAppDotNETInstallOptions.PrepareUninstallArgument))
+        if (HasArg(args, TrayAppDotNETInstallContract.PrepareUninstallArgument))
             return RunOnStaThreadIfNeeded(() => RunUninstallPreparation(args, options, log));
 
         if (HasArg(args, flag: "--installer") || HasArg(args, flag: "--install-gui"))
@@ -184,55 +231,36 @@ public static class TrayAppDotNETProgram
         if (HasArg(args, flag: "--uninstall-headless"))
             return RunHeadlessUninstall(args, options, log);
 
-        TrayAppDotNETInstallOptions installOptions = ParseInstallOptions(args, useDefaults: true)!;
-        if (HasArg(args, flag: "--installlocal"))
+        string? installScope = HasArg(args, flag: "--installlocal") ? TrayAppDotNETInstallContract.LocalScopeArgument
+            : HasArg(args, flag: "--installsystem") ? TrayAppDotNETInstallContract.SystemScopeArgument
+            : HasArg(args, TrayAppDotNETInstallContract.HeadlessInstallArgument) ? TryGetFlagValue(args, TrayAppDotNETInstallContract.HeadlessInstallArgument)
+            : HasArg(args, flag: "--install") ? TryGetFlagValue(args, flag: "--install")
+            : null;
+        bool isInstall = HasArg(args, flag: "--installlocal") || HasArg(args, flag: "--installsystem")
+                         || HasArg(args, TrayAppDotNETInstallContract.HeadlessInstallArgument)
+                         || HasArg(args, flag: "--install");
+        if (isInstall)
         {
+            if (!TryParseInstallOptions(args, out TrayAppDotNETInstallOptions installOptions, out string? error))
+                return ReportUsageError(error!, log);
+
+            // --installlocal and --installsystem are the install.bat entry points and start the installed copy
+            bool startInstalled = HasArg(args, flag: "--installlocal") || HasArg(args, flag: "--installsystem");
             return RunOnStaThreadIfNeeded(() =>
-                RunInstall(scope: "local", options, log, startInstalled: true, installOptions, TrayAppDotNETConsoleProgress.Instance));
+                RunInstall(installScope, options, log, startInstalled, installOptions, TrayAppDotNETConsoleProgress.Instance));
         }
 
-        if (HasArg(args, flag: "--installsystem"))
+        if (HasArg(args, flag: "--uninstall") || HasArg(args, flag: "--uninstall-gui"))
         {
-            return RunOnStaThreadIfNeeded(() =>
-                RunInstall(scope: "system", options, log, startInstalled: true, installOptions, TrayAppDotNETConsoleProgress.Instance));
-        }
-
-        if (HasArg(args, flag: "--install-headless"))
-        {
-            return RunOnStaThreadIfNeeded(() =>
-                RunInstall(
-                    TryGetArgValue(args, flag: "--install-headless"),
-                    options,
-                    log,
-                    startInstalled: false,
-                    installOptions,
-                    TrayAppDotNETConsoleProgress.Instance));
-        }
-
-        if (HasArg(args, flag: "--install"))
-        {
-            return RunOnStaThreadIfNeeded(() =>
-                RunInstall(
-                    TryGetArgValue(args, flag: "--install"),
-                    options,
-                    log,
-                    startInstalled: false,
-                    installOptions,
-                    TrayAppDotNETConsoleProgress.Instance));
-        }
-
-        string? installDir = TryGetArgValue(args, flag: "--uninstall")
-                             ?? TryGetArgValue(args, flag: "--uninstall-gui");
-        if (installDir != null)
+            string? installDir = TryGetFlagValue(args, flag: "--uninstall")
+                                 ?? TryGetFlagValue(args, flag: "--uninstall-gui");
             return RunUninstall(args, installDir, options);
+        }
 
-        bool isWatcher = HasArg(args, flag: "--watcher");
         bool isMonitored = HasArg(args, flag: "--monitored");
         IsStartupLaunch = HasArg(args, AutostartArgument);
-        IsHiddenLaunch = HasArg(args, HiddenArgument);
+        IsHiddenLaunch = HasArg(args, TrayAppDotNETInstallContract.HiddenArgument);
         IReadOnlyList<string> launchArguments = SelectForwardedLaunchArguments(args, SettingsDirectoryOverride);
-
-        if (isWatcher) return CrashHandler.RunWatcher(launchArguments);
 
         if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
             return !CrashHandler.LaunchWatcherDetached(launchArguments) ? 1 : 0;
@@ -497,28 +525,43 @@ public static class TrayAppDotNETProgram
         return false;
     }
 
-    private static TrayAppDotNETInstallOptions? ParseInstallOptions(string[] args, bool useDefaults)
+    /// <summary>
+    /// Reads the shortcut choices. A flag that is absent stays null (leave as is); a flag without a valid true/false
+    /// value is a usage error.
+    /// </summary>
+    internal static bool TryParseInstallOptions(string[] args, out TrayAppDotNETInstallOptions options, out string? error)
     {
-        string? desktopValue = TryGetArgValue(args, TrayAppDotNETInstallOptions.DesktopShortcutArgument);
-        string? startMenuValue = TryGetArgValue(args, TrayAppDotNETInstallOptions.StartMenuShortcutArgument);
-        if (desktopValue == null && startMenuValue == null)
-            return useDefaults ? new TrayAppDotNETInstallOptions() : null;
+        options = new TrayAppDotNETInstallOptions();
+        bool? desktop = null;
+        bool? startMenu = null;
+        if (HasArg(args, TrayAppDotNETInstallContract.DesktopShortcutArgument)
+            && !TryParseBooleanArgument(args, TrayAppDotNETInstallContract.DesktopShortcutArgument, out desktop, out error))
+            return false;
+        if (HasArg(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument)
+            && !TryParseBooleanArgument(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument, out startMenu, out error))
+            return false;
 
-        bool createDesktopShortcut = desktopValue == null
-            ? false
-            : ParseBooleanArgument(TrayAppDotNETInstallOptions.DesktopShortcutArgument, desktopValue);
-        bool createStartMenuShortcut = startMenuValue == null
-            ? true
-            : ParseBooleanArgument(TrayAppDotNETInstallOptions.StartMenuShortcutArgument, startMenuValue);
-        return new TrayAppDotNETInstallOptions(createDesktopShortcut, createStartMenuShortcut);
+        error = null;
+        options = new TrayAppDotNETInstallOptions(desktop, startMenu);
+        return true;
     }
 
-    private static bool ParseBooleanArgument(string name, string value)
+    private static bool TryParseBooleanArgument(string[] args, string name, out bool? value, out string? error)
     {
-        if (bool.TryParse(value, out bool parsed)) return parsed;
-        if (value == "1") return true;
-        if (value == "0") return false;
-        throw new ArgumentException($"{name} must be true or false.");
+        value = null;
+        error = null;
+        switch (TryGetArgValue(args, name)?.Trim().ToLowerInvariant())
+        {
+            case "true" or "1":
+                value = true;
+                return true;
+            case "false" or "0":
+                value = false;
+                return true;
+            default:
+                error = $"{name} must be followed by true or false.";
+                return false;
+        }
     }
 
     private static bool ShouldLaunchWatcherBeforeConfiguring(string[] args) =>
@@ -531,16 +574,17 @@ public static class TrayAppDotNETProgram
         !HasArg(args, flag: "--install-headless") &&
         !HasArg(args, flag: "--installlocal") &&
         !HasArg(args, flag: "--installsystem") &&
-        !HasArg(args, TrayAppDotNETInstallOptions.SystemInstallArgument) &&
-        !HasArg(args, TrayAppDotNETInstallOptions.SyncStartMenuArgument) &&
-        !HasArg(args, TrayAppDotNETInstallOptions.PrepareUninstallArgument) &&
+        !HasArg(args, TrayAppDotNETInstallContract.SystemInstallArgument) &&
+        !HasArg(args, TrayAppDotNETInstallContract.SyncStartMenuArgument) &&
+        !HasArg(args, TrayAppDotNETInstallContract.PrepareUninstallArgument) &&
         !HasArg(args, flag: "--uninstall") &&
         !HasArg(args, flag: "--uninstall-gui") &&
         !HasArg(args, flag: "--uninstall-headless") &&
         !UpdateInstaller.IsUpdateMode(args);
 
     private static bool NoWatcherRequested() =>
-        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(NoWatcherEnvironmentVariable));
+        IsTruthyEnvironmentValue(
+            Environment.GetEnvironmentVariable(TrayAppDotNETConstants.NoWatcherEnvironmentVariable));
 
     private static bool IsTruthyEnvironmentValue(string? value)
     {
@@ -556,7 +600,8 @@ public static class TrayAppDotNETProgram
 
     private static void NoopFlush() { }
 
-    private static int RunOnStaThreadIfNeeded(Func<int> run)
+    /// <summary>Runs <paramref name="run"/> on an STA thread: the calling thread when it is one, else a new one.</summary>
+    internal static int RunOnStaThreadIfNeeded(Func<int> run)
     {
         if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
             return run();
@@ -583,22 +628,27 @@ public static class TrayAppDotNETProgram
     {
         string? sourceExecutable = TryGetArgValue(
             args,
-            TrayAppDotNETInstallOptions.SourceExecutableArgument);
+            TrayAppDotNETInstallContract.SourceExecutableArgument);
         string? buildNumberValue = TryGetArgValue(
             args,
-            TrayAppDotNETInstallOptions.BuildNumberArgument);
+            TrayAppDotNETInstallContract.BuildNumberArgument);
         if (string.IsNullOrWhiteSpace(sourceExecutable)
             || !int.TryParse(buildNumberValue, out int buildNumber)
             || buildNumber < 0)
         {
             log(
                 "TrayAppDotNETProgram.RunElevatedSystemInstall: requires "
-                + $"{TrayAppDotNETInstallOptions.SourceExecutableArgument} <executable> and "
-                + $"{TrayAppDotNETInstallOptions.BuildNumberArgument} <non-negative integer>");
+                + $"{TrayAppDotNETInstallContract.SourceExecutableArgument} <executable> and "
+                + $"{TrayAppDotNETInstallContract.BuildNumberArgument} <non-negative integer>");
             return 2;
         }
 
-        TrayAppDotNETInstallOptions? installOptions = ParseInstallOptions(args, useDefaults: false);
+        if (!TryParseInstallOptions(args, out TrayAppDotNETInstallOptions installOptions, out string? error))
+        {
+            log($"TrayAppDotNETProgram.RunElevatedSystemInstall: {error}");
+            return UsageErrorExitCode;
+        }
+
         using TrayAppDotNETProgressPipeClient? progressClient = ConnectProgressPipe(args, log);
         TrayAppDotNETProgramInstallResult result = options.RunAdminInstallSystem(
             sourceExecutable,
@@ -610,9 +660,29 @@ public static class TrayAppDotNETProgram
         return result.Success ? 0 : 1;
     }
 
-    private static int RunStartMenuSync(string[] args, TrayAppDotNETProgramOptions options)
+    /// <summary>
+    /// <c>--sync-start-menu [--remove-scope &lt;scope&gt;]</c>: rewrites the Start Menu entries of every profile.
+    /// Other profiles are only writable elevated, so an unelevated run is refused instead of half applied.
+    /// </summary>
+    private static int RunStartMenuSync(string[] args, TrayAppDotNETProgramOptions options, Action<string> log)
     {
-        InstallScope? removingScope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, flag: "--remove-scope"));
+        InstallScope? removingScope = null;
+        if (HasArg(args, flag: "--remove-scope"))
+        {
+            removingScope = InstallScopeExtensions.ParseArg(TryGetFlagValue(args, flag: "--remove-scope"));
+            if (removingScope == null)
+                return ReportUsageError("--remove-scope must be followed by local, system or store.", log);
+        }
+
+        if (!TrayAppDotNETInstallationService.IsElevated(log))
+        {
+            WriteInstallMessage(
+                $"{TrayAppDotNETInstallContract.SyncStartMenuArgument} updates every profile and must run elevated.",
+                error: true,
+                log);
+            return 1;
+        }
+
         options.SyncStartMenu(removingScope, arg2: true);
         return 0;
     }
@@ -629,7 +699,12 @@ public static class TrayAppDotNETProgram
             return 2;
         }
 
-        bool deleteSettings = ParseDeleteSettingsArgument(args);
+        if (!TryParseDeleteSettingsArgument(args, out bool deleteSettings, out string? error))
+        {
+            log($"TrayAppDotNETProgram.RunUninstallPreparation: {error}");
+            return UsageErrorExitCode;
+        }
+
         using TrayAppDotNETProgressPipeClient? progressClient = ConnectProgressPipe(args, log);
         TrayAppDotNETProgramInstallResult result = options.PrepareUninstall(
             scope.Value,
@@ -640,13 +715,14 @@ public static class TrayAppDotNETProgram
         return result.Success ? 0 : 1;
     }
 
-    private static int RunUninstall(string[] args, string installDir, TrayAppDotNETProgramOptions options)
+    private static int RunUninstall(string[] args, string? installDir, TrayAppDotNETProgramOptions options)
     {
         InstallScope scope = InstallScopeExtensions.ParseArg(TryGetArgValue(args, flag: "--scope"))
                              ?? InstallScope.LocalAppData;
         if (scope == InstallScope.WindowsStore) scope = InstallScope.LocalAppData;
 
         IsUninstallerMode = true;
+        // Display only; the folder that is removed always comes from the install layout
         UninstallerInstallDir = installDir;
         UninstallerScope = scope;
 
@@ -669,7 +745,8 @@ public static class TrayAppDotNETProgram
             return 2;
         }
 
-        bool deleteSettings = ParseDeleteSettingsArgument(args);
+        if (!TryParseDeleteSettingsArgument(args, out bool deleteSettings, out string? error))
+            return ReportUsageError(error!, log);
 
         TrayAppDotNETUninstallRun run = options.RunHeadlessUninstall(
             scope.Value,
@@ -683,14 +760,16 @@ public static class TrayAppDotNETProgram
 
         if (run.Process == null)
         {
-            log("TrayAppDotNETProgram.RunHeadlessUninstall: uninstall process did not start.");
+            WriteInstallMessage(run.ErrorMessage ?? "The uninstall process did not start.", error: true, log);
             return 1;
         }
 
         using Process process = run.Process;
         process.WaitForExit();
-        WaitForProgressCompletion(run.Completion);
-        return process.ExitCode;
+        // Completion is bounded: it ends once the helper's own exe is gone or the removal wait runs out
+        bool removed = run.Completion.GetAwaiter().GetResult();
+        if (removed) return 0;
+        return process.ExitCode != 0 ? process.ExitCode : 1;
     }
 
     private static int RunInstaller(string[] args, TrayAppDotNETProgramOptions options)
@@ -711,8 +790,8 @@ public static class TrayAppDotNETProgram
         Action<string> log = options.Log ?? TADNLog.Log;
         string scopeArgument = scope switch
         {
-            InstallScope.LocalAppData => "local",
-            InstallScope.ProgramFiles => "system",
+            InstallScope.LocalAppData => TrayAppDotNETInstallContract.LocalScopeArgument,
+            InstallScope.ProgramFiles => TrayAppDotNETInstallContract.SystemScopeArgument,
             _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, message: "Unsupported install scope.")
         };
         return RunInstall(scopeArgument, options, log, startInstalled: true, installOptions);
@@ -727,36 +806,33 @@ public static class TrayAppDotNETProgram
         IProgress<TrayAppDotNETInstallProgress>? progress = null)
     {
         if (scope is null) return PrintInstallUsage(reason: "Missing scope argument after --install", log);
-        string normalizedScope = scope.ToLowerInvariant();
-        if (normalizedScope is not ("local" or "system"))
+        InstallScope? parsedScope = InstallScopeExtensions.ParseArg(scope);
+        if (parsedScope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
             return PrintInstallUsage($"Unknown scope '{scope}'", log);
 
         TrayAppDotNETProgramInstallResult result;
         string installExecutable;
         string failureMessage;
-        switch (normalizedScope)
+        if (parsedScope == InstallScope.LocalAppData)
         {
-            case "local":
-                result = options.InstallToLocalAppData(installOptions, progress);
-                installExecutable = options.LocalAppDataInstallExecutable();
-                failureMessage = $"Local install failed: {result.ErrorMessage}";
-                break;
-            case "system":
-                result = options.InstallSystemWide(installOptions, progress);
-                installExecutable = options.ProgramFilesInstallExecutable();
-                failureMessage = result.UserCancelled
-                    ? "System install cancelled (UAC prompt declined)"
-                    : $"System install failed: {result.ErrorMessage}";
-                break;
-            default:
-                throw new UnreachableException();
+            result = options.InstallToLocalAppData(installOptions, progress);
+            installExecutable = options.LocalAppDataInstallExecutable();
+            failureMessage = $"Local install failed: {result.ErrorMessage}";
+        }
+        else
+        {
+            result = options.InstallSystemWide(installOptions, progress);
+            installExecutable = options.ProgramFilesInstallExecutable();
+            failureMessage = result.UserCancelled
+                ? "System install cancelled (UAC prompt declined)"
+                : $"System install failed: {result.ErrorMessage}";
         }
 
         return CompleteInstall(
             result,
             installExecutable,
             startInstalled,
-            $"Installed to {installExecutable}",
+            TrayAppDotNETInstallContract.InstalledToPrefix + installExecutable,
             failureMessage,
             log);
     }
@@ -792,33 +868,21 @@ public static class TrayAppDotNETProgram
         return 1;
     }
 
+    /// <summary>
+    /// Starts the installed copy. An elevated caller (an elevated console, a System install run from an elevated
+    /// window) never hands its token to the tray app: the start goes through the desktop shell, with
+    /// <see cref="TrayAppDotNETInstallContract.HiddenArgument"/> so the app starts in the notification area.
+    /// </summary>
     private static string? StartInstalledInstance(string installExecutable, Action<string> log)
     {
-        try
-        {
-            if (!File.Exists(installExecutable))
-                return $"Installed executable not found: {installExecutable}";
+        if (!File.Exists(installExecutable))
+            return $"Installed executable not found: {installExecutable}";
 
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = installExecutable,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-
-            string? workingDirectory = Path.GetDirectoryName(installExecutable);
-            if (!string.IsNullOrWhiteSpace(workingDirectory))
-                startInfo.WorkingDirectory = workingDirectory;
-
-            using Process? process = Process.Start(startInfo);
-            return process == null ? "Process.Start returned null" : null;
-        }
-        catch (Exception ex)
-        {
-            log($"TrayAppDotNETProgram.StartInstalledInstance: {ex}");
-            return ex.Message;
-        }
+        List<string> arguments = [];
+        if (TrayAppDotNETInstallationService.IsElevated(log)) arguments.Add(TrayAppDotNETInstallContract.HiddenArgument);
+        return TrayAppDotNETAppLauncher.Launch(installExecutable, arguments, log)
+            ? null
+            : $"Could not start {installExecutable}";
     }
 
     private static int PrintInstallUsage(string? reason, Action<string> log)
@@ -851,35 +915,53 @@ public static class TrayAppDotNETProgram
     /// <summary>Connects to the launcher's progress pipe when a helper process was given one.</summary>
     private static TrayAppDotNETProgressPipeClient? ConnectProgressPipe(string[] args, Action<string> log)
     {
-        string? pipeName = TryGetArgValue(args, TrayAppDotNETInstallOptions.ProgressPipeArgument);
+        string? pipeName = TryGetArgValue(args, TrayAppDotNETInstallContract.ProgressPipeArgument);
         if (string.IsNullOrWhiteSpace(pipeName)) return null;
 
-        return TrayAppDotNETProgressPipeClient.TryConnect(pipeName, ProgressPipeConnectTimeoutMs, log);
+        return TrayAppDotNETProgressPipeClient.TryConnect(pipeName, TimeConstants.ProgressPipeConnectTimeoutMs, log);
     }
 
-    private static bool ParseDeleteSettingsArgument(string[] args)
+    /// <summary>
+    /// Reads <c>--delete-settings true|false</c>. False without the flag; a flag without a valid value is a usage
+    /// error the caller reports with exit code 2.
+    /// </summary>
+    private static bool TryParseDeleteSettingsArgument(string[] args, out bool deleteSettings, out string? error)
     {
-        string? deleteSettingsValue = TryGetArgValue(args, TrayAppDotNETInstallOptions.DeleteSettingsArgument);
-        if (HasArg(args, TrayAppDotNETInstallOptions.DeleteSettingsArgument) && deleteSettingsValue == null)
-        {
-            throw new ArgumentException(
-                $"{TrayAppDotNETInstallOptions.DeleteSettingsArgument} must be followed by true or false.");
-        }
+        deleteSettings = false;
+        error = null;
+        if (!HasArg(args, TrayAppDotNETInstallContract.DeleteSettingsArgument)) return true;
 
-        return deleteSettingsValue != null
-               && ParseBooleanArgument(TrayAppDotNETInstallOptions.DeleteSettingsArgument, deleteSettingsValue);
+        if (!TryParseBooleanArgument(args, TrayAppDotNETInstallContract.DeleteSettingsArgument, out bool? value, out error))
+            return false;
+
+        deleteSettings = value == true;
+        return true;
     }
 
-    /// <summary>Lets the final uninstall progress line reach standard output before the process exits.</summary>
-    private static void WaitForProgressCompletion(Task completion)
+    private static int ReportUsageError(string error, Action<string> log)
     {
-        try
-        {
-            _ = completion.Wait(ProgressCompletionTimeoutMs);
-        }
-        catch (AggregateException exception)
-        {
-            TADNLog.Log($"TrayAppDotNETProgram.WaitForProgressCompletion: {exception.InnerException?.Message}");
-        }
+        WriteInstallMessage(error, error: true, log);
+        return UsageErrorExitCode;
     }
+
+    /// <summary>The value after <paramref name="flag"/>, or null when it is missing or is the next flag.</summary>
+    private static string? TryGetFlagValue(string[] args, string flag)
+    {
+        string? value = TryGetArgValue(args, flag);
+        return value == null || value.StartsWith(value: "--", StringComparison.Ordinal) ? null : value;
+    }
+
+    /// <summary>
+    /// True for the install and uninstall commands that run without a window. They report a crash as exit code 2
+    /// instead of a crash dialog, so install.bat and the installer see the failure.
+    /// </summary>
+    private static bool IsHeadlessInstallCommand(string[] args) =>
+        HasArg(args, TrayAppDotNETInstallContract.SystemInstallArgument)
+        || HasArg(args, TrayAppDotNETInstallContract.SyncStartMenuArgument)
+        || HasArg(args, TrayAppDotNETInstallContract.PrepareUninstallArgument)
+        || HasArg(args, flag: "--uninstall-headless")
+        || HasArg(args, flag: "--installlocal")
+        || HasArg(args, flag: "--installsystem")
+        || HasArg(args, TrayAppDotNETInstallContract.HeadlessInstallArgument)
+        || HasArg(args, flag: "--install");
 }

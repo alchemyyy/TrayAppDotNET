@@ -13,13 +13,11 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
 
     // Settings UI
-    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
     public new const int ToolTipShowDelayMinMs = CommonTimeConstants.ToolTipShowDelayMinMs;
     public new const int ToolTipShowDelayMaxMs = CommonTimeConstants.ToolTipShowDelayMaxMs;
 
     // Auto-update
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
-    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // Volume slider -> COM write throttle. AsyncThrottler coalesces drag events into a single
     // SetMasterVolume(Level)Scalar call per cooldown so the audio driver isn't hammered.
@@ -64,7 +62,6 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int BluetoothConnectionAttemptTimeoutMs = 30_000;
     public const int BluetoothConnectionCountdownTickMs = 100;
     public const int BluetoothConnectionStatePollIntervalMs = 500;
-    public const int BluetoothConnectionAnimationIntervalMs = 6;
 
     // RadioMgr.h exposes a synchronous Bluetooth radio state change with a caller-selected
     // timeout. Microsoft recommends one to five seconds; three seconds bounds the background
@@ -76,7 +73,6 @@ public abstract class TimeConstants : CommonTimeConstants
     // Device policy / process monitoring
     public const int DefaultDeviceRoleChangeTimeoutMs = 2_000;
     public const int DeviceVisibilityToggleSettleDelayMs = 250;
-    public const int ProcessExitWatchRetryDelayMs = 10;
     public const int BluetoothCodecWorkerJoinTimeoutMs = 2_000;
 
     // Volume-change feedback

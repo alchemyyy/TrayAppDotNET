@@ -6,40 +6,28 @@ namespace TaskManagerTrayAppDotNET;
 
 internal static class AppServices
 {
-    public static TrayAppDotNETInstallLayout InstallLayout { get; } =
-        TrayAppDotNETInstallLayout.Create(
-            Program.ApplicationName,
-            Program.SharedRootFolderName,
-            Program.LocalAppDataRoot);
+    public static TrayAppDotNETAppInstallServices Install { get; } = new(new TrayAppDotNETAppInstallServicesOptions
+    {
+        ApplicationName = Constants.ApplicationName,
+        AppGuid = Constants.AppGUID,
+        BuildNumber = BuildInfo.BuildNumber,
+        PostToUIThread = static action => Dispatcher.UIThread.Post(action),
+#if !TASK_MANAGER_NATIVE_AOT
+        ExtraRequiredFiles = [new TrayAppDotNETInstallFile(Constants.KillHelperFileName)],
+#endif
+        UninstallHook = new TrayAppDotNETUninstallHook
+        {
+            // Ctrl+Shift+Esc must never point at a deleted exe: clear the taskmgr.exe redirect before removal, and stop
+            // the uninstall when it cannot be cleared
+            CheckUninstall = TaskManagerUninstallGuard.CheckUninstall,
+            BeforePrepare = static (scope, _) => TaskManagerUninstallGuard.BeforePrepare(scope)
+        }
+    });
 
-    public static TrayAppDotNETStartupManager Startup { get; } = new(new TrayAppDotNETStartupOptions(
-        Program.ApplicationName,
-        InstallLayout,
-        DetectInstallations,
-        TADNLog.Log));
+    public static AppIconLoader AppIcon { get; } = new(Constants.AppIconResourceUri);
 
-    public static TrayAppDotNETStartMenuShortcut StartMenu { get; } = new(new TrayAppDotNETStartMenuShortcutOptions(
-        Program.ApplicationName,
-        InstallLayout,
-        DetectInstallations,
-        TADNLog.Log));
-
-    public static TrayAppDotNETInstallIdentity InstallIdentity { get; } = new(
-        Program.ApplicationName,
-        Constants.Publisher,
-        Constants.HelpLink,
-        AppSettings.GetDefaultDirectory(),
-        Startup.ShortcutPath,
-        Startup.LegacyRunKeyRegistryPath,
-        TADNLog.Log);
-
-    public static TrayAppDotNETInstallationService Installation { get; } = new(new TrayAppDotNETInstallationOptions(
-        InstallIdentity,
-        InstallLayout,
-        CreateInstallPayload(),
-        BuildInfo.BuildNumber,
-        StartMenu.Sync,
-        action => Dispatcher.UIThread.Post(action)));
+    /// <summary>The running app host; the main window opens the uninstaller through it.</summary>
+    public static TrayAppDotNETAppHost<AppSettings, AppTheme>? Host { get; set; }
 
     public static AppTheme? Theme { get; set; }
     public static AppSettings? Settings { get; set; }
@@ -47,22 +35,4 @@ internal static class AppServices
 
     /// <summary>Runs privileged process actions through the elevated broker; set once the UI is up.</summary>
     public static ElevatedActionCoordinator? ElevatedActions { get; set; }
-
-    private static List<TrayAppDotNETInstallationInfo> DetectInstallations() =>
-        Installation.DetectAll();
-
-    private static TrayAppDotNETInstallPayload CreateInstallPayload()
-    {
-        TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName);
-#if TASK_MANAGER_NATIVE_AOT
-        return payload;
-#else
-        TrayAppDotNETInstallFile[] requiredFiles =
-        [
-            .. payload.RequiredFiles,
-            new(Constants.KillHelperFileName)
-        ];
-        return payload with { RequiredFiles = requiredFiles };
-#endif
-    }
 }

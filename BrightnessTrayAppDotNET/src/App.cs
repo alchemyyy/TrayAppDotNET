@@ -6,7 +6,7 @@ using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
+using BrightnessTrayAppDotNET.Utils;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.DDCCI;
@@ -29,29 +29,21 @@ using BrightnessHotkeyService =
     TrayAppDotNETCommon.Services.GlobalHotkeyService<BrightnessTrayAppDotNET.Models.BrightnessHotkeyAction,
         BrightnessTrayAppDotNET.Models.HotkeyBinding>;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
-using BrightnessUpdateCheckService = TrayAppDotNETCommon.Services.UpdateCheckService;
-using BrightnessWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
+using TrayAppDotNETCommon.Models;
 
 namespace BrightnessTrayAppDotNET;
 
 internal static class BrightnessAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<BrightnessAvaloniaApp>(
-            args,
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<BrightnessAvaloniaApp>(args, AppSettings.GetDefaultPath, configure: Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
@@ -67,62 +59,31 @@ internal sealed class BrightnessAvaloniaApp : Application
     private MonitorBrightnessRangeProvider? _brightnessRangeProvider;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BrightnessTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
-    private BrightnessTrayMenuWindow? _trayMenuWindow;
+    private TrayIconPresenter<BrightnessTrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
+    private TrayWindowToggle? _trayToggle;
     private BrightnessFlyoutWindow? _brightnessFlyout;
     private BrightnessSettingsWindow? _settingsWindow;
     private SettingsFlyoutKeepOpenCoordinator? _settingsFlyoutKeepOpen;
     private TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow>? _brightnessFlyoutWarmSlot;
-    private TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow>? _trayMenuWarmSlot;
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
+    private KnownDisplaysStore? _knownDisplays;
     private BrightnessHotkeyService? _hotkeyService;
-    private BrightnessWatcherMonitor? _watcherMonitor;
-    private BrightnessUpdateCheckService? _updateCheckService;
     private Dictionary<string, double>? _restoreSnapshot;
     private TrayClickAction _appliedAction = TrayClickAction.Nothing;
     private string? _lastTrayValueDiagnostic;
     private DateTime _lastTrayValueDiagnosticUtc;
-    private int _lastNotifiedUpdateVersion;
-    private bool _suppressNextTrayClick;
     private bool _shuttingDown;
 
     public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("BrightnessAvaloniaApp.OnFrameworkInitializationCompleted");
-
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        WireCrashHandlers();
-
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this,
-                new TrayAppDotNETInstallerWindowOptions
-                {
-                    Layout = AppServices.InstallLayout,
-                    Icon = AppTheme.LoadAppIcon(),
-                    Palette = CreatePalette(),
-                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-                });
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
-        if (Program.IsUninstallerMode)
-        {
-            LoadSettingsAndTheme();
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -131,9 +92,16 @@ internal sealed class BrightnessAvaloniaApp : Application
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
 #endif
-        LoadSettingsAndTheme();
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
+        _settings = host.Settings;
         StartServices();
         CreateTrayIcon();
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = ShowUpdateNotification
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
         RequestTrayRefresh();
         StartBrightnessRangeProvider();
         RestoreStartupUndockedFlyoutIfRequested();
@@ -142,50 +110,37 @@ internal sealed class BrightnessAvaloniaApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void WireCrashHandlers()
-    {
-        TrayAppDotNETAvalonia.WireCrashHandlers(
-            () =>
-            {
-                TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.ProcessExitDrainTimeoutMs));
-                TADNLog.Shutdown();
-            },
-            args =>
-            {
-                args.SetObserved();
-                TADNLog.Log($"FATAL UnobservedTaskException: {args.Exception}");
-                TADNLog.Flush();
-            });
-    }
-
-    private void LoadSettingsAndTheme()
-    {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => TADNLog.Log($"BrightnessAvaloniaApp settings load failed: {ex}"),
-                GetThemePath = AppTheme.GetDefaultPath,
-                LoadTheme = AppTheme.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"BrightnessAvaloniaApp theme load failed: {ex}")
-            });
-
-        _settings = loaded.Settings;
-
-        try
+    private TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
         {
-            NightLightProvider.Initialize(_settings);
-            NightLightProvider.EnabledStateChanged += OnNightLightEnabledStateChanged;
-        }
-        catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettingsCommon.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppTheme.GetDefaultPath,
+            LoadTheme = AppTheme.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit(),
+            // A process exit outside the normal exit path still gets queued DDC writes out, and takes the gamma tint
+            // off screen; its saved on/off state stays, so the next start reapplies it
+            ProcessExit = OnProcessExit
+        };
 
-        ApplyPDBDownloadTimeout(_settings);
+    private void OnProcessExit()
+    {
+        TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.ProcessExitDrainTimeoutMs));
+        try { GammaRampNightLight.Deactivate(); }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"BrightnessAvaloniaApp: gamma tint release on process exit failed: {ex.Message}");
+        }
     }
 
     private void ConfigureSettings(AppSettings settings)
@@ -207,9 +162,31 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_settings == null) return;
 
+        // Night Light re-applies a saved tint, so it starts only in tray mode
         try
         {
-            _monitorService = new MonitorService(new DisplayService(), _settings);
+            NightLightProvider.Initialize(_settings);
+            NightLightProvider.EnabledStateChanged += OnNightLightEnabledStateChanged;
+        }
+        catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
+
+        ApplyPDBDownloadTimeout(_settings);
+
+        try
+        {
+            _knownDisplays = new KnownDisplaysStore();
+            AppServices.KnownDisplays = _knownDisplays;
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"BrightnessAvaloniaApp known displays init failed: {ex}");
+        }
+
+        try
+        {
+            KnownDisplaysStore knownDisplays = _knownDisplays
+                ?? throw new InvalidOperationException("The known-display store could not be created.");
+            _monitorService = new MonitorService(new DisplayService(), _settings, knownDisplays);
             AppServices.MonitorService = _monitorService;
             _monitorService.MonitorsRefreshed += OnMonitorsRefreshed;
         }
@@ -243,7 +220,11 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
         }
 
-        try { AppServices.ProfileManager = new ProfileManager(); }
+        try
+        {
+            AppServices.ProfileManager = new ProfileManager(ProfileManager.GetDefaultPath());
+            AttachProfileManager(AppServices.ProfileManager);
+        }
         catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp profile manager init failed: {ex}"); }
 
         try
@@ -256,46 +237,15 @@ internal sealed class BrightnessAvaloniaApp : Application
             TADNLog.Log($"BrightnessAvaloniaApp tray renderer init failed: {ex}");
         }
 
-        try
-        {
-            _hotkeyService = new BrightnessHotkeyService(Program.ApplicationName + ".HotkeySink");
-            _hotkeyService.Initialize();
-            _hotkeyService.Fired += OnHotkeyFired;
-            _hotkeyService.Apply(_settings.Hotkeys);
-            AppServices.HotkeyService = _hotkeyService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BrightnessAvaloniaApp hotkey init failed: {ex}");
-        }
-
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BrightnessAvaloniaApp watcher init failed: {ex}");
-        }
-
-        try
-        {
-            _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                _settings,
-                repositoryName: "TrayAppDotNET",
-                Program.ApplicationName,
-                BuildInfo.BuildNumber,
-                _settings.Save,
-                Program.LocalAppDataRoot);
-            _updateCheckService.StateChanged += OnUpdateStateChanged;
-            _updateCheckService.Start();
-            AppServices.UpdateCheckService = _updateCheckService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BrightnessAvaloniaApp update service init failed: {ex}");
-        }
+        _hotkeyService = _host?.StartHotkeyService(
+            static prefix => new BrightnessHotkeyService(prefix),
+            service =>
+            {
+                service.Initialize();
+                service.Fired += OnHotkeyFired;
+                service.Apply(_settings.Hotkeys);
+            });
+        AppServices.HotkeyService = _hotkeyService;
     }
 
     private void StartBrightnessRangeProvider()
@@ -322,12 +272,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
                                                   ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault
         };
-        if (AppTheme.LoadAppNativeIcon() is { } initialIcon)
-        {
-            using (initialIcon)
-                _trayIcon.SetIcon(initialIcon);
-        }
-
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
         _trayIcon.KeySelect += OnTrayKeySelect;
@@ -336,6 +280,17 @@ internal sealed class BrightnessAvaloniaApp : Application
         _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+        _trayIconPresenter = new TrayIconPresenter<BrightnessTrayIconRenderInput>(
+            _trayIcon,
+            _trayIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon());
+        _trayToggle = new TrayWindowToggle();
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            () => _settings?.KeepTrayContextMenuWarm ?? true,
+            _settings,
+            _theme,
+            TADNLog.Log);
         _trayIcon.IsVisible = true;
     }
 
@@ -350,20 +305,47 @@ internal sealed class BrightnessAvaloniaApp : Application
             _theme ?? AppTheme.Default,
             _monitorService);
         flyout.BrightnessUpdated += RequestTrayRefresh;
-        flyout.FlyoutDeactivated += OnFlyoutDeactivated;
         flyout.SettingsRequested += OpenSettings;
         flyout.Closed += OnBrightnessFlyoutClosed;
         return flyout;
     }
 
-    private static ProfileManager ResolveProfileManager()
+    private ProfileManager ResolveProfileManager()
     {
         ProfileManager? profileManager = AppServices.ProfileManager;
         if (profileManager != null) return profileManager;
 
-        profileManager = new ProfileManager();
+        profileManager = new ProfileManager(ProfileManager.GetDefaultPath());
         AppServices.ProfileManager = profileManager;
+        AttachProfileManager(profileManager);
         return profileManager;
+    }
+
+    // The tray menu shows the profile names and the check mark of the selected one
+    private void AttachProfileManager(ProfileManager profileManager)
+    {
+        profileManager.SelectedProfileChanged += OnSelectedProfileChanged;
+        profileManager.ProfilesListChanged += InvalidateTrayMenu;
+    }
+
+    private void DetachProfileManager(ProfileManager profileManager)
+    {
+        profileManager.SelectedProfileChanged -= OnSelectedProfileChanged;
+        profileManager.ProfilesListChanged -= InvalidateTrayMenu;
+    }
+
+    private void OnSelectedProfileChanged(int index) => InvalidateTrayMenu();
+
+    private void InvalidateTrayMenu()
+    {
+        if (_shuttingDown) return;
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(InvalidateTrayMenu);
+            return;
+        }
+
+        _trayMenu?.Invalidate();
     }
 
     private BrightnessFlyoutWindow CreateManagedBrightnessFlyout()
@@ -381,11 +363,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             static () => true,
             ex => TADNLog.Log($"BrightnessFlyout keep-warm: {ex.Message}"));
 
-    private TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow>(
-            () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => TADNLog.Log($"Brightness tray menu keep-warm: {ex.Message}"));
-
     private void ScheduleKeepWarmPriming()
     {
         if (_shuttingDown) return;
@@ -397,8 +374,8 @@ internal sealed class BrightnessAvaloniaApp : Application
                 if (_monitorService != null)
                     await BrightnessFlyoutWarmSlot.PrimeAsync(CreateManagedBrightnessFlyout);
                 if (_shuttingDown) return;
-                if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
-                    await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
+                if (_trayMenu != null)
+                    await _trayMenu.PrimeAsync();
             }
             catch (Exception ex)
             {
@@ -409,22 +386,13 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void RestoreStartupUndockedFlyoutIfRequested()
     {
-        if (_settings == null || _monitorService == null) return;
+        if (_settings == null || _monitorService == null || _trayIcon == null) return;
 
         if (!FlyoutDockingController.ShouldRestoreOnStartup(_settings)) return;
 
         _brightnessFlyout ??= BrightnessFlyoutWarmSlot.TakeOrCreate(CreateManagedBrightnessFlyout);
 
-        _brightnessFlyout.Show();
-        _brightnessFlyout.Activate();
-    }
-
-    private void OnFlyoutDeactivated()
-    {
-        _suppressNextTrayClick = true;
-        Dispatcher.UIThread.Post(
-            () => _suppressNextTrayClick = false,
-            DispatcherPriority.ContextIdle);
+        _brightnessFlyout.ShowAt(_trayIcon);
     }
 
     private void OnHotkeyFired(object? sender, BrightnessHotkeyFiredEventArgs e)
@@ -489,6 +457,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             if (_shuttingDown) return;
 
+            InvalidateTrayMenu();
             try { RequestTrayRefresh(); }
             catch (Exception ex)
             {
@@ -597,34 +566,35 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void OnTrayLeftClick()
     {
-        if (_suppressNextTrayClick)
-        {
-            _suppressNextTrayClick = false;
-            return;
-        }
-
         if (TryRunModifiedClickAction(
                 _settings?.TrayCtrlLeftClickAction,
                 _settings?.TrayAltLeftClickAction))
             return;
 
-        if (_brightnessFlyout is { IsVisible: true })
+        switch (_trayToggle?.Decide(_brightnessFlyout) ?? TrayToggleAction.Show)
         {
-            _brightnessFlyout.Hide();
-            return;
+            case TrayToggleAction.Hide:
+                _brightnessFlyout?.Hide();
+                break;
+            // A floating flyout behind another window comes forward where it is instead of docking again
+            case TrayToggleAction.Activate:
+                _brightnessFlyout?.Activate();
+                break;
+            case TrayToggleAction.Show:
+                ShowBrightnessFlyout();
+                break;
         }
-
-        ShowBrightnessFlyout();
     }
 
     private void OnTrayLeftDoubleClick()
     {
         if (_settings == null) return;
 
-        ExecuteTrayAction(ModifierOf(
+        ExecuteTrayAction(TrayClickModifiers.Resolve(
             _settings.TrayCtrlDoubleLeftClickAction,
             _settings.TrayAltDoubleLeftClickAction,
-            _settings.TrayDoubleClickAction));
+            _settings.TrayDoubleClickAction,
+            TrayClickAction.Nothing));
     }
 
     // The classic notification area may report one Enter twice, so the keyboard only shows the flyout
@@ -641,19 +611,15 @@ internal sealed class BrightnessAvaloniaApp : Application
             ShowTrayContextMenu(new PixelPoint((int)Math.Round(point.X), (int)Math.Round(point.Y)));
         });
 
-    private void OnTrayScrolled(int wheelDelta)
+    private void OnTrayScrolled(int notches)
     {
         if (_settings == null) return;
 
-        int notches = wheelDelta / 120;
-        if (notches == 0)
-            notches = Math.Sign(wheelDelta);
-        int delta = notches * Math.Max(val1: 1, _settings.FlyoutScrollWheelStep);
-        ApplyTrayWheelDelta(delta);
+        ApplyTrayWheelDelta(notches * Math.Max(val1: 1, _settings.FlyoutScrollWheelStep));
     }
 
-    private void OnTrayPrecisionTouchpadScrolled(int delta) =>
-        ApplyTrayWheelDelta(Math.Sign(delta));
+    private void OnTrayPrecisionTouchpadScrolled(int steps) =>
+        ApplyTrayWheelDelta(Math.Sign(steps));
 
     private void ApplyTrayWheelDelta(int delta)
     {
@@ -678,28 +644,17 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private static TrayWheelTarget ResolveWheelTarget(AppSettings settings)
     {
-        if (IsCtrlDown()) return settings.TrayCtrlWheelAction;
-        return IsAltDown() ? settings.TrayAltWheelAction : settings.TrayWheelAction;
-    }
-
-    private static bool IsCtrlDown() => (User32.GetAsyncKeyState(User32.VK_CONTROL) & 0x8000) != 0;
-    private static bool IsAltDown() => (User32.GetAsyncKeyState(User32.VK_MENU) & 0x8000) != 0;
-
-    private static TrayClickAction ModifierOf(TrayClickAction ctrl, TrayClickAction alt, TrayClickAction fallback)
-    {
-        if (IsCtrlDown() && ctrl != TrayClickAction.Nothing) return ctrl;
-        if (IsAltDown() && alt != TrayClickAction.Nothing) return alt;
-        return fallback;
+        if (TrayClickModifiers.IsCtrlDown()) return settings.TrayCtrlWheelAction;
+        return TrayClickModifiers.IsAltDown() ? settings.TrayAltWheelAction : settings.TrayWheelAction;
     }
 
     private bool TryRunModifiedClickAction(TrayClickAction? ctrl, TrayClickAction? alt)
     {
-        TrayClickAction action = TrayClickAction.Nothing;
-        if (IsCtrlDown() && ctrl is { } ctrlAction && ctrlAction != TrayClickAction.Nothing)
-            action = ctrlAction;
-        else if (IsAltDown() && alt is { } altAction && altAction != TrayClickAction.Nothing)
-            action = altAction;
-
+        TrayClickAction action = TrayClickModifiers.Resolve(
+            ctrl ?? TrayClickAction.Nothing,
+            alt ?? TrayClickAction.Nothing,
+            TrayClickAction.Nothing,
+            TrayClickAction.Nothing);
         if (action == TrayClickAction.Nothing) return false;
 
         ExecuteTrayAction(action);
@@ -777,51 +732,33 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void ShowTrayContextMenu(PixelPoint cursorPoint)
     {
-        if (_trayIcon == null || _settings == null) return;
+        if (_trayIcon == null || _settings == null || _trayMenu == null) return;
 
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.DismissForWarmCache();
-
-        BrightnessTrayMenuWindow menuWindow = TrayMenuWarmSlot.TakeOrCreate(CreateTrayMenuWindow);
-        _trayMenuWindow = menuWindow;
-        menuWindow.ShowAt(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
+        _trayMenu.Show(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
     }
 
-    private BrightnessTrayMenuWindow CreateTrayMenuWindow()
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
         if (_settings == null)
             throw new InvalidOperationException("Brightness tray menu requires settings.");
 
-        IReadOnlyList<BrightnessTrayMenuProfile> profiles = BuildMenuProfiles();
         IReadOnlyList<MonitorInfo> monitors = _monitorService?.Monitors.ToArray()
                                               ?? _brightnessFlyout?.Monitors.ToArray()
                                               ?? [];
-        BrightnessTrayMenuWindow menuWindow = new(
-            profiles,
-            monitors,
-            _settings,
-            CreatePalette(),
-            (AppServices.Theme ?? AppTheme.Default).DisplayIdentifierShadow.For(ResolveEffectiveIsLightTheme()),
-            _settings.EnableRoundedCorners,
-            _settings.ContextMenuFontSize,
-            SelectProfileFromMenu,
-            PowerOffAllMonitors,
-            PowerOffMonitor,
-            OpenSettings,
-            ExitApplication);
-        menuWindow.MapTo(UI.ControlMap.TrayMenu.ID);
-
-        _trayMenuWindow = menuWindow;
-        menuWindow.Closed += OnTrayMenuClosed;
-        return menuWindow;
-    }
-
-    private void OnTrayMenuClosed(object? sender, EventArgs e)
-    {
-        if (sender is BrightnessTrayMenuWindow menu)
-            menu.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(_trayMenuWindow, sender))
-            _trayMenuWindow = null;
+        return new TrayMenuWindow(
+            BrightnessTrayMenuEntries.Build(
+                BuildMenuProfiles(),
+                monitors,
+                _settings,
+                SelectProfileFromMenu,
+                PowerOffAllMonitors,
+                PowerOffMonitor),
+            TrayMenuWindowOptions.Create(
+                _settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                TrayMenuStandardEntry.Settings(OpenSettings, UI.ControlMap.TrayMenu.OpenSettings),
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)));
     }
 
     private List<BrightnessTrayMenuProfile> BuildMenuProfiles()
@@ -901,15 +838,15 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void OnBrightnessFlyoutClosed(object? sender, EventArgs e)
     {
-        if (_brightnessFlyout != null)
-        {
-            _brightnessFlyout.BrightnessUpdated -= RequestTrayRefresh;
-            _brightnessFlyout.FlyoutDeactivated -= OnFlyoutDeactivated;
-            _brightnessFlyout.SettingsRequested -= OpenSettings;
-            _brightnessFlyout.Closed -= OnBrightnessFlyoutClosed;
-            _brightnessFlyout = null;
-            AppServices.BrightnessFlyout = null;
-        }
+        if (sender is not BrightnessFlyoutWindow flyout) return;
+
+        flyout.BrightnessUpdated -= RequestTrayRefresh;
+        flyout.SettingsRequested -= OpenSettings;
+        flyout.Closed -= OnBrightnessFlyoutClosed;
+        if (!ReferenceEquals(_brightnessFlyout, flyout)) return;
+
+        _brightnessFlyout = null;
+        AppServices.BrightnessFlyout = null;
     }
 
     private void OpenSettings()
@@ -937,15 +874,10 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(
-        string installDir,
+    private Task<bool> ShowUninstallerWindow(
         BrightnessInstallScope scope,
-        IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        BrightnessUninstallerWindow window = new(installDir, scope, progress);
-        if (_settingsWindow != null) window.Show(_settingsWindow);
-        else window.Show();
-    }
+        IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 
     private void OnDisplayTopologyChanged()
     {
@@ -957,62 +889,25 @@ internal sealed class BrightnessAvaloniaApp : Application
 
 #if DEBUG
     /// <summary>
-    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// Renders the tray icon again so tray glyph edits are visible immediately.
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        _trayIconRenderer?.InvalidateCache();
+        _trayIconPresenter?.Invalidate();
+        InvalidateTrayMenu();
         RequestTrayRefresh();
     }
 
-    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChangedForThemeReload();
 #endif
 
     private void RequestTrayRefresh()
     {
-        if (_trayIcon == null) return;
+        if (_trayIconPresenter == null) return;
 
         (int brightness, string tooltip) = GetBrightnessAndTooltip();
-
-        if (_trayIconRenderer != null)
-        {
-            BrightnessTrayIcon renderer = _trayIconRenderer;
-            renderer.BrightnessPercent = brightness;
-            if (renderer.TryCreateRenderInput(out BrightnessTrayIconRenderInput? input) && input != null)
-            {
-                _trayIcon.SetTooltip(tooltip);
-                _trayIconRenderQueue.Request(
-                    () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip));
-                return;
-            }
-
-            _trayIcon.SetTooltip(tooltip);
-            return;
-        }
-
-        if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
-        {
-            using (fallbackIcon)
-                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
-            return;
-        }
-
-        _trayIcon.SetTooltip(tooltip);
-    }
-
-    /// <summary>
-    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
-    /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
+        _trayIconRenderer?.BrightnessPercent = brightness;
+        _trayIconPresenter.Refresh(tooltip);
     }
 
     private (int Brightness, string Tooltip) GetBrightnessAndTooltip()
@@ -1065,6 +960,8 @@ internal sealed class BrightnessAvaloniaApp : Application
         return invertNightLightSlider ? 100 - sliderStrength : sliderStrength;
     }
 
+    // Builds a multi-monitor snapshot on every refresh, slider drags included, so only Debug builds log it
+    [System.Diagnostics.Conditional("DEBUG")]
     private void LogTrayValueDiagnostic(int brightness, string tooltip, List<MonitorInfo> monitors)
     {
         try
@@ -1121,19 +1018,12 @@ internal sealed class BrightnessAvaloniaApp : Application
         static int EffectiveValue(MonitorInfo monitor) => monitor.EffectiveRoundedBrightness;
     }
 
-    private void OnUpdateStateChanged()
+    private void ShowUpdateNotification(string title, string body)
     {
-        _brightnessFlyout?.NotifyUpdateStateChanged();
-
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
+        // An open flyout already shows the update button
         if (_brightnessFlyout is { IsVisible: true, Position.X: > -1000 }) return;
 
-        _lastNotifiedUpdateVersion = info.Version;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+        _trayIcon?.ShowBalloon(title, body);
     }
 
     private void OnNightLightEnabledStateChanged()
@@ -1148,7 +1038,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void OnUpdateBalloonClicked()
     {
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
 
         ShowBrightnessFlyout();
         _brightnessFlyout?.RequestUpdatePrompt();
@@ -1194,18 +1084,17 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_monitorService != null)
             BrightnessFlyoutWarmSlot.ApplyKeepWarmPolicy(CreateManagedBrightnessFlyout);
-        if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
-            TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);
+        _trayMenu?.ApplyKeepWarmPolicy();
     }
 
     private void ApplyToolTipDelayToOpenWindows()
     {
         if (_settingsWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_settingsWindow);
         if (_brightnessFlyout != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_brightnessFlyout);
-        if (_trayMenuWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_trayMenuWindow);
+        if (_trayMenu?.Current is { } trayMenu) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(trayMenu);
     }
 
-    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ApplyThemeVariant()
     {
@@ -1233,37 +1122,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             _theme.ResolveEnvironmentalGridLine(_settings, isLight));
     }
 
-    private SettingsPalette CreatePalette()
-    {
-        AppTheme theme = _theme ?? AppTheme.Default;
-        bool isLight = ResolveEffectiveIsLightTheme();
-        return new SettingsPalette(
-            theme.ResolveBackground(_settings, isLight),
-            theme.ResolveForeground(_settings, isLight),
-            theme.Border.For(isLight),
-            theme.Hover.For(isLight),
-            theme.Pressed.For(isLight),
-            theme.CardBackground.For(isLight),
-            theme.ControlBackground.For(isLight),
-            theme.SecondaryForeground.For(isLight),
-            theme.DisabledForeground.For(isLight),
-            theme.Accent.For(isLight),
-            theme.ToggleSwitchOnTrack.For(isLight),
-            theme.ToggleSwitchOnThumb.For(isLight),
-            theme.TextBoxFocused.For(isLight),
-            theme.SearchListItemSelected.For(isLight),
-            theme.SearchListItemHover.For(isLight),
-            theme.SliderProgress.For(isLight),
-            theme.SliderTrack.For(isLight),
-            theme.SliderThumb.For(isLight),
-            theme.CloseButtonHover.For(isLight),
-            theme.CloseButtonPressed.For(isLight),
-            theme.CloseButtonGlyphActive.For(isLight),
-            theme.HoverDeep.For(isLight),
-            theme.PressedDeep.For(isLight),
-            theme.ControlBackgroundDeep.For(isLight));
-    }
-
     private void ApplyTrayIconSettings()
     {
         if (_trayIconRenderer == null || _settings == null) return;
@@ -1271,7 +1129,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         bool isLight = ResolveEffectiveIsLightTheme();
         _trayIconRenderer.IsLightTheme = isLight;
         _trayIconRenderer.IconStyle = _settings.TrayIconStyle;
-        if (_settings.TrayIconStyle == TrayIconStyle.Static)
+        if (_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Static)
         {
             _trayIconRenderer.CustomColor = _settings.TrayIconColor.Resolve(isLight);
             _trayIconRenderer.BrightColor = null;
@@ -1312,24 +1170,9 @@ internal sealed class BrightnessAvaloniaApp : Application
         try
         {
             DisplayIdentifierService.Hide();
-            if (_hotkeyService != null)
-            {
-                _hotkeyService.Fired -= OnHotkeyFired;
-                Safe.Dispose(_hotkeyService);
-                _hotkeyService = null;
-                AppServices.HotkeyService = null;
-            }
-
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
-
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
+            _hotkeyService = null;
+            AppServices.HotkeyService = null;
+            AppServices.UpdateCheckService = null;
 
             if (_displayEventManager != null)
             {
@@ -1351,11 +1194,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 TADNLog.Log($"BrightnessAvaloniaApp.NightLightProvider.Shutdown failed: {ex.Message}");
             }
 
-            if (_settings != null)
-            {
-                _settings.Changed -= OnSettingsChanged;
-                _settings.Save();
-            }
+            if (_settings != null) _settings.Changed -= OnSettingsChanged;
 
             AppServices.Settings = null;
 
@@ -1369,9 +1208,15 @@ internal sealed class BrightnessAvaloniaApp : Application
 
             if (AppServices.ProfileManager != null)
             {
+                DetachProfileManager(AppServices.ProfileManager);
                 Safe.Dispose(AppServices.ProfileManager);
                 AppServices.ProfileManager = null;
             }
+
+            // Shared by the monitor service and the profile manager, so it goes after both
+            Safe.Dispose(_knownDisplays);
+            _knownDisplays = null;
+            AppServices.KnownDisplays = null;
 
             Safe.Dispose(_brightnessRangeProvider);
             _brightnessRangeProvider = null;
@@ -1380,7 +1225,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
@@ -1399,8 +1243,8 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
 
             _brightnessFlyoutWarmSlot = null;
-            Safe.Dispose(_trayMenuWarmSlot);
-            _trayMenuWarmSlot = null;
+            Safe.Dispose(_trayMenu);
+            _trayMenu = null;
 
             if (_settingsWindow != null)
             {
@@ -1417,7 +1261,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             if (_brightnessFlyout != null)
             {
                 _brightnessFlyout.BrightnessUpdated -= RequestTrayRefresh;
-                _brightnessFlyout.FlyoutDeactivated -= OnFlyoutDeactivated;
                 _brightnessFlyout.SettingsRequested -= OpenSettings;
                 _brightnessFlyout.Closed -= OnBrightnessFlyoutClosed;
                 try { _brightnessFlyout.Close(); }
@@ -1432,23 +1275,13 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
 
             if (glyphConsumersClosed)
-                SkiaFlyoutGlyphIcon.DisposeSharedResources();
-
-            if (_trayMenuWindow != null)
-            {
-                try { _trayMenuWindow.Close(); }
-                catch (Exception exception)
-                {
-                    TADNLog.Log($"Brightness tray-menu shutdown failed: {exception.Message}");
-                }
-
-                _trayMenuWindow = null;
-            }
+                TrayAppDotNETCommon.Visuals.SkiaFlyoutGlyphIcon.DisposeSharedResources();
 
             if (_trayIcon != null)
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
+                _trayIcon.KeySelect -= OnTrayKeySelect;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.Scrolled -= OnTrayScrolled;
                 _trayIcon.PrecisionTouchpadScrolled -= OnTrayPrecisionTouchpadScrolled;
@@ -1456,12 +1289,13 @@ internal sealed class BrightnessAvaloniaApp : Application
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _trayIconRenderer = null;
+            Safe.Dispose(_trayToggle);
+            _trayToggle = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_trayIconRenderer);
-            _trayIconRenderer = null;
 
             TADNLog.Flush();
         }
@@ -1487,13 +1321,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        TADNLog.Log("BrightnessAvaloniaApp.ExitApplication");
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string L(string key) => LocalizationManager.Instance[key];
 }

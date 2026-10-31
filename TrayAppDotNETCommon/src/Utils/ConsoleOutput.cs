@@ -17,19 +17,6 @@ public static class TrayAppDotNETConsoleOutput
     private static StreamWriter? _standardOutput;
     private static StreamWriter? _standardError;
 
-    /// <summary>True when a redirected standard output or an attached parent console accepts lines. Forces initialization.</summary>
-    public static bool IsAvailable
-    {
-        get
-        {
-            lock (Gate)
-            {
-                EnsureInitialized();
-                return _standardOutput != null;
-            }
-        }
-    }
-
     /// <summary>
     /// Writes one line to standard output, or standard error when <paramref name="error"/> is set.
     /// Returns false when no console or redirected handle is reachable. Never throws.

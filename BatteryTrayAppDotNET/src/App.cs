@@ -6,8 +6,8 @@ using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using BatteryTrayAppDotNET.Services;
@@ -17,54 +17,46 @@ using BatteryTrayAppDotNET.UI.Tray;
 using Microsoft.Win32;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using BatteryHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
-using BatteryHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
-using BatteryHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
-using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
-using BatteryWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
+using BatteryHotkeyFiredEventArgs =
+    TrayAppDotNETCommon.Services.HotkeyFiredEventArgs<TrayAppDotNETCommon.Models.HotkeyAction>;
+using BatteryHotkeyService =
+    TrayAppDotNETCommon.Services.GlobalHotkeyService<TrayAppDotNETCommon.Models.HotkeyAction,
+        TrayAppDotNETCommon.Models.HotkeyBinding>;
 
 namespace BatteryTrayAppDotNET;
 
 internal static class BatteryAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<BatteryAvaloniaApp>(
-            args,
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<BatteryAvaloniaApp>(args, AppSettings.GetDefaultPath, configure: Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
 internal sealed class BatteryAvaloniaApp : Application
 {
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
     private AppTheme? _theme;
     private AppSettings? _settings;
     private BatteryMonitorService? _batteryMonitor;
     private BatteryPowerModeService? _powerModes;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BatteryTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
+    private TrayIconPresenter<TrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
+    private TrayWindowToggle? _trayToggle;
     private readonly BatteryTriggerEngine _triggerEngine = new();
     private BatteryFlyoutWindow? _batteryFlyout;
-    private BatteryTrayMenuWindow? _trayMenuWindow;
     private BatterySettingsWindow? _settingsWindow;
     private SettingsFlyoutKeepOpenCoordinator? _settingsFlyoutKeepOpen;
     private TrayAppDotNETWarmWindowSlot<BatteryFlyoutWindow>? _batteryFlyoutWarmSlot;
-    private TrayAppDotNETWarmWindowSlot<BatteryTrayMenuWindow>? _trayMenuWarmSlot;
     private BatteryHotkeyService? _hotkeyService;
-    private BatteryWatcherMonitor? _watcherMonitor;
-    private UpdateCheckService? _updateCheckService;
-    private int _lastNotifiedUpdateVersion;
     private bool _lastBalloonWasTrigger;
     private bool _isBatteryReportRunning;
     private bool _shuttingDown;
@@ -73,38 +65,11 @@ internal sealed class BatteryAvaloniaApp : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("BatteryAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            LoadSettingsAndTheme();
-            TrayAppDotNETInstallerRunner.Show(this,
-                new TrayAppDotNETInstallerWindowOptions
-                {
-                    Layout = AppServices.InstallLayout,
-                    Icon = AppTheme.LoadAppIcon(),
-                    Palette = TrayMenuPalette(),
-                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-                });
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
-        if (Program.IsUninstallerMode)
-        {
-            LoadSettingsAndTheme();
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -113,42 +78,46 @@ internal sealed class BatteryAvaloniaApp : Application
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
 #endif
-        LoadSettingsAndTheme();
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
+        _settings = host.Settings;
         StartServices();
         CreateTrayIcon();
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = ShowUpdateNotification
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
         RequestTrayRefresh();
         RestoreStartupUndockedFlyoutIfRequested();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void LoadSettingsAndTheme()
-    {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => TADNLog.Log($"BatteryAvaloniaApp settings load failed: {ex}"),
-                GetThemePath = AppTheme.GetDefaultPath,
-                LoadTheme = AppTheme.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"BatteryAvaloniaApp theme load failed: {ex}")
-            });
-
-        _settings = loaded.Settings;
-    }
+    private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
+        {
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettingsCommon.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppTheme.GetDefaultPath,
+            LoadTheme = AppTheme.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit()
+        };
 
     private void ConfigureSettings(AppSettings settings)
     {
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
-        TrayAppDotNETAnimationPolicy.Apply(this, settings.AnimationMode);
-        TrayAppDotNETToolTip.ShowDelayMs = settings.ToolTipShowDelayMs;
     }
 
     private void ConfigureTheme(AppTheme theme)
@@ -185,56 +154,22 @@ internal sealed class BatteryAvaloniaApp : Application
             TADNLog.Log($"BatteryAvaloniaApp tray renderer init failed: {ex}");
         }
 
-        try
-        {
-            _hotkeyService = new BatteryHotkeyService(Program.ApplicationName + ".HotkeySink");
-            _hotkeyService.Initialize();
-            _hotkeyService.Fired += OnHotkeyFired;
-            _hotkeyService.Apply(_settings?.Hotkeys ?? []);
-            AppServices.HotkeyService = _hotkeyService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryAvaloniaApp hotkey init failed: {ex}");
-        }
-
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryAvaloniaApp watcher init failed: {ex}");
-        }
-
-        if (_settings != null)
-        {
-            try
+        _hotkeyService = _host?.StartHotkeyService(
+            static prefix => new BatteryHotkeyService(prefix),
+            service =>
             {
-                _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                    _settings,
-                    repositoryName: "TrayAppDotNET",
-                    Program.ApplicationName,
-                    BuildInfo.BuildNumber,
-                    _settings.Save,
-                    Program.LocalAppDataRoot);
-                _updateCheckService.StateChanged += OnUpdateStateChanged;
-                _updateCheckService.Start();
-                AppServices.UpdateCheckService = _updateCheckService;
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"BatteryAvaloniaApp update service init failed: {ex}");
-            }
-        }
+                service.Initialize();
+                service.Fired += OnHotkeyFired;
+                service.Apply(_settings?.Hotkeys ?? []);
+            });
+        AppServices.HotkeyService = _hotkeyService;
     }
 
     private void CreateTrayIcon()
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = false, IsVisible = true
+            IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
@@ -242,6 +177,17 @@ internal sealed class BatteryAvaloniaApp : Application
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnBalloonClicked;
+        _trayIconPresenter = new TrayIconPresenter<TrayIconRenderInput>(
+            _trayIcon,
+            _trayIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon());
+        _trayToggle = new TrayWindowToggle();
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            () => _settings?.KeepTrayContextMenuWarm ?? true,
+            _settings,
+            _theme,
+            TADNLog.Log);
     }
 
     private void OnBatteryStateChanged()
@@ -370,8 +316,6 @@ internal sealed class BatteryAvaloniaApp : Application
         Dispatcher.UIThread.Post(() =>
         {
             ApplyThemeVariant();
-            if (_settings != null)
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
             ApplyTrayIconColorOverride();
             RequestTrayRefresh();
         });
@@ -382,12 +326,7 @@ internal sealed class BatteryAvaloniaApp : Application
         {
             ApplyThemeVariant();
             ApplyTrayIconColorOverride();
-            if (_settings != null)
-            {
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
-                TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
-                ApplyToolTipDelayToOpenWindows();
-            }
+            if (_settings != null) ApplyToolTipDelayToOpenWindows();
 
             if (_hotkeyService != null && _settings != null)
                 _hotkeyService.Apply(_settings.Hotkeys);
@@ -400,30 +339,20 @@ internal sealed class BatteryAvaloniaApp : Application
     {
         if (_batteryFlyoutWarmSlot != null || _settings?.KeepFlyoutWarm == true)
             BatteryFlyoutWarmSlot.ApplyKeepWarmPolicy(CreateManagedBatteryFlyout);
-        if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
-            TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);
+        _trayMenu?.ApplyKeepWarmPolicy();
     }
 
     private void ApplyToolTipDelayToOpenWindows()
     {
         if (_settingsWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_settingsWindow);
         if (_batteryFlyout != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_batteryFlyout);
-        if (_trayMenuWindow != null) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(_trayMenuWindow);
+        if (_trayMenu?.Current is { } trayMenu) TrayAppDotNETToolTip.ApplyShowDelayToSubtree(trayMenu);
     }
 
-    private void OnUpdateStateChanged()
+    private void ShowUpdateNotification(string title, string body)
     {
-        _settingsWindow?.StopAboutUpdateRefresh();
-
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
-
-        _lastNotifiedUpdateVersion = info.Version;
         _lastBalloonWasTrigger = false;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+        _trayIcon?.ShowBalloon(title, body);
     }
 
     // The balloon is shared: a trigger balloon opens the flyout, an update balloon opens the About page
@@ -435,12 +364,12 @@ internal sealed class BatteryAvaloniaApp : Application
             return;
         }
 
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
 
         OpenSettings(BatterySettingsPage.About);
     }
 
-    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ApplyThemeVariant()
     {
@@ -464,95 +393,74 @@ internal sealed class BatteryAvaloniaApp : Application
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        _trayIconRenderer?.InvalidateCache();
+        _trayIconPresenter?.Invalidate();
         RequestTrayRefresh();
     }
 
-    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChangedForThemeReload();
 #endif
 
     private void RequestTrayRefresh()
     {
-        if (_trayIcon == null) return;
+        if (_trayIconPresenter == null) return;
 
         BatterySnapshot snapshot = _batteryMonitor?.Snapshot ?? BatterySnapshot.Unknown;
-        string tooltip = BuildTrayTooltip(snapshot);
-        if (_trayIconRenderer != null)
-        {
-            BatteryTrayIcon renderer = _trayIconRenderer;
-            renderer.SetSnapshot(snapshot);
-            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
-            {
-                _trayIcon.SetTooltip(tooltip);
-                _trayIconRenderQueue.Request(
-                    () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip));
-                return;
-            }
-
-            _trayIcon.SetTooltip(tooltip);
-            return;
-        }
-
-        if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
-        {
-            using (fallbackIcon)
-                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
-            return;
-        }
-
-        _trayIcon.SetTooltip(tooltip);
-    }
-
-    /// <summary>
-    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
-    /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
+        _trayIconRenderer?.Snapshot = snapshot;
+        _trayIconPresenter.Refresh(BuildTrayTooltip(snapshot));
     }
 
     private static string BuildTrayTooltip(BatterySnapshot snapshot)
     {
-        if (!snapshot.BatteryPresent) return $"{Constants.ApplicationName}\nNo battery detected";
+        string title = L(nameof(AppStrings.Tray_Tooltip_Title));
+        if (!snapshot.BatteryPresent) return title + "\n" + L(nameof(AppStrings.Tray_Tooltip_NoBattery));
 
         List<string> lines =
         [
-            $"{Constants.ApplicationName}: {snapshot.ChargePercentage}%",
-            snapshot.IsFullyCharged
-                ? "Plugged in, full"
+            Format(nameof(AppStrings.Tray_Tooltip_Charge_Format), title, snapshot.ChargePercentage),
+            L(snapshot.IsFullyCharged
+                ? nameof(AppStrings.Tray_Tooltip_PluggedInFull)
                 : snapshot.IsCharging
-                    ? "Charging"
+                    ? nameof(AppStrings.Tray_Tooltip_Charging)
                     : snapshot.IsOnExternalPower
-                        ? "Plugged in"
-                        : "On battery"
+                        ? nameof(AppStrings.Tray_Tooltip_PluggedIn)
+                        : nameof(AppStrings.Tray_Tooltip_OnBattery))
         ];
 
         if (snapshot is { EstimatedTimeRemaining: not null, IsFullyCharged: false })
-            lines.Add($"Time remaining: {FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value)}");
+        {
+            lines.Add(Format(
+                nameof(AppStrings.Tray_Tooltip_TimeRemaining_Format),
+                FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value)));
+        }
+
         if (snapshot.CurrentBatteryPowerWatts.HasValue)
-            lines.Add($"Battery power: {snapshot.CurrentBatteryPowerWatts.Value:F1} W");
+        {
+            lines.Add(Format(
+                nameof(AppStrings.Tray_Tooltip_BatteryPower_Format),
+                snapshot.CurrentBatteryPowerWatts.Value));
+        }
+
         if (snapshot.HealthPercent.HasValue)
-            lines.Add($"Health: {snapshot.HealthPercent.Value:F0}%");
+            lines.Add(Format(nameof(AppStrings.Tray_Tooltip_Health_Format), snapshot.HealthPercent.Value));
 
         return string.Join(separator: '\n', lines);
     }
 
     private void OnTrayLeftClick()
     {
-        if (_batteryFlyout is { IsVisible: true })
+        switch (_trayToggle?.Decide(_batteryFlyout) ?? TrayToggleAction.Show)
         {
-            _batteryFlyout.Hide();
-            return;
+            case TrayToggleAction.Hide:
+                _batteryFlyout?.Hide();
+                break;
+            // A floating flyout behind another window comes forward where it is instead of docking again
+            case TrayToggleAction.Activate:
+                _batteryFlyout?.Activate();
+                break;
+            case TrayToggleAction.Show:
+                ShowBatteryFlyout();
+                break;
         }
-
-        ShowBatteryFlyout();
     }
 
     private void OnTrayLeftDoubleClick() => OpenSettings();
@@ -565,45 +473,50 @@ internal sealed class BatteryAvaloniaApp : Application
 
     private void ShowTrayContextMenu(Point point)
     {
-        if (_trayIcon == null || _settings == null) return;
-
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.DismissForWarmCache();
-
-        BatteryTrayMenuWindow menuWindow = TrayMenuWarmSlot.TakeOrCreate(CreateTrayMenuWindow);
-        _trayMenuWindow = menuWindow;
+        if (_trayIcon == null || _settings == null || _trayMenu == null) return;
 
         PixelPoint cursorPoint = new((int)Math.Round(point.X), (int)Math.Round(point.Y));
-        menuWindow.ShowAt(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
+        _trayMenu.Show(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
     }
 
-    private BatteryTrayMenuWindow CreateTrayMenuWindow()
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
         if (_settings == null)
             throw new InvalidOperationException("Battery tray menu requires settings.");
 
-        BatteryTrayMenuWindow menuWindow = new(
-            _settings,
-            TrayMenuPalette(),
-            BatteryTrayMenuWindow.OpenPowerOptions,
-            OpenBatteryReport,
-            OpenSettings,
-            ExitApplication);
-        _trayMenuWindow = menuWindow;
-        menuWindow.Closed += OnTrayMenuClosed;
-        return menuWindow;
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_PowerOptions)), OpenPowerOptions)
+        {
+            Node = UI.ControlMap.TrayMenu.OpenPowerOptions
+        });
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_BatteryReport)), OpenBatteryReport)
+        {
+            Node = UI.ControlMap.TrayMenu.OpenBatteryReport
+        });
+        return new TrayMenuWindow(
+            entries,
+            TrayMenuWindowOptions.Create(
+                _settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                TrayMenuStandardEntry.Settings(OpenSettings, UI.ControlMap.TrayMenu.OpenSettings),
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)) with
+            {
+                ScrollToBottom = true
+            });
     }
 
-    private void OnTrayMenuClosed(object? sender, EventArgs e)
+    private static void OpenPowerOptions()
     {
-        if (sender is BatteryTrayMenuWindow menu)
-            menu.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(_trayMenuWindow, sender))
-            _trayMenuWindow = null;
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = "control.exe", Arguments = "/name Microsoft.PowerOptions", UseShellExecute = false
+            });
+        }
+        catch (Exception ex) { TADNLog.Log($"BatteryAvaloniaApp.OpenPowerOptions: {ex.Message}"); }
     }
-
-    private SettingsPalette TrayMenuPalette() =>
-        BatterySettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLightTheme());
 
     private void ShowBatteryFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
@@ -642,11 +555,6 @@ internal sealed class BatteryAvaloniaApp : Application
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => TADNLog.Log($"Battery flyout keep-warm: {ex.Message}"));
 
-    private TrayAppDotNETWarmWindowSlot<BatteryTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BatteryTrayMenuWindow>(
-            () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => TADNLog.Log($"Battery tray menu keep-warm: {ex.Message}"));
-
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
@@ -661,8 +569,8 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 if (_settings?.KeepFlyoutWarm == true && _batteryMonitor != null)
                     await BatteryFlyoutWarmSlot.PrimeAsync(CreateManagedBatteryFlyout);
-                if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
-                    await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
+                if (_trayMenu != null)
+                    await _trayMenu.PrimeAsync();
             }
             catch (Exception ex)
             {
@@ -673,9 +581,8 @@ internal sealed class BatteryAvaloniaApp : Application
 
     private void OnBatteryFlyoutClosed(object? sender, EventArgs e)
     {
-        if (_batteryFlyout == null) return;
-        _batteryFlyout.Closed -= OnBatteryFlyoutClosed;
-        _batteryFlyout = null;
+        if (sender is BatteryFlyoutWindow flyout) flyout.Closed -= OnBatteryFlyoutClosed;
+        if (ReferenceEquals(_batteryFlyout, sender)) _batteryFlyout = null;
     }
 
     private void OpenSettings() => OpenSettings(BatterySettingsPage.General);
@@ -760,15 +667,10 @@ internal sealed class BatteryAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(
-        string installDir,
-        BatteryInstallScope scope,
-        IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        BatteryUninstallerWindow window = new(installDir, scope, progress);
-        if (_settingsWindow != null) window.Show(_settingsWindow);
-        else window.Show();
-    }
+    private Task<bool> ShowUninstallerWindow(
+        TrayAppDotNETCommon.Models.InstallScope scope,
+        IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 
     private void ShutdownServices()
     {
@@ -783,31 +685,10 @@ internal sealed class BatteryAvaloniaApp : Application
         {
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
-            if (_hotkeyService != null)
-            {
-                _hotkeyService.Fired -= OnHotkeyFired;
-                Safe.Dispose(_hotkeyService);
-                _hotkeyService = null;
-                AppServices.HotkeyService = null;
-            }
-
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
-
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
-
-            if (_settings != null)
-            {
-                _settings.Changed -= OnSettingsChanged;
-                _settings.Save();
-            }
-
+            _hotkeyService = null;
+            AppServices.HotkeyService = null;
+            AppServices.UpdateCheckService = null;
+            if (_settings != null) _settings.Changed -= OnSettingsChanged;
             AppServices.Settings = null;
 
             if (_batteryMonitor != null)
@@ -820,24 +701,12 @@ internal sealed class BatteryAvaloniaApp : Application
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
 
-            if (_trayMenuWindow != null)
-            {
-                try { _trayMenuWindow.Close(); }
-                catch
-                {
-                    // ignored
-                }
-
-                _trayMenuWindow = null;
-            }
-
-            Safe.Dispose(_trayMenuWarmSlot);
-            _trayMenuWarmSlot = null;
+            Safe.Dispose(_trayMenu);
+            _trayMenu = null;
 
             Safe.Dispose(_settingsFlyoutKeepOpen);
             _settingsFlyoutKeepOpen = null;
@@ -863,17 +732,19 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
+                _trayIcon.KeySelect -= OnTrayKeySelect;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
                 _trayIcon.BalloonClicked -= OnBalloonClicked;
             }
 
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _trayIconRenderer = null;
+            Safe.Dispose(_trayToggle);
+            _trayToggle = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_trayIconRenderer);
-            _trayIconRenderer = null;
 
             if (_settingsWindow != null)
             {
@@ -895,21 +766,19 @@ internal sealed class BatteryAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        TADNLog.Log("BatteryAvaloniaApp.ExitApplication");
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string FormatTimeSpan(TimeSpan value)
     {
-        if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours}h";
+        if (value.TotalDays >= 1)
+            return Format(nameof(AppStrings.Tray_Tooltip_Duration_DaysHours_Format), (int)value.TotalDays, value.Hours);
         return value.TotalHours >= 1
-            ? $"{(int)value.TotalHours}h {value.Minutes}m"
-            : $"{Math.Max(val1: 1, value.Minutes)}m";
+            ? Format(nameof(AppStrings.Tray_Tooltip_Duration_HoursMinutes_Format), (int)value.TotalHours, value.Minutes)
+            : Format(nameof(AppStrings.Tray_Tooltip_Duration_Minutes_Format), Math.Max(val1: 1, value.Minutes));
     }
+
+    private static string Format(string key, params object[] args) =>
+        string.Format(CultureInfo.CurrentCulture, L(key), args);
 
     private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -5,6 +5,7 @@ using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Localization;
 
 namespace TrayAppDotNETCommon;
 
@@ -18,16 +19,44 @@ public sealed record CrashHandlerOptions(
     public int RapidRestartDetectionWindowMs { get; init; } = TimeConstants.RapidRestartDetectionWindowMs;
 }
 
+/// <summary>What the watcher does after its monitored app exits with a given code.</summary>
+internal enum WatcherExitAction
+{
+    /// <summary>The user or another process ended the app on purpose; the watcher exits too.</summary>
+    Stop,
+
+    /// <summary>The app crashed; restart it, subject to the rapid-restart limit.</summary>
+    RestartAfterCrash,
+
+    /// <summary>
+    /// The app exited because Windows asked the session to end, and the watcher saw the session shutting down when
+    /// the app exited. Relaunch it only once Windows no longer reports the session as shutting down (the logoff or
+    /// shutdown was cancelled); the relaunch counts toward the rapid-restart limit like a crash restart.
+    /// </summary>
+    RelaunchIfSessionContinues
+}
+
 /// <summary>
-/// Process-level fatal exception wiring plus the watcher process loop.
+/// Process-level exception policy plus the watcher process loop.
+/// Policy: an unhandled exception on any thread is fatal (logged, then exit code
+/// <see cref="FatalExceptionExitCode"/> so the watcher restarts the app); an unobserved task exception is logged in
+/// full and marked observed, never fatal, because it surfaces at an unpredictable time when the finalizer runs.
+/// UI dispatcher exceptions are logged in full and handled (<see cref="DescribeException"/>).
 /// </summary>
 public static class CrashHandler
 {
-    private const int MaxRapidRestarts = 5;
+    internal const int MaxRapidRestarts = 5;
     private const int WatcherHeapHardLimitBytes = 32 * 1024 * 1024;
     private const string WatcherOriginalEnvironmentPrefix = "TrayAppDotNET_WATCHER_ORIGINAL_";
     private const string WatcherOriginalEnvironmentUnset = "__TrayAppDotNET_UNSET__";
+    private const int SM_SHUTTINGDOWN = 0x2000;
     public const int FatalExceptionExitCode = 2;
+
+    /// <summary>
+    /// Exit code of an app that exited because the Windows session is ending. Native runtimes also exit with 3 (for
+    /// example the C runtime's abort), so the watcher honors it only while it sees the session shutting down itself.
+    /// </summary>
+    public const int SessionEndingExitCode = 3;
 
     private static readonly KeyValuePair<string, string>[] WatcherGcEnvironment =
     [
@@ -61,14 +90,44 @@ public static class CrashHandler
             options.FlushLog();
             Environment.Exit(FatalExceptionExitCode);
         };
-        TaskScheduler.UnobservedTaskException += (_, args) =>
-        {
-            args.SetObserved();
-            options.Log($"FATAL UnobservedTaskException: {args.Exception}");
-            options.FlushLog();
-            Environment.Exit(FatalExceptionExitCode);
-        };
+        TaskScheduler.UnobservedTaskException += (_, args) => LogUnobservedTaskException(options, args);
     }
+
+    /// <summary>Logs an unobserved task exception with its full detail and marks it observed.</summary>
+    internal static void LogUnobservedTaskException(CrashHandlerOptions options, UnobservedTaskExceptionEventArgs args)
+    {
+        args.SetObserved();
+        options.Log($"UnobservedTaskException: {DescribeException(args.Exception)}");
+        options.FlushLog();
+    }
+
+    /// <summary>The log text for a recoverable exception: type, message, stack trace and inner exceptions.</summary>
+    public static string DescribeException(Exception exception) => exception.ToString();
+
+    /// <summary>
+    /// Maps a monitored app's exit code to what its watcher does next. <paramref name="sessionShuttingDown"/> is
+    /// what the watcher observed when the app exited; without it the session-ending code is an ordinary crash.
+    /// </summary>
+    internal static WatcherExitAction ClassifyExitCode(int exitCode, bool sessionShuttingDown) =>
+        exitCode switch
+        {
+            0 or 1 => WatcherExitAction.Stop,
+            SessionEndingExitCode when sessionShuttingDown => WatcherExitAction.RelaunchIfSessionContinues,
+            _ => WatcherExitAction.RestartAfterCrash
+        };
+
+    /// <summary>
+    /// Waits out a session end: sleeps the relaunch delay, then polls until Windows stops reporting the session as
+    /// shutting down. If the session does end, Windows terminates this process while it waits.
+    /// </summary>
+    internal static void WaitForSessionToContinue(Func<bool> isSessionShuttingDown, Action<int> sleep)
+    {
+        sleep(TimeConstants.SessionEndRelaunchDelayMs);
+        while (isSessionShuttingDown())
+            sleep(TimeConstants.SessionEndShutdownPollIntervalMs);
+    }
+
+    internal static bool IsSessionShuttingDown() => User32.GetSystemMetrics(SM_SHUTTINGDOWN) != 0;
 
     /// <summary>
     /// Runs the watcher loop. <paramref name="launchArguments"/>, the arguments
@@ -83,7 +142,7 @@ public static class CrashHandler
 
         if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
         {
-            ShowError("Cannot determine executable path.");
+            ShowError(CommonStrings.CrashHandler_NoExecutablePath);
             return 1;
         }
 
@@ -95,7 +154,7 @@ public static class CrashHandler
         WatchedProcess childProcess = LaunchApplication(exePath, exeDir ?? ".", launchArguments);
         if (!childProcess.IsValid)
         {
-            ShowError($"Failed to start {options.ApplicationName}");
+            ShowError(Format(CommonStrings.CrashHandler_StartFailed_Format, options.ApplicationName));
             return 1;
         }
 
@@ -110,26 +169,29 @@ public static class CrashHandler
             childProcess.Dispose();
             childProcess = default;
 
-            if (IsUserExitCode(exitCode)) break;
+            WatcherExitAction action = ClassifyExitCode(
+                exitCode,
+                exitCode == SessionEndingExitCode && IsSessionShuttingDown());
+            if (action == WatcherExitAction.Stop) break;
 
+            // Every relaunch counts, so an app that keeps dying at startup cannot loop forever
             long now = Environment.TickCount64;
             RecordRestart(restartTimes, ref restartCount, now, options.RapidRestartDetectionWindowMs);
-
             if (restartCount >= MaxRapidRestarts)
             {
-                ShowError(
-                    $"{options.ApplicationName} has crashed repeatedly.\n\n" +
-                    "The crash handler will not attempt further restarts.\n" +
-                    "Please check for issues and restart manually.");
+                ShowError(Format(CommonStrings.CrashHandler_CrashedRepeatedly_Format, options.ApplicationName));
                 break;
             }
 
-            Thread.Sleep(options.CrashRestartDelayMs);
+            if (action == WatcherExitAction.RelaunchIfSessionContinues)
+                WaitForSessionToContinue(IsSessionShuttingDown, Thread.Sleep);
+            else
+                Thread.Sleep(options.CrashRestartDelayMs);
 
             childProcess = LaunchApplication(exePath, exeDir ?? ".", launchArguments);
             if (!childProcess.IsValid)
             {
-                ShowError($"Failed to restart {options.ApplicationName}");
+                ShowError(Format(CommonStrings.CrashHandler_RestartFailed_Format, options.ApplicationName));
                 break;
             }
 
@@ -316,9 +378,7 @@ public static class CrashHandler
     private static string ToHexEnvironmentValue(int value) =>
         "0x" + value.ToString(format: "X", CultureInfo.InvariantCulture);
 
-    private static bool IsUserExitCode(int exitCode) => exitCode is 0 or 1;
-
-    private static void RecordRestart(Span<long> restartTimes, ref int restartCount, long now, int windowMs)
+    internal static void RecordRestart(Span<long> restartTimes, ref int restartCount, long now, int windowMs)
     {
         if (restartCount < MaxRapidRestarts)
             restartTimes[restartCount++] = now;
@@ -342,8 +402,15 @@ public static class CrashHandler
     private static void ShowError(string message)
     {
         CrashHandlerOptions options = Options;
-        _ = MessageBox(IntPtr.Zero, message, $"{options.ApplicationName} Crash Handler", type: 0x10);
+        _ = User32.MessageBox(
+            IntPtr.Zero,
+            message,
+            Format(CommonStrings.CrashHandler_Title_Format, options.ApplicationName),
+            User32.MB_ICONERROR);
     }
+
+    private static string Format(string format, string argument) =>
+        string.Format(CultureInfo.CurrentCulture, format, argument);
 
     private static CrashHandlerOptions Options =>
         _options ?? throw new InvalidOperationException("CrashHandler.Configure must be called before use.");
@@ -421,7 +488,4 @@ public static class CrashHandler
 
     [DllImport("psapi.dll")]
     private static extern bool EmptyWorkingSet(IntPtr process);
-
-    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]
-    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 }

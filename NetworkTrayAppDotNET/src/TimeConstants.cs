@@ -13,15 +13,15 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
 
     // Settings UI
-    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
-    public new const int ToolTipShowDelayDefaultMs = CommonTimeConstants.ToolTipShowDelayDefaultMs;
     public new const int ToolTipShowDelayMinMs = CommonTimeConstants.ToolTipShowDelayMinMs;
     public new const int ToolTipShowDelayMaxMs = CommonTimeConstants.ToolTipShowDelayMaxMs;
 
     // Auto-update
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
-    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // Network polling
     public const int NetworkPollIntervalMs = 3_000;
+
+    // Without a change, the forced collection that releases C#/WinRT connection-profile wrappers runs at most this often
+    public const int NetworkProjectionReleaseIntervalMs = 5 * 60 * 1_000;
 }

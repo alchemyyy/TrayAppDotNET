@@ -9,8 +9,6 @@ namespace FanControlTrayAppDotNET;
 public abstract class TimeConstants : CommonTimeConstants
 {
     // Settings UI
-    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
-
     public new const int TrayMenuSubmenuShowDelayDefaultMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
@@ -22,7 +20,6 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // Auto-update
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
-    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // LibreHardwareMonitor polling. Hardware sensor reads are intrinsically polled; LHM has no
     // event surface, so we drive it on a timer. 500ms is a compromise between responsiveness
@@ -46,9 +43,20 @@ public abstract class TimeConstants : CommonTimeConstants
     // differ by at most this much. Covers clock jitter and small NTP corrections; a reboot moves it by far more.
     public const int BootIdentityToleranceMs = 10_000;
 
-    // Process list refresh. ProcessRunningService rebuilds the running-process snapshot at this
-    // cadence as a fallback when WMI subscriptions are unavailable; with WMI active, this is the
-    // reconciliation sweep cadence to catch any events the subscription missed.
-    public const int ProcessListPollIntervalMs = 2_000;
+    // User nickname regexes run on the UI thread that also drives curve control, so one match may take at most this
+    // long; a pattern that backtracks past it counts as not matching
+    public const int NicknameRegexMatchTimeoutMs = 100;
+
+    // How long shutdown waits for a background poll loop or the control-write worker to stop
     public const int BackgroundPollShutdownWaitMs = 2_000;
+
+    // After resume, a rediscovery that misses control sensors (a controller not back yet) is retried after this delay
+    // times the attempt number, at most this many attempts in all
+    public const int ResumeRediscoveryRetryDelayMs = 3_000;
+    public const int ResumeRediscoveryMaxAttempts = 4;
+
+    // PawnIO driver setup: the whole download (headers and body) and the wait for the setup process, which includes
+    // the time the user takes to answer the administrator prompt
+    public const int PawnIoDownloadTimeoutMs = 120_000;
+    public const int PawnIoInstallerTimeoutMs = 600_000;
 }

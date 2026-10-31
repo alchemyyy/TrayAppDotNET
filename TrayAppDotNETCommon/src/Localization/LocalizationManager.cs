@@ -1,14 +1,14 @@
-using System.ComponentModel;
 using System.Globalization;
 using System.Resources;
 
 namespace TrayAppDotNETCommon.Localization;
 
 /// <summary>
-/// Resolves app-specific resources before shared resources and exposes culture changes to UI binding.
-/// The host app supplies its generated resource manager once at startup.
+/// Resolves app-specific resources before shared resources. The host app supplies its generated resource manager
+/// and the culture once at startup; the culture does not change while the app runs, so a Language change applies
+/// after a restart.
 /// </summary>
-public sealed class LocalizationManager : INotifyPropertyChanged
+public sealed class LocalizationManager
 {
     /// <summary>Language setting value that follows the Windows display language</summary>
     public const string AutoLanguage = "Auto";
@@ -61,37 +61,21 @@ public sealed class LocalizationManager : INotifyPropertyChanged
 
     private LocalizationManager() { }
 
-    public CultureInfo CurrentCulture
-    {
-        get => _currentCulture;
-        set
-        {
-            if (Equals(_currentCulture, value)) return;
-
-            ApplyCulture(value);
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
-            CultureChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public event EventHandler? CultureChanged;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
+    public CultureInfo CurrentCulture => _currentCulture;
 
     public bool IsInitialized => _applicationResourceManager != null;
 
     public string this[string key] => GetString(key);
 
+    /// <summary>The resource for <paramref name="key"/>, or the key itself when no resource defines it.</summary>
     public string GetString(string key)
     {
         if (string.IsNullOrEmpty(key)) return string.Empty;
 
-        // Application resources intentionally override shared defaults
-        string? resolved = _applicationResourceManager?.GetString(key, _currentCulture)
-                           ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
-        return string.IsNullOrWhiteSpace(resolved) ? key : resolved;
+        return TryGetString(key, out string value) ? value : key;
     }
 
+    /// <summary>Looks up <paramref name="key"/>; application resources intentionally override shared defaults.</summary>
     public bool TryGetString(string key, out string value)
     {
         value = string.Empty;
@@ -117,8 +101,6 @@ public sealed class LocalizationManager : INotifyPropertyChanged
 
         CultureInfo target = culture ?? CultureInfo.CurrentUICulture;
         ApplyCulture(target);
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
-        CultureChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ApplyCulture(CultureInfo culture)

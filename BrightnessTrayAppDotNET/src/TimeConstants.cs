@@ -15,8 +15,6 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
 
     // Settings UI
-    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
-
     public new const int TrayMenuSubmenuShowDelayDefaultMs =
         CommonTimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
@@ -28,7 +26,6 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // Auto-update
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
-    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // DDC recovery
     public const int DDCRecoveryRetryIntervalMs = 2_000;
@@ -124,6 +121,10 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int NightLightHelperStateChangeTimeoutMs = NightLightSaveNotifyTimeoutMs * 4 + 2_000;
     public const int NightLightHelperExitTimeoutMs = 2_000;
     public const int NightLightHelperRecoveryDelayMs = 250;
+    // A failed helper start (timeout, crash, symbol download failure) may be retried by the next write after this
+    // backoff, which doubles per consecutive failure up to the maximum. An UNSUPPORTED reply is never retried.
+    public const int NightLightHelperInitRetryBaseMs = 5_000;
+    public const int NightLightHelperInitRetryMaxMs = 300_000;
     public const int NightLightStreamingPreviewReleaseDelayMs = 150;
     public const int NightLightHelperRecycleQuietDelayMs = 200;
     public const int NightLightStateSaveDebounceMs = 500;
@@ -152,6 +153,8 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int DDCOperationTimeoutMinMs = DDCOperationTimeoutSafetyFloorMs;
     public const int DDCOperationTimeoutMaxMs = 60_000;
     public const int EnvironmentalCurveTickIntervalDefaultMs = 5_000;
+    public const int EnvironmentalCurveTickIntervalMinMs = 250;
+    public const int EnvironmentalCurveTickIntervalMaxMs = 600_000;
     public const int AutoEngageEnvironmentalCurveDelayDefaultSeconds = 60;
     public const int AutoEngageEnvironmentalCurveDelayMinSeconds = 0;
     public const int AutoEngageEnvironmentalCurveDelayMaxSeconds = 86_400;

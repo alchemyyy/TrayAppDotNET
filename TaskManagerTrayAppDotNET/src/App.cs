@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
@@ -14,27 +13,21 @@ namespace TaskManagerTrayAppDotNET;
 
 internal static class TaskManagerAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<TaskManagerAvaloniaApp>(
-            args,
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<TaskManagerAvaloniaApp>(args, AppSettings.GetDefaultPath, configure: Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
 internal sealed class TaskManagerAvaloniaApp : Application
 {
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
     private AppSettings? _settings;
     private AppTheme? _theme;
     private ProcessIconService? _processIconService;
@@ -45,64 +38,30 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private TaskManagerActivationServer? _taskManagerActivationServer;
     private ElevatedActionCoordinator? _elevatedActionCoordinator;
     private TaskManagerWindow? _taskManagerWindow;
-    private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
-    private TaskbarForegroundTracker? _taskbarForegroundTracker;
+    private TrayWindowToggle? _trayToggle;
     private TaskManagerTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
-    private WatcherMonitor? _watcherMonitor;
-    private UpdateCheckService? _updateCheckService;
-    private int _lastNotifiedUpdateVersion;
+    private TrayIconPresenter<TaskManagerTrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
     private bool _shuttingDown;
 
-    public override void Initialize() =>
-        TrayAppDotNETAvalonia.InitializeDefaults(
-            this,
-            toolTipShowDelayMs: TimeConstants.ToolTipShowDelayDefaultMs);
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("TaskManagerAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-        LoadSettingsAndTheme();
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        AppServices.Host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            TrayAppDotNETInstallerRunner.Show(this,
-                new TrayAppDotNETInstallerWindowOptions
-                {
-                    Layout = AppServices.InstallLayout,
-                    Icon = null,
-                    Palette = CreatePalette(),
-                    EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
-                });
             base.OnFrameworkInitializationCompleted();
             return;
         }
 
-        if (Program.IsUninstallerMode)
-        {
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            TaskManagerUninstallerWindow uninstaller = new(
-                Program.UninstallerInstallDir ?? string.Empty,
-                Program.UninstallerScope);
-            uninstaller.Show();
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
         AppSettings settings = _settings
                                ?? throw new InvalidOperationException("Task Manager settings were not loaded.");
-        StartWatcherMonitor();
         _processIconService = new ProcessIconService();
         _processTerminationService = new ProcessTerminationService(TADNLog.Log);
         _ = _processTerminationService.EnsureStandardHelperAsync();
@@ -113,7 +72,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                 settings.PerformanceHistoryLengthMinutes,
                 settings.PerformanceSampleIntervalMilliseconds),
-            settings.ShowMemoryModuleSerialNumbers);
+            settings.ShowMemoryModuleSerialNumbers,
+            _snapshotService);
         _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
         _windowsTaskManagerHotkeyOverride = new WindowsTaskManagerHotkeyOverride(
@@ -131,9 +91,15 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _snapshotService.Start();
         _performanceSnapshotService.Start();
         CreateTrayIcon();
-        StartUpdateCheckService(settings);
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = (title, body) => _trayIcon?.ShowBalloon(title, body)
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
+        if (host.UpdateService != null) host.UpdateService.StateChanged += OnUpdateStateChanged;
         TaskManagerWindow taskManagerWindow = _taskManagerWindow!;
-        if (Program.IsHiddenLaunch)
+        if (TrayAppDotNETProgram.IsHiddenLaunch)
         {
             // The installer starts the app this way when it finishes, so it waits in the tray until it is opened
             taskManagerWindow.StartHidden();
@@ -141,7 +107,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             return;
         }
 
-        if (settings.StartMinimized && Program.IsStartupLaunch)
+        if (settings.StartMinimized && TrayAppDotNETProgram.IsStartupLaunch)
         {
             // Only sign-in launches honor the setting; a manual start always shows the window
             taskManagerWindow.StartMinimized();
@@ -170,35 +136,31 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
     }
 
-    private void LoadSettingsAndTheme()
-    {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = exception =>
-                    TADNLog.Log($"TaskManager settings load failed: {exception}"),
-                GetThemePath = AppThemeStore.GetDefaultPath,
-                LoadTheme = AppThemeStore.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = exception =>
-                    TADNLog.Log($"TaskManager theme load failed: {exception}")
-            });
-        _settings = loaded.Settings;
-    }
+    private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
+        {
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettingsCommon.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppThemeStore.GetDefaultPath,
+            LoadTheme = AppThemeStore.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit()
+        };
 
     private void ConfigureSettings(AppSettings settings)
     {
         _settings = settings;
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
-        TrayAppDotNETAnimationPolicy.Apply(this, settings.AnimationMode);
-        TrayAppDotNETToolTip.ShowDelayMs = settings.ToolTipShowDelayMs;
     }
 
     private void ConfigureTheme(AppTheme theme)
@@ -207,40 +169,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
         theme.ThemeChanged += OnThemeChanged;
         AppServices.Theme = theme;
         ApplyThemeVariant();
-    }
-
-    private void StartWatcherMonitor()
-    {
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"TaskManager watcher monitor init failed: {exception}");
-        }
-    }
-
-    private void StartUpdateCheckService(AppSettings settings)
-    {
-        try
-        {
-            _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                settings,
-                repositoryName: "TrayAppDotNET",
-                Program.ApplicationName,
-                BuildInfo.BuildNumber,
-                settings.Save,
-                Program.LocalAppDataRoot);
-            _updateCheckService.StateChanged += OnUpdateStateChanged;
-            _updateCheckService.Start();
-            AppServices.UpdateCheckService = _updateCheckService;
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"TaskManagerAvaloniaApp update service init failed: {exception}");
-        }
     }
 
     private void CreateTaskManagerWindow()
@@ -265,7 +193,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void CreateTrayIcon()
     {
-        _taskbarForegroundTracker = new TaskbarForegroundTracker();
+        _trayToggle = new TrayWindowToggle();
         _trayIcon = new TrayAppDotNETShellTrayIcon(
             Constants.TrayIconGUID,
             Program.ApplicationName + ".TrayIcon");
@@ -277,44 +205,43 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RefreshTrayIcon;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
+
+        // The live graph changes with every sample, so every refresh renders
+        _trayIconPresenter = new TrayIconPresenter<TaskManagerTrayIconRenderInput>(
+            _trayIcon,
+            _trayIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon(),
+            new TrayIconPresenterOptions { Dedupe = false });
+
+        // Task Manager's tray menu is never kept warm
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            static () => false,
+            _settings,
+            _theme,
+            TADNLog.Log);
+#if DEBUG
+        TaskManagerWindowResources.ResourcesReloaded += OnTrayMenuResourcesReloaded;
+#endif
         RefreshTrayIcon();
         _trayIcon.IsVisible = true;
     }
 
     private void RefreshTrayIcon()
     {
-        TrayAppDotNETShellTrayIcon? trayIcon = _trayIcon;
-        if (trayIcon == null) return;
+        if (_trayIconPresenter == null) return;
 
         if (_trayIconRenderer != null && _settings != null)
         {
-            TaskManagerTrayIcon renderer = _trayIconRenderer;
-            TrayGraphDataSource dataSource = _settings.TrayGraphDataSource;
-            TaskManagerTrayIconRenderInput input = renderer.CreateRenderInput(
-                _settings.TrayGraphStyle,
-                dataSource,
-                _settings.ShowTrayCPUHighestCoreTrace);
-            PerformanceSnapshot performanceSnapshot =
-                _performanceSnapshotService?.GetLatestSnapshot() ?? PerformanceSnapshot.Empty;
-            string tooltip = TaskManagerTrayTooltipFormatter.Format(
-                performanceSnapshot,
-                _settings.PerformanceDeviceOrder);
-            trayIcon.SetTooltip(tooltip);
-            _trayIconRenderQueue.Request(
-                () => renderer.RenderIcon(input),
-                icon => ApplyRenderedTrayIcon(icon, tooltip));
-            return;
+            _trayIconRenderer.Style = _settings.TrayGraphStyle;
+            _trayIconRenderer.DataSource = _settings.TrayGraphDataSource;
+            _trayIconRenderer.ShowCPUHighestCoreTrace = _settings.ShowTrayCPUHighestCoreTrace;
         }
 
-        NativeIcon? fallbackIcon = AppThemeStore.LoadAppNativeIcon();
-        if (fallbackIcon != null)
-        {
-            trayIcon.SetOwnedIconAndTooltip(fallbackIcon, Constants.DisplayName);
-            return;
-        }
-
-        trayIcon.SetTooltip(Constants.DisplayName);
-        TADNLog.Log("Task Manager tray icon could not be loaded.");
+        PerformanceSnapshot performanceSnapshot =
+            _performanceSnapshotService?.GetLatestSnapshot() ?? PerformanceSnapshot.Empty;
+        _trayIconPresenter.Refresh(
+            TaskManagerTrayTooltipFormatter.Format(performanceSnapshot, _settings?.PerformanceDeviceOrder));
     }
 
     private void OnSystemPerformanceSampleAvailable()
@@ -326,23 +253,11 @@ internal sealed class TaskManagerAvaloniaApp : Application
         RefreshTrayIcon();
     }
 
-    /// <summary>Applies a rendered graph icon, disposing it after tray shutdown.</summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
-    }
-
     private void OnTrayLeftClick()
     {
-        if (_taskManagerWindow == null || _taskbarForegroundTracker == null) return;
+        if (_taskManagerWindow == null || _trayToggle == null) return;
 
-        _taskManagerWindow.ToggleFromTray(_taskbarForegroundTracker);
+        _taskManagerWindow.ToggleFromTray(_trayToggle);
     }
 
     // The first click of a double click may already have shown the window, so this reveal must not move it
@@ -370,46 +285,46 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void ShowTrayMenu(Point point)
     {
-        if (_trayIcon == null || _settings == null) return;
+        if (_trayIcon == null || _trayMenu == null) return;
 
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.Close();
-
-        _trayMenuWindow = new TaskManagerTrayMenuWindow(
-            _settings,
-            CreatePalette(),
-            ShowTaskManager,
-            ExitApplication);
-        _trayMenuWindow.Closed += OnTrayMenuClosed;
         PixelPoint cursorPoint = new((int)Math.Round(point.X), (int)Math.Round(point.Y));
-        _trayMenuWindow.ShowAt(_trayIcon, cursorPoint);
+        _trayMenu.Show(_trayIcon, cursorPoint, TrayAppDotNETContextMenuPosition.Modern);
     }
 
-    private void OnTrayMenuClosed(object? sender, EventArgs eventArgs)
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
-        if (sender is TaskManagerTrayMenuWindow menuWindow)
-            menuWindow.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(sender, _trayMenuWindow))
-            _trayMenuWindow = null;
+        AppSettings settings = _settings
+                               ?? throw new InvalidOperationException("Task Manager tray menu requires settings.");
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry(L(nameof(AppStrings.Tray_OpenTaskManager)), ShowTaskManager)
+        {
+            Node = UI.ControlMap.TrayMenu.OpenTaskManager
+        });
+
+        // Task Manager has no Settings entry; its window holds the settings pages
+        return new TrayMenuWindow(
+            entries,
+            TrayMenuWindowOptions.Create(
+                settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                settingsEntry: null,
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)) with
+            {
+                FontSize = TaskManagerWindowResources.Current.AxamlTaskManagerTrayMenu.FontSize
+            });
     }
 
-    private void OnUpdateStateChanged()
-    {
-        _taskManagerWindow?.NotifyUpdateStateChanged();
+#if DEBUG
+    private void OnTrayMenuResourcesReloaded() => _trayMenu?.Invalidate();
+#endif
 
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
-
-        _lastNotifiedUpdateVersion = info.Version;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
-    }
+    // The window's sidebar update button follows the update state
+    private void OnUpdateStateChanged() => _taskManagerWindow?.NotifyUpdateStateChanged();
 
     private void OnUpdateBalloonClicked()
     {
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
 
         ShowTaskManager();
     }
@@ -428,8 +343,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
             ApplyThemeVariant();
             if (_settings != null)
             {
-                TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
-                TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
                 _windowsTaskManagerHotkeyOverride?.SetEnabled(
                     _settings.OverrideWindowsTaskManagerHotkey);
                 _performanceSnapshotService?.UpdateConfiguration(
@@ -449,15 +362,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             ? ThemeVariant.Light
             : ThemeVariant.Dark;
 
-    private bool ResolveEffectiveIsLightTheme() => _settings?.ThemeMode switch
-    {
-        TrayAppDotNETThemeMode.Light => true,
-        TrayAppDotNETThemeMode.Dark => false,
-        _ => _theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
-    };
-
-    private SettingsPalette CreatePalette() =>
-        VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLightTheme());
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ShutdownServices()
     {
@@ -474,27 +379,20 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _elevatedActionCoordinator = null;
             AppServices.ElevatedActions = null;
 
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
+            AppServices.UpdateCheckService = null;
+            AppServices.Host = null;
 
-            if (_trayMenuWindow != null)
-            {
-                _trayMenuWindow.Closed -= OnTrayMenuClosed;
-                _trayMenuWindow.Close();
-                _trayMenuWindow = null;
-            }
+#if DEBUG
+            TaskManagerWindowResources.ResourcesReloaded -= OnTrayMenuResourcesReloaded;
+#endif
+            Safe.Dispose(_trayMenu);
+            _trayMenu = null;
 
             if (_taskManagerWindow != null)
             {
                 _taskManagerWindow.RequestPermanentClose();
                 _taskManagerWindow = null;
             }
-
 
             if (_snapshotService != null)
                 _snapshotService.SnapshotAvailable -= OnSystemPerformanceSampleAvailable;
@@ -511,25 +409,22 @@ internal sealed class TaskManagerAvaloniaApp : Application
             {
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= RevealTaskManagerFromTray;
+                _trayIcon.KeySelect -= RevealTaskManagerFromTray;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RefreshTrayIcon;
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _trayIconRenderer = null;
+            Safe.Dispose(_trayToggle);
+            _trayToggle = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-            Safe.Dispose(_taskbarForegroundTracker);
-            _taskbarForegroundTracker = null;
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_trayIconRenderer);
-            _trayIconRenderer = null;
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
-
             if (_settings != null)
             {
                 _settings.Changed -= OnSettingsChanged;
-                _settings.Save();
                 _settings = null;
                 AppServices.Settings = null;
             }
@@ -537,7 +432,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
@@ -550,12 +444,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -8,7 +8,6 @@ using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.Services;
@@ -17,99 +16,63 @@ using FanControlTrayAppDotNET.UI.Settings;
 using FanControlTrayAppDotNET.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
-using FanHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
-using FanHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
+using FanHotkeyFiredEventArgs =
+    TrayAppDotNETCommon.Services.HotkeyFiredEventArgs<TrayAppDotNETCommon.Models.HotkeyAction>;
+using FanHotkeyService =
+    TrayAppDotNETCommon.Services.GlobalHotkeyService<TrayAppDotNETCommon.Models.HotkeyAction,
+        TrayAppDotNETCommon.Models.HotkeyBinding>;
 using FanInstallScope = TrayAppDotNETCommon.Models.InstallScope;
-using FanWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 
 namespace FanControlTrayAppDotNET;
 
 internal static class FanAvaloniaRunner
 {
-    public static int Run(string[] args)
-    {
-        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<FanAvaloniaApp>(
-            args,
-            builder =>
-            {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                    builder,
-                    AppSettings.GetDefaultPath,
-                    TADNLog.Log);
-#if HOTAVALONIA_ENABLE
-                builder = builder.UseHotReload();
-#endif
+    public static int Run(string[] args) =>
+        TrayAppDotNETAppRunner.Run<FanAvaloniaApp>(args, AppSettings.GetDefaultPath, configure: Configure);
 
-                return builder;
-            });
+    private static AppBuilder Configure(AppBuilder builder)
+    {
+#if HOTAVALONIA_ENABLE
+        builder = builder.UseHotReload();
+#endif
+        return builder;
     }
 }
 
 internal sealed class FanAvaloniaApp : Application
 {
+    private TrayAppDotNETAppHost<AppSettings, AppTheme>? _host;
+    private readonly CancellationTokenSource _hardwareStartCancellation = new();
     private AppTheme? _theme;
     private AppSettings? _settings;
     private LHMService? _lhmService;
-    private ProcessRunningService? _processRunningService;
+
+    // An LHM service still opening the hardware; disposing it at exit waits for the open, then hands the fans back
+    private LHMService? _startingLHMService;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private FanTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
-    private FanTrayMenuWindow? _trayMenuWindow;
+    private TrayIconPresenter<TrayIconRenderInput>? _trayIconPresenter;
+    private TrayMenuController? _trayMenu;
+    private TrayWindowToggle? _trayToggle;
     private FanFlyoutWindow? _fanFlyout;
     private FanSettingsWindow? _settingsWindow;
     private SettingsFlyoutKeepOpenCoordinator? _settingsFlyoutKeepOpen;
     private TrayAppDotNETWarmWindowSlot<FanFlyoutWindow>? _fanFlyoutWarmSlot;
-    private TrayAppDotNETWarmWindowSlot<FanTrayMenuWindow>? _trayMenuWarmSlot;
     private FanHotkeyService? _hotkeyService;
-    private FanWatcherMonitor? _watcherMonitor;
-    private UpdateCheckService? _updateCheckService;
-    private int _lastNotifiedUpdateVersion;
 
     // The tray has one balloon slot and one click event; this says what the last balloon was about.
     private bool _lastBalloonIsUpdate;
-    private bool _suppressNextTrayClick;
     private bool _shuttingDown;
 
     public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
-        TADNLog.Initialize();
-        TADNLog.Log("FanAvaloniaApp.OnFrameworkInitializationCompleted");
-        LocalizationManager.Instance.Initialize(
-            AppStrings.ResourceManager,
-            culture => AppStrings.Culture = culture,
-            TrayAppDotNETAvalonia.LoadConfiguredCulture(
-                AppSettings.GetDefaultPath,
-                AppLocalizationCultures.Names,
-                TADNLog.Log));
-        WireCrashHandlers();
-
-        TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
-
-        if (Program.IsInstallerMode)
+        TrayAppDotNETAppHost<AppSettings, AppTheme> host = new(this, CreateHostOptions());
+        _host = host;
+        host.InitializeShell();
+        if (host.TryRunAuxiliaryMode())
         {
-            LoadSettingsAndTheme();
-            AppSettings settings = _settings ?? new AppSettings();
-            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
-            {
-                Layout = AppServices.InstallLayout,
-                Icon = AppTheme.LoadAppIcon(),
-                Palette = FanSettingsWindow.CreatePalette(
-                    _theme,
-                    settings,
-                    ResolveEffectiveIsLightTheme()),
-                EnableRoundedCorners = settings.EnableRoundedCorners
-            });
-            base.OnFrameworkInitializationCompleted();
-            return;
-        }
-
-        if (Program.IsUninstallerMode)
-        {
-            LoadSettingsAndTheme();
-            TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);
-            ShowUninstallerWindow(Program.UninstallerInstallDir ?? string.Empty, Program.UninstallerScope, progress: null);
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -118,43 +81,106 @@ internal sealed class FanAvaloniaApp : Application
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
 #endif
-        LoadSettingsAndTheme();
+        host.BeginTrayMode(ConfigureSettings, ConfigureTheme);
+        _settings = host.Settings;
         StartServices();
+        // The icon shows before any driver or hardware work, which can take seconds or wait on a UAC prompt
         CreateTrayIcon();
+        host.StartCommonServices(new TrayAppDotNETAppHostStartOptions
+        {
+            ShutdownApp = ShutdownServices,
+            ShowUpdateNotification = ShowUpdateNotification
+        });
+        AppServices.UpdateCheckService = host.UpdateService;
         RequestTrayRefresh();
-        RestoreStartupUndockedFlyoutIfRequested();
-        ScheduleKeepWarmPriming();
+        _ = StartHardwareAsync();
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void WireCrashHandlers() => TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
+    private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>
+        new()
+        {
+            Install = AppServices.Install,
+            Strings = AppStrings.ResourceManager,
+            SetStringsCulture = static culture => AppStrings.Culture = culture,
+            AvailableLanguages = AppLocalizationCultures.Names,
+            GetSettingsPath = AppSettings.GetDefaultPath,
+            LoadSettings = AppSettings.LoadOrDefault,
+            ReadSettingsWithoutSaving = AppSettings.ReadOrDefault<AppSettings>,
+            CreateDefaultSettings = static () => new AppSettings(),
+            GetThemePath = AppTheme.GetDefaultPath,
+            LoadTheme = AppTheme.LoadOrDefault,
+            LoadAppIcon = static () => AppServices.AppIcon.LoadWindowIcon(),
+            CreatePalette = static (theme, settings) =>
+                AppSettingsPalette.Create(theme, settings, AppTheme.ResolveIsLight(settings, theme)),
+            SaveSettings = static settings => settings.Save(),
+            SaveSettingsOnExit = static settings => settings.SaveOnExit()
+        };
 
-    private void LoadSettingsAndTheme()
+    /// <summary>
+    /// Makes sure PawnIO is installed, then opens the hardware, all off the UI thread. The flyout and the warm windows
+    /// follow once the fans are known.
+    /// </summary>
+    private async Task StartHardwareAsync()
     {
-        TrayAppDotNETLoadResult<AppSettings, AppTheme> loaded = TrayAppDotNETAvalonia.LoadSettingsAndTheme(
-            new TrayAppDotNETLoadOptions<AppSettings, AppTheme>
-            {
-                GetSettingsPath = AppSettings.GetDefaultPath,
-                LoadSettings = AppSettings.LoadOrDefault,
-                CreateDefaultSettings = static () => new AppSettings(),
-                GetRunOnStartup = static settings => settings.RunOnStartup,
-                Startup = AppServices.Startup,
-                ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => TADNLog.Log($"FanAvaloniaApp settings load failed: {ex}"),
-                GetThemePath = AppTheme.GetDefaultPath,
-                LoadTheme = AppTheme.LoadOrDefault,
-                ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"FanAvaloniaApp theme load failed: {ex}")
-            });
+        CancellationToken cancellationToken = _hardwareStartCancellation.Token;
+        try
+        {
+            await Task.Run(
+                () => PawnIoDriverInstaller.EnsureInstalledAsync(userRequested: false, cancellationToken),
+                cancellationToken);
+            await StartLHMServiceAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The app is exiting
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanAvaloniaApp hardware start failed: {ex}");
+        }
 
-        _settings = loaded.Settings;
+        if (_shuttingDown) return;
+
+        RequestTrayRefresh();
+        RestoreStartupUndockedFlyoutIfRequested();
+        ScheduleKeepWarmPriming();
+    }
+
+    private async Task StartLHMServiceAsync(CancellationToken cancellationToken)
+    {
+        if (_settings == null || _shuttingDown) return;
+
+        LHMService service = new(Dispatcher.UIThread, _settings);
+        _startingLHMService = service;
+        try
+        {
+            await service.StartAsync(cancellationToken);
+        }
+        catch
+        {
+            if (ReferenceEquals(_startingLHMService, service))
+            {
+                _startingLHMService = null;
+                Safe.Dispose(service);
+            }
+
+            throw;
+        }
+
+        if (!ReferenceEquals(_startingLHMService, service)) return;
+
+        _startingLHMService = null;
+        service.PollTickCompleted += RequestTrayRefresh;
+        service.FanSpeedWarningRaised += OnFanSpeedWarningRaised;
+        _lhmService = service;
+        AppServices.LHMService = service;
     }
 
     private void ConfigureSettings(AppSettings settings)
     {
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
-        TrayAppDotNETAnimationPolicy.Apply(this, TrayAppDotNETAnimationMode.System);
     }
 
     private void ConfigureTheme(AppTheme theme)
@@ -167,47 +193,6 @@ internal sealed class FanAvaloniaApp : Application
 
     private void StartServices()
     {
-        LHMService? pendingLHMService = null;
-        try
-        {
-            if (_settings != null)
-            {
-                PawnIoDriverInstaller.EnsureInstalled();
-
-                pendingLHMService = new LHMService(Dispatcher.UIThread, _settings);
-                pendingLHMService.PollTickCompleted += RequestTrayRefresh;
-                pendingLHMService.FanSpeedWarningRaised += OnFanSpeedWarningRaised;
-                pendingLHMService.Start();
-                _lhmService = pendingLHMService;
-                AppServices.LHMService = pendingLHMService;
-                pendingLHMService = null;
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"FanAvaloniaApp LHM init failed: {ex}");
-            if (pendingLHMService != null)
-            {
-                pendingLHMService.PollTickCompleted -= RequestTrayRefresh;
-                pendingLHMService.FanSpeedWarningRaised -= OnFanSpeedWarningRaised;
-                Safe.Dispose(pendingLHMService);
-            }
-
-            _lhmService = null;
-            AppServices.LHMService = null;
-        }
-
-        try
-        {
-            _processRunningService = new ProcessRunningService(Dispatcher.UIThread);
-            _processRunningService.Start();
-            AppServices.ProcessRunningService = _processRunningService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"FanAvaloniaApp process service init failed: {ex}");
-        }
-
         try
         {
             _trayIconRenderer = new FanTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
@@ -218,64 +203,40 @@ internal sealed class FanAvaloniaApp : Application
             TADNLog.Log($"FanAvaloniaApp tray renderer init failed: {ex}");
         }
 
-        try
-        {
-            _hotkeyService = new FanHotkeyService(Program.ApplicationName + ".HotkeySink");
-            _hotkeyService.Initialize();
-            _hotkeyService.Fired += OnHotkeyFired;
-            _hotkeyService.Apply(_settings?.Hotkeys ?? []);
-            AppServices.HotkeyService = _hotkeyService;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"FanAvaloniaApp hotkey init failed: {ex}");
-        }
-
-        try
-        {
-            _watcherMonitor = TrayAppDotNETAvalonia.CreateWatcherMonitor(Program.WatcherPID, ExitApplication);
-            _watcherMonitor.Start();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"FanAvaloniaApp watcher init failed: {ex}");
-        }
-
-        if (_settings != null)
-        {
-            try
+        _hotkeyService = _host?.StartHotkeyService(
+            static prefix => new FanHotkeyService(prefix),
+            service =>
             {
-                _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
-                    _settings,
-                    repositoryName: "TrayAppDotNET",
-                    Program.ApplicationName,
-                    BuildInfo.BuildNumber,
-                    _settings.Save,
-                    Program.LocalAppDataRoot);
-                _updateCheckService.StateChanged += OnUpdateStateChanged;
-                _updateCheckService.Start();
-                AppServices.UpdateCheckService = _updateCheckService;
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"FanAvaloniaApp update service init failed: {ex}");
-            }
-        }
+                service.Initialize();
+                service.Fired += OnHotkeyFired;
+                service.Apply(_settings?.Hotkeys ?? []);
+            });
+        AppServices.HotkeyService = _hotkeyService;
     }
 
     private void CreateTrayIcon()
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true
+            IsVisible = true
         };
-        _trayIcon.LeftMouseDown += OnTrayLeftMouseDown;
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
         _trayIcon.KeySelect += OnTrayKeySelect;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnTrayBalloonClicked;
+        _trayIconPresenter = new TrayIconPresenter<TrayIconRenderInput>(
+            _trayIcon,
+            _trayIconRenderer,
+            static () => AppServices.AppIcon.LoadTrayIcon());
+        _trayToggle = new TrayWindowToggle();
+        _trayMenu = new TrayMenuController(
+            CreateTrayMenuWindow,
+            () => _settings?.KeepTrayContextMenuWarm ?? true,
+            _settings,
+            _theme,
+            TADNLog.Log);
     }
 
     private void OnHotkeyFired(object? sender, FanHotkeyFiredEventArgs e)
@@ -311,7 +272,6 @@ internal sealed class FanAvaloniaApp : Application
         {
             ApplyThemeVariant();
             ApplyTrayIconColorOverride();
-            _trayIcon?.IsScrollEnabled = _settings?.TrayScrollEnabled ?? true;
             if (_hotkeyService != null && _settings != null)
                 _hotkeyService.Apply(_settings.Hotkeys);
             ApplyKeepWarmPolicies();
@@ -323,21 +283,13 @@ internal sealed class FanAvaloniaApp : Application
     {
         if (_fanFlyoutWarmSlot != null || _settings?.KeepFlyoutWarm == true)
             FanFlyoutWarmSlot.ApplyKeepWarmPolicy(CreateManagedFanFlyout);
-        if (_trayMenuWarmSlot != null || _settings?.KeepTrayContextMenuWarm == true)
-            TrayMenuWarmSlot.ApplyKeepWarmPolicy(CreateTrayMenuWindow);
+        _trayMenu?.ApplyKeepWarmPolicy();
     }
 
-    private void OnUpdateStateChanged()
+    private void ShowUpdateNotification(string title, string body)
     {
-        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
-        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
-        if (info.Version <= _lastNotifiedUpdateVersion) return;
-
-        _lastNotifiedUpdateVersion = info.Version;
         _lastBalloonIsUpdate = true;
-        _trayIcon?.ShowBalloon(
-            L(nameof(CommonStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+        _trayIcon?.ShowBalloon(title, body);
     }
 
     private void OnFanSpeedWarningRaised(Fan fan, FanSpeedWarning warning)
@@ -362,12 +314,11 @@ internal sealed class FanAvaloniaApp : Application
             return;
         }
 
-        if (_updateCheckService?.AvailableUpdate == null) return;
+        if (_host?.UpdateService?.AvailableUpdate == null) return;
         OpenSettings(FanSettingsPage.About);
     }
 
-    private bool ResolveEffectiveIsLightTheme() =>
-        AppTheme.ResolveEffectiveIsLightTheme(_settings);
+    private bool ResolveEffectiveIsLightTheme() => AppTheme.ResolveIsLight(_settings, _theme);
 
     private void ApplyThemeVariant()
     {
@@ -387,61 +338,18 @@ internal sealed class FanAvaloniaApp : Application
 
 #if DEBUG
     /// <summary>
-    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// Renders the tray icon again so tray glyph edits are visible immediately.
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded()
     {
-        _trayIconRenderer?.InvalidateCache();
+        _trayIconPresenter?.Invalidate();
         RequestTrayRefresh();
     }
 
-    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChangedForThemeReload();
 #endif
 
-    private void RequestTrayRefresh()
-    {
-        if (_trayIcon == null) return;
-
-        string tooltip = BuildTrayTooltip();
-        if (_trayIconRenderer != null)
-        {
-            FanTrayIcon renderer = _trayIconRenderer;
-            if (renderer.TryCreateRenderInput(out FanTrayIconRenderInput? input) && input != null)
-            {
-                _trayIcon.SetTooltip(tooltip);
-                _trayIconRenderQueue.Request(
-                    () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip));
-                return;
-            }
-
-            _trayIcon.SetTooltip(tooltip);
-            return;
-        }
-
-        if (_trayIconRenderer == null && AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
-        {
-            using (fallbackIcon)
-                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
-            return;
-        }
-
-        _trayIcon.SetTooltip(tooltip);
-    }
-
-    /// <summary>
-    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
-    /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
-    {
-        if (_trayIcon == null)
-        {
-            icon.Dispose();
-            return;
-        }
-
-        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
-    }
+    private void RequestTrayRefresh() => _trayIconPresenter?.Refresh(BuildTrayTooltip());
 
     private string BuildTrayTooltip()
     {
@@ -482,46 +390,37 @@ internal sealed class FanAvaloniaApp : Application
         return best == null ? null : (int)Math.Round(best.Value / 1000.0);
     }
 
-    private void OnTrayLeftMouseDown()
-    {
-        if (IsControlOrAltDown()) return;
-        if (_fanFlyout is { IsVisible: true, IsActive: true })
-        {
-            _fanFlyout.Hide();
-            _suppressNextTrayClick = true;
-        }
-    }
-
     private void OnTrayLeftClick()
     {
-        if (_suppressNextTrayClick)
-        {
-            _suppressNextTrayClick = false;
-            return;
-        }
-
-        if (TryDispatchModifiedTrayAction(
+        if (TryDispatchTrayAction(TrayClickModifiers.Resolve(
                 _settings?.TrayCtrlLeftClickAction ?? TrayClickAction.Nothing,
-                _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing))
+                _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing,
+                TrayClickAction.Nothing,
+                TrayClickAction.Nothing)))
             return;
 
-        if (_fanFlyout is { IsVisible: true })
+        switch (_trayToggle?.Decide(_fanFlyout) ?? TrayToggleAction.Show)
         {
-            _fanFlyout.Hide();
-            return;
+            case TrayToggleAction.Hide:
+                _fanFlyout?.Hide();
+                break;
+            // A floating flyout behind another window comes forward where it is instead of docking again
+            case TrayToggleAction.Activate:
+                _fanFlyout?.Activate();
+                break;
+            case TrayToggleAction.Show:
+                ShowFanFlyout();
+                break;
         }
-
-        ShowFanFlyout();
     }
 
     private void OnTrayLeftDoubleClick()
     {
-        if (TryDispatchModifiedTrayAction(
-                _settings?.TrayCtrlDoubleLeftClickAction ?? TrayClickAction.Nothing,
-                _settings?.TrayAltDoubleLeftClickAction ?? TrayClickAction.Nothing))
-            return;
-
-        TrayClickAction action = _settings?.TrayDoubleClickAction ?? TrayClickAction.OpenSettings;
+        TrayClickAction action = TrayClickModifiers.Resolve(
+            _settings?.TrayCtrlDoubleLeftClickAction ?? TrayClickAction.Nothing,
+            _settings?.TrayAltDoubleLeftClickAction ?? TrayClickAction.Nothing,
+            _settings?.TrayDoubleClickAction ?? TrayClickAction.OpenSettings,
+            TrayClickAction.Nothing);
         if (!TryDispatchTrayAction(action))
             ShowFanFlyout();
     }
@@ -532,26 +431,15 @@ internal sealed class FanAvaloniaApp : Application
     private void OnTrayRightClick(Point point) =>
         Dispatcher.UIThread.Post(() =>
         {
-            if (TryDispatchModifiedTrayAction(
+            if (TryDispatchTrayAction(TrayClickModifiers.Resolve(
                     _settings?.TrayCtrlRightClickAction ?? TrayClickAction.Nothing,
-                    _settings?.TrayAltRightClickAction ?? TrayClickAction.Nothing))
+                    _settings?.TrayAltRightClickAction ?? TrayClickAction.Nothing,
+                    TrayClickAction.Nothing,
+                    TrayClickAction.Nothing)))
                 return;
 
             ShowTrayContextMenu(point);
         });
-
-    private static bool IsControlOrAltDown() =>
-        IsKeyDown(User32.VK_CONTROL) || IsKeyDown(User32.VK_MENU);
-
-    private static bool IsKeyDown(int vKey) =>
-        (User32.GetAsyncKeyState(vKey) & unchecked((short)0x8000)) != 0;
-
-    private bool TryDispatchModifiedTrayAction(TrayClickAction controlAction, TrayClickAction altAction)
-    {
-        if (IsKeyDown(User32.VK_CONTROL) && TryDispatchTrayAction(controlAction)) return true;
-        if (IsKeyDown(User32.VK_MENU) && TryDispatchTrayAction(altAction)) return true;
-        return false;
-    }
 
     private bool TryDispatchTrayAction(TrayClickAction action)
     {
@@ -568,41 +456,25 @@ internal sealed class FanAvaloniaApp : Application
 
     private void ShowTrayContextMenu(Point point)
     {
-        if (_trayIcon == null || _settings == null) return;
-
-        if (_trayMenuWindow is { IsVisible: true })
-            _trayMenuWindow.DismissForWarmCache();
-
-        FanTrayMenuWindow menuWindow = TrayMenuWarmSlot.TakeOrCreate(CreateTrayMenuWindow);
-        _trayMenuWindow = menuWindow;
+        if (_trayIcon == null || _settings == null || _trayMenu == null) return;
 
         PixelPoint cursorPoint = new((int)Math.Round(point.X), (int)Math.Round(point.Y));
-        menuWindow.ShowAt(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
+        _trayMenu.Show(_trayIcon, cursorPoint, _settings.ContextMenuPosition);
     }
 
-    private FanTrayMenuWindow CreateTrayMenuWindow()
+    private TrayMenuWindow CreateTrayMenuWindow()
     {
         if (_settings == null)
             throw new InvalidOperationException("Fan tray menu requires settings.");
 
-        FanTrayMenuWindow menuWindow = new(
-            _settings,
-            FanSettingsWindow.CreatePalette(_theme, _settings, ResolveEffectiveIsLightTheme()),
-            _settings.EnableRoundedCorners,
-            _settings.ContextMenuFontSize,
-            OpenSettings,
-            ExitApplication);
-        _trayMenuWindow = menuWindow;
-        menuWindow.Closed += OnTrayMenuClosed;
-        return menuWindow;
-    }
-
-    private void OnTrayMenuClosed(object? sender, EventArgs e)
-    {
-        if (sender is FanTrayMenuWindow menu)
-            menu.Closed -= OnTrayMenuClosed;
-        if (ReferenceEquals(_trayMenuWindow, sender))
-            _trayMenuWindow = null;
+        return new TrayMenuWindow(
+            new ContextMenuEntryBuilder(),
+            TrayMenuWindowOptions.Create(
+                _settings,
+                _theme,
+                UI.ControlMap.TrayMenu.ID,
+                TrayMenuStandardEntry.Settings(OpenSettings, UI.ControlMap.TrayMenu.Settings),
+                TrayMenuStandardEntry.Exit(ExitApplication, UI.ControlMap.TrayMenu.Exit)));
     }
 
     private void ShowFanFlyout(bool activate = true, bool holdOpenForSettings = true)
@@ -642,11 +514,6 @@ internal sealed class FanAvaloniaApp : Application
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => TADNLog.Log($"Fan flyout keep-warm: {ex.Message}"));
 
-    private TrayAppDotNETWarmWindowSlot<FanTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<FanTrayMenuWindow>(
-            () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => TADNLog.Log($"Fan tray menu keep-warm: {ex.Message}"));
-
     private void ScheduleKeepWarmPriming()
     {
         Dispatcher.UIThread.Post(async void () =>
@@ -655,8 +522,8 @@ internal sealed class FanAvaloniaApp : Application
             {
                 if (_settings?.KeepFlyoutWarm == true)
                     await FanFlyoutWarmSlot.PrimeAsync(CreateManagedFanFlyout);
-                if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
-                    await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
+                if (_trayMenu != null)
+                    await _trayMenu.PrimeAsync();
             }
             catch (Exception ex)
             {
@@ -673,11 +540,8 @@ internal sealed class FanAvaloniaApp : Application
 
     private void OnFanFlyoutClosed(object? sender, EventArgs e)
     {
-        if (_fanFlyout != null)
-        {
-            _fanFlyout.Closed -= OnFanFlyoutClosed;
-            _fanFlyout = null;
-        }
+        if (sender is FanFlyoutWindow flyout) flyout.Closed -= OnFanFlyoutClosed;
+        if (ReferenceEquals(_fanFlyout, sender)) _fanFlyout = null;
     }
 
     private void OpenSettingsFromFlyout(FanSettingsPage? page) => OpenSettings(page);
@@ -710,15 +574,10 @@ internal sealed class FanAvaloniaApp : Application
         }
     }
 
-    private void ShowUninstallerWindow(
-        string installDir,
+    private Task<bool> ShowUninstallerWindow(
         FanInstallScope scope,
-        IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        FanUninstallerWindow window = new(installDir, scope, progress);
-        if (_settingsWindow != null) window.Show(_settingsWindow);
-        else window.Show();
-    }
+        IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 
     private void ShutdownServices()
     {
@@ -731,34 +590,19 @@ internal sealed class FanAvaloniaApp : Application
 
         try
         {
-            if (_hotkeyService != null)
-            {
-                _hotkeyService.Fired -= OnHotkeyFired;
-                Safe.Dispose(_hotkeyService);
-                _hotkeyService = null;
-                AppServices.HotkeyService = null;
-            }
-
-            Safe.Dispose(_watcherMonitor);
-            _watcherMonitor = null;
+            _hardwareStartCancellation.Cancel();
+            _hotkeyService = null;
+            AppServices.HotkeyService = null;
+            AppServices.UpdateCheckService = null;
 
             CloseManagedWindowsForShutdown();
 
-            if (_updateCheckService != null)
-            {
-                _updateCheckService.StateChanged -= OnUpdateStateChanged;
-                Safe.Dispose(_updateCheckService);
-                _updateCheckService = null;
-                AppServices.UpdateCheckService = null;
-            }
-
-            if (_settings != null)
-            {
-                _settings.Changed -= OnSettingsChanged;
-                _settings.Save();
-            }
-
+            if (_settings != null) _settings.Changed -= OnSettingsChanged;
             AppServices.Settings = null;
+
+            // Waits for a hardware open still in progress, then closes it, which hands the fans back to firmware
+            Safe.Dispose(_startingLHMService);
+            _startingLHMService = null;
 
             if (_lhmService != null)
             {
@@ -769,34 +613,30 @@ internal sealed class FanAvaloniaApp : Application
                 AppServices.LHMService = null;
             }
 
-            Safe.Dispose(_processRunningService);
-            _processRunningService = null;
-            AppServices.ProcessRunningService = null;
-
             if (_theme != null)
             {
                 _theme.ThemeChanged -= OnThemeChanged;
-                Safe.Dispose(_theme);
                 _theme = null;
                 AppServices.Theme = null;
             }
 
             if (_trayIcon != null)
             {
-                _trayIcon.LeftMouseDown -= OnTrayLeftMouseDown;
                 _trayIcon.LeftClick -= OnTrayLeftClick;
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
+                _trayIcon.KeySelect -= OnTrayKeySelect;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
                 _trayIcon.BalloonClicked -= OnTrayBalloonClicked;
             }
 
+            Safe.Dispose(_trayIconPresenter);
+            _trayIconPresenter = null;
+            _trayIconRenderer = null;
+            Safe.Dispose(_trayToggle);
+            _trayToggle = null;
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-
-            _trayIconRenderQueue.Dispose();
-            Safe.Dispose(_trayIconRenderer);
-            _trayIconRenderer = null;
 
             TADNLog.Flush();
         }
@@ -828,17 +668,10 @@ internal sealed class FanAvaloniaApp : Application
             _fanFlyout = null;
         }
 
-        if (_trayMenuWindow != null)
-        {
-            _trayMenuWindow.Closed -= OnTrayMenuClosed;
-            CloseWindowSafely(_trayMenuWindow, windowName: "tray menu");
-            _trayMenuWindow = null;
-        }
-
+        Safe.Dispose(_trayMenu);
+        _trayMenu = null;
         Safe.Dispose(_fanFlyoutWarmSlot);
         _fanFlyoutWarmSlot = null;
-        Safe.Dispose(_trayMenuWarmSlot);
-        _trayMenuWarmSlot = null;
     }
 
     /// <summary>
@@ -853,13 +686,7 @@ internal sealed class FanAvaloniaApp : Application
         }
     }
 
-    private void ExitApplication()
-    {
-        TADNLog.Log("FanAvaloniaApp.ExitApplication");
-        ShutdownServices();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
+    private void ExitApplication() => _host?.Exit();
 
     private static string L(string key) => LocalizationManager.Instance[key];
 }
