@@ -12,21 +12,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="Uninstaller_Title" xml:space="preserve">
-    <value>Uninstall BatteryTrayAppDotNET</value>
-  </data>
-  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
-    <value>Color picker</value>
-  </data>
-  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
-    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
-    <value>Keep undocked flyout on screen</value>
-  </data>
   <data name="Settings_Flyout_BatteryEstimates_Header" xml:space="preserve">
     <value>Battery estimates</value>
   </data>
@@ -54,27 +39,6 @@
   <data name="Settings_Flyout_HeaderAtBottom_Title" xml:space="preserve">
     <value>Title bar at the bottom</value>
   </data>
-  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
-    <value>Layout</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
-    <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
-    <value>Restore undock state on startup</value>
-  </data>
-  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
-    <value>Show the undock button in the flyout. When off, the flyout always stays anchored to the tray.</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
-    <value>Show undock button</value>
-  </data>
-  <data name="Settings_Flyout_Visibility_Header" xml:space="preserve">
-    <value>Visibility</value>
-  </data>
   <data name="Settings_Theme_FlyoutBackgroundColor_DarkTooltip" xml:space="preserve">
     <value>Dark flyout background</value>
   </data>
@@ -99,33 +63,6 @@
   <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_Title" xml:space="preserve">
     <value>Titlebar background</value>
   </data>
-  <data name="Settings_General_Rendering_Header" xml:space="preserve">
-    <value>Rendering</value>
-  </data>
-  <data name="Settings_General_RenderingBackend_Title" xml:space="preserve">
-    <value>Rendering backend</value>
-  </data>
-  <data name="Settings_General_RenderingBackend_GPUPreferred" xml:space="preserve">
-    <value>GPU preferred</value>
-  </data>
-  <data name="Settings_General_RenderingBackend_Software" xml:space="preserve">
-    <value>Software</value>
-  </data>
-  <data name="Settings_General_RenderingRestart_Title" xml:space="preserve">
-    <value>Restart required</value>
-  </data>
-  <data name="Settings_General_RenderingRestart_Message" xml:space="preserve">
-    <value>Restart the app now to apply the selected rendering backend?</value>
-  </data>
-  <data name="Settings_General_RenderingRestart_Button" xml:space="preserve">
-    <value>Restart</value>
-  </data>
-  <data name="Settings_General_NotNow_Button" xml:space="preserve">
-    <value>Not now</value>
-  </data>
-  <data name="Settings_General_RestartFailed_Title" xml:space="preserve">
-    <value>Restart failed</value>
-  </data>
   <data name="Settings_Flyout_RestoreUndockState_SearchKeywords" xml:space="preserve">
     <value>remember floating detached window</value>
   </data>
@@ -141,57 +78,27 @@
   <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
     <value>right click cursor taskbar docked</value>
   </data>
-  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
-    <value>text scale accessibility</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
-    <value>appearance Windows color scheme</value>
-  </data>
-  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
-    <value>foreground lettering font palette</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
-    <value>window surface canvas palette</value>
-  </data>
   <data name="Settings_Theme_FlyoutBackgroundColor_SearchKeywords" xml:space="preserve">
     <value>popup panel surface palette</value>
   </data>
   <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords" xml:space="preserve">
     <value>popup header bar palette</value>
   </data>
-  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
-    <value>square edges window shape</value>
-  </data>
-  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
-    <value>motion transitions fading effects</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
-    <value>hover help wait timing latency</value>
-  </data>
   <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
     <value>notification area glyph palette</value>
   </data>
   <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
-    <value>battery below|battery under|battery less than|charge below|charge under|charge less than|or less
-battery below|low battery|battery low|low charge
-battery above|battery over|battery greater than|charge above|charge over|charge greater than|or more
-battery full|fully charged|full battery|100% charge
-charging started|started charging|charging began|began charging
-charging stopped|stopped charging|charging ended|ended charging
-external power connected|AC power connected|charger plugged in|mains power connected
-external power disconnected|AC power disconnected|charger unplugged|mains power disconnected|on battery power
-triggers|battery trigger|automation rule|condition-action rule|battery event rule
-open power settings|open Windows power settings|open Power and battery settings|open power options</value>
+    <value>battery below|battery under|battery less than|charge below|charge under|charge less than|or less&#10;battery below|low battery|battery low|low charge&#10;battery above|battery over|battery greater than|charge above|charge over|charge greater than|or more&#10;battery full|fully charged|full battery|100% charge&#10;charging started|started charging|charging began|began charging&#10;charging stopped|stopped charging|charging ended|ended charging&#10;external power connected|AC power connected|charger plugged in|mains power connected&#10;external power disconnected|AC power disconnected|charger unplugged|mains power disconnected|on battery power&#10;triggers|battery trigger|automation rule|condition-action rule|battery event rule&#10;open power settings|open Windows power settings|open Power and battery settings|open power options</value>
     <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
   <data name="Flyout_EnergySaver" xml:space="preserve">
-    <value>Energy Saver</value>
+    <value>Energy saver</value>
   </data>
   <data name="Flyout_EnergySaver_Tooltip" xml:space="preserve">
-    <value>Set Energy Saver to Always or Never</value>
+    <value>Set energy saver to Always or Never</value>
   </data>
   <data name="Flyout_EnergySaver_Unavailable_Tooltip" xml:space="preserve">
-    <value>Energy Saver threshold is unavailable</value>
+    <value>Energy saver threshold is unavailable</value>
   </data>
   <data name="Flyout_PowerMode_Balanced" xml:space="preserve">
     <value>Balanced</value>
@@ -200,7 +107,7 @@ open power settings|open Windows power settings|open Power and battery settings|
     <value>Power mode</value>
   </data>
   <data name="Flyout_PowerMode_PowerSaver" xml:space="preserve">
-    <value>Power Saver</value>
+    <value>Power saver</value>
   </data>
   <data name="Flyout_PowerMode_Ultimate" xml:space="preserve">
     <value>Ultimate</value>
@@ -208,209 +115,17 @@ open power settings|open Windows power settings|open Power and battery settings|
   <data name="Flyout_PowerSettings_Tooltip" xml:space="preserve">
     <value>Power settings</value>
   </data>
-  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
-    <value>Redock</value>
-  </data>
-  <data name="Flyout_Settings_Tooltip" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
-    <value>Undock</value>
-  </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
     <value>A tray-based battery status monitor.</value>
-  </data>
-  <data name="Settings_Common_Page_About" xml:space="preserve">
-    <value>About</value>
-  </data>
-  <data name="Settings_Common_Page_General" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
-  <data name="Settings_Common_Page_Theme" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
-    <value>Tray Icon</value>
   </data>
   <data name="Settings_Common_Page_Triggers" xml:space="preserve">
     <value>Triggers</value>
   </data>
-  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
-    <value>Local user</value>
-  </data>
-  <data name="Settings_General_SectionHeader" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
-    <value>Not installed from Windows Store</value>
-  </data>
-  <data name="Settings_General_StoreRunning" xml:space="preserve">
-    <value>Running from Windows Store</value>
-  </data>
-  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
-    <value>System-wide</value>
-  </data>
-  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
-    <value>Windows Store</value>
-  </data>
-  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
-    <value>Add</value>
-  </data>
-  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
-    <value>Delete hotkey</value>
-  </data>
-  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
-    <value>Exists</value>
-  </data>
   <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
     <value>Show battery details above the tray icon.</value>
   </data>
-  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
-    <value>Open flyout</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
-    <value>Open the BatteryTrayAppDotNET settings window.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
-    <value>Search</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
-    <value>Add keyboard shortcuts for common battery tray actions.</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
-    <value>Hotkey service is unavailable.</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
-    <value>Registered</value>
-  </data>
-  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
-    <value>Controls whether tooltip fades and other UI animations are allowed.</value>
-  </data>
-  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
-    <value>Disabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
-    <value>Enabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
-    <value>Animations</value>
-  </data>
-  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
-    <value>Appearance</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
-    <value>Override background color for each theme variant.</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
-    <value>Light theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
-    <value>Background color</value>
-  </data>
-  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
-    <value>Adjust the right-click tray menu font size.</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
-    <value>Font size</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
-    <value>Use rounded corners on BatteryTrayAppDotNET windows.</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
-    <value>Rounded corners</value>
-  </data>
-  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme tray icon color</value>
-  </data>
   <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
     <value>Override the tray icon color for each theme variant.</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
-    <value>Light theme tray icon color</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
-    <value>Tray icon color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
-    <value>Override text color for each theme variant.</value>
-  </data>
-  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
-    <value>Light theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
-    <value>Text color</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
-    <value>Dark</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
-    <value>Choose the app theme mode.</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
-    <value>Light</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_Description" xml:space="preserve">
-    <value>Milliseconds to wait before showing a tooltip.</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_Title" xml:space="preserve">
-    <value>Tooltip delay</value>
-  </data>
-  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
-  <data name="Settings_Theme_Window_Header" xml:space="preserve">
-    <value>Window</value>
-  </data>
-  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
-    <value>Classic</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
-    <value>Choose where the right-click tray menu opens.</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
-    <value>Modern</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
-    <value>Menu position</value>
-  </data>
-  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
-    <value>Tray Icon</value>
   </data>
   <data name="Settings_Triggers_Action_OpenFlyout" xml:space="preserve">
     <value>Open flyout</value>
@@ -466,16 +181,149 @@ open power settings|open Windows power settings|open Power and battery settings|
   <data name="Settings_Triggers_SectionHeader" xml:space="preserve">
     <value>Triggers</value>
   </data>
-  <data name="SettingsWindow_Header" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
-    <value>Open settings folder</value>
-  </data>
-  <data name="SettingsWindow_Title" xml:space="preserve">
-    <value>Settings</value>
-  </data>
   <data name="TriggerNotification_ChargeFormat" xml:space="preserve">
     <value>Charge: {0}%</value>
+    <comment>{0} is the battery charge percentage.</comment>
+  </data>
+  <data name="Tray_PowerOptions" xml:space="preserve">
+    <value>Power options</value>
+  </data>
+  <data name="Tray_BatteryReport" xml:space="preserve">
+    <value>Battery report</value>
+  </data>
+  <data name="Tray_Tooltip_Title" xml:space="preserve">
+    <value>BatteryTrayAppDotNET</value>
+  </data>
+  <data name="Tray_Tooltip_NoBattery" xml:space="preserve">
+    <value>No battery detected</value>
+  </data>
+  <data name="Tray_Tooltip_Charge_Format" xml:space="preserve">
+    <value>{0}: {1}%</value>
+    <comment>{0} is the app title, {1} the charge percentage.</comment>
+  </data>
+  <data name="Tray_Tooltip_PluggedInFull" xml:space="preserve">
+    <value>Plugged in, full</value>
+  </data>
+  <data name="Tray_Tooltip_Charging" xml:space="preserve">
+    <value>Charging</value>
+  </data>
+  <data name="Tray_Tooltip_PluggedIn" xml:space="preserve">
+    <value>Plugged in</value>
+  </data>
+  <data name="Tray_Tooltip_OnBattery" xml:space="preserve">
+    <value>On battery</value>
+  </data>
+  <data name="Tray_Tooltip_TimeRemaining_Format" xml:space="preserve">
+    <value>Time remaining: {0}</value>
+    <comment>{0} is a duration such as 1h 20m.</comment>
+  </data>
+  <data name="Tray_Tooltip_BatteryPower_Format" xml:space="preserve">
+    <value>Battery power: {0:F1} W</value>
+    <comment>{0} is the battery power in watts.</comment>
+  </data>
+  <data name="Tray_Tooltip_Health_Format" xml:space="preserve">
+    <value>Health: {0:F0}%</value>
+    <comment>{0} is the battery health percentage.</comment>
+  </data>
+  <data name="Tray_Tooltip_Duration_DaysHours_Format" xml:space="preserve">
+    <value>{0}d {1}h</value>
+    <comment>{0} is whole days, {1} the remaining hours.</comment>
+  </data>
+  <data name="Tray_Tooltip_Duration_HoursMinutes_Format" xml:space="preserve">
+    <value>{0}h {1}m</value>
+    <comment>{0} is whole hours, {1} the remaining minutes.</comment>
+  </data>
+  <data name="Tray_Tooltip_Duration_Minutes_Format" xml:space="preserve">
+    <value>{0}m</value>
+    <comment>{0} is minutes.</comment>
+  </data>
+  <data name="Settings_Triggers_DefaultTitle_Format" xml:space="preserve">
+    <value>Trigger {0}</value>
+    <comment>{0} is the trigger number.</comment>
+  </data>
+  <data name="Flyout_BatteryHealth_Tooltip" xml:space="preserve">
+    <value>Battery health</value>
+  </data>
+  <data name="Flyout_State_On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Flyout_State_Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Flyout_LabeledValue_Format" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>{0} is a setting or mode name, {1} its current value.</comment>
+  </data>
+  <data name="Flyout_UntilFull_Format" xml:space="preserve">
+    <value>{0} until full</value>
+    <comment>{0} is a duration such as 1h 20m.</comment>
+  </data>
+  <data name="Flyout_Remaining_Format" xml:space="preserve">
+    <value>{0} remaining</value>
+    <comment>{0} is a duration such as 1h 20m.</comment>
+  </data>
+  <data name="Flyout_PredictedLife_Label" xml:space="preserve">
+    <value>Predicted life</value>
+  </data>
+  <data name="Flyout_PredictedLife_Tooltip" xml:space="preserve">
+    <value>How long the current charge would last, learned from the last 30 minutes on battery. Also shown while plugged in. Available after two minutes on battery.</value>
+  </data>
+  <data name="Flyout_PresentDischarge_Label" xml:space="preserve">
+    <value>Present discharge</value>
+  </data>
+  <data name="Flyout_PresentDischarge_Tooltip" xml:space="preserve">
+    <value>Time remaining at the recent discharge rate. Averaging and decay are adjustable in Flyout settings.</value>
+  </data>
+  <data name="Flyout_TimeUntilFull_Label" xml:space="preserve">
+    <value>Time until full</value>
+  </data>
+  <data name="Flyout_TimeUntilFull_Tooltip" xml:space="preserve">
+    <value>Estimated time to full at the recent charging rate. Recalculates as charging slows.</value>
+  </data>
+  <data name="Flyout_PowerSource_Label" xml:space="preserve">
+    <value>Power source</value>
+  </data>
+  <data name="Flyout_DischargeRate_Label" xml:space="preserve">
+    <value>Discharge rate</value>
+  </data>
+  <data name="Flyout_ChargeRate_Label" xml:space="preserve">
+    <value>Charge rate</value>
+  </data>
+  <data name="Flyout_Remaining_Label" xml:space="preserve">
+    <value>Remaining</value>
+  </data>
+  <data name="Flyout_Learning" xml:space="preserve">
+    <value>Learning…</value>
+  </data>
+  <data name="Flyout_PowerSource_External" xml:space="preserve">
+    <value>External</value>
+  </data>
+  <data name="Flyout_PowerSource_Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="Flyout_NotAvailable" xml:space="preserve">
+    <value>N/A</value>
+  </data>
+  <data name="Flyout_PowerMode_Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Flyout_PowerMode_Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="Flyout_ChargingAt_Format" xml:space="preserve">
+    <value>Charging at {0:F1} W</value>
+    <comment>{0} is the charging power in watts.</comment>
+  </data>
+  <data name="BatteryHealth_Title" xml:space="preserve">
+    <value>Battery health</value>
+  </data>
+  <data name="BatteryHealth_Health_Label" xml:space="preserve">
+    <value>Health</value>
+  </data>
+  <data name="BatteryHealth_FullCharge_Label" xml:space="preserve">
+    <value>Full charge</value>
+  </data>
+  <data name="BatteryHealth_Designed_Label" xml:space="preserve">
+    <value>Designed</value>
   </data>
 </root>

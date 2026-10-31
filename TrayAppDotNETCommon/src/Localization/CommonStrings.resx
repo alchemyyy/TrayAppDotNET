@@ -17,6 +17,7 @@
   </data>
   <data name="BackdateDialog_DescriptionFormat" xml:space="preserve">
     <value>This will replace the current version with {0} and restart the app.</value>
+    <comment>{0} is the version to install.</comment>
   </data>
   <data name="BackdateDialog_DownloadFailed" xml:space="preserve">
     <value>The previous version could not be downloaded. Check the log for details.</value>
@@ -29,12 +30,14 @@
   </data>
   <data name="BackdateDialog_SkipCurrentDescriptionFormat" xml:space="preserve">
     <value>After backdating, version {0} will be offered as an update. Do you want to skip it?</value>
+    <comment>{0} is the version running now.</comment>
   </data>
   <data name="BackdateDialog_SkipCurrentTitle" xml:space="preserve">
     <value>Skip the current version?</value>
   </data>
   <data name="BackdateDialog_TitleFormat" xml:space="preserve">
     <value>Backdate to {0}?</value>
+    <comment>{0} is the version to install.</comment>
   </data>
   <data name="BackdateDialog_Yes" xml:space="preserve">
     <value>Yes</value>
@@ -77,6 +80,7 @@
   </data>
   <data name="Settings_About_Backdate_AvailableFormat" xml:space="preserve">
     <value>Previous available version: {0}. Installing it will restart the app.</value>
+    <comment>{0} is the previous release version.</comment>
   </data>
   <data name="Settings_About_Backdate_Button" xml:space="preserve">
     <value>Backdate</value>
@@ -128,6 +132,7 @@
   </data>
   <data name="Settings_About_UpdateStatus_SkippedFormat" xml:space="preserve">
     <value>Release {0} skipped. You'll be notified when a newer release is available.</value>
+    <comment>{0} is the skipped release version.</comment>
   </data>
   <data name="Settings_About_Updates_SearchKeywords" xml:space="preserve">
     <value>upgrade download release version GitHub new build</value>
@@ -173,6 +178,7 @@
   </data>
   <data name="Settings_Theme_PickerTitle_Format" xml:space="preserve">
     <value>{0} ({1})</value>
+    <comment>{0} is the color setting title, {1} the light or dark variant name.</comment>
   </data>
   <data name="Settings_Theme_PickerTitle_LightVariant" xml:space="preserve">
     <value>light</value>
@@ -191,6 +197,7 @@
   </data>
   <data name="SettingsWindow_SearchNoMatchesFormat" xml:space="preserve">
     <value>No settings match "{0}".</value>
+    <comment>{0} is the search text.</comment>
   </data>
   <data name="SettingsWindow_SearchPlaceholder" xml:space="preserve">
     <value>Search settings</value>
@@ -199,46 +206,7 @@
     <value>Search results</value>
   </data>
   <data name="SettingsWindow_SearchSynonymGroups_Common" xml:space="preserve">
-    <value>maximum|max|highest|largest|greatest|upper limit|upper bound
-minimum|lowest|smallest|lower limit|lower bound
-average|mean
-enable|activate
-disable|deactivate
-automatic|automatically|auto
-manual|manually
-reset|reset to defaults|restore defaults|revert to defaults
-opacity|transparency|alpha channel
-color|colour
-notification|alert|toast|tray notification
-hotkey|keyboard shortcut|key binding|shortcut key|global shortcut|system wide shortcut
-run on startup|autostart|start with Windows|launch at sign in|launch at logon|run at login|run at logon
-folder|directory
-icon|glyph|pictogram
-installation|install application|set up application|add application
-uninstall|uninstall application|remove application
-upgrade|software update|app update|upgrade application|new app version
-backdate|downgrade|roll back|rollback|revert to older version
-current user|local user|per user|user only
-GPU rendering|hardware acceleration|graphics acceleration|graphics renderer
-software rendering|CPU rendering|software renderer
-keep flyout warm|keep tray context menu warm|preload|preload window|pre initialize window|prepare in background
-tray flyout|flyout panel
-undock|detach|floating mode|make floating
-dock to tray|anchor to tray|attach to tray
-keep on screen|constrain to work area|clamp to work area
-tray icon|system tray icon|notification area icon
-context menu|right click menu|tray menu
-theme mode|theme style|color scheme
-font size|text size|type size|text scale
-tooltip|tool tip|hover text|hover tip|help tip
-animation|motion effect|transition|fade effect
-text color|foreground color|font color|lettering color
-background color|window background|surface color
-title bar|titlebar|window header
-slider thumb|slider handle|slider knob
-mouse wheel|scroll wheel|wheel scrolling
-touchpad|trackpad
-centered|centred|center aligned|middle aligned</value>
+    <value>maximum|max|highest|largest|greatest|upper limit|upper bound&#10;minimum|lowest|smallest|lower limit|lower bound&#10;average|mean&#10;enable|activate&#10;disable|deactivate&#10;automatic|automatically|auto&#10;manual|manually&#10;reset|reset to defaults|restore defaults|revert to defaults&#10;opacity|transparency|alpha channel&#10;color|colour&#10;notification|alert|toast|tray notification&#10;hotkey|keyboard shortcut|key binding|shortcut key|global shortcut|system wide shortcut&#10;run on startup|autostart|start with Windows|launch at sign in|launch at logon|run at login|run at logon&#10;folder|directory&#10;icon|glyph|pictogram&#10;installation|install application|set up application|add application&#10;uninstall|uninstall application|remove application&#10;upgrade|software update|app update|upgrade application|new app version&#10;backdate|downgrade|roll back|rollback|revert to older version&#10;current user|local user|per user|user only&#10;GPU rendering|hardware acceleration|graphics acceleration|graphics renderer&#10;software rendering|CPU rendering|software renderer&#10;keep flyout warm|keep tray context menu warm|preload|preload window|pre initialize window|prepare in background&#10;tray flyout|flyout panel&#10;undock|detach|floating mode|make floating&#10;dock to tray|anchor to tray|attach to tray&#10;keep on screen|constrain to work area|clamp to work area&#10;tray icon|system tray icon|notification area icon&#10;context menu|right click menu|tray menu&#10;theme mode|theme style|color scheme&#10;font size|text size|type size|text scale&#10;tooltip|tool tip|hover text|hover tip|help tip&#10;animation|motion effect|transition|fade effect&#10;text color|foreground color|font color|lettering color&#10;background color|window background|surface color&#10;title bar|titlebar|window header&#10;slider thumb|slider handle|slider knob&#10;mouse wheel|scroll wheel|wheel scrolling&#10;touchpad|trackpad&#10;centered|centred|center aligned|middle aligned</value>
     <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
   <data name="ColorPicker_DefaultTitle" xml:space="preserve">
@@ -293,19 +261,22 @@ centered|centred|center aligned|middle aligned</value>
     <value>Up to date</value>
   </data>
   <data name="Settings_About_KnownIssues_Header" xml:space="preserve">
-    <value>Known Issues</value>
+    <value>Known issues</value>
   </data>
   <data name="Settings_About_RelativeTime_DaysFormat" xml:space="preserve">
     <value>{0}d ago</value>
+    <comment>{0} is a number of days.</comment>
   </data>
   <data name="Settings_About_RelativeTime_HoursFormat" xml:space="preserve">
     <value>{0}h ago</value>
+    <comment>{0} is a number of hours.</comment>
   </data>
   <data name="Settings_About_RelativeTime_JustNow" xml:space="preserve">
     <value>just now</value>
   </data>
   <data name="Settings_About_RelativeTime_MinutesFormat" xml:space="preserve">
     <value>{0}m ago</value>
+    <comment>{0} is a number of minutes.</comment>
   </data>
   <data name="Settings_About_RuntimeLabel" xml:space="preserve">
     <value>Runtime</value>
@@ -342,18 +313,22 @@ centered|centred|center aligned|middle aligned</value>
   </data>
   <data name="Settings_About_UpdateStatus_AvailableFormat" xml:space="preserve">
     <value>Update available: {0}</value>
+    <comment>{0} is the available release version.</comment>
   </data>
   <data name="Settings_About_UpdateStatus_CancelledFormat" xml:space="preserve">
     <value>Update check was canceled {0}.</value>
+    <comment>{0} is a relative time such as "5m ago" or "just now".</comment>
   </data>
   <data name="Settings_About_UpdateStatus_Checking" xml:space="preserve">
     <value>Checking for updates...</value>
   </data>
   <data name="Settings_About_UpdateStatus_FailedFormat" xml:space="preserve">
     <value>Update check failed. Last tried {0}.</value>
+    <comment>{0} is a relative time such as "5m ago" or "just now".</comment>
   </data>
   <data name="Settings_About_UpdateStatus_LastCheckedFormat" xml:space="preserve">
     <value>You're up to date. Last checked {0}.</value>
+    <comment>{0} is a relative time such as "5m ago" or "just now".</comment>
   </data>
   <data name="Settings_About_UpdateStatus_NeverChecked" xml:space="preserve">
     <value>No update check has run yet.</value>
@@ -361,14 +336,9 @@ centered|centred|center aligned|middle aligned</value>
   <data name="Settings_About_UpdateStatus_Unavailable" xml:space="preserve">
     <value>Update service is not available.</value>
   </data>
-  <data name="Settings_Common_Playback" xml:space="preserve">
-    <value>Playback</value>
-  </data>
-  <data name="Settings_Common_Recording" xml:space="preserve">
-    <value>Recording</value>
-  </data>
   <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
     <value>Currently running from {0}.</value>
+    <comment>{0} is the folder this copy runs from.</comment>
   </data>
   <data name="Settings_General_Installation_Header" xml:space="preserve">
     <value>Installation</value>
@@ -377,33 +347,38 @@ centered|centred|center aligned|middle aligned</value>
     <value>Installation complete</value>
   </data>
   <data name="Settings_General_InstallCompleteRestart_Message_Format" xml:space="preserve">
-    <value>Installed at "{0}".
-
-Restart from the installed copy now?</value>
+    <value>Installed at "{0}".&#10;&#10;Restart from the installed copy now?</value>
+    <comment>{0} is the install folder.</comment>
   </data>
   <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
     <value>Install to "{0}".</value>
+    <comment>{0} is the install folder.</comment>
   </data>
   <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
     <value>Install app?</value>
   </data>
   <data name="Settings_General_Installed_Format" xml:space="preserve">
     <value>Installed at {0}.</value>
+    <comment>{0} is the install folder.</comment>
   </data>
   <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
     <value>Older install at {0}.{1}</value>
+    <comment>{0} is the install folder. {1} is empty or the "requires administrator approval" sentence, with its leading space.</comment>
   </data>
   <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
     <value>Installed build {0}; current build is {1}.{2}</value>
+    <comment>{0} is the installed build number, {1} the running build number. {2} is empty or the "requires administrator approval" sentence, with its leading space.</comment>
   </data>
   <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
     <value>Build {0} installed at {1}.</value>
+    <comment>{0} is the build number, {1} the install folder.</comment>
   </data>
   <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
     <value>Install failed</value>
   </data>
   <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
     <value>Install to "{0}".</value>
+    <comment>{0} is the install folder.</comment>
   </data>
   <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
     <value>Install app system-wide?</value>
@@ -422,6 +397,7 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
     <value>Not installed at {0}.{1}</value>
+    <comment>{0} is the install folder. {1} is empty or the "requires administrator approval" sentence, with its leading space.</comment>
   </data>
   <data name="Settings_General_NotNow_Button" xml:space="preserve">
     <value>Not now</value>
@@ -463,8 +439,8 @@ Restart from the installed copy now?</value>
     <value>Start the app automatically when you sign in.</value>
   </data>
   <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
-    <value>{0}
-{1}</value>
+    <value>{0}&#10;{1}</value>
+    <comment>{0} is the "starts with Windows" header line, {1} the path the startup shortcut launches.</comment>
   </data>
   <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
     <value>Startup shortcut target:</value>
@@ -483,6 +459,9 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Settings_General_Uninstall_Button" xml:space="preserve">
     <value>Uninstall</value>
+  </data>
+  <data name="Settings_General_UninstallFailed_Title" xml:space="preserve">
+    <value>Uninstall incomplete</value>
   </data>
   <data name="Settings_General_Update_Button" xml:space="preserve">
     <value>Update</value>
@@ -576,6 +555,7 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Installer_SectionHeader_Format" xml:space="preserve">
     <value>Install {0}</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="Installer_StartMenuShortcut" xml:space="preserve">
     <value>Start Menu entry</value>
@@ -585,18 +565,21 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Installer_Title_Format" xml:space="preserve">
     <value>Install {0}</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>
   </data>
   <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
     <value>Also remove "{0}" including settings.xml.</value>
+    <comment>{0} is the settings folder.</comment>
   </data>
   <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
     <value>Delete my settings</value>
   </data>
   <data name="Uninstaller_Description_Format" xml:space="preserve">
     <value>This will remove {1} installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
+    <comment>{0} is the install folder, {1} the application name.</comment>
   </data>
   <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
     <value>Leave settings.xml in place so a future install picks them up.</value>
@@ -606,9 +589,11 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Uninstaller_SectionHeader" xml:space="preserve">
     <value>Uninstall {0}</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="Uninstaller_Title" xml:space="preserve">
     <value>Uninstall {0}</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="Uninstaller_Cancel" xml:space="preserve">
     <value>Cancel</value>
@@ -624,9 +609,11 @@ Restart from the installed copy now?</value>
   </data>
   <data name="SkipDialog_TitleFormat" xml:space="preserve">
     <value>Skip release {0}?</value>
+    <comment>{0} is the release version.</comment>
   </data>
   <data name="SkipDialog_DescriptionFormat" xml:space="preserve">
     <value>Release {0} won't be offered again. Newer releases will still be offered, and Undo skip on the About settings page reverses this.</value>
+    <comment>{0} is the release version.</comment>
   </data>
   <data name="SkipDialog_Confirm" xml:space="preserve">
     <value>Skip release</value>
@@ -639,12 +626,15 @@ Restart from the installed copy now?</value>
   </data>
   <data name="UpdateDialog_AppFormat" xml:space="preserve">
     <value>App: {0}</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="UpdateDialog_NewVersionFormat" xml:space="preserve">
     <value>New version available: {0}</value>
+    <comment>{0} is the new release version.</comment>
   </data>
   <data name="UpdateDialog_CurrentVersionFormat" xml:space="preserve">
     <value>Current running version: {0}</value>
+    <comment>{0} is the running version.</comment>
   </data>
   <data name="UpdateDialog_DownloadFailed" xml:space="preserve">
     <value>The update could not be downloaded. Check the log for details.</value>
@@ -667,8 +657,12 @@ Restart from the installed copy now?</value>
   <data name="UpdateDialog_Title" xml:space="preserve">
     <value>Proceed with update?</value>
   </data>
+  <data name="UpdateDialog_AnotherUpdateRunning" xml:space="preserve">
+    <value>Another update of this app is already being installed. Try again once it has finished.</value>
+  </data>
   <data name="UpdateNotification_BodyFormat" xml:space="preserve">
     <value>{0} is available.</value>
+    <comment>{0} is the new release version.</comment>
   </data>
   <data name="UpdateNotification_Title" xml:space="preserve">
     <value>Update available</value>
@@ -684,9 +678,15 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Install_Error_InstallDirectoryBusy_Format" xml:space="preserve">
     <value>Another installation is still copying files into {0}</value>
+    <comment>{0} is the install folder.</comment>
+  </data>
+  <data name="Install_Error_UpdateRunning_Format" xml:space="preserve">
+    <value>An update of {0} is still being installed. Try again once it has finished.</value>
+    <comment>{0} is the application name.</comment>
   </data>
   <data name="Install_Progress_CopyingFiles_Format" xml:space="preserve">
     <value>Copying files ({0} of {1})</value>
+    <comment>{0} is the number of files copied so far, {1} the total.</comment>
   </data>
   <data name="Install_Progress_RegisteringUninstall" xml:space="preserve">
     <value>Registering the uninstall entry</value>
@@ -702,9 +702,6 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Install_Progress_Cancelled" xml:space="preserve">
     <value>Installation cancelled</value>
-  </data>
-  <data name="Install_Progress_Failed_Format" xml:space="preserve">
-    <value>Installation failed: {0}</value>
   </data>
   <data name="Uninstall_Progress_StartupShortcut" xml:space="preserve">
     <value>Updating the startup shortcut</value>
@@ -732,12 +729,24 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Uninstall_Progress_Failed_Format" xml:space="preserve">
     <value>Uninstall failed (exit code {0})</value>
+    <comment>{0} is the uninstaller exit code.</comment>
   </data>
   <data name="Uninstall_Progress_Cancelled" xml:space="preserve">
     <value>Uninstall cancelled</value>
   </data>
   <data name="Uninstall_Progress_NotStarted" xml:space="preserve">
     <value>The uninstall process did not start</value>
+  </data>
+  <data name="Uninstall_Progress_ItemsRemain_Format" xml:space="preserve">
+    <value>Uninstall finished, but these items could not be removed: {0}</value>
+    <comment>{0} is a comma-separated list of files and folders.</comment>
+  </data>
+  <data name="Uninstall_Error_InstalledCopyMissing_Format" xml:space="preserve">
+    <value>The installed copy {0} was not found, so its uninstaller cannot run</value>
+    <comment>{0} is the path of the installed executable.</comment>
+  </data>
+  <data name="Elevation_Error_DifferentAdministratorAccount" xml:space="preserve">
+    <value>This needs administrator rights for your own account. Windows would run it under a different administrator account, so shortcuts and settings would end up in that account's profile. Sign in with an administrator account, or use the installation for the current user.</value>
   </data>
   <data name="ScrollBarMenu_ScrollHere" xml:space="preserve">
     <value>Scroll Here</value>
@@ -788,7 +797,7 @@ Restart from the installed copy now?</value>
     <value>Language</value>
   </data>
   <data name="Settings_General_Language_Description" xml:space="preserve">
-    <value>Auto uses the Windows display language when a translation for it is available.</value>
+    <value>Auto uses the Windows display language when a translation for it is available. A change applies after a restart.</value>
   </data>
   <data name="Settings_General_Language_Auto" xml:space="preserve">
     <value>Auto</value>
@@ -843,8 +852,388 @@ Restart from the installed copy now?</value>
   </data>
   <data name="Settings_Hotkeys_Key_NumPad_Format" xml:space="preserve">
     <value>Num {0}</value>
+    <comment>{0} is the numpad digit.</comment>
   </data>
   <data name="Settings_Hotkeys_Key_VK_Format" xml:space="preserve">
     <value>VK {0}</value>
+    <comment>{0} is the virtual-key code number.</comment>
+  </data>
+  <data name="Settings_Hotkeys_Key_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PrintScreen" xml:space="preserve">
+    <value>Print Screen</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Apps" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_NumPadOperator_Format" xml:space="preserve">
+    <value>Num {0}</value>
+    <comment>{0} is the numpad operator character.</comment>
+  </data>
+  <data name="Settings_Hotkeys_KeyNotSupported" xml:space="preserve">
+    <value>This key cannot be used in a hotkey.</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
+    <value>Exists</value>
+  </data>
+  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
+    <value>Delete this hotkey</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
+    <value>Hotkey service not available.</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
+    <value>Registered.</value>
+  </data>
+  <data name="Settings_Hotkeys_ChordInUse_Format" xml:space="preserve">
+    <value>{0} is already used by {1}.</value>
+    <comment>{0} is the key combination, {1} the action that already has it.</comment>
+  </data>
+  <data name="Settings_Hotkeys_Error_NoKey" xml:space="preserve">
+    <value>No key set.</value>
+  </data>
+  <data name="Settings_Hotkeys_Error_NoModifier" xml:space="preserve">
+    <value>At least one modifier (Ctrl, Alt, Shift, Win) is required.</value>
+  </data>
+  <data name="Settings_Hotkeys_Error_ReservedKey" xml:space="preserve">
+    <value>F12 is reserved by the debugger.</value>
+  </data>
+  <data name="Settings_Hotkeys_Error_InUseByAnotherApp" xml:space="preserve">
+    <value>Already in use by another app or by Windows.</value>
+  </data>
+  <data name="Settings_Hotkeys_Error_DuplicateInApp_Format" xml:space="preserve">
+    <value>Also bound to {0} in this app, which keeps it.</value>
+    <comment>{0} is the action that already has the key combination.</comment>
+  </data>
+  <data name="Settings_Hotkeys_Error_Failed_Format" xml:space="preserve">
+    <value>Registration failed (Windows error {0}).</value>
+    <comment>{0} is the Windows error code.</comment>
+  </data>
+  <data name="TrayMenu_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="TrayMenu_Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
+    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
+  </data>
+  <data name="Settings_About_OpenSettingsFolder_Title" xml:space="preserve">
+    <value>Open settings folder</value>
+  </data>
+  <data name="Settings_General_SectionHeader" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
+    <value>Local user</value>
+  </data>
+  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
+    <value>System-wide</value>
+  </data>
+  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
+    <value>Microsoft Store</value>
+  </data>
+  <data name="Settings_General_StoreRunning" xml:space="preserve">
+    <value>Running from the Microsoft Store installation.</value>
+  </data>
+  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
+    <value>Not installed from the Microsoft Store.</value>
+  </data>
+  <data name="Settings_General_LanguageRestart_Title" xml:space="preserve">
+    <value>Restart to change the language</value>
+  </data>
+  <data name="Settings_General_LanguageRestart_Message" xml:space="preserve">
+    <value>The new language applies after the app restarts. Restart now?</value>
+  </data>
+  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
+    <value>Theme style</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
+    <value>Follow Windows, or force light / dark mode for this app.</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>appearance color scheme Windows preference night day</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
+    <value>Rounded corners</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
+    <value>Applies rounded corners to windows, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square sharp edges rectangular radius window shape</value>
+  </data>
+  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
+    <value>Animations</value>
+  </data>
+  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
+    <value>Controls whether tooltip fades and other UI animations are allowed.</value>
+  </data>
+  <data name="Settings_Theme_Animations_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
+    <value>motion transitions fade visual effects accessibility reduce motion</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Title" xml:space="preserve">
+    <value>Tooltip delay</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Description" xml:space="preserve">
+    <value>Milliseconds to wait before showing a tooltip.</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
+    <value>hover help popup wait latency timing</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
+    <value>Text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
+    <value>Override the default text color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
+    <value>Light theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground font lettering contrast typography tint</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
+    <value>Background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
+    <value>Override the default background color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>backdrop fill surface canvas window color</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
+    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text scale typography zoom accessibility menu</value>
+  </data>
+  <data name="Common_MillisecondsSuffix" xml:space="preserve">
+    <value> ms</value>
+  </data>
+  <data name="Flyout_Settings_Tooltip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
+    <value>Redock</value>
+  </data>
+  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
+    <value>Undock</value>
+  </data>
+  <data name="SettingsWindow_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsWindow_Header" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_Common_Page_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Common_Page_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
+    <value>Keep undocked flyout on screen</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
+    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
+  </data>
+  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
+    <value>Restore undock state on startup</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
+    <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
+  </data>
+  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
+    <value>Show undock button</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
+    <value>Show the undock button in the flyout. When off, the flyout always stays anchored to the tray.</value>
+  </data>
+  <data name="Settings_Flyout_Visibility_Header" xml:space="preserve">
+    <value>Visibility</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
+    <value>Open flyout</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
+    <value>Open this settings window.</value>
+  </data>
+  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
+    <value>Tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
+    <value>Light theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
+    <value>Alt + double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
+    <value>Alt + left-click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
+    <value>Alt + right-click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + left-click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
+    <value>Ctrl + right-click</value>
+  </data>
+  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
+    <value>Double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
+    <value>Nothing</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
+    <value>Classic</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
+    <value>Modern</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
+    <value>Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts.</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
+    <value>Menu position</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
+    <value>Modified actions</value>
+  </data>
+  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Common_PercentSuffix" xml:space="preserve">
+    <value>%</value>
+  </data>
+  <data name="CrashHandler_Title_Format" xml:space="preserve">
+    <value>{0} crash handler</value>
+    <comment>{0} is the application name.</comment>
+  </data>
+  <data name="CrashHandler_NoExecutablePath" xml:space="preserve">
+    <value>Cannot determine the executable path.</value>
+  </data>
+  <data name="CrashHandler_StartFailed_Format" xml:space="preserve">
+    <value>Failed to start {0}.</value>
+    <comment>{0} is the application name.</comment>
+  </data>
+  <data name="CrashHandler_RestartFailed_Format" xml:space="preserve">
+    <value>Failed to restart {0}.</value>
+    <comment>{0} is the application name.</comment>
+  </data>
+  <data name="CrashHandler_CrashedRepeatedly_Format" xml:space="preserve">
+    <value>{0} has crashed repeatedly.&#10;&#10;The crash handler will not attempt further restarts.&#10;Please check for issues and restart manually.</value>
+    <comment>{0} is the application name.</comment>
+  </data>
+  <data name="UpdateError_Title_Format" xml:space="preserve">
+    <value>{0} update</value>
+    <comment>{0} is the application name.</comment>
+  </data>
+  <data name="UpdateError_RolledBack_Format" xml:space="preserve">
+    <value>The update could not be installed. The previous version was restored and restarted.&#10;&#10;Details: {0}</value>
+    <comment>{0} is the path of the update log.</comment>
+  </data>
+  <data name="UpdateError_FolderBusy_Format" xml:space="preserve">
+    <value>The update was not installed because another installation or update kept the install folder busy. The previous version was restarted; try the update again later.&#10;&#10;Details: {0}</value>
+    <comment>{0} is the path of the update log.</comment>
+  </data>
+  <data name="UpdateError_Unsafe_Format" xml:space="preserve">
+    <value>The update failed and could not be completely rolled back. The application was not restarted to avoid loading a mixed installation. The next update or installation finishes the rollback.&#10;&#10;Details: {0}</value>
+    <comment>{0} is the path of the update log.</comment>
+  </data>
+  <data name="UpdateError_HelperFailed_Format" xml:space="preserve">
+    <value>The update helper failed while waiting to restart the application.&#10;&#10;Details: {0}</value>
+    <comment>{0} is the path of the update log.</comment>
+  </data>
+  <data name="UpdateError_WorkerStoppedNotRestarted_Format" xml:space="preserve">
+    <value>The update worker stopped unexpectedly (exit code {0}). The application was not restarted because the installation may be incomplete. The next update or installation repairs it.&#10;&#10;Details: {1}</value>
+    <comment>{0} is the worker exit code, {1} the path of the update log.</comment>
+  </data>
+  <data name="UpdateError_WorkerStoppedRestored_Format" xml:space="preserve">
+    <value>The update worker stopped unexpectedly (exit code {0}). The previous version was restored and restarted.&#10;&#10;Details: {1}</value>
+    <comment>{0} is the worker exit code, {1} the path of the update log.</comment>
   </data>
 </root>

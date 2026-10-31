@@ -117,18 +117,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
-    <value>ColorPicker</value>
-  </data>
-  <data name="Common_PercentSuffix" xml:space="preserve">
-    <value>%</value>
-  </data>
-  <data name="Common_MillisecondsSuffix" xml:space="preserve">
-    <value> ms</value>
-  </data>
-  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
-    <value>Redock</value>
-  </data>
   <data name="Flyout_NoAudioDevices" xml:space="preserve">
     <value>No audio devices</value>
   </data>
@@ -144,9 +132,6 @@
   <data name="Flyout_DeviceFormatMenu_Format" xml:space="preserve">
     <value>{0} channel, {1} bit, {2} Hz</value>
   </data>
-  <data name="Flyout_Settings_Tooltip" xml:space="preserve">
-    <value>Settings</value>
-  </data>
   <data name="Flyout_SoundSettings_Tooltip" xml:space="preserve">
     <value>Open Windows sound settings</value>
   </data>
@@ -154,144 +139,29 @@
     <value>Show/hide disabled devices</value>
   </data>
   <data name="Flyout_BluetoothRadio_Tooltip_On" xml:space="preserve">
-    <value>Bluetooth on&#xA;{0} to turn off</value>
+    <value>Bluetooth on&#xA;{0} to turn off&#xA;{1} to open Bluetooth quick settings</value>
   </data>
   <data name="Flyout_BluetoothRadio_Tooltip_Off" xml:space="preserve">
-    <value>Bluetooth off&#xA;{0} to turn on</value>
+    <value>Bluetooth off&#xA;{0} to turn on&#xA;{1} to open Bluetooth quick settings</value>
   </data>
   <data name="Flyout_BluetoothRadio_Tooltip_Unavailable" xml:space="preserve">
-    <value>Bluetooth unavailable</value>
+    <value>Bluetooth unavailable&#xA;{0} to open Bluetooth quick settings</value>
   </data>
   <data name="Flyout_BluetoothRadio_Tooltip_Unknown" xml:space="preserve">
-    <value>Bluetooth&#xA;Reading radio state</value>
-  </data>
-  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
-    <value>Undock</value>
-  </data>
-  <data name="SettingsWindow_Caption_Maximize" xml:space="preserve">
-    <value>Maximize</value>
-  </data>
-  <data name="SettingsWindow_Caption_Minimize" xml:space="preserve">
-    <value>Minimize</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_Confirm" xml:space="preserve">
-    <value>Clear</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
-    <value>Are you sure?</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultTitle" xml:space="preserve">
-    <value>Clear all saved display data?</value>
-  </data>
-  <data name="SettingsWindow_Header" xml:space="preserve">
-    <value>Settings</value>
+    <value>Bluetooth&#xA;Reading radio state&#xA;{0} to open Bluetooth quick settings</value>
   </data>
   <!-- One concept group per line; separate equivalent localized terms or phrases with |. -->
   <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
-    <value>maximum|max|highest|largest|greatest|upper limit|upper bound
-minimum|lowest|smallest|lower limit|lower bound
-threshold|cutoff|trigger level
-playback device|playback devices|audio output device|audio output devices|output endpoint|output endpoints|render endpoint|render endpoints
-recording device|recording devices|audio input device|audio input devices|capture endpoint|capture endpoints|input endpoint|input endpoints
-default device|default audio device|default endpoint|primary audio device|primary audio endpoint
-communications device|comms device|communications role device|communications role endpoint
-disabled device|disabled devices|deactivated device|deactivated devices
-disconnected device|disconnected devices|unplugged device|unplugged devices|disconnected endpoint|disconnected endpoints
-not present device|not present devices|ghost device|ghost devices|phantom device|phantom devices|stale endpoint|stale endpoints
-exclusive mode|exclusive control|application exclusive audio
-equalizer|EQ
-listen to this device|input monitoring|microphone monitoring
-communications ducking|audio ducking|communications attenuation
-volume change sound|volume change beep|volume feedback sound|volume feedback tone|audio feedback tone
-logarithmic volume scale|logarithmic volume curve|perceptual volume curve|audio taper
-default format|default audio format|audio endpoint format|Windows mix format
-Bluetooth codec|A2DP codec|Bluetooth audio codec
-peak meter|audio level meter|signal peak meter
-unified peak meter|combined channel meter|single bar meter
-peak meter refresh rate|meter redraw rate|meter frame rate|meter FPS
-peak meter sample rate|meter polling rate|peak sampling frequency
-peak meter change ceiling|meter slew limit|maximum change per redraw|single frame jump limit
-low channel bias|quieter channel weighting|channel weighting multiplier
-flyout|volume flyout|volume control flyout|tray volume flyout
-undocked flyout|detached flyout|floating flyout
-opens docked|stays anchored to the tray|attached to the tray
-restore undock state|restore flyout state|remember flyout state|persist flyout state
-keep undocked flyout on screen|clamp flyout to screen|constrain flyout to work area
-flyout title bar|flyout header
-app drawer|app drawers|application drawer|application drawers|volume mixer drawer|volume mixer drawers
-app slider|app sliders|application volume slider|application volume sliders|mixer slider|mixer sliders|audio fader|audio faders
-intermix|interleave|mix together
-Bluetooth power button|Bluetooth power control|Bluetooth radio control|Bluetooth power toggle
-actively capturing apps|capture activity indicator|microphone in use indicator|recording activity indicator
-volume step|volume increment|volume change amount
-device name max length|device name maximum length|device label character limit|truncate device name
-modified actions|tray action mapping|mouse action mapping|gesture action assignment
-centered|centred|center aligned|centre aligned|middle aligned
-stack direction|flow direction|layout orientation
-device sort|sort order|device ordering|endpoint ordering
-tray icon|system tray icon|notification area icon
-context menu|right click menu|tray menu
-mouse wheel|scroll wheel
-touchpad|trackpad
-tooltip|tool tip|hover tip
-slider thumb|slider handle|slider knob</value>
-  </data>
-  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
-    <value>Open settings folder</value>
-  </data>
-  <data name="SettingsWindow_Title" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="Settings_About_AuthorLabel" xml:space="preserve">
-    <value>Author</value>
-  </data>
-  <data name="Settings_About_BuildLabel" xml:space="preserve">
-    <value>Build</value>
-  </data>
-  <data name="Settings_About_GithubLabel" xml:space="preserve">
-    <value>Github</value>
-  </data>
-  <data name="Settings_About_RuntimeLabel" xml:space="preserve">
-    <value>Runtime</value>
-  </data>
-  <data name="Settings_About_SectionHeader" xml:space="preserve">
-    <value>About</value>
+    <value>maximum|max|highest|largest|greatest|upper limit|upper bound&#10;minimum|lowest|smallest|lower limit|lower bound&#10;threshold|cutoff|trigger level&#10;playback device|playback devices|audio output device|audio output devices|output endpoint|output endpoints|render endpoint|render endpoints&#10;recording device|recording devices|audio input device|audio input devices|capture endpoint|capture endpoints|input endpoint|input endpoints&#10;default device|default audio device|default endpoint|primary audio device|primary audio endpoint&#10;communications device|comms device|communications role device|communications role endpoint&#10;disabled device|disabled devices|deactivated device|deactivated devices&#10;disconnected device|disconnected devices|unplugged device|unplugged devices|disconnected endpoint|disconnected endpoints&#10;not present device|not present devices|ghost device|ghost devices|phantom device|phantom devices|stale endpoint|stale endpoints&#10;exclusive mode|exclusive control|application exclusive audio&#10;equalizer|EQ&#10;listen to this device|input monitoring|microphone monitoring&#10;communications ducking|audio ducking|communications attenuation&#10;volume change sound|volume change beep|volume feedback sound|volume feedback tone|audio feedback tone&#10;logarithmic volume scale|logarithmic volume curve|perceptual volume curve|audio taper&#10;default format|default audio format|audio endpoint format|Windows mix format&#10;Bluetooth codec|A2DP codec|Bluetooth audio codec&#10;peak meter|audio level meter|signal peak meter&#10;unified peak meter|combined channel meter|single bar meter&#10;peak meter refresh rate|meter redraw rate|meter frame rate|meter FPS&#10;peak meter sample rate|meter polling rate|peak sampling frequency&#10;peak meter change ceiling|meter slew limit|maximum change per redraw|single frame jump limit&#10;low channel bias|quieter channel weighting|channel weighting multiplier&#10;flyout|volume flyout|volume control flyout|tray volume flyout&#10;undocked flyout|detached flyout|floating flyout&#10;opens docked|stays anchored to the tray|attached to the tray&#10;restore undock state|restore flyout state|remember flyout state|persist flyout state&#10;keep undocked flyout on screen|clamp flyout to screen|constrain flyout to work area&#10;flyout title bar|flyout header&#10;app drawer|app drawers|application drawer|application drawers|volume mixer drawer|volume mixer drawers&#10;app slider|app sliders|application volume slider|application volume sliders|mixer slider|mixer sliders|audio fader|audio faders&#10;intermix|interleave|mix together&#10;Bluetooth power button|Bluetooth power control|Bluetooth radio control|Bluetooth power toggle&#10;actively capturing apps|capture activity indicator|microphone in use indicator|recording activity indicator&#10;volume step|volume increment|volume change amount&#10;device name max length|device name maximum length|device label character limit|truncate device name&#10;modified actions|tray action mapping|mouse action mapping|gesture action assignment&#10;centered|centred|center aligned|centre aligned|middle aligned&#10;stack direction|flow direction|layout orientation&#10;device sort|sort order|device ordering|endpoint ordering&#10;tray icon|system tray icon|notification area icon&#10;context menu|right click menu|tray menu&#10;mouse wheel|scroll wheel&#10;touchpad|trackpad&#10;tooltip|tool tip|hover tip&#10;slider thumb|slider handle|slider knob</value>
   </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
     <value>A replacement for Windows' Volume tray app</value>
-  </data>
-  <data name="Settings_Common_Page_About" xml:space="preserve">
-    <value>About</value>
-  </data>
-  <data name="Common_Cancel" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
-  <data name="Common_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="Common_Install" xml:space="preserve">
-    <value>Install</value>
   </data>
   <data name="Common_ContextMenu_Header" xml:space="preserve">
     <value>Context menu</value>
   </data>
   <data name="Settings_Common_Page_DeviceAppDrawers" xml:space="preserve">
-    <value>App Drawers</value>
-  </data>
-  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Common_Page_General" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
-  <data name="Settings_Common_Page_Theme" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
-    <value>Tray Icon</value>
+    <value>App drawers</value>
   </data>
   <data name="Settings_Flyout_HeaderAtBottom_Description" xml:space="preserve">
     <value>Render the flyout's title bar (Settings cluster and Undock button) at the bottom of the flyout instead of the top.</value>
@@ -299,56 +169,35 @@ slider thumb|slider handle|slider knob</value>
   <data name="Settings_Flyout_HeaderAtBottom_Title" xml:space="preserve">
     <value>Title bar at the bottom</value>
   </data>
-  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
-    <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
-    <value>Restore undock state on startup</value>
-  </data>
-  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
-    <value>Show the undock button in the flyout. When off, the flyout always stays anchored to the tray.</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
-    <value>Show undock button</value>
-  </data>
   <data name="Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description" xml:space="preserve">
     <value>When on, playback-device buttons in the flyout use the current volume tier glyph. When off, unmuted playback devices use the static low-volume glyph.</value>
   </data>
   <data name="Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title" xml:space="preserve">
     <value>Use dynamic playback volume glyph for playback devices in flyout</value>
   </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
-    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
-    <value>Keep undocked flyout on screen</value>
-  </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_Title" xml:space="preserve">
     <value>Bluetooth power button click action</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_Description" xml:space="preserve">
-    <value>Choose the left-click gesture that turns the Windows Bluetooth radio on or off.</value>
+    <value>Choose the left-click gesture that turns the Windows Bluetooth radio on or off. Any other left-click opens Windows Bluetooth quick settings.</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick" xml:space="preserve">
-    <value>Left Click</value>
+    <value>Left-click</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick" xml:space="preserve">
-    <value>Ctrl+Left Click</value>
+    <value>Ctrl + left-click</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick" xml:space="preserve">
-    <value>Alt+Left Click</value>
+    <value>Alt + left-click</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick" xml:space="preserve">
-    <value>Shift+Left Click</value>
+    <value>Shift + left-click</value>
   </data>
   <data name="Settings_Flyout_ShowBluetoothRadioButton_Title" xml:space="preserve">
     <value>Show Bluetooth power button</value>
   </data>
   <data name="Settings_Flyout_ShowBluetoothRadioButton_Description" xml:space="preserve">
-    <value>Show the Bluetooth button in the flyout header for turning the Windows Bluetooth radio on or off.</value>
+    <value>Show the Bluetooth button in the flyout header for opening Windows Bluetooth quick settings and turning the Windows Bluetooth radio on or off.</value>
   </data>
   <data name="Settings_Flyout_SoundSettingsTarget_Title" xml:space="preserve">
     <value>Sound settings button target</value>
@@ -361,12 +210,6 @@ slider thumb|slider handle|slider knob</value>
   </data>
   <data name="Settings_Flyout_SoundSettingsTarget_Modern" xml:space="preserve">
     <value>Windows Settings app</value>
-  </data>
-  <data name="Settings_Flyout_Visibility_Header" xml:space="preserve">
-    <value>Visibility</value>
-  </data>
-  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
-    <value>Layout</value>
   </data>
   <data name="Settings_Flyout_DeviceLayout_Title" xml:space="preserve">
     <value>Device layout</value>
@@ -552,64 +395,25 @@ slider thumb|slider handle|slider knob</value>
     <value>Recording drawers</value>
   </data>
   <data name="Settings_Flyout_AppDrawerMaxApps_Sliders_Title" xml:space="preserve">
-    <value>Max apps before scrolling - Full sliders</value>
+    <value>Max apps before scrolling - full sliders</value>
   </data>
   <data name="Settings_Flyout_AppDrawerMaxApps_Sliders_Description" xml:space="preserve">
     <value>Caps how many app slider rows render before the drawer enters scrolling overflow.</value>
   </data>
   <data name="Settings_Flyout_AppDrawerMaxApps_Icons_Title" xml:space="preserve">
-    <value>Max rows before scrolling - Icon grid</value>
+    <value>Max rows before scrolling - icon grid</value>
   </data>
   <data name="Settings_Flyout_AppDrawerMaxApps_Icons_Description" xml:space="preserve">
     <value>Caps how many icon rows render before the drawer enters scrolling overflow.</value>
   </data>
-  <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
-    <value>Currently running from "{0}".</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps.</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
-    <value>Install VolumeTrayAppDotNET?</value>
-  </data>
-  <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
-    <value>Install failed</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps. Requires admin.</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
-    <value>Install VolumeTrayAppDotNET system-wide?</value>
-  </data>
-  <data name="Settings_General_Installation_Header" xml:space="preserve">
-    <value>Installation</value>
-  </data>
   <data name="Settings_General_PeakMeter_Header" xml:space="preserve">
     <value>Peak meter</value>
-  </data>
-  <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
-    <value>Installed (older build) at "{0}".{1}</value>
-  </data>
-  <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
-    <value>Installed build {0}, running build {1}. Click Update to overwrite.{2}</value>
-  </data>
-  <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
-    <value>Installed (build {0}) at "{1}".</value>
-  </data>
-  <data name="Settings_General_Installed_Format" xml:space="preserve">
-    <value>Installed at "{0}".</value>
-  </data>
-  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
-    <value>Local user</value>
   </data>
   <data name="Settings_General_LogarithmicVolumeScale_Description" xml:space="preserve">
     <value>Map app volume sliders to a perceptual curve so equal slider steps feel like equal loudness steps. Device sliders already follow the Windows volume curve and stay as they are.</value>
   </data>
   <data name="Settings_General_LogarithmicVolumeScale_Title" xml:space="preserve">
     <value>Use logarithmic volume scale</value>
-  </data>
-  <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
-    <value>Not installed. Will be placed at "{0}".{1}</value>
   </data>
   <data name="Settings_General_Notifications_Header" xml:space="preserve">
     <value>Volume changed ping</value>
@@ -645,13 +449,13 @@ slider thumb|slider handle|slider knob</value>
     <value>Default amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders.</value>
   </data>
   <data name="Settings_General_WheelVolumeStepFinePercent_Title" xml:space="preserve">
-    <value>Wheel volume step (%) - Fine</value>
+    <value>Wheel volume step (%) - fine</value>
   </data>
   <data name="Settings_General_WheelVolumeStepFinePercent_Description" xml:space="preserve">
     <value>Fine amount to raise or lower volume when a tray-icon scroll uses the Fine action.</value>
   </data>
   <data name="Settings_General_WheelVolumeStepCoarsePercent_Title" xml:space="preserve">
-    <value>Wheel volume step (%) - Coarse</value>
+    <value>Wheel volume step (%) - coarse</value>
   </data>
   <data name="Settings_General_WheelVolumeStepCoarsePercent_Description" xml:space="preserve">
     <value>Coarse amount to raise or lower volume when a tray-icon scroll uses the Coarse action.</value>
@@ -669,8 +473,7 @@ slider thumb|slider handle|slider knob</value>
     <value>Unknown</value>
   </data>
   <data name="Audio_AppTooltipFormat" xml:space="preserve">
-    <value>{0}
-PID: {1}</value>
+    <value>{0}&#10;PID: {1}</value>
   </data>
   <data name="Audio_SystemSoundsName" xml:space="preserve">
     <value>System Sounds</value>
@@ -679,104 +482,22 @@ PID: {1}</value>
     <value>{0}%</value>
   </data>
   <data name="Audio_UnknownDeviceName" xml:space="preserve">
-    <value>Unknown Device</value>
+    <value>Unknown device</value>
   </data>
   <data name="Audio_DeviceFormatFormat" xml:space="preserve">
     <value>{0} channel, {1} bit, {2} Hz</value>
   </data>
   <data name="Audio_BluetoothCodecUnknownInvalidVendorFormat" xml:space="preserve">
-    <value>Unknown Codec (Invalid Vendor): 0x{0:X2} {1}:{2}</value>
+    <value>Unknown codec (invalid vendor): 0x{0:X2} {1}:{2}</value>
   </data>
   <data name="Audio_BluetoothCodecUnknownFormat" xml:space="preserve">
-    <value>Unknown Codec: 0x{0:X4}:0x{1:X4}</value>
+    <value>Unknown codec: 0x{0:X4}:0x{1:X4}</value>
   </data>
   <data name="Settings_General_PlayAppVolumeChangeSound_Description" xml:space="preserve">
     <value>Play a Windows notification sound when you change a per-app slider, scaled to the app's mixed volume so quieter apps preview quieter.</value>
   </data>
   <data name="Settings_General_PlayAppVolumeChangeSound_Title" xml:space="preserve">
     <value>Play a sound when changing app volume</value>
-  </data>
-  <data name="Settings_General_RequiresAdmin_Suffix" xml:space="preserve">
-    <value> (requires admin)</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Description" xml:space="preserve">
-    <value>Launch VolumeTrayAppDotNET when you sign in to Windows.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
-    <value>{0}
-Target: {1}</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
-    <value>Autostart shortcut placed in shell:startup.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Title" xml:space="preserve">
-    <value>Run on startup automatically</value>
-  </data>
-  <data name="Settings_General_SectionHeader" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
-    <value>System wide</value>
-  </data>
-  <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
-    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the installation location and Windows Settings &gt; Apps.</value>
-  </data>
-  <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
-    <value>Uninstall incomplete</value>
-  </data>
-  <data name="Settings_General_Uninstall_Button" xml:space="preserve">
-    <value>Uninstall</value>
-  </data>
-  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
-    <value>Add</value>
-  </data>
-  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
-    <value>delete this hotkey</value>
-  </data>
-  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
-    <value>Exists</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
-    <value>Open this settings window.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
-    <value>Search:</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
-    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
-    <value>Keyboard shortcuts</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
-    <value>Hotkey service not available.</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
-    <value>Registered.</value>
-  </data>
-  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
-    <value>Appearance</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
-    <value>Override the default background color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
-    <value>Light theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
-    <value>Background color</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
-    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
-    <value>Font size</value>
   </data>
   <data name="Settings_Theme_MeterPeak_Header" xml:space="preserve">
     <value>Peak meter</value>
@@ -853,36 +574,6 @@ Target: {1}</value>
   <data name="Settings_Theme_UnifiedMeterBias_Title" xml:space="preserve">
     <value>Unified meter low channel bias multiplier</value>
   </data>
-  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
-    <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
-    <value>Rounded corners</value>
-  </data>
-  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
-    <value>Controls whether tooltip fades and other UI animations are allowed.</value>
-  </data>
-  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
-    <value>Disabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
-    <value>Enabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
-    <value>Animations</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_Description" xml:space="preserve">
-    <value>Milliseconds to wait before showing a tooltip.</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_Title" xml:space="preserve">
-    <value>Tooltip delay</value>
-  </data>
-  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
-    <value>Theme</value>
-  </data>
   <data name="Settings_Theme_SliderIndicator_Description" xml:space="preserve">
     <value>The shape drawn as the volume-slider thumb. Each option keeps its own font and proportions.</value>
   </data>
@@ -907,62 +598,11 @@ Target: {1}</value>
   <data name="Settings_Theme_SliderThumb_Heart" xml:space="preserve">
     <value>Heart</value>
   </data>
-  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
-    <value>Override the default text color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
-    <value>Light theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
-    <value>Text color</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
-    <value>Dark</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
-    <value>Follow Windows, or force light / dark mode for this app.</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
-    <value>Light</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
-    <value>Theme style</value>
-  </data>
-  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
-    <value>Alt + double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
-    <value>Alt + left click</value>
-  </data>
   <data name="Settings_TrayIcon_AltMouseWheel_Title" xml:space="preserve">
     <value>Alt + mouse wheel</value>
   </data>
-  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
-    <value>Alt + right click</value>
-  </data>
-  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
-    <value>Nothing</value>
-  </data>
-  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + left click</value>
-  </data>
   <data name="Settings_TrayIcon_CtrlMouseWheel_Title" xml:space="preserve">
     <value>Ctrl + mouse wheel</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
-    <value>Ctrl + right click</value>
   </data>
   <data name="Settings_TrayIcon_DeviceName_Model" xml:space="preserve">
     <value>Model</value>
@@ -971,7 +611,7 @@ Target: {1}</value>
     <value>Name</value>
   </data>
   <data name="Settings_TrayIcon_DeviceName_NameAndModel" xml:space="preserve">
-    <value>Name+Model</value>
+    <value>Name and model</value>
   </data>
   <data name="Settings_TrayIcon_DeviceNameMaxLength_Description" xml:space="preserve">
     <value>Names longer than this character count are truncated with a 2-dot ellipsis suffix.</value>
@@ -979,26 +619,8 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_DeviceNameMaxLength_Title" xml:space="preserve">
     <value>Device name max length</value>
   </data>
-  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
-    <value>Double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
-    <value>Classic</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
-    <value>Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts.</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
-    <value>Modern</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
-    <value>Menu position</value>
-  </data>
   <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
     <value>Assign actions to clicks or scrolls on the tray icon. Modified entries set to Nothing fall back to the default behavior.</value>
-  </data>
-  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
-    <value>Modified actions</value>
   </data>
   <data name="Settings_TrayIcon_MouseWheel_Description" xml:space="preserve">
     <value>Scroll the mouse wheel over the tray icon to adjust the default device's volume. Does *not* use an always-active global mouse hook.</value>
@@ -1030,17 +652,14 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_RecordingDeviceName_Title" xml:space="preserve">
     <value>Recording device names</value>
   </data>
-  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
-    <value>Tray Icon</value>
-  </data>
   <data name="Flyout_DeviceIcon_Tooltip" xml:space="preserve">
-    <value>Click: set as default. Ctrl+click: enable / disable. Shift+click: set as default communications.</value>
+    <value>Click: set as default. Ctrl + click: enable / disable. Shift + click: set as default communications.</value>
   </data>
   <data name="Flyout_ListenButton_Tooltip" xml:space="preserve">
-    <value>Click: toggle Listen to this device. Ctrl+click: enable with Default Playback target. Right-click: pick target device.</value>
+    <value>Click: toggle Listen to this device. Ctrl + click: enable with Default Playback target. Right-click: pick target device.</value>
   </data>
   <data name="Flyout_ListenMenu_DefaultPlaybackDevice" xml:space="preserve">
-    <value>Default Playback Device</value>
+    <value>Default playback device</value>
   </data>
   <data name="Flyout_ExclusiveMode_Tooltip_Allowed" xml:space="preserve">
     <value>Exclusive mode is allowed. Click to disallow apps from taking exclusive control of this device.</value>
@@ -1052,13 +671,13 @@ Target: {1}</value>
     <value>Exclusive mode is disallowed. Click to allow apps to take exclusive control of this device.</value>
   </data>
   <data name="Flyout_EqualizerAPO_Tooltip_Running" xml:space="preserve">
-    <value>Equalizer APO is running on this device. Click to uninstall. Ctrl+click or right-click: open the Configuration Editor.</value>
+    <value>Equalizer APO is running on this device. Click to uninstall. Ctrl + click or right-click: open the Configuration Editor.</value>
   </data>
   <data name="Flyout_EqualizerAPO_Tooltip_EnhancementsOff" xml:space="preserve">
-    <value>Equalizer APO is installed but enhancements are disabled for this device. Click to enable. Ctrl+click or right-click: open the Configuration Editor.</value>
+    <value>Equalizer APO is installed but enhancements are disabled for this device. Click to enable. Ctrl + click or right-click: open the Configuration Editor.</value>
   </data>
   <data name="Flyout_EqualizerAPO_Tooltip_NotInstalled" xml:space="preserve">
-    <value>Equalizer APO is not installed on this device. Click to install. Ctrl+click or right-click: open the Configuration Editor.</value>
+    <value>Equalizer APO is not installed on this device. Click to install. Ctrl + click or right-click: open the Configuration Editor.</value>
   </data>
   <data name="Flyout_EqualizerAPO_Tooltip_NotAvailable" xml:space="preserve">
     <value>Equalizer APO is not detected on this system. Click for installation options.</value>
@@ -1175,16 +794,16 @@ Target: {1}</value>
     <value>Show "Listen to this device" button</value>
   </data>
   <data name="Settings_Devices_ShowRecordingListenButton_Description" xml:space="preserve">
-    <value>Adds a button to each recording row that toggles the Windows "Listen to this device" feature. Left-click toggles, Ctrl+left-click enables with Default Playback as the target, right-click picks a specific target.</value>
+    <value>Adds a button to each recording row that toggles the Windows "Listen to this device" feature. Left-click toggles, Ctrl + left-click enables with Default Playback as the target, right-click picks a specific target.</value>
   </data>
   <data name="Flyout_BatteryButton_Tooltip_Format" xml:space="preserve">
-    <value>Battery: {0}%&#xA;Ctrl+click to disconnect</value>
+    <value>Battery: {0}%&#10;Ctrl + click to disconnect</value>
   </data>
   <data name="Flyout_BatteryButton_Tooltip_Disconnected_Format" xml:space="preserve">
     <value>Battery: {0}% (last known)&#xA;Click to connect</value>
   </data>
   <data name="Flyout_BluetoothButton_Tooltip_Connected" xml:space="preserve">
-    <value>Bluetooth&#xA;Ctrl+click to disconnect</value>
+    <value>Bluetooth&#10;Ctrl + click to disconnect</value>
   </data>
   <data name="Flyout_BluetoothButton_Tooltip_Disconnected" xml:space="preserve">
     <value>Bluetooth&#xA;Click to connect</value>
@@ -1196,10 +815,10 @@ Target: {1}</value>
     <value>Bluetooth connected&#xA;Audio waiting&#xA;Click to retry</value>
   </data>
   <data name="Flyout_BluetoothStatus_ConnectionPending_Format" xml:space="preserve">
-    <value>Connection Pending: {0}s</value>
+    <value>Connection pending: {0}s</value>
   </data>
   <data name="Flyout_BluetoothStatus_AudioWaiting" xml:space="preserve">
-    <value>Connected - Audio Waiting</value>
+    <value>Connected - audio waiting</value>
   </data>
   <data name="Settings_Devices_ShowTrayRecordingLink_Title" xml:space="preserve">
     <value>Show "Recording" link in tray menu</value>
@@ -1223,13 +842,10 @@ Target: {1}</value>
     <value>Show per-device links in tray menu</value>
   </data>
   <data name="Settings_Devices_ShowTrayDeviceLinks_Description" xml:space="preserve">
-    <value>Add a sub-menu entry per visible enabled device. Each entry opens the matching classic Sound tab (same as Ctrl+click on the device icon in the flyout).</value>
+    <value>Add a sub-menu entry per visible enabled device. Each entry opens the matching classic Sound tab (same as Ctrl + click on the device icon in the flyout).</value>
   </data>
   <data name="Settings_Common_Page_Devices" xml:space="preserve">
     <value>Devices</value>
-  </data>
-  <data name="Tray_Exit" xml:space="preserve">
-    <value>Exit</value>
   </data>
   <data name="Tray_Communications" xml:space="preserve">
     <value>Communications</value>
@@ -1237,77 +853,20 @@ Target: {1}</value>
   <data name="Tray_Recording" xml:space="preserve">
     <value>Recording</value>
   </data>
-  <data name="Tray_Settings" xml:space="preserve">
-    <value>Settings</value>
-  </data>
   <data name="Tray_SoundDevices" xml:space="preserve">
     <value>Sound devices</value>
   </data>
   <data name="Tray_Sounds" xml:space="preserve">
     <value>Sounds</value>
   </data>
-  <data name="Uninstaller_Caption_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
-    <value>Also remove "{0}" including settings.xml.</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
-    <value>Delete my settings</value>
-  </data>
-  <data name="Uninstaller_Description_Format" xml:space="preserve">
-    <value>This will remove VolumeTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
-    <value>Leave settings.xml in place so a future installation picks them up.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
-    <value>Keep my settings</value>
-  </data>
-  <data name="Uninstaller_SectionHeader" xml:space="preserve">
-    <value>Uninstall VolumeTrayAppDotNET</value>
-  </data>
-  <data name="Uninstaller_Title" xml:space="preserve">
-    <value>Uninstall VolumeTrayAppDotNET</value>
-  </data>
-  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
-    <value>Windows Store</value>
-  </data>
-  <data name="Settings_General_StoreRunning" xml:space="preserve">
-    <value>Running from the Microsoft Store installation.</value>
-  </data>
-  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
-    <value>Not installed from the Microsoft Store.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
-    <value>Open flyout</value>
-  </data>
   <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
     <value>Show the volume flyout near the tray icon.</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
-    <value>Static tray icon color</value>
   </data>
   <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
     <value>Override the tray icon color when Tray icon style is set to Static. Each variant falls back to the default when unset.</value>
   </data>
-  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
-    <value>Light theme static tray icon color</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme static tray icon color</value>
-  </data>
-  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
   <data name="Settings_General_Other_Header" xml:space="preserve">
     <value>Other</value>
-  </data>
-  <data name="Settings_About_KnownIssues_Header" xml:space="preserve">
-    <value>Known issues</value>
   </data>
   <data name="Settings_About_BluetoothCodecNotDisplaying_Title" xml:space="preserve">
     <value>Bluetooth device codec not displaying</value>
@@ -1394,7 +953,7 @@ Target: {1}</value>
     <value>flow order orientation grid</value>
   </data>
   <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords" xml:space="preserve">
-    <value>modifier shortcut mouse action power toggle</value>
+    <value>modifier shortcut mouse action power toggle quick settings menu</value>
   </data>
   <data name="Settings_Flyout_ClampUndockedToScreen_SearchKeywords" xml:space="preserve">
     <value>monitor bounds work area keep visible floating window</value>
@@ -1433,7 +992,7 @@ Target: {1}</value>
     <value>wireless radio powered off hide endpoints</value>
   </data>
   <data name="Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords" xml:space="preserve">
-    <value>wireless radio toggle switch power</value>
+    <value>wireless radio toggle switch power quick settings menu</value>
   </data>
   <data name="Settings_Flyout_ShowDeviceCodecText_SearchKeywords" xml:space="preserve">
     <value>A2DP SBC AAC aptX LDAC wireless format</value>
@@ -1492,15 +1051,6 @@ Target: {1}</value>
   <data name="Settings_Hotkeys_OpenSettings_SearchKeywords" xml:space="preserve">
     <value>preferences configuration options global shortcut accelerator</value>
   </data>
-  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
-    <value>motion fade transition effects accessibility</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
-    <value>surface canvas fill tint</value>
-  </data>
-  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
-    <value>text size zoom scaling menu</value>
-  </data>
   <data name="Settings_Theme_MeterPeakChangeCeiling_SearchKeywords" xml:space="preserve">
     <value>attack speed jump limit smoothing responsiveness</value>
   </data>
@@ -1516,23 +1066,11 @@ Target: {1}</value>
   <data name="Settings_Theme_MeterPeakStereoColor_SearchKeywords" xml:space="preserve">
     <value>left right channel difference halo tint</value>
   </data>
-  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
-    <value>border radius square sharp edges</value>
-  </data>
   <data name="Settings_Theme_SliderIndicator_SearchKeywords" xml:space="preserve">
     <value>thumb handle knob shape glyph</value>
   </data>
   <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
     <value>notification area taskbar glyph tint</value>
-  </data>
-  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
-    <value>foreground typography font tint</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
-    <value>color scheme appearance Windows night day</value>
-  </data>
-  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
-    <value>hover help popup wait latency</value>
   </data>
   <data name="Settings_Theme_UnifiedMeterBias_SearchKeywords" xml:space="preserve">
     <value>channel weighting balance stereo smoothing</value>

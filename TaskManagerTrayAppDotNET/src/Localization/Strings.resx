@@ -12,35 +12,23 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="SettingsWindow_Title" xml:space="preserve">
+  <data name="TaskManager_SettingsWindow_Title" xml:space="preserve">
     <value>Task Manager settings</value>
   </data>
-  <data name="SettingsWindow_Header" xml:space="preserve">
+  <data name="TaskManager_SettingsWindow_Header" xml:space="preserve">
     <value>Task Manager</value>
   </data>
-  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
-    <value>Open Task Manager settings folder</value>
-  </data>
-  <data name="Settings_Common_Page_General" xml:space="preserve">
-    <value>General</value>
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>process|task|program|app|application&#10;end task|kill|terminate|close program|end process&#10;CPU|processor|core&#10;GPU|graphics|video card|display adapter&#10;sampling interval|refresh rate|update speed|polling interval&#10;history|graph length|timeline&#10;column|field|detail&#10;startup|autostart|run at logon|boot</value>
   </data>
   <data name="Settings_Common_Page_Processes" xml:space="preserve">
     <value>Processes</value>
   </data>
-  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
   <data name="Settings_Common_Page_Performance" xml:space="preserve">
     <value>Performance</value>
   </data>
-  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
-  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+  <data name="Settings_Page_Appearance" xml:space="preserve">
     <value>Appearance</value>
-  </data>
-  <data name="Settings_Common_Page_About" xml:space="preserve">
-    <value>About</value>
   </data>
   <data name="Common_Reset" xml:space="preserve">
     <value>Reset</value>
@@ -48,23 +36,14 @@
   <data name="Common_DIPSuffix" xml:space="preserve">
     <value> DIP</value>
   </data>
-  <data name="Common_PercentSuffix" xml:space="preserve">
-    <value> %</value>
-  </data>
-  <data name="Common_MillisecondsSuffix" xml:space="preserve">
-    <value> ms</value>
-  </data>
   <data name="Common_MinutesSuffix" xml:space="preserve">
     <value> min</value>
-  </data>
-  <data name="Settings_General_SectionHeader" xml:space="preserve">
-    <value>General</value>
   </data>
   <data name="Settings_General_Autosave_Title" xml:space="preserve">
     <value>Autosave settings</value>
   </data>
   <data name="Settings_General_Autosave_Description" xml:space="preserve">
-    <value>Save changes to the Task Manager settings file as they are made.</value>
+    <value>Save changes made outside this window, such as column widths and layout, as they happen and on exit. Changes made in this window are always saved.</value>
   </data>
   <data name="Settings_General_Autosave_SearchKeywords" xml:space="preserve">
     <value>save settings automatically</value>
@@ -76,10 +55,10 @@
     <value>Always on top</value>
   </data>
   <data name="Settings_General_WindowManagement_CloseToTray" xml:space="preserve">
-    <value>Close to Tray</value>
+    <value>Close to tray</value>
   </data>
   <data name="Settings_General_WindowManagement_MinimizeToTray" xml:space="preserve">
-    <value>Minimize to Tray</value>
+    <value>Minimize to tray</value>
   </data>
   <data name="Settings_General_WindowManagement_SearchKeywords" xml:space="preserve">
     <value>always on top close to tray minimize to tray</value>
@@ -108,6 +87,12 @@
   <data name="Settings_General_ReplaceWindowsTaskManager_EnabledDescription" xml:space="preserve">
     <value>On. Ctrl+Shift+Esc, the Ctrl+Alt+Del screen, the taskbar menu, and Win+X all open this app instead of Windows Task Manager, even when this app is not already running. Changing this needs administrator approval.</value>
   </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_EnabledWithoutSystemInstall" xml:space="preserve">
+    <value>On, but no system install of this app exists. Windows Task Manager can only be replaced by a system install, so turn this off, then install for all users and turn it on again. Changing this needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_ReplaceWindowsTaskManager_RequiresSystemInstall" xml:space="preserve">
+    <value>Unavailable: the redirect applies to every user on this PC, so only a system install in Program Files can replace Windows Task Manager. Install this app for all users to use this option.</value>
+  </data>
   <data name="Settings_General_ReplaceWindowsTaskManager_RedirectedDescription_Format" xml:space="preserve">
     <value>Windows Task Manager is currently redirected to {0}. Turning this on points it at this app instead and needs administrator approval.</value>
   </data>
@@ -119,6 +104,9 @@
   </data>
   <data name="Settings_General_ReplaceWindowsTaskManager_Failed" xml:space="preserve">
     <value>The change could not be applied. See the Task Manager log for details.</value>
+  </data>
+  <data name="Uninstall_TaskManagerRedirectBlocks" xml:space="preserve">
+    <value>Nothing was removed. Windows Task Manager still opens this copy for every account on this PC, and only an administrator can change that. Turn off Replace Windows Task Manager in this app's Settings (it asks for administrator approval), then uninstall again.</value>
   </data>
   <data name="Settings_General_AdministratorActions_Header" xml:space="preserve">
     <value>Administrator actions</value>
@@ -140,12 +128,6 @@
   </data>
   <data name="Settings_General_BypassElevationBroker_SearchKeywords" xml:space="preserve">
     <value>bypass elevation broker elevated administrator in-process consistent helper</value>
-  </data>
-  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
-    <value>Install for current user</value>
-  </data>
-  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
-    <value>Install system-wide</value>
   </data>
   <data name="Settings_Processes_SectionHeader" xml:space="preserve">
     <value>Processes</value>
@@ -378,9 +360,6 @@
   <data name="Settings_Processes_SkipExplorerRestartConfirmation_SearchKeywords" xml:space="preserve">
     <value>restart explorer confirmation prompt warning</value>
   </data>
-  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
   <data name="Settings_TrayIcon_GraphStyle_Title" xml:space="preserve">
     <value>Style</value>
   </data>
@@ -403,10 +382,10 @@
     <value>Choose the system utilization measured by the tray graph.</value>
   </data>
   <data name="Settings_TrayIcon_DataSource_CPUAverage" xml:space="preserve">
-    <value>CPU Usage (Average)</value>
+    <value>CPU usage (average)</value>
   </data>
   <data name="Settings_TrayIcon_DataSource_CPUHighestCore" xml:space="preserve">
-    <value>CPU Usage (Highest Core)</value>
+    <value>CPU usage (highest core)</value>
   </data>
   <data name="Settings_TrayIcon_DataSource_Memory" xml:space="preserve">
     <value>Memory (RAM)</value>
@@ -552,9 +531,6 @@
   <data name="Settings_Performance_HardwareNameReplacements_Delete_Tooltip" xml:space="preserve">
     <value>Delete replacement</value>
   </data>
-  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
   <data name="Settings_Hotkeys_Tables_Header" xml:space="preserve">
     <value>Tables</value>
   </data>
@@ -607,46 +583,16 @@
     <value>Mouse wheel</value>
   </data>
   <data name="Settings_Hotkeys_Gesture_MiddleClick" xml:space="preserve">
-    <value>Middle click</value>
+    <value>Middle-click</value>
   </data>
   <data name="Settings_Hotkeys_Gesture_OrSeparator" xml:space="preserve">
     <value> or </value>
   </data>
-  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+  <data name="Settings_Appearance_SectionHeader" xml:space="preserve">
     <value>Appearance</value>
-  </data>
-  <data name="Settings_Theme_Theme_Header" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_Title" xml:space="preserve">
-    <value>Theme mode</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_Description" xml:space="preserve">
-    <value>Choose whether Task Manager follows Windows or uses a fixed light or dark theme.</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_Light" xml:space="preserve">
-    <value>Light</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_Dark" xml:space="preserve">
-    <value>Dark</value>
-  </data>
-  <data name="Settings_Theme_ThemeMode_SearchKeywords" xml:space="preserve">
-    <value>light dark system</value>
   </data>
   <data name="Settings_Theme_Window_Header" xml:space="preserve">
     <value>Window</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
-    <value>Rounded corners</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
-    <value>Use rounded corners on Task Manager and its menus.</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
-    <value>square sharp corners</value>
   </data>
   <data name="Settings_Theme_CollapseNavigationWhenNarrow_Title" xml:space="preserve">
     <value>Collapse navigation when narrow</value>
@@ -657,34 +603,1048 @@
   <data name="Settings_Theme_CollapseNavigationWhenNarrow_SearchKeywords" xml:space="preserve">
     <value>sidebar left menu responsive</value>
   </data>
-  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
-    <value>Animations</value>
-  </data>
-  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
-    <value>Choose whether interface animations follow Windows, remain disabled, or remain enabled.</value>
-  </data>
-  <data name="Settings_Theme_Animations_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
-    <value>Disabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
-    <value>Enabled</value>
-  </data>
-  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
-    <value>motion transitions</value>
-  </data>
-  <data name="Settings_Theme_ToolTipDelay_Title" xml:space="preserve">
-    <value>Tooltip delay</value>
-  </data>
-  <data name="Settings_Theme_ToolTipDelay_Description" xml:space="preserve">
-    <value>Set how long the pointer must hover before a tooltip appears.</value>
-  </data>
-  <data name="Settings_Theme_ToolTipDelay_SearchKeywords" xml:space="preserve">
-    <value>hover tooltip timing</value>
-  </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
     <value>Fast process monitoring and management for TrayAppDotNET.</value>
+  </data>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="AppHistory_Title" xml:space="preserve">
+    <value>App history</value>
+  </data>
+  <data name="AppHistory_SearchPlaceholder" xml:space="preserve">
+    <value>Search app history</value>
+  </data>
+  <data name="AppHistory_DeleteUsageHistory" xml:space="preserve">
+    <value>Delete usage history</value>
+  </data>
+  <data name="AppHistory_Column_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="AppHistory_Column_CPUTime" xml:space="preserve">
+    <value>CPU time</value>
+  </data>
+  <data name="AppHistory_Column_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="AppHistory_Column_Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="AppHistory_DescriptionFormat" xml:space="preserve">
+    <value>Resource usage collected by TaskManagerTrayAppDotNET since {0} for current user and system accounts. Network usage is only counted while this page is open.</value>
+  </data>
+  <data name="Processes_Affinity_Failed_Title" xml:space="preserve">
+    <value>Set affinity failed</value>
+  </data>
+  <data name="Processes_Affinity_MultipleGroups_Message" xml:space="preserve">
+    <value>This PC has more than one processor group (more than 64 logical processors). Affinity can only be set on PCs with a single processor group.</value>
+  </data>
+  <data name="Confirm_ProcessIDFormat" xml:space="preserve">
+    <value>PID {0}</value>
+  </data>
+  <data name="Confirm_EndTask_SingleTitleFormat" xml:space="preserve">
+    <value>Do you want to end {0}?</value>
+  </data>
+  <data name="Confirm_EndTask_MultipleTitleFormat" xml:space="preserve">
+    <value>Do you want to end {0} selected tasks?</value>
+  </data>
+  <data name="Confirm_EndTask_SingleMessage" xml:space="preserve">
+    <value>If an open program is associated with this process, it will close and you will lose any unsaved data. If you end a system process, it might result in system instability. Are you sure you want to continue?</value>
+  </data>
+  <data name="Confirm_EndTask_MultipleMessage" xml:space="preserve">
+    <value>Open programs associated with these processes will close and you may lose unsaved data. Ending system processes might result in system instability. Are you sure you want to continue?</value>
+  </data>
+  <data name="Confirm_EndTask_SingleButton" xml:space="preserve">
+    <value>End task</value>
+  </data>
+  <data name="Confirm_EndTask_MultipleButton" xml:space="preserve">
+    <value>End tasks</value>
+  </data>
+  <data name="Confirm_EndTaskTree_SingleTitleFormat" xml:space="preserve">
+    <value>Do you want to end the task tree of {0}?</value>
+  </data>
+  <data name="Confirm_EndTaskTree_MultipleTitleFormat" xml:space="preserve">
+    <value>Do you want to end the task trees of {0} selected tasks?</value>
+  </data>
+  <data name="Confirm_EndTaskTree_SingleMessage" xml:space="preserve">
+    <value>If open programs or processes are associated with this process tree, they will close and you will lose any unsaved data. If you end a system process, it might result in system instability. Are you sure you want to continue?</value>
+  </data>
+  <data name="Confirm_EndTaskTree_MultipleMessage" xml:space="preserve">
+    <value>Open programs and processes associated with these process trees will close and you may lose unsaved data. Ending system processes might result in system instability. Are you sure you want to continue?</value>
+  </data>
+  <data name="Confirm_EndTaskTree_SingleButton" xml:space="preserve">
+    <value>End task tree</value>
+  </data>
+  <data name="Confirm_EndTaskTree_MultipleButton" xml:space="preserve">
+    <value>End task trees</value>
+  </data>
+  <data name="Confirm_SetPriority_SingleTitleFormat" xml:space="preserve">
+    <value>Do you want to change the priority of {0}?</value>
+  </data>
+  <data name="Confirm_SetPriority_MultipleTitleFormat" xml:space="preserve">
+    <value>Do you want to change the priority of {0} selected processes?</value>
+  </data>
+  <data name="Confirm_SetPriority_Message" xml:space="preserve">
+    <value>Changing the priority of certain processes could cause system instability.</value>
+  </data>
+  <data name="Confirm_SetPriority_SingleButton" xml:space="preserve">
+    <value>Change priority</value>
+  </data>
+  <data name="Confirm_SetPriority_MultipleButton" xml:space="preserve">
+    <value>Change priorities</value>
+  </data>
+  <data name="Confirm_Disconnect_SessionFormat" xml:space="preserve">
+    <value>session {0}</value>
+  </data>
+  <data name="Confirm_Disconnect_TitleFormat" xml:space="preserve">
+    <value>Do you want to disconnect {0}?</value>
+  </data>
+  <data name="Confirm_Disconnect_OwnTitleFormat" xml:space="preserve">
+    <value>Do you want to disconnect your own session ({0})?</value>
+  </data>
+  <data name="Confirm_Disconnect_Message" xml:space="preserve">
+    <value>Programs the user has open keep running, and they can sign in again to reconnect to the session.</value>
+  </data>
+  <data name="Confirm_Disconnect_OwnMessage" xml:space="preserve">
+    <value>This is your own session. Windows returns to the sign-in screen, and your open programs keep running until you sign in again.</value>
+  </data>
+  <data name="Confirm_Disconnect_Button" xml:space="preserve">
+    <value>Disconnect user</value>
+  </data>
+  <data name="Confirm_AdministratorApproval_Title" xml:space="preserve">
+    <value>Administrator approval required</value>
+  </data>
+  <data name="Confirm_AdministratorApproval_Message" xml:space="preserve">
+    <value>This action needs administrator rights. Continue to the Windows approval prompt? Declining leaves nothing changed, and you will be asked again the next time an action needs elevation.</value>
+  </data>
+  <data name="Confirm_AdministratorApproval_Button" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="Reorder_MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="Reorder_MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="Reorder_Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Page_Processes" xml:space="preserve">
+    <value>Processes</value>
+  </data>
+  <data name="Page_Performance" xml:space="preserve">
+    <value>Performance</value>
+  </data>
+  <data name="Page_StartupApps" xml:space="preserve">
+    <value>Startup apps</value>
+  </data>
+  <data name="Page_Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Page_Services" xml:space="preserve">
+    <value>Services</value>
+  </data>
+  <data name="Page_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Window_CollapseNavigation" xml:space="preserve">
+    <value>Collapse navigation</value>
+  </data>
+  <data name="Window_ExpandNavigation" xml:space="preserve">
+    <value>Expand navigation</value>
+  </data>
+  <data name="Window_RestartExplorer_Title" xml:space="preserve">
+    <value>Restart Windows Explorer?</value>
+  </data>
+  <data name="Window_RestartExplorer_Message" xml:space="preserve">
+    <value>This will close every running explorer.exe process, including the desktop, taskbar, and open File Explorer windows, and then start a fresh explorer.exe process.</value>
+  </data>
+  <data name="Window_RestartExplorer_Button" xml:space="preserve">
+    <value>Restart explorer</value>
+  </data>
+  <data name="Window_ElevatedTermination_Title" xml:space="preserve">
+    <value>Enable elevated process termination?</value>
+  </data>
+  <data name="Window_ElevatedTermination_Message" xml:space="preserve">
+    <value>Task Manager normally sends End task requests to a native helper running with standard permissions. Enabling elevated termination replaces it with a helper running with administrator privileges so it can end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, the standard native helper and managed fallback remain available.</value>
+  </data>
+  <data name="Window_ElevatedTermination_Button" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="Window_ElevatedTermination_NotNow" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Window_ElevatedTermination_Declined_Title" xml:space="preserve">
+    <value>Elevated termination not enabled</value>
+  </data>
+  <data name="Window_ElevatedTermination_Declined_Message" xml:space="preserve">
+    <value>Windows administrator approval was canceled. Task Manager will continue using its standard native helper and managed fallback.</value>
+  </data>
+  <data name="Window_ElevatedTermination_Failed_Title" xml:space="preserve">
+    <value>Elevated termination failed</value>
+  </data>
+  <data name="Window_ElevatedTermination_Failed_Message" xml:space="preserve">
+    <value>The elevated termination helper could not be started.</value>
+  </data>
+  <data name="Window_DeleteSavedSearch_Title" xml:space="preserve">
+    <value>Delete saved search?</value>
+  </data>
+  <data name="Window_DeleteSavedSearch_MessageFormat" xml:space="preserve">
+    <value>"{0}" uses a regular expression. Delete this saved search?</value>
+  </data>
+  <data name="Window_DeleteSavedSearch_Button" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Window_DisableService_Title" xml:space="preserve">
+    <value>Disable service?</value>
+  </data>
+  <data name="Window_DisableService_MessageFormat" xml:space="preserve">
+    <value>Windows will not start {0} again until its startup type is changed. Disabling a running service does not stop its current instance.</value>
+  </data>
+  <data name="Window_DisableService_Button" xml:space="preserve">
+    <value>Disable</value>
+  </data>
+  <data name="Window_RunNewTaskFailed_Title" xml:space="preserve">
+    <value>Run new task failed</value>
+  </data>
+  <data name="Processes_Priority_Realtime" xml:space="preserve">
+    <value>Realtime</value>
+  </data>
+  <data name="Processes_Priority_High" xml:space="preserve">
+    <value>High</value>
+  </data>
+  <data name="Processes_Priority_AboveNormal" xml:space="preserve">
+    <value>Above normal</value>
+  </data>
+  <data name="Processes_Priority_Normal" xml:space="preserve">
+    <value>Normal</value>
+  </data>
+  <data name="Processes_Priority_BelowNormal" xml:space="preserve">
+    <value>Below normal</value>
+  </data>
+  <data name="Processes_Priority_Low" xml:space="preserve">
+    <value>Low</value>
+  </data>
+  <data name="Processes_Menu_Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Processes_Menu_CopyRow" xml:space="preserve">
+    <value>Copy row</value>
+  </data>
+  <data name="Processes_Menu_CopyRows" xml:space="preserve">
+    <value>Copy rows</value>
+  </data>
+  <data name="Processes_Menu_SetPriority" xml:space="preserve">
+    <value>Set priority</value>
+  </data>
+  <data name="Processes_Menu_SetPriorities" xml:space="preserve">
+    <value>Set priorities</value>
+  </data>
+  <data name="Processes_Menu_SetAffinity" xml:space="preserve">
+    <value>Set affinity</value>
+  </data>
+  <data name="Processes_Menu_SetAffinities" xml:space="preserve">
+    <value>Set affinities</value>
+  </data>
+  <data name="Processes_Menu_CreateDump" xml:space="preserve">
+    <value>Create memory dump file</value>
+  </data>
+  <data name="Processes_Menu_OpenFileLocation" xml:space="preserve">
+    <value>Open file location</value>
+  </data>
+  <data name="Processes_Menu_Properties" xml:space="preserve">
+    <value>Properties</value>
+  </data>
+  <data name="Processes_Menu_SwitchTo" xml:space="preserve">
+    <value>Switch to</value>
+  </data>
+  <data name="Processes_Menu_BringToFront" xml:space="preserve">
+    <value>Bring to front</value>
+  </data>
+  <data name="Processes_Menu_Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="Processes_Menu_Maximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="Processes_Failed_Copy" xml:space="preserve">
+    <value>Copy failed</value>
+  </data>
+  <data name="Processes_Failed_SetPriority" xml:space="preserve">
+    <value>Set priority failed</value>
+  </data>
+  <data name="Processes_Failed_SetPriorities" xml:space="preserve">
+    <value>Set priorities failed</value>
+  </data>
+  <data name="Processes_Failed_EndTaskTree" xml:space="preserve">
+    <value>End task tree failed</value>
+  </data>
+  <data name="Processes_Failed_EndTaskTrees" xml:space="preserve">
+    <value>End task trees failed</value>
+  </data>
+  <data name="Processes_Failed_CreateDump" xml:space="preserve">
+    <value>Create memory dump failed</value>
+  </data>
+  <data name="Processes_Failed_OpenFileLocation" xml:space="preserve">
+    <value>Open file location failed</value>
+  </data>
+  <data name="Processes_Failed_Properties" xml:space="preserve">
+    <value>Properties failed</value>
+  </data>
+  <data name="Processes_Failed_SwitchTo" xml:space="preserve">
+    <value>Switch to failed</value>
+  </data>
+  <data name="Processes_Failed_BringToFront" xml:space="preserve">
+    <value>Bring to front failed</value>
+  </data>
+  <data name="Processes_Failed_Minimize" xml:space="preserve">
+    <value>Minimize failed</value>
+  </data>
+  <data name="Processes_Failed_Maximize" xml:space="preserve">
+    <value>Maximize failed</value>
+  </data>
+  <data name="Processes_ElevatedActionsUnavailable" xml:space="preserve">
+    <value>Elevated actions are unavailable.</value>
+  </data>
+  <data name="Processes_DumpCreated_Title" xml:space="preserve">
+    <value>Memory dump created</value>
+  </data>
+  <data name="Processes_ActionFailedGeneric" xml:space="preserve">
+    <value>The process action failed.</value>
+  </data>
+  <data name="Processes_ProcessWithPIDFormat" xml:space="preserve">
+    <value>{0} (PID {1})</value>
+  </data>
+  <data name="Processes_FailureLineFormat" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Processes_Affinity_FailedMultiple_Title" xml:space="preserve">
+    <value>Set affinities failed</value>
+  </data>
+  <data name="Processes_Affinity_FailedGeneric" xml:space="preserve">
+    <value>The process affinity could not be changed.</value>
+  </data>
+  <data name="Processes_Affinity_SingleTitleFormat" xml:space="preserve">
+    <value>Processor affinity - PID {0}</value>
+  </data>
+  <data name="Processes_Affinity_MultipleTitleFormat" xml:space="preserve">
+    <value>Processor affinities - {0} processes</value>
+  </data>
+  <data name="Processes_Affinity_SingleDescription" xml:space="preserve">
+    <value>Select the processors on which this process may run.</value>
+  </data>
+  <data name="Processes_Affinity_MultipleDescription" xml:space="preserve">
+    <value>Select the processors on which the selected processes may run. Mixed values are preserved.</value>
+  </data>
+  <data name="Processes_Affinity_CPUFormat" xml:space="preserve">
+    <value>CPU {0}</value>
+  </data>
+  <data name="Processes_Affinity_SelectAll" xml:space="preserve">
+    <value>Select all</value>
+  </data>
+  <data name="Processes_Affinity_Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Processes_Affinity_Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Processes_Affinity_SelectAtLeastOne" xml:space="preserve">
+    <value>Select at least one processor for every selected process.</value>
+  </data>
+  <data name="Columns_Chooser_Title" xml:space="preserve">
+    <value>Select Processes columns</value>
+  </data>
+  <data name="Columns_Chooser_Description" xml:space="preserve">
+    <value>Choose visible columns and arrange their left-to-right order.</value>
+  </data>
+  <data name="Columns_Chooser_SearchPlaceholder" xml:space="preserve">
+    <value>Search columns</value>
+  </data>
+  <data name="Columns_Chooser_HideUnused" xml:space="preserve">
+    <value>Hide unused columns</value>
+  </data>
+  <data name="Columns_Reset_Title" xml:space="preserve">
+    <value>Reset process columns?</value>
+  </data>
+  <data name="Columns_Reset_Message" xml:space="preserve">
+    <value>This will restore the default column visibility, order, widths, and display options.</value>
+  </data>
+  <data name="HeaderButtons_Arrange_Title" xml:space="preserve">
+    <value>Arrange buttons</value>
+  </data>
+  <data name="HeaderButtons_Arrange_Description" xml:space="preserve">
+    <value>Drag buttons or use the arrows. The top item is the leftmost header button.</value>
+  </data>
+  <data name="HeaderButtons_RunNewTask" xml:space="preserve">
+    <value>Run new task</value>
+  </data>
+  <data name="HeaderButtons_Columns" xml:space="preserve">
+    <value>Columns</value>
+  </data>
+  <data name="SavedSearch_Save" xml:space="preserve">
+    <value>Save search</value>
+  </data>
+  <data name="SavedSearch_AlreadySaved" xml:space="preserve">
+    <value>Search already saved</value>
+  </data>
+  <data name="SavedSearch_Clear" xml:space="preserve">
+    <value>Clear search</value>
+  </data>
+  <data name="SavedSearch_None" xml:space="preserve">
+    <value>No saved searches</value>
+  </data>
+  <data name="SavedSearch_Rename" xml:space="preserve">
+    <value>Rename saved search</value>
+  </data>
+  <data name="SavedSearch_Delete" xml:space="preserve">
+    <value>Delete saved search</value>
+  </data>
+  <data name="ColumnProperties_Nickname_Title" xml:space="preserve">
+    <value>Column nickname</value>
+  </data>
+  <data name="ColumnProperties_Nickname_Description" xml:space="preserve">
+    <value>Leave blank to use the original column name.</value>
+  </data>
+  <data name="ColumnProperties_LiveTotal_Title" xml:space="preserve">
+    <value>Show live total</value>
+  </data>
+  <data name="ColumnProperties_LiveTotal_Description" xml:space="preserve">
+    <value>Show the live aggregate for all processes before the column name.</value>
+  </data>
+  <data name="ColumnProperties_PercentSuffix_Title" xml:space="preserve">
+    <value>Show % suffix</value>
+  </data>
+  <data name="ColumnProperties_PercentSuffix_Description" xml:space="preserve">
+    <value>Append a percent sign to CPU usage values.</value>
+  </data>
+  <data name="ColumnProperties_DecimalUsage_Title" xml:space="preserve">
+    <value>Show decimal usage</value>
+  </data>
+  <data name="ColumnProperties_DecimalUsage_Description" xml:space="preserve">
+    <value>Show one digit after the decimal point for CPU usage.</value>
+  </data>
+  <data name="ColumnProperties_Unit_Kilobytes" xml:space="preserve">
+    <value>Kilobytes</value>
+  </data>
+  <data name="ColumnProperties_Unit_Megabytes" xml:space="preserve">
+    <value>Megabytes</value>
+  </data>
+  <data name="ColumnProperties_Unit_Gigabytes" xml:space="preserve">
+    <value>Gigabytes</value>
+  </data>
+  <data name="ColumnProperties_Unit_Percentage" xml:space="preserve">
+    <value>Percentage of system memory</value>
+  </data>
+  <data name="ColumnProperties_MemoryUnit_Title" xml:space="preserve">
+    <value>Memory unit</value>
+  </data>
+  <data name="ColumnProperties_MemoryUnit_Description" xml:space="preserve">
+    <value>Choose the divisor used to display memory values.</value>
+  </data>
+  <data name="ColumnProperties_MemorySuffix_Title" xml:space="preserve">
+    <value>Memory suffix</value>
+  </data>
+  <data name="ColumnProperties_MemorySuffix_Description" xml:space="preserve">
+    <value>Selecting a memory unit resets this value to its default suffix.</value>
+  </data>
+  <data name="ColumnProperties_StatusDisplay_Glyphs" xml:space="preserve">
+    <value>Glyphs</value>
+  </data>
+  <data name="ColumnProperties_StatusDisplay_Text" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="ColumnProperties_StatusDisplay_Title" xml:space="preserve">
+    <value>Status display</value>
+  </data>
+  <data name="ColumnProperties_StatusDisplay_Description" xml:space="preserve">
+    <value>Show each status as a glyph or as text, never both.</value>
+  </data>
+  <data name="ColumnProperties_CenterGlyphs_Title" xml:space="preserve">
+    <value>Center glyphs</value>
+  </data>
+  <data name="ColumnProperties_CenterGlyphs_Description" xml:space="preserve">
+    <value>Center each glyph in the column instead of aligning it right.</value>
+  </data>
+  <data name="ColumnProperties_AccountPrefix_Title" xml:space="preserve">
+    <value>Show account prefix</value>
+  </data>
+  <data name="ColumnProperties_AccountPrefix_Description" xml:space="preserve">
+    <value>Include the domain or authority before the account name.</value>
+  </data>
+  <data name="Services_SearchPlaceholder" xml:space="preserve">
+    <value>Search services</value>
+  </data>
+  <data name="Services_Start" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Services_Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Services_Restart" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="Services_OpenServices" xml:space="preserve">
+    <value>Open Services</value>
+  </data>
+  <data name="Services_Column_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Services_Column_PID" xml:space="preserve">
+    <value>PID</value>
+  </data>
+  <data name="Services_Column_Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Services_Column_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Services_Column_Group" xml:space="preserve">
+    <value>Group</value>
+  </data>
+  <data name="Services_Unavailable_Title" xml:space="preserve">
+    <value>Services unavailable</value>
+  </data>
+  <data name="Services_Unavailable_Message" xml:space="preserve">
+    <value>Windows could not enumerate local services.</value>
+  </data>
+  <data name="Processes_ColumnsButton" xml:space="preserve">
+    <value>Columns..</value>
+  </data>
+  <data name="Processes_More" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="Processes_SearchPlaceholder" xml:space="preserve">
+    <value>Search by name, PID, or enter an expression</value>
+  </data>
+  <data name="Processes_SearchHelp" xml:space="preserve">
+    <value>Name/PID contains search is the default. Expressions support =, !=, &lt;, &lt;=, &gt;, &gt;=, &amp;&amp;, and ||.&#10;Regex uses =~ or !~. Example: {Name}=~"^(chrome|firefox)\.exe$".&#10;Lifetime example: {Lifetime}&gt;=1h&amp;&amp;{Lifetime}&lt;2h. Type { and press Tab to complete a column.</value>
+  </data>
+  <data name="Processes_Run_Placeholder" xml:space="preserve">
+    <value>Executable, document, or URI</value>
+  </data>
+  <data name="Processes_Run_Button" xml:space="preserve">
+    <value>Run</value>
+  </data>
+  <data name="Processes_GroupProcesses" xml:space="preserve">
+    <value>Group processes</value>
+  </data>
+  <data name="Processes_ElevatedTermination_Enable" xml:space="preserve">
+    <value>Enable elevated termination...</value>
+  </data>
+  <data name="Processes_ElevatedTermination_Retry" xml:space="preserve">
+    <value>Retry elevated termination...</value>
+  </data>
+  <data name="Processes_ElevatedTermination_Waiting" xml:space="preserve">
+    <value>Waiting for Windows approval</value>
+  </data>
+  <data name="Services_StartFailed" xml:space="preserve">
+    <value>Service start failed</value>
+  </data>
+  <data name="Services_StopFailed" xml:space="preserve">
+    <value>Service stop failed</value>
+  </data>
+  <data name="Services_RestartFailed" xml:space="preserve">
+    <value>Service restart failed</value>
+  </data>
+  <data name="Services_DisableFailed" xml:space="preserve">
+    <value>Service disable failed</value>
+  </data>
+  <data name="Services_ActionFailed_MessageFormat" xml:space="preserve">
+    <value>Windows could not complete "{0}" for '{1}'.</value>
+  </data>
+  <data name="Processes_ElevatedTermination_Enabled" xml:space="preserve">
+    <value>Elevated termination enabled</value>
+  </data>
+  <data name="Processes_ElevatedTermination_Unavailable" xml:space="preserve">
+    <value>Elevated termination unavailable</value>
+  </data>
+  <data name="Processes_Failed_RestartExplorer" xml:space="preserve">
+    <value>Restart explorer failed</value>
+  </data>
+  <data name="Processes_Failed_EndTasks" xml:space="preserve">
+    <value>End tasks failed</value>
+  </data>
+  <data name="Processes_Failed_EndTask" xml:space="preserve">
+    <value>End task failed</value>
+  </data>
+  <data name="Startup_SearchPlaceholder" xml:space="preserve">
+    <value>Search startup apps and publishers</value>
+  </data>
+  <data name="Startup_Enable" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="Startup_Column_Publisher" xml:space="preserve">
+    <value>Publisher</value>
+  </data>
+  <data name="Startup_Column_Impact" xml:space="preserve">
+    <value>Startup impact</value>
+  </data>
+  <data name="Startup_Unavailable_Title" xml:space="preserve">
+    <value>Startup apps unavailable</value>
+  </data>
+  <data name="Startup_Status_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Startup_Status_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Startup_Status_Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Startup_Impact_None" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Startup_Impact_Medium" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="Startup_Impact_NotMeasured" xml:space="preserve">
+    <value>Not measured</value>
+  </data>
+  <data name="Startup_ChangeFailed_Title" xml:space="preserve">
+    <value>Startup app change failed</value>
+  </data>
+  <data name="Startup_ChangeFailed_EnableFormat" xml:space="preserve">
+    <value>Windows could not enable '{0}'.</value>
+  </data>
+  <data name="Startup_ChangeFailed_DisableFormat" xml:space="preserve">
+    <value>Windows could not disable '{0}'.</value>
+  </data>
+  <data name="Startup_PropertiesUnavailable" xml:space="preserve">
+    <value>Properties unavailable</value>
+  </data>
+  <data name="Users_SearchPlaceholder" xml:space="preserve">
+    <value>Search users and processes</value>
+  </data>
+  <data name="Users_Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Users_ManageAccounts" xml:space="preserve">
+    <value>Manage user accounts</value>
+  </data>
+  <data name="Users_Column_User" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="Users_Column_CPU" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Users_Column_Memory" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Users_Column_Disk" xml:space="preserve">
+    <value>Disk</value>
+  </data>
+  <data name="Users_Column_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="Users_HeaderFormat" xml:space="preserve">
+    <value>{0} {1}</value>
+  </data>
+  <data name="Users_DisconnectFailed_Title" xml:space="preserve">
+    <value>Disconnect failed</value>
+  </data>
+  <data name="Users_DisconnectFailed_Message" xml:space="preserve">
+    <value>Windows could not disconnect the selected user session.</value>
+  </data>
+  <data name="Startup_WindowsOnly" xml:space="preserve">
+    <value>Startup application status changes are only supported on Windows.</value>
+  </data>
+  <data name="Startup_SetStatusFailed_EnableFormat" xml:space="preserve">
+    <value>Could not enable {0}: {1}</value>
+  </data>
+  <data name="Startup_SetStatusFailed_DisableFormat" xml:space="preserve">
+    <value>Could not disable {0}: {1}</value>
+  </data>
+  <data name="Startup_UnnamedApp" xml:space="preserve">
+    <value>Unnamed startup app</value>
+  </data>
+  <data name="Perf_Label_Utilization" xml:space="preserve">
+    <value>Utilization</value>
+  </data>
+  <data name="Perf_Label_Speed" xml:space="preserve">
+    <value>Speed</value>
+  </data>
+  <data name="Perf_Label_HighestLogicalProcessor" xml:space="preserve">
+    <value>Highest logical processor</value>
+  </data>
+  <data name="Perf_Label_Processes" xml:space="preserve">
+    <value>Processes</value>
+  </data>
+  <data name="Perf_Label_Threads" xml:space="preserve">
+    <value>Threads</value>
+  </data>
+  <data name="Perf_Label_Handles" xml:space="preserve">
+    <value>Handles</value>
+  </data>
+  <data name="Perf_Label_UpTime" xml:space="preserve">
+    <value>Up time</value>
+  </data>
+  <data name="Perf_Label_HighestRecordedSpeed" xml:space="preserve">
+    <value>Highest recorded speed</value>
+  </data>
+  <data name="Perf_Label_Sockets" xml:space="preserve">
+    <value>Sockets</value>
+  </data>
+  <data name="Perf_Label_PhysicalCores" xml:space="preserve">
+    <value>Physical cores</value>
+  </data>
+  <data name="Perf_Label_LogicalProcessors" xml:space="preserve">
+    <value>Logical processors</value>
+  </data>
+  <data name="Perf_Label_Virtualization" xml:space="preserve">
+    <value>Virtualization</value>
+  </data>
+  <data name="Perf_Label_L1Cache" xml:space="preserve">
+    <value>L1 cache</value>
+  </data>
+  <data name="Perf_Label_L2Cache" xml:space="preserve">
+    <value>L2 cache</value>
+  </data>
+  <data name="Perf_Label_L3Cache" xml:space="preserve">
+    <value>L3 cache</value>
+  </data>
+  <data name="Perf_Label_BaseSpeed" xml:space="preserve">
+    <value>Base speed</value>
+  </data>
+  <data name="Perf_Label_InUseCompressed" xml:space="preserve">
+    <value>In use (Compressed)</value>
+  </data>
+  <data name="Perf_Label_Available" xml:space="preserve">
+    <value>Available</value>
+  </data>
+  <data name="Perf_Label_Committed" xml:space="preserve">
+    <value>Committed</value>
+  </data>
+  <data name="Perf_Label_Cached" xml:space="preserve">
+    <value>Cached</value>
+  </data>
+  <data name="Perf_Label_PagedPool" xml:space="preserve">
+    <value>Paged pool</value>
+  </data>
+  <data name="Perf_Label_NonPagedPool" xml:space="preserve">
+    <value>Non-paged pool</value>
+  </data>
+  <data name="Perf_Label_SlotsUsed" xml:space="preserve">
+    <value>Slots used</value>
+  </data>
+  <data name="Perf_Label_FormFactor" xml:space="preserve">
+    <value>Form factor</value>
+  </data>
+  <data name="Perf_Label_HardwareReserved" xml:space="preserve">
+    <value>Hardware reserved</value>
+  </data>
+  <data name="Perf_Label_DedicatedGPUMemory" xml:space="preserve">
+    <value>Dedicated GPU memory</value>
+  </data>
+  <data name="Perf_Label_GPUMemory" xml:space="preserve">
+    <value>GPU Memory</value>
+  </data>
+  <data name="Perf_Label_SharedGPUMemory" xml:space="preserve">
+    <value>Shared GPU memory</value>
+  </data>
+  <data name="Perf_Label_Temperature" xml:space="preserve">
+    <value>Temperature</value>
+  </data>
+  <data name="Perf_Label_DriverVersion" xml:space="preserve">
+    <value>Driver version</value>
+  </data>
+  <data name="Perf_Label_DriverDate" xml:space="preserve">
+    <value>Driver date</value>
+  </data>
+  <data name="Perf_Label_DirectXVersion" xml:space="preserve">
+    <value>DirectX version</value>
+  </data>
+  <data name="Perf_Label_PhysicalLocation" xml:space="preserve">
+    <value>Physical location</value>
+  </data>
+  <data name="Perf_Label_HardwareReservedMemory" xml:space="preserve">
+    <value>Hardware reserved memory</value>
+  </data>
+  <data name="Perf_Label_Send" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="Perf_Label_Receive" xml:space="preserve">
+    <value>Receive</value>
+  </data>
+  <data name="Perf_Label_LinkSpeed" xml:space="preserve">
+    <value>Link speed</value>
+  </data>
+  <data name="Perf_Label_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Perf_Label_AdapterType" xml:space="preserve">
+    <value>Adapter type</value>
+  </data>
+  <data name="Perf_Label_TotalSent" xml:space="preserve">
+    <value>Total sent</value>
+  </data>
+  <data name="Perf_Label_TotalReceived" xml:space="preserve">
+    <value>Total received</value>
+  </data>
+  <data name="Perf_Label_ActiveTime" xml:space="preserve">
+    <value>Active time</value>
+  </data>
+  <data name="Perf_Label_AverageResponseTime" xml:space="preserve">
+    <value>Average response time</value>
+  </data>
+  <data name="Perf_Label_ReadSpeed" xml:space="preserve">
+    <value>Read speed</value>
+  </data>
+  <data name="Perf_Label_WriteSpeed" xml:space="preserve">
+    <value>Write speed</value>
+  </data>
+  <data name="Perf_Label_Capacity" xml:space="preserve">
+    <value>Capacity</value>
+  </data>
+  <data name="Perf_Label_Formatted" xml:space="preserve">
+    <value>Formatted</value>
+  </data>
+  <data name="Perf_Label_SystemDisk" xml:space="preserve">
+    <value>System disk</value>
+  </data>
+  <data name="Perf_Label_PageFile" xml:space="preserve">
+    <value>Page file</value>
+  </data>
+  <data name="Perf_Label_Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Perf_Graph_UtilizationOverFormat" xml:space="preserve">
+    <value>% Utilization over {0}</value>
+  </data>
+  <data name="Perf_Graph_MemoryUseOverFormat" xml:space="preserve">
+    <value>Memory use over {0}</value>
+  </data>
+  <data name="Perf_Graph_LinkUtilizationOverFormat" xml:space="preserve">
+    <value>% Link utilization over {0}</value>
+  </data>
+  <data name="Perf_Graph_ActiveTimeOverFormat" xml:space="preserve">
+    <value>% Active time over {0}</value>
+  </data>
+  <data name="Perf_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Perf_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Perf_Title_CPU" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="Perf_PhysicalMemory" xml:space="preserve">
+    <value>Physical memory</value>
+  </data>
+  <data name="Perf_Title_Memory" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Perf_Title_GPUFormat" xml:space="preserve">
+    <value>GPU {0}</value>
+  </data>
+  <data name="Perf_CollectingThroughput" xml:space="preserve">
+    <value>Collecting throughput...</value>
+  </data>
+  <data name="Perf_Disconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Perf_Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="Perf_CollectingDiskCounters" xml:space="preserve">
+    <value>Collecting disk counters...</value>
+  </data>
+  <data name="Perf_Title_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="Perf_Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Perf_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Perf_Unavailable" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
+  <data name="Perf_MinuteFormat" xml:space="preserve">
+    <value>{0} minute</value>
+  </data>
+  <data name="Perf_MinutesFormat" xml:space="preserve">
+    <value>{0} minutes</value>
+  </data>
+  <data name="Perf_Title_DiskFormat" xml:space="preserve">
+    <value>Disk {0}</value>
+  </data>
+  <data name="Perf_Title_DiskWithVolumesFormat" xml:space="preserve">
+    <value>Disk {0} ({1})</value>
+  </data>
+  <data name="Perf_CCDFormat" xml:space="preserve">
+    <value>CCD {0}</value>
+  </data>
+  <data name="Perf_CCDCacheFormat" xml:space="preserve">
+    <value>{0} ({1} L3)</value>
+  </data>
+  <data name="Perf_CCDX3DCacheFormat" xml:space="preserve">
+    <value>{0} (X3D, {1} L3)</value>
+  </data>
+  <data name="Perf_CoreClass_PerformanceOne" xml:space="preserve">
+    <value>{0} Performance Core</value>
+  </data>
+  <data name="Perf_CoreClass_PerformanceMany" xml:space="preserve">
+    <value>{0} Performance Cores</value>
+  </data>
+  <data name="Perf_CoreClass_LowPowerOne" xml:space="preserve">
+    <value>{0} Low Power Efficiency Core</value>
+  </data>
+  <data name="Perf_CoreClass_LowPowerMany" xml:space="preserve">
+    <value>{0} Low Power Efficiency Cores</value>
+  </data>
+  <data name="Perf_CoreClass_EfficiencyOne" xml:space="preserve">
+    <value>{0} Efficiency Core</value>
+  </data>
+  <data name="Perf_CoreClass_EfficiencyMany" xml:space="preserve">
+    <value>{0} Efficiency Cores</value>
+  </data>
+  <data name="Perf_CoreClass_WithClassFormat" xml:space="preserve">
+    <value>{0} (class {1})</value>
+  </data>
+  <data name="Perf_CPU_OverallUsage" xml:space="preserve">
+    <value>Overall usage</value>
+  </data>
+  <data name="Perf_CPU_HighestSingleLP" xml:space="preserve">
+    <value>Highest single LP utilization</value>
+  </data>
+  <data name="Perf_Disk_TransferRate" xml:space="preserve">
+    <value>Disk transfer rate</value>
+  </data>
+  <data name="Perf_Memory_ModifiedTooltipFormat" xml:space="preserve">
+    <value>Modified ({0} MB)&#10;Memory whose contents must be written to disk before it can be used for another purpose</value>
+  </data>
+  <data name="Perf_Memory_StandbyTooltipFormat" xml:space="preserve">
+    <value>Standby ({0} MB)&#10;Memory that contains cached data and code that is not actively in use</value>
+  </data>
+  <data name="Perf_Memory_AvailableTooltipFormat" xml:space="preserve">
+    <value>Available ({0} MB)&#10;Memory that can be given immediately to processes, drivers, or the operating system</value>
+  </data>
+  <data name="Perf_Memory_FreeTooltipFormat" xml:space="preserve">
+    <value>Free ({0} MB)&#10;Memory that is not currently in use, and that will be repurposed first when processes, drivers, or the operating system need more memory</value>
+  </data>
+  <data name="Perf_Memory_InUseTooltipFormat" xml:space="preserve">
+    <value>In use ({0} MB)&#10;Memory used by processes, drivers, or the operating system</value>
+  </data>
+  <data name="Perf_Memory_CompressedTooltipFormat" xml:space="preserve">
+    <value>In use compressed ({0} MB)&#10;Compressed memory stores an estimated {1} MB of data, saving the system {2} MB of memory</value>
+  </data>
+  <data name="Perf_Memory_BankFormat" xml:space="preserve">
+    <value>Bank: {0}</value>
+  </data>
+  <data name="Perf_Memory_Composition" xml:space="preserve">
+    <value>Memory composition</value>
+  </data>
+  <data name="Perf_Memory_Layout" xml:space="preserve">
+    <value>Physical memory layout</value>
+  </data>
+  <data name="Perf_Memory_PartNumber" xml:space="preserve">
+    <value>Part number</value>
+  </data>
+  <data name="Perf_Memory_SerialNumber" xml:space="preserve">
+    <value>Serial number</value>
+  </data>
+  <data name="Perf_Hover_SendReceiveFormat" xml:space="preserve">
+    <value>Send: {0}&#10;Receive: {1}</value>
+  </data>
+  <data name="Perf_Hover_CPUOverallFormat" xml:space="preserve">
+    <value>Highest LP: {0}&#10;Overall util: {1}</value>
+  </data>
+  <data name="Perf_Hover_ShortSendReceiveFormat" xml:space="preserve">
+    <value>S: {0}&#10;R: {1}</value>
+  </data>
+  <data name="Perf_Hover_ShortReadWriteFormat" xml:space="preserve">
+    <value>R: {0}&#10;W: {1}</value>
+  </data>
+  <data name="Perf_CPUView_OverallUtilization" xml:space="preserve">
+    <value>Overall utilization</value>
+  </data>
+  <data name="Perf_CPUView_DetailedView" xml:space="preserve">
+    <value>Detailed view</value>
+  </data>
+  <data name="Perf_NoDevices" xml:space="preserve">
+    <value>No devices</value>
+  </data>
+  <data name="Perf_DeviceColumn_ReorderTip" xml:space="preserve">
+    <value>Select or drag to reorder, or press Ctrl+Up/Ctrl+Down.</value>
+  </data>
+  <data name="Table_NoItems" xml:space="preserve">
+    <value>No items to display.</value>
+  </data>
+  <data name="Tray_OpenTaskManager" xml:space="preserve">
+    <value>Open Task Manager</value>
+  </data>
+  <data name="Tray_Tooltip_CPU_Format" xml:space="preserve">
+    <value>CPU {0}</value>
+  </data>
+  <data name="Tray_Tooltip_Memory_Format" xml:space="preserve">
+    <value>Memory {0}</value>
+  </data>
+  <data name="Tray_Tooltip_Disk_Format" xml:space="preserve">
+    <value>Disk {0}</value>
+  </data>
+  <data name="Tray_Tooltip_Network_Format" xml:space="preserve">
+    <value>Network {0}</value>
+  </data>
+  <data name="Tray_Tooltip_Unavailable" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
+  <data name="Processes_Section_Apps" xml:space="preserve">
+    <value>Apps</value>
+  </data>
+  <data name="Processes_Section_Background" xml:space="preserve">
+    <value>Background processes</value>
+  </data>
+  <data name="Processes_Section_Windows" xml:space="preserve">
+    <value>Windows processes</value>
+  </data>
+  <data name="Processes_Section_Title_Format" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Users_SessionState_Active" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Users_SessionState_Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="Users_SessionState_Disconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Users_SessionState_Idle" xml:space="preserve">
+    <value>Idle</value>
+  </data>
+  <data name="Services_Status_Stopped" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="Services_Status_Starting" xml:space="preserve">
+    <value>Starting</value>
+  </data>
+  <data name="Services_Status_Stopping" xml:space="preserve">
+    <value>Stopping</value>
+  </data>
+  <data name="Services_Status_Running" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="Services_Status_Continuing" xml:space="preserve">
+    <value>Continuing</value>
+  </data>
+  <data name="Services_Status_Pausing" xml:space="preserve">
+    <value>Pausing</value>
+  </data>
+  <data name="Services_Status_Paused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="Services_Status_Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Elevation_HelperStartFailed" xml:space="preserve">
+    <value>The elevated helper could not be started.</value>
+  </data>
+  <data name="Elevation_TimedOutFormat" xml:space="preserve">
+    <value>The elevated helper did not answer within {0} seconds. The action may still complete.</value>
+  </data>
+  <data name="Elevation_DumpTimedOutFormat" xml:space="preserve">
+    <value>The elevated helper did not answer within {0} seconds. The dump may still be written to {1}.</value>
   </data>
 </root>

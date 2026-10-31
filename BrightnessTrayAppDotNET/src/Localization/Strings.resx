@@ -58,41 +58,14 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
-    <value>ColorPicker</value>
-  </data>
-  <data name="Common_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Common_MillisecondsSuffix" xml:space="preserve">
-    <value> ms</value>
-  </data>
-  <data name="Common_PercentSuffix" xml:space="preserve">
-    <value>%</value>
-  </data>
   <data name="Common_SecondsSuffix" xml:space="preserve">
     <value>s</value>
-  </data>
-  <data name="Flyout_CurveToggle_BrightnessTooltip" xml:space="preserve">
-    <value>Toggle brightness curve</value>
-  </data>
-  <data name="Flyout_CurveToggle_NightLightTooltip" xml:space="preserve">
-    <value>Toggle night light curve</value>
   </data>
   <data name="Flyout_CurveMode_CurveTooltip" xml:space="preserve">
     <value>Curve control</value>
   </data>
   <data name="Flyout_CurveMode_ManualTooltip" xml:space="preserve">
     <value>Manual override</value>
-  </data>
-  <data name="Flyout_DisplaySettings_Tooltip" xml:space="preserve">
-    <value>Display settings</value>
-  </data>
-  <data name="Flyout_EnvironmentalCurvesToggle_Tooltip" xml:space="preserve">
-    <value>Toggle environmental curves</value>
-  </data>
-  <data name="Flyout_FooterPower_Tooltip" xml:space="preserve">
-    <value>Power</value>
   </data>
   <data name="Flyout_HardPowerOff_Abort" xml:space="preserve">
     <value>Abort</value>
@@ -102,6 +75,7 @@
   </data>
   <data name="Flyout_HardPowerOff_FailedFormat" xml:space="preserve">
     <value>Hard power-off failed: {0}</value>
+    <comment>{0} is the error reported by the display.</comment>
   </data>
   <data name="Flyout_HardPowerOff_InProgress" xml:space="preserve">
     <value>Sending hard power-off to the monitor. If it accepts, the screen will go dark - press the monitor's physical power button to bring it back.</value>
@@ -116,83 +90,20 @@
     <value>Warning, this action will power off the selected display. This warning will not show again.</value>
   </data>
   <data name="Flyout_MasterRowName" xml:space="preserve">
-    <value>All Displays</value>
-  </data>
-  <data name="Flyout_MonitorIconToggle_MasterTooltip" xml:space="preserve">
-    <value>Sync all displays to master brightness
-Ctrl+click: sync all displays to the brightest individual</value>
-  </data>
-  <data name="Flyout_MonitorIconToggle_NightLightTooltip" xml:space="preserve">
-    <value>Toggle night light</value>
-  </data>
-  <data name="Flyout_MonitorIconToggle_ToggleControlTooltip" xml:space="preserve">
-    <value>Toggle control by All Displays</value>
+    <value>All displays</value>
   </data>
   <data name="Flyout_MonitorIconToggle_ReadDegradedTooltip" xml:space="preserve">
-    <value>Ctrl+Click to Attempt Hard Power-Off</value>
+    <value>Ctrl + click to attempt hard power-off</value>
   </data>
   <data name="Flyout_NightLightRowName" xml:space="preserve">
     <value>Night Light</value>
   </data>
-  <data name="Flyout_ProfileButton_Tooltip" xml:space="preserve">
-    <value>Switch to This Profile</value>
-  </data>
-  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
-    <value>Redock</value>
-  </data>
-  <data name="Flyout_SaveProfile_Tooltip" xml:space="preserve">
-    <value>Save to Selected Profile</value>
-  </data>
-  <data name="Flyout_Settings_Tooltip" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
-    <value>Undock</value>
-  </data>
-  <data name="Flyout_WindowTitle" xml:space="preserve">
-    <value>Brightness</value>
-  </data>
   <data name="NightLight_KelvinSuffix_Format" xml:space="preserve">
-    <value>: {0}K</value>
+    <value>{0}K</value>
+    <comment>{0} is the Night Light color temperature in kelvins.</comment>
   </data>
   <data name="NightLight_OffSuffix" xml:space="preserve">
     <value>: off</value>
-  </data>
-  <data name="SettingsWindow_Caption_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="SettingsWindow_Caption_Maximize" xml:space="preserve">
-    <value>Maximize</value>
-  </data>
-  <data name="SettingsWindow_Caption_Minimize" xml:space="preserve">
-    <value>Minimize</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_Cancel" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_Confirm" xml:space="preserve">
-    <value>Clear</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
-    <value>This deletes all name overrides, custom order, per-monitor overrides, and the known-displays history. The Display order &amp; overrides list will repopulate from currently-connected monitors.</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultTitle" xml:space="preserve">
-    <value>Clear all saved display data?</value>
-  </data>
-  <data name="SettingsWindow_Header" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
-    <value>Open settings folder</value>
-  </data>
-  <data name="SettingsWindow_Title" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="Settings_About_AuthorLabel" xml:space="preserve">
-    <value>Author</value>
-  </data>
-  <data name="Settings_About_BuildLabel" xml:space="preserve">
-    <value>Build</value>
   </data>
   <data name="Settings_About_DDCCorruption_Description" xml:space="preserve">
     <value>If a monitor becomes unrecoverable, its slider will show with a warning triangle glyph. The monitor will have to be power cycled to restore DDC.</value>
@@ -200,50 +111,20 @@ Ctrl+click: sync all displays to the brightest individual</value>
   <data name="Settings_About_DDCCorruption_Title" xml:space="preserve">
     <value>DDC state corruption</value>
   </data>
-  <data name="Settings_About_GithubLabel" xml:space="preserve">
-    <value>Github</value>
-  </data>
-  <data name="Settings_About_KnownIssues_Header" xml:space="preserve">
-    <value>Known Issues</value>
-  </data>
   <data name="Settings_About_NightLightCorruption_Description" xml:space="preserve">
     <value>If Night Light becomes unresponsive, press Ctrl+Shift+Win+B to reset the graphics driver, then sign out and back in.</value>
   </data>
   <data name="Settings_About_NightLightCorruption_Title" xml:space="preserve">
     <value>Night Light corruption</value>
   </data>
-  <data name="Settings_About_RuntimeLabel" xml:space="preserve">
-    <value>Runtime</value>
-  </data>
-  <data name="Settings_About_SectionHeader" xml:space="preserve">
-    <value>About</value>
-  </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
     <value>A tray-based brightness controller for DDC/CI monitors.</value>
-  </data>
-  <data name="Settings_Common_Page_About" xml:space="preserve">
-    <value>About</value>
   </data>
   <data name="Settings_Common_Page_Environmental" xml:space="preserve">
     <value>Environmental</value>
   </data>
-  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Common_Page_General" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
   <data name="Settings_Common_Page_Monitors" xml:space="preserve">
     <value>Monitor options</value>
-  </data>
-  <data name="Settings_Common_Page_Theme" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
-    <value>Tray Icon</value>
   </data>
   <data name="Settings_CurveEditor_DegenerationLabel_LowerBrightnessOffset" xml:space="preserve">
     <value>lower brightness offset degeneration</value>
@@ -252,7 +133,7 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>upper brightness offset degeneration</value>
   </data>
   <data name="Settings_CurveEditor_ExitPreviewMode_Button" xml:space="preserve">
-    <value>Exit Preview Mode</value>
+    <value>Exit preview mode</value>
   </data>
   <data name="Settings_CurveEditor_LimitLabel_MaxBrightness" xml:space="preserve">
     <value>maximum brightness</value>
@@ -268,6 +149,7 @@ Ctrl+click: sync all displays to the brightest individual</value>
   </data>
   <data name="Settings_CurveEditor_NodeReadout_Format" xml:space="preserve">
     <value>node: {0} {1}</value>
+    <comment>{0} is the time of day, {1} the curve value.</comment>
   </data>
   <data name="Settings_Environmental_ApproxFromIP_Button" xml:space="preserve">
     <value>Approx. from IP</value>
@@ -275,17 +157,8 @@ Ctrl+click: sync all displays to the brightest individual</value>
   <data name="Settings_Environmental_ApproxFromIP_Locating" xml:space="preserve">
     <value>Locating...</value>
   </data>
-  <data name="Settings_Environmental_ApproximateFromIP_Fallback" xml:space="preserve">
-    <value>Approx. from IP</value>
-  </data>
-  <data name="Settings_Environmental_Cancel_Button" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
   <data name="Settings_Environmental_DisabledPeriodFollowTheSun_Title" xml:space="preserve">
     <value>Follow sun</value>
-  </data>
-  <data name="Settings_Environmental_DisabledPeriodFollowTheSun_ToolTip" xml:space="preserve">
-    <value>Reanchor the Start / End boundaries to twilight, sunrise, solar noon, and sunset so the disabled period drifts with the day/night cycle across the year. Sun events already honour the profile's Use daylight savings flag, so this does not compound with that shift.</value>
   </data>
   <data name="Settings_Environmental_DisabledPeriod_End_Label" xml:space="preserve">
     <value>End</value>
@@ -296,14 +169,8 @@ Ctrl+click: sync all displays to the brightest individual</value>
   <data name="Settings_Environmental_DisabledPeriod_Title" xml:space="preserve">
     <value>Disabled period</value>
   </data>
-  <data name="Settings_Environmental_DisabledPeriod_ToolTip" xml:space="preserve">
-    <value>Carve out a window inside the 24h cycle where the curves do not apply. Drag the white pins above the chart, or edit the Start / End boxes below, to set the boundaries. Start past End wraps midnight. Per-profile.</value>
-  </data>
   <data name="Settings_Environmental_FollowTheSun_Title" xml:space="preserve">
     <value>Follow the sun</value>
-  </data>
-  <data name="Settings_Environmental_FollowTheSun_ToolTip" xml:space="preserve">
-    <value>Reanchor curve points to twilight, sunrise, solar noon, and sunset for the current profile. Each point keeps its proportional position within its sun-segment, so the curve drifts in clock-time as days lengthen and shorten across the year. Per-profile, applied destructively to the stored points - missed days catch up automatically.</value>
   </data>
   <data name="Settings_Environmental_GeoLocation_Description" xml:space="preserve">
     <value>Decimal degrees. Positive values are north / east.</value>
@@ -321,16 +188,13 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>Night Light</value>
   </data>
   <data name="Settings_Environmental_Legend_TimeNow" xml:space="preserve">
-    <value>Time Now</value>
+    <value>Time now</value>
   </data>
   <data name="Settings_Environmental_Longitude_Label" xml:space="preserve">
     <value>Longitude</value>
   </data>
   <data name="Settings_Environmental_OffsetMode_Title" xml:space="preserve">
     <value>Offset mode</value>
-  </data>
-  <data name="Settings_Environmental_OffsetMode_ToolTip" xml:space="preserve">
-    <value>When on, curves apply additively/subtractively to the live brightness / night-light value. Drag the dashed lines to clamp how far the offset can swing.</value>
   </data>
   <data name="Settings_Environmental_PickDate_ToolTip" xml:space="preserve">
     <value>Pick a date</value>
@@ -339,7 +203,7 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>Pick on map</value>
   </data>
   <data name="Settings_Environmental_PreviewDate_Label" xml:space="preserve">
-    <value>Preview Date:</value>
+    <value>Preview date:</value>
   </data>
   <data name="Settings_Environmental_PreviewSweep_Active_Button" xml:space="preserve">
     <value>Preview next 24 hours</value>
@@ -351,17 +215,18 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>Live preview next 24 hours</value>
   </data>
   <data name="Settings_Environmental_PreviewSweep_ToolTip" xml:space="preserve">
-    <value>Animate the full day's curve over 10 seconds, applying values to monitors and night light as it sweeps.
-Requires at least one slider in the flyout to be set to curve mode.</value>
+    <value>Animate the full day's curve over 10 seconds, applying values to monitors and night light as it sweeps.&#10;Requires at least one slider in the flyout to be set to curve mode.</value>
   </data>
   <data name="Settings_Environmental_Profile_Default_Format" xml:space="preserve">
     <value>Profile ({0})</value>
+    <comment>{0} is the profile number.</comment>
   </data>
   <data name="Settings_Environmental_Profile_Label" xml:space="preserve">
     <value>Profile</value>
   </data>
   <data name="Settings_Environmental_Profile_Named_Format" xml:space="preserve">
     <value>{0} ({1})</value>
+    <comment>{0} is the profile name, {1} the profile number.</comment>
   </data>
   <data name="Settings_Environmental_ResetCurves_Button" xml:space="preserve">
     <value>Reset curves</value>
@@ -375,9 +240,6 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_Environmental_ResetCurves_ConfirmTitle" xml:space="preserve">
     <value>Reset curves?</value>
   </data>
-  <data name="Settings_Environmental_ResetCurves_ToolTip" xml:space="preserve">
-    <value>Reset the selected profile's brightness, night-light, and offset curves back to their flat defaults. Per-profile, applied immediately.</value>
-  </data>
   <data name="Settings_Environmental_SectionDescription" xml:space="preserve">
     <value>Drive brightness and night-light from the local sun position. Curves are stored per profile; geo coordinates are global.</value>
   </data>
@@ -390,17 +252,11 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_Environmental_ShowCursorReadout_Title" xml:space="preserve">
     <value>Show cursor readout</value>
   </data>
-  <data name="Settings_Environmental_ShowCursorReadout_ToolTip" xml:space="preserve">
-    <value>Show a vertical scrubber and per-curve value markers while the cursor is over the editor.</value>
-  </data>
   <data name="Settings_Environmental_ShowNightLightCurve_Title" xml:space="preserve">
     <value>Show night light curve</value>
   </data>
   <data name="Settings_Environmental_ShowSunOverlay_Title" xml:space="preserve">
     <value>Show sun overlay</value>
-  </data>
-  <data name="Settings_Environmental_ShowSunOverlay_ToolTip" xml:space="preserve">
-    <value>Shade twilight (orange) and night (greyish blue) bands behind the curves using the geo coordinates below.</value>
   </data>
   <data name="Settings_Environmental_Smoothness_DescriptionLine1" xml:space="preserve">
     <value>Blend between</value>
@@ -413,9 +269,6 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   </data>
   <data name="Settings_Environmental_UseDaylightSavings_Title" xml:space="preserve">
     <value>Use daylight savings</value>
-  </data>
-  <data name="Settings_Environmental_UseDaylightSavings_ToolTip" xml:space="preserve">
-    <value>When on, sun-position calculations follow daylight savings - sun events line up with wall-clock time across the year. When off, the timezone's standard offset is used year-round, so sun events stay anchored to standard time and the curve doesn't shift by an hour at DST boundaries. Per-profile.</value>
   </data>
   <data name="Settings_Flyout_Behavior_Header" xml:space="preserve">
     <value>Behavior</value>
@@ -458,21 +311,6 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   </data>
   <data name="Settings_Flyout_PreserveSliderOffsets_Title" xml:space="preserve">
     <value>Preserve slider offsets (prevent slider offset degeneration)</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
-    <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
-    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
-    <value>Keep undocked flyout on screen</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
-    <value>Restore undock state on startup</value>
-  </data>
-  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
-    <value>Flyout</value>
   </data>
   <data name="Settings_Flyout_ShowDisplayNumberBadge_Description" xml:space="preserve">
     <value>Overlay the OS-assigned display number inside each monitor icon in the brightness flyout.</value>
@@ -522,23 +360,11 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_Flyout_ShowPowerButton_Title" xml:space="preserve">
     <value>Show power button</value>
   </data>
-  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
-    <value>Show the undock button in the flyout. When off, the flyout always stays anchored to the tray.</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
-    <value>Show undock button</value>
-  </data>
-  <data name="Settings_Flyout_Visibility_Header" xml:space="preserve">
-    <value>Visibility</value>
-  </data>
   <data name="Settings_General_ApplyBrightnessOnStartup_Description" xml:space="preserve">
     <value>Restore the last-saved brightness profile on launch.</value>
   </data>
   <data name="Settings_General_ApplyBrightnessOnStartup_Title" xml:space="preserve">
     <value>Apply brightness when app opens</value>
-  </data>
-  <data name="Settings_General_Apply_Button" xml:space="preserve">
-    <value>Apply</value>
   </data>
   <data name="Settings_General_Autosave_Description" xml:space="preserve">
     <value>Automatically save to the selected profile whenever a monitor setting changes.</value>
@@ -546,59 +372,8 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_General_Autosave_Title" xml:space="preserve">
     <value>Auto-save</value>
   </data>
-  <data name="Settings_General_Cancel_Button" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
-  <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
-    <value>Currently running from "{0}".</value>
-  </data>
   <data name="Settings_General_DefaultProfileName" xml:space="preserve">
     <value>Profile</value>
-  </data>
-  <data name="Settings_General_EnvironmentalCurveTickInterval_Description" xml:space="preserve">
-    <value>How often the brightness / night-light curves re-sample and apply. Lower = quicker reaction to fast-changing curves; higher = less background work. Identical values across ticks are filtered before any DDC write.</value>
-  </data>
-  <data name="Settings_General_EnvironmentalCurveTickInterval_Title" xml:space="preserve">
-    <value>Environmental curve tick interval</value>
-  </data>
-  <data name="Settings_General_GammaRampNightLight_Description" xml:space="preserve">
-    <value>Drive night light by writing the GPU's gamma LUT directly instead of going through Windows Night Light. Survives locked-down profiles and stuck BlueLightReduction services. Doesn't work on HDR displays.</value>
-  </data>
-  <data name="Settings_General_GammaRampNightLight_Title" xml:space="preserve">
-    <value>Use gamma-ramp night light</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps.</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
-    <value>Install BrightnessTrayAppDotNET?</value>
-  </data>
-  <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
-    <value>Install failed</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps. Requires admin.</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
-    <value>Install BrightnessTrayAppDotNET system-wide?</value>
-  </data>
-  <data name="Settings_General_Install_Button" xml:space="preserve">
-    <value>Install</value>
-  </data>
-  <data name="Settings_General_Installation_Header" xml:space="preserve">
-    <value>Installation</value>
-  </data>
-  <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
-    <value>Installed (older build) at "{0}".{1}</value>
-  </data>
-  <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
-    <value>Installed build {0}, running build {1}. Click Update to overwrite.{2}</value>
-  </data>
-  <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
-    <value>Installed (build {0}) at "{1}".</value>
-  </data>
-  <data name="Settings_General_Installed_Format" xml:space="preserve">
-    <value>Installed at "{0}".</value>
   </data>
   <data name="Settings_General_InvertNightLightSlider_Description" xml:space="preserve">
     <value>Reverse the night light slider so dragging left increases warmth and dragging right cools the screen.</value>
@@ -606,60 +381,11 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_General_InvertNightLightSlider_Title" xml:space="preserve">
     <value>Invert night light slider</value>
   </data>
-  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
-    <value>Local user</value>
-  </data>
-  <data name="Settings_General_NightLightPDBDownloadTimeout_Description" xml:space="preserve">
-    <value>HTTP timeout the night-light fallback uses when downloading the SettingsHandlers_Display PDB from Microsoft's symbol server. Only matters after a Windows update changes the binary layout; raise this on slow or metered connections.</value>
-  </data>
-  <data name="Settings_General_NightLightPDBDownloadTimeout_Title" xml:space="preserve">
-    <value>Night Light symbol download timeout</value>
-  </data>
   <data name="Settings_General_NightLight_Header" xml:space="preserve">
     <value>Night Light</value>
   </data>
-  <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
-    <value>Not installed. Will be placed at "{0}".{1}</value>
-  </data>
-  <data name="Settings_General_ProfileCard_DragTooltip" xml:space="preserve">
-    <value>Drag or Ctrl+↑/↓ to reorder; double-click or type to rename</value>
-  </data>
   <data name="Settings_General_Profiles_Header" xml:space="preserve">
     <value>Profiles</value>
-  </data>
-  <data name="Settings_General_RearrangeProfiles_Description" xml:space="preserve">
-    <value>Drag the cards to reorder them, then Apply to swap the profiles' saved data between slots.</value>
-  </data>
-  <data name="Settings_General_RearrangeProfiles_Title" xml:space="preserve">
-    <value>Rearrange and rename profile data</value>
-  </data>
-  <data name="Settings_General_RequiresAdmin_Suffix" xml:space="preserve">
-    <value> (requires admin)</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Description" xml:space="preserve">
-    <value>Launch BrightnessTrayAppDotNET when you sign in to Windows.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
-    <value>{0}
-Target: {1}</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
-    <value>Autostart shortcut placed in shell:startup.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Title" xml:space="preserve">
-    <value>Run on startup automatically</value>
-  </data>
-  <data name="Settings_General_Seconds_Suffix" xml:space="preserve">
-    <value>s</value>
-  </data>
-  <data name="Settings_General_SectionHeader" xml:space="preserve">
-    <value>General</value>
-  </data>
-  <data name="Settings_General_SettingsHandlerNightLight_Description" xml:space="preserve">
-    <value>Route night-light writes through the same setting handler that the Windows Settings slider uses. Keeps the Settings UI's cached slider position in sync with what the flyout is showing. Recommended on builds where the BlueLightReduction service goes stale and the registry path stops being picked up.</value>
-  </data>
-  <data name="Settings_General_SettingsHandlerNightLight_Title" xml:space="preserve">
-    <value>Use Settings UI handler</value>
   </data>
   <data name="Settings_General_ShowNightLightSlider_Description" xml:space="preserve">
     <value>Show the night light strength slider in the brightness flyout. When off, the slider row is hidden.</value>
@@ -667,41 +393,12 @@ Target: {1}</value>
   <data name="Settings_General_ShowNightLightSlider_Title" xml:space="preserve">
     <value>Enable Night Light control</value>
   </data>
-  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
-    <value>Not installed via the Windows Store.</value>
-  </data>
-  <data name="Settings_General_StoreRunning" xml:space="preserve">
-    <value>Currently running from a Windows Store package.</value>
-  </data>
-  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
-    <value>System wide</value>
-  </data>
-  <data name="Settings_General_TurnOffNightLightAtZeroStrength_Description" xml:space="preserve">
-    <value>When the night light slider hits 0, also disable night light. Toggling night light back on restores the last non-zero strength.</value>
-  </data>
-  <data name="Settings_General_TurnOffNightLightAtZeroStrength_Title" xml:space="preserve">
-    <value>Turn off night light at zero strength</value>
-  </data>
-  <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
-    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the installation location and Windows Settings &gt; Apps.</value>
-  </data>
-  <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
-    <value>Uninstall incomplete</value>
-  </data>
-  <data name="Settings_General_Uninstall_Button" xml:space="preserve">
-    <value>Uninstall</value>
-  </data>
-  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
-    <value>Windows Store app bundle</value>
-  </data>
   <data name="Settings_Hotkeys_AddMonitorOffBinding_Button" xml:space="preserve">
     <value>Add monitor-off binding</value>
   </data>
-  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
-    <value>Add</value>
-  </data>
   <data name="Settings_Hotkeys_CurrentlyDisplayNumber_Format" xml:space="preserve">
     <value>  (currently #{0})</value>
+    <comment>{0} is the display number. Keep the leading space.</comment>
   </data>
   <data name="Settings_Hotkeys_DecrementMasterBrightness_Description" xml:space="preserve">
     <value>Lower every monitor's brightness by one step (matches one tray-scroll notch).</value>
@@ -717,18 +414,14 @@ Target: {1}</value>
   </data>
   <data name="Settings_Hotkeys_DefaultProfileName_Format" xml:space="preserve">
     <value>Profile {0}</value>
-  </data>
-  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
-    <value>delete this hotkey</value>
+    <comment>{0} is the profile number.</comment>
   </data>
   <data name="Settings_Hotkeys_DisplayFallbackName" xml:space="preserve">
     <value>Display</value>
   </data>
   <data name="Settings_Hotkeys_DisplayNumber_Format" xml:space="preserve">
     <value>Display #{0} (whichever is plugged in)</value>
-  </data>
-  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
-    <value>Exists</value>
+    <comment>{0} is the display number.</comment>
   </data>
   <data name="Settings_Hotkeys_FullBright_Description" xml:space="preserve">
     <value>Set every monitor to 100%. Press again to restore the previous brightness.</value>
@@ -763,23 +456,11 @@ Target: {1}</value>
   <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
     <value>Show the brightness flyout above the tray icon.</value>
   </data>
-  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
-    <value>Open flyout</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
-    <value>Open this settings window.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
   <data name="Settings_Hotkeys_PowerOffAllMonitors_Description" xml:space="preserve">
     <value>Turn every monitor off (uses the configured power-off mode).</value>
   </data>
   <data name="Settings_Hotkeys_PowerOffAllMonitors_Title" xml:space="preserve">
     <value>Power off all monitors</value>
-  </data>
-  <data name="Settings_Hotkeys_PowerOffSpecificMonitor_Description" xml:space="preserve">
-    <value>Turn off the monitor selected in the dropdown.</value>
   </data>
   <data name="Settings_Hotkeys_PowerOffSpecificMonitor_Title" xml:space="preserve">
     <value>Power off specific monitor</value>
@@ -787,26 +468,15 @@ Target: {1}</value>
   <data name="Settings_Hotkeys_Remove_Button" xml:space="preserve">
     <value>Remove</value>
   </data>
-  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
-    <value>Search:</value>
-  </data>
   <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
     <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). Full bright starts on Ctrl+Alt+Win+F; every other action starts unbound.</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
-    <value>Keyboard shortcuts</value>
   </data>
   <data name="Settings_Hotkeys_SelectProfile_Description" xml:space="preserve">
     <value>Switch to this profile slot.</value>
   </data>
   <data name="Settings_Hotkeys_SelectProfile_Title_Format" xml:space="preserve">
     <value>Select profile: {0}</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
-    <value>Hotkey service not available.</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
-    <value>Registered.</value>
+    <comment>{0} is the profile name.</comment>
   </data>
   <data name="Settings_Hotkeys_ToggleNightLight_Description" xml:space="preserve">
     <value>Turn Windows night light on or off.</value>
@@ -823,9 +493,6 @@ Target: {1}</value>
   <data name="Settings_Monitors_BrightnessDwellOverride_Label" xml:space="preserve">
     <value>Brightness dwell</value>
   </data>
-  <data name="Settings_Monitors_BrightnessVcpOverride_Label" xml:space="preserve">
-    <value>Brightness VCP</value>
-  </data>
   <data name="Settings_Monitors_BrightnessRate_Description" xml:space="preserve">
     <value>How long a brightness value must be set before the app will try to apply it.</value>
   </data>
@@ -833,7 +500,7 @@ Target: {1}</value>
     <value>Brightness update dwell</value>
   </data>
   <data name="Settings_Monitors_AllowBlindDDCWrites_Description" xml:space="preserve">
-    <value>When a monitor still accepts DDC writes but no longer returns reliable replies, keep brightness controls available and allow Ctrl+Click hard power-off from its degraded-state glyph. These writes are best effort and cannot be verified; disable this if the monitor behaves unpredictably.</value>
+    <value>When a monitor still accepts DDC writes but no longer returns reliable replies, keep brightness controls available and allow Ctrl + click hard power-off from its degraded-state glyph. These writes are best effort and cannot be verified; disable this if the monitor behaves unpredictably.</value>
   </data>
   <data name="Settings_Monitors_AllowBlindDDCWrites_SearchKeywords" xml:space="preserve">
     <value>blind DDC write degraded monitor read failure best effort hard power off</value>
@@ -841,11 +508,8 @@ Target: {1}</value>
   <data name="Settings_Monitors_AllowBlindDDCWrites_Title" xml:space="preserve">
     <value>Allow blind DDC writes during degraded state</value>
   </data>
-  <data name="Settings_Monitors_Cancel_Button" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
   <data name="Settings_Monitors_ClearDisplays_Button" xml:space="preserve">
-    <value>Clear Displays</value>
+    <value>Clear displays</value>
   </data>
   <data name="Settings_Monitors_ClearDisplays_ConfirmButton" xml:space="preserve">
     <value>Clear</value>
@@ -862,14 +526,8 @@ Target: {1}</value>
   <data name="Settings_Monitors_DDCOperationTimeout_Title" xml:space="preserve">
     <value>DDC operation timeout</value>
   </data>
-  <data name="Settings_Monitors_DefaultSort_Description" xml:space="preserve">
-    <value>Ordering used for displays that haven't been manually reordered. Applies on hot-plug.</value>
-  </data>
   <data name="Settings_Monitors_DefaultSort_Title" xml:space="preserve">
     <value>Default display sort order</value>
-  </data>
-  <data name="Settings_Monitors_DeleteSavedDisplay_Tooltip" xml:space="preserve">
-    <value>Delete this saved display</value>
   </data>
   <data name="Settings_Monitors_DisplayFallback_Name" xml:space="preserve">
     <value>Display</value>
@@ -879,12 +537,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_Monitors_DisplayOrder_Title" xml:space="preserve">
     <value>Display order &amp; overrides</value>
-  </data>
-  <data name="Settings_Monitors_DragToReorder_Tooltip" xml:space="preserve">
-    <value>Drag to reorder</value>
-  </data>
-  <data name="Settings_Monitors_EditNormCurve_Button" xml:space="preserve">
-    <value>Edit norm curve</value>
   </data>
   <data name="Settings_Monitors_IdentifyDisplays_Button" xml:space="preserve">
     <value>Identify Displays</value>
@@ -907,17 +559,11 @@ Target: {1}</value>
   <data name="Settings_Monitors_MaxBrightnessOverride_Label" xml:space="preserve">
     <value>Max brightness</value>
   </data>
-  <data name="Settings_Monitors_Milliseconds_Suffix" xml:space="preserve">
-    <value>ms</value>
-  </data>
   <data name="Settings_Monitors_MinBrightnessOverride_Label" xml:space="preserve">
     <value>Min brightness</value>
   </data>
   <data name="Settings_Monitors_Name_Label" xml:space="preserve">
     <value>Name:</value>
-  </data>
-  <data name="Settings_Monitors_Percent_Suffix" xml:space="preserve">
-    <value>%</value>
   </data>
   <data name="Settings_Monitors_PowerOffMode_Description" xml:space="preserve">
     <value>How the 'power off' action actually powers a monitor off. Sleep = standby (VCP 0x02), Soft = DPM off (0x04), Hard = write-only off (0x05). Some monitors ignore Soft; Hard will most likely require physical input to wake.</value>
@@ -967,21 +613,6 @@ Target: {1}</value>
   <data name="Settings_Monitors_ValidationDwell_Title" xml:space="preserve">
     <value>Verification delay</value>
   </data>
-  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
-    <value>Appearance</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
-    <value>Override the default background color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
-    <value>Light theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
-    <value>Background color</value>
-  </data>
   <data name="Settings_Theme_BrightColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme bright color</value>
   </data>
@@ -1005,9 +636,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_Theme_BrightnessCurveColor_Title" xml:space="preserve">
     <value>Brightness curve color</value>
-  </data>
-  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
   </data>
   <data name="Settings_Theme_CurrentTimeMarkerColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme current-time marker color</value>
@@ -1051,9 +679,6 @@ Target: {1}</value>
   <data name="Settings_Theme_Environmental_Header" xml:space="preserve">
     <value>Environmental</value>
   </data>
-  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
   <data name="Settings_Theme_FooterBackgroundColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme footer background color</value>
   </data>
@@ -1065,12 +690,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_Theme_FooterBackgroundColor_Title" xml:space="preserve">
     <value>Footer background color</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
-    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
-    <value>Font size</value>
   </data>
   <data name="Settings_Theme_GridLineColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme grid line color</value>
@@ -1108,59 +727,14 @@ Target: {1}</value>
   <data name="Settings_Theme_NightLightCurveColor_Title" xml:space="preserve">
     <value>Night light curve color</value>
   </data>
-  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
-    <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
-    <value>Rounded corners</value>
-  </data>
-  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
-    <value>Theme</value>
-  </data>
   <data name="Settings_Theme_SliderIndicator_Description" xml:space="preserve">
     <value>The glyph drawn as the brightness-slider thumb. Each option keeps its own font family and size.</value>
   </data>
   <data name="Settings_Theme_SliderIndicator_Title" xml:space="preserve">
     <value>Slider indicator</value>
   </data>
-  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme tray icon color</value>
-  </data>
   <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
     <value>Override the static tray icon color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
-    <value>Light theme tray icon color</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
-    <value>Static icon color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
-    <value>Override the default text color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
-    <value>Light theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
-    <value>Text color</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
-    <value>Dark</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
-    <value>Follow Windows, or force light / dark mode for this app.</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
-    <value>Light</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
-    <value>Theme style</value>
   </data>
   <data name="Settings_Theme_TrackEnabledOnly_Description" xml:space="preserve">
     <value>Exclude disabled monitors from the dynamic icon calculation. When all monitors are disabled, the icon shows full brightness.</value>
@@ -1180,9 +754,6 @@ Target: {1}</value>
   <data name="Settings_Theme_TrayIconStyle_Title" xml:space="preserve">
     <value>Tray icon style</value>
   </data>
-  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
   <data name="Settings_Theme_TwilightBackdropColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme twilight backdrop color</value>
   </data>
@@ -1195,17 +766,8 @@ Target: {1}</value>
   <data name="Settings_Theme_TwilightBackdropColor_Title" xml:space="preserve">
     <value>Twilight backdrop color</value>
   </data>
-  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
-    <value>Alt + double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
-    <value>Alt + left click</value>
-  </data>
   <data name="Settings_TrayIcon_AltMouseWheel_Title" xml:space="preserve">
     <value>Alt + mouse wheel</value>
-  </data>
-  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
-    <value>Alt + right click</value>
   </data>
   <data name="Settings_TrayIcon_ClickAction_AllDisplaysOff" xml:space="preserve">
     <value>All displays OFF</value>
@@ -1219,44 +781,11 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_ClickAction_FullDim" xml:space="preserve">
     <value>Full dim</value>
   </data>
-  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
-    <value>Nothing</value>
-  </data>
-  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + left click</value>
-  </data>
   <data name="Settings_TrayIcon_CtrlMouseWheel_Title" xml:space="preserve">
     <value>Ctrl + mouse wheel</value>
   </data>
-  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
-    <value>Ctrl + right click</value>
-  </data>
-  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
-    <value>Double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
-    <value>Classic</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
-    <value>Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts.</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
-    <value>Modern</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
-    <value>Menu position</value>
-  </data>
   <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
     <value>Assign actions to modified clicks or scrolls on the tray icon. Entries set to Nothing fall back to the default behavior.</value>
-  </data>
-  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
-    <value>Modified actions</value>
   </data>
   <data name="Settings_TrayIcon_MouseWheel_Description" xml:space="preserve">
     <value>Enable scrolling the mouse wheel while hovering the tray icon. Configure targets below in 'Modified actions'. Does *not* use an always-active global mouse hook.</value>
@@ -1281,9 +810,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title" xml:space="preserve">
     <value>Touchpad sensitivity</value>
-  </data>
-  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
-    <value>Tray Icon</value>
   </data>
   <data name="Settings_TrayIcon_ShowAllDisplaysPowerSelector_Description" xml:space="preserve">
     <value>Display a single entry that powers every display off.</value>
@@ -1312,51 +838,24 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_WheelAction_Nothing" xml:space="preserve">
     <value>Nothing</value>
   </data>
-  <data name="Tray_Exit" xml:space="preserve">
-    <value>Exit</value>
-  </data>
   <data name="Tray_PowerOffAllDisplays" xml:space="preserve">
     <value>Power off all displays</value>
   </data>
   <data name="Tray_PowerOffMonitor_Format" xml:space="preserve">
     <value>Power off {0}</value>
+    <comment>{0} is the display name.</comment>
   </data>
   <data name="Tray_Profile_Format" xml:space="preserve">
     <value>Profile {0}</value>
-  </data>
-  <data name="Tray_Settings" xml:space="preserve">
-    <value>Settings</value>
+    <comment>{0} is the profile number.</comment>
   </data>
   <data name="Tray_Tooltip_Brightness_Format" xml:space="preserve">
     <value>Brightness: {0}%</value>
+    <comment>{0} is the brightness percentage.</comment>
   </data>
   <data name="Tray_Tooltip_NightLight_Format" xml:space="preserve">
-    <value>
-Night Light: {0}%</value>
-  </data>
-  <data name="Uninstaller_Caption_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
-    <value>Also remove "{0}" including settings.xml.</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
-    <value>Delete my settings</value>
-  </data>
-  <data name="Uninstaller_Description_Format" xml:space="preserve">
-    <value>This will remove BrightnessTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
-    <value>Leave settings.xml in place so a future installation picks them up.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
-    <value>Keep my settings</value>
-  </data>
-  <data name="Uninstaller_SectionHeader" xml:space="preserve">
-    <value>Uninstall BrightnessTrayAppDotNET</value>
-  </data>
-  <data name="Uninstaller_Title" xml:space="preserve">
-    <value>Uninstall BrightnessTrayAppDotNET</value>
+    <value>&#10;Night Light: {0}%</value>
+    <comment>{0} is the Night Light strength percentage. Keep the leading line break.</comment>
   </data>
   <data name="Settings_General_ApplyBrightnessOnStartup_SearchKeywords" xml:space="preserve">
     <value>launch restore monitor levels</value>
@@ -1487,21 +986,6 @@ Night Light: {0}%</value>
   <data name="Settings_Monitors_DisplayOrder_SearchKeywords" xml:space="preserve">
     <value>rename screens limits calibration clear saved</value>
   </data>
-  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
-    <value>text scale accessibility</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
-    <value>appearance Windows color scheme</value>
-  </data>
-  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
-    <value>foreground lettering font palette</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
-    <value>window surface canvas palette</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
-    <value>square edges window shape</value>
-  </data>
   <data name="Settings_Theme_SliderIndicator_SearchKeywords" xml:space="preserve">
     <value>handle knob marker shape</value>
   </data>
@@ -1545,78 +1029,7 @@ Night Light: {0}%</value>
     <value>chart guides graph axes palette</value>
   </data>
   <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
-    <value>master brightness|all-displays brightness|all-monitor brightness
-per-monitor|per-display
-increase master brightness|raise master brightness|turn master brightness up|increment master brightness
-decrease master brightness|lower master brightness|turn master brightness down|decrement master brightness
-full bright|maximum brightness|100% brightness|brightest setting
-full dim|minimum brightness|0% brightness|dimmest setting
-normalize brightnesses|synchronize monitor brightness|sync monitor brightness|match master brightness
-brightness profile|brightness preset|saved brightness profile|saved brightness preset
-profile slot|preset slot
-switch profile|select profile|choose profile|change profile
-autosave|auto-save|save profile changes automatically|persist profile changes automatically
-power off all monitors|turn every monitor off|turn all displays off|switch all screens off
-power off specific monitor|turn off selected monitor|turn off specific display|switch off selected screen
-all displays on|turn on all displays|power on all monitors|switch on all screens
-monitor power buttons|display power buttons|screen power buttons
-sleep|standby
-DDC|DDC/CI|monitor control interface|hardware monitor control
-VCP|VCP code|Virtual Control Panel code|monitor control code
-EDID|Extended Display Identification Data|display identification data
-monitor identity|display identity|monitor matching|display matching|stable monitor identifier|stable display identifier
-display number|monitor number|screen number
-validation attempts|verification attempts|validation retries|verification retries|retry count
-validation dwell|verification dwell|verification delay|readback delay|verification wait
-DDC operation timeout|DDC timeout|monitor command timeout|maximum DDC wait
-brightness update dwell|brightness dwell|brightness write delay|brightness settling delay
-display sort order|monitor sort order|screen sort order|display ordering
-per-monitor overrides|per-display overrides|monitor-specific overrides|display-specific overrides
-night light|blue-light filter|blue light reduction
-night light strength|blue-light filter strength|blue light reduction amount|night light intensity
-color temperature|Kelvin
-gamma ramp|gamma LUT|gamma lookup table|GPU gamma ramp
-PDB|program database|debug symbols|symbol file
-night-light backend|night light method|night light implementation
-invert night light slider|reverse night light slider|reverse warmth direction
-turn off night light at zero strength|disable night light at zero strength|zero strength disables night light
-environmental curve|sun-based curve|time-of-day curve|scheduled brightness curve|circadian brightness curve
-auto-engage environmental curve|resume environmental curve|re-engage environmental curve
-environmental curve tick interval|curve evaluation interval|curve update cadence|curve refresh interval
-follow the sun|follow sun|sun-relative schedule|solar schedule
-daylight savings|daylight saving time|DST|summer time
-geo location|geolocation|geographic coordinates|latitude and longitude
-approx from IP|approximate from IP|IP geolocation|locate by IP
-latitude|lat
-longitude|lon
-disabled period|curve exclusion period|curve pause interval|automation blackout period
-offset mode|relative mode|additive mode|delta mode
-smoothness|curve smoothing|curve interpolation|interpolation amount
-live preview|24-hour preview|full-day preview|preview sweep|curve simulation
-reset curves|restore curve defaults|revert curves to defaults
-sun overlay|solar overlay|day-night shading|twilight and night bands
-cursor readout|hover readout|curve scrubber|curve value markers
-current-time marker|now line|current-time indicator
-grid line|gridline|chart grid|graph guide
-brightness curve|brightness graph|brightness plot|brightness schedule
-night light curve|color-temperature curve|warmth schedule|night light graph
-twilight backdrop|twilight band|dawn and dusk shading
-night backdrop|nighttime band|astronomical-night shading|after-dark overlay
-mouse wheel|scroll wheel|wheel scrolling
-mouse wheel step|wheel step|percent per wheel notch|scroll amount per notch
-precision touchpad|precision trackpad|trackpad scrolling
-touchpad sensitivity|trackpad sensitivity|touchpad movement per step|trackpad units per percent
-master slider tracking|master brightness tracking|aggregate monitor brightness
-preserve slider offsets|retain relative brightness|keep monitor brightness differences|prevent offset loss
-number keys switch profile|numeric keys switch profile|digit keys select profile
-slider indicator|slider thumb|slider handle|slider knob
-dynamic tray icon|brightness-responsive tray icon|changing tray icon
-static tray icon|fixed tray icon|constant tray icon
-Ctrl|Control key
-right click|secondary click|context click
-left click|primary click
-DDC state corruption|corrupted DDC state|stuck DDC|unresponsive DDC
-Night Light corruption|stuck Night Light|unresponsive Night Light</value>
+    <value>master brightness|all-displays brightness|all-monitor brightness&#10;per-monitor|per-display&#10;increase master brightness|raise master brightness|turn master brightness up|increment master brightness&#10;decrease master brightness|lower master brightness|turn master brightness down|decrement master brightness&#10;full bright|maximum brightness|100% brightness|brightest setting&#10;full dim|minimum brightness|0% brightness|dimmest setting&#10;normalize brightnesses|synchronize monitor brightness|sync monitor brightness|match master brightness&#10;brightness profile|brightness preset|saved brightness profile|saved brightness preset&#10;profile slot|preset slot&#10;switch profile|select profile|choose profile|change profile&#10;autosave|auto-save|save profile changes automatically|persist profile changes automatically&#10;power off all monitors|turn every monitor off|turn all displays off|switch all screens off&#10;power off specific monitor|turn off selected monitor|turn off specific display|switch off selected screen&#10;all displays on|turn on all displays|power on all monitors|switch on all screens&#10;monitor power buttons|display power buttons|screen power buttons&#10;sleep|standby&#10;DDC|DDC/CI|monitor control interface|hardware monitor control&#10;VCP|VCP code|Virtual Control Panel code|monitor control code&#10;EDID|Extended Display Identification Data|display identification data&#10;monitor identity|display identity|monitor matching|display matching|stable monitor identifier|stable display identifier&#10;display number|monitor number|screen number&#10;validation attempts|verification attempts|validation retries|verification retries|retry count&#10;validation dwell|verification dwell|verification delay|readback delay|verification wait&#10;DDC operation timeout|DDC timeout|monitor command timeout|maximum DDC wait&#10;brightness update dwell|brightness dwell|brightness write delay|brightness settling delay&#10;display sort order|monitor sort order|screen sort order|display ordering&#10;per-monitor overrides|per-display overrides|monitor-specific overrides|display-specific overrides&#10;night light|blue-light filter|blue light reduction&#10;night light strength|blue-light filter strength|blue light reduction amount|night light intensity&#10;color temperature|Kelvin&#10;gamma ramp|gamma LUT|gamma lookup table|GPU gamma ramp&#10;PDB|program database|debug symbols|symbol file&#10;night-light backend|night light method|night light implementation&#10;invert night light slider|reverse night light slider|reverse warmth direction&#10;turn off night light at zero strength|disable night light at zero strength|zero strength disables night light&#10;environmental curve|sun-based curve|time-of-day curve|scheduled brightness curve|circadian brightness curve&#10;auto-engage environmental curve|resume environmental curve|re-engage environmental curve&#10;environmental curve tick interval|curve evaluation interval|curve update cadence|curve refresh interval&#10;follow the sun|follow sun|sun-relative schedule|solar schedule&#10;daylight savings|daylight saving time|DST|summer time&#10;geo location|geolocation|geographic coordinates|latitude and longitude&#10;approx from IP|approximate from IP|IP geolocation|locate by IP&#10;latitude|lat&#10;longitude|lon&#10;disabled period|curve exclusion period|curve pause interval|automation blackout period&#10;offset mode|relative mode|additive mode|delta mode&#10;smoothness|curve smoothing|curve interpolation|interpolation amount&#10;live preview|24-hour preview|full-day preview|preview sweep|curve simulation&#10;reset curves|restore curve defaults|revert curves to defaults&#10;sun overlay|solar overlay|day-night shading|twilight and night bands&#10;cursor readout|hover readout|curve scrubber|curve value markers&#10;current-time marker|now line|current-time indicator&#10;grid line|gridline|chart grid|graph guide&#10;brightness curve|brightness graph|brightness plot|brightness schedule&#10;night light curve|color-temperature curve|warmth schedule|night light graph&#10;twilight backdrop|twilight band|dawn and dusk shading&#10;night backdrop|nighttime band|astronomical-night shading|after-dark overlay&#10;mouse wheel|scroll wheel|wheel scrolling&#10;mouse wheel step|wheel step|percent per wheel notch|scroll amount per notch&#10;precision touchpad|precision trackpad|trackpad scrolling&#10;touchpad sensitivity|trackpad sensitivity|touchpad movement per step|trackpad units per percent&#10;master slider tracking|master brightness tracking|aggregate monitor brightness&#10;preserve slider offsets|retain relative brightness|keep monitor brightness differences|prevent offset loss&#10;number keys switch profile|numeric keys switch profile|digit keys select profile&#10;slider indicator|slider thumb|slider handle|slider knob&#10;dynamic tray icon|brightness-responsive tray icon|changing tray icon&#10;static tray icon|fixed tray icon|constant tray icon&#10;Ctrl|Control key&#10;right click|secondary click|context click&#10;left click|primary click&#10;DDC state corruption|corrupted DDC state|stuck DDC|unresponsive DDC&#10;Night Light corruption|stuck Night Light|unresponsive Night Light</value>
     <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
   <data name="Common_OK" xml:space="preserve">
@@ -1729,5 +1142,14 @@ Night Light corruption|stuck Night Light|unresponsive Night Light</value>
   </data>
   <data name="Settings_Theme_SliderThumb_Star" xml:space="preserve">
     <value>Star</value>
+  </data>
+  <data name="Settings_Monitors_IdentifyDisplays_Title" xml:space="preserve">
+    <value>Identify displays</value>
+  </data>
+  <data name="Settings_Monitors_IdentifyDisplays_Description" xml:space="preserve">
+    <value>Shows each display's Windows display number on that display for a few seconds.</value>
+  </data>
+  <data name="Settings_Monitors_IdentifyDisplays_SearchKeywords" xml:space="preserve">
+    <value>display number which monitor badge overlay identify</value>
   </data>
 </root>

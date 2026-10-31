@@ -58,24 +58,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
-    <value>ColorPicker</value>
-  </data>
-  <data name="SettingsWindow_Caption_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="SettingsWindow_Caption_Maximize" xml:space="preserve">
-    <value>Maximize</value>
-  </data>
-  <data name="SettingsWindow_Caption_Minimize" xml:space="preserve">
-    <value>Minimize</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_Cancel" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_Confirm" xml:space="preserve">
-    <value>Clear</value>
-  </data>
   <data name="Flyout_DeleteGroup_Confirm" xml:space="preserve">
     <value>Delete</value>
   </data>
@@ -91,77 +73,11 @@
   <data name="Flyout_DeleteProbeCard_Title" xml:space="preserve">
     <value>Delete probe card</value>
   </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
-    <value>Are you sure?</value>
-  </data>
-  <data name="SettingsWindow_ConfirmOverlay_DefaultTitle" xml:space="preserve">
-    <value>Clear all saved display data?</value>
-  </data>
-  <data name="SettingsWindow_Header" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
-    <value>Open settings folder</value>
-  </data>
-  <data name="SettingsWindow_Title" xml:space="preserve">
-    <value>Settings</value>
-  </data>
-  <data name="Settings_About_AuthorLabel" xml:space="preserve">
-    <value>Author</value>
-  </data>
-  <data name="Settings_About_BuildLabel" xml:space="preserve">
-    <value>Build</value>
-  </data>
-  <data name="Settings_About_GithubLabel" xml:space="preserve">
-    <value>Github</value>
-  </data>
-  <data name="Settings_About_RuntimeLabel" xml:space="preserve">
-    <value>Runtime</value>
-  </data>
-  <data name="Settings_About_SectionHeader" xml:space="preserve">
-    <value>About</value>
-  </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
     <value>A tray-based fan controller and hardware monitor.</value>
   </data>
-  <data name="Settings_Common_Page_About" xml:space="preserve">
-    <value>About</value>
-  </data>
-  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Common_Page_General" xml:space="preserve">
-    <value>General</value>
-  </data>
   <data name="Settings_Common_Page_FanProperties" xml:space="preserve">
-    <value>Fan Properties</value>
-  </data>
-  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
-    <value>Hotkeys</value>
-  </data>
-  <data name="Settings_Common_Page_Theme" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
-    <value>Reopen the flyout in its previously-undocked window if it was undocked when the app last closed.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
-    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
-  </data>
-  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
-    <value>Keep undocked flyout on screen</value>
-  </data>
-  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
-    <value>Restore undocked flyout on startup</value>
-  </data>
-  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
-    <value>Flyout</value>
-  </data>
-  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
-    <value>Layout</value>
+    <value>Fan properties</value>
   </data>
   <data name="Settings_Flyout_ShowMultipleSliderValues_Description" xml:space="preserve">
     <value>Show both the manual and curve slider thumbs when possible. Only in manual means this only appears when the slider is in manual mode.</value>
@@ -175,114 +91,35 @@
   <data name="Settings_Flyout_ShowNonFunctioningFans_Title" xml:space="preserve">
     <value>Show non-functioning fans</value>
   </data>
-  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
-    <value>Show the undock button in the flyout header. Disabling hides the button and forces the flyout back into its docked position.</value>
-  </data>
-  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
-    <value>Allow flyout to be undocked</value>
-  </data>
-  <data name="Settings_General_Apply_Button" xml:space="preserve">
-    <value>Apply</value>
-  </data>
-  <data name="Settings_General_Autosave_Description" xml:space="preserve">
-    <value>Automatically save changes.</value>
-  </data>
-  <data name="Settings_General_Autosave_Title" xml:space="preserve">
-    <value>Auto-save</value>
-  </data>
-  <data name="Settings_General_Cancel_Button" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
-  <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
-    <value>Currently running from "{0}".</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps.</value>
-  </data>
-  <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
-    <value>Install FanControlTrayAppDotNET?</value>
-  </data>
-  <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
-    <value>Install failed</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
-    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps. Requires admin.</value>
-  </data>
-  <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
-    <value>Install FanControlTrayAppDotNET system-wide?</value>
-  </data>
-  <data name="Settings_General_Install_Button" xml:space="preserve">
-    <value>Install</value>
-  </data>
-  <data name="Settings_General_Installation_Header" xml:space="preserve">
-    <value>Installation</value>
-  </data>
-  <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
-    <value>Installed (older build) at "{0}".{1}</value>
-  </data>
-  <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
-    <value>Installed build {0}, running build {1}. Click Update to overwrite.{2}</value>
-  </data>
-  <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
-    <value>Installed (build {0}) at "{1}".</value>
-  </data>
-  <data name="Settings_General_Installed_Format" xml:space="preserve">
-    <value>Installed at "{0}".</value>
-  </data>
-  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
-    <value>Local user</value>
-  </data>
-  <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
-    <value>Not installed. Will be placed at "{0}".{1}</value>
-  </data>
-  <data name="Settings_General_RequiresAdmin_Suffix" xml:space="preserve">
-    <value> (requires admin)</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Description" xml:space="preserve">
-    <value>Launch FanControlTrayAppDotNET when you sign in to Windows.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
-    <value>{0}
-Target: {1}</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
-    <value>Autostart shortcut placed in shell:startup.</value>
-  </data>
-  <data name="Settings_General_RunOnStartup_Title" xml:space="preserve">
-    <value>Run on startup automatically</value>
-  </data>
   <data name="Settings_General_DefaultToRPMMode_Title" xml:space="preserve">
-    <value>Default to RPM Mode</value>
+    <value>Default to RPM mode</value>
   </data>
   <data name="Settings_General_DefaultToRPMMode_Description" xml:space="preserve">
     <value>Newly discovered fans will report speeds in RPM rather than duty cycle %. Existing fans keep their per-fan setting.</value>
   </data>
   <data name="Settings_FanProperties_SectionHeader" xml:space="preserve">
-    <value>Fan Properties</value>
+    <value>Fan properties</value>
   </data>
   <data name="Settings_FanProperties_DefaultJumpstartDutyCycle_Title" xml:space="preserve">
-    <value>Default Jumpstart Duty Cycle</value>
+    <value>Default jumpstart duty cycle</value>
   </data>
   <data name="Settings_FanProperties_DefaultJumpstartDutyCycle_Description" xml:space="preserve">
     <value>Initial duty cycle applied for one tick to get a stopped fan past stiction. Always in duty cycle %; skipped when the fan's target speed is already higher.</value>
   </data>
   <data name="Settings_FanProperties_DefaultDeltaMaxDutyCycle_Title" xml:space="preserve">
-    <value>Default Delta Max Duty Cycle</value>
+    <value>Default delta max duty cycle</value>
   </data>
   <data name="Settings_FanProperties_DefaultDeltaMaxDutyCycle_Description" xml:space="preserve">
     <value>Maximum allowed change in fan speed per second, expressed in duty cycle %. Caps how aggressively curves ramp fans up or down.</value>
   </data>
   <data name="Settings_FanProperties_DefaultAssignedCurve_Title" xml:space="preserve">
-    <value>Default Assigned Curve</value>
+    <value>Default assigned curve</value>
   </data>
   <data name="Settings_FanProperties_DefaultAssignedCurve_Description" xml:space="preserve">
     <value>Curve assigned to newly discovered fans. Select None to leave new fans in hardware control.</value>
   </data>
   <data name="Settings_FanProperties_Reassign_Header" xml:space="preserve">
     <value>Fan reassignment</value>
-  </data>
-  <data name="Settings_FanProperties_Reassign_Title" xml:space="preserve">
-    <value>Reassign fan settings</value>
   </data>
   <data name="Settings_FanProperties_Reassign_Description" xml:space="preserve">
     <value>Drag setting cards onto fixed fan slots, then Apply to swap per-fan settings.</value>
@@ -291,10 +128,7 @@ Target: {1}</value>
     <value>No live fans detected.</value>
   </data>
   <data name="Settings_FanProperties_FanSettingsCard_Tooltip" xml:space="preserve">
-    <value>Drag or Ctrl+Up/Down to reorder</value>
-  </data>
-  <data name="Settings_FanProperties_Apply_Button" xml:space="preserve">
-    <value>Apply</value>
+    <value>Drag to reorder, or press Ctrl+Up/Ctrl+Down.</value>
   </data>
   <data name="Settings_FanProperties_ApplyFanSwaps_Button" xml:space="preserve">
     <value>Apply swaps</value>
@@ -302,20 +136,11 @@ Target: {1}</value>
   <data name="Settings_FanProperties_NonFunctioning_Header" xml:space="preserve">
     <value>Manually tag fans as non-functioning</value>
   </data>
-  <data name="Settings_FanProperties_NonFunctioning_DescriptionFormat" xml:space="preserve">
-    <value>Treat this fan as non-functioning. {0}</value>
-  </data>
-  <data name="Flyout_FanButton_Tooltip" xml:space="preserve">
-    <value>Click for fan options</value>
-  </data>
-  <data name="Flyout_ModeLock_Tooltip" xml:space="preserve">
-    <value>Toggle between manual and curve control</value>
-  </data>
   <data name="Flyout_SpeedWarningLow_TooltipFormat" xml:space="preserve">
-    <value>Speed warning: {0}, below Warn Low ({1})</value>
+    <value>Speed warning: {0}, below Warn low ({1})</value>
   </data>
   <data name="Flyout_SpeedWarningHigh_TooltipFormat" xml:space="preserve">
-    <value>Speed warning: {0}, above Warn High ({1})</value>
+    <value>Speed warning: {0}, above Warn high ({1})</value>
   </data>
   <data name="Flyout_CurveFallbackSource_Tooltip" xml:space="preserve">
     <value>Curve paused: its data source isn't reporting. Until readings come back the fan is on hardware control, or on its Max Duty if Fan Control didn't exit cleanly earlier this boot.</value>
@@ -327,94 +152,34 @@ Target: {1}</value>
     <value>Fan speed warning</value>
   </data>
   <data name="Notification_SpeedWarningLow_BodyFormat" xml:space="preserve">
-    <value>{0} is at {1}, below its Warn Low of {2}.</value>
+    <value>{0} is at {1}, below its Warn low of {2}.</value>
   </data>
   <data name="Notification_SpeedWarningHigh_BodyFormat" xml:space="preserve">
-    <value>{0} is at {1}, above its Warn High of {2}.</value>
+    <value>{0} is at {1}, above its Warn high of {2}.</value>
   </data>
-  <data name="Settings_General_Seconds_Suffix" xml:space="preserve">
-    <value>s</value>
+  <data name="Settings_General_PawnIo_Title" xml:space="preserve">
+    <value>PawnIO driver</value>
   </data>
-  <data name="Settings_General_SectionHeader" xml:space="preserve">
-    <value>General</value>
+  <data name="Settings_General_PawnIo_Description" xml:space="preserve">
+    <value>Motherboard fan control needs the PawnIO driver, which is missing or out of date. Installing it asks for administrator approval.</value>
   </data>
-  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
-    <value>System wide</value>
+  <data name="Settings_General_PawnIo_Button" xml:space="preserve">
+    <value>Install</value>
   </data>
-  <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
-    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the installation location and Windows Settings &gt; Apps.</value>
+  <data name="Settings_General_PawnIo_SearchKeywords" xml:space="preserve">
+    <value>pawnio driver motherboard install</value>
   </data>
-  <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
-    <value>Uninstall incomplete</value>
+  <data name="Settings_General_PawnIo_Installed_Message" xml:space="preserve">
+    <value>PawnIO is installed. Restart Fan Control to use it.</value>
   </data>
-  <data name="Settings_General_Uninstall_Button" xml:space="preserve">
-    <value>Uninstall</value>
+  <data name="Settings_General_PawnIo_Failed_Message" xml:space="preserve">
+    <value>PawnIO could not be installed. The log in the settings folder has the details.</value>
   </data>
-  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
-    <value>Add</value>
-  </data>
-  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
-    <value>delete this hotkey</value>
-  </data>
-  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
-    <value>Exists</value>
+  <data name="Settings_General_PawnIo_Restart_Button" xml:space="preserve">
+    <value>Restart now</value>
   </data>
   <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
     <value>Show the fan flyout above the tray icon.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
-    <value>Open flyout</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
-    <value>Open this settings window.</value>
-  </data>
-  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="Settings_Hotkeys_Remove_Button" xml:space="preserve">
-    <value>Remove</value>
-  </data>
-  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
-    <value>Search:</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
-    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
-  </data>
-  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
-    <value>Keyboard shortcuts</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
-    <value>Hotkey service not available.</value>
-  </data>
-  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
-    <value>Registered.</value>
-  </data>
-  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
-    <value>Appearance</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
-    <value>Override the default background color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
-    <value>Light theme background color</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
-    <value>Background color</value>
-  </data>
-  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
-    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
-  </data>
-  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
-    <value>Font size</value>
-  </data>
-  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
-    <value>Flyout</value>
   </data>
   <data name="Settings_Theme_CardBorders_Description" xml:space="preserve">
     <value>Show outlines around fan and group cards.</value>
@@ -518,116 +283,23 @@ Target: {1}</value>
   <data name="Settings_Theme_GroupCardBackgroundColor_Title" xml:space="preserve">
     <value>Group card background</value>
   </data>
-  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
-    <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
-    <value>Rounded corners</value>
-  </data>
   <data name="Settings_Theme_SquareFlyoutTitleBarCorners_Description" xml:space="preserve">
     <value>Keep the flyout title bar square even when rounded corners are enabled.</value>
   </data>
   <data name="Settings_Theme_SquareFlyoutTitleBarCorners_Title" xml:space="preserve">
     <value>Square title bar corners</value>
   </data>
-  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
-    <value>Theme</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme tray icon color</value>
-  </data>
   <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
     <value>Override the default tray icon color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
-    <value>Light theme tray icon color</value>
-  </data>
-  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
-    <value>Static icon color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
-    <value>Dark theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
-    <value>Override the default text color. Each variant falls back to the default when unset.</value>
-  </data>
-  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
-    <value>Light theme text color</value>
-  </data>
-  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
-    <value>Text color</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
-    <value>Dark</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
-    <value>Follow Windows, or force light / dark mode for this app.</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
-    <value>Light</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
-    <value>System</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
-    <value>Theme style</value>
-  </data>
-  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
-    <value>Tray icon</value>
-  </data>
-  <data name="Tray_Exit" xml:space="preserve">
-    <value>Exit</value>
-  </data>
-  <data name="Tray_Settings" xml:space="preserve">
-    <value>Settings</value>
   </data>
   <data name="Tray_Tooltip_Default" xml:space="preserve">
     <value>FanControlTrayAppDotNET</value>
   </data>
   <data name="Tray_Tooltip_CPUTemp_Format" xml:space="preserve">
-    <value>CPU Temp: {0}C</value>
+    <value>CPU temp: {0}C</value>
   </data>
   <data name="Tray_Tooltip_GPUTemp_Format" xml:space="preserve">
-    <value>GPU Temp: {0}C</value>
-  </data>
-  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
-    <value>Undock the flyout. Drag to move it; drop near the tray icon to redock.</value>
-  </data>
-  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
-    <value>Redock the flyout to the tray corner.</value>
-  </data>
-  <data name="Settings_General_StoreRunning" xml:space="preserve">
-    <value>Currently running from a Windows Store package.</value>
-  </data>
-  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
-    <value>Not installed via the Windows Store.</value>
-  </data>
-  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
-    <value>Windows Store</value>
-  </data>
-  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
-    <value>Tray Icon</value>
-  </data>
-  <data name="Settings_TrayIcon_MouseWheel_Title" xml:space="preserve">
-    <value>Mouse wheel</value>
-  </data>
-  <data name="Settings_TrayIcon_MouseWheel_Description" xml:space="preserve">
-    <value>Enable scrolling the mouse wheel while hovering the tray icon. Does *not* use an always-active global mouse hook.</value>
-  </data>
-  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
-    <value>Context menu</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
-    <value>Menu position</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
-    <value>Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts.</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
-    <value>Classic</value>
-  </data>
-  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
-    <value>Modern</value>
+    <value>GPU temp: {0}C</value>
   </data>
   <data name="Settings_TrayIcon_Tooltip_Header" xml:space="preserve">
     <value>Tooltip</value>
@@ -644,62 +316,8 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_ShowGPUTemp_Description" xml:space="preserve">
     <value>Append the current GPU core temperature to the tray icon tooltip.</value>
   </data>
-  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
-    <value>Modified actions</value>
-  </data>
   <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
     <value>Assign actions to modified clicks on the tray icon. Entries set to Nothing fall back to the default behavior.</value>
-  </data>
-  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
-    <value>Nothing</value>
-  </data>
-  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
-    <value>Open Settings</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + left click</value>
-  </data>
-  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
-    <value>Alt + left click</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
-    <value>Ctrl + right click</value>
-  </data>
-  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
-    <value>Alt + right click</value>
-  </data>
-  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
-    <value>Double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
-    <value>Ctrl + double left click</value>
-  </data>
-  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
-    <value>Alt + double left click</value>
-  </data>
-  <data name="Uninstaller_Caption_Close" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
-    <value>Also remove "{0}" including settings.xml.</value>
-  </data>
-  <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
-    <value>Delete my settings</value>
-  </data>
-  <data name="Uninstaller_Description_Format" xml:space="preserve">
-    <value>This will remove FanControlTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
-    <value>Leave settings.xml in place so a future installation picks them up.</value>
-  </data>
-  <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
-    <value>Keep my settings</value>
-  </data>
-  <data name="Uninstaller_SectionHeader" xml:space="preserve">
-    <value>Uninstall FanControlTrayAppDotNET</value>
-  </data>
-  <data name="Uninstaller_Title" xml:space="preserve">
-    <value>Uninstall FanControlTrayAppDotNET</value>
   </data>
   <data name="Settings_General_DefaultToRPMMode_SearchKeywords" xml:space="preserve">
     <value>tachometer revolutions rotation speed cooling</value>
@@ -758,9 +376,6 @@ Target: {1}</value>
   <data name="Settings_Theme_SquareFlyoutTitleBarCorners_SearchKeywords" xml:space="preserve">
     <value>sharp rectangular header radius</value>
   </data>
-  <data name="Settings_TrayIcon_MouseWheel_SearchKeywords" xml:space="preserve">
-    <value>scroll pointer cooling control</value>
-  </data>
   <data name="Settings_TrayIcon_ShowCPUTemp_SearchKeywords" xml:space="preserve">
     <value>processor thermal heat sensor hover</value>
   </data>
@@ -778,21 +393,6 @@ Target: {1}</value>
   </data>
   <data name="Settings_Hotkeys_OpenSettings_SearchKeywords" xml:space="preserve">
     <value>global key binding keyboard command preferences configuration</value>
-  </data>
-  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
-    <value>text scale typography zoom</value>
-  </data>
-  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
-    <value>appearance color scheme Windows preference</value>
-  </data>
-  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
-    <value>square sharp rectangular radius geometry</value>
-  </data>
-  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
-    <value>foreground font lettering contrast</value>
-  </data>
-  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
-    <value>canvas surface fill wallpaper</value>
   </data>
   <data name="Settings_Theme_FlyoutBackgroundColor_SearchKeywords" xml:space="preserve">
     <value>popup panel surface fill</value>
@@ -820,22 +420,267 @@ Target: {1}</value>
   </data>
   <!-- One conceptual group per line; equivalent phrases are separated by vertical bars. -->
   <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
-    <value>RPM|fan RPM|revolutions per minute|tachometer|tach reading|rotational fan speed
-duty cycle|fan duty|fan percentage|fan speed percentage|PWM duty
-jumpstart|fan jump start|spin-up boost|fan startup boost|kick-start fan|fan starting pulse|fan stiction
-max delta|fan ramp rate|fan slew rate|fan speed change limit|fan acceleration limit|smooth fan speed changes
-default curve|fan curve|temperature curve|thermal curve|cooling curve|fan speed profile|temperature-to-speed profile|automatic fan control
-fan reassignment|reassign fan settings|swap fan settings|remap fan channels|move settings between fans|reorder saved fan settings
-fan headers|fan slots|fan channels|controller channels|physical fan positions
-non-functioning fans|non-functioning fan|failed fans|failed fan|dead fan|broken fan|missing fan|detached fan|fan not detected
-multiple slider values|dual slider values|show both fan values|manual and curve values|two fan setpoints|fan target overlay
-CPU temperature|processor temperature|CPU package temperature|processor thermals
-GPU temperature|graphics processor temperature|graphics card temperature|GPU core temperature|graphics thermals
-grouped fan borders|grouped fan cards|fan group cards|fans inside a group
-tray wheel|tray mouse wheel|mouse wheel over tray icon|scroll over tray icon
-undocked flyout|floating flyout|detach flyout|pop out flyout
-keep undocked flyout on screen|keep floating flyout visible|constrain flyout to monitor|clamp flyout to work area
-modifier tray action|tray click action|modified tray click|mouse gesture on tray icon
-slider thumb|slider handle|slider knob|slider grip</value>
+    <value>RPM|fan RPM|revolutions per minute|tachometer|tach reading|rotational fan speed&#10;duty cycle|fan duty|fan percentage|fan speed percentage|PWM duty&#10;jumpstart|fan jump start|spin-up boost|fan startup boost|kick-start fan|fan starting pulse|fan stiction&#10;max delta|fan ramp rate|fan slew rate|fan speed change limit|fan acceleration limit|smooth fan speed changes&#10;default curve|fan curve|temperature curve|thermal curve|cooling curve|fan speed profile|temperature-to-speed profile|automatic fan control&#10;fan reassignment|reassign fan settings|swap fan settings|remap fan channels|move settings between fans|reorder saved fan settings&#10;fan headers|fan slots|fan channels|controller channels|physical fan positions&#10;non-functioning fans|non-functioning fan|failed fans|failed fan|dead fan|broken fan|missing fan|detached fan|fan not detected&#10;multiple slider values|dual slider values|show both fan values|manual and curve values|two fan setpoints|fan target overlay&#10;CPU temperature|processor temperature|CPU package temperature|processor thermals&#10;GPU temperature|graphics processor temperature|graphics card temperature|GPU core temperature|graphics thermals&#10;grouped fan borders|grouped fan cards|fan group cards|fans inside a group&#10;tray wheel|tray mouse wheel|mouse wheel over tray icon|scroll over tray icon&#10;undocked flyout|floating flyout|detach flyout|pop out flyout&#10;keep undocked flyout on screen|keep floating flyout visible|constrain flyout to monitor|clamp flyout to work area&#10;modifier tray action|tray click action|modified tray click|mouse gesture on tray icon&#10;slider thumb|slider handle|slider knob|slider grip</value>
+  </data>
+  <data name="Settings_FanProperties_NoCurve" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Settings_General_FanDefaults_Header" xml:space="preserve">
+    <value>Fans</value>
+  </data>
+  <data name="Settings_Flyout_MultipleSliderValues_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings_Flyout_MultipleSliderValues_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings_Flyout_MultipleSliderValues_OnlyInManual" xml:space="preserve">
+    <value>Only in manual</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Title" xml:space="preserve">
+    <value>Slider thumb</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Description" xml:space="preserve">
+    <value>Shape used by flyout sliders.</value>
+  </data>
+  <data name="Settings_Theme_CurveSliderThumb_Title" xml:space="preserve">
+    <value>Curve slider thumb</value>
+  </data>
+  <data name="Settings_Theme_CurveSliderThumb_Description" xml:space="preserve">
+    <value>Shape used by non-manual flyout sliders.</value>
+  </data>
+  <data name="Flyout_CurveEditor_Tooltip" xml:space="preserve">
+    <value>Fan curve editor</value>
+  </data>
+  <data name="Flyout_NonFunctioningFans_Tooltip" xml:space="preserve">
+    <value>Show or hide non-functioning fans</value>
+  </data>
+  <data name="Flyout_NoFans" xml:space="preserve">
+    <value>No fans detected</value>
+  </data>
+  <data name="Flyout_NoProbesSelected" xml:space="preserve">
+    <value>No probes selected</value>
+  </data>
+  <data name="Flyout_ProbeCardEditor_Tooltip" xml:space="preserve">
+    <value>Probe card editor</value>
+  </data>
+  <data name="Flyout_FanProperties_Tooltip" xml:space="preserve">
+    <value>Fan properties</value>
+  </data>
+  <data name="Flyout_Group_Tooltip" xml:space="preserve">
+    <value>Group</value>
+  </data>
+  <data name="Flyout_ExpandProbeCard_Tooltip" xml:space="preserve">
+    <value>Expand probe card</value>
+  </data>
+  <data name="Flyout_CollapseProbeCard_Tooltip" xml:space="preserve">
+    <value>Collapse probe card</value>
+  </data>
+  <data name="Flyout_ExpandGroup_Tooltip" xml:space="preserve">
+    <value>Expand group</value>
+  </data>
+  <data name="Flyout_CollapseGroup_Tooltip" xml:space="preserve">
+    <value>Collapse group</value>
+  </data>
+  <data name="Flyout_ControlMode_Manual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Flyout_ControlMode_Curve" xml:space="preserve">
+    <value>Curve</value>
+  </data>
+  <data name="Flyout_AddGroupCard" xml:space="preserve">
+    <value>Add group card</value>
+  </data>
+  <data name="Flyout_AddProbeCard" xml:space="preserve">
+    <value>Add probe card</value>
+  </data>
+  <data name="Flyout_MixedCurves" xml:space="preserve">
+    <value>Mixed curves</value>
+  </data>
+  <data name="Fan_CurveLabel_Format" xml:space="preserve">
+    <value>Curve: {0}</value>
+  </data>
+  <data name="Fan_CurveLabel_None" xml:space="preserve">
+    <value>Curve: none</value>
+  </data>
+  <data name="Fan_GroupLabel_Format" xml:space="preserve">
+    <value>Group: {0}</value>
+  </data>
+  <data name="Fan_ProbeCard_DefaultName" xml:space="preserve">
+    <value>Probe card</value>
+  </data>
+  <data name="Fan_Profile_DefaultName_Format" xml:space="preserve">
+    <value>Profile {0}</value>
+  </data>
+  <data name="Fan_DataSource_DefaultName" xml:space="preserve">
+    <value>Data source</value>
+  </data>
+  <data name="FanProperties_Title_Format" xml:space="preserve">
+    <value>Fan properties: {0}</value>
+  </data>
+  <data name="FanProperties_Mode_Detached" xml:space="preserve">
+    <value>Detached</value>
+  </data>
+  <data name="FanProperties_EditCurve_Button" xml:space="preserve">
+    <value>Edit curve</value>
+  </data>
+  <data name="FanProperties_Name_Label" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="FanProperties_Group_Label" xml:space="preserve">
+    <value>Group</value>
+  </data>
+  <data name="FanProperties_Mode_Label" xml:space="preserve">
+    <value>Mode</value>
+  </data>
+  <data name="FanProperties_ID_Label" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="FanProperties_Sensor_Label" xml:space="preserve">
+    <value>Sensor</value>
+  </data>
+  <data name="FanProperties_Jumpstart_Label" xml:space="preserve">
+    <value>Jumpstart</value>
+  </data>
+  <data name="FanProperties_MaxDuty_Label" xml:space="preserve">
+    <value>Max duty</value>
+  </data>
+  <data name="FanProperties_MinDuty_Label" xml:space="preserve">
+    <value>Min duty</value>
+  </data>
+  <data name="FanProperties_WarnLow_Label" xml:space="preserve">
+    <value>Warn low</value>
+  </data>
+  <data name="FanProperties_WarnHigh_Label" xml:space="preserve">
+    <value>Warn high</value>
+  </data>
+  <data name="FanProperties_MaxDelta_Label" xml:space="preserve">
+    <value>Max delta</value>
+  </data>
+  <data name="FanProperties_Offset_Label" xml:space="preserve">
+    <value>Offset</value>
+  </data>
+  <data name="FanProperties_ResetToDefaults_Button" xml:space="preserve">
+    <value>Reset to defaults</value>
+  </data>
+  <data name="FanProperties_Save_Button" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="FanProperties_NoGroup" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="FanProperties_RPMMode_Header" xml:space="preserve">
+    <value>RPM mode</value>
+  </data>
+  <data name="FanProperties_RPMMode_Tooltip" xml:space="preserve">
+    <value>Use RPM units for this property</value>
+  </data>
+  <data name="ProbeSelector_Title_Format" xml:space="preserve">
+    <value>Probe card editor: {0}</value>
+  </data>
+  <data name="ProbeSelector_ProfileVisibility_Label" xml:space="preserve">
+    <value>Profiles to display probe card on: </value>
+  </data>
+  <data name="ProbeSelector_LastProfile_Tooltip_Format" xml:space="preserve">
+    <value>{0}: at least one profile must stay checked.</value>
+  </data>
+  <data name="ProbeSelector_SelectedProbes_Header" xml:space="preserve">
+    <value>Selected probes</value>
+  </data>
+  <data name="ProbeSelector_ClearDeadSensors_Button" xml:space="preserve">
+    <value>Clear dead sensors</value>
+  </data>
+  <data name="ProbeSelector_DeviceNicknames_Header" xml:space="preserve">
+    <value>Device nicknames</value>
+  </data>
+  <data name="ProbeSelector_ProbeNicknames_Header" xml:space="preserve">
+    <value>Probe nicknames</value>
+  </data>
+  <data name="ProbeSelector_LoadDefaultNicknames_Button" xml:space="preserve">
+    <value>Load default nicknames</value>
+  </data>
+  <data name="ProbeSelector_AddRule_Button" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="ProbeSelector_Replacement_Placeholder" xml:space="preserve">
+    <value>Replacement</value>
+  </data>
+  <data name="ProbeSelector_NoProbesFound" xml:space="preserve">
+    <value>No probes found</value>
+  </data>
+  <data name="ProbeSelector_Enable_Label" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="ProbeSelector_Truncate_Label" xml:space="preserve">
+    <value>Truncate</value>
+  </data>
+  <data name="ProbeSelector_Tab_Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="ProbeSelector_Tab_Temperatures" xml:space="preserve">
+    <value>Temperatures</value>
+  </data>
+  <data name="ProbeSelector_Tab_Power" xml:space="preserve">
+    <value>Power</value>
+  </data>
+  <data name="ProbeSelector_Tab_Load" xml:space="preserve">
+    <value>Load</value>
+  </data>
+  <data name="ProbeSelector_Tab_Clocks" xml:space="preserve">
+    <value>Clocks</value>
+  </data>
+  <data name="ProbeSelector_Tab_Voltages" xml:space="preserve">
+    <value>Voltages</value>
+  </data>
+  <data name="CurveEditor_Title_Format" xml:space="preserve">
+    <value>Fan curve: {0}</value>
+  </data>
+  <data name="CurveEditor_DefaultTitle" xml:space="preserve">
+    <value>Fan curve</value>
+  </data>
+  <data name="CurveEditor_MaxRPM_Label" xml:space="preserve">
+    <value>Max RPM</value>
+  </data>
+  <data name="CurveEditor_RPMMode_Label" xml:space="preserve">
+    <value>RPM mode</value>
+  </data>
+  <data name="CurveEditor_DataSource_Label" xml:space="preserve">
+    <value>Data source</value>
+  </data>
+  <data name="CurveEditor_SearchDataSources_Placeholder" xml:space="preserve">
+    <value>Search data sources</value>
+  </data>
+  <data name="CurveEditor_MinRPM_Label" xml:space="preserve">
+    <value>Min RPM</value>
+  </data>
+  <data name="CurveEditor_MinDuty_Label" xml:space="preserve">
+    <value>Min duty</value>
+  </data>
+  <data name="CurveEditor_MaxDuty_Label" xml:space="preserve">
+    <value>Max duty</value>
+  </data>
+  <data name="CurveEditor_Smoothness_Label" xml:space="preserve">
+    <value>Smoothness</value>
+  </data>
+  <data name="CurveEditor_Monotonic_Label" xml:space="preserve">
+    <value>Monotonic</value>
+  </data>
+  <data name="CurveEditor_RescaleCurve_Button" xml:space="preserve">
+    <value>Rescale curve</value>
+  </data>
+  <data name="CurveEditor_NoDataSource" xml:space="preserve">
+    <value>No data source</value>
+  </data>
+  <data name="CurveEditor_MinimumLine_Format" xml:space="preserve">
+    <value>Min {0}</value>
+  </data>
+  <data name="CurveEditor_CurveValue_Format" xml:space="preserve">
+    <value>Curve {0}</value>
+  </data>
+  <data name="Flyout_AddItem_Tooltip" xml:space="preserve">
+    <value>Add item</value>
+  </data>
+  <data name="ProbeSelector_Target_Placeholder" xml:space="preserve">
+    <value>Regex or {HardwareType.GPU}</value>
   </data>
 </root>
