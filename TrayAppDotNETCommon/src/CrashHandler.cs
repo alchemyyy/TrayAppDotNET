@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Globalization;
-using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon;
 
@@ -352,11 +352,7 @@ public static class CrashHandler
     {
         try
         {
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-            GC.WaitForPendingFinalizers();
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(generation: 2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            ManagedHeap.CompactAndDecommit();
         }
         catch
         {

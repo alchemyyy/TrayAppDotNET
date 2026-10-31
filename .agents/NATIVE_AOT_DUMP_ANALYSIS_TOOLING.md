@@ -2,8 +2,9 @@
 
 This documents repeatable capture and analysis for Native AOT tray hangs and
 memory leaks. The hang case study covers a Volume tray dispatcher failure. The
-memory case study covers a Brightness WMI/COM leak caused by an invalid
-source-generated COM release path.
+memory case studies cover a Brightness WMI/COM leak caused by an invalid
+source-generated COM release path, and Brightness memory that a closed settings
+window left behind in an idle app.
 
 ## Symptom
 
@@ -103,6 +104,21 @@ success.
 Get-Item -LiteralPath ".\dumps\App_${processID}_full.dmp" |
     Select-Object FullName, Length, LastWriteTime
 ```
+
+When ProcDump is unavailable (for example `tools\download_procdump.ps1` rejects
+a changed download hash; do not bypass the check), CDB writes the same full
+dump from a noninvasive attach, which suspends the process only while writing:
+
+```powershell
+& 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe' -pv -p $processID -c ".dump /ma .\dumps\App_${processID}_full.dmp; qd"
+```
+
+Do not leave an invasive CDB session with breakpoints on a live tray app. If the
+debugger is killed while the target is broken in, every thread keeps an extra
+suspend count and the `int 3` bytes stay patched in, so the app freezes for good.
+To recover, attach noninvasively, restore the original byte with `eb`, run
+`~*m` to drop the extra suspend count, then `qd`. Use ETW (below) for allocation
+stacks instead.
 
 Preserve these items together:
 
@@ -291,6 +307,69 @@ dotnet run --project .\BrightnessTrayAppDotNET\tests\WindowsBrightnessProbe\Wind
 
 This mode does not change brightness. It reports private bytes and handle counts
 before and after repeated full enumeration.
+
+## Idle Memory After A Closed Window
+
+Symptom: Brightness under the GPU backend idled at about 130 MB private bytes
+fresh, but stayed at about 250 MB after the settings window had been opened,
+browsed and closed. Nothing grew afterwards; the memory just never came back.
+The Software backend idles at about 22 MB and rose to about 71 MB after the
+same sequence.
+
+Two independent causes, found by comparing a dump of the inflated process with
+one of a fresh process:
+
+- The GC heap held about 40 MB of the closed window's garbage. An idle tray app
+  allocates too little to trigger the full collection that would free it.
+- About 15 private blocks of 7.2 MB each (`0x730000`, zero-filled, reserve then
+  commit) had no NT heap owner. An ETW trace showed them as `MEM_ROTATE`
+  allocations from `D3DKMTCreateAllocation`, created through
+  `EGL_CreatePbufferFromClientBuffer` in
+  `AngleD3DTextureFeature.RenderTargetWrapper.BeginDrawCore`: Avalonia's
+  WinUI-composition path wraps every frame's DComp texture in a new ANGLE pbuffer.
+  The driver caches the released allocations and trims that cache only while the
+  device keeps rendering, so an app that goes idle keeps it.
+
+Native AOT has no SOS, but the GC heap can still be inspected from a full dump:
+walk each committed region of the GC reservation (the one sized five times the
+heap hard limit) object by object, reading the `MethodTable` at each object start
+(component size `u16` at +0, flags `u16` at +2, base size `u32` at +4; flag
+`0x8000` adds a component count read at object +8, flag `0x0100` means the type
+has references). Symbolize `MethodTable` addresses with CDB `ln`; they resolve
+to names ending in ``::`vftable'`` in the matching PDB. A per-type count compared
+against a fresh dump shows what accumulated. For reachability, follow the
+`GCDesc` series stored before each `MethodTable`. Take roots from the
+`__GCSTATICS` slots in the exe image and from strong and pinned handles in the
+64 KB handle-table segments (block types at segment offset `0x618`). Weak
+handles do not root. Conservative edges invent paths through pooled arrays,
+which are allocated uninitialized and keep stale pointers.
+
+For unknown native allocations, record kernel VirtualAlloc events with stacks,
+reproduce, then dump and filter by process and size:
+
+```powershell
+xperf -on PROC_THREAD+LOADER+VIRT_ALLOC -stackwalk VirtualAlloc -BufferSize 1024 -MaxBuffers 512 -FileMode Circular -MaxFile 1024 -f kernel.etl
+xperf -stop -d merged.etl
+xperf -i merged.etl -o dump.txt -tle -tti -a dumper -stacktimeshifting
+```
+
+Symbolize the user-mode frames with `ln` against a dump of the same process.
+
+The fix is `TrayAppDotNETCommon/src/UI/TrayAppDotNETMemoryRelease.cs`. Every
+settings window records its EGL display through a 1x1 composition custom visual
+that leases the Skia platform graphics context. Once a settings window has
+closed and the compositor has processed the batch that disposes its render
+target, a background task runs `ManagedHeap.CompactAndDecommit` and then
+`IDXGIDevice3::Trim` on the ANGLE device, holding the EGL display lock that
+ANGLE contexts share. Measured on the Release build: open, browse and close
+went from 235 MB to 120 MB private bytes (fresh baseline 131 MB). The GC alone
+brought 230 MB to 188 MB; the trim released the remaining 50 MB of driver blocks.
+
+A closed window can also stay reachable after its content was severed. Avalonia
+12.1.1's `ToolTipService` keeps the last tooltip host in `_tipControl` until the
+pointer moves over another tooltip host, and UI Automation clients pin
+`AutomationNode` wrappers through refcounted handles. Exclude UIA-driven test
+runs when you attribute retention.
 
 ## Conclusion
 

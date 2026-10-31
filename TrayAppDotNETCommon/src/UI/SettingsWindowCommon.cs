@@ -1907,6 +1907,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         AttachWndProcHook();
         UpdateSidebarLayout();
         UpdateWindowCornerRadius();
+        TrayAppDotNETMemoryRelease.TrackRenderDevice(this);
     }
 
     private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e) => UpdateWindowCornerRadius();
@@ -2117,6 +2118,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmCancel = null;
         _confirmPreviousFocus = null;
         _windowResources.Dispose();
+        TrayAppDotNETMemoryRelease.ReleaseAfterWindowClose();
     }
 
     private void UpdateSidebarLayout() => UpdateSidebarLayout(ResolveWindowWidth());

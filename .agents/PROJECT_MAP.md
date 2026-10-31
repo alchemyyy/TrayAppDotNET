@@ -191,6 +191,9 @@
   - `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.cs` (shell, search, confirm overlay, palette from
     `CommonSettings`/`SettingsTheme`) and `SettingsWindowCommon.Sections.cs` (About, General, installation,
     Rendering, Appearance, context menu appearance and Hotkeys pages every app shares)
+  - `TrayAppDotNETCommon/src/UI/TrayAppDotNETMemoryRelease.cs`: after a settings window closes, compacts the GC heap
+    (`src/Utils/ManagedHeap.cs`, shared with the watcher) and trims the ANGLE Direct3D device's driver caches
+    (`IDXGIDevice3::Trim`), which an idle app otherwise keeps
   - `TrayAppDotNETCommon/src/UI/CommonBindings.cs`
   - `TrayAppDotNETCommon/src/UI/Settings` (`TrayAppDotNETHotkeysSection.cs` is the hotkey editor)
   - Hotkeys: `TrayAppDotNETCommon/src/Models/Hotkey.cs` (`HotkeyBindingBase<TAction>`),
