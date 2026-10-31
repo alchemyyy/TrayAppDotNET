@@ -308,14 +308,21 @@ public sealed class ProcessTerminationServiceTests
     {
         int elevatedLaunchCount = 0;
         int standardLaunchCount = 0;
+        using ManualResetEventSlim standardLaunchEntered = new(false);
+        using ManualResetEventSlim releaseStandardLaunch = new(false);
         using ProcessTerminationService service = new(
             log: null,
             (elevate, _) =>
             {
                 if (!elevate)
                 {
+                    // Each failed attempt asks for the standard helper; the fallback launch stays in flight until the
+                    // asserts are done, so the retry's request must join it rather than start another
                     Interlocked.Increment(ref standardLaunchCount);
-                    return FailedStart("Expected standard helper failure");
+                    standardLaunchEntered.Set();
+                    return releaseStandardLaunch.Wait(TestTimeout)
+                        ? FailedStart("Expected standard helper failure")
+                        : FailedStart("The test launcher timed out.");
                 }
 
                 return Interlocked.Increment(ref elevatedLaunchCount) switch
@@ -328,18 +335,26 @@ public sealed class ProcessTerminationServiceTests
                 };
             });
 
-        ElevatedHelperStatus declinedStatus = await service
-            .EnableElevatedHelperAsync()
-            .WaitAsync(TestTimeout);
-        ElevatedHelperStatus failedStatus = await service
-            .EnableElevatedHelperAsync()
-            .WaitAsync(TestTimeout);
+        try
+        {
+            ElevatedHelperStatus declinedStatus = await service
+                .EnableElevatedHelperAsync()
+                .WaitAsync(TestTimeout);
+            ElevatedHelperStatus failedStatus = await service
+                .EnableElevatedHelperAsync()
+                .WaitAsync(TestTimeout);
 
-        Assert.Equal(ElevatedHelperState.Declined, declinedStatus.State);
-        Assert.Equal(ElevatedHelperState.Failed, failedStatus.State);
-        Assert.Equal(expected: "Second attempt failed", failedStatus.ErrorMessage);
-        Assert.Equal(expected: 2, Volatile.Read(ref elevatedLaunchCount));
-        Assert.Equal(expected: 1, Volatile.Read(ref standardLaunchCount));
+            Assert.Equal(ElevatedHelperState.Declined, declinedStatus.State);
+            Assert.Equal(ElevatedHelperState.Failed, failedStatus.State);
+            Assert.Equal(expected: "Second attempt failed", failedStatus.ErrorMessage);
+            Assert.Equal(expected: 2, Volatile.Read(ref elevatedLaunchCount));
+            Assert.True(standardLaunchEntered.Wait(TestTimeout));
+            Assert.Equal(expected: 1, Volatile.Read(ref standardLaunchCount));
+        }
+        finally
+        {
+            releaseStandardLaunch.Set();
+        }
     }
 
     [Fact]
