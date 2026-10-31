@@ -8,23 +8,9 @@ namespace BrightnessTrayAppDotNET.Models;
 public class MonitorState
 {
     /// <summary>
-    /// Identity-strategy-keyed identifier (e.g. <c>num:1</c>, <c>edid:LG12345</c>, <c>port:MONITOR\...</c>).
-    /// Captured at save-time from the live <see cref="MonitorInfo.ID"/>.
-    /// Kept on the wire for backward compatibility with profiles.xml files written before <see cref="EDIDKey"/>
-    /// existed; <see cref="Services.ProfileManager"/> migrates legacy entries to EDIDKey on load
-    /// (eagerly for <c>edid:</c>-prefix IDs, lazily on the first live-monitor match for the rest).
-    /// New code must not read or write this property
-    /// - the <see cref="ObsoleteAttribute"/> surfaces unintended writes at compile time.
-    /// </summary>
-    [XmlIgnore]
-    [Obsolete("legacy - migrated to EDIDKey on load")]
-    public string ID { get; set; } = string.Empty;
-
-    /// <summary>
     /// EDID-first stable identifier
-    /// (the same one used by <c>KnownDisplays</c>, <c>MonitorOrder</c>, and <c>MonitorOverrides</c>).
-    /// Empty on legacy profile entries that were written before this field existed;
-    /// lookups treat empty as "no EDID claim" and fall back to <see cref="ID"/>.
+    /// (the same one used by <c>displays.json</c>, <c>MonitorOrder</c>, and <c>MonitorOverrides</c>).
+    /// The only key a saved profile entry has; an entry without one never matches a monitor.
     /// </summary>
     [XmlAttribute]
     public string EDIDKey { get; set; } = string.Empty;

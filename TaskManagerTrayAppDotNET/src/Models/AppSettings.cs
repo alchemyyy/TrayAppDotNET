@@ -38,7 +38,7 @@ public enum TaskManagerGridFontWeight
 }
 
 [XmlRoot("AppSettings")]
-public sealed class AppSettings : AppSettingsCommon
+public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
 {
     public const double GridFontSizeDefault = 12;
     public const double GridFontSizeMinimum = 8.0;
@@ -61,17 +61,10 @@ public sealed class AppSettings : AppSettingsCommon
 
     private const double LegacyGridRowTextHeightMultiplier = 1.35;
 
-    private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        TimeConstants.SettingsSaveDebounceMs,
-        drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-
     private bool _gridRowSpacingWasDeserialized;
     private bool _processGroupingStyleWasDeserialized;
 
     public AppSettings()
-        : base(
-            TimeConstants.UpdateCheckIntervalDefaultMs,
-            TrayAppDotNETRenderingBackend.GPUPreferred)
     {
         SuppressChangeNotification = true;
         UseWindows11SettingsNavigation = true;
@@ -94,6 +87,34 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
+    }
+
+    /// <summary>
+    /// Custom sidebar width of the main window, or zero for its default. Separate from the settings window's
+    /// <see cref="AppSettingsCommon.SettingsSidebarWidth"/>, and saved without rebuilding the main window.
+    /// </summary>
+    public double MainWindowSidebarWidth
+    {
+        get => _mainWindowSidebarWidth;
+        set
+        {
+            if (_mainWindowSidebarWidth.Equals(value)) return;
+            UpdateWithoutShellRefresh(() => _mainWindowSidebarWidth = value);
+        }
+    }
+
+    private double _mainWindowSidebarWidth;
+
+    /// <summary>The main window's sidebar width as the settings shell's resize handle reads and writes it.</summary>
+    internal ISettingsSidebarWidthSettings MainWindowSidebar => new MainWindowSidebarWidthSettings(this);
+
+    private sealed class MainWindowSidebarWidthSettings(AppSettings settings) : ISettingsSidebarWidthSettings
+    {
+        public double SettingsSidebarWidth
+        {
+            get => settings.MainWindowSidebarWidth;
+            set => settings.MainWindowSidebarWidth = value;
+        }
     }
 
     public bool GroupProcesses
@@ -499,12 +520,16 @@ public sealed class AppSettings : AppSettingsCommon
         UpdateWithoutShellRefresh(() => CPUPerformanceGraphView = normalized);
     }
 
-    /// <summary>Persists live Performance hardware-name rules without rebuilding the app shell.</summary>
+    /// <summary>
+    /// Persists Performance hardware-name rules edited in the settings window without rebuilding the app shell. An
+    /// edit there is an explicit save, so it writes even with <see cref="AppSettingsCommon.Autosave"/> off.
+    /// </summary>
     internal void UpdatePerformanceHardwareNameReplacementRules(
         List<PerformanceHardwareNameReplacementRule> rules)
     {
         ArgumentNullException.ThrowIfNull(rules);
         UpdateWithoutShellRefresh(() => PerformanceHardwareNameReplacementRules = rules);
+        Save();
     }
 
     /// <summary>Persists an already-applied grouping change without rebuilding the app shell.</summary>
@@ -530,7 +555,7 @@ public sealed class AppSettings : AppSettingsCommon
 
     /// <summary>
     /// Applies a change the live UI already shows without the global notification that rebuilds the app shell.
-    /// It then schedules the save that notification would have requested.
+    /// It then requests the implicit save that notification would have requested.
     /// </summary>
     private void UpdateWithoutShellRefresh(Action apply)
     {
@@ -548,23 +573,6 @@ public sealed class AppSettings : AppSettingsCommon
         if (!wasSuppressed) RequestSave();
     }
 
-    protected override void RequestSave()
-    {
-        if (!Autosave) return;
-        if (!CanAutosaveToDefaultPath(AppServices.Settings)) return;
-
-        AppSettings settings = this;
-        _ = SaveThrottle.RunAsync(settings, _ =>
-        {
-            settings.Save();
-            return Task.CompletedTask;
-        });
-    }
-
-    /// <summary>Restricts implicit default-path writes to the application's live settings instance.</summary>
-    internal bool CanAutosaveToDefaultPath(AppSettings? activeSettings) =>
-        Autosave && ReferenceEquals(this, activeSettings);
-
     public static string GetDefaultPath()
     {
         string appDirectory = GetDefaultDirectory();
@@ -574,19 +582,9 @@ public sealed class AppSettings : AppSettingsCommon
 
     public static string GetDefaultDirectory() => Program.AppLocalAppDataDirectory;
 
-    public void Save() => Save(GetDefaultPath());
+    public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public void Save(string path) =>
-        TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            exception => TADNLog.Log($"AppSettings.Save: {exception.Message}"));
-
-    public static AppSettings LoadOrDefault(string path) =>
-        TrayXmlSerializer.LoadFileOrDefault(
-            path,
-            static () => new AppSettings(),
-            exception => TADNLog.Log($"AppSettings.LoadOrDefault: {exception.Message}"));
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
 
     private static double NormalizeGridFontSize(double value) =>
         double.IsFinite(value)

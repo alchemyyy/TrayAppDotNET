@@ -1,41 +1,14 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Serialization;
 
 namespace FanControlTrayAppDotNET.Models;
 
-public enum ThemeMode
-{
-    System,
-    Light,
-    Dark
-}
-
-public enum TrayIconStyle
-{
-    Dynamic,
-    Static
-}
-
 /// <summary>
 /// Action taken when the tray icon is clicked or scrolled.
-/// Skeleton ships with a no-op placeholder; extend with project-specific actions in your fork.
 /// </summary>
 public enum TrayClickAction
 {
     Nothing,
     OpenSettings
-}
-
-/// <summary>
-/// Where the tray right-click menu appears.
-/// Classic opens at the cursor position (the OS default for tray menus).
-/// Modern docks the menu in the bottom-right corner of the primary work area with an 8px inset,
-/// matching the Windows 11 system-flyout pattern.
-/// </summary>
-public enum ContextMenuPosition
-{
-    Classic,
-    Modern
 }
 
 public enum MultipleSliderValuesDisplayMode
@@ -47,13 +20,9 @@ public enum MultipleSliderValuesDisplayMode
 
 /// <summary>
 /// Root application settings class.
-/// Skeleton scaffold with a few illustrative fields - extend with project-specific settings in your fork.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings,
-    ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
-    ITrayXmlSerializationCallbacks
+public class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>, IFlyoutDockSettings
 {
     private const string CPUNickname = "CPU";
     private const string GPUNickname = "GPU";
@@ -69,9 +38,24 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     private const string ProbeTargetRegex_SMU = "\\(SMU\\)";
     private const string ProbeTargetRegex_CPUCore = "CPU Core";
 
-    // General
-    public bool RunOnStartup { get; set; } = true;
-    public bool Autosave { get; set; } = true;
+    /// <summary>
+    /// The shared implicit-save switch (see <see cref="AppSettingsCommon.Autosave"/>). Stored as
+    /// <c>AutosaveSettings</c> because Fan's older files use <c>Autosave</c> for
+    /// <see cref="CaptureControlStateOnProfileSwitch"/>.
+    /// </summary>
+    [XmlElement("AutosaveSettings")]
+    public override bool Autosave
+    {
+        get => base.Autosave;
+        set => base.Autosave = value;
+    }
+
+    /// <summary>
+    /// When switching fan profiles, also capture the outgoing profile's live control state (manual duty, curve
+    /// assignment), not only its layout. Stored as <c>Autosave</c> for compatibility with older files.
+    /// </summary>
+    [XmlElement("Autosave")]
+    public bool CaptureControlStateOnProfileSwitch { get; set; } = true;
 
     // Fan-control general toggles. DefaultToRPMMode flips new Fan instances to RPMMode at
     // discovery time; existing fans keep whatever the user last picked.
@@ -86,34 +70,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // Reference into Curve.Curves by name. "None" is the sentinel for no curve assignment.
     public string DefaultAssignedCurve { get; set; } = "None";
 
-    // Context menu
-    public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
-    public int ContextMenuFontSize { get; set; } = 15;
-    public bool UseSystemSubmenuShowDelay { get; set; }
-
-    public int SubmenuShowDelayMs
-    {
-        get;
-        set => field = Math.Clamp(
-            value,
-            TimeConstants.TrayMenuSubmenuShowDelayMinMs,
-            TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
-    } = TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
-
     // Theme
-    public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
-    public NullableThemeColor TextColor { get; set; } = new();
-    public NullableThemeColor BackgroundColor { get; set; } = new();
     public NullableThemeColor FlyoutBackgroundColor { get; set; } = new();
     public NullableThemeColor FlyoutTitleBarBackgroundColor { get; set; } = new();
     public NullableThemeColor FanCardBackgroundColor { get; set; } = new();
     public NullableThemeColor GroupCardBackgroundColor { get; set; } = new();
     public NullableThemeColor CardBorderColor { get; set; } = new();
-    public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Dynamic;
-    public NullableThemeColor TrayIconColor { get; set; } = new();
-    public bool EnableRoundedCorners { get; set; } = true;
-    public bool UseWindows11SettingsNavigation { get; set; }
-    public double SettingsSidebarWidth { get; set; }
+    public TrayAppDotNETTrayIconStyle TrayIconStyle { get; set; } = TrayAppDotNETTrayIconStyle.Dynamic;
     public bool SquareFlyoutTitleBarCorners { get; set; }
     public bool EnableCardBorders { get; set; }
     public bool EnableHoveredCardBorders { get; set; }
@@ -123,10 +86,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public int FlyoutCardHorizontalInset { get; set; } = 1;
     public int FlyoutTitleBarCardSpacing { get; set; } = 2;
 
-    // Tray icon interaction. Click actions are surfaced through TrayIconPage; the host wires what each
-    // action does. The skeleton's TrayClickAction enum is a placeholder set extend it with app-specific
-    // actions, then update App.xaml.cs's tray click handlers to dispatch on the chosen action.
-    public bool TrayScrollEnabled { get; set; } = true;
+    // Tray icon click actions, surfaced through the Tray icon settings page. Fan has no tray wheel action; an old
+    // TrayScrollEnabled element in settings.xml is skipped on load.
     public TrayClickAction TrayDoubleClickAction { get; set; } = TrayClickAction.OpenSettings;
     public TrayClickAction TrayCtrlLeftClickAction { get; set; } = TrayClickAction.Nothing;
     public TrayClickAction TrayAltLeftClickAction { get; set; } = TrayClickAction.Nothing;
@@ -135,22 +96,40 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public TrayClickAction TrayCtrlDoubleLeftClickAction { get; set; } = TrayClickAction.Nothing;
     public TrayClickAction TrayAltDoubleLeftClickAction { get; set; } = TrayClickAction.Nothing;
 
-    // Flyout. The skeleton ships no flyout, but both reference apps it was lifted from expose an
-    // undockable secondary window with these two knobs. Kept here so the FlyoutPage scaffold has
-    // real properties to bind to; rip them out (along with FlyoutPage) if your fork never grows a
-    // flyout.
+    // Flyout undocking: whether the flyout shows its undock button, keeps an undocked flyout on screen, and
+    // reopens undocked at startup (Settings, Flyout page)
     public bool AllowFlyoutUndock { get; set; } = true;
 
     public bool ClampUndockedFlyoutToScreen { get; set; } = true;
 
     public bool RestoreFlyoutUndockedOnStartup { get; set; } = true;
 
-    // Persisted undock state. Written only on drag-release / explicit redock so a drag doesn't
-    // saturate disk IO. FlyoutHasSavedPosition gates whether FlyoutLeft / FlyoutTop are restored.
-    public bool FlyoutUndocked { get; set; }
-    public bool FlyoutHasSavedPosition { get; set; }
-    public double FlyoutLeft { get; set; }
-    public double FlyoutTop { get; set; }
+    // Runtime dock state: persisted without raising Changed, so a drag never re-applies the app or rebuilds the
+    // flyout. FlyoutHasSavedPosition gates whether FlyoutLeft / FlyoutTop are restored.
+    public bool FlyoutUndocked
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
+    public bool FlyoutHasSavedPosition
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
+    public double FlyoutLeft
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
+    public double FlyoutTop
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
     public bool ShowNonFunctioningFans { get; set; } = true;
 
     [XmlIgnore]
@@ -201,30 +180,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     private SliderThumbGlyphOption? _loadedCurveSliderThumb;
 
-    // Auto-update. CheckForUpdatesEnabled gates the background poll loop entirely; flipping it off
-    // cancels any in-flight wait without disposing UpdateCheckService. ShowUpdateNotificationsEnabled
-    // surfaces a tray balloon when a newer version lands. ShowUpdateButtonInFlyout is a hook for a
-    // flyout-floating Update! affordance (host wires it; the skeleton just persists the toggle).
-    // UpdateCheckIntervalMs is the polling cadence in ms (clamped to [Min, Max] by UpdateCheckService).
-    public bool CheckForUpdatesEnabled { get; set; } = true;
-    public bool ShowUpdateNotificationsEnabled { get; set; }
-    public bool ShowUpdateButtonInFlyout { get; set; } = true;
-    public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
-    public int SkippedUpdateVersion { get; set; }
-    public bool KeepFlyoutWarm { get; set; } = true;
-    public bool KeepTrayContextMenuWarm { get; set; } = true;
-    public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;
-    public string Language { get; set; } = LocalizationManager.AutoLanguage;
-
-    // Empty by default; defaults are seeded by EnsureDefaultHotkeys() after construction or load.
-    // Keep defaults out of the initializer so load paths do not duplicate seeded bindings.
-    // the deserializer adds <Binding> elements to the list returned by the getter, so any default
-    // listed here would duplicate every time the saved settings.xml was reloaded.
-    [XmlArray("Hotkeys")]
-    [XmlArrayItem("Binding")]
-    public List<HotkeyBinding> Hotkeys { get; set; } = [];
-
-    // Set once RetireLegacyOpenSettingsHotkey() has run (or on fresh installs, which never had the
+    // Set once the retired Open settings binding has been removed (or on fresh installs, which never had the
     // retired binding) so a binding the user re-adds later is never removed again.
     public bool LegacyOpenSettingsHotkeyRetired { get; set; }
 
@@ -272,30 +228,22 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     public bool FanProfileLayoutsInitialized { get; set; }
 
-    // Raised when any setting is changed through the settings window.
-    public event Action? Changed;
+    public AppSettings() => InitializeSliderThumbCatalog();
 
-    public void RaiseChanged() => Changed?.Invoke();
-
-    public AppSettings()
+    /// <summary>Copies the live fan registries and the active profile's layout into the persisted lists.</summary>
+    public override void OnTrayXmlSerializing()
     {
-        WireColorCallbacks();
-        InitializeSliderThumbCatalog();
+        EnsureFanProfileLayouts();
+        SyncFanControlRegistriesForSave();
+        FanProfiles[SelectedFanProfileIndex].Capture(Fans, FanGroups, includeControlState: false);
+        base.OnTrayXmlSerializing();
     }
 
-    public void OnTrayXmlSerializing()
+    public override void OnTrayXmlDeserialized()
     {
-    }
-
-    public void OnTrayXmlDeserializing()
-    {
-    }
-
-    public void OnTrayXmlDeserialized()
-    {
-        WireColorCallbacks();
         InitializeSliderThumbCatalog();
         InitializeFanControlRegistries();
+        base.OnTrayXmlDeserialized();
     }
 
     // Seeds SliderThumbOptions from the built-in catalog. If a user-selected option was loaded
@@ -333,34 +281,14 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         select(option.Name);
     }
 
-    /// <summary>
-    /// Bridges every NullableThemeColor override on this instance to the global Changed event,
-    /// so any color edit (committed hex or live-preview Temporary*) flows out through the same
-    /// notification path as every other setting change.
-    /// Idempotent: Unsubscribe runs first, so re-wiring after the generated reader replaces the ctor-wired
-    /// instances post-deserialization can't double-fire.
-    /// Specific listeners that want per-color granularity should attach via NullableThemeColor.Subscribe directly.
-    /// </summary>
-    public void WireColorCallbacks()
+    protected override IEnumerable<NullableThemeColor> EnumerateColorOverrides()
     {
-        Action onChanged = RaiseChanged;
-        foreach (NullableThemeColor color in EnumerateColorOverrides())
-        {
-            color.Unsubscribe(onChanged);
-            color.Subscribe(onChanged);
-        }
-    }
-
-    private IEnumerable<NullableThemeColor> EnumerateColorOverrides()
-    {
-        yield return TextColor;
-        yield return BackgroundColor;
+        foreach (NullableThemeColor color in base.EnumerateColorOverrides()) yield return color;
         yield return FlyoutBackgroundColor;
         yield return FlyoutTitleBarBackgroundColor;
         yield return FanCardBackgroundColor;
         yield return GroupCardBackgroundColor;
         yield return CardBorderColor;
-        yield return TrayIconColor;
     }
 
     public static string GetDefaultPath()
@@ -375,60 +303,39 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public static string GetDefaultDirectory() =>
         Program.AppLocalAppDataDirectory;
 
-    public void Save() => Save(GetDefaultPath());
-
-    public void Save(string path)
-    {
-        try
-        {
-            EnsureFanProfileLayouts();
-            SyncFanControlRegistriesForSave();
-            FanProfiles[SelectedFanProfileIndex].Capture(Fans, FanGroups, includeControlState: false);
-            TrayXmlSerializer.WriteFile(path, this);
-        }
-        catch
-        {
-            // best-effort
-        }
-    }
-
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public static AppSettings LoadOrDefault(string path)
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
+
+    protected override void InitializeNewSettings()
     {
-        try
+        LegacyOpenSettingsHotkeyRetired = true;
+        InitializeFanControlRegistries();
+    }
+
+    /// <summary>
+    /// Retires the Ctrl+Alt+Win+S Open settings binding older builds seeded (it collided with Network's identical
+    /// default) once, runs the shared hotkey cleanup, then repairs profile layouts and seeds nickname rules.
+    /// </summary>
+    protected override bool NormalizeLoadedSettings()
+    {
+        bool changed = false;
+        if (!LegacyOpenSettingsHotkeyRetired)
         {
-            if (TrayXmlSerializer.TryReadFile(path, out AppSettings? loaded))
-            {
-                // One-time cleanup of duplicate hotkey rows that may have accumulated from a prior build
-                // that re-seeded the default hotkey on every launch.
-                // Retire the Open settings binding older builds seeded, once.
-                // Top up any defaults missing from the persisted list (e.g. when a new build ships a new
-                // default action). Skips entries the user has tombstoned via the UI (RemovedByUser=true)
-                // so an explicit removal isn't undone on the next launch.
-                bool changed = loaded.DedupeHotkeysByIdentity();
-                changed |= loaded.RetireLegacyOpenSettingsHotkey();
-                changed |= loaded.EnsureDefaultHotkeys();
-                changed |= loaded.EnsureFanProfileLayouts();
-                changed |= loaded.EnsureDefaultDeviceNicknameRules();
-                changed |= loaded.EnsureDefaultProbeNicknameRules();
-                if (changed) loaded.Save(path);
-                return loaded;
-            }
-        }
-        catch
-        {
-            // fall through to default
+            HotkeyDefaults.RetireLegacyBinding(
+                Hotkeys,
+                HotkeyAction.OpenSettings,
+                HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
+                virtualKey: 0x53);
+            LegacyOpenSettingsHotkeyRetired = true;
+            changed = true;
         }
 
-        AppSettings defaults = new() { LegacyOpenSettingsHotkeyRetired = true };
-        defaults.InitializeFanControlRegistries();
-        defaults.EnsureDefaultHotkeys();
-        defaults.EnsureFanProfileLayouts();
-        defaults.EnsureDefaultDeviceNicknameRules();
-        defaults.EnsureDefaultProbeNicknameRules();
-        defaults.Save(path);
-        return defaults;
+        changed |= base.NormalizeLoadedSettings();
+        changed |= EnsureFanProfileLayouts();
+        changed |= EnsureDefaultDeviceNicknameRules();
+        changed |= EnsureDefaultProbeNicknameRules();
+        return changed;
     }
 
     /// <summary>
@@ -709,7 +616,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
             if (!string.IsNullOrWhiteSpace(fan.DataSourceKey)) knownFans[fan.DataSourceKey] = fan;
         }
 
-        FanProfiles[SelectedFanProfileIndex].Capture(knownFans.Values, FanGroups, Autosave);
+        FanProfiles[SelectedFanProfileIndex].Capture(knownFans.Values, FanGroups, CaptureControlStateOnProfileSwitch);
         FanProfile target = FanProfiles[targetIndex];
         target.ApplyTo(knownFans.Values);
         SelectedFanProfileIndex = targetIndex;
@@ -847,113 +754,5 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         [
             .. groups.Values.OrderBy(g => g.DisplayOrder).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
         ];
-    }
-
-    /// <summary>
-    /// The set of built-in hotkey bindings seeded for fresh installs and topped up on every launch.
-    /// Identity is (Action, Parameter, BindingID): defaults always live on BindingID 0 (the primary row),
-    /// so a user-added secondary binding (BindingID >= 1) for the same action does not block re-seeding
-    /// the primary row.
-    /// Fan Control ships no default bindings: every action starts unbound.
-    /// </summary>
-    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() => [];
-
-    /// <summary>
-    /// One-time removal of the Open settings binding on Ctrl+Alt+Win+S that older builds seeded
-    /// (it collided with Network's identical default). Drops the row only while it still equals
-    /// the retired default, plus any RemovedByUser tombstone for that identity.
-    /// Runs once, gated by LegacyOpenSettingsHotkeyRetired, so a binding re-added later survives.
-    /// Returns true when the marker was set (caller should persist).
-    /// </summary>
-    public bool RetireLegacyOpenSettingsHotkey()
-    {
-        if (LegacyOpenSettingsHotkeyRetired) return false;
-
-        const uint legacyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt;
-        Hotkeys.RemoveAll(b =>
-            b.Matches(HotkeyAction.OpenSettings, string.Empty, 0)
-            && (b.RemovedByUser || (b.Modifiers == legacyModifiers && b.VirtualKey == 0x53)));
-        LegacyOpenSettingsHotkeyRetired = true;
-        return true;
-    }
-
-    /// <summary>
-    /// True if the binding occupies the same identity slot as one of the built-in defaults
-    /// (same Action, Parameter, and BindingID). Used by the settings UI to decide whether removing
-    /// a binding should hard-delete it or keep it as a tombstone (RemovedByUser=true) so the default
-    /// doesn't reappear on the next launch.
-    /// </summary>
-    public static bool IsDefaultHotkeyIdentity(HotkeyAction action, string parameter, int bindingID)
-    {
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            if (d.Matches(action, parameter, bindingID))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Removes redundant hotkey rows that share the same identity tuple (Action, Parameter, BindingID),
-    /// keeping the first occurrence.
-    /// Returns true when at least one row was dropped (caller should persist).
-    /// </summary>
-    public bool DedupeHotkeysByIdentity()
-    {
-        HashSet<(HotkeyAction, string, int)> seen = [];
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < Hotkeys.Count; readIndex++)
-        {
-            HotkeyBinding b = Hotkeys[readIndex];
-            (HotkeyAction, string, int) key = (b.Action, b.Parameter, b.BindingID);
-            if (!seen.Add(key)) continue;
-
-            if (writeIndex != readIndex) Hotkeys[writeIndex] = b;
-            writeIndex++;
-        }
-
-        if (writeIndex == Hotkeys.Count) return false;
-
-        Hotkeys.RemoveRange(writeIndex, Hotkeys.Count - writeIndex);
-        return true;
-    }
-
-    /// <summary>
-    /// Adds any built-in default hotkey bindings that aren't already represented in Hotkeys.
-    /// "Represented" means: an existing entry with the same (Action, Parameter, BindingID) - including
-    /// tombstoned entries with RemovedByUser=true - so a user who has explicitly removed a default
-    /// is not re-seeded.
-    /// Returns true when at least one default was newly added (caller should persist).
-    /// </summary>
-    public bool EnsureDefaultHotkeys()
-    {
-        bool added = false;
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            bool present = false;
-            foreach (HotkeyBinding existing in Hotkeys)
-            {
-                if (!existing.Matches(d.Action, d.Parameter, d.BindingID)) continue;
-
-                present = true;
-                break;
-            }
-
-            if (present) continue;
-
-            Hotkeys.Add(new HotkeyBinding
-            {
-                Action = d.Action,
-                Parameter = d.Parameter,
-                Modifiers = d.Modifiers,
-                VirtualKey = d.VirtualKey,
-                Enabled = d.Enabled,
-                BindingID = d.BindingID
-            });
-            added = true;
-        }
-
-        return added;
     }
 }

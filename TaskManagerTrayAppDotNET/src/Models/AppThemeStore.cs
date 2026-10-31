@@ -1,62 +1,17 @@
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
+using System.Xml.Serialization;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
+/// <summary>
+/// Task Manager's <c>theme.xml</c> root. Task Manager adds no theme colors of its own, but the generated XML
+/// serializer only exists for <c>[XmlRoot]</c> types, so without this type a user's <c>theme.xml</c> never loads.
+/// </summary>
+[XmlRoot("Theme")]
+public sealed class TaskManagerAppTheme : AppTheme;
+
 internal static class AppThemeStore
 {
-    private const int ApplicationBitmapSize = 256;
-
-    /// <summary>Loads the generated application icon as an Avalonia bitmap.</summary>
-    public static Bitmap? LoadAppBitmap()
-    {
-        try
-        {
-            byte[]? ICOBytes = LoadAppICOBytes();
-            if (ICOBytes == null) return null;
-
-            byte[] PNGBytes = NativeIcon.ExtractICOImage(ICOBytes, ApplicationBitmapSize);
-            using MemoryStream PNGStream = new(PNGBytes, writable: false);
-            return new Bitmap(PNGStream);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"AppThemeStore.LoadAppBitmap: {exception.Message}");
-            return null;
-        }
-    }
-
-    public static NativeIcon? LoadAppNativeIcon()
-    {
-        try
-        {
-            int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            byte[]? ICOBytes = LoadAppICOBytes();
-            return ICOBytes == null ? null : NativeIcon.FromIco(ICOBytes, size);
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"AppThemeStore.LoadAppNativeIcon: {exception.Message}");
-        }
-
-        return null;
-    }
-
-    internal static byte[]? LoadAppICOBytes()
-    {
-        string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-        if (File.Exists(filePath)) return File.ReadAllBytes(filePath);
-
-        Uri uri = new(Constants.AppIconResourceUri);
-        if (!AssetLoader.Exists(uri)) return null;
-
-        using Stream stream = AssetLoader.Open(uri);
-        using MemoryStream memory = new();
-        stream.CopyTo(memory);
-        return memory.ToArray();
-    }
-
     public static string GetDefaultPath()
     {
         string appDirectory = AppSettings.GetDefaultDirectory();
@@ -65,5 +20,7 @@ internal static class AppThemeStore
     }
 
     public static AppTheme LoadOrDefault(string path) =>
-        AppTheme.LoadOrDefault<AppTheme>(path);
+        AppTheme.LoadOrDefault<TaskManagerAppTheme>(
+            path,
+            static message => TADNLog.Log($"AppThemeStore.LoadOrDefault: {message}"));
 }

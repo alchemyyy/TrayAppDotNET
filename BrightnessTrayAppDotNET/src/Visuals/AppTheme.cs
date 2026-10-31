@@ -33,44 +33,48 @@ public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
+    // Each default reads the current dictionary; Debug reloads update its ThemeColor instances in place
+    private static AppThemeResources.BrightnessAppThemeAxamlProperties ThemeDefaults =>
+        AppThemeResources.Current.AxamlBrightnessAppTheme;
+
     public ThemeColor DisplayIdentifierBackground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(DisplayIdentifierBackground));
+        ThemeDefaults.DisplayIdentifierBackground;
 
     public ThemeColor DisplayIdentifierBorder { get; set; } =
-        AppThemeColorCatalog.Color(nameof(DisplayIdentifierBorder));
+        ThemeDefaults.DisplayIdentifierBorder;
 
     public ThemeColor DisplayIdentifierShadow { get; set; } =
-        AppThemeColorCatalog.Color(nameof(DisplayIdentifierShadow));
+        ThemeDefaults.DisplayIdentifierShadow;
 
     public ThemeColor DisplayIdentifierForeground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(DisplayIdentifierForeground));
+        ThemeDefaults.DisplayIdentifierForeground;
 
     public ThemeColor EnvironmentalBrightnessCurve { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalBrightnessCurve));
+        ThemeDefaults.EnvironmentalBrightnessCurve;
 
     public ThemeColor EnvironmentalNightLightCurve { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalNightLightCurve));
+        ThemeDefaults.EnvironmentalNightLightCurve;
 
     public ThemeColor EnvironmentalCurrentTime { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalCurrentTime));
+        ThemeDefaults.EnvironmentalCurrentTime;
 
     public ThemeColor EnvironmentalTwilightBackdrop { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalTwilightBackdrop));
+        ThemeDefaults.EnvironmentalTwilightBackdrop;
 
     public ThemeColor EnvironmentalNightBackdrop { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalNightBackdrop));
+        ThemeDefaults.EnvironmentalNightBackdrop;
 
     public ThemeColor EnvironmentalGridLine { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalGridLine));
+        ThemeDefaults.EnvironmentalGridLine;
 
     public ThemeColor CurveDisabledBandOverlay { get; set; } =
-        AppThemeColorCatalog.Color(nameof(CurveDisabledBandOverlay));
+        ThemeDefaults.CurveDisabledBandOverlay;
 
     public ThemeColor EnvironmentalPreviewTint { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalPreviewTint));
+        ThemeDefaults.EnvironmentalPreviewTint;
 
     public ThemeColor EnvironmentalMapPin { get; set; } =
-        AppThemeColorCatalog.Color(nameof(EnvironmentalMapPin));
+        ThemeDefaults.EnvironmentalMapPin;
 
     private int? _environmentalMapHudBackdropAlphaOverride;
 
@@ -78,10 +82,10 @@ public sealed class AppTheme : CommonAppTheme
     public int EnvironmentalMapHudBackdropAlpha
     {
         get => _environmentalMapHudBackdropAlphaOverride
-               ?? AppThemeColorCatalog.SingleColor(nameof(EnvironmentalMapHudBackdropAlpha)).A;
+               ?? ThemeDefaults.EnvironmentalMapHudBackdropAlpha.A;
         set
         {
-            int defaultAlpha = AppThemeColorCatalog.SingleColor(nameof(EnvironmentalMapHudBackdropAlpha)).A;
+            int defaultAlpha = ThemeDefaults.EnvironmentalMapHudBackdropAlpha.A;
             _environmentalMapHudBackdropAlphaOverride = value == defaultAlpha ? null : value;
         }
     }
@@ -101,76 +105,12 @@ public sealed class AppTheme : CommonAppTheme
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
-        CommonAppTheme.LoadOrDefault<AppTheme>(filePath);
+        CommonAppTheme.LoadOrDefault<AppTheme>(
+            filePath,
+            static message => TADNLog.Log($"AppTheme.LoadOrDefault: {message}"));
 
     public static AppTheme Load(string filePath) =>
         CommonAppTheme.Load<AppTheme>(filePath);
-
-    public void SaveToDefaultPath() => Save(GetDefaultPath());
-
-    public static WindowIcon? LoadAppIcon()
-    {
-        string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-        if (File.Exists(filePath)) return new WindowIcon(filePath);
-
-        Uri uri = new(Constants.AppIconResourceUri);
-        if (AssetLoader.Exists(uri))
-        {
-            using Stream stream = AssetLoader.Open(uri);
-            return new WindowIcon(stream);
-        }
-
-        return null;
-    }
-
-    public static NativeIcon? LoadAppNativeIcon()
-    {
-        try
-        {
-            int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-            if (File.Exists(filePath)) return NativeIcon.FromIco(File.ReadAllBytes(filePath), size);
-
-            Uri uri = new(Constants.AppIconResourceUri);
-            if (AssetLoader.Exists(uri))
-            {
-                using Stream stream = AssetLoader.Open(uri);
-                using MemoryStream memory = new();
-                stream.CopyTo(memory);
-                return NativeIcon.FromIco(memory.ToArray(), size);
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"AppTheme.LoadAppNativeIcon: {ex.Message}");
-        }
-
-        return null;
-    }
-
-    public static bool ResolveEffectiveIsLightTheme(AppSettings? settings)
-    {
-        bool systemIsLight = AppServices.Theme?.IsLightTheme ?? false;
-        if (settings == null) return systemIsLight;
-        return settings.ThemeMode switch
-        {
-            ThemeMode.Light => true,
-            ThemeMode.Dark => false,
-            _ => systemIsLight
-        };
-    }
-
-    public Color ResolveForeground(AppSettings? settings, bool isLightTheme)
-    {
-        if (settings?.TextColor.Resolve(isLightTheme) is { } color) return color;
-        return Foreground.For(isLightTheme);
-    }
-
-    public Color ResolveBackground(AppSettings? settings, bool isLightTheme)
-    {
-        if (settings?.BackgroundColor.Resolve(isLightTheme) is { } color) return color;
-        return Background.For(isLightTheme);
-    }
 
     public Color ResolveFooterBackground(AppSettings? settings, bool isLightTheme)
     {

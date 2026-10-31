@@ -1,11 +1,12 @@
 using System.Globalization;
 using BatteryTrayAppDotNET.Models;
+using TrayAppDotNETCommon.Serialization;
 
 namespace BatteryTrayAppDotNET.Services;
 
 /// <summary>
 /// Keeps learned battery usage across restarts, so Predicted life is available on external power before the
-/// battery has been used again.
+/// battery has been used again. Writes are atomic; an unparsable file is moved aside to a <c>.corrupt-*</c> backup.
 /// </summary>
 public static class BatteryLearnedUsageStore
 {
@@ -13,28 +14,29 @@ public static class BatteryLearnedUsageStore
 
     public static BatteryLearnedUsage? Load(string path)
     {
-        try
-        {
-            return File.Exists(path) ? Parse(File.ReadAllText(path)) : null;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"BatteryLearnedUsageStore.Load: {ex.Message}");
-            return null;
-        }
+        DataFileLoadResult result = DataFileLoader.TryLoad(path, ParseStream, Log, out BatteryLearnedUsage usage);
+        if (result == DataFileLoadResult.Corrupt) DataFileLoader.MoveCorruptAside(path, Log);
+        return result == DataFileLoadResult.Loaded ? usage : null;
     }
 
     public static void Save(string path, BatteryLearnedUsage usage)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, Format(usage));
+            AtomicFile.WriteAllText(path, Format(usage));
         }
         catch (Exception ex)
         {
-            TADNLog.Log($"BatteryLearnedUsageStore.Save: {ex.Message}");
+            Log($"save failed: {ex.Message}");
         }
+    }
+
+    private static void Log(string message) => TADNLog.Log($"BatteryLearnedUsageStore: {message}");
+
+    private static BatteryLearnedUsage ParseStream(Stream stream)
+    {
+        using StreamReader reader = new(stream);
+        return Parse(reader.ReadToEnd()) ?? throw new InvalidDataException("Expected two positive numbers.");
     }
 
     public static string Format(BatteryLearnedUsage usage) =>

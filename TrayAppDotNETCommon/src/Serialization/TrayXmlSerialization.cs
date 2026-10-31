@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Xml;
 
 namespace TrayAppDotNETCommon.Serialization;
@@ -17,11 +16,19 @@ public interface ITrayXmlSerializationCallbacks
     void OnTrayXmlDeserialized() { }
 }
 
+/// <summary>
+/// Receives enum values the generated reader could not map to a defined member. The property keeps its initializer
+/// value; the type decides whether the whole object is still usable (a hotkey binding with an unknown action is not).
+/// </summary>
+public interface ITrayXmlUnknownValueHandler
+{
+    void OnTrayXmlUnknownValue(string memberName, string value);
+}
+
 public static class TrayXmlSerializer
 {
     private static readonly Dictionary<Type, ITrayXmlTypeSerializer> Serializers = [];
     private static readonly Lock Gate = new();
-    private static readonly Lock FileWriteGate = new();
 
     public static XmlWriterSettings WriterSettings { get; } = new()
     {
@@ -58,42 +65,22 @@ public static class TrayXmlSerializer
         return Read<T>(stream);
     }
 
-    public static bool TryReadFile<T>(
+    /// <summary>
+    /// Reads <paramref name="path"/> and reports whether it was missing, loaded, corrupt or locked (see
+    /// <see cref="DataFileLoader.TryLoad{T}"/>). Changes nothing on disk. <paramref name="value"/> is set only for
+    /// <see cref="DataFileLoadResult.Loaded"/>. A type without a generated serializer is a programming error and
+    /// throws instead of being reported as a bad file.
+    /// </summary>
+    public static DataFileLoadResult TryLoadFile<T>(
         string path,
-        [NotNullWhen(true)] out T? value,
-        Action<Exception>? logError = null)
+        out T? value,
+        Action<string> log)
         where T : notnull
     {
-        try
-        {
-            if (File.Exists(path))
-            {
-                value = ReadFile<T>(path);
-                return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            logError?.Invoke(ex);
-        }
-
-        value = default;
-        return false;
+        ITrayXmlTypeSerializer serializer = GetSerializer(typeof(T));
+        DataFileLoadResult result = DataFileLoader.TryLoad(path, stream => (T)serializer.Read(stream), log, out value);
+        return result;
     }
-
-    public static T LoadFileOrDefault<T>(
-        string path,
-        Func<T> createDefault,
-        Action<Exception>? logError = null)
-        where T : notnull
-    {
-        ArgumentNullException.ThrowIfNull(createDefault);
-        return TryReadFile(path, out T? value, logError) ? value : createDefault();
-    }
-
-    public static T LoadFileOrDefault<T>(string path, Action<Exception>? logError = null)
-        where T : notnull, new() =>
-        LoadFileOrDefault(path, static () => new T(), logError);
 
     public static void Write<T>(Stream stream, T value)
         where T : notnull =>
@@ -106,80 +93,12 @@ public static class TrayXmlSerializer
         serializer.Write(stream, value);
     }
 
+    /// <summary>Serializes <paramref name="value"/> and replaces <paramref name="path"/> atomically.</summary>
     public static void WriteFile<T>(string path, T value)
         where T : notnull
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        string? directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
-        lock (FileWriteGate)
-        {
-            string temporaryPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
-            try
-            {
-                using (FileStream stream = new(
-                           temporaryPath,
-                           FileMode.CreateNew,
-                           FileAccess.Write,
-                           FileShare.None))
-                {
-                    Write(stream, value);
-                    stream.Flush();
-                }
-
-                ReplaceFileWithRetry(temporaryPath, path);
-            }
-            catch
-            {
-                try
-                {
-                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                }
-                catch (Exception cleanupException)
-                {
-                    TADNLog.Log(
-                        $"TrayXmlSerializer.WriteFile: temporary file cleanup failed: {cleanupException.Message}");
-                }
-
-                throw;
-            }
-        }
-    }
-
-    public static bool TryWriteFile<T>(string path, T value, Action<Exception>? logError = null)
-        where T : notnull
-    {
-        try
-        {
-            WriteFile(path, value);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logError?.Invoke(ex);
-            return false;
-        }
-    }
-
-    /// <summary>Moves a staged file over its destination, retrying while another process holds it open.</summary>
-    internal static void ReplaceFileWithRetry(string temporaryPath, string path)
-    {
-        for (int attempt = 1;; attempt++)
-        {
-            try
-            {
-                File.Move(temporaryPath, path, overwrite: true);
-                return;
-            }
-            catch (Exception exception) when (
-                exception is IOException or UnauthorizedAccessException &&
-                attempt < TimeConstants.SettingsFileReplaceRetryCount)
-            {
-                Thread.Sleep(TimeConstants.SettingsFileReplaceRetryDelayMs);
-            }
-        }
+        ITrayXmlTypeSerializer serializer = GetSerializer(value.GetType());
+        AtomicFile.Write(path, stream => serializer.Write(stream, value));
     }
 
     private static ITrayXmlTypeSerializer GetSerializer(Type type)

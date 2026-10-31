@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,11 +10,6 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
 {
     private const string GeneratedFileName = "TrayXml.Generated.g.cs";
     private const string XmlRootAttribute = "System.Xml.Serialization.XmlRootAttribute";
-    private const string XmlAttributeAttribute = "System.Xml.Serialization.XmlAttributeAttribute";
-    private const string XmlElementAttribute = "System.Xml.Serialization.XmlElementAttribute";
-    private const string XmlArrayAttribute = "System.Xml.Serialization.XmlArrayAttribute";
-    private const string XmlArrayItemAttribute = "System.Xml.Serialization.XmlArrayItemAttribute";
-    private const string XmlIgnoreAttribute = "System.Xml.Serialization.XmlIgnoreAttribute";
 
     private static readonly DiagnosticDescriptor UnsupportedMember = new(
         id: "TAXML001",
@@ -25,79 +21,68 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<INamedTypeSymbol> roots = context.SyntaxProvider
+        // The transform turns symbols into equatable models right away, so the cached pipeline holds no symbols and
+        // an unrelated edit does not re-run generation
+        IncrementalValuesProvider<RootModel> roots = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 XmlRootAttribute,
-                static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => (INamedTypeSymbol)ctx.TargetSymbol);
+                static (node, _) => node is ClassDeclarationSyntax or RecordDeclarationSyntax or StructDeclarationSyntax,
+                static (ctx, cancellationToken) =>
+                    ModelBuilder.BuildRoot((INamedTypeSymbol)ctx.TargetSymbol, cancellationToken));
 
-        context.RegisterSourceOutput(roots.Collect(), static (spc, source) =>
-        {
-            HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
-            List<INamedTypeSymbol> rootTypes = [];
-            rootTypes.AddRange(source.Where(seen.Add));
-
-            if (rootTypes.Count == 0) return;
-
-            GeneratorModel model = new(spc);
-            foreach (INamedTypeSymbol root in rootTypes)
-                model.AddRoot(root);
-
-            spc.AddSource(GeneratedFileName, model.Generate());
-        });
+        context.RegisterSourceOutput(roots.Collect(), static (spc, source) => Emit(spc, source));
     }
 
-    private sealed class GeneratorModel(SourceProductionContext context)
+    private static void Emit(SourceProductionContext context, ImmutableArray<RootModel> source)
     {
-        private readonly Dictionary<INamedTypeSymbol, TypeInfo> _types = new(SymbolEqualityComparer.Default);
-        private readonly Queue<INamedTypeSymbol> _pending = new();
-        private readonly List<INamedTypeSymbol> _roots = [];
-        private int _nextTypeId;
-
-        public void AddRoot(INamedTypeSymbol type)
+        HashSet<DiagnosticModel> reported = [];
+        HashSet<string> rootNames = [];
+        List<RootModel> roots = [];
+        foreach (RootModel root in source)
         {
-            if (!_roots.Contains(type, SymbolEqualityComparer.Default))
-                _roots.Add(type);
-
-            Enqueue(type);
-            Drain();
-        }
-
-        private void Enqueue(INamedTypeSymbol type)
-        {
-            if (_types.ContainsKey(type)) return;
-
-            TypeInfo info = new(type, $"T{_nextTypeId++}", GetRootName(type));
-            _types[type] = info;
-            _pending.Enqueue(type);
-        }
-
-        private void Drain()
-        {
-            while (_pending.Count > 0)
+            foreach (DiagnosticModel diagnostic in root.Diagnostics)
             {
-                INamedTypeSymbol type = _pending.Dequeue();
-                TypeInfo info = _types[type];
+                if (!reported.Add(diagnostic)) continue;
 
-                foreach (IPropertySymbol property in SerializableProperties(type))
-                {
-                    MemberInfo? member = CreateMember(property);
-                    if (member == null) continue;
+                context.ReportDiagnostic(Diagnostic.Create(
+                    UnsupportedMember,
+                    diagnostic.Location?.ToLocation(),
+                    diagnostic.PropertyDisplay,
+                    diagnostic.TypeDisplay));
+            }
 
-                    info.Members.Add(member);
-                    ITypeSymbol valueType = member.ItemType ?? member.Type;
-                    if (IsComplex(valueType) && valueType is INamedTypeSymbol named)
-                        Enqueue(named);
-                }
+            if (rootNames.Add(root.TypeName)) roots.Add(root);
+        }
+
+        if (roots.Count == 0) return;
+
+        context.AddSource(GeneratedFileName, new CodeWriter(roots).Generate());
+    }
+
+    private sealed class CodeWriter
+    {
+        private readonly Dictionary<string, (TypeModel Model, string Id)> _types = [];
+        private readonly List<string> _roots = [];
+
+        public CodeWriter(IEnumerable<RootModel> roots)
+        {
+            foreach (RootModel root in roots)
+            {
+                _roots.Add(root.TypeName);
+                foreach (TypeModel type in root.Types)
+                    _types.TryAdd(type.TypeName, (type, $"T{_types.Count}"));
             }
         }
+
+        private string IdOf(TypeShape type) => _types[type.TypeName].Id;
 
         public string Generate()
         {
             string registrations = string.Concat(_roots.Select(root =>
                 $"        TrayXmlSerializer.Register(new Serializer_{_types[root].Id}());{Environment.NewLine}"));
-            string typeHelpers = string.Concat(_types.Values.Select(TypeHelpersSource));
-            string rootSerializers = string.Concat(_roots.Select(root => RootSerializerSource(_types[root])));
+            string typeHelpers = string.Concat(_types.Values.Select(entry => TypeHelpersSource(entry.Model, entry.Id)));
+            string rootSerializers = string.Concat(_roots.Select(root =>
+                RootSerializerSource(_types[root].Model, _types[root].Id)));
 
             return
                 $$"""
@@ -132,7 +117,40 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                     else stream.Flush();
                 }
 
-                private static string F(string? value) => value ?? string.Empty;
+                private static string F(string? value)
+                {
+                    if (value == null) return string.Empty;
+
+                    int index = 0;
+                    while (index < value.Length && IsXmlTextAt(value, index, out int width)) index += width;
+                    if (index == value.Length) return value;
+
+                    // Characters XML 1.0 cannot carry (control characters, lone surrogates) would make every later
+                    // write of the file throw, so they are dropped
+                    System.Text.StringBuilder builder = new(value.Length);
+                    builder.Append(value, 0, index);
+                    while (index < value.Length)
+                    {
+                        if (IsXmlTextAt(value, index, out int width)) builder.Append(value, index, width);
+                        index += width;
+                    }
+
+                    return builder.ToString();
+                }
+
+                private static bool IsXmlTextAt(string value, int index, out int width)
+                {
+                    char c = value[index];
+                    if (char.IsHighSurrogate(c) && index + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[index + 1], c))
+                    {
+                        width = 2;
+                        return true;
+                    }
+
+                    width = 1;
+                    return XmlConvert.IsXmlChar(c);
+                }
+
                 private static string F(bool value) => XmlConvert.ToString(value);
                 private static string F(int value) => XmlConvert.ToString(value);
                 private static string F(uint value) => XmlConvert.ToString(value);
@@ -149,20 +167,34 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                 private static DateTime P(string? value, DateTime fallback) { try { return value == null ? fallback : XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.RoundtripKind); } catch { return fallback; } }
                 private static string P(string? value, string? fallback) => value ?? fallback ?? string.Empty;
                 private static string? PNString(string? value, string? fallback) => value ?? fallback;
-                private static TEnum P<TEnum>(string? value, TEnum fallback) where TEnum : struct, Enum => Enum.TryParse(value, ignoreCase: false, out TEnum parsed) ? parsed : fallback;
-                private static bool? PNBool(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(bool));
-                private static int? PNInt32(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(int));
-                private static uint? PNUInt32(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(uint));
-                private static long? PNInt64(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(long));
-                private static double? PNDouble(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(double));
-                private static DateTime? PNDateTime(string? value) => string.IsNullOrEmpty(value) ? null : P(value, default(DateTime));
-                private static TEnum? PNEnum<TEnum>(string? value) where TEnum : struct, Enum => string.IsNullOrEmpty(value) ? null : P<TEnum>(value, default);
+                private static bool TryE<TEnum>(string? value, bool isFlags, out TEnum parsed) where TEnum : struct, Enum =>
+                    Enum.TryParse(value, ignoreCase: false, out parsed) && (isFlags || Enum.IsDefined(parsed));
+                private static TEnum PE<TEnum>(string? value, TEnum fallback, bool isFlags, object? owner, string? member) where TEnum : struct, Enum
+                {
+                    if (value == null) return fallback;
+                    if (TryE(value, isFlags, out TEnum parsed)) return parsed;
+
+                    // An unknown name (newer build, hand edit) keeps the fallback and is reported, never mapped to member 0
+                    if (owner is ITrayXmlUnknownValueHandler handler && member != null) handler.OnTrayXmlUnknownValue(member, value);
+                    return fallback;
+                }
+                private static void AddE<TEnum>(List<TEnum> list, string? value, bool isFlags) where TEnum : struct, Enum
+                {
+                    if (TryE(value, isFlags, out TEnum parsed)) list.Add(parsed);
+                }
+                private static bool? PNBool(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToBoolean(value); } catch { return null; } }
+                private static int? PNInt32(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToInt32(value); } catch { return null; } }
+                private static uint? PNUInt32(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToUInt32(value); } catch { return null; } }
+                private static long? PNInt64(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToInt64(value); } catch { return null; } }
+                private static double? PNDouble(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToDouble(value); } catch { return null; } }
+                private static DateTime? PNDateTime(string? value) { if (string.IsNullOrEmpty(value)) return null; try { return XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.RoundtripKind); } catch { return null; } }
+                private static TEnum? PNEnum<TEnum>(string? value, bool isFlags) where TEnum : struct, Enum => TryE(value, isFlags, out TEnum parsed) ? parsed : null;
 
             """ + Environment.NewLine;
 
-        private string TypeHelpersSource(TypeInfo info)
+        private string TypeHelpersSource(TypeModel info, string id)
         {
-            string typeName = TypeName(info.Type);
+            string typeName = info.TypeName;
             string writeBody = string.Concat(info.Members
                 .Where(static m => m.Shape == MemberShape.Attribute)
                 .Select(WriteAttributeSource)
@@ -174,25 +206,37 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                 .Select(ReadAttributeSource));
             string readCases = string.Concat(info.Members
                 .Where(static m => m.Shape != MemberShape.Attribute)
-                .Select(member => ReadElementCaseSource(info, member)));
+                .Select(member => ReadElementCaseSource(id, member)));
             string readArrayHelpers = string.Concat(info.Members
                 .Where(static m => m is { IsCollection: true, Shape: MemberShape.Array })
-                .Select(member => ReadArrayHelperSource(info, member)));
+                .Select(member => ReadArrayHelperSource(id, member)));
+            MemberModel[] inlineLists = [.. info.Members.Where(static m => m is { IsCollection: true, Shape: MemberShape.Element })];
+            string inlineListLocals = string.Concat(inlineLists.Select(static member =>
+                $"            {member.Type.TypeName}? {InlineListLocal(member)} = null;{Environment.NewLine}"));
+            string inlineListAssignments = string.Concat(inlineLists.Select(static member =>
+                $"            if ({InlineListLocal(member)} != null) value.{Identifier(member.PropertyName)} = {InlineListLocal(member)};{Environment.NewLine}"));
+
+            // A partly read IDisposable (AppTheme subscribes to system events in its constructor) is released when the
+            // read fails, because the caller never receives the instance
+            string tryOpen = info.IsDisposable ? $"        try{Environment.NewLine}        {{{Environment.NewLine}" : string.Empty;
+            string tryClose = info.IsDisposable
+                ? $"        }}{Environment.NewLine}        catch{Environment.NewLine}        {{{Environment.NewLine}            ((IDisposable)value).Dispose();{Environment.NewLine}            throw;{Environment.NewLine}        }}{Environment.NewLine}"
+                : string.Empty;
 
             return
                 $$"""
-                      private static void Write_{{info.Id}}(XmlWriter writer, {{typeName}} value, string elementName)
+                      private static void Write_{{id}}(XmlWriter writer, {{typeName}} value, string elementName)
                       {
                           if ((object)value is ITrayXmlSerializationCallbacks callbacks) callbacks.OnTrayXmlSerializing();
                           writer.WriteStartElement(elementName);
                   {{writeBody}}        writer.WriteEndElement();
                       }
 
-                      private static {{typeName}} Read_{{info.Id}}(XmlReader reader)
+                      private static {{typeName}} Read_{{id}}(XmlReader reader)
                       {
                           {{typeName}} value = new();
-                          if ((object)value is ITrayXmlSerializationCallbacks callbacks) callbacks.OnTrayXmlDeserializing();
-                  {{readAttributes}}        bool isEmpty = reader.IsEmptyElement;
+                  {{tryOpen}}        if ((object)value is ITrayXmlSerializationCallbacks callbacks) callbacks.OnTrayXmlDeserializing();
+                  {{readAttributes}}{{inlineListLocals}}        bool isEmpty = reader.IsEmptyElement;
                           reader.ReadStartElement();
                           if (!isEmpty)
                           {
@@ -215,20 +259,20 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                               if (reader.NodeType == XmlNodeType.EndElement) reader.ReadEndElement();
                           }
 
-                          if ((object)value is ITrayXmlSerializationCallbacks callbacksAfter) callbacksAfter.OnTrayXmlDeserialized();
+                  {{inlineListAssignments}}        if ((object)value is ITrayXmlSerializationCallbacks callbacksAfter) callbacksAfter.OnTrayXmlDeserialized();
                           return value;
-                      }
+                  {{tryClose}}    }
 
                   {{readArrayHelpers}}
                   """ + Environment.NewLine;
         }
 
-        private static string RootSerializerSource(TypeInfo info)
+        private static string RootSerializerSource(TypeModel info, string id)
         {
-            string typeName = TypeName(info.Type);
+            string typeName = info.TypeName;
             return
                 $$"""
-                      private sealed class Serializer_{{info.Id}} : ITrayXmlTypeSerializer
+                      private sealed class Serializer_{{id}} : ITrayXmlTypeSerializer
                       {
                           public Type TargetType => typeof({{typeName}});
 
@@ -239,13 +283,13 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                               if (reader.NodeType != XmlNodeType.Element || reader.LocalName != {{Literal(info.RootName)}})
                                   throw new InvalidDataException({{Literal($"Unexpected XML root for {typeName}.")}});
 
-                              return Read_{{info.Id}}(reader);
+                              return Read_{{id}}(reader);
                           }
 
                           public void Write(Stream stream, object value)
                           {
                               using XmlWriter writer = XmlWriter.Create(stream, TrayXmlSerializer.WriterSettings);
-                              Write_{{info.Id}}(writer, ({{typeName}})value, {{Literal(info.RootName)}});
+                              Write_{{id}}(writer, ({{typeName}})value, {{Literal(info.RootName)}});
                               writer.Flush();
                               Flush(stream);
                           }
@@ -254,27 +298,26 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                   """ + Environment.NewLine;
         }
 
-        private static string WriteAttributeSource(MemberInfo member)
+        private static string WriteAttributeSource(MemberModel member)
         {
-            string access = $"value.{Identifier(member.Property.Name)}";
-            if (IsNullableValue(member.Type))
+            string access = $"value.{Identifier(member.PropertyName)}";
+            if (member.Type.NullableUnderlying is { } underlying)
             {
-                ITypeSymbol underlying = Nullable.GetUnderlyingTypeSymbol(member.Type)!;
                 string formatted = FormatExpression($"{access}.Value", underlying);
                 return
                     $"        if ({access}.HasValue) writer.WriteAttributeString({Literal(member.Name)}, {formatted});{Environment.NewLine}";
             }
 
-            string prefix = IsNullableReference(member.Type) ? $"if ({access} != null) " : string.Empty;
+            string prefix = member.Type.IsNullableReference ? $"if ({access} != null) " : string.Empty;
             return
                 $"        {prefix}writer.WriteAttributeString({Literal(member.Name)}, {FormatExpression(access, member.Type)});{Environment.NewLine}";
         }
 
-        private static string ReadAttributeSource(MemberInfo member)
+        private static string ReadAttributeSource(MemberModel member)
         {
-            string propertyName = Identifier(member.Property.Name);
-            string attrVar = $"attr_{member.Property.Name}";
-            string parsed = ParseExpression(attrVar, member.Type, $"value.{propertyName}");
+            string propertyName = Identifier(member.PropertyName);
+            string attrVar = $"attr_{member.PropertyName}";
+            string parsed = ParseExpression(attrVar, member.Type, $"value.{propertyName}", member.PropertyName);
             return
                 $"""
                          string? {attrVar} = reader.GetAttribute({Literal(member.Name)});
@@ -282,19 +325,18 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                  """ + Environment.NewLine;
         }
 
-        private string WriteElementSource(MemberInfo member)
+        private string WriteElementSource(MemberModel member)
         {
-            string propertyName = Identifier(member.Property.Name);
-            string access = $"value.{propertyName}";
+            string access = $"value.{Identifier(member.PropertyName)}";
 
             return member.IsCollection
                 ? WriteCollectionSource(member, access)
                 : WriteValueSource(member.Type, access, member.Name, indent: "        ");
         }
 
-        private string WriteCollectionSource(MemberInfo member, string access)
+        private string WriteCollectionSource(MemberModel member, string access)
         {
-            ITypeSymbol itemType = member.ItemType!;
+            TypeShape itemType = member.ItemType!;
             bool wrapsItems = member.Shape == MemberShape.Array;
             string itemName = wrapsItems ? member.ItemName : member.Name;
             string startElement = wrapsItems
@@ -309,7 +351,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                 $$"""
                   {{startElement}}        if ({{access}} != null)
                           {
-                              foreach ({{TypeName(itemType)}} item in {{access}})
+                              foreach ({{itemType.TypeName}} item in {{access}})
                               {
                   {{writeItem}}
                               }
@@ -317,16 +359,15 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                   """ + Environment.NewLine;
         }
 
-        private string WriteValueSource(ITypeSymbol itemType, string itemExpression, string elementName, string indent)
+        private string WriteValueSource(TypeShape itemType, string itemExpression, string elementName, string indent)
         {
-            if (!IsComplex(itemType))
+            if (!itemType.IsComplex)
             {
                 return
                     $"{indent}writer.WriteElementString({Literal(elementName)}, {FormatExpression(itemExpression, itemType)});{Environment.NewLine}";
             }
 
-            string writeCall =
-                $"Write_{_types[(INamedTypeSymbol)itemType].Id}(writer, {itemExpression}, {Literal(elementName)});";
+            string writeCall = $"Write_{IdOf(itemType)}(writer, {itemExpression}, {Literal(elementName)});";
             if (itemType.IsValueType)
                 return $"{indent}{writeCall}{Environment.NewLine}";
 
@@ -337,28 +378,24 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                  """ + Environment.NewLine;
         }
 
-        private string ReadElementCaseSource(TypeInfo info, MemberInfo member)
+        private string ReadElementCaseSource(string typeId, MemberModel member)
         {
-            string propertyName = Identifier(member.Property.Name);
+            string propertyName = Identifier(member.PropertyName);
             string body;
 
             if (member is { IsCollection: true, Shape: MemberShape.Array })
-                body = $"                    value.{propertyName} = ReadList_{info.Id}_{member.Property.Name}(reader);";
+                body = $"                    value.{propertyName} = ReadList_{typeId}_{member.PropertyName}(reader);";
             else if (member.IsCollection)
             {
-                ITypeSymbol itemType = member.ItemType!;
                 body =
-                    $"""
-                                         value.{propertyName} ??= new {TypeName(member.Type)}();
-                                         value.{propertyName}.Add({ReadItemExpression(itemType, readerExpression: "reader")});
-                     """;
+                    $"                    {ReadItemStatement($"({InlineListLocal(member)} ??= new())", member.ItemType!, readerExpression: "reader")}";
             }
             else
             {
-                string readExpression = IsComplex(member.Type)
-                    ? $"Read_{_types[(INamedTypeSymbol)member.Type].Id}(reader)"
+                string readExpression = member.Type.IsComplex
+                    ? $"Read_{IdOf(member.Type)}(reader)"
                     : ParseExpression(valueExpression: "reader.ReadElementContentAsString()", member.Type,
-                        $"value.{propertyName}");
+                        $"value.{propertyName}", member.PropertyName);
 
                 body = $"                    value.{propertyName} = {readExpression};";
             }
@@ -371,14 +408,14 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                  """ + Environment.NewLine;
         }
 
-        private string ReadArrayHelperSource(TypeInfo info, MemberInfo member)
+        private string ReadArrayHelperSource(string typeId, MemberModel member)
         {
-            ITypeSymbol itemType = member.ItemType!;
+            TypeShape itemType = member.ItemType!;
             return
                 $$"""
-                      private static {{TypeName(member.Type)}} ReadList_{{info.Id}}_{{member.Property.Name}}(XmlReader reader)
+                      private static {{member.Type.TypeName}} ReadList_{{typeId}}_{{member.PropertyName}}(XmlReader reader)
                       {
-                          {{TypeName(member.Type)}} list = new();
+                          {{member.Type.TypeName}} list = new();
                           bool isEmpty = reader.IsEmptyElement;
                           reader.ReadStartElement();
                           if (isEmpty) return list;
@@ -391,7 +428,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                                   continue;
                               }
 
-                              if (reader.LocalName == {{Literal(member.ItemName)}}) list.Add({{ReadItemExpression(itemType, readerExpression: "reader")}});
+                              if (reader.LocalName == {{Literal(member.ItemName)}}) {{ReadItemStatement("list", itemType, readerExpression: "reader")}}
                               else reader.Skip();
                           }
 
@@ -402,332 +439,78 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                   """ + Environment.NewLine;
         }
 
-        private string ReadItemExpression(ITypeSymbol itemType, string readerExpression) =>
-            IsComplex(itemType)
-                ? $"Read_{_types[(INamedTypeSymbol)itemType].Id}({readerExpression})"
-                : ParseExpression($"{readerExpression}.ReadElementContentAsString()", itemType,
-                    DefaultExpression(itemType));
-
-        private MemberInfo? CreateMember(IPropertySymbol property)
+        /// <summary>Reads one list item; an enum item with an unknown name is skipped instead of becoming member 0.</summary>
+        private string ReadItemStatement(string listExpression, TypeShape itemType, string readerExpression)
         {
-            ITypeSymbol type = property.Type;
-            bool isCollection = TryGetListItemType(type, out ITypeSymbol? itemType);
-            ITypeSymbol validateType = itemType ?? type;
+            string raw = $"{readerExpression}.ReadElementContentAsString()";
+            if (itemType.IsComplex)
+                return $"{listExpression}.Add(Read_{IdOf(itemType)}({readerExpression}));";
+            if (itemType is { Kind: ValueKind.Enum, IsNullableValue: false })
+                return $"AddE({listExpression}, {raw}, isFlags: {BoolLiteral(itemType.IsFlags)});";
 
-            if (!IsSupported(validateType))
-            {
-                ReportUnsupported(property, validateType);
-                return null;
-            }
-
-            AttributeData? attr = FindAttribute(property, XmlAttributeAttribute);
-            if (attr != null)
-            {
-                if (isCollection || !IsAttributeType(type))
-                {
-                    ReportUnsupported(property, type);
-                    return null;
-                }
-
-                return new MemberInfo(
-                    property,
-                    type,
-                    MemberShape.Attribute,
-                    AttributeName(attr, property.Name),
-                    string.Empty,
-                    itemType);
-            }
-
-            AttributeData? array = FindAttribute(property, XmlArrayAttribute);
-            AttributeData? element = FindAttribute(property, XmlElementAttribute);
-
-            if (isCollection)
-            {
-                if (element != null)
-                {
-                    string collectionElementName = AttributeName(element, property.Name);
-                    return new MemberInfo(
-                        property,
-                        type,
-                        MemberShape.Element,
-                        collectionElementName,
-                        collectionElementName,
-                        itemType);
-                }
-
-                string itemName = GetItemName(property, itemType);
-                string wrapperName = array != null ? AttributeName(array, property.Name) : property.Name;
-                return new MemberInfo(property, type, MemberShape.Array, wrapperName, itemName, itemType);
-            }
-
-            string elementName = element != null ? AttributeName(element, property.Name) : property.Name;
-            return new MemberInfo(property, type, MemberShape.Element, elementName, string.Empty, itemType);
+            return $"{listExpression}.Add({ParseExpression(raw, itemType, DefaultExpression(itemType), memberName: null)});";
         }
 
-        private void ReportUnsupported(IPropertySymbol property, ITypeSymbol type)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
-                UnsupportedMember,
-                property.Locations.FirstOrDefault(),
-                property.ToDisplayString(),
-                type.ToDisplayString()));
-        }
+        private static string InlineListLocal(MemberModel member) => $"inline_{member.PropertyName}";
+    }
 
-        private static IEnumerable<IPropertySymbol> SerializableProperties(INamedTypeSymbol type)
-        {
-            Stack<INamedTypeSymbol> hierarchy = new();
-            for (INamedTypeSymbol? current = type;
-                 current != null && current.SpecialType != SpecialType.System_Object;
-                 current = current.BaseType)
-                hierarchy.Push(current);
+    private static string FormatExpression(string expression, TypeShape type) =>
+        type.NullableUnderlying is { } underlying
+            ? $"{expression}.HasValue ? {FormatExpression($"{expression}.Value", underlying)} : string.Empty"
+            : $"F({expression})";
 
-            HashSet<string> seen = [];
-            while (hierarchy.Count > 0)
+    /// <param name="memberName">
+    /// Property being read from <c>value</c>; an unknown enum name is reported to it through
+    /// <c>ITrayXmlUnknownValueHandler</c>. Null for list items.
+    /// </param>
+    private static string ParseExpression(
+        string valueExpression,
+        TypeShape type,
+        string fallbackExpression,
+        string? memberName)
+    {
+        if (type.NullableUnderlying is { } underlying)
+        {
+            return underlying.Kind switch
             {
-                INamedTypeSymbol current = hierarchy.Pop();
-                foreach (IPropertySymbol property in current.GetMembers().OfType<IPropertySymbol>())
-                {
-                    if (!seen.Add(property.Name)) continue;
-                    if (property.IsStatic) continue;
-                    if (property.Parameters.Length != 0) continue;
-                    if (property.GetMethod == null || property.SetMethod == null) continue;
-                    if (property.GetMethod.DeclaredAccessibility != Accessibility.Public
-                        || property.SetMethod.DeclaredAccessibility != Accessibility.Public)
-                        continue;
-                    if (HasAttribute(property, XmlIgnoreAttribute)) continue;
-
-                    yield return property;
-                }
-            }
-        }
-
-        private static bool TryGetListItemType(ITypeSymbol type, out ITypeSymbol? itemType)
-        {
-            itemType = null;
-            if (type is not INamedTypeSymbol { IsGenericType: true } named
-                || named.ConstructedFrom.ToDisplayString() != "System.Collections.Generic.List<T>")
-                return false;
-
-            itemType = named.TypeArguments[0];
-            return true;
-        }
-    }
-
-    private sealed class TypeInfo(INamedTypeSymbol type, string id, string rootName)
-    {
-        public INamedTypeSymbol Type { get; } = type;
-        public string Id { get; } = id;
-        public string RootName { get; } = rootName;
-        public List<MemberInfo> Members { get; } = [];
-    }
-
-    private sealed class MemberInfo(
-        IPropertySymbol property,
-        ITypeSymbol type,
-        MemberShape shape,
-        string name,
-        string itemName,
-        ITypeSymbol? itemType)
-    {
-        public IPropertySymbol Property { get; } = property;
-        public ITypeSymbol Type { get; } = type;
-        public MemberShape Shape { get; } = shape;
-        public string Name { get; } = name;
-        public string ItemName { get; } = itemName;
-        public ITypeSymbol? ItemType { get; } = itemType;
-        public bool IsCollection => ItemType != null;
-    }
-
-    private enum MemberShape
-    {
-        Element,
-        Attribute,
-        Array
-    }
-
-    private static string FormatExpression(string expression, ITypeSymbol type)
-    {
-        if (IsNullableValue(type))
-        {
-            ITypeSymbol underlying = Nullable.GetUnderlyingTypeSymbol(type)!;
-            return $"{expression}.HasValue ? {FormatExpression($"{expression}.Value", underlying)} : string.Empty";
-        }
-
-        if (type.SpecialType == SpecialType.System_String
-            || type.SpecialType == SpecialType.System_Boolean
-            || type.SpecialType == SpecialType.System_Int32
-            || type.SpecialType == SpecialType.System_UInt32
-            || type.SpecialType == SpecialType.System_Int64
-            || type.SpecialType == SpecialType.System_Double
-            || type.TypeKind == TypeKind.Enum
-            || IsDateTime(type))
-            return $"F({expression})";
-
-        return $"F({expression}.ToString())";
-    }
-
-    private static string ParseExpression(string valueExpression, ITypeSymbol type, string fallbackExpression)
-    {
-        if (IsNullableValue(type))
-        {
-            ITypeSymbol underlying = Nullable.GetUnderlyingTypeSymbol(type)!;
-            if (underlying.TypeKind == TypeKind.Enum)
-                return $"PNEnum<{TypeName(underlying)}>({valueExpression})";
-
-            return underlying.SpecialType switch
-            {
-                SpecialType.System_Boolean => $"PNBool({valueExpression})",
-                SpecialType.System_Int32 => $"PNInt32({valueExpression})",
-                SpecialType.System_UInt32 => $"PNUInt32({valueExpression})",
-                SpecialType.System_Int64 => $"PNInt64({valueExpression})",
-                SpecialType.System_Double => $"PNDouble({valueExpression})",
-                _ => IsDateTime(underlying) ? $"PNDateTime({valueExpression})" : "null"
+                ValueKind.Enum =>
+                    $"PNEnum<{underlying.TypeName}>({valueExpression}, isFlags: {BoolLiteral(underlying.IsFlags)})",
+                ValueKind.Boolean => $"PNBool({valueExpression})",
+                ValueKind.Int32 => $"PNInt32({valueExpression})",
+                ValueKind.UInt32 => $"PNUInt32({valueExpression})",
+                ValueKind.Int64 => $"PNInt64({valueExpression})",
+                ValueKind.Double => $"PNDouble({valueExpression})",
+                ValueKind.DateTime => $"PNDateTime({valueExpression})",
+                _ => "null"
             };
         }
 
-        if (type.TypeKind == TypeKind.Enum)
-            return $"P<{TypeName(type)}>({valueExpression}, {fallbackExpression})";
-
-        return type.SpecialType switch
+        return type.Kind switch
         {
-            SpecialType.System_String => IsNullableReference(type)
+            ValueKind.Enum =>
+                $"PE<{type.TypeName}>({valueExpression}, {fallbackExpression}, isFlags: {BoolLiteral(type.IsFlags)}, " +
+                $"{(memberName == null ? "null" : "value")}, {(memberName == null ? "null" : Literal(memberName))})",
+            ValueKind.String => type.IsNullableReference
                 ? $"PNString({valueExpression}, {fallbackExpression})"
                 : $"P({valueExpression}, {fallbackExpression} ?? string.Empty)",
-            SpecialType.System_Boolean or SpecialType.System_Int32 or SpecialType.System_UInt32
-                or SpecialType.System_Int64
-                or SpecialType.System_Double => $"P({valueExpression}, {fallbackExpression})",
-            _ => IsDateTime(type) ? $"P({valueExpression}, {fallbackExpression})" : fallbackExpression
+            ValueKind.Boolean or ValueKind.Int32 or ValueKind.UInt32 or ValueKind.Int64 or ValueKind.Double
+                or ValueKind.DateTime => $"P({valueExpression}, {fallbackExpression})",
+            _ => fallbackExpression
         };
     }
 
-    private static bool IsSupported(ITypeSymbol type)
+    private static string DefaultExpression(TypeShape type) => type.Kind switch
     {
-        if (IsNullableValue(type)) type = Nullable.GetUnderlyingTypeSymbol(type)!;
-        return IsSimple(type) || IsComplex(type);
-    }
+        ValueKind.String => "string.Empty",
+        ValueKind.Complex => "default",
+        _ => $"default({type.TypeName})"
+    };
 
-    private static bool IsAttributeType(ITypeSymbol type)
-    {
-        if (IsNullableValue(type)) type = Nullable.GetUnderlyingTypeSymbol(type)!;
-        return IsSimple(type);
-    }
-
-    private static bool IsSimple(ITypeSymbol type) =>
-        type.SpecialType is SpecialType.System_String
-            or SpecialType.System_Boolean
-            or SpecialType.System_Int32
-            or SpecialType.System_UInt32
-            or SpecialType.System_Int64
-            or SpecialType.System_Double
-        || type.TypeKind == TypeKind.Enum
-        || IsDateTime(type);
-
-    private static bool IsComplex(ITypeSymbol type)
-    {
-        if (IsNullableValue(type)) return false;
-        if (IsSimple(type)) return false;
-        if (type is not INamedTypeSymbol named) return false;
-        if (named.TypeKind is not (TypeKind.Class or TypeKind.Struct)) return false;
-
-        return named.ContainingNamespace?.ToDisplayString().StartsWith(value: "System", StringComparison.Ordinal) !=
-               true
-               && HasPublicParameterlessConstructor(named);
-    }
-
-    private static bool HasPublicParameterlessConstructor(INamedTypeSymbol type)
-    {
-        if (type.TypeKind == TypeKind.Struct) return true;
-
-        return type.InstanceConstructors.Any(static ctor =>
-            ctor.Parameters.Length == 0 && ctor.DeclaredAccessibility == Accessibility.Public);
-    }
-
-    private static string GetItemName(IPropertySymbol property, ITypeSymbol? itemType)
-    {
-        AttributeData? item = FindAttribute(property, XmlArrayItemAttribute);
-        if (item != null) return AttributeName(item, itemType?.Name ?? "Item");
-
-        return itemType?.SpecialType == SpecialType.System_String
-            ? "Item"
-            : itemType?.Name ?? "Item";
-    }
-
-    private static bool HasAttribute(ISymbol symbol, string metadataName) =>
-        FindAttribute(symbol, metadataName) != null;
-
-    private static AttributeData? FindAttribute(ISymbol symbol, string metadataName) =>
-        symbol.GetAttributes().FirstOrDefault(attr =>
-            attr.AttributeClass?.ToDisplayString() == metadataName);
-
-    private static string GetRootName(INamedTypeSymbol type)
-    {
-        AttributeData? attr = FindAttribute(type, XmlRootAttribute);
-        return attr == null ? type.Name : AttributeName(attr, type.Name);
-    }
-
-    private static string AttributeName(AttributeData attr, string fallback)
-    {
-        if (attr.ConstructorArguments.Length > 0
-            && attr.ConstructorArguments[0].Value is string ctorValue
-            && !string.IsNullOrEmpty(ctorValue))
-            return ctorValue;
-
-        foreach (KeyValuePair<string, TypedConstant> named in attr.NamedArguments)
-        {
-            if (named.Key is "ElementName" or "AttributeName"
-                && named.Value.Value is string value
-                && !string.IsNullOrEmpty(value))
-                return value;
-        }
-
-        return fallback;
-    }
-
-    private static string TypeName(ITypeSymbol type) =>
-        type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+    private static string BoolLiteral(bool value) => value ? "true" : "false";
 
     private static string Identifier(string name) =>
         SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None ? name : $"@{name}";
 
-    private static bool IsNullableReference(ITypeSymbol type) =>
-        type is { NullableAnnotation: NullableAnnotation.Annotated, IsValueType: false };
-
-    private static bool IsNullableValue(ITypeSymbol type) =>
-        Nullable.GetUnderlyingTypeSymbol(type) != null;
-
-    private static bool IsDateTime(ITypeSymbol type) =>
-        type.ToDisplayString() == "System.DateTime";
-
-    private static string DefaultExpression(ITypeSymbol type)
-    {
-        if (type.TypeKind == TypeKind.Enum) return $"default({TypeName(type)})";
-
-        return type.SpecialType switch
-        {
-            SpecialType.System_String => "string.Empty",
-            SpecialType.System_Boolean => "default(bool)",
-            SpecialType.System_Int32 => "default(int)",
-            SpecialType.System_UInt32 => "default(uint)",
-            SpecialType.System_Int64 => "default(long)",
-            SpecialType.System_Double => "default(double)",
-            _ => IsDateTime(type) ? "default(DateTime)" : "default"
-        };
-    }
-
     private static string Literal(string value) =>
         SymbolDisplay.FormatLiteral(value, quote: true);
-}
-
-internal static class Nullable
-{
-    public static ITypeSymbol? GetUnderlyingTypeSymbol(ITypeSymbol type)
-    {
-        if (type is INamedTypeSymbol
-            {
-                IsGenericType: true, ConstructedFrom.SpecialType: SpecialType.System_Nullable_T
-            } named)
-            return named.TypeArguments[0];
-
-        return null;
-    }
 }

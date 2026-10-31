@@ -1,7 +1,5 @@
 using System.Xml.Serialization;
-using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Platform;
 using TrayAppDotNETCommon.Visuals;
 using FanSettings = FanControlTrayAppDotNET.Models.AppSettings;
 
@@ -15,27 +13,31 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public ThemeColor FlyoutBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutBackground));
+    // Each default reads the current dictionary; Debug reloads update its ThemeColor instances in place
+    private static AppThemeResources.FanAppThemeAxamlProperties ThemeDefaults =>
+        AppThemeResources.Current.AxamlFanAppTheme;
+
+    public ThemeColor FlyoutBackground { get; set; } = ThemeDefaults.FlyoutBackground;
 
     public ThemeColor FlyoutTitleBarBackground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(FlyoutTitleBarBackground));
+        ThemeDefaults.FlyoutTitleBarBackground;
 
     public ThemeColor FanCardBackground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(FanCardBackground));
+        ThemeDefaults.FanCardBackground;
 
     public ThemeColor GroupCardBackground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(GroupCardBackground));
+        ThemeDefaults.GroupCardBackground;
 
-    public ThemeColor FlyoutCardBorder { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutCardBorder));
+    public ThemeColor FlyoutCardBorder { get; set; } = ThemeDefaults.FlyoutCardBorder;
 
     public ThemeColor CurveEditorGridLine { get; set; } =
-        AppThemeColorCatalog.Color(nameof(CurveEditorGridLine));
+        ThemeDefaults.CurveEditorGridLine;
 
     public ThemeColor CurveEditorEffectiveCurve { get; set; } =
-        AppThemeColorCatalog.Color(nameof(CurveEditorEffectiveCurve));
+        ThemeDefaults.CurveEditorEffectiveCurve;
 
     public ThemeColor CurveEditorDisabledBand { get; set; } =
-        AppThemeColorCatalog.Color(nameof(CurveEditorDisabledBand));
+        ThemeDefaults.CurveEditorDisabledBand;
 
     public static string GetDefaultPath()
     {
@@ -45,75 +47,10 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
-        LoadOrDefault<AppTheme>(filePath);
+        LoadOrDefault<AppTheme>(filePath, static message => TADNLog.Log($"AppTheme.LoadOrDefault: {message}"));
 
     public static AppTheme Load(string filePath) =>
         Load<AppTheme>(filePath);
-
-    public void SaveToDefaultPath() => Save(GetDefaultPath());
-
-    public static WindowIcon? LoadAppIcon()
-    {
-        try
-        {
-            string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconRelativePath);
-            if (File.Exists(filePath)) return new WindowIcon(filePath);
-
-            Uri resource = new(Constants.AppIconResourceUri);
-            using Stream stream = AssetLoader.Open(resource);
-            return new WindowIcon(stream);
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"Fan AppTheme.LoadAppIcon: {ex.Message}");
-            return null;
-        }
-    }
-
-    public static NativeIcon? LoadAppNativeIcon()
-    {
-        try
-        {
-            string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconRelativePath);
-            if (File.Exists(filePath))
-                return NativeIcon.FromIco(File.ReadAllBytes(filePath), desiredSize: 32);
-
-            Uri resource = new(Constants.AppIconResourceUri);
-            using Stream stream = AssetLoader.Open(resource);
-            using MemoryStream memory = new();
-            stream.CopyTo(memory);
-            return NativeIcon.FromIco(memory.ToArray(), desiredSize: 32);
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"Fan AppTheme.LoadAppNativeIcon: {ex.Message}");
-            return null;
-        }
-    }
-
-    public static bool ResolveEffectiveIsLightTheme(FanSettings? settings)
-    {
-        bool systemIsLight = AppServices.Theme?.IsLightTheme ?? Default.IsLightTheme;
-        if (settings == null) return systemIsLight;
-        return settings.ThemeMode switch
-        {
-            ThemeMode.Light => true,
-            ThemeMode.Dark => false,
-            _ => systemIsLight
-        };
-    }
-
-    public Color ResolveForeground(FanSettings? settings, bool isLightTheme)
-    {
-        if (settings?.TextColor.Resolve(isLightTheme) is { } color) return color;
-        return Foreground.For(isLightTheme);
-    }
-
-    public Color ResolveBackground(FanSettings? settings, bool isLightTheme)
-    {
-        if (settings?.BackgroundColor.Resolve(isLightTheme) is { } color) return color;
-        return Background.For(isLightTheme);
-    }
 
     public Color ResolveFlyoutBackground(FanSettings? settings, bool isLightTheme)
     {

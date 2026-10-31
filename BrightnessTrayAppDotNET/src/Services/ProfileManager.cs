@@ -1,25 +1,17 @@
-using BrightnessTrayAppDotNET.Utils;
 using TrayAppDotNETCommon.Serialization;
 
 namespace BrightnessTrayAppDotNET.Services;
 
 /// <summary>
-/// Manages brightness profiles - loading, saving, and applying.
+/// Manages brightness profiles - loading, saving, and applying. <c>profiles.xml</c> goes through a
+/// <see cref="TrayXmlFileStore{T}"/>: a corrupt file is kept as a <c>.corrupt-*</c> backup, a locked one is never
+/// overwritten, and writes are atomic.
 /// </summary>
 public sealed class ProfileManager : IDisposable
 {
-    private const string EDIDIDPrefix = "edid:";
-
-    private readonly string _profilesPath;
-    private readonly KnownDisplaysStore _knownDisplays;
-    private readonly bool _ownsKnownDisplays;
+    private readonly TrayXmlFileStore<ProfileCollection> _store;
     private int _selectedIndex;
     private int _disposed;
-
-    // Set by MigrateLegacyMonitorStates when at least one MonitorState was upgraded during load,
-    // so the constructor can persist the migrated XML eagerly (otherwise the next user-driven Save
-    // would do it, but we'd rather not leave the file in its legacy shape any longer than necessary).
-    private bool _migrationDirty;
 
     /// <summary>
     /// Event raised when the selected profile changes.
@@ -76,33 +68,20 @@ public sealed class ProfileManager : IDisposable
     {
     }
 
-    /// <summary>
-    /// <paramref name="knownDisplays"/> is the EDID resolver consulted by the load-time legacy-ID
-    /// migration; null falls back to a default-constructed store backed by <c>displays.json</c>
-    /// (the same file <see cref="MonitorService"/> populates), so a parameterless construction
-    /// still gets the migration without needing the caller to wire up the dependency.
-    /// </summary>
-    public ProfileManager(string profilesPath, KnownDisplaysStore? knownDisplays = null)
+    /// <summary>Loads <paramref name="profilesPath"/>, creating the default four profiles when it is missing.</summary>
+    public ProfileManager(string profilesPath)
     {
-        _profilesPath = profilesPath;
-        if (knownDisplays == null)
-        {
-            _knownDisplays = new KnownDisplaysStore();
-            _ownsKnownDisplays = true;
-        }
-        else
-            _knownDisplays = knownDisplays;
-
-        // Ensure the store is populated even when the caller didn't pre-load it; idempotent if it was.
-        _knownDisplays.Load();
-        bool fileExisted = File.Exists(_profilesPath);
-        Profiles = LoadOrCreate();
+        _store = new TrayXmlFileStore<ProfileCollection>(
+            profilesPath,
+            CreateDefault,
+            static message => TADNLog.Log($"ProfileManager: {message}"),
+            static collection =>
+            {
+                NormalizeCurves(collection);
+                return false;
+            });
+        Profiles = _store.Load();
         _selectedIndex = Profiles.LastSelectedIndex;
-
-        // Persist the default collection on first run so the file is visible to users
-        // (matches the AppSettings behavior). Also persists the migrated form on subsequent
-        // runs when LoadOrCreate flipped any legacy-ID entries to EDIDKey.
-        if (!fileExisted || _migrationDirty) Save();
     }
 
     /// <summary>
@@ -247,49 +226,24 @@ public sealed class ProfileManager : IDisposable
     }
 
     /// <summary>
-    /// Looks up the saved <see cref="MonitorState"/> for a live <see cref="MonitorInfo"/>.
-    /// Authoritative match is by <see cref="MonitorState.EDIDKey"/>; legacy entries that haven't
-    /// been migrated yet (load-time migration only handles <c>edid:</c>-prefix IDs - see
-    /// <see cref="MigrateLegacyMonitorStates"/>) are still resolved through their stored
-    /// <see cref="MonitorState.ID"/> and opportunistically upgraded in place: when the legacy-ID
-    /// fallback hits and the live monitor exposes a non-empty EDIDKey, the saved entry's EDIDKey
-    /// is populated so the next lookup goes through the primary path. The next user-driven
-    /// <see cref="Save"/> persists the upgrade. Centralised so save / apply / preview /
-    /// divergence-check all use the same matching rule and can't drift relative to each other.
+    /// Looks up the saved <see cref="MonitorState"/> for a live <see cref="MonitorInfo"/> by
+    /// <see cref="MonitorState.EDIDKey"/>. Centralised so save / apply / preview / divergence-check all use the
+    /// same matching rule and can't drift relative to each other.
     /// </summary>
-    public static MonitorState? FindStateForMonitor(IList<MonitorState> states, MonitorInfo monitor)
-    {
-        if (!string.IsNullOrEmpty(monitor.EDIDKey))
-        {
-            MonitorState? byEDID = states.FirstOrDefault(s =>
+    public static MonitorState? FindStateForMonitor(IList<MonitorState> states, MonitorInfo monitor) =>
+        string.IsNullOrEmpty(monitor.EDIDKey)
+            ? null
+            : states.FirstOrDefault(s =>
                 !string.IsNullOrEmpty(s.EDIDKey)
                 && string.Equals(s.EDIDKey, monitor.EDIDKey, StringComparison.Ordinal));
-            if (byEDID != null) return byEDID;
-        }
 
-        MonitorState? byLegacyID = states.FirstOrDefault(s =>
-            !string.IsNullOrEmpty(LegacyIDOf(s)) && LegacyIDOf(s) == monitor.ID);
-        if (byLegacyID != null
-            && string.IsNullOrEmpty(byLegacyID.EDIDKey)
-            && !string.IsNullOrEmpty(monitor.EDIDKey))
-            byLegacyID.EDIDKey = monitor.EDIDKey;
-        return byLegacyID;
-    }
-
-    // Read-only access to the obsolete MonitorState.ID, isolated to migration-aware code paths.
-    // The wider codebase no longer touches the legacy property, but the load-time and lazy
-    // migration logic must - wrap the suppression here so the rest of the file stays clean.
-#pragma warning disable CS0618
-    private static string LegacyIDOf(MonitorState state) => state.ID;
     private static MonitorState CloneMonitorState(MonitorState s) => new()
     {
-        ID = s.ID,
         EDIDKey = s.EDIDKey,
         Brightness = s.Brightness,
         IsPoweredOn = s.IsPoweredOn,
         IsSliderEnabled = s.IsSliderEnabled
     };
-#pragma warning restore CS0618
 
     /// <summary>
     /// Gets the custom glyph for a profile, if any.
@@ -458,34 +412,11 @@ public sealed class ProfileManager : IDisposable
     {
         foreach (MonitorState state in profile.MonitorStates)
         {
-            // EDIDKey is authoritative; legacy ID is consulted only for unmigrated entries
-            // (LoadOrCreate migrates edid:-prefix IDs eagerly, FindStateForMonitor migrates the
-            // rest lazily on first live-monitor match - see MigrateLegacyMonitorStates).
-            // Mirrors FindStateForMonitor but iterates the other way.
-            MonitorInfo? monitor = null;
-            if (!string.IsNullOrEmpty(state.EDIDKey))
-            {
-                monitor = monitors.FirstOrDefault(m =>
+            MonitorInfo? monitor = string.IsNullOrEmpty(state.EDIDKey)
+                ? null
+                : monitors.FirstOrDefault(m =>
                     !string.IsNullOrEmpty(m.EDIDKey)
                     && string.Equals(m.EDIDKey, state.EDIDKey, StringComparison.Ordinal));
-            }
-
-            if (monitor == null)
-            {
-                string legacyID = LegacyIDOf(state);
-                if (!string.IsNullOrEmpty(legacyID))
-                {
-                    monitor = monitors.FirstOrDefault(m => m.ID == legacyID);
-                    if (monitor != null
-                        && string.IsNullOrEmpty(state.EDIDKey)
-                        && !string.IsNullOrEmpty(monitor.EDIDKey))
-                    {
-                        // Lazy migration symmetric with FindStateForMonitor: backfill EDIDKey
-                        // the moment a live monitor confirms the binding.
-                        state.EDIDKey = monitor.EDIDKey;
-                    }
-                }
-            }
 
             if (monitor != null)
             {
@@ -504,86 +435,6 @@ public sealed class ProfileManager : IDisposable
                     : SliderStateMachine.OnUserToggleOff(monitor.SliderState);
             }
         }
-    }
-
-    private ProfileCollection LoadOrCreate()
-    {
-        try
-        {
-            if (TrayXmlSerializer.TryReadFile(_profilesPath, out ProfileCollection? loaded))
-            {
-                NormalizeCurves(loaded);
-                MigrateLegacyMonitorStates(loaded);
-                return loaded;
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"ProfileManager.LoadOrCreate: {ex.Message}");
-        }
-
-        return CreateDefault();
-    }
-
-    /// <summary>
-    /// One-time, idempotent upgrade of <see cref="MonitorState"/> entries that were written before
-    /// <see cref="MonitorState.EDIDKey"/> existed.
-    /// <list type="bullet">
-    /// <item><c>edid:&lt;serial&gt;</c>-prefix legacy IDs map directly to EDIDKey
-    /// (<see cref="MonitorService"/>'s <c>ComputeEDIDKey</c> always emits that exact prefix);
-    /// optionally cross-checked against <see cref="KnownDisplaysStore"/> when an entry is present.</item>
-    /// <item><c>num:</c> and <c>port:</c> legacy IDs cannot be eagerly resolved - the mapping back to
-    /// an EDIDKey requires a live <see cref="MonitorInfo"/>, which only the lazy fallback in
-    /// <see cref="FindStateForMonitor"/> and <see cref="ApplyProfile"/> can supply on first match.</item>
-    /// </list>
-    /// Entries that can't be migrated keep their legacy ID intact (no data loss for offline displays
-    /// not in <see cref="KnownDisplaysStore"/>); the runtime fallback chain is reduced but not removed
-    /// because the app creates this manager parameterless and so the resolver can only see
-    /// EDIDKeys, not the full live-monitor list.
-    /// Sets <see cref="_migrationDirty"/> when at least one entry was upgraded so the constructor
-    /// persists the migrated XML; running again on already-migrated data is a no-op.
-    /// </summary>
-    private void MigrateLegacyMonitorStates(ProfileCollection collection)
-    {
-        // Cache the set of known EDIDKeys so we can flag upgrades that resolve to an EDIDKey the
-        // store has actually seen - useful telemetry, but not a hard requirement: the prefix itself
-        // is sufficient because the legacy ID was produced by ComputeEDIDKey and so is already
-        // exactly the EDIDKey we'd write today.
-        HashSet<string> knownEDIDKeys = _knownDisplays.Entries
-            .Where(e => !string.IsNullOrEmpty(e.EDIDKey))
-            .Select(e => e.EDIDKey)
-            .ToHashSet(StringComparer.Ordinal);
-
-        bool anyUpgrade = false;
-        foreach (BrightnessProfile profile in collection.Profiles)
-        {
-            foreach (MonitorState state in profile.MonitorStates)
-            {
-                // Already migrated - idempotent fast path.
-                if (!string.IsNullOrEmpty(state.EDIDKey)) continue;
-
-                string legacyID = LegacyIDOf(state);
-                if (string.IsNullOrEmpty(legacyID)) continue;
-
-                if (legacyID.StartsWith(EDIDIDPrefix, StringComparison.Ordinal))
-                {
-                    // edid:<serial> IS the EDIDKey by construction (ComputeEDIDKey == ComputeMonitorID
-                    // with EDIDSerial strategy). Adopting the value directly is the eager migration.
-                    state.EDIDKey = legacyID;
-                    anyUpgrade = true;
-                    if (knownEDIDKeys.Count > 0 && !knownEDIDKeys.Contains(legacyID))
-                    {
-                        TADNLog.Log(
-                            $"ProfileManager: migrated EDIDKey '{legacyID}' not yet in KnownDisplays");
-                    }
-                }
-                // num:N / port:... legacy IDs can't be mapped without a live MonitorInfo.
-                // Intentionally left in place so re-plug-in through FindStateForMonitor /
-                // ApplyProfile completes the migration on first match.
-            }
-        }
-
-        _migrationDirty = anyUpgrade;
     }
 
     private static ProfileCollection CreateDefault()
@@ -615,44 +466,25 @@ public sealed class ProfileManager : IDisposable
     public void Save()
     {
         if (Volatile.Read(ref _disposed) != 0) return;
-        SaveCore();
+        _store.SaveNow();
     }
 
     /// <summary>
-    /// Persists current in-memory profile state on app shutdown.
-    /// Curve edits update <see cref="BrightnessProfile.EnvironmentalCurve"/> in place and rely on the
-    /// Environmental page's UI-side debounce timer to call <see cref="Save"/>;
-    /// SessionEnding can fire while that debounce is still pending, bypassing the
-    /// <c>SettingsWindow.OnClosing</c> flush.
-    /// This method forces a synchronous final save so the latest in-memory state hits disk regardless of
-    /// debounce state.
-    /// Idempotent: <see cref="Save"/> just rewrites whatever is currently in memory, so multiple calls
-    /// are harmless (and a no-op effectively, when nothing has changed since the last save).
+    /// Writes the current profiles and waits for the write. Curve edits update
+    /// <see cref="BrightnessProfile.EnvironmentalCurve"/> in place and rely on the Environmental page's debounce to
+    /// call <see cref="Save"/>, which may still be pending at exit.
     /// </summary>
-    public void SaveOnShutdown() => SaveCore();
-
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;
 
-        try { SaveCore(); }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"ProfileManager.Dispose save: {ex.Message}");
-        }
+        _store.SaveNow();
+        _store.Flush();
 
         SelectedProfileChanged = null;
         UnsavedChangesStatusChanged = null;
         ProfilesListChanged = null;
-
-        if (_ownsKnownDisplays) _knownDisplays.Dispose();
     }
-
-    private void SaveCore()
-        => TrayXmlSerializer.TryWriteFile(
-            _profilesPath,
-            Profiles,
-            ex => TADNLog.Log($"ProfileManager.Save: {ex.Message}"));
 
     /// <summary>
     /// Gets the default profiles file path.

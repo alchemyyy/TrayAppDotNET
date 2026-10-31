@@ -1,15 +1,23 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
+using TrayAppDotNETCommon.Serialization;
 
 namespace FanControlTrayAppDotNET.Models;
 
 // Persisted catalog entry for named fan groups. The actual fan membership remains on Fan.Group
 // so applying a fan profile or swapping fan settings can move a fan without changing the catalog.
-public class FanGroup : INotifyPropertyChanged
+// The generated reader never touches the static registry while assigning Name; AppSettings rebuilds the registry
+// from the complete loaded list in InitializeFanControlRegistries.
+public class FanGroup : INotifyPropertyChanged, ITrayXmlSerializationCallbacks
 {
     private bool _suppressRegistryUpdate;
+
+    void ITrayXmlSerializationCallbacks.OnTrayXmlDeserializing() => _suppressRegistryUpdate = true;
+
+    void ITrayXmlSerializationCallbacks.OnTrayXmlDeserialized() => _suppressRegistryUpdate = false;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -122,7 +130,12 @@ public class FanGroup : INotifyPropertyChanged
 
     [XmlIgnore]
     public string AssignedCurveDisplayLabel =>
-        string.IsNullOrEmpty(AssignedCurveName) ? "Curve: None" : $"Curve: {AssignedCurveName}";
+        string.IsNullOrEmpty(AssignedCurveName)
+            ? LocalizationManager.Instance[nameof(AppStrings.Fan_CurveLabel_None)]
+            : string.Format(
+                CultureInfo.CurrentCulture,
+                LocalizationManager.Instance[nameof(AppStrings.Fan_CurveLabel_Format)],
+                AssignedCurveName);
 
     public static void Register(FanGroup group)
     {
@@ -183,7 +196,7 @@ public class ProbeCard
 
     [XmlIgnore]
     public string DisplayName =>
-        string.IsNullOrWhiteSpace(Name) ? "Probe Card" : Name;
+        string.IsNullOrWhiteSpace(Name) ? LocalizationManager.Instance[nameof(AppStrings.Fan_ProbeCard_DefaultName)] : Name;
 
     /// <summary>Repairs missing or invalid visibility without assigning a card to every profile.</summary>
     public bool EnsureProfileVisibility(int selectedProfileIndex)
@@ -360,10 +373,6 @@ public class FanUserSettings
         get => ForcedNonFunctioning;
         set => ForcedNonFunctioning = value;
     }
-
-    [XmlArray("Triggers")]
-    [XmlArrayItem("Trigger")]
-    public List<Trigger> Triggers { get; set; } = [];
 }
 
 // Profiles own fan names, group membership, and layout as well as flyout control state.
@@ -385,7 +394,12 @@ public class FanProfile
 
     /// <summary>Resolves a custom profile name or its numbered fallback.</summary>
     public string DisplayName(int profileIndex) =>
-        string.IsNullOrWhiteSpace(Name) ? $"Profile {profileIndex + 1}" : Name;
+        string.IsNullOrWhiteSpace(Name)
+            ? string.Format(
+                CultureInfo.CurrentCulture,
+                LocalizationManager.Instance[nameof(AppStrings.Fan_Profile_DefaultName_Format)],
+                profileIndex + 1)
+            : Name;
 
     public static FanProfile FromFans(string name, IEnumerable<Fan> fans)
     {

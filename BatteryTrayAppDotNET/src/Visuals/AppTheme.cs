@@ -1,7 +1,5 @@
 using System.Xml.Serialization;
-using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Platform;
 using TrayAppDotNETCommon.Visuals;
 using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 
@@ -12,53 +10,17 @@ public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
+    // Each default reads the current dictionary; Debug reloads update its ThemeColor instances in place
+    private static AppThemeResources.BatteryAppThemeAxamlProperties ThemeDefaults =>
+        AppThemeResources.Current.AxamlBatteryAppTheme;
+
     public ThemeColor BatteryChargingFill { get; set; } =
-        AppThemeColorCatalog.Color(nameof(BatteryChargingFill));
+        ThemeDefaults.BatteryChargingFill;
 
     public ThemeColor BatteryCriticalFill { get; set; } =
-        AppThemeColorCatalog.Color(nameof(BatteryCriticalFill));
+        ThemeDefaults.BatteryCriticalFill;
 
-    public ThemeColor BatteryLowFill { get; set; } = AppThemeColorCatalog.Color(nameof(BatteryLowFill));
-
-    public static WindowIcon? LoadAppIcon()
-    {
-        string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-        if (File.Exists(filePath)) return new WindowIcon(filePath);
-
-        Uri uri = new(Constants.AppIconResourceUri);
-        if (AssetLoader.Exists(uri))
-        {
-            using Stream stream = AssetLoader.Open(uri);
-            return new WindowIcon(stream);
-        }
-
-        return null;
-    }
-
-    public static NativeIcon? LoadAppNativeIcon()
-    {
-        try
-        {
-            int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-            if (File.Exists(filePath)) return NativeIcon.FromIco(File.ReadAllBytes(filePath), size);
-
-            Uri uri = new(Constants.AppIconResourceUri);
-            if (AssetLoader.Exists(uri))
-            {
-                using Stream stream = AssetLoader.Open(uri);
-                using MemoryStream memory = new();
-                stream.CopyTo(memory);
-                return NativeIcon.FromIco(memory.ToArray(), size);
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"AppTheme.LoadAppNativeIcon: {ex.Message}");
-        }
-
-        return null;
-    }
+    public ThemeColor BatteryLowFill { get; set; } = ThemeDefaults.BatteryLowFill;
 
     public static string GetDefaultPath()
     {
@@ -68,25 +30,12 @@ public sealed class AppTheme : CommonAppTheme
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
-        CommonAppTheme.LoadOrDefault<AppTheme>(filePath);
+        CommonAppTheme.LoadOrDefault<AppTheme>(
+            filePath,
+            static message => TADNLog.Log($"AppTheme.LoadOrDefault: {message}"));
 
     public static AppTheme Load(string filePath) =>
         CommonAppTheme.Load<AppTheme>(filePath);
-
-    public void SaveToDefaultPath() => Save(GetDefaultPath());
-
-    public static bool ResolveEffectiveIsLightTheme(AppSettings? settings)
-    {
-        bool systemIsLight = AppServices.Theme?.IsLightTheme ?? false;
-        if (settings == null) return systemIsLight;
-
-        return settings.ThemeMode switch
-        {
-            ThemeMode.Light => true,
-            ThemeMode.Dark => false,
-            _ => systemIsLight
-        };
-    }
 
     public Color ResolveBatteryFill(BatterySnapshot snapshot, bool isLightTheme)
     {

@@ -1,7 +1,5 @@
 using System.Xml.Serialization;
-using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Platform;
 using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Visuals;
 
@@ -12,14 +10,18 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 
+    // Each default reads the current dictionary; Debug reloads update its ThemeColor instances in place
+    private static AppThemeResources.NetworkAppThemeAxamlProperties ThemeDefaults =>
+        AppThemeResources.Current.AxamlNetworkAppTheme;
+
     public ThemeColor NetworkConnectedTrayIconColor { get; set; } =
-        AppThemeColorCatalog.Color(nameof(NetworkConnectedTrayIconColor));
+        ThemeDefaults.NetworkConnectedTrayIconColor;
 
     public ThemeColor NetworkNoInternetTrayIconColor { get; set; } =
-        AppThemeColorCatalog.Color(nameof(NetworkNoInternetTrayIconColor));
+        ThemeDefaults.NetworkNoInternetTrayIconColor;
 
     public ThemeColor NetworkDisconnectedTrayIconColor { get; set; } =
-        AppThemeColorCatalog.Color(nameof(NetworkDisconnectedTrayIconColor));
+        ThemeDefaults.NetworkDisconnectedTrayIconColor;
 
     public string GlyphNetworkEthernet { get; set; } = GlyphCatalog.NETWORK_ETHERNET.Text;
     public string GlyphNetworkWifi0 { get; set; } = GlyphCatalog.NETWORK_WIFI_0.Text;
@@ -37,74 +39,8 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     }
 
     public static AppTheme LoadOrDefault(string filePath) =>
-        LoadOrDefault<AppTheme>(filePath);
+        LoadOrDefault<AppTheme>(filePath, static message => TADNLog.Log($"AppTheme.LoadOrDefault: {message}"));
 
     public static AppTheme Load(string filePath) =>
         Load<AppTheme>(filePath);
-
-    public void SaveToDefaultPath() => Save(GetDefaultPath());
-
-    public static WindowIcon? LoadAppIcon()
-    {
-        string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-        if (File.Exists(filePath)) return new WindowIcon(filePath);
-
-        Uri uri = new(Constants.AppIconResourceUri);
-        if (AssetLoader.Exists(uri))
-        {
-            using Stream stream = AssetLoader.Open(uri);
-            return new WindowIcon(stream);
-        }
-
-        return null;
-    }
-
-    public static NativeIcon? LoadAppNativeIcon()
-    {
-        try
-        {
-            int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            string filePath = Path.Combine(AppContext.BaseDirectory, Constants.AppIconFileName);
-            if (File.Exists(filePath)) return NativeIcon.FromIco(File.ReadAllBytes(filePath), size);
-
-            Uri uri = new(Constants.AppIconResourceUri);
-            if (AssetLoader.Exists(uri))
-            {
-                using Stream stream = AssetLoader.Open(uri);
-                using MemoryStream memory = new();
-                stream.CopyTo(memory);
-                return NativeIcon.FromIco(memory.ToArray(), size);
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"AppTheme.LoadAppNativeIcon: {ex.Message}");
-        }
-
-        return null;
-    }
-
-    public static bool ResolveEffectiveIsLightTheme(AppSettings? settings)
-    {
-        bool systemIsLight = AppServices.Theme?.IsLightTheme ?? false;
-        if (settings == null) return systemIsLight;
-        return settings.ThemeMode switch
-        {
-            ThemeMode.Light => true,
-            ThemeMode.Dark => false,
-            _ => systemIsLight
-        };
-    }
-
-    public Color ResolveForeground(AppSettings? settings, bool isLightTheme)
-    {
-        if (settings?.TextColor.Resolve(isLightTheme) is { } color) return color;
-        return Foreground.For(isLightTheme);
-    }
-
-    public Color ResolveBackground(AppSettings? settings, bool isLightTheme)
-    {
-        if (settings?.BackgroundColor.Resolve(isLightTheme) is { } color) return color;
-        return Background.For(isLightTheme);
-    }
 }

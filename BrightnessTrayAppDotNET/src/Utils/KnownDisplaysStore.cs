@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TrayAppDotNETCommon.Serialization;
 using Timer = System.Threading.Timer;
 
 namespace BrightnessTrayAppDotNET.Utils;
@@ -7,8 +8,13 @@ namespace BrightnessTrayAppDotNET.Utils;
 /// Persistent registry of every unique display the app has ever enumerated, keyed by EDIDKey.
 /// Extracted from <see cref="AppSettings.KnownDisplays"/> so monitor enumeration no longer drags
 /// the entire settings XML through a write on every refresh;
-/// the registry grows without bound (disconnected monitors are never removed)
+/// the registry grows without bound (disconnected monitors are never removed except by "Clear displays")
 /// and was the largest contributor to settings-file churn.
+///
+/// The app creates exactly one instance and shares it between <see cref="Services.MonitorService"/>, every
+/// <see cref="Services.ProfileManager"/> and the settings pages (<c>AppServices.KnownDisplays</c>); a second instance
+/// would write its stale snapshot over the live one. Writes are atomic and happen only after a change.
+/// A corrupt <c>displays.json</c> is moved to a <c>.corrupt-*</c> backup; a locked one is never overwritten.
 ///
 /// Entries themselves are still <see cref="KnownDisplayEntry"/> instances so the type is shared with the legacy
 /// XML element; only the persistence path differs.
@@ -27,6 +33,12 @@ public sealed class KnownDisplaysStore : IDisposable
 
     private readonly Lock _gate = new();
     private List<KnownDisplayEntry> _entries = [];
+    private bool _loaded;
+    private bool _dirty;
+    private bool _savingDisabled;
+
+    // displays.json holds the entries: it loaded, or the legacy migration wrote it
+    private bool _entriesOnDisk;
 
     public KnownDisplaysStore(string path)
     {
@@ -41,9 +53,8 @@ public sealed class KnownDisplaysStore : IDisposable
     public KnownDisplaysStore() : this(GetDefaultPath()) { }
 
     /// <summary>
-    /// Snapshot of the current entries.
-    /// Safe to enumerate without holding the store's internal lock -
-    /// mutations replace the list reference rather than mutating in place when the file is reloaded.
+    /// Snapshot of the current entries, copied under the store's lock, so it is safe to enumerate while the
+    /// store keeps changing. The entry objects are the live ones.
     /// </summary>
     public IReadOnlyList<KnownDisplayEntry> Entries
     {
@@ -64,33 +75,50 @@ public sealed class KnownDisplaysStore : IDisposable
     }
 
     /// <summary>
-    /// Loads <c>displays.json</c> if present.
-    /// First-run migration: when the JSON file is absent and <paramref name="legacy"/> contains entries
-    /// (still living inside settings.xml from before this extraction),
-    /// copies them across and writes the JSON file so subsequent loads find it on disk.
+    /// Loads <c>displays.json</c> once; later calls only repeat the first answer, so every owner of the shared
+    /// instance may call it. First-run migration: when the JSON file is missing and <paramref name="legacy"/>
+    /// contains entries (still living inside settings.xml from before this extraction), copies them across and
+    /// writes the JSON file. Returns true only when the entries are on disk (the file loaded, or the migration
+    /// write succeeded), the one case where the caller may drop the legacy list: a locked or unmovable corrupt
+    /// file, or a failed migration write, leaves that list as the only durable copy.
     /// </summary>
-    public void Load(IEnumerable<KnownDisplayEntry>? legacy = null)
+    public bool Load(IEnumerable<KnownDisplayEntry>? legacy = null)
     {
         lock (_gate)
         {
-            if (TryReadFromDisk(out List<KnownDisplayEntry> loaded))
+            if (_loaded) return _entriesOnDisk;
+            _loaded = true;
+
+            DataFileLoadResult result = DataFileLoader.TryLoad(_path, ReadEntries, Log, out List<KnownDisplayEntry>? loaded);
+            switch (result)
             {
-                _entries = loaded;
-                return;
+                case DataFileLoadResult.Loaded:
+                    _entries = loaded!;
+                    _entriesOnDisk = true;
+                    return true;
+                case DataFileLoadResult.Locked:
+                    _savingDisabled = true;
+                    Log($"{_path}: saving is disabled for this session so the existing file is not overwritten.");
+                    return false;
+                case DataFileLoadResult.Corrupt when DataFileLoader.MoveCorruptAside(_path, Log) == null:
+                    _savingDisabled = true;
+                    return false;
             }
 
-            // First run after extraction: migrate from AppSettings.KnownDisplays so users upgrading
+            // Missing (or corrupt and moved aside): migrate from AppSettings.KnownDisplays so users upgrading
             // from an older build don't lose their accumulated history
             // (and, crucially, their sticky WasEverDDCCapable flags -
             // DDCRecoveryService keys candidate selection off those).
-            List<KnownDisplayEntry> seed = legacy?
+            _entries = legacy?
                 .Where(e => !string.IsNullOrEmpty(e.EDIDKey))
                 .Select(Clone)
                 .ToList() ?? [];
 
-            _entries = seed;
+            if (_entries.Count == 0) return false;
 
-            if (seed.Count > 0) SaveLocked();
+            _dirty = true;
+            _entriesOnDisk = TrySaveLocked();
+            return _entriesOnDisk;
         }
     }
 
@@ -118,17 +146,16 @@ public sealed class KnownDisplaysStore : IDisposable
     {
         if (entries == null) return;
 
-        bool changed = false;
         lock (_gate)
         {
             foreach (KnownDisplayEntry e in entries)
             {
                 if (string.IsNullOrEmpty(e.EDIDKey)) continue;
 
-                if (RegisterLocked(e)) changed = true;
+                RegisterLocked(e);
             }
 
-            if (changed) SaveLocked();
+            SaveLocked();
         }
     }
 
@@ -149,13 +176,30 @@ public sealed class KnownDisplaysStore : IDisposable
             if (entry.WasEverDDCCapable) return false;
 
             entry.WasEverDDCCapable = true;
+            _dirty = true;
             SaveLocked();
             return true;
         }
     }
 
     /// <summary>
-    /// Persists the current in-memory list to JSON.
+    /// Forgets every known display, including its sticky DDC flags and last bus brightness ("Clear displays").
+    /// Displays that are connected are registered again on the next monitor refresh.
+    /// </summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            if (_entries.Count == 0) return;
+
+            _entries = [];
+            _dirty = true;
+            SaveLocked();
+        }
+    }
+
+    /// <summary>
+    /// Persists the in-memory list to JSON if it changed since the last write.
     /// </summary>
     public void Save()
     {
@@ -178,14 +222,8 @@ public sealed class KnownDisplaysStore : IDisposable
         KnownDisplayEntry? existing = _entries.FirstOrDefault(e => e.EDIDKey == incoming.EDIDKey);
         if (existing == null)
         {
-            _entries.Add(new KnownDisplayEntry
-            {
-                EDIDKey = incoming.EDIDKey,
-                OriginalName = incoming.OriginalName,
-                EDIDSerial = incoming.EDIDSerial,
-                WasEverDDCCapable = incoming.WasEverDDCCapable,
-                LastBusBrightness = incoming.LastBusBrightness
-            });
+            _entries.Add(Clone(incoming));
+            _dirty = true;
             return true;
         }
 
@@ -213,58 +251,49 @@ public sealed class KnownDisplaysStore : IDisposable
         // LastBusBrightness is owned by the Stamp* path. Register-time merging never overwrites
         // a previously-observed value with null - that would discard intent every time MonitorService
         // re-registers a known display on Refresh.
+        _dirty |= changed;
         return changed;
     }
 
-    private bool TryReadFromDisk(out List<KnownDisplayEntry> loaded)
+    private void SaveLocked() => TrySaveLocked();
+
+    /// <summary>Writes pending changes; false when saving is disabled or the write failed.</summary>
+    private bool TrySaveLocked()
     {
-        loaded = [];
+        if (!_dirty) return true;
+        if (_savingDisabled) return false;
+
         try
         {
-            if (!File.Exists(_path)) return false;
-
-            using FileStream stream = File.OpenRead(_path);
-            if (stream.Length == 0) return false;
-
-            using JsonDocument document = JsonDocument.Parse(stream);
-            loaded = [.. ReadEntries(document.RootElement).Where(e => !string.IsNullOrEmpty(e.EDIDKey))];
+            AtomicFile.Write(_path, stream =>
+            {
+                using Utf8JsonWriter writer = new(stream, s_jsonWriterOptions);
+                WriteEntries(writer, _entries);
+                writer.Flush();
+            });
+            _dirty = false;
             return true;
         }
         catch (Exception ex)
         {
-            TADNLog.Log($"KnownDisplaysStore: load failed ({_path}): {ex.Message}");
+            Log($"save failed ({_path}): {ex.Message}");
             return false;
         }
     }
 
-    private void SaveLocked()
-    {
-        try
-        {
-            string? dir = Path.GetDirectoryName(_path);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+    private static void Log(string message) => TADNLog.Log($"KnownDisplaysStore: {message}");
 
-            using FileStream stream = new(_path, FileMode.Create, FileAccess.Write, FileShare.None);
-            using Utf8JsonWriter writer = new(stream, s_jsonWriterOptions);
-            WriteEntries(writer, _entries);
-            writer.Flush();
-            stream.Flush(true);
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"KnownDisplaysStore: save failed ({_path}): {ex.Message}");
-        }
-    }
-
-    private static List<KnownDisplayEntry> ReadEntries(JsonElement root)
+    private static List<KnownDisplayEntry> ReadEntries(Stream stream)
     {
+        using JsonDocument document = JsonDocument.Parse(stream);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("displays.json must hold a JSON array.");
+
         List<KnownDisplayEntry> entries = [];
-        if (root.ValueKind != JsonValueKind.Array) return entries;
-
-        foreach (JsonElement item in root.EnumerateArray())
+        foreach (JsonElement item in document.RootElement.EnumerateArray())
         {
             KnownDisplayEntry? entry = ReadEntry(item);
-            if (entry != null) entries.Add(entry);
+            if (entry != null && !string.IsNullOrEmpty(entry.EDIDKey)) entries.Add(entry);
         }
 
         return entries;
@@ -340,27 +369,16 @@ public sealed class KnownDisplaysStore : IDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
 
         int clamped = (int)Math.Round(Math.Clamp(value, min: 0, max: 100));
-        bool changed;
         lock (_gate)
         {
             KnownDisplayEntry? entry = _entries.FirstOrDefault(e => e.EDIDKey == edidKey);
-            if (entry == null) return;
-            changed = entry.LastBusBrightness != clamped;
-            if (changed) entry.LastBusBrightness = clamped;
+            if (entry == null || entry.LastBusBrightness == clamped) return;
+
+            entry.LastBusBrightness = clamped;
+            _dirty = true;
         }
 
-        if (changed) ScheduleDebouncedSave();
-    }
-
-    /// <summary>
-    /// Force any pending debounced save to flush now. Call on app shutdown so a stamp that
-    /// arrived in the last <see cref="TimeConstants.KnownDisplayStampDebounceMs"/> isn't lost when the process exits.
-    /// </summary>
-    public void Flush()
-    {
-        if (Volatile.Read(ref _disposed) != 0) return;
-        _stampDebounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
-        FlushPendingSave();
+        ScheduleDebouncedSave();
     }
 
     private void ScheduleDebouncedSave()
@@ -380,6 +398,7 @@ public sealed class KnownDisplaysStore : IDisposable
         lock (_gate) SaveLocked();
     }
 
+    /// <summary>Writes a pending stamp (only if something changed) and stops the debounce timer. Call at exit.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, value: 1) != 0) return;

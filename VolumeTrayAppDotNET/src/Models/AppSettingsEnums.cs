@@ -3,12 +3,6 @@ namespace VolumeTrayAppDotNET.Models;
 // Top-level enums consumed by AppSettings. Moved out of AppSettings.cs to keep that file focused on
 // settings state. Same namespace, same names - consumers needed no change.
 
-public enum TrayIconStyle
-{
-    Dynamic,
-    Static
-}
-
 /// <summary>
 /// Action taken when the tray icon is clicked or scrolled.
 /// Skeleton ships with a no-op placeholder; extend with project-specific actions in your fork.
@@ -28,18 +22,6 @@ public enum TrayWheelVolumeStep
     Default,
     Fine,
     Coarse
-}
-
-/// <summary>
-/// Where the tray right-click menu appears.
-/// Classic opens at the cursor position (the OS default for tray menus).
-/// Modern docks the menu in the bottom-right corner of the primary work area with an 8px inset,
-/// matching the Windows 11 system-flyout pattern.
-/// </summary>
-public enum ContextMenuPosition
-{
-    Classic,
-    Modern
 }
 
 /// <summary>
@@ -124,7 +106,8 @@ public enum FlyoutDisconnectedBluetoothDeviceVisibility
 }
 
 /// <summary>
-/// Left-click gesture that activates the flyout header's Bluetooth radio power button.
+/// Left-click gesture with which the flyout header's Bluetooth button turns the radio on or off.
+/// Any other left click on the button opens Windows Bluetooth quick settings.
 /// </summary>
 public enum BluetoothRadioButtonClickGesture
 {

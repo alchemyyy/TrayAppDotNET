@@ -15,19 +15,19 @@ namespace VolumeTrayAppDotNET.Models;
 ///   Adding a new clamped numeric should follow this pattern - no magic literals at call sites.
 ///
 /// Change notification:
-///   <see cref="RaiseChanged"/> fires <see cref="Changed"/> and schedules a debounced disk write via
-///   <see cref="RequestSave"/> (one save per quiet period regardless of how many setters fired during
-///   it). Per-property events still exist for <see cref="MeterPeakFpsChanged"/> /
+///   <see cref="RaiseChanged"/> fires <see cref="Changed"/> and requests a coalesced implicit save (written once
+///   the setters go quiet, and only while Autosave is on). Per-property events still exist for
+///   <see cref="MeterPeakFpsChanged"/> /
 ///   <see cref="MeterPeakSampleRateChanged"/> and <see cref="ActivateRecordingDevicesForPeakMetersChanged"/>
 ///   which feed AudioDeviceManager runtime logic.
 ///   Hex setters and Temporary*Color setters call <see cref="RaiseChanged"/> so subscribed UI consumers
 ///   refresh; derived projections need notifications on every input.
-///   Explicit "save now" paths call <see cref="Save()"/> directly to bypass the debounce.
+///   Settings UI actions call <see cref="AppSettingsCommon.Save"/>, the explicit save that always writes.
 ///   Implements the common settings-notification base so UI bindings react to setter writes; the legacy
 ///   Changed event still fires for non-binding consumers.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
+public class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>, IFlyoutDockSettings
 {
     // When the user promotes a device to default through this app (ctrl+click on the device icon
     // or via the tray menu), also promote it to the communications-role default. Strictly a
@@ -254,33 +254,6 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     } = true;
 
-    // Context menu
-    public ContextMenuPosition ContextMenuPosition
-    {
-        get;
-        set => SetField(ref field, value);
-    } = ContextMenuPosition.Modern;
-
-    // Tray context-menu font size. Drives all text in the menu; every other element scales relative
-    // to font size, so this is effectively the menu zoom level. Clamped on set so file-tamper paths
-    // pass through the same range the spinner accepts.
-    public const int ContextMenuFontSizeDefault = 15;
-    public const int ContextMenuFontSizeMin = 8;
-    public const int ContextMenuFontSizeMax = 48;
-
-    public int ContextMenuFontSize
-    {
-        get;
-        set
-        {
-            int clamped = Math.Clamp(value, ContextMenuFontSizeMin, ContextMenuFontSizeMax);
-            if (field == clamped) return;
-            field = clamped;
-            OnPropertyChanged();
-            RaiseChanged();
-        }
-    } = ContextMenuFontSizeDefault;
-
     // Per-flow device-name style for the tray context menu rows. Defaults to NameAndModel so the
     // initial UX matches the prior behavior (full Windows FriendlyName).
     public TrayMenuDeviceNameStyle TrayMenuPlaybackDeviceNameStyle
@@ -316,11 +289,11 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         }
     } = TrayMenuDeviceNameMaxLengthDefault;
 
-    public TrayIconStyle TrayIconStyle
+    public TrayAppDotNETTrayIconStyle TrayIconStyle
     {
         get;
         set => SetField(ref field, value);
-    } = TrayIconStyle.Dynamic;
+    } = TrayAppDotNETTrayIconStyle.Dynamic;
 
     // Peak meter overlay drawn on top of the volume slider track.
     // Two-rate model mirroring EarTrumpet: SampleRate is how often we COM-read the raw peak from
@@ -759,28 +732,29 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     } = true;
 
+    // Runtime dock state: persisted without raising Changed, so a drag never re-applies the app or rebuilds the flyout
     public bool FlyoutUndocked
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     } = true;
 
     public bool FlyoutHasSavedPosition
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     public double FlyoutLeft
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     public double FlyoutTop
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     // Flyout chrome layout. Flips the title-bar row (Settings cluster + Undock button) between the
@@ -871,7 +845,8 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
 
     // Flyout header Bluetooth radio power button. Visibility defaults on to preserve the existing
     // header layout. Requiring Ctrl+left-click by default prevents an unmodified click from
-    // accidentally disabling Bluetooth and disconnecting active devices.
+    // accidentally disabling Bluetooth and disconnecting active devices; left clicks that do not
+    // match the gesture open Windows Bluetooth quick settings instead.
     public bool ShowBluetoothRadioButtonInFlyoutHeader
     {
         get;
@@ -1139,41 +1114,18 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         }
     } = AppDrawerIconsMaxRowsDefault;
 
-    // Single per-process throttler keyed by the AppSettings instance. Coalesces a burst of setters into
-    // one disk write after the quiet period; latest-pending-wins so the last-fired RequestSave runs.
-    private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        TimeConstants.SettingsSaveDebounceMs,
-        drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-
-    /// <summary>
-    /// Schedules a debounced save to <see cref="GetDefaultPath"/>. Multiple calls within the quiet
-    /// period collapse to one disk write. Use <see cref="Save()"/> when an immediate flush is required.
-    /// </summary>
-    protected override void RequestSave()
-    {
-        AppSettings self = this;
-        _ = SaveThrottle.RunAsync(self, _ =>
-        {
-            self.Save();
-            return Task.CompletedTask;
-        });
-    }
-
     public AppSettings()
-        : base(TimeConstants.UpdateCheckIntervalDefaultMs)
     {
         // A new instance is not an edit. Seeding the slider thumb catalog goes through SetField, which
-        // would otherwise schedule a save of this instance over settings.xml, including the one the
-        // XML reader constructs before OnTrayXmlDeserializing suppresses notifications
+        // would otherwise request a save, including on the instance the XML reader constructs before
+        // OnTrayXmlDeserializing suppresses notifications
         SuppressChangeNotification = true;
-        WireColorCallbacks();
         InitializeSliderThumbCatalog();
         SuppressChangeNotification = false;
     }
 
     public override void OnTrayXmlDeserialized()
     {
-        WireColorCallbacks();
         InitializeSliderThumbCatalog();
         base.OnTrayXmlDeserialized();
     }
@@ -1196,31 +1148,6 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         SliderThumbOptions = catalog;
     }
 
-    /// <summary>
-    /// Bridges every NullableThemeColor override on this instance to the global Changed event,
-    /// so any color edit (committed hex or live-preview Temporary*) flows out through the same
-    /// notification path as every other setting change.
-    /// Idempotent: Unsubscribe runs first, so re-wiring after loading replaces the ctor-wired
-    /// instances can't double-fire.
-    /// Specific listeners that want per-color granularity should attach via NullableThemeColor.Subscribe directly.
-    /// </summary>
-    public void WireColorCallbacks()
-    {
-        Action onChanged = RaiseChanged;
-        foreach (NullableThemeColor color in EnumerateColorOverrides())
-        {
-            color.Unsubscribe(onChanged);
-            color.Subscribe(onChanged);
-        }
-    }
-
-    private IEnumerable<NullableThemeColor> EnumerateColorOverrides()
-    {
-        yield return TextColor;
-        yield return BackgroundColor;
-        yield return TrayIconColor;
-    }
-
     public static string GetDefaultPath()
     {
         string appFolder = Program.AppLocalAppDataDirectory;
@@ -1233,24 +1160,7 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public static string GetDefaultDirectory() =>
         Program.AppLocalAppDataDirectory;
 
-    public void Save() => Save(GetDefaultPath());
-
-    public void Save(string path) =>
-        TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            ex => TADNLog.Log($"AppSettings.Save: {ex.Message}"));
-
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public static AppSettings LoadOrDefault(string path) =>
-        TrayXmlSerializer.LoadFileOrDefault(
-            path,
-            () =>
-            {
-                AppSettings defaults = new();
-                defaults.Save(path);
-                return defaults;
-            },
-            ex => TADNLog.Log($"AppSettings.LoadOrDefault: {ex.Message}"));
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
 }

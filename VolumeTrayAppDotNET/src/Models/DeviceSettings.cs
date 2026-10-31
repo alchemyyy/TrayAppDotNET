@@ -33,11 +33,14 @@ public class DeviceSettingsEntry
 ///
 /// Reads are non-destructive (<see cref="Find"/> returns null for unknown ids); writes go through
 /// <see cref="GetOrCreate"/> so a device only gets a row on its first persisted edit, not on every
-/// flyout open.
+/// flyout open. Loading and saving go through <see cref="TrayXmlFileStore{T}"/>: a corrupt file is kept as a
+/// <c>.corrupt-*</c> backup and a locked one is never overwritten.
 /// </summary>
 [XmlRoot("Devices")]
-public class DeviceSettings
+public class DeviceSettings : ITrayXmlStoredDocument
 {
+    private ITrayXmlFileStore? _store;
+
     [XmlElement("Device")]
     public List<DeviceSettingsEntry> Devices { get; set; } = [];
 
@@ -70,19 +73,19 @@ public class DeviceSettings
         return Path.Combine(appFolder, path2: "devices.xml");
     }
 
-    public void Save() => Save(GetDefaultPath());
+    /// <summary>Writes the file now (in the background); a detached instance never writes.</summary>
+    public void Save() => _store?.SaveNow();
 
-    public void Save(string path) =>
-        TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            ex => TADNLog.Log($"DeviceSettings.Save: {ex.Message}"));
+    /// <summary>Waits for queued writes; call at exit.</summary>
+    public void Flush() => _store?.Flush();
 
     public static DeviceSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
     public static DeviceSettings LoadOrDefault(string path) =>
-        TrayXmlSerializer.LoadFileOrDefault(
+        new TrayXmlFileStore<DeviceSettings>(
             path,
             static () => new DeviceSettings(),
-            ex => TADNLog.Log($"DeviceSettings.LoadOrDefault: {ex.Message}"));
+            static message => TADNLog.Log($"DeviceSettings: {message}")).Load();
+
+    void ITrayXmlStoredDocument.AttachStore(ITrayXmlFileStore store) => _store = store;
 }

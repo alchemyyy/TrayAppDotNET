@@ -1,13 +1,6 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Serialization;
 
 namespace NetworkTrayAppDotNET.Models;
-
-public enum TrayIconStyle
-{
-    Dynamic,
-    Static
-}
 
 /// <summary>
 /// Action taken when the tray icon is clicked.
@@ -20,29 +13,17 @@ public enum TrayClickAction
 }
 
 /// <summary>
-/// Where the tray right-click menu appears.
-/// Classic opens at the cursor position (the OS default for tray menus).
-/// Modern docks the menu in the bottom-right corner of the primary work area with an 8px inset,
-/// matching the Windows 11 system-flyout pattern.
-/// </summary>
-public enum ContextMenuPosition
-{
-    Classic,
-    Modern
-}
-
-/// <summary>
 /// Root application settings class.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : AppSettingsCommon
+public class AppSettings : AppSettingsCommon<NetworkHotkeyBinding, NetworkHotkeyAction>
 {
-    // Context menu
-    public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
-    public int ContextMenuFontSize { get; set; } = 15;
-
     // Theme
-    public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Dynamic;
+    public TrayAppDotNETTrayIconStyle TrayIconStyle
+    {
+        get;
+        set => SetField(ref field, value);
+    } = TrayAppDotNETTrayIconStyle.Dynamic;
 
     // Tray icon interaction. Click actions are surfaced through TrayIconPage; the host wires what each
     // action does.
@@ -72,57 +53,39 @@ public class AppSettings : AppSettingsCommon
     public bool LegacyOpenSettingsHotkeyRetired { get; set; }
 
     public AppSettings()
-        : base(
-            updateCheckIntervalDefaultMs: TimeConstants.UpdateCheckIntervalDefaultMs,
-            TrayAppDotNETRenderingBackend.Software) =>
-        WireColorCallbacks();
-
-    public override void OnTrayXmlDeserialized()
+        : base(TrayAppDotNETRenderingBackend.Software)
     {
-        WireColorCallbacks();
-        base.OnTrayXmlDeserialized();
     }
 
-    private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        TimeConstants.SettingsSaveDebounceMs,
-        drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-
-    protected override void RequestSave()
+    protected override IEnumerable<NullableThemeColor> EnumerateColorOverrides()
     {
-        AppSettings self = this;
-        _ = SaveThrottle.RunAsync(self, _ =>
-        {
-            self.Save();
-            return Task.CompletedTask;
-        });
-    }
-
-    /// <summary>
-    /// Bridges every NullableThemeColor override on this instance to the global Changed event,
-    /// so any color edit (committed hex or live-preview Temporary*) flows out through the same
-    /// notification path as every other setting change.
-    /// Idempotent: Unsubscribe runs first, so re-wiring after loading replaces the ctor-wired
-    /// instances without double-firing.
-    /// Specific listeners that want per-color granularity should attach via NullableThemeColor.Subscribe directly.
-    /// </summary>
-    public void WireColorCallbacks()
-    {
-        Action onChanged = RaiseChanged;
-        foreach (NullableThemeColor color in EnumerateColorOverrides())
-        {
-            color.Unsubscribe(onChanged);
-            color.Subscribe(onChanged);
-        }
-    }
-
-    private IEnumerable<NullableThemeColor> EnumerateColorOverrides()
-    {
-        yield return TextColor;
-        yield return BackgroundColor;
-        yield return TrayIconColor;
+        foreach (NullableThemeColor color in base.EnumerateColorOverrides()) yield return color;
         yield return NetworkConnectedColor;
         yield return NetworkNoInternetColor;
         yield return NetworkDisconnectedColor;
+    }
+
+    protected override void InitializeNewSettings() => LegacyOpenSettingsHotkeyRetired = true;
+
+    /// <summary>
+    /// Retires the Open settings binding on Ctrl+Alt+Win+S that older builds seeded (it collided with Fan
+    /// Control's identical default), once, then runs the shared hotkey cleanup.
+    /// </summary>
+    protected override bool NormalizeLoadedSettings()
+    {
+        bool changed = false;
+        if (!LegacyOpenSettingsHotkeyRetired)
+        {
+            HotkeyDefaults.RetireLegacyBinding(
+                Hotkeys,
+                NetworkHotkeyAction.OpenSettings,
+                HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
+                virtualKey: 0x53);
+            LegacyOpenSettingsHotkeyRetired = true;
+            changed = true;
+        }
+
+        return base.NormalizeLoadedSettings() | changed;
     }
 
     public static string GetDefaultPath()
@@ -137,167 +100,7 @@ public class AppSettings : AppSettingsCommon
     public static string GetDefaultDirectory() =>
         Program.AppLocalAppDataDirectory;
 
-    public void Save() => Save(GetDefaultPath());
-
-    public void Save(string path) =>
-        TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            ex => TADNLog.Log($"AppSettings.Save: {ex.Message}"));
-
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public static AppSettings LoadOrDefault(string path)
-    {
-        try
-        {
-            if (TrayXmlSerializer.TryReadFile(
-                    path,
-                    out AppSettings? loaded,
-                    ex => TADNLog.Log($"AppSettings.LoadOrDefault: {ex.Message}")))
-            {
-                // One-time cleanup of duplicate hotkey rows that may have accumulated from a prior build
-                // that re-seeded the default hotkey on every launch.
-                // Top up any defaults missing from the persisted list (e.g. when a new build ships a new
-                // default action). Skips entries the user has tombstoned via the UI (RemovedByUser=true)
-                // so an explicit removal isn't undone on the next launch.
-                bool changed = loaded.DedupeHotkeysByIdentity();
-                changed |= loaded.RetireLegacyOpenSettingsHotkey();
-                changed |= loaded.MigrateZeroUpdateCheckInterval();
-                changed |= loaded.EnsureDefaultHotkeys();
-                if (changed) loaded.Save(path);
-                return loaded;
-            }
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"AppSettings.LoadOrDefault: {ex.Message}");
-        }
-
-        AppSettings defaults = new() { LegacyOpenSettingsHotkeyRetired = true };
-        defaults.EnsureDefaultHotkeys();
-        defaults.Save(path);
-        return defaults;
-    }
-
-    /// <summary>
-    /// The set of built-in hotkey bindings seeded for fresh installs and topped up on every launch.
-    /// Identity is (Action, Parameter, BindingID): defaults always live on BindingID 0 (the primary row),
-    /// so a user-added secondary binding (BindingID >= 1) for the same action does not block re-seeding
-    /// the primary row.
-    /// Network ships no default bindings: every action starts unbound.
-    /// </summary>
-    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() => [];
-
-    /// <summary>
-    /// Older builds passed 0 as the update check interval default, which the update service raised to
-    /// its 1-minute minimum. The UI can't pick 0, so a persisted 0 is always that bad default.
-    /// Returns true when the value was replaced (caller should persist).
-    /// </summary>
-    public bool MigrateZeroUpdateCheckInterval()
-    {
-        if (UpdateCheckIntervalMs != 0) return false;
-
-        UpdateCheckIntervalMs = TimeConstants.UpdateCheckIntervalDefaultMs;
-        return true;
-    }
-
-    /// <summary>
-    /// One-time removal of the Open settings binding on Ctrl+Alt+Win+S that older builds seeded
-    /// (it collided with Fan Control's identical default). Drops the row only while it still equals
-    /// the retired default, plus any RemovedByUser tombstone for that identity.
-    /// Runs once, gated by LegacyOpenSettingsHotkeyRetired, so a binding re-added later survives.
-    /// Returns true when the marker was set (caller should persist).
-    /// </summary>
-    public bool RetireLegacyOpenSettingsHotkey()
-    {
-        if (LegacyOpenSettingsHotkeyRetired) return false;
-
-        const uint legacyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt;
-        Hotkeys.RemoveAll(b =>
-            b.Matches(HotkeyAction.OpenSettings, string.Empty, 0)
-            && (b.RemovedByUser || (b.Modifiers == legacyModifiers && b.VirtualKey == 0x53)));
-        LegacyOpenSettingsHotkeyRetired = true;
-        return true;
-    }
-
-    /// <summary>
-    /// True if the binding occupies the same identity slot as one of the built-in defaults
-    /// (same Action, Parameter, and BindingID). Used by the settings UI to decide whether removing
-    /// a binding should hard-delete it or keep it as a tombstone (RemovedByUser=true) so the default
-    /// doesn't reappear on the next launch.
-    /// </summary>
-    public static bool IsDefaultHotkeyIdentity(HotkeyAction action, string parameter, int bindingID)
-    {
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            if (d.Matches(action, parameter, bindingID))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Removes redundant hotkey rows that share the same identity tuple (Action, Parameter, BindingID),
-    /// keeping the first occurrence.
-    /// Returns true when at least one row was dropped (caller should persist).
-    /// </summary>
-    public bool DedupeHotkeysByIdentity()
-    {
-        HashSet<(HotkeyAction, string, int)> seen = [];
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < Hotkeys.Count; readIndex++)
-        {
-            HotkeyBinding b = Hotkeys[readIndex];
-            (HotkeyAction, string, int) key = (b.Action, b.Parameter, b.BindingID);
-            if (!seen.Add(key)) continue;
-
-            if (writeIndex != readIndex) Hotkeys[writeIndex] = b;
-            writeIndex++;
-        }
-
-        if (writeIndex == Hotkeys.Count) return false;
-
-        Hotkeys.RemoveRange(writeIndex, Hotkeys.Count - writeIndex);
-        return true;
-    }
-
-    /// <summary>
-    /// Adds any built-in default hotkey bindings that aren't already represented in Hotkeys.
-    /// "Represented" means: an existing entry with the same (Action, Parameter, BindingID) - including
-    /// tombstoned entries with RemovedByUser=true - so a user who has explicitly removed a default
-    /// is not re-seeded.
-    /// Returns true when at least one default was newly added (caller should persist).
-    /// </summary>
-    public bool EnsureDefaultHotkeys()
-    {
-        bool added = false;
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            bool present = false;
-            foreach (HotkeyBinding existing in Hotkeys)
-            {
-                if (!existing.Matches(d.Action, d.Parameter, d.BindingID)) continue;
-
-                present = true;
-                break;
-            }
-
-            if (present) continue;
-
-            Hotkeys.Add(new HotkeyBinding
-            {
-                Action = d.Action,
-                Parameter = d.Parameter,
-                Modifiers = d.Modifiers,
-                VirtualKey = d.VirtualKey,
-                Enabled = d.Enabled,
-                BindingID = d.BindingID
-            });
-            added = true;
-        }
-
-        return added;
-    }
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
 }

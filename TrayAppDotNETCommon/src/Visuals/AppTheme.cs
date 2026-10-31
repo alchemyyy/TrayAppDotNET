@@ -3,6 +3,7 @@ using Avalonia.Media;
 using Microsoft.Win32;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Visuals;
 
@@ -25,8 +26,8 @@ public class ThemeColor
         set => field = Normalize(value);
     } = "#000000";
 
-    public Color Light => ParseHexStrict(LightHex);
-    public Color Dark => ParseHexStrict(DarkHex);
+    public Color Light => ColorMath.ParseHexStrict(LightHex);
+    public Color Dark => ColorMath.ParseHexStrict(DarkHex);
 
     public Color For(bool isLightTheme) => isLightTheme ? Light : Dark;
 
@@ -49,70 +50,13 @@ public class ThemeColor
     private static string Normalize(string hex)
     {
         string normalized = hex.StartsWith('#') ? hex : "#" + hex;
-        _ = ParseHexStrict(normalized);
+        _ = ColorMath.ParseHexStrict(normalized);
         return normalized;
-    }
-
-    private static Color ParseHexStrict(string hex)
-    {
-        string hexString = hex.StartsWith('#') ? hex[1..] : hex;
-        try
-        {
-            return hexString.Length switch
-            {
-                6 => Color.FromRgb(
-                    Convert.ToByte(hexString[..2], fromBase: 16),
-                    Convert.ToByte(hexString[2..4], fromBase: 16),
-                    Convert.ToByte(hexString[4..6], fromBase: 16)),
-                8 => Color.FromArgb(
-                    Convert.ToByte(hexString[..2], fromBase: 16),
-                    Convert.ToByte(hexString[2..4], fromBase: 16),
-                    Convert.ToByte(hexString[4..6], fromBase: 16),
-                    Convert.ToByte(hexString[6..8], fromBase: 16)),
-                _ => throw new FormatException($"Invalid color literal '{hex}'.")
-            };
-        }
-        catch (Exception ex) when (ex is FormatException or OverflowException)
-        {
-            throw new FormatException($"Invalid color literal '{hex}'.", ex);
-        }
     }
 
     private static string ToHex(Color c) => c.A == 255
         ? $"#{c.R:X2}{c.G:X2}{c.B:X2}"
         : $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
-}
-
-internal static class AppThemeColorCatalog
-{
-#if DEBUG
-    private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
-        AppThemeHotReloadStore<AppThemeResources>.Create(
-            catalogName: "Common",
-            static () => new AppThemeResources());
-#else
-    private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());
-#endif
-
-    /// <summary>Gets a common theme color from the active resource dictionary.</summary>
-    public static ThemeColor Color(string name)
-    {
-#if DEBUG
-        return Resources.Current.Color(name);
-#else
-        return Resources.Value.Color(name);
-#endif
-    }
-
-    /// <summary>Gets a single common color from the active resource dictionary.</summary>
-    public static Color SingleColor(string name)
-    {
-#if DEBUG
-        return Resources.Current.SingleColor(name);
-#else
-        return Resources.Value.SingleColor(name);
-#endif
-    }
 }
 
 /// <summary>
@@ -135,10 +79,13 @@ public class AppTheme : IDisposable
     public static readonly Color ColorPickerHueYellow = Color.FromArgb(a: 0xFF, r: 0xFF, g: 0xFF, b: 0x00);
 
     public static byte TextSelectionHighlightAlpha =>
-        AppThemeColorCatalog.SingleColor(nameof(TextSelectionHighlightAlpha)).A;
+        ThemeDefaults.TextSelectionHighlightAlpha.A;
 
     public static Color ResolveTextSelectionHighlight(Color accent) =>
         Color.FromArgb(TextSelectionHighlightAlpha, accent.R, accent.G, accent.B);
+
+    // Each default reads the current dictionary; Debug reloads update its ThemeColor instances in place
+    private static AppThemeResources.AppThemeAxamlProperties ThemeDefaults => AppThemeResources.Current.AxamlAppTheme;
 
     private bool _disposed;
     private bool _lastKnownIsLightTheme;
@@ -151,65 +98,63 @@ public class AppTheme : IDisposable
     [XmlAttribute]
     public int Version { get; set; } = 1;
 
-    public ThemeColor Background { get; set; } = AppThemeColorCatalog.Color(nameof(Background));
-    public ThemeColor Foreground { get; set; } = AppThemeColorCatalog.Color(nameof(Foreground));
-    public ThemeColor Border { get; set; } = AppThemeColorCatalog.Color(nameof(Border));
-    public ThemeColor Separator { get; set; } = AppThemeColorCatalog.Color(nameof(Separator));
-    public ThemeColor Hover { get; set; } = AppThemeColorCatalog.Color(nameof(Hover));
-    public ThemeColor HoverDeep { get; set; } = AppThemeColorCatalog.Color(nameof(HoverDeep));
-    public ThemeColor Pressed { get; set; } = AppThemeColorCatalog.Color(nameof(Pressed));
-    public ThemeColor PressedDeep { get; set; } = AppThemeColorCatalog.Color(nameof(PressedDeep));
-    public ThemeColor ControlBackground { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBackground));
+    public ThemeColor Background { get; set; } = ThemeDefaults.Background;
+    public ThemeColor Foreground { get; set; } = ThemeDefaults.Foreground;
+    public ThemeColor Border { get; set; } = ThemeDefaults.Border;
+    public ThemeColor Separator { get; set; } = ThemeDefaults.Separator;
+    public ThemeColor Hover { get; set; } = ThemeDefaults.Hover;
+    public ThemeColor HoverDeep { get; set; } = ThemeDefaults.HoverDeep;
+    public ThemeColor Pressed { get; set; } = ThemeDefaults.Pressed;
+    public ThemeColor PressedDeep { get; set; } = ThemeDefaults.PressedDeep;
+    public ThemeColor ControlBackground { get; set; } = ThemeDefaults.ControlBackground;
 
     public ThemeColor ControlBackgroundDeep { get; set; } =
-        AppThemeColorCatalog.Color(nameof(ControlBackgroundDeep));
+        ThemeDefaults.ControlBackgroundDeep;
 
-    public ThemeColor ControlBorder { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBorder));
-    public ThemeColor DisabledForeground { get; set; } = AppThemeColorCatalog.Color(nameof(DisabledForeground));
-    public ThemeColor Accent { get; set; } = AppThemeColorCatalog.Color(nameof(Accent));
-    public ThemeColor Acrylic { get; set; } = AppThemeColorCatalog.Color(nameof(Acrylic));
+    public ThemeColor ControlBorder { get; set; } = ThemeDefaults.ControlBorder;
+    public ThemeColor DisabledForeground { get; set; } = ThemeDefaults.DisabledForeground;
+    public ThemeColor Accent { get; set; } = ThemeDefaults.Accent;
+    public ThemeColor Acrylic { get; set; } = ThemeDefaults.Acrylic;
 
     public ThemeColor SecondaryForeground { get; set; } =
-        AppThemeColorCatalog.Color(nameof(SecondaryForeground));
+        ThemeDefaults.SecondaryForeground;
 
-    public ThemeColor FooterBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FooterBackground));
-    public ThemeColor SliderTrack { get; set; } = AppThemeColorCatalog.Color(nameof(SliderTrack));
-    public ThemeColor SliderProgress { get; set; } = AppThemeColorCatalog.Color(nameof(SliderProgress));
-    public ThemeColor SliderThumb { get; set; } = AppThemeColorCatalog.Color(nameof(SliderThumb));
-    public ThemeColor ButtonHover { get; set; } = AppThemeColorCatalog.Color(nameof(ButtonHover));
-    public ThemeColor ButtonPressed { get; set; } = AppThemeColorCatalog.Color(nameof(ButtonPressed));
-    public ThemeColor IconForeground { get; set; } = AppThemeColorCatalog.Color(nameof(IconForeground));
-    public ThemeColor CardBackground { get; set; } = AppThemeColorCatalog.Color(nameof(CardBackground));
-    public ThemeColor TextBoxFocused { get; set; } = AppThemeColorCatalog.Color(nameof(TextBoxFocused));
+    public ThemeColor FooterBackground { get; set; } = ThemeDefaults.FooterBackground;
+    public ThemeColor SliderTrack { get; set; } = ThemeDefaults.SliderTrack;
+    public ThemeColor SliderProgress { get; set; } = ThemeDefaults.SliderProgress;
+    public ThemeColor SliderThumb { get; set; } = ThemeDefaults.SliderThumb;
+    public ThemeColor ButtonHover { get; set; } = ThemeDefaults.ButtonHover;
+    public ThemeColor ButtonPressed { get; set; } = ThemeDefaults.ButtonPressed;
+    public ThemeColor IconForeground { get; set; } = ThemeDefaults.IconForeground;
+    public ThemeColor CardBackground { get; set; } = ThemeDefaults.CardBackground;
+    public ThemeColor TextBoxFocused { get; set; } = ThemeDefaults.TextBoxFocused;
 
     public ThemeColor SearchListItemSelected { get; set; } =
-        AppThemeColorCatalog.Color(nameof(SearchListItemSelected));
+        ThemeDefaults.SearchListItemSelected;
 
     public ThemeColor SearchListItemHover { get; set; } =
-        AppThemeColorCatalog.Color(nameof(SearchListItemHover));
+        ThemeDefaults.SearchListItemHover;
 
     public ThemeColor ToggleSwitchOnTrack { get; set; } =
-        AppThemeColorCatalog.Color(nameof(ToggleSwitchOnTrack));
+        ThemeDefaults.ToggleSwitchOnTrack;
 
     public ThemeColor ToggleSwitchOnThumb { get; set; } =
-        AppThemeColorCatalog.Color(nameof(ToggleSwitchOnThumb));
+        ThemeDefaults.ToggleSwitchOnThumb;
 
-    public ThemeColor CloseButtonHover { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonHover));
-    public ThemeColor CloseButtonPressed { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonPressed));
+    public ThemeColor CloseButtonHover { get; set; } = ThemeDefaults.CloseButtonHover;
+    public ThemeColor CloseButtonPressed { get; set; } = ThemeDefaults.CloseButtonPressed;
 
     public ThemeColor CloseButtonGlyphActive { get; set; } =
-        AppThemeColorCatalog.Color(nameof(CloseButtonGlyphActive));
+        ThemeDefaults.CloseButtonGlyphActive;
 
     public ThemeColor FlyoutOverlayBackdrop { get; set; } =
-        AppThemeColorCatalog.Color(nameof(FlyoutOverlayBackdrop));
+        ThemeDefaults.FlyoutOverlayBackdrop;
 
-    public ThemeColor FlyoutShadow { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutShadow));
-    public ThemeColor MenuShadow { get; set; } = AppThemeColorCatalog.Color(nameof(MenuShadow));
+    public ThemeColor FlyoutShadow { get; set; } = ThemeDefaults.FlyoutShadow;
+    public ThemeColor MenuShadow { get; set; } = ThemeDefaults.MenuShadow;
 
     public string GlyphSettings { get; set; } = GlyphCatalog.SETTINGS.Text;
     public string GlyphPower { get; set; } = GlyphCatalog.POWER.Text;
-    public string GlyphInfo { get; set; } = GlyphCatalog.INFO.Text;
-    public string GlyphExit { get; set; } = GlyphCatalog.EXIT.Text;
 
     public bool IsLightTheme { get; private set; }
 
@@ -222,26 +167,56 @@ public class AppTheme : IDisposable
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
-    public static TTheme LoadOrDefault<TTheme>(string filePath)
+    /// <summary>
+    /// Loads a user-authored <c>theme.xml</c>, or the defaults when it is missing or unreadable. Failures are logged
+    /// through <paramref name="log"/>; the file is never moved or rewritten because the app does not own its content.
+    /// </summary>
+    public static TTheme LoadOrDefault<TTheme>(string filePath, Action<string> log)
         where TTheme : AppTheme, new()
-        => TrayXmlSerializer.LoadFileOrDefault(filePath, static () => new TTheme());
+    {
+        DataFileLoadResult result = TrayXmlSerializer.TryLoadFile(filePath, out TTheme? theme, log);
+        return result == DataFileLoadResult.Loaded ? theme! : new TTheme();
+    }
 
     public static TTheme Load<TTheme>(string filePath)
         where TTheme : AppTheme, new()
         => TrayXmlSerializer.ReadFile<TTheme>(filePath);
 
-    public void Save(string filePath) => TrayXmlSerializer.WriteFile(filePath, this);
+    /// <summary>
+    /// The one light/dark rule for every app and window. <see cref="TrayAppDotNETThemeMode.Light"/> and
+    /// <see cref="TrayAppDotNETThemeMode.Dark"/> force the mode. <see cref="TrayAppDotNETThemeMode.System"/> follows
+    /// the Windows app theme through <paramref name="theme"/>; when no theme is loaded yet the fallback is
+    /// <see cref="Default"/>, which tracks the same Windows setting, so a missing theme never forces dark or light.
+    /// </summary>
+    public static bool ResolveIsLight(TrayAppDotNETThemeMode mode, AppTheme? theme) => mode switch
+    {
+        TrayAppDotNETThemeMode.Light => true,
+        TrayAppDotNETThemeMode.Dark => false,
+        _ => (theme ?? Default).IsLightTheme
+    };
+
+    /// <inheritdoc cref="ResolveIsLight(TrayAppDotNETThemeMode, AppTheme?)"/>
+    public static bool ResolveIsLight(AppSettingsCommon? settings, AppTheme? theme) =>
+        ResolveIsLight(settings?.ThemeMode ?? TrayAppDotNETThemeMode.System, theme);
 
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category != UserPreferenceCategory.General) return;
 
-        bool newIsLightTheme = DetectSystemLightTheme();
-        if (newIsLightTheme == _lastKnownIsLightTheme) return;
+        ApplySystemLightTheme(DetectSystemLightTheme());
+    }
 
-        _lastKnownIsLightTheme = newIsLightTheme;
-        IsLightTheme = newIsLightTheme;
-        ThemeChanged?.Invoke(newIsLightTheme);
+    /// <summary>
+    /// Records the Windows mode (the shell's light or dark setting, <c>SystemUsesLightTheme</c>, which the taskbar
+    /// and tray follow) and raises <see cref="ThemeChanged"/> when it changed.
+    /// </summary>
+    internal void ApplySystemLightTheme(bool isLightTheme)
+    {
+        if (isLightTheme == _lastKnownIsLightTheme) return;
+
+        _lastKnownIsLightTheme = isLightTheme;
+        IsLightTheme = isLightTheme;
+        ThemeChanged?.Invoke(isLightTheme);
     }
 
     private static bool DetectSystemLightTheme()
@@ -250,20 +225,6 @@ public class AppTheme : IDisposable
         {
             using RegistryKey? key = Registry.CurrentUser.OpenSubKey(PersonalizeKey);
             object? value = key?.GetValue("SystemUsesLightTheme");
-            return value is 1;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public static bool DetectAppsLightTheme()
-    {
-        try
-        {
-            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(PersonalizeKey);
-            object? value = key?.GetValue("AppsUseLightTheme");
             return value is 1;
         }
         catch

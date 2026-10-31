@@ -1,24 +1,9 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
-using TrayAppDotNETCommon.Serialization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Models;
 
 namespace BrightnessTrayAppDotNET.Models;
-
-public enum ThemeMode
-{
-    System,
-    Light,
-    Dark
-}
-
-public enum TrayIconStyle
-{
-    Dynamic,
-    Static
-}
 
 public enum MasterSliderMode
 {
@@ -60,18 +45,6 @@ public enum PowerOffMode
     Sleep,
     Soft,
     Hard
-}
-
-/// <summary>
-/// Where the tray right-click menu appears.
-/// <c>Classic</c> opens at the cursor position (the OS default for tray menus).
-/// <c>Modern</c> docks the menu in the bottom-right corner of the primary work area with an 8px inset,
-/// matching the Windows 11 system-flyout pattern used by the brightness flyout itself.
-/// </summary>
-public enum ContextMenuPosition
-{
-    Classic,
-    Modern
 }
 
 /// <summary>
@@ -239,10 +212,7 @@ public class KnownDisplayEntry
 /// Root application settings class.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings,
-    ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
-    ITrayXmlSerializationCallbacks
+public class AppSettings : AppSettingsCommon<HotkeyBinding, BrightnessHotkeyAction>, IFlyoutDockSettings
 {
     public const int FlyoutScrollWheelStepMin = 1;
     public const int FlyoutScrollWheelStepMax = 50;
@@ -251,9 +221,26 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public const int PrecisionTouchpadUnitsPerScrollStepMax = 1000;
 
     // General
-    public bool RunOnStartup { get; set; } = true;
     public bool ApplyBrightnessOnStartup { get; set; } = true;
-    public bool Autosave { get; set; } = true;
+
+    /// <summary>
+    /// The shared implicit-save switch (see <see cref="AppSettingsCommon.Autosave"/>). Stored as
+    /// <c>AutosaveSettings</c> because Brightness's older files use <c>Autosave</c> for <see cref="AutosaveProfiles"/>.
+    /// </summary>
+    [XmlElement("AutosaveSettings")]
+    public override bool Autosave
+    {
+        get => base.Autosave;
+        set => base.Autosave = value;
+    }
+
+    /// <summary>
+    /// Writes slider changes into the active brightness profile automatically. Stored as <c>Autosave</c> for
+    /// compatibility with older files.
+    /// </summary>
+    [XmlElement("Autosave")]
+    public bool AutosaveProfiles { get; set; } = true;
+
     public bool TrayScrollEnabled { get; set; } = true;
     public bool PrecisionTouchpadScrollEnabled { get; set; } = true;
 
@@ -284,22 +271,6 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool ShowMonitorPowerButtons { get; set; }
     public bool ShowAllDisplaysPowerButton { get; set; } = true;
     public PowerOffMode PowerOffMode { get; set; } = PowerOffMode.Sleep;
-    public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
-    public bool UseSystemSubmenuShowDelay { get; set; }
-
-    public int SubmenuShowDelayMs
-    {
-        get;
-        set => field = Math.Clamp(
-            value,
-            TimeConstants.TrayMenuSubmenuShowDelayMinMs,
-            TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
-    } = TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
-
-    public bool KeepFlyoutWarm { get; set; } = true;
-    public bool KeepTrayContextMenuWarm { get; set; } = true;
-    public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;
-    public string Language { get; set; } = LocalizationManager.AutoLanguage;
 
     // Monitor Options
     public int BrightnessUpdateRateMs { get; set; } = TimeConstants.BrightnessUpdateRateDefaultMs;
@@ -369,12 +340,16 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // runtime undock/redock still persist normally so flipping this back on resumes restoration.
     public bool RestoreFlyoutUndockedOnStartup { get; set; } = true;
 
-    // Flyout dock state.
+    // Flyout dock state: runtime state, persisted without raising Changed.
     // When FlyoutUndocked is true and FlyoutHasSavedPosition is set, the flyout opens at FlyoutLeft/FlyoutTop
     // and behaves like a free-floating window (always-on-top, doesn't auto-hide on focus loss).
     // Tray-icon click and the redock button both flip this back to docked.
     // The position is only written to disk on drag-release, not while dragging.
-    public bool FlyoutUndocked { get; set; }
+    public bool FlyoutUndocked
+    {
+        get;
+        set => SetState(ref field, value);
+    }
 
     /// <summary>
     /// Sticky one-shot acknowledgement for the degraded-display hard power-off click.
@@ -383,9 +358,24 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// </summary>
     public bool HasAcknowledgedHardPowerOffWarning { get; set; }
 
-    public bool FlyoutHasSavedPosition { get; set; }
-    public double FlyoutLeft { get; set; }
-    public double FlyoutTop { get; set; }
+    public bool FlyoutHasSavedPosition
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
+    public double FlyoutLeft
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
+    public double FlyoutTop
+    {
+        get;
+        set => SetState(ref field, value);
+    }
+
     public bool ShowEnvironmentalCurvesButton { get; set; } = true;
     public bool ShowNightLightKelvinLabel { get; set; }
     public bool InvertNightLightSlider { get; set; }
@@ -404,12 +394,6 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     // NightLightPulseOnStrengthChange was removed (audit_10 F-02): production code uses
     // EnqueueSetStrengthSpaced, which has no pulse parameter, so toggling the UI did nothing.
-
-    /// <summary>
-    /// Legacy setting retained for settings-file compatibility.
-    /// DDC fallback acquisition now retries indefinitely while failed/read-degraded candidates exist.
-    /// </summary>
-    public int MaxRecoveryAttempts { get; set; } = 60;
 
     /// <summary>
     /// Last computed master-row brightness from the previous session, used as the seed for the
@@ -467,18 +451,6 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
             TimeConstants.PDBSymbolResolverDownloadTimeoutMaxSeconds);
     } = TimeConstants.PDBSymbolResolverDownloadTimeoutDefaultSeconds;
 
-    // Auto-update.
-    // CheckForUpdatesEnabled gates the background poll loop entirely; flipping it off cancels any in-flight
-    // wait without disposing the service. ShowUpdateButtonInFlyout controls only the floating Update! glyph
-    // on top of the flyout, leaving the in-Settings actions reachable even when the flyout affordance is off.
-    // ShowUpdateNotificationsEnabled drives the tray balloon shown when the flyout is closed and a fresh
-    // version is detected; defaults to off so the first-run experience doesn't ambush new users.
-    public bool CheckForUpdatesEnabled { get; set; } = true;
-    public bool ShowUpdateNotificationsEnabled { get; set; }
-    public bool ShowUpdateButtonInFlyout { get; set; } = true;
-    public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
-    public int SkippedUpdateVersion { get; set; }
-
     public DisplaySortMode DefaultDisplaySortMode { get; set; } = DisplaySortMode.Arrangement;
     public DisplaySortDirection DefaultDisplaySortDirection { get; set; } = DisplaySortDirection.Standard;
     public MonitorIdentityStrategy MonitorIdentityStrategy { get; set; } = MonitorIdentityStrategy.DisplayNumber;
@@ -487,31 +459,20 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     [XmlArrayItem("Monitor")]
     public List<MonitorOverrideEntry> MonitorOverrides { get; set; } = [];
 
+    /// <summary>
+    /// Pre-<c>displays.json</c> list, read only to seed <see cref="Utils.KnownDisplaysStore"/> once; the monitor
+    /// service empties it after migrating, so it is no longer persisted.
+    /// </summary>
     [XmlArrayItem("Display")]
     public List<KnownDisplayEntry> KnownDisplays { get; set; } = [];
 
-    // Empty by default; defaults are seeded by EnsureDefaultHotkeys() after construction or load.
-    // The previous in-place initializer collided with the old "append to existing list" load behavior:
-    // the loader adds <Binding> elements to the list returned by the getter, so any default
-    // listed here would duplicate every time the saved settings.xml was reloaded.
-    [XmlArrayItem("Binding")]
-    public List<HotkeyBinding> Hotkeys { get; set; } = [];
-
     // Theme
-    public int ContextMenuFontSize { get; set; } = 15;
-    public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
-    public NullableThemeColor TextColor { get; set; } = new();
-    public NullableThemeColor BackgroundColor { get; set; } = new();
-    public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Dynamic;
+    public TrayAppDotNETTrayIconStyle TrayIconStyle { get; set; } = TrayAppDotNETTrayIconStyle.Dynamic;
     public MasterSliderMode DynamicIconBrightnessTracking { get; set; } = MasterSliderMode.Average;
     public bool DynamicIconTrackEnabledOnly { get; set; }
-    public NullableThemeColor TrayIconColor { get; set; } = new();
     public NullableThemeColor TrayIconBrightColor { get; set; } = new();
     public NullableThemeColor TrayIconDimColor { get; set; } = new();
     public NullableThemeColor FooterBackgroundColor { get; set; } = new();
-    public bool EnableRoundedCorners { get; set; } = true;
-    public bool UseWindows11SettingsNavigation { get; set; }
-    public double SettingsSidebarWidth { get; set; }
 
     // Environmental curve colors: curve strokes, current-time marker, twilight / night backdrop bands, grid line color.
     // Backdrops carry a separate Alpha because the system color picker is RGB-only.
@@ -580,10 +541,16 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // 5s is the default - low enough to feel responsive at twilight transitions
     // (where the curve climbs ~1% per minute even on a steep slope),
     // high enough that the tick is essentially free since unchanged integer values are filtered out
-    // before any DDC write fires.
-    // Range is policed by the settings UI;
-    // 0 isn't a valid value here - a zero-interval DispatcherTimer would busy-loop.
-    public int EnvironmentalCurveTickIntervalMs { get; set; } = TimeConstants.EnvironmentalCurveTickIntervalDefaultMs;
+    // before any DDC write fires. Clamped to the range the settings card and the curve service use;
+    // 0 is never valid - a zero-interval DispatcherTimer would busy-loop.
+    public int EnvironmentalCurveTickIntervalMs
+    {
+        get;
+        set => field = Math.Clamp(
+            value,
+            TimeConstants.EnvironmentalCurveTickIntervalMinMs,
+            TimeConstants.EnvironmentalCurveTickIntervalMaxMs);
+    } = TimeConstants.EnvironmentalCurveTickIntervalDefaultMs;
 
     // The built-in catalog (from SliderThumbGlyphOption.CreateDefaults) is hardcoded and rebuilt from scratch
     // on every load, so the list itself is never persisted.
@@ -605,53 +572,15 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     private SliderThumbGlyphOption? _loadedSliderThumb;
 
-    /// <summary>
-    /// Raised when any setting is changed through the settings window.
-    /// </summary>
-    public event Action? Changed;
-
-    public void RaiseChanged() => Changed?.Invoke();
-
-    public AppSettings() => WireColorCallbacks();
-
-    public void OnTrayXmlSerializing()
+    public override void OnTrayXmlDeserialized()
     {
-    }
-
-    public void OnTrayXmlDeserializing()
-    {
-    }
-
-    public void OnTrayXmlDeserialized()
-    {
-        WireColorCallbacks();
         InitializeSliderThumbCatalog();
+        base.OnTrayXmlDeserialized();
     }
 
-    /// <summary>
-    /// Bridges every <see cref="NullableThemeColor"/> override on this instance to the global
-    /// <see cref="Changed"/> event, so any color edit (committed hex or live-preview Temporary*) flows out
-    /// through the same notification path as every other setting change.
-    /// Idempotent: Unsubscribe runs first, so re-wiring after loading replaces the ctor-wired instances
-    /// post-load can't double-fire.
-    /// Specific listeners that want per-color granularity (e.g. the curve editor reacting only to its own curve color)
-    /// should attach via <see cref="NullableThemeColor.Subscribe"/> directly.
-    /// </summary>
-    public void WireColorCallbacks()
+    protected override IEnumerable<NullableThemeColor> EnumerateColorOverrides()
     {
-        Action onChanged = RaiseChanged;
-        foreach (NullableThemeColor color in EnumerateColorOverrides())
-        {
-            color.Unsubscribe(onChanged);
-            color.Subscribe(onChanged);
-        }
-    }
-
-    private IEnumerable<NullableThemeColor> EnumerateColorOverrides()
-    {
-        yield return TextColor;
-        yield return BackgroundColor;
-        yield return TrayIconColor;
+        foreach (NullableThemeColor color in base.EnumerateColorOverrides()) yield return color;
         yield return TrayIconBrightColor;
         yield return TrayIconDimColor;
         yield return FooterBackgroundColor;
@@ -681,54 +610,22 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     /// <summary>
     /// True when the saved settings say the gamma-ramp Night Light tint is on, so a killed instance may have left
-    /// it on screen. Read-only: unlike <see cref="LoadOrDefault()"/>, a missing or unreadable file is never created
-    /// or replaced, which matters on the uninstall path.
+    /// it on screen. Read-only: unlike <see cref="LoadOrDefault()"/>, a missing or unreadable file is never created,
+    /// backed up or replaced, which matters on the uninstall path.
     /// </summary>
     public static bool IsPersistedGammaRampTintOn()
     {
-        string path = Path.Combine(GetDefaultDirectory(), SettingsFileName);
-        return TrayXmlSerializer.TryReadFile(
-                   path,
-                   out AppSettings? settings,
-                   ex => TADNLog.Log($"AppSettings.IsPersistedGammaRampTintOn: {ex.Message}"))
-               && BrightnessTrayAppDotNET.Interop.NightLight.GammaRampNightLight.ShouldRestoreAfterForcedStop(
-                   settings.NightLightFallbackMode,
-                   settings.NightLightGammaRampEnabled);
+        AppSettings settings = ReadOrDefault<AppSettings>(Path.Combine(GetDefaultDirectory(), SettingsFileName));
+        return BrightnessTrayAppDotNET.Interop.NightLight.GammaRampNightLight.ShouldRestoreAfterForcedStop(
+            settings.NightLightFallbackMode,
+            settings.NightLightGammaRampEnabled);
     }
-
-    public void Save() => Save(GetDefaultPath());
-
-    public void Save(string path)
-        => TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            ex => TADNLog.Log($"AppSettings.Save: {ex.Message}"));
 
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public static AppSettings LoadOrDefault(string path)
-    {
-        try
-        {
-            if (TrayXmlSerializer.TryReadFile(path, out AppSettings? loaded))
-            {
-                bool changed = loaded.DedupeHotkeysByIdentity();
-                changed |= loaded.EnsureDefaultHotkeys();
-                if (changed) loaded.Save(path);
-                return loaded;
-            }
-        }
-        catch
-        {
-            // fall through to default
-        }
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
 
-        AppSettings defaults = new();
-        defaults.InitializeSliderThumbCatalog();
-        defaults.EnsureDefaultHotkeys();
-        defaults.Save(path);
-        return defaults;
-    }
+    protected override void InitializeNewSettings() => InitializeSliderThumbCatalog();
 
     /// <summary>
     /// The set of built-in hotkey bindings seeded for fresh installs and topped up on every launch.
@@ -736,99 +633,18 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// row), so a user-added secondary binding (BindingID >= 1) for the same action does not block
     /// re-seeding the primary row.
     /// </summary>
-    private static IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() =>
+    protected override IReadOnlyList<HotkeyBinding> CreateDefaultHotkeys() =>
     [
         new()
         {
             Action = BrightnessHotkeyAction.FullBright,
             Parameter = string.Empty,
-            Modifiers = User32.MOD_CONTROL | User32.MOD_WIN | User32.MOD_ALT,
+            Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
             VirtualKey = 0x46, // VK_F
             Enabled = true,
             BindingID = 0
         }
     ];
-
-    /// <summary>
-    /// True if the binding occupies the same identity slot as one of the built-in defaults
-    /// (same Action, Parameter, and BindingID). Used by the settings UI to decide whether
-    /// removing a binding should hard-delete it or keep it as a tombstone (RemovedByUser=true)
-    /// so the default doesn't reappear on the next launch.
-    /// </summary>
-    public static bool IsDefaultHotkeyIdentity(BrightnessHotkeyAction action, string parameter, int bindingID)
-    {
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            if (d.Matches(action, parameter, bindingID))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Removes redundant hotkey rows that share the same identity tuple (Action, Parameter, BindingID),
-    /// keeping the first occurrence. Cleans up the duplicate rows that older builds accumulated
-    /// when the default list was re-seeded on every load.
-    /// Returns true when at least one row was dropped (caller should persist).
-    /// </summary>
-    public bool DedupeHotkeysByIdentity()
-    {
-        HashSet<(BrightnessHotkeyAction, string, int)> seen = [];
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < Hotkeys.Count; readIndex++)
-        {
-            HotkeyBinding b = Hotkeys[readIndex];
-            (BrightnessHotkeyAction, string, int) key = (b.Action, b.Parameter, b.BindingID);
-            if (!seen.Add(key)) continue;
-
-            if (writeIndex != readIndex) Hotkeys[writeIndex] = b;
-            writeIndex++;
-        }
-
-        if (writeIndex == Hotkeys.Count) return false;
-
-        Hotkeys.RemoveRange(writeIndex, Hotkeys.Count - writeIndex);
-        return true;
-    }
-
-    /// <summary>
-    /// Adds any built-in default hotkey bindings that aren't already represented in <see cref="Hotkeys"/>.
-    /// "Represented" means: an existing entry with the same (Action, Parameter, BindingID) - including
-    /// tombstoned entries with RemovedByUser=true - so a user who has explicitly removed a default
-    /// is not re-seeded.
-    /// Returns true when at least one default was newly added (caller should persist).
-    /// </summary>
-    public bool EnsureDefaultHotkeys()
-    {
-        bool added = false;
-        foreach (HotkeyBinding d in CreateDefaultHotkeys())
-        {
-            bool present = false;
-            foreach (HotkeyBinding existing in Hotkeys)
-            {
-                if (!existing.Matches(d.Action, d.Parameter, d.BindingID)) continue;
-
-                present = true;
-                break;
-            }
-
-            if (present) continue;
-
-            Hotkeys.Add(new HotkeyBinding
-            {
-                Action = d.Action,
-                Parameter = d.Parameter,
-                Modifiers = d.Modifiers,
-                VirtualKey = d.VirtualKey,
-                Enabled = d.Enabled,
-                BindingID = d.BindingID
-            });
-            added = true;
-        }
-
-        return added;
-    }
 
     /// <summary>
     /// Seeds <see cref="SliderThumbOptions"/> from the built-in catalog, and, if a user-selected option was

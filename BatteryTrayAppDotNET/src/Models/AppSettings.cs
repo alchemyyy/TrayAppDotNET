@@ -1,44 +1,16 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Serialization;
 
 namespace BatteryTrayAppDotNET.Models;
 
 [XmlRoot("AppSettings")]
-public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
+public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>, IFlyoutDockSettings
 {
-    private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        TimeConstants.SettingsSaveDebounceMs,
-        drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-
-    public const int ContextMenuFontSizeDefault = 15;
-    public const int ContextMenuFontSizeMin = 8;
-    public const int ContextMenuFontSizeMax = 48;
-
     public const int DischargeEstimateChecksDefault = 24;
     public const int DischargeEstimateChecksMin = 1;
     public const int DischargeEstimateChecksMax = 720;
     public const double DischargeEstimateHalfLifeChecksDefault = 6;
     public const double DischargeEstimateHalfLifeChecksMin = 0.5;
     public const double DischargeEstimateHalfLifeChecksMax = 720;
-
-    public ContextMenuPosition ContextMenuPosition
-    {
-        get;
-        set => SetField(ref field, value);
-    } = ContextMenuPosition.Modern;
-
-    public int ContextMenuFontSize
-    {
-        get;
-        set
-        {
-            int clamped = Math.Clamp(value, ContextMenuFontSizeMin, ContextMenuFontSizeMax);
-            if (field == clamped) return;
-            field = clamped;
-            OnPropertyChanged();
-            RaiseChanged();
-        }
-    } = ContextMenuFontSizeDefault;
 
     public int DischargeEstimateChecks
     {
@@ -74,28 +46,29 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     } = true;
 
+    // Runtime dock state: persisted without raising Changed, so a drag never re-applies the app or rebuilds the flyout
     public bool FlyoutUndocked
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     } = true;
 
     public bool FlyoutHasSavedPosition
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     public double FlyoutLeft
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     public double FlyoutTop
     {
         get;
-        set => SetField(ref field, value);
+        set => SetState(ref field, value);
     }
 
     public bool FlyoutHeaderAtBottom
@@ -124,13 +97,8 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     } = CreateDefaultTriggers();
 
-    public AppSettings()
-        : base(TimeConstants.UpdateCheckIntervalDefaultMs) =>
-        WireColorCallbacks();
-
     public override void OnTrayXmlDeserialized()
     {
-        WireColorCallbacks();
         EnsureTriggerDefaults();
         base.OnTrayXmlDeserialized();
     }
@@ -157,35 +125,11 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         new() { TriggerID = 3, Title = "Trigger 3" }
     ];
 
-    public void WireColorCallbacks()
+    protected override IEnumerable<NullableThemeColor> EnumerateColorOverrides()
     {
-        Action onChanged = RaiseChanged;
-        foreach (NullableThemeColor color in EnumerateColorOverrides())
-        {
-            color.Unsubscribe(onChanged);
-            color.Subscribe(onChanged);
-        }
-    }
-
-    private IEnumerable<NullableThemeColor> EnumerateColorOverrides()
-    {
-        yield return TextColor;
-        yield return BackgroundColor;
-        yield return TrayIconColor;
+        foreach (NullableThemeColor color in base.EnumerateColorOverrides()) yield return color;
         yield return FlyoutBackgroundColor;
         yield return FlyoutTitleBarBackgroundColor;
-    }
-
-    protected override void RequestSave()
-    {
-        if (!Autosave) return;
-
-        AppSettings self = this;
-        _ = SaveThrottle.RunAsync(self, _ =>
-        {
-            self.Save();
-            return Task.CompletedTask;
-        });
     }
 
     public static string GetDefaultPath()
@@ -198,27 +142,7 @@ public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public static string GetDefaultDirectory() =>
         Program.AppLocalAppDataDirectory;
 
-    public void Save() => Save(GetDefaultPath());
-
-    public void Save(string path) =>
-        TrayXmlSerializer.TryWriteFile(
-            path,
-            this,
-            ex => TADNLog.Log($"AppSettings.Save: {ex.Message}"));
-
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 
-    public static AppSettings LoadOrDefault(string path) =>
-        TrayXmlSerializer.LoadFileOrDefault(
-            path,
-            () =>
-            {
-                AppSettings defaults = new();
-                defaults.Save(path);
-                return defaults;
-            },
-            ex => TADNLog.Log($"AppSettings.LoadOrDefault: {ex.Message}"));
-
-    public static bool IsDefaultHotkeyIdentity(HotkeyAction action, string parameter, int bindingID) =>
-        HotkeyDefaults.IsDefaultIdentity(action, parameter, bindingID);
+    public static AppSettings LoadOrDefault(string path) => LoadOrCreate<AppSettings>(path);
 }
