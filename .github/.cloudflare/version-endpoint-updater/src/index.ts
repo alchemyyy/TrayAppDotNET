@@ -2,6 +2,7 @@ import { deployVersionEndpoint } from "./cloudflare-deploy";
 import {
   prepareEndpointManifestForRelease,
   prepareLatestEndpointManifest,
+  servedEndpointVersion,
   VERSION_ENDPOINT_URL,
   type FetchFunction,
   type PreparedEndpointManifest,
@@ -15,6 +16,8 @@ const GITHUB_RELEASE_EVENT = "release";
 const GITHUB_PING_EVENT = "ping";
 const EXPECTED_REPOSITORY = "alchemyyy/TrayAppDotNET";
 const MAXIMUM_WEBHOOK_PAYLOAD_SIZE_BYTES = 1_048_576;
+/** Query parameter on the trigger URL that allows replacing the served manifest with a lower version. */
+const FORCE_QUERY_PARAMETER = "force";
 
 interface Environment {
   CLOUDFLARE_ACCOUNT_ID: string;
@@ -24,8 +27,14 @@ interface Environment {
 }
 
 interface PublishResult {
-  status: "published" | "unchanged";
+  status: "published" | "unchanged" | "refused";
   releaseTag: string;
+  message?: string;
+}
+
+export interface PublishOptions {
+  /** Deploys even when the endpoint already serves a higher aggregate version (rollback). */
+  force?: boolean;
 }
 
 export default {
@@ -48,8 +57,9 @@ export default {
       return new Response("Not found", { status: 404 });
     }
 
+    const force: boolean = requestUrl.searchParams.get(FORCE_QUERY_PARAMETER) === "true";
     return publicationResponse((): Promise<PublishResult> =>
-      publishLatestVersionEndpoint(environment));
+      publishLatestVersionEndpoint(environment, fetch, { force }));
   },
 } satisfies ExportedHandler<Environment>;
 
@@ -57,11 +67,13 @@ export default {
 export async function publishLatestVersionEndpoint(
   environment: Environment,
   fetchFunction: FetchFunction = fetch,
+  options: PublishOptions = {},
 ): Promise<PublishResult> {
   return publishPreparedVersionEndpoint(
     environment,
     (): Promise<PreparedEndpointManifest> => prepareLatestEndpointManifest(fetchFunction),
     fetchFunction,
+    options,
   );
 }
 
@@ -75,6 +87,7 @@ async function publishReleaseVersionEndpoint(
     (): Promise<PreparedEndpointManifest> =>
       prepareEndpointManifestForRelease(releaseTag, fetchFunction),
     fetchFunction,
+    {},
   );
 }
 
@@ -82,6 +95,7 @@ async function publishPreparedVersionEndpoint(
   environment: Environment,
   prepareManifest: () => Promise<PreparedEndpointManifest>,
   fetchFunction: FetchFunction,
+  options: PublishOptions,
 ): Promise<PublishResult> {
   const accountID: string = requiredSecret(
     environment.CLOUDFLARE_ACCOUNT_ID,
@@ -96,6 +110,16 @@ async function publishPreparedVersionEndpoint(
   if (currentXml === preparedManifest.xml) {
     console.log(`Version endpoint already serves ${preparedManifest.releaseTag}`);
     return { status: "unchanged", releaseTag: preparedManifest.releaseTag };
+  }
+  const servedVersion: number | null = currentXml === null ? null : servedEndpointVersion(currentXml);
+  if (servedVersion !== null && preparedManifest.version < servedVersion) {
+    if (options.force !== true) {
+      const message: string = `Version endpoint serves ${servedVersion}; refusing to replace it `
+        + `with lower version ${preparedManifest.version} without force`;
+      console.error(message);
+      return { status: "refused", releaseTag: preparedManifest.releaseTag, message };
+    }
+    console.log(`Forcing version endpoint rollback from ${servedVersion} to ${preparedManifest.version}`);
   }
 
   await deployVersionEndpoint(
@@ -230,7 +254,7 @@ async function publicationResponse(
 ): Promise<Response> {
   try {
     const result: PublishResult = await publish();
-    return jsonResponse(result, 200);
+    return jsonResponse(result, result.status === "refused" ? 409 : 200);
   } catch (error: unknown) {
     const message: string = errorMessage(error);
     console.error(`Version endpoint publication failed: ${message}`);

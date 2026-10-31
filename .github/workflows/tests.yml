@@ -1,0 +1,141 @@
+name: Tests
+
+# The test gate: every .NET test project in TrayAppDotNET.slnx, the release script tests and the version endpoint
+# updater tests. publish.yml calls it before planning a release.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A called run takes the caller's workflow name, so it never shares a group with a push or pull request run.
+  group: ${{ github.workflow }}-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+
+jobs:
+  dotnet:
+    name: .NET Tests
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
+      # Fan Control and its tests build the vendored LibreHardwareMonitor and NCalc submodules.
+      - name: Checkout Submodules
+        run: |
+          set -euo pipefail
+
+          git submodule sync --recursive
+          git submodule update --init --force --checkout --recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Task Manager builds its native kill helper with the Visual C++ tools.
+      - name: Verify Visual C++ Build Tools
+        run: |
+          set -euo pipefail
+
+          vswhere_path='/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe'
+          test -x "$vswhere_path"
+          visual_studio_path="$("$vswhere_path" -latest -products '*' \
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+            -property installationPath)"
+          test -n "$visual_studio_path"
+
+      - name: Build
+        run: |
+          dotnet build TrayAppDotNET.slnx \
+            --configuration Debug \
+            -p:Platform=x64 \
+            -p:SkipKillRunningInstance=true \
+            -p:ContinuousIntegrationBuild=true
+
+      # Hosted runners run elevated; tests that need real hardware or an opt-in environment skip themselves.
+      - name: Test
+        run: |
+          dotnet test TrayAppDotNET.slnx \
+            --configuration Debug \
+            --no-build \
+            -p:Platform=x64 \
+            --logger "trx" \
+            --results-directory .artifacts/test-results
+
+      - name: Upload Test Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  scripts:
+    name: Release Script Tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Test publish.py
+        run: python -m unittest discover --start-directory .github/scripts/tests --verbose
+
+  endpoint:
+    name: Version Endpoint Updater Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .github/.cloudflare/version-endpoint-updater
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: .github/.cloudflare/version-endpoint-updater/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test

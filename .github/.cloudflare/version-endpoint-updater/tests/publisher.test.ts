@@ -1,29 +1,34 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { renderGeneratedEndpointWorkerModule } from "../scripts/generate-endpoint-worker";
 import { calculateAssetHash, deployVersionEndpoint } from "../src/cloudflare-deploy";
+import { VERSION_ENDPOINT_WORKER_SOURCE } from "../src/generated/version-endpoint-worker";
 import updaterWorker, {
   publishedReleaseTag,
+  publishLatestVersionEndpoint,
   verifyGitHubWebhookSignature,
 } from "../src/index";
 import {
-  EXPECTED_APPLICATION_IDS,
+  CATALOG_APPLICATION_IDS,
   prepareEndpointManifestForRelease,
   prepareLatestEndpointManifest,
-  type ApplicationId,
+  servedEndpointVersion,
+  VERSION_ENDPOINT_URL,
   type FetchFunction,
   type PreparedEndpointManifest,
 } from "../src/manifest";
 
 const LATEST_MANIFEST_URL =
   "https://github.com/alchemyyy/TrayAppDotNET/releases/latest/download/versions.xml";
-const PRE_TASK_MANAGER_APPLICATION_IDS: ApplicationId[] = EXPECTED_APPLICATION_IDS.filter(
-  (applicationId: ApplicationId): boolean => applicationId !== "TaskManagerTrayAppDotNET",
+const PRE_TASK_MANAGER_APPLICATION_IDS: string[] = CATALOG_APPLICATION_IDS.filter(
+  (applicationId: string): boolean => applicationId !== "TaskManagerTrayAppDotNET",
 );
 
 test("a complete latest manifest requires no historical requests", async (): Promise<void> => {
   const requestUrls: string[] = [];
-  const latestXml: string = manifestXml(125, [...EXPECTED_APPLICATION_IDS]);
+  const latestXml: string = manifestXml(125, [...CATALOG_APPLICATION_IDS]);
   const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
     requestUrls.push(input);
     return xmlResponse(latestXml);
@@ -33,7 +38,7 @@ test("a complete latest manifest requires no historical requests", async (): Pro
 
   assert.deepEqual(requestUrls, [LATEST_MANIFEST_URL]);
   assert.equal(prepared.releaseTag, "TrayAppDotNET_125");
-  for (const applicationId of EXPECTED_APPLICATION_IDS) {
+  for (const applicationId of CATALOG_APPLICATION_IDS) {
     assert.equal(prepared.applicationReleaseTags.get(applicationId), "TrayAppDotNET_125");
   }
 });
@@ -69,16 +74,16 @@ test("an exact release event rejects invalid or mismatched tags", async (): Prom
     prepareEndpointManifestForRelease(
       "TrayAppDotNET_124",
       async (): Promise<Response> =>
-        xmlResponse(manifestXml(123, [...EXPECTED_APPLICATION_IDS])),
+        xmlResponse(manifestXml(123, [...CATALOG_APPLICATION_IDS])),
     ),
     /Unexpected aggregate version: 123/,
   );
 });
 
 test("missing apps are filled by walking older release manifests", async (): Promise<void> => {
-  const currentApplications: ApplicationId[] = [...EXPECTED_APPLICATION_IDS.slice(0, 2)];
-  const release126Applications: ApplicationId[] = [EXPECTED_APPLICATION_IDS[2]];
-  const release125Applications: ApplicationId[] = [...EXPECTED_APPLICATION_IDS.slice(3)];
+  const currentApplications: string[] = [...CATALOG_APPLICATION_IDS.slice(0, 2)];
+  const release126Applications: string[] = [CATALOG_APPLICATION_IDS[2]];
+  const release125Applications: string[] = [...CATALOG_APPLICATION_IDS.slice(3)];
   const requestUrls: string[] = [];
   const responses: Map<string, string> = new Map([
     [LATEST_MANIFEST_URL, manifestXml(127, currentApplications)],
@@ -102,14 +107,14 @@ test("missing apps are filled by walking older release manifests", async (): Pro
     assert.equal(prepared.applicationReleaseTags.get(applicationId), "TrayAppDotNET_127");
   }
   assert.equal(
-    prepared.applicationReleaseTags.get(EXPECTED_APPLICATION_IDS[2]),
+    prepared.applicationReleaseTags.get(CATALOG_APPLICATION_IDS[2]),
     "TrayAppDotNET_126",
   );
   for (const applicationId of release125Applications) {
     assert.equal(prepared.applicationReleaseTags.get(applicationId), "TrayAppDotNET_125");
   }
 
-  for (const applicationId of EXPECTED_APPLICATION_IDS) {
+  for (const applicationId of CATALOG_APPLICATION_IDS) {
     const artifactOccurrences: number = prepared.xml
       .split(`appId="${applicationId}"`)
       .length - 1;
@@ -118,8 +123,8 @@ test("missing apps are filled by walking older release manifests", async (): Pro
 });
 
 test("missing release tags are skipped while repairing", async (): Promise<void> => {
-  const firstApplication: ApplicationId = EXPECTED_APPLICATION_IDS[0];
-  const remainingApplications: ApplicationId[] = [...EXPECTED_APPLICATION_IDS.slice(1)];
+  const firstApplication: string = CATALOG_APPLICATION_IDS[0];
+  const remainingApplications: string[] = [...CATALOG_APPLICATION_IDS.slice(1)];
   const requestUrls: string[] = [];
   const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
     requestUrls.push(input);
@@ -148,7 +153,7 @@ test("installer rows from the release manifest are left out of the endpoint", as
   const releaseTag: string = "TrayAppDotNET_205";
   const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
     assert.equal(input, taggedManifestUrl(205));
-    return xmlResponse(manifestXml(205, [...EXPECTED_APPLICATION_IDS], true));
+    return xmlResponse(manifestXml(205, [...CATALOG_APPLICATION_IDS], true));
   };
 
   const prepared: PreparedEndpointManifest = await prepareEndpointManifestForRelease(
@@ -159,7 +164,7 @@ test("installer rows from the release manifest are left out of the endpoint", as
   assert.equal(prepared.releaseTag, releaseTag);
   assert.doesNotMatch(prepared.xml, /kind="installer"/);
   assert.doesNotMatch(prepared.xml, /Installer_/);
-  for (const applicationId of EXPECTED_APPLICATION_IDS) {
+  for (const applicationId of CATALOG_APPLICATION_IDS) {
     assert.equal(prepared.applicationReleaseTags.get(applicationId), releaseTag);
     const artifactOccurrences: number = prepared.xml
       .split(`appId="${applicationId}"`)
@@ -169,8 +174,8 @@ test("installer rows from the release manifest are left out of the endpoint", as
 });
 
 test("an artifact row without a kind is still rejected", async (): Promise<void> => {
-  const kindlessXml: string = manifestXml(205, [...EXPECTED_APPLICATION_IDS])
-    .replace(` kind="app" appId="${EXPECTED_APPLICATION_IDS[0]}"`, ` appId="${EXPECTED_APPLICATION_IDS[0]}"`);
+  const kindlessXml: string = manifestXml(205, [...CATALOG_APPLICATION_IDS])
+    .replace(` kind="app" appId="${CATALOG_APPLICATION_IDS[0]}"`, ` appId="${CATALOG_APPLICATION_IDS[0]}"`);
 
   await assert.rejects(
     prepareEndpointManifestForRelease(
@@ -178,6 +183,60 @@ test("an artifact row without a kind is still rejected", async (): Promise<void>
       async (): Promise<Response> => xmlResponse(kindlessXml),
     ),
     /Missing artifact kind/,
+  );
+});
+
+test("a declared app set is served as declared, including apps the bundled catalog lacks", async (): Promise<void> => {
+  const declared: string[] = [...CATALOG_APPLICATION_IDS.slice(0, 2), "NewTrayAppDotNET"];
+  const requestUrls: string[] = [];
+  const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
+    requestUrls.push(input);
+    return xmlResponse(manifestXml(240, declared, false, declared));
+  };
+
+  const prepared: PreparedEndpointManifest = await prepareLatestEndpointManifest(fetchFunction);
+
+  // The catalog apps the release does not declare are not searched for
+  assert.deepEqual(requestUrls, [LATEST_MANIFEST_URL]);
+  assert.deepEqual([...prepared.applicationReleaseTags.keys()], declared);
+  assert.match(prepared.xml, /appId="NewTrayAppDotNET"/);
+});
+
+test("declared apps missing from the latest manifest are filled from older releases", async (): Promise<void> => {
+  const declared: string[] = [CATALOG_APPLICATION_IDS[0], CATALOG_APPLICATION_IDS[1]];
+  const fetchFunction: FetchFunction = async (input: string): Promise<Response> => {
+    switch (input) {
+      case LATEST_MANIFEST_URL:
+        return xmlResponse(manifestXml(240, [declared[0]], false, declared));
+      case taggedManifestUrl(239):
+        return xmlResponse(manifestXml(239, [declared[1]]));
+      default:
+        throw new Error(`Unexpected request: ${input}`);
+    }
+  };
+
+  const prepared: PreparedEndpointManifest = await prepareLatestEndpointManifest(fetchFunction);
+
+  assert.equal(prepared.applicationReleaseTags.get(declared[0]), "TrayAppDotNET_240");
+  assert.equal(prepared.applicationReleaseTags.get(declared[1]), "TrayAppDotNET_239");
+});
+
+test("an app the bundled catalog lacks does not block a manifest without a declaration", async (): Promise<void> => {
+  const applications: string[] = [...CATALOG_APPLICATION_IDS, "NewTrayAppDotNET"];
+  const prepared: PreparedEndpointManifest = await prepareLatestEndpointManifest(
+    async (): Promise<Response> => xmlResponse(manifestXml(240, applications)),
+  );
+
+  assert.deepEqual([...prepared.applicationReleaseTags.keys()], applications);
+});
+
+test("a malformed application id is rejected", async (): Promise<void> => {
+  await assert.rejects(
+    prepareLatestEndpointManifest(
+      async (): Promise<Response> =>
+        xmlResponse(manifestXml(240, [CATALOG_APPLICATION_IDS[0]], false, ["../Escape"])),
+    ),
+    /Invalid application id: \.\.\/Escape/,
   );
 });
 
@@ -285,7 +344,7 @@ test("only stable published releases from the expected repository are accepted",
 });
 
 test("endpoint deployment performs the direct static asset upload sequence", async (): Promise<void> => {
-  const xml: string = manifestXml(120, [...EXPECTED_APPLICATION_IDS]);
+  const xml: string = manifestXml(120, [...CATALOG_APPLICATION_IDS]);
   const base64Content: string = Buffer.from(xml, "utf8").toString("base64");
   const expectedHash: string = await calculateAssetHash(base64Content, "xml");
   const requestDescriptions: string[] = [];
@@ -337,9 +396,7 @@ test("endpoint deployment performs the direct static asset upload sequence", asy
         (request.body as FormData).get("version-endpoint.js");
       assert.equal(workerPart instanceof Blob, true);
       const workerSource: string = await (workerPart as Blob).text();
-      assert.match(workerSource, /requestUrl\.pathname === "\/"/);
-      assert.match(workerSource, /environment\.ASSETS\.fetch/);
-      assert.match(workerSource, /VERSION_ASSET_PATH = "\/versions\.xml"/);
+      assert.equal(workerSource, VERSION_ENDPOINT_WORKER_SOURCE);
       return cloudflareResponse({ id: "trayapp-version-endpoint" });
     }
 
@@ -351,10 +408,163 @@ test("endpoint deployment performs the direct static asset upload sequence", asy
   assert.equal(requestDescriptions.length, 3);
 });
 
+test("the embedded endpoint Worker is generated from version-endpoint/src/index.ts", async (): Promise<void> => {
+  const generatedModule: string = await readFile(
+    new URL("../src/generated/version-endpoint-worker.ts", import.meta.url),
+    "utf8",
+  );
+
+  // A Windows checkout may carry CRLF line endings; the generated content is what has to match.
+  assert.equal(
+    generatedModule.replace(/\r\n/g, "\n"),
+    (await renderGeneratedEndpointWorkerModule()).replace(/\r\n/g, "\n"),
+  );
+});
+
+test("the embedded endpoint Worker serves versions.xml at the root only", async (): Promise<void> => {
+  const workerModule: { default: { fetch: (request: Request, environment: unknown) => Promise<Response> | Response } } =
+    await import(`data:text/javascript;base64,${Buffer.from(VERSION_ENDPOINT_WORKER_SOURCE).toString("base64")}`);
+  const assetRequests: string[] = [];
+  const environment = {
+    ASSETS: {
+      fetch: async (request: Request): Promise<Response> => {
+        assetRequests.push(request.url);
+        return new Response("<versions />");
+      },
+    },
+  };
+
+  const rootResponse: Response = await workerModule.default.fetch(
+    new Request("https://version.trayapp.net/?check=1"),
+    environment,
+  );
+  const otherResponse: Response = await workerModule.default.fetch(
+    new Request("https://version.trayapp.net/other"),
+    environment,
+  );
+
+  assert.equal(await rootResponse.text(), "<versions />");
+  assert.deepEqual(assetRequests, ["https://version.trayapp.net/versions.xml?check=1"]);
+  assert.equal(otherResponse.status, 404);
+});
+
+test("the served endpoint version is read from versions@version", (): void => {
+  assert.equal(servedEndpointVersion(manifestXml(130, [...CATALOG_APPLICATION_IDS])), 130);
+  assert.equal(servedEndpointVersion("<other />"), null);
+  assert.equal(servedEndpointVersion("not xml <<"), null);
+});
+
+test("a lower release is refused without force", async (): Promise<void> => {
+  const scenario: PublishScenario = await publishScenario(125, 130);
+
+  const result = await publishLatestVersionEndpoint(TEST_ENVIRONMENT, scenario.fetchFunction);
+
+  assert.equal(result.status, "refused");
+  assert.match(result.message ?? "", /serves 130.*lower version 125/);
+  assert.equal(scenario.deployed(), false);
+});
+
+test("a lower release is deployed with force", async (): Promise<void> => {
+  const scenario: PublishScenario = await publishScenario(125, 130);
+
+  const result = await publishLatestVersionEndpoint(
+    TEST_ENVIRONMENT,
+    scenario.fetchFunction,
+    { force: true },
+  );
+
+  assert.equal(result.status, "published");
+  assert.equal(result.releaseTag, "TrayAppDotNET_125");
+  assert.equal(scenario.deployed(), true);
+});
+
+test("an identical release leaves the endpoint unchanged", async (): Promise<void> => {
+  const scenario: PublishScenario = await publishScenario(125, 125);
+
+  const result = await publishLatestVersionEndpoint(TEST_ENVIRONMENT, scenario.fetchFunction);
+
+  assert.equal(result.status, "unchanged");
+  assert.equal(scenario.deployed(), false);
+});
+
+test("a higher release is deployed without force", async (): Promise<void> => {
+  const scenario: PublishScenario = await publishScenario(130, 125);
+
+  const result = await publishLatestVersionEndpoint(TEST_ENVIRONMENT, scenario.fetchFunction);
+
+  assert.equal(result.status, "published");
+  assert.equal(result.releaseTag, "TrayAppDotNET_130");
+  assert.equal(scenario.deployed(), true);
+});
+
+test("the trigger URL forwards force=true and answers a refusal with 409", async (): Promise<void> => {
+  const scenario: PublishScenario = await publishScenario(125, 130);
+  const originalFetch: typeof fetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    scenario.fetchFunction(String(input), init)) as typeof fetch;
+  try {
+    const refused: Response = await updaterWorker.fetch(
+      new Request("https://updater.example/trigger-token", { method: "POST" }),
+      { ...TEST_ENVIRONMENT, TRIGGER_TOKEN: "trigger-token" },
+    );
+    assert.equal(refused.status, 409);
+    assert.equal(scenario.deployed(), false);
+
+    const forced: Response = await updaterWorker.fetch(
+      new Request("https://updater.example/trigger-token?force=true", { method: "POST" }),
+      { ...TEST_ENVIRONMENT, TRIGGER_TOKEN: "trigger-token" },
+    );
+    assert.equal(forced.status, 200);
+    assert.equal(scenario.deployed(), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+const TEST_ENVIRONMENT = {
+  CLOUDFLARE_ACCOUNT_ID: "account-id",
+  CLOUDFLARE_API_TOKEN: "cloudflare-token",
+  GITHUB_WEBHOOK_SECRET: "webhook-secret",
+  TRIGGER_TOKEN: "trigger-token",
+};
+
+interface PublishScenario {
+  fetchFunction: FetchFunction;
+  deployed: () => boolean;
+}
+
+/** Serves `latestVersion` as the newest release while the endpoint serves `servedVersion`. */
+async function publishScenario(latestVersion: number, servedVersion: number): Promise<PublishScenario> {
+  const releaseFetch = (version: number): FetchFunction =>
+    async (): Promise<Response> => xmlResponse(manifestXml(version, [...CATALOG_APPLICATION_IDS]));
+  const latest: PreparedEndpointManifest = await prepareLatestEndpointManifest(releaseFetch(latestVersion));
+  const served: PreparedEndpointManifest = await prepareLatestEndpointManifest(releaseFetch(servedVersion));
+  let servedXml: string = served.xml;
+  let deployed: boolean = false;
+
+  const fetchFunction: FetchFunction = async (input: string, request: RequestInit = {}): Promise<Response> => {
+    if (input === LATEST_MANIFEST_URL) {
+      return xmlResponse(manifestXml(latestVersion, [...CATALOG_APPLICATION_IDS]));
+    }
+    if (input.startsWith(`${VERSION_ENDPOINT_URL}?`)) return xmlResponse(servedXml);
+    if (input.endsWith("/assets-upload-session")) {
+      return cloudflareResponse({ jwt: "upload-jwt", buckets: [] });
+    }
+    if (input.endsWith("/workers/scripts/trayapp-version-endpoint") && request.method === "PUT") {
+      deployed = true;
+      servedXml = latest.xml;
+      return cloudflareResponse({ id: "trayapp-version-endpoint" });
+    }
+    throw new Error(`Unexpected request: ${request.method ?? "GET"} ${input}`);
+  };
+  return { fetchFunction, deployed: (): boolean => deployed };
+}
+
 function manifestXml(
   version: number,
   applicationIds: readonly string[],
   includeInstallers: boolean = false,
+  declaredApplicationIds?: readonly string[],
 ): string {
   const artifactLines: string[] = [
     artifactXml("aggregate", "TrayAppDotNET", version),
@@ -369,10 +579,16 @@ function manifestXml(
     }
     artifactLines.push(installerArtifactXml("TrayAppDotNET", version));
   }
+  // Manifests from before publish.py declared the released apps carry no applications element
+  const applicationsXml: string = declaredApplicationIds === undefined
+    ? ""
+    : `  <applications>\n${declaredApplicationIds
+      .map((applicationId: string): string => `    <application appId="${applicationId}" />\n`)
+      .join("")}  </applications>\n`;
   return `<?xml version="1.0" encoding="utf-8"?>
 <versions version="${version}" runtime="win-x64">
   <release repository="alchemyyy/TrayAppDotNET" tag="TrayAppDotNET_${version}" name="TrayAppDotNET ${version}" />
-  <artifacts>
+${applicationsXml}  <artifacts>
 ${artifactLines.join("\n")}
   </artifacts>
 </versions>

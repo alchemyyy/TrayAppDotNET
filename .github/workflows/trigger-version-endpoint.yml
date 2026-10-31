@@ -4,6 +4,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      force:
+        description: Replace the served manifest even when it is newer than the latest release (rollback).
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -22,6 +28,7 @@ jobs:
       - name: Publish Latest Version Manifest
         env:
           EXPECTED_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
           VERSION_ENDPOINT_TRIGGER_URL: ${{ secrets.VERSION_ENDPOINT_TRIGGER_URL }}
         shell: bash
         run: |
@@ -32,17 +39,28 @@ jobs:
             exit 1
           fi
 
+          trigger_url="$VERSION_ENDPOINT_TRIGGER_URL"
+          if [ "$FORCE" = "true" ]; then
+            # The updater only replaces a newer served manifest with an older release when asked to
+            trigger_url="${trigger_url}?force=true"
+          fi
+
+          response_file="$(mktemp)"
           maximum_attempts=4
           for attempt in $(seq 1 "$maximum_attempts"); do
-            response=""
-            # --fail-with-body keeps the updater's JSON error message, which --fail would discard
-            if response="$(curl --fail-with-body --silent --show-error \
+            # curl retries connection failures and transient HTTP statuses itself; every other status is handled
+            # here, so a refusal (409) is never retried.
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
               --connect-timeout 10 \
               --max-time 120 \
               --retry 2 \
-              --retry-all-errors \
               --request POST \
-              "$VERSION_ENDPOINT_TRIGGER_URL")"; then
+              "$trigger_url")" || status="000"
+            response="$(cat "$response_file")"
+
+            if [ "$status" = "200" ]; then
               published_release_tag="$(
                 printf '%s' "$response" | jq -r '.releaseTag // empty' 2>/dev/null || true
               )"
@@ -51,8 +69,12 @@ jobs:
                 exit 0
               fi
               echo "Endpoint returned ${published_release_tag:-no release tag}; expected $EXPECTED_RELEASE_TAG." >&2
+            elif [ "$status" = "409" ]; then
+              echo "The endpoint refused to replace a newer served manifest: ${response:-no response body}" >&2
+              echo "Run this workflow manually with force enabled to roll the endpoint back." >&2
+              exit 1
             else
-              echo "Endpoint trigger attempt $attempt failed: ${response:-no response body}" >&2
+              echo "Endpoint trigger attempt $attempt failed with HTTP $status: ${response:-no response body}" >&2
             fi
 
             if [ "$attempt" -lt "$maximum_attempts" ]; then
@@ -62,5 +84,5 @@ jobs:
             fi
           done
 
-          echo "Version endpoint did not publish $EXPECTED_RELEASE_TAG." >&2
+          echo "Version endpoint did not publish ${EXPECTED_RELEASE_TAG:-the latest release}." >&2
           exit 1

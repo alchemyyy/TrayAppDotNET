@@ -1,8 +1,14 @@
-name: Fan Control Release
+name: App Release
 
+# Builds (or carries forward) one app's release package. publish.yml calls it once per app of its release matrix;
+# it can also be dispatched for a single app. App-specific settings come from the app catalog, apps.json.
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: App name from apps.json, for example FanControlTrayAppDotNET.
+        required: true
+        type: string
       package_artifact_name:
         description: Optional package artifact name.
         required: false
@@ -12,20 +18,15 @@ on:
         required: false
         type: string
       app_version:
-        description: Fan Control version to embed when building.
+        description: App version to embed when building. Defaults to the app's buildnumber.txt.
         required: false
         type: string
-      force_rebuild:
-        description: Build even if an existing release asset could be reused.
-        required: false
-        default: false
-        type: boolean
       source_ref:
         description: Optional commit or ref to package.
         required: false
         type: string
       reuse_previous_release:
-        description: Download the latest published app asset. Takes precedence over force rebuild.
+        description: Download the latest published app asset instead of building.
         required: false
         default: false
         type: boolean
@@ -36,6 +37,9 @@ on:
         type: string
   workflow_call:
     inputs:
+      app:
+        required: true
+        type: string
       package_artifact_name:
         required: false
         type: string
@@ -48,10 +52,6 @@ on:
         required: false
         type: string
         default: ""
-      force_rebuild:
-        required: false
-        type: boolean
-        default: false
       source_ref:
         required: false
         type: string
@@ -70,7 +70,7 @@ permissions:
 
 jobs:
   release:
-    name: FanControlTrayAppDotNET Release
+    name: ${{ inputs.app }} Release
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -83,7 +83,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.source_ref || github.sha }}
-          # Submodules are checked out manually below.
+          # Only apps that build vendored code check out submodules, below.
           submodules: false
 
       - name: Add Git Bash To PATH
@@ -92,8 +92,14 @@ jobs:
           >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
           >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
 
+      - name: Describe App
+        id: app
+        env:
+          APP_NAME: ${{ inputs.app }}
+        run: python .github/scripts/publish.py --phase describe-app --app-name "$APP_NAME"
+
       - name: Checkout Submodules
-        if: ${{ !inputs.reuse_previous_release }}
+        if: ${{ steps.app.outputs.checkout_submodules == 'true' && !inputs.reuse_previous_release }}
         run: |
           set -euo pipefail
 
@@ -107,20 +113,31 @@ jobs:
             fi
           '
 
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
       - name: Verify Release Toolchain
+        env:
+          REQUIRES_MSVC: ${{ steps.app.outputs.requires_msvc == 'true' && !inputs.reuse_previous_release }}
         run: |
           set -euo pipefail
 
           command -v gh
-          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
-            echo "python3 or python is required." >&2
-            exit 1
-          fi
-          # The app build always needs dotnet, and the installer factory still has to be built
-          # here when no installer factory artifact was supplied.
-          command -v dotnet
+          command -v python
+          # The app build always needs dotnet, and the installer factory is built here when no installer
+          # factory artifact was supplied.
           dotnet --info
-          dotnet --list-sdks | grep -E '^10\.'
+
+          if [ "$REQUIRES_MSVC" = "true" ]; then
+            vswhere_path='/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe'
+            test -x "$vswhere_path"
+            visual_studio_path="$("$vswhere_path" -latest -products '*' \
+              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+              -property installationPath)"
+            test -n "$visual_studio_path"
+          fi
 
       - name: Download Installer Factory
         if: ${{ inputs.installer_factory_artifact != '' }}
@@ -130,46 +147,45 @@ jobs:
           path: .artifacts/installer-factory
 
       - name: Prepare Release Package
+        # Inputs reach the script through the environment so no value is ever parsed as shell code.
         env:
           GH_TOKEN: ${{ github.token }}
+          APP_NAME: ${{ steps.app.outputs.name }}
+          APP_VERSION: ${{ inputs.app_version }}
+          TRAY_VERSION: ${{ inputs.tray_version }}
+          INSTALLER_FACTORY_ARTIFACT: ${{ inputs.installer_factory_artifact }}
+          REUSE_PREVIOUS_RELEASE: ${{ inputs.reuse_previous_release }}
         run: |
           set -euo pipefail
-
-          python_bin="python"
-          if command -v python3 >/dev/null 2>&1; then
-            python_bin="python3"
-          fi
 
           args_list=(
             ".github/scripts/publish.py"
             "--phase" "build-app-profile"
             "--profile" "release"
-            "--app-name" "FanControlTrayAppDotNET"
-            "--app-version" "${{ inputs.app_version }}"
+            "--app-name" "$APP_NAME"
+            "--app-version" "$APP_VERSION"
             "--repo" "$GITHUB_REPOSITORY"
             "--output-root" ".artifacts/publish"
           )
 
-          if [ "${{ inputs.tray_version }}" != "" ]; then
-            args_list+=("--tray-version" "${{ inputs.tray_version }}")
+          if [ -n "$TRAY_VERSION" ]; then
+            args_list+=("--tray-version" "$TRAY_VERSION")
           fi
 
-          if [ "${{ inputs.installer_factory_artifact }}" != "" ]; then
+          if [ -n "$INSTALLER_FACTORY_ARTIFACT" ]; then
             args_list+=("--installer-factory" ".artifacts/installer-factory/TrayAppDotNETInstaller.exe")
           fi
 
-          if [ "${{ inputs.reuse_previous_release }}" = "true" ]; then
+          if [ "$REUSE_PREVIOUS_RELEASE" = "true" ]; then
             args_list+=("--reuse-latest")
-          elif [ "${{ inputs.force_rebuild }}" = "true" ]; then
-            args_list+=("--force-rebuild")
           fi
 
-          "$python_bin" "${args_list[@]}"
+          python "${args_list[@]}"
 
       - name: Upload Release Package Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ inputs.package_artifact_name || format('fan-control-tray-app-package-{0}', github.run_id) }}
+          name: ${{ inputs.package_artifact_name || format('{0}-tray-app-package-{1}', steps.app.outputs.slug, github.run_id) }}
           path: .artifacts/publish/release/packages/**
           if-no-files-found: error
           retention-days: 14

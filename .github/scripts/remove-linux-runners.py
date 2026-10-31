@@ -14,8 +14,9 @@ from pathlib import Path
 
 DEFAULT_REPO = os.environ.get("GITHUB_REPOSITORY", "alchemyyy/TrayAppDotNET")
 DEFAULT_LABELS = "trayapp,debian"
-DEFAULT_NAME_REGEX = r"^debian-trayapp-\d+$"
-DEFAULT_NAME_PREFIX = "debian-trayapp"
+# bootstrap-debian-runner-fleet.py names runners <hostname>-trayapp-NN with the host name sanitized as below. GitHub
+# records match for any host by default; local cleanup derives this host's prefix the same way the bootstrap does.
+DEFAULT_NAME_REGEX = r"^[A-Za-z0-9_.-]+-trayapp-\d+$"
 DEFAULT_COUNT = 16
 DEFAULT_RUNNER_ROOT = "/opt/actions-runners/trayappdotnet"
 
@@ -33,7 +34,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_NAME_REGEX,
         help=f"GitHub runner name regex to delete. Default: {DEFAULT_NAME_REGEX}",
     )
-    parser.add_argument("--name-prefix", default=DEFAULT_NAME_PREFIX, help=f"Local runner name prefix. Default: {DEFAULT_NAME_PREFIX}")
+    parser.add_argument("--name-prefix", default="", help="Local runner name prefix. Default: <hostname>-trayapp")
     parser.add_argument("--count", type=int, default=DEFAULT_COUNT, help=f"Local runner count. Default: {DEFAULT_COUNT}")
     parser.add_argument("--runner-root", default=DEFAULT_RUNNER_ROOT, help=f"Local Linux runner root. Default: {DEFAULT_RUNNER_ROOT}")
     parser.add_argument("--github-only", action="store_true", help="Only delete GitHub runner records.")
@@ -48,7 +49,13 @@ def parse_args() -> argparse.Namespace:
         raise SystemExit("--github-only and --local-only cannot be used together.")
     if args.count < 1:
         raise SystemExit("--count must be at least 1.")
+    args.name_prefix = args.name_prefix.strip() or default_name_prefix()
     return args
+
+
+def default_name_prefix() -> str:
+    hostname = re.sub(r"[^A-Za-z0-9_.-]+", "-", platform.node()).strip("-") or "debian"
+    return f"{hostname}-trayapp"
 
 
 def run(

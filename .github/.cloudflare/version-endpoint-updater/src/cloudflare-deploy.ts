@@ -1,3 +1,4 @@
+import { VERSION_ENDPOINT_WORKER_SOURCE } from "./generated/version-endpoint-worker";
 import type { FetchFunction } from "./manifest";
 
 const CLOUDFLARE_API_ROOT = "https://api.cloudflare.com/client/v4";
@@ -8,23 +9,6 @@ const VERSION_ASSET_PATH = "/versions.xml";
 const VERSION_ASSET_EXTENSION = "xml";
 const VERSION_ASSET_CONTENT_TYPE = "application/xml; charset=utf-8";
 const ASSETS_BINDING_NAME = "ASSETS";
-const VERSION_ENDPOINT_WORKER_SOURCE = `const VERSION_ASSET_PATH = "/versions.xml";
-
-export default {
-  fetch(request, environment) {
-    const requestUrl = new URL(request.url);
-    if (requestUrl.pathname === "/") {
-      requestUrl.pathname = VERSION_ASSET_PATH;
-      return environment.ASSETS.fetch(new Request(requestUrl.toString(), request));
-    }
-
-    return new Response("Not found", {
-      status: 404,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  },
-};
-`;
 
 interface AssetUploadSession {
   uploadJWT: string;

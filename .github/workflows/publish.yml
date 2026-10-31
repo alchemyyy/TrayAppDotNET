@@ -3,72 +3,22 @@ name: Publish
 on:
   workflow_dispatch:
     inputs:
-      force_battery:
-        description: Force BatteryTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      force_brightness:
-        description: Force BrightnessTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      force_fan_control:
-        description: Force FanControlTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      force_network:
-        description: Force NetworkTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      force_task_manager:
-        description: Force TaskManagerTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      force_volume:
-        description: Force VolumeTrayAppDotNET
-        required: true
-        default: false
-        type: boolean
-      skip_battery:
-        description: Skip building BatteryTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
-      skip_brightness:
-        description: Skip building BrightnessTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
-      skip_fan_control:
-        description: Skip building FanControlTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
-      skip_network:
-        description: Skip building NetworkTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
-      skip_task_manager:
-        description: Skip building TaskManagerTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
-      skip_volume:
-        description: Skip building VolumeTrayAppDotNET and reuse its latest published package
-        required: true
-        default: false
-        type: boolean
+      force_apps:
+        description: Comma-separated app names (from apps.json) to rebuild even without changes, e.g. FanControlTrayAppDotNET
+        required: false
+        default: ""
+        type: string
+      skip_apps:
+        description: Comma-separated app names (from apps.json) to skip building; their latest published package is carried forward
+        required: false
+        default: ""
+        type: string
       tray_app_dot_net_version:
         description: Aggregate TrayAppDotNET version. Defaults to latest published release + 1, minimum 200.
         required: false
         type: string
       release_tag:
-        description: Release tag. Defaults to TrayAppDotNET_<version>.
+        description: Release tag, TrayAppDotNET_<version> (the version endpoint accepts no other form). Defaults to TrayAppDotNET_<version>; given alone, it sets the version.
         required: false
         type: string
 
@@ -82,8 +32,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
   prepare:
     name: Plan Publish Versions
+    needs: tests
     runs-on: windows-latest
     # This job also publishes the single shared installer factory, so it is not a plain planning job.
     timeout-minutes: 45
@@ -93,26 +48,17 @@ jobs:
     outputs:
       source_sha: ${{ steps.plan.outputs.source_sha }}
       included_apps: ${{ steps.plan.outputs.included_apps }}
+      release_matrix: ${{ steps.plan.outputs.release_matrix }}
       installer_factory_artifact: installer-factory-${{ github.run_id }}
-      battery_action: ${{ steps.plan.outputs.battery_action }}
-      battery_version: ${{ steps.plan.outputs.battery_version }}
-      brightness_action: ${{ steps.plan.outputs.brightness_action }}
-      brightness_version: ${{ steps.plan.outputs.brightness_version }}
-      fan_control_action: ${{ steps.plan.outputs.fan_control_action }}
-      fan_control_version: ${{ steps.plan.outputs.fan_control_version }}
-      network_action: ${{ steps.plan.outputs.network_action }}
-      network_version: ${{ steps.plan.outputs.network_version }}
-      task_manager_action: ${{ steps.plan.outputs.task_manager_action }}
-      task_manager_version: ${{ steps.plan.outputs.task_manager_version }}
-      volume_action: ${{ steps.plan.outputs.volume_action }}
-      volume_version: ${{ steps.plan.outputs.volume_version }}
 
     steps:
+      # The tests job checked out github.sha; planning (and therefore every build and the release) uses the same
+      # commit, so a push to the branch while the tests run cannot ship untested code.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.sha }}
           submodules: false
 
       - name: Add Git Bash To PATH
@@ -121,116 +67,47 @@ jobs:
           >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
           >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
 
+      # The installer factory targets .NET Framework 4.8; global.json still selects the SDK that builds it.
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
       - name: Verify Publish Planning Toolchain
         run: |
           set -euo pipefail
 
           command -v gh
-          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
-            echo "python3 or python is required." >&2
-            exit 1
-          fi
-          # This job builds the shared installer factory and no application. The factory targets
-          # .NET Framework 4.8, so any installed SDK can build it and no .NET 10 gate belongs here.
-          command -v dotnet
+          command -v python
           dotnet --info
 
       - name: Plan App Actions
         id: plan
+        # Inputs reach the script through the environment so no value is ever parsed as shell code.
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE_BATTERY: ${{ inputs.force_battery }}
-          FORCE_BRIGHTNESS: ${{ inputs.force_brightness }}
-          FORCE_FAN_CONTROL: ${{ inputs.force_fan_control }}
-          FORCE_NETWORK: ${{ inputs.force_network }}
-          FORCE_TASK_MANAGER: ${{ inputs.force_task_manager }}
-          FORCE_VOLUME: ${{ inputs.force_volume }}
-          SKIP_BATTERY: ${{ inputs.skip_battery }}
-          SKIP_BRIGHTNESS: ${{ inputs.skip_brightness }}
-          SKIP_FAN_CONTROL: ${{ inputs.skip_fan_control }}
-          SKIP_NETWORK: ${{ inputs.skip_network }}
-          SKIP_TASK_MANAGER: ${{ inputs.skip_task_manager }}
-          SKIP_VOLUME: ${{ inputs.skip_volume }}
+          FORCE_APPS: ${{ inputs.force_apps }}
+          SKIP_APPS: ${{ inputs.skip_apps }}
         run: |
           set -euo pipefail
 
-          python_bin="python"
-          if command -v python3 >/dev/null 2>&1; then
-            python_bin="python3"
-          fi
-
           git fetch --tags --force origin
 
-          force_apps=()
-          if [ "$FORCE_BATTERY" = "true" ]; then
-            force_apps+=("BatteryTrayAppDotNET")
-          fi
-          if [ "$FORCE_BRIGHTNESS" = "true" ]; then
-            force_apps+=("BrightnessTrayAppDotNET")
-          fi
-          if [ "$FORCE_FAN_CONTROL" = "true" ]; then
-            force_apps+=("FanControlTrayAppDotNET")
-          fi
-          if [ "$FORCE_NETWORK" = "true" ]; then
-            force_apps+=("NetworkTrayAppDotNET")
-          fi
-          if [ "$FORCE_TASK_MANAGER" = "true" ]; then
-            force_apps+=("TaskManagerTrayAppDotNET")
-          fi
-          if [ "$FORCE_VOLUME" = "true" ]; then
-            force_apps+=("VolumeTrayAppDotNET")
-          fi
-
-          skip_apps=()
-          if [ "$SKIP_BATTERY" = "true" ]; then
-            skip_apps+=("BatteryTrayAppDotNET")
-          fi
-          if [ "$SKIP_BRIGHTNESS" = "true" ]; then
-            skip_apps+=("BrightnessTrayAppDotNET")
-          fi
-          if [ "$SKIP_FAN_CONTROL" = "true" ]; then
-            skip_apps+=("FanControlTrayAppDotNET")
-          fi
-          if [ "$SKIP_NETWORK" = "true" ]; then
-            skip_apps+=("NetworkTrayAppDotNET")
-          fi
-          if [ "$SKIP_TASK_MANAGER" = "true" ]; then
-            skip_apps+=("TaskManagerTrayAppDotNET")
-          fi
-          if [ "$SKIP_VOLUME" = "true" ]; then
-            skip_apps+=("VolumeTrayAppDotNET")
-          fi
-
-          force_apps_csv="$(IFS=,; echo "${force_apps[*]}")"
-          skip_apps_csv="$(IFS=,; echo "${skip_apps[*]}")"
-          args_list=(
-            ".github/scripts/publish.py"
-            "--phase" "plan-publish"
-            "--repo" "$GITHUB_REPOSITORY"
-            "--target" "HEAD"
-            "--force-apps" "$force_apps_csv"
-            "--skip-apps" "$skip_apps_csv"
-          )
-
-          "$python_bin" "${args_list[@]}"
+          python .github/scripts/publish.py \
+            --phase plan-publish \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --force-apps "$FORCE_APPS" \
+            --skip-apps "$SKIP_APPS"
 
       - name: Build Installer Factory
         run: |
           set -euo pipefail
 
-          python_bin="python"
-          if command -v python3 >/dev/null 2>&1; then
-            python_bin="python3"
-          fi
-
-          args_list=(
-            ".github/scripts/publish.py"
-            "--phase" "build-installer-factory"
-            "--profile" "release"
-            "--output-root" ".artifacts/installer-factory"
-          )
-
-          "$python_bin" "${args_list[@]}"
+          python .github/scripts/publish.py \
+            --phase build-installer-factory \
+            --profile release \
+            --output-root .artifacts/installer-factory
 
       - name: Upload Installer Factory Artifact
         uses: actions/upload-artifact@v7
@@ -241,87 +118,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  release_battery:
-    name: Battery Release
+  release:
+    name: ${{ matrix.app.displayName }} Release
     needs: prepare
-    if: ${{ needs.prepare.outputs.battery_action != 'skip' }}
-    uses: ./.github/workflows/battery-release.yml
+    if: ${{ needs.prepare.outputs.release_matrix != '[]' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        # One entry per app the release carries, written by publish.py from the app catalog.
+        app: ${{ fromJSON(needs.prepare.outputs.release_matrix) }}
+    uses: ./.github/workflows/app-release.yml
     with:
-      package_artifact_name: battery-tray-app-package-${{ github.run_id }}
+      app: ${{ matrix.app.name }}
+      package_artifact_name: ${{ matrix.app.slug }}-tray-app-package-${{ github.run_id }}
       tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.battery_version }}
-      force_rebuild: ${{ inputs.force_battery }}
-      reuse_previous_release: ${{ needs.prepare.outputs.battery_action == 'reuse' }}
-      source_ref: ${{ needs.prepare.outputs.source_sha }}
-      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
-
-  release_brightness:
-    name: Brightness Release
-    needs: prepare
-    if: ${{ needs.prepare.outputs.brightness_action != 'skip' }}
-    uses: ./.github/workflows/brightness-release.yml
-    with:
-      package_artifact_name: brightness-tray-app-package-${{ github.run_id }}
-      tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.brightness_version }}
-      force_rebuild: ${{ inputs.force_brightness }}
-      reuse_previous_release: ${{ needs.prepare.outputs.brightness_action == 'reuse' }}
-      source_ref: ${{ needs.prepare.outputs.source_sha }}
-      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
-
-  release_fan_control:
-    name: Fan Control Release
-    needs: prepare
-    if: ${{ needs.prepare.outputs.fan_control_action != 'skip' }}
-    uses: ./.github/workflows/fan-control-release.yml
-    with:
-      package_artifact_name: fan-control-tray-app-package-${{ github.run_id }}
-      tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.fan_control_version }}
-      force_rebuild: ${{ inputs.force_fan_control }}
-      reuse_previous_release: ${{ needs.prepare.outputs.fan_control_action == 'reuse' }}
-      source_ref: ${{ needs.prepare.outputs.source_sha }}
-      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
-
-  release_network:
-    name: Network Release
-    needs: prepare
-    if: ${{ needs.prepare.outputs.network_action != 'skip' }}
-    uses: ./.github/workflows/network-release.yml
-    with:
-      package_artifact_name: network-tray-app-package-${{ github.run_id }}
-      tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.network_version }}
-      force_rebuild: ${{ inputs.force_network }}
-      reuse_previous_release: ${{ needs.prepare.outputs.network_action == 'reuse' }}
-      source_ref: ${{ needs.prepare.outputs.source_sha }}
-      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
-
-  release_task_manager:
-    name: Task Manager Release
-    needs: prepare
-    if: ${{ needs.prepare.outputs.task_manager_action != 'skip' }}
-    uses: ./.github/workflows/task-manager-release.yml
-    with:
-      package_artifact_name: task-manager-tray-app-package-${{ github.run_id }}
-      tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.task_manager_version }}
-      force_rebuild: ${{ inputs.force_task_manager }}
-      reuse_previous_release: ${{ needs.prepare.outputs.task_manager_action == 'reuse' }}
-      source_ref: ${{ needs.prepare.outputs.source_sha }}
-      installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
-
-  release_volume:
-    name: Volume Release
-    needs: prepare
-    if: ${{ needs.prepare.outputs.volume_action != 'skip' }}
-    uses: ./.github/workflows/volume-release.yml
-    with:
-      package_artifact_name: volume-tray-app-package-${{ github.run_id }}
-      tray_version: ${{ inputs.tray_app_dot_net_version }}
-      app_version: ${{ needs.prepare.outputs.volume_version }}
-      force_rebuild: ${{ inputs.force_volume }}
-      reuse_previous_release: ${{ needs.prepare.outputs.volume_action == 'reuse' }}
+      app_version: ${{ format('{0}', matrix.app.version) }}
+      reuse_previous_release: ${{ matrix.app.reuse }}
       source_ref: ${{ needs.prepare.outputs.source_sha }}
       installer_factory_artifact: ${{ needs.prepare.outputs.installer_factory_artifact }}
 
@@ -330,22 +142,12 @@ jobs:
     runs-on: windows-latest
     needs:
       - prepare
-      - release_battery
-      - release_brightness
-      - release_fan_control
-      - release_network
-      - release_task_manager
-      - release_volume
+      - release
     if: >-
       ${{
         always() &&
         needs.prepare.result == 'success' &&
-        (needs.release_battery.result == 'success' || needs.release_battery.result == 'skipped') &&
-        (needs.release_brightness.result == 'success' || needs.release_brightness.result == 'skipped') &&
-        (needs.release_fan_control.result == 'success' || needs.release_fan_control.result == 'skipped') &&
-        (needs.release_network.result == 'success' || needs.release_network.result == 'skipped') &&
-        (needs.release_task_manager.result == 'success' || needs.release_task_manager.result == 'skipped') &&
-        (needs.release_volume.result == 'success' || needs.release_volume.result == 'skipped')
+        needs.release.result == 'success'
       }}
     environment: trayapp-release
     timeout-minutes: 60
@@ -380,18 +182,18 @@ jobs:
           name: ${{ needs.prepare.outputs.installer_factory_artifact }}
           path: .artifacts/installer-factory
 
+      # Only rebuilds the .NET Framework 4.8 installer factory when the prepared artifact is missing.
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
       - name: Verify Release Toolchain
         run: |
           set -euo pipefail
 
           command -v gh
-          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
-            echo "python3 or python is required." >&2
-            exit 1
-          fi
-          # This job builds no application. It only needs dotnet to rebuild the .NET Framework 4.8
-          # installer factory when the prepared artifact is missing, so no .NET 10 gate belongs here.
-          command -v dotnet
+          command -v python
           dotnet --info
 
       - name: Publish Draft Release
@@ -399,13 +201,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           INCLUDED_APPS: ${{ needs.prepare.outputs.included_apps }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          TRAY_VERSION: ${{ inputs.tray_app_dot_net_version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-
-          python_bin="python"
-          if command -v python3 >/dev/null 2>&1; then
-            python_bin="python3"
-          fi
 
           args_list=(
             ".github/scripts/publish.py"
@@ -418,15 +217,17 @@ jobs:
             "--installer-factory" ".artifacts/installer-factory/TrayAppDotNETInstaller.exe"
           )
 
-          if [ "${{ inputs.tray_app_dot_net_version }}" != "" ]; then
-            args_list+=("--tray-version" "${{ inputs.tray_app_dot_net_version }}")
+          if [ -n "$TRAY_VERSION" ]; then
+            args_list+=("--tray-version" "$TRAY_VERSION")
           fi
 
-          if [ "${{ inputs.release_tag }}" != "" ]; then
-            args_list+=("--release-tag" "${{ inputs.release_tag }}")
+          # The endpoint only accepts TrayAppDotNET_<version>: publish.py rejects a tag that names another version than
+          # the aggregate version, and takes the version from the tag when no version is given.
+          if [ -n "$RELEASE_TAG" ]; then
+            args_list+=("--release-tag" "$RELEASE_TAG")
           fi
 
-          "$python_bin" "${args_list[@]}"
+          python "${args_list[@]}"
 
       - name: Upload Aggregate Release Artifacts
         uses: actions/upload-artifact@v7

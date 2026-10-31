@@ -3,5 +3,9 @@
   "main": "./src/index.ts",
   "compatibility_date": "2026-08-20",
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  // Regenerates the embedded endpoint Worker from ../version-endpoint/src/index.ts before every deploy.
+  "build": {
+    "command": "npm run generate-endpoint-worker"
+  }
 }

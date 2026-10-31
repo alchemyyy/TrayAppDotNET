@@ -120,14 +120,14 @@ def fake_installer_run(
 def write_fake_native_aot_publish(publish_dir: Path, app: PUBLISH.App) -> None:
     legal_names = [
         *PUBLISH.REQUIRED_LEGAL_ARCHIVE_FILES,
-        *PUBLISH.REQUIRED_THIRD_PARTY_LICENSE_ARCHIVE_FILES,
+        *PUBLISH.third_party_notice_archive_files(app.name),
     ]
     for legal_name in legal_names:
         legal_path = publish_dir / legal_name
         legal_path.parent.mkdir(parents=True, exist_ok=True)
         legal_path.write_bytes(b"legal")
     (publish_dir / f"{app.name}.exe").write_bytes(b"exe")
-    for dll_name in PUBLISH.REQUIRED_LOOSE_NATIVE_AOT_DLL_NAMES:
+    for dll_name in PUBLISH.shared_native_dll_names():
         (publish_dir / dll_name).write_bytes(b"dll")
 
 
@@ -166,10 +166,24 @@ def write_collected_app_manifest(
     return manifest_path
 
 
+def planned_apps(outputs: dict[str, str]) -> dict[str, tuple[str, str]]:
+    """Reads plan-publish's release matrix as app name -> (build or reuse, version); left-out apps are absent."""
+    return {
+        entry["name"]: ("reuse" if entry["reuse"] else "build", str(entry["version"]))
+        for entry in json.loads(outputs["release_matrix"])
+    }
+
+
 class PublishScriptTests(unittest.TestCase):
     def test_native_aot_apps_use_sdk_selected_ilcompiler(self) -> None:
-        for app in PUBLISH.APPS:
-            project_path: Path = PUBLISH.REPO_ROOT / app.project
+        # App package references live in the app projects and in the shared MSBuild files they import
+        shared_build_files = [
+            PUBLISH.REPO_ROOT / "Directory.Build.props",
+            PUBLISH.REPO_ROOT / "TrayAppDotNET.Parent.props",
+            PUBLISH.REPO_ROOT / "TrayAppDotNET.Parent.targets",
+        ]
+        project_paths = [*(PUBLISH.REPO_ROOT / app.project for app in PUBLISH.APPS), *shared_build_files]
+        for project_path in project_paths:
             project_root: ET.Element = ET.parse(project_path).getroot()
             package_references: list[str] = [
                 package_reference.attrib.get("Include", "")
@@ -179,7 +193,7 @@ class PublishScriptTests(unittest.TestCase):
             self.assertNotIn(
                 "Microsoft.DotNet.ILCompiler",
                 package_references,
-                f"{app.name} must use the ILCompiler selected by the active .NET SDK.",
+                f"{project_path.name} must leave the ILCompiler to the active .NET SDK.",
             )
 
     def test_native_aot_restore_matches_publish_properties(self) -> None:
@@ -293,11 +307,8 @@ class PublishScriptTests(unittest.TestCase):
         expected_versions = (200, 200, 201)
 
         for release, expected_version in zip(releases, expected_versions, strict=True):
-            with (
-                self.subTest(release=release),
-                mock.patch.object(PUBLISH, "latest_release", return_value=release),
-            ):
-                self.assertEqual(expected_version, PUBLISH.default_tray_version("owner/repository"))
+            with self.subTest(release=release):
+                self.assertEqual(expected_version, PUBLISH.default_tray_version(release))
 
     def test_latest_reachable_release_tag_uses_highest_numeric_version(self) -> None:
         result = SimpleNamespace(
@@ -356,8 +367,6 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         arguments = SimpleNamespace(
             force_apps="",
@@ -389,8 +398,7 @@ class PublishScriptTests(unittest.TestCase):
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
 
                 self.assertEqual("0", buildnumber_path.read_text(encoding="utf-8"))
-                self.assertEqual("build", outputs["first_action"])
-                self.assertEqual("200", outputs["first_version"])
+                self.assertEqual(("build", "200"), planned_apps(outputs)[app.name])
             finally:
                 os.chdir(original_directory)
 
@@ -399,15 +407,11 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         second_app = PUBLISH.App(
             "SecondTrayAppDotNET",
             "second",
             "Second",
-            "SecondTrayAppDotNET/src/SecondTrayAppDotNET.csproj",
-            "SecondTrayAppDotNET/buildnumber.txt",
         )
         releases = [
             {
@@ -467,11 +471,9 @@ class PublishScriptTests(unittest.TestCase):
                 ):
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
                     self.assertEqual("10", Path(first_app.buildnumber).read_text(encoding="utf-8"))
-                    self.assertEqual("build", outputs["first_action"])
-                    self.assertEqual("11", outputs["first_version"])
+                    self.assertEqual(("build", "11"), planned_apps(outputs)[first_app.name])
                     # Skip outranks force and carries the published package forward
-                    self.assertEqual("reuse", outputs["second_action"])
-                    self.assertEqual("7", outputs["second_version"])
+                    self.assertEqual(("reuse", "7"), planned_apps(outputs)[second_app.name])
                     self.assertEqual(
                         f"{first_app.name},{second_app.name}", outputs["included_apps"]
                     )
@@ -480,20 +482,18 @@ class PublishScriptTests(unittest.TestCase):
                     outputs.clear()
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
                     self.assertEqual("10", Path(first_app.buildnumber).read_text(encoding="utf-8"))
-                    self.assertEqual("11", outputs["first_version"])
+                    self.assertEqual(("build", "11"), planned_apps(outputs)[first_app.name])
 
                     changed_paths.clear()
                     outputs.clear()
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
-                    self.assertEqual("build", outputs["first_action"])
-                    self.assertEqual("10", outputs["first_version"])
-                    self.assertEqual("reuse", outputs["second_action"])
+                    self.assertEqual(("build", "10"), planned_apps(outputs)[first_app.name])
+                    self.assertEqual("reuse", planned_apps(outputs)[second_app.name][0])
 
                     arguments.force_apps = ""
                     outputs.clear()
                     self.assertEqual(0, PUBLISH.plan_publish(arguments))
-                    self.assertEqual("reuse", outputs["first_action"])
-                    self.assertEqual("10", outputs["first_version"])
+                    self.assertEqual(("reuse", "10"), planned_apps(outputs)[first_app.name])
             finally:
                 os.chdir(original_directory)
 
@@ -502,15 +502,11 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         second_app = PUBLISH.App(
             "SecondTrayAppDotNET",
             "second",
             "Second",
-            "SecondTrayAppDotNET/src/SecondTrayAppDotNET.csproj",
-            "SecondTrayAppDotNET/buildnumber.txt",
         )
         releases = [
             {
@@ -560,10 +556,8 @@ class PublishScriptTests(unittest.TestCase):
 
                 self.assertEqual("0", Path(first_app.buildnumber).read_text(encoding="utf-8"))
                 self.assertEqual("0", Path(second_app.buildnumber).read_text(encoding="utf-8"))
-                self.assertEqual("build", outputs["first_action"])
-                self.assertEqual("build", outputs["second_action"])
-                self.assertEqual("11", outputs["first_version"])
-                self.assertEqual("8", outputs["second_version"])
+                self.assertEqual(("build", "11"), planned_apps(outputs)[first_app.name])
+                self.assertEqual(("build", "8"), planned_apps(outputs)[second_app.name])
                 has_changes.assert_called_once_with(
                     "tray-base",
                     "target",
@@ -582,15 +576,11 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         second_app = PUBLISH.App(
             "SecondTrayAppDotNET",
             "second",
             "Second",
-            "SecondTrayAppDotNET/src/SecondTrayAppDotNET.csproj",
-            "SecondTrayAppDotNET/buildnumber.txt",
         )
         releases = [
             {
@@ -662,10 +652,8 @@ class PublishScriptTests(unittest.TestCase):
 
                 self.assertEqual("10", Path(first_app.buildnumber).read_text(encoding="utf-8"))
                 self.assertEqual("7", Path(second_app.buildnumber).read_text(encoding="utf-8"))
-                self.assertEqual("build", outputs["first_action"])
-                self.assertEqual("11", outputs["first_version"])
-                self.assertEqual("reuse", outputs["second_action"])
-                self.assertEqual("7", outputs["second_version"])
+                self.assertEqual(("build", "11"), planned_apps(outputs)[first_app.name])
+                self.assertEqual(("reuse", "7"), planned_apps(outputs)[second_app.name])
                 self.assertEqual(
                     [
                         mock.call(
@@ -699,8 +687,6 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         # Release 101 skipped the app, so its package from release 100 was carried into it
         releases = [
@@ -768,8 +754,7 @@ class PublishScriptTests(unittest.TestCase):
                     "TrayAppDotNET_101",
                     published_app_build_commit.call_args.args[1].release_tag,
                 )
-                self.assertEqual("build", outputs["first_action"])
-                self.assertEqual("11", outputs["first_version"])
+                self.assertEqual(("build", "11"), planned_apps(outputs)[app.name])
                 self.assertEqual(
                     mock.call(
                         "commit-100",
@@ -787,22 +772,16 @@ class PublishScriptTests(unittest.TestCase):
             "FirstTrayAppDotNET",
             "first",
             "First",
-            "FirstTrayAppDotNET/src/FirstTrayAppDotNET.csproj",
-            "FirstTrayAppDotNET/buildnumber.txt",
         )
         unpublished_app = PUBLISH.App(
             "SecondTrayAppDotNET",
             "second",
             "Second",
-            "SecondTrayAppDotNET/src/SecondTrayAppDotNET.csproj",
-            "SecondTrayAppDotNET/buildnumber.txt",
         )
         built_app = PUBLISH.App(
             "ThirdTrayAppDotNET",
             "third",
             "Third",
-            "ThirdTrayAppDotNET/src/ThirdTrayAppDotNET.csproj",
-            "ThirdTrayAppDotNET/buildnumber.txt",
         )
         releases = [
             {
@@ -858,12 +837,10 @@ class PublishScriptTests(unittest.TestCase):
                     with self.assertRaisesRegex(SystemExit, r"cannot skip every app"):
                         PUBLISH.plan_publish(arguments)
 
-                self.assertEqual("reuse", outputs["first_action"])
-                self.assertEqual("10", outputs["first_version"])
-                self.assertEqual("skip", outputs["second_action"])
-                self.assertEqual("", outputs["second_version"])
-                self.assertEqual("build", outputs["third_action"])
-                self.assertEqual("5", outputs["third_version"])
+                planned = planned_apps(outputs)
+                self.assertEqual(("reuse", "10"), planned[published_app.name])
+                self.assertNotIn(unpublished_app.name, planned)
+                self.assertEqual(("build", "5"), planned[built_app.name])
                 self.assertEqual(
                     f"{published_app.name},{built_app.name}", outputs["included_apps"]
                 )
@@ -899,26 +876,30 @@ class PublishScriptTests(unittest.TestCase):
                 PUBLISH.published_app_build_commit("owner/repository", asset, app, profile),
             )
 
-    def test_reuse_takes_precedence_over_force_rebuild(self) -> None:
+    def test_reuse_downloads_the_published_package_instead_of_building(self) -> None:
         expected_package = mock.sentinel.package
         app = PUBLISH.APPS[0]
         profile = PUBLISH.PROFILES["release"]
 
-        with mock.patch.object(
-            PUBLISH,
-            "download_published_app",
-            return_value=expected_package,
-        ) as download:
+        with (
+            mock.patch.object(
+                PUBLISH,
+                "download_published_app",
+                return_value=expected_package,
+            ) as download,
+            mock.patch.object(PUBLISH, "build_app") as build,
+        ):
             package = PUBLISH.selected_app_package(
                 "owner/repository",
                 Path("output"),
-                True,
                 True,
                 profile,
                 app,
                 None,
                 "a" * 40,
             )
+
+        build.assert_not_called()
 
         self.assertIs(expected_package, package)
         download.assert_called_once_with(
@@ -973,56 +954,53 @@ class PublishScriptTests(unittest.TestCase):
             ):
                 PUBLISH.load_collected_profiles(input_root, ["release"], [app])
 
-    def test_staged_app_manifest_requires_installer_exe(self) -> None:
-        app = PUBLISH.APPS[0]
-        profile = PUBLISH.PROFILES["release"]
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            package_dir = Path(temporary_directory)
-            manifest_path = write_collected_app_manifest(
-                package_dir, app, 10, write_installer=False
-            )
-            with self.assertRaisesRegex(SystemExit, r"Missing staged app installer"):
-                PUBLISH.app_manifest_files(package_dir, profile, app)
-
-            installer_path = package_dir / PUBLISH.installer_asset_name(app.name, 10)
-            installer_path.write_bytes(b"installer")
-            _manifest_path, _manifest, files = PUBLISH.app_manifest_files(
-                package_dir, profile, app
-            )
-
-        self.assertEqual(
-            [manifest_path, package_dir / f"{app.name}_10.zip", installer_path],
-            files,
-        )
-
     def test_legal_archive_validation_requires_license_notices_and_license_texts(self) -> None:
-        valid_entries = [
-            "LICENSE.txt",
-            "NOTICE",
-            *PUBLISH.REQUIRED_THIRD_PARTY_LICENSE_ARCHIVE_FILES,
-        ]
-        PUBLISH.validate_legal_archive_entries(
-            valid_entries,
-            "test archive",
-        )
+        fan_notices = PUBLISH.third_party_notice_archive_files("FanControlTrayAppDotNET")
+        valid_entries = ["LICENSE.txt", "NOTICE", *fan_notices]
+        PUBLISH.validate_legal_archive_entries(valid_entries, "test archive", fan_notices)
 
         with self.assertRaisesRegex(SystemExit, r"\.notices/"):
             PUBLISH.validate_legal_archive_entries(
-                [
-                    "LICENSE.txt",
-                    "NOTICE",
-                ],
+                ["LICENSE.txt", "NOTICE"],
                 "test archive",
+                fan_notices,
             )
 
-    def test_third_party_notice_references_every_shipped_license_file(self) -> None:
+        # An app's own notices ship with that app only, and repository notices never ship
+        self.assertIn(".notices/FanControlTrayAppDotNET/pci.ids-BSD-3-Clause.txt", fan_notices)
+        self.assertNotIn(
+            ".notices/FanControlTrayAppDotNET/pci.ids-BSD-3-Clause.txt",
+            PUBLISH.third_party_notice_archive_files("BrightnessTrayAppDotNET"),
+        )
+        with self.assertRaisesRegex(SystemExit, r"repository-only notice"):
+            PUBLISH.validate_legal_archive_entries(
+                [*valid_entries, ".notices/repository/PlantUML-MIT.txt"],
+                "test archive",
+                fan_notices,
+            )
+
+    def test_third_party_notice_references_every_notice_file(self) -> None:
         notice_text = (PUBLISH.REPO_ROOT / "NOTICE").read_text(
             encoding="utf-8"
         )
+        notice_paths = [
+            path for path in PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY.rglob("*") if path.is_file()
+        ]
 
-        for archive_name in PUBLISH.REQUIRED_THIRD_PARTY_LICENSE_ARCHIVE_FILES:
-            self.assertIn(archive_name, notice_text)
+        self.assertTrue(notice_paths)
+        for path in notice_paths:
+            archive_name = (
+                PUBLISH.THIRD_PARTY_NOTICE_ARCHIVE_PREFIX
+                + path.relative_to(PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY).as_posix()
+            )
+            with self.subTest(notice=archive_name):
+                self.assertIn(archive_name, notice_text)
+
+    def test_notice_subfolders_are_catalog_apps_or_the_repository_set(self) -> None:
+        allowed = {app.name for app in PUBLISH.APPS} | {PUBLISH.REPOSITORY_NOTICE_DIRECTORY_NAME}
+        folders = {path.name for path in PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY.iterdir() if path.is_dir()}
+
+        self.assertLessEqual(folders, allowed)
 
     def test_release_notes_include_checksums_and_pull_requests(self) -> None:
         rows = [
@@ -2021,9 +1999,14 @@ class PublishScriptTests(unittest.TestCase):
             PUBLISH.write_versions_manifest(
                 versions_path, rows, 200, "owner/repository", "TrayAppDotNET_200"
             )
-            artifacts = (
-                ET.parse(versions_path).getroot().findall("./artifacts/artifact")
-            )
+            root = ET.parse(versions_path).getroot()
+            artifacts = root.findall("./artifacts/artifact")
+            declared_apps = [
+                application.get("appId") for application in root.findall("./applications/application")
+            ]
+
+        # Only app rows declare the apps the endpoint must serve; aggregate and installer rows do not
+        self.assertEqual(["BatteryTrayAppDotNET"], declared_apps)
 
         self.assertEqual(
             ["aggregate", "app", "installer", "installer"],
@@ -2164,6 +2147,344 @@ class PublishScriptTests(unittest.TestCase):
         self.assertNotIn("libHarfBuzzSharp.dll", str(context.exception))
         self.assertNotIn("av_libglesv2.dll", str(context.exception))
 
+
+    def test_app_install_script_is_generated_for_the_app_exe(self) -> None:
+        for app in PUBLISH.APPS:
+            script = PUBLISH.app_install_script(app.name).decode("ascii")
+
+            with self.subTest(app=app.name):
+                self.assertIn(f'set "APP={app.name}.exe"', script)
+                self.assertNotIn(PUBLISH.APP_INSTALL_SCRIPT_EXE_PLACEHOLDER, script)
+                self.assertIn("--installlocal", script)
+                self.assertIn("--installsystem", script)
+                self.assertNotIn("shortcut", script)
+                self.assertIn("exit /b 2", script)
+                self.assertTrue(script.startswith("@echo off\r\n"))
+                self.assertNotIn("\r\r", script)
+
+    def test_install_scripts_compare_the_captured_errorlevel(self) -> None:
+        scripts = {
+            "install.bat": PUBLISH.app_install_script(PUBLISH.APPS[0].name).decode("ascii"),
+            "install-all.bat": PUBLISH.install_all_script([PUBLISH.APPS[0].name]).decode("ascii"),
+        }
+        for name, script in scripts.items():
+            with self.subTest(script=name):
+                self.assertNotIn("if errorlevel", script.lower())
+                self.assertIn('set "INSTALL_EXIT_CODE=%ERRORLEVEL%"', script)
+                self.assertIn('if not "%INSTALL_EXIT_CODE%"=="0" (', script)
+
+    def test_app_zip_root_carries_the_generated_install_script(self) -> None:
+        app = PUBLISH.APPS[0]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source_dir = Path(temporary_directory) / "publish"
+            source_dir.mkdir()
+            (source_dir / f"{app.name}.exe").write_bytes(b"exe")
+            zip_path = PUBLISH.zip_directory(
+                source_dir,
+                Path(temporary_directory) / "app.zip",
+                extra_entries=PUBLISH.app_install_entries(app.name),
+            )
+
+            with ZipFile(zip_path) as archive:
+                self.assertEqual(
+                    PUBLISH.app_install_script(app.name),
+                    archive.read("install.bat"),
+                )
+
+    def test_aggregate_carries_per_app_install_scripts_but_not_app_roots(self) -> None:
+        apps = PUBLISH.APPS[:2]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            app_zips = []
+            for app in apps:
+                app_zip = root / f"{app.name}.zip"
+                with ZipFile(app_zip, "w") as archive:
+                    archive.writestr("install.bat", PUBLISH.app_install_script(app.name))
+                    archive.writestr(f"{app.name}.exe", b"exe")
+                    archive.writestr("libSkiaSharp.dll", b"shared")
+                app_zips.append((app.name, app_zip))
+            aggregate_zip = root / "aggregate.zip"
+
+            PUBLISH.create_flat_aggregate(app_zips, aggregate_zip)
+
+            with ZipFile(aggregate_zip) as archive:
+                names = archive.namelist()
+                install_all = archive.read("install-all.bat")
+                for app in apps:
+                    self.assertEqual(
+                        PUBLISH.app_install_script(app.name),
+                        archive.read(f"install-{app.name}.bat"),
+                    )
+        self.assertNotIn("install.bat", names)
+        self.assertEqual(
+            PUBLISH.install_all_script([app.name for app in apps]),
+            install_all,
+        )
+        self.assertEqual(1, names.count("libSkiaSharp.dll"))
+
+    def test_aggregate_takes_legal_files_from_the_release_commit_not_carried_forward_packages(self) -> None:
+        apps = PUBLISH.APPS[:2]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            app_zips = []
+            for index, app in enumerate(apps):
+                app_zip = root / f"{app.name}.zip"
+                with ZipFile(app_zip, "w") as archive:
+                    archive.writestr(f"{app.name}.exe", b"exe")
+                    archive.writestr("libSkiaSharp.dll", b"shared")
+                    # A package carried forward from an older release has older legal files
+                    archive.writestr("NOTICE", f"notice {index}".encode())
+                    archive.writestr(".notices/dotnet-runtime-MIT.txt", f"license {index}".encode())
+                app_zips.append((app.name, app_zip))
+            aggregate_zip = root / "aggregate.zip"
+
+            PUBLISH.create_flat_aggregate(app_zips, aggregate_zip)
+
+            with ZipFile(aggregate_zip) as archive:
+                self.assertEqual((PUBLISH.REPO_ROOT / "NOTICE").read_bytes(), archive.read("NOTICE"))
+                self.assertEqual((PUBLISH.REPO_ROOT / "LICENSE").read_bytes(), archive.read("LICENSE.txt"))
+                for name in PUBLISH.third_party_notice_archive_files(apps[1].name):
+                    self.assertIn(name, archive.namelist())
+
+    def test_aggregate_still_refuses_differing_shared_binaries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            app_zips = []
+            for index, app in enumerate(PUBLISH.APPS[:2]):
+                app_zip = root / f"{app.name}.zip"
+                with ZipFile(app_zip, "w") as archive:
+                    archive.writestr("libSkiaSharp.dll", f"build {index}".encode())
+                app_zips.append((app.name, app_zip))
+
+            with self.assertRaisesRegex(SystemExit, "collision for libSkiaSharp.dll"):
+                PUBLISH.create_flat_aggregate(app_zips, root / "aggregate.zip")
+
+    def test_install_all_script_installs_exactly_the_given_apps(self) -> None:
+        script = PUBLISH.install_all_script(["FirstTrayAppDotNET", "SecondTrayAppDotNET"]).decode("ascii")
+
+        self.assertEqual(
+            ['call :InstallApp "FirstTrayAppDotNET.exe"', 'call :InstallApp "SecondTrayAppDotNET.exe"'],
+            [line for line in script.split("\r\n") if line.startswith("call :InstallApp")],
+        )
+        self.assertNotIn(PUBLISH.INSTALL_ALL_APP_CALLS_PLACEHOLDER, script)
+        self.assertTrue(script.startswith("@echo off\r\n"))
+        self.assertNotIn("\r\r", script)
+
+    def test_app_catalog_json_matches_the_msbuild_app_items(self) -> None:
+        props = ET.parse(PUBLISH.REPO_ROOT / "TrayAppDotNET.Apps.props").getroot()
+        items = [
+            PUBLISH.App(
+                name=item.get("Include"),
+                slug=item.get("Slug"),
+                display_name=item.get("DisplayName"),
+                first_release=int(item.get("FirstRelease")),
+                checkout_submodules=item.get("CheckoutSubmodules") == "true",
+                requires_msvc=item.get("RequiresMsvc") == "true",
+            )
+            for item in props.iter("TrayAppDotNETApp")
+        ]
+
+        # apps.json is generated from the MSBuild items when TrayAppDotNETCommon builds
+        self.assertEqual(items, PUBLISH.load_app_catalog())
+        for app in items:
+            with self.subTest(app=app.name):
+                self.assertTrue((PUBLISH.REPO_ROOT / app.project).is_file())
+                self.assertTrue((PUBLISH.REPO_ROOT / ".github" / "workflows" / f"{app.slug}-debug.yml").is_file())
+
+    def test_app_catalog_rejects_duplicate_names(self) -> None:
+        entry = {
+            "name": "FirstTrayAppDotNET",
+            "displayName": "First",
+            "slug": "first",
+            "firstRelease": 100,
+            "checkoutSubmodules": False,
+            "requiresMsvc": False,
+        }
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            catalog_path = Path(temporary_directory) / "apps.json"
+            catalog_path.write_text(json.dumps({"apps": [entry, entry]}), encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "each name and slug once"):
+                PUBLISH.load_app_catalog(catalog_path)
+
+    def test_describe_app_writes_the_catalog_settings_for_ci(self) -> None:
+        app = PUBLISH.App("FirstTrayAppDotNET", "first", "First", checkout_submodules=True)
+        outputs: dict[str, str] = {}
+        with (
+            mock.patch.object(PUBLISH, "APPS", [app]),
+            mock.patch.object(
+                PUBLISH,
+                "set_github_output",
+                side_effect=lambda name, value: outputs.__setitem__(name, value),
+            ),
+        ):
+            self.assertEqual(0, PUBLISH.describe_app(SimpleNamespace(app_name=" FirstTrayAppDotNET ")))
+            with self.assertRaisesRegex(SystemExit, "Unknown app name"):
+                PUBLISH.describe_app(SimpleNamespace(app_name="OtherTrayAppDotNET"))
+
+        self.assertEqual(
+            {
+                "name": "FirstTrayAppDotNET",
+                "slug": "first",
+                "display_name": "First",
+                "checkout_submodules": "true",
+                "requires_msvc": "false",
+            },
+            outputs,
+        )
+
+    def test_ci_prunes_the_native_aot_sidecars_the_shared_publish_target_prunes(self) -> None:
+        files, directories = PUBLISH.native_aot_prune_lists()
+        self.assertIn("Dia2Lib.dll", files)
+        self.assertIn("win-x64", directories)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            publish_dir = Path(temporary_directory)
+            for name in files:
+                (publish_dir / name).write_bytes(b"sidecar")
+            for name in directories:
+                (publish_dir / name).mkdir()
+                (publish_dir / name / "native.dll").write_bytes(b"sidecar")
+            (publish_dir / "App.exe").write_bytes(b"exe")
+
+            PUBLISH.remove_native_aot_sidecars(publish_dir)
+
+            self.assertEqual(["App.exe"], [path.name for path in publish_dir.iterdir()])
+
+    def test_zip_collision_with_different_content_fails(self) -> None:
+        for name in ("libSkiaSharp.dll", "App.exe", "LICENSE.txt"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary_directory:
+                with ZipFile(Path(temporary_directory) / "out.zip", "w") as archive:
+                    seen: dict[str, str] = {}
+                    PUBLISH.write_unique_zip_entry(archive, seen, name, b"first")
+                    PUBLISH.write_unique_zip_entry(archive, seen, name, b"first")
+                    with self.assertRaisesRegex(SystemExit, "collision"):
+                        PUBLISH.write_unique_zip_entry(archive, seen, name, b"second")
+
+    def test_release_tag_must_match_the_endpoint_rule(self) -> None:
+        for tag, version in (("TrayAppDotNET_100", 100), ("TrayAppDotNET_250", 250)):
+            with self.subTest(tag=tag):
+                self.assertEqual(tag, PUBLISH.validate_release_tag(tag, version))
+        for tag in ("TrayAppDotNET_99", "v200", "TrayAppDotNET_200-rc", "trayappdotnet_200", ""):
+            with self.subTest(tag=tag), self.assertRaisesRegex(SystemExit, "Invalid release tag"):
+                PUBLISH.validate_release_tag(tag, 200)
+        # The endpoint refuses a release whose tag names another version than versions@version
+        with self.assertRaisesRegex(SystemExit, "requires TrayAppDotNET_201"):
+            PUBLISH.validate_release_tag("TrayAppDotNET_250", 201)
+
+    def test_publish_release_rejects_a_tag_for_another_version_before_building(self) -> None:
+        arguments = SimpleNamespace(
+            input_root="",
+            output_root="",
+            installer_factory="",
+            profiles="release",
+            apps=PUBLISH.APPS[0].name,
+            repo="owner/repository",
+            tray_version="201",
+            release_tag="TrayAppDotNET_250",
+            target="HEAD",
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_root = Path(temporary_directory) / "collected"
+            write_collected_app_manifest(input_root / "release", PUBLISH.APPS[0], 10)
+            arguments.input_root = str(input_root)
+            with (
+                mock.patch.object(PUBLISH, "latest_release", return_value=None),
+                mock.patch.object(PUBLISH, "create_flat_aggregate") as create_flat_aggregate,
+                self.assertRaisesRegex(SystemExit, "requires TrayAppDotNET_201"),
+            ):
+                PUBLISH.publish_release(arguments)
+
+        create_flat_aggregate.assert_not_called()
+
+    def test_publish_release_rejects_an_invalid_release_tag_before_building(self) -> None:
+        arguments = SimpleNamespace(
+            input_root="",
+            output_root="",
+            installer_factory="",
+            profiles="release",
+            apps=PUBLISH.APPS[0].name,
+            repo="owner/repository",
+            tray_version="200",
+            release_tag="release-200",
+            target="HEAD",
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_root = Path(temporary_directory) / "collected"
+            write_collected_app_manifest(input_root / "release", PUBLISH.APPS[0], 10)
+            arguments.input_root = str(input_root)
+            with (
+                mock.patch.object(PUBLISH, "latest_release", return_value=None),
+                mock.patch.object(PUBLISH, "create_flat_aggregate") as create_flat_aggregate,
+                self.assertRaisesRegex(SystemExit, "Invalid release tag 'release-200'"),
+            ):
+                PUBLISH.publish_release(arguments)
+
+        create_flat_aggregate.assert_not_called()
+
+    def test_carried_forward_asset_without_digest_fails(self) -> None:
+        app = PUBLISH.APPS[0]
+        profile = PUBLISH.PROFILES["release"]
+        asset = PUBLISH.PublishedAppAsset(
+            release_tag="TrayAppDotNET_200",
+            version=7,
+            file_name=f"{app.name}_7.zip",
+            digest="",
+        )
+
+        def fake_download(cmd: list[str], **_keyword_arguments) -> SimpleNamespace:
+            output = command_output_path(cmd)
+            with ZipFile(output, "w") as archive:
+                for legal_name in (
+                    *PUBLISH.REQUIRED_LEGAL_ARCHIVE_FILES,
+                    *PUBLISH.SHARED_THIRD_PARTY_LICENSE_ARCHIVE_FILES,
+                ):
+                    archive.writestr(legal_name, b"legal")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            mock.patch.object(PUBLISH, "published_releases", return_value=[]),
+            mock.patch.object(PUBLISH, "latest_published_app_asset", return_value=asset),
+            mock.patch.object(PUBLISH, "run", side_effect=fake_download),
+            self.assertRaisesRegex(SystemExit, "no GitHub sha256 digest"),
+        ):
+            PUBLISH.download_published_app("owner/repository", Path(temporary_directory), profile, app)
+
+    def test_shared_native_dll_names_come_from_the_install_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            contract = Path(temporary_directory) / "InstallContract.cs"
+            contract.write_text(
+                "public static class InstallContract\n{\n"
+                "    public static readonly string[] SharedNativeDllNames =\n    {\n"
+                '        "a.dll",\n        "b.dll",\n    };\n}\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(("a.dll", "b.dll"), PUBLISH.shared_native_dll_names(contract))
+
+            contract.write_text("SharedNativeDllNames = { };", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "empty SharedNativeDllNames"):
+                PUBLISH.shared_native_dll_names(contract)
+
+            contract.write_text("public static class InstallContract { }", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "does not define SharedNativeDllNames"):
+                PUBLISH.shared_native_dll_names(contract)
+
+            with self.assertRaisesRegex(SystemExit, "Missing install contract"):
+                PUBLISH.shared_native_dll_names(Path(temporary_directory) / "missing.cs")
+
+    def test_repository_install_contract_lists_the_shared_native_dlls(self) -> None:
+        self.assertEqual(
+            ("av_libglesv2.dll", "libHarfBuzzSharp.dll", "libSkiaSharp.dll"),
+            PUBLISH.shared_native_dll_names(),
+        )
+
+    def test_dead_staging_phases_are_gone(self) -> None:
+        with (
+            mock.patch.object(sys, "argv", ["publish.py", "--phase", "build-profile"]),
+            mock.patch("sys.stderr"),
+            self.assertRaises(SystemExit),
+        ):
+            PUBLISH.parse_args()
 
 if __name__ == "__main__":
     unittest.main()

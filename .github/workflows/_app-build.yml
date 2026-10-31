@@ -1,0 +1,113 @@
+name: App Debug Build
+
+# Reusable Debug build of one app. The per-app <slug>-debug.yml callers own the triggers and path filters; every
+# app-specific setting (artifact name, submodules, MSVC) comes from the app catalog, apps.json.
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: App name from apps.json, for example BatteryTrayAppDotNET.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: ${{ inputs.app }} Debug
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # Only apps that build vendored code check out submodules, below.
+          submodules: false
+
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
+      - name: Describe App
+        id: app
+        env:
+          APP_NAME: ${{ inputs.app }}
+        run: python .github/scripts/publish.py --phase describe-app --app-name "$APP_NAME"
+
+      - name: Checkout Submodules
+        if: ${{ steps.app.outputs.checkout_submodules == 'true' }}
+        run: |
+          set -euo pipefail
+
+          git submodule sync --recursive
+          # --checkout forces the recorded commit instead of merge/rebase.
+          git submodule deinit --force --all
+          git submodule update --init --force --checkout --recursive
+          git submodule foreach --recursive '
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --unshallow --tags
+            fi
+          '
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Verify Visual C++ Build Tools
+        if: ${{ steps.app.outputs.requires_msvc == 'true' }}
+        run: |
+          set -euo pipefail
+
+          vswhere_path='/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe'
+          test -x "$vswhere_path"
+          visual_studio_path="$("$vswhere_path" -latest -products '*' \
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+            -property installationPath)"
+          test -n "$visual_studio_path"
+
+      - name: Restore
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
+        run: dotnet restore "$APP_NAME/src/$APP_NAME.csproj" -p:Platform=x64 -p:EnableWindowsTargeting=true
+
+      - name: Build Debug
+        # Debug artifacts are built for CI only, so avoid local app shutdowns and publish side effects, and keep the
+        # uploaded artifact small.
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
+        run: |
+          set -euo pipefail
+
+          dotnet build "$APP_NAME/src/$APP_NAME.csproj" \
+            --configuration Debug \
+            --no-restore \
+            --output ".artifacts/debug/$APP_NAME" \
+            -p:Platform=x64 \
+            -p:EnableWindowsTargeting=true \
+            -p:SkipKillRunningInstance=true \
+            -p:SkipPublishAfterBuild=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            -p:ContinuousIntegrationBuild=true
+
+      - name: Remove PDB Files
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
+        run: find ".artifacts/debug/$APP_NAME" -type f -name '*.pdb' -delete
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.app.outputs.slug }}-tray-app-debug-${{ github.sha }}
+          path: .artifacts/debug/${{ steps.app.outputs.name }}/**
+          if-no-files-found: error
+          retention-days: 14
