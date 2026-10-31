@@ -13,10 +13,14 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI;
+
+/// <summary>A window's own size and minimum size in device-independent pixels.</summary>
+public readonly record struct SettingsWindowDimensions(double Width, double Height, double MinWidth, double MinHeight);
 
 public sealed record SettingsPageDescriptor<TPageKey>(
     TPageKey Key,
@@ -51,6 +55,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private IReadOnlyList<SettingsNavItem> _sidebarFooterActions = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
     private readonly HashSet<TrayAppDotNETColorPickerWindow> _openColorPickers = [];
+
+    // One picker per (color, variant), keyed by the color instance
+    private readonly Dictionary<NullableThemeColor, TrayAppDotNETColorPickerWindow> _openLightColorPickers =
+        new(ReferenceEqualityComparer.Instance);
+
+    private readonly Dictionary<NullableThemeColor, TrayAppDotNETColorPickerWindow> _openDarkColorPickers =
+        new(ReferenceEqualityComparer.Instance);
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _shellGeneration;
     private UIContentGeneration? _pageGeneration;
@@ -60,20 +71,24 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Control? _sidebarHeader;
     private ColumnDefinition? _sidebarColumn;
     private SettingsSidebarResizeHandle? _sidebarResizeHandle;
-    private Control? _sidebarOverlay;
     private Grid? _pageOverlayHost;
     private bool _pageOverlayAlignsToContentArea;
-    private Border? _titleBarDragZone;
     private double _currentSidebarWidth;
     private bool? _sidebarCollapseOverride;
     private bool? _sidebarControlsCollapsedState;
+    private DispatcherTimer? _deferredThemeRebuildTimer;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
     private TextBlock? _confirmMessage;
     private SettingsButton? _confirmOk;
     private SettingsButton? _confirmCancel;
+    private bool _confirmIsMessage;
     private Control? _confirmPreviousFocus;
+    private AppTheme? _themeChangeSource;
+
+    // Whether CommonSettings raised Changed since the user's last input in this window
+    private bool _settingsChangedSinceInput;
     private readonly Win32Properties.CustomWndProcHookCallback _wndProcHook;
     private bool _shellInitialized;
     private bool _hasShownPage;
@@ -105,16 +120,39 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected SettingsPalette Palette => _palette ??= ResolvePalette();
 
+    /// <summary>
+    /// The app settings the shared shell and sections read: theme mode and colors, rounded corners, navigation style,
+    /// sidebar width, startup, language, rendering, updates and appearance. Null only for windows without app settings.
+    /// </summary>
+    protected virtual AppSettingsCommon? CommonSettings => null;
+
+    /// <summary>The app's loaded theme; null falls back to <see cref="AppTheme.Default"/>.</summary>
+    protected virtual AppTheme? SettingsTheme => null;
+
     /// <summary>Gets the footer actions owned by the currently committed or building shell.</summary>
     protected IReadOnlyList<SettingsNavItem> SidebarFooterActions => _sidebarFooterActions;
-    protected abstract bool EnableRoundedCorners { get; }
+    protected virtual bool EnableRoundedCorners => CommonSettings?.EnableRoundedCorners ?? false;
     protected abstract TPageKey DefaultPageKey { get; }
     protected abstract string HeaderText { get; }
-    protected abstract string OpenSettingsFolderText { get; }
-    protected abstract string SettingsFolderPath { get; }
-    protected abstract SettingsPalette ResolvePalette();
+    /// <summary>The window palette; the default reads <see cref="Theme"/> and <see cref="CommonSettings"/>.</summary>
+    protected virtual SettingsPalette ResolvePalette() =>
+        AppSettingsPalette.Create(SettingsTheme, CommonSettings, ResolveEffectiveIsLight());
+
+    /// <summary>Whether the window currently draws light, by the one light/dark rule.</summary>
+    protected bool ResolveEffectiveIsLight() => AppTheme.ResolveIsLight(CommonSettings, SettingsTheme);
     protected abstract IReadOnlyList<SettingsPageDescriptor<TPageKey>> CreatePageDescriptors();
-    protected abstract void Save();
+    /// <summary>
+    /// The explicit save of a settings edit: writes <see cref="CommonSettings"/> and notifies
+    /// <see cref="AppSettingsCommon.Changed"/> once. A setter already raised it for most edits; edits that bypass
+    /// setters (lists, nested objects) are notified here, so handlers never run twice for one edit.
+    /// </summary>
+    protected virtual void Save()
+    {
+        AppSettingsCommon settings = RequiredCommonSettings;
+        if (!_settingsChangedSinceInput) settings.RaiseChanged();
+        _settingsChangedSinceInput = false;
+        settings.Save();
+    }
 
     /// <summary>Builds the navigation sidebar for this window.</summary>
     protected virtual SettingsSidebar BuildSidebar() => new(
@@ -132,14 +170,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         sidebarHeader.IsHitTestVisible = !usesCompactRail;
     }
 
-    /// <summary>Builds optional content floated over the sidebar column without affecting its layout.</summary>
-    protected virtual Control? BuildSidebarOverlay(SettingsPalette palette) => null;
-
-    /// <summary>Updates floated sidebar content after its effective collapse state changes.</summary>
-    protected virtual void UpdateSidebarOverlay(Control sidebarOverlay, bool isCollapsed)
-    {
-    }
-
     /// <summary>Builds optional action rows placed before the sidebar's page-navigation rows.</summary>
     protected virtual IReadOnlyList<SettingsNavItem> CreateSidebarNavigationActions(SettingsPalette palette) => [];
 
@@ -153,8 +183,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
     }
 
-    protected virtual Color ConfirmOverlayBackdrop =>
-        AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
+    /// <summary>Backdrop behind the confirm overlay and owned update prompts, from the window's theme.</summary>
+    protected Color ConfirmOverlayBackdrop =>
+        (SettingsTheme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
     protected virtual bool UseProminentConfirmationDialog => false;
 
@@ -169,14 +200,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual double CollapsedSidebarWidth => 0;
 
     /// <summary>Gets the app settings object that owns the optional custom navigation width.</summary>
-    protected virtual ISettingsSidebarWidthSettings? SidebarWidthSettings => null;
+    protected virtual ISettingsSidebarWidthSettings? SidebarWidthSettings => CommonSettings;
 
     protected virtual Thickness ContentPadding => _settingsResources.AxamlSettingsWindow.ScrollHostMargin;
-    protected virtual bool UseWindows11SettingsNavigation => false;
+    protected virtual bool UseWindows11SettingsNavigation => CommonSettings?.UseWindows11SettingsNavigation ?? false;
     protected virtual bool ShowSettingsSearchBox => true;
     protected virtual bool UseExtendedTitleBarDragZone => true;
     protected virtual bool PageContentExtendsIntoTitleBar => false;
-    protected virtual bool UsePageContentTitleBarDragZone => true;
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
 
@@ -250,6 +280,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         PositionChanged += OnWindowPositionChanged;
         Resized += OnWindowResized;
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, OnWindowPointerWheelChanged, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerMovedEvent, OnWindowPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -262,6 +293,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnWindowKeyDown));
         _windowResources.Add(() => RemoveHandler(PointerMovedEvent, OnWindowPointerMoved));
         _windowResources.Add(() => RemoveHandler(PointerPressedEvent, OnWindowPointerPressed));
+        _windowResources.Add(() => RemoveHandler(PointerWheelChangedEvent, OnWindowPointerWheelChanged));
         _windowResources.Add(DetachWndProcHook);
         _windowResources.Add(() => Resized -= OnWindowResized);
         _windowResources.Add(() => PositionChanged -= OnWindowPositionChanged);
@@ -276,10 +308,25 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected void ConfigureCompactSettingsWindow(string title, WindowIcon? icon) =>
         ConfigureSettingsWindow(title, SettingsWindowSizeProfile.Compact, icon);
 
+    /// <summary>Configures the shell with a window's own dimensions instead of a shared size profile.</summary>
+    protected void ConfigureSettingsWindow(string title, WindowIcon? icon, SettingsWindowDimensions dimensions)
+    {
+        ConfigureSettingsWindowCore(title, icon);
+        Width = dimensions.Width;
+        Height = dimensions.Height;
+        MinWidth = dimensions.MinWidth;
+        MinHeight = dimensions.MinHeight;
+    }
+
     private void ConfigureSettingsWindow(string title, SettingsWindowSizeProfile sizeProfile, WindowIcon? icon)
     {
-        Title = title;
+        ConfigureSettingsWindowCore(title, icon);
         ApplyWindowDimensions(sizeProfile);
+    }
+
+    private void ConfigureSettingsWindowCore(string title, WindowIcon? icon)
+    {
+        Title = title;
         Icon = icon;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         // BorderOnly supplies native resize hit testing while the extended client area retains custom chrome
@@ -323,6 +370,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         if (_shellInitialized) return;
 
+        if (CommonSettings is { } changeSource)
+        {
+            changeSource.Changed += OnCommonSettingsChanged;
+            _windowResources.Add(() => changeSource.Changed -= OnCommonSettingsChanged);
+        }
+
         BuildAndCommitShell(DefaultPageKey);
         _shellInitialized = true;
 #if DEBUG
@@ -334,22 +387,43 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
     }
 
-    public Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
+    /// <summary>
+    /// Shows the in-window confirmation overlay and completes with true for Confirm. A null
+    /// <paramref name="cancelText"/> shows a single-button message whose button and Escape both complete with false.
+    /// A request after the window started closing completes with false without showing anything.
+    /// </summary>
+    public Task<bool> ConfirmAsync(string title, string message, string confirmText, string? cancelText)
     {
+        if (IsClosing
+            || _confirmOverlay == null
+            || _confirmTitle == null
+            || _confirmMessage == null
+            || _confirmOk == null
+            || _confirmCancel == null)
+            return Task.FromResult(false);
+
         CancelPendingConfirm();
         _confirmPreviousFocus = GetTopLevel(this)?.FocusManager.GetFocusedElement() as Control;
-        _confirmTitle!.Text = title;
-        _confirmMessage!.Text = message;
-        _confirmOk!.Text = confirmText;
-        _confirmCancel!.Text = cancelText;
+        _confirmTitle.Text = title;
+        _confirmMessage.Text = message;
+        _confirmOk.Text = confirmText;
+        _confirmIsMessage = cancelText == null;
+        _confirmCancel.Text = cancelText ?? string.Empty;
+        _confirmCancel.IsVisible = !_confirmIsMessage;
         _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         SetConfirmOverlayVisible(true);
         _confirmOk.Focus();
         return _confirmTcs.Task;
     }
 
+    private void OnCommonSettingsChanged() => _settingsChangedSinceInput = true;
+
+    private void OnWindowPointerWheelChanged(object? sender, PointerWheelEventArgs eventArgs) =>
+        _settingsChangedSinceInput = false;
+
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
+        _settingsChangedSinceInput = false;
         if (FocusManager.GetFocusedElement() is not TextBox focusedTextBox) return;
 
         SettingsNumberBox? numberBox = focusedTextBox.GetVisualAncestors()
@@ -377,10 +451,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         MoveToDefaultPosition();
         BringToForeground();
     }
-
-    /// <summary>Shows a cold window only after its first compositor frame contains the completed shell.</summary>
-    public void ShowAtDefaultPositionAndActivateAfterFirstFrame() =>
-        _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
 
     /// <summary>Shows and activates the window, completing after its first-frame reveal and foreground sequence.</summary>
     public Task ShowAtDefaultPositionAndActivateAfterFirstFrameAsync()
@@ -514,6 +584,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _settingsSearchQuery = string.Empty;
 
         RefreshPalette();
+        if (IsVisible) AttachThemeChangeSource();
         try
         {
             BuildAndCommitShell(selectedPageKey);
@@ -652,10 +723,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void SynchronizeCommonAXAMLResources()
     {
-        CommonAXAMLHotReload.SynchronizeResources(
+        AXAMLHotReload.SynchronizeResources(
             _settingsResources,
             SettingsWindowCommonResources.Current);
-        CommonAXAMLHotReload.SynchronizeResources(
+        AXAMLHotReload.SynchronizeResources(
             _commonBindingResources,
             CommonBindingsResources.Current);
     }
@@ -706,8 +777,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     }
 
     protected static string L(string key) => LocalizationManager.Instance[key];
-
-    protected static string Loc(string key) => L(key);
 
     protected CornerRadius RadiusTiny => RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.RadiusTiny);
     protected CornerRadius RadiusMedium => RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.RadiusMedium);
@@ -890,8 +959,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             out descriptionText,
             searchKeywords);
 
+    /// <summary>Shows a message in the confirmation overlay with a single OK button.</summary>
     protected Task ShowMessage(string title, string message) =>
-        ConfirmAsync(title, message, confirmText: "OK", cancelText: "OK");
+        ConfirmAsync(title, message, L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_OK)), cancelText: null);
 
     private Border BuildRoot()
     {
@@ -971,6 +1041,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             palette,
             ContentPadding,
             ControlMap.SettingsShell.Content.ScrollBar.ID);
+        _scrollHost.SetContextMenuOptions(CreateScrollBarMenuOptions(palette));
         Grid.SetColumn(_scrollHost, value: 1);
         body.Children.Add(_scrollHost);
 
@@ -999,14 +1070,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             body.Children.Add(_sidebarResizeHandle);
         }
 
-        _sidebarOverlay = BuildSidebarOverlay(palette);
         _sidebarControlsCollapsedState = null;
-        if (_sidebarOverlay != null)
-        {
-            _sidebarOverlay.Margin = _sidebar.Margin;
-            Grid.SetColumn(_sidebarOverlay, value: 0);
-            body.Children.Add(_sidebarOverlay);
-        }
 
         _pageOverlayHost = new Grid();
         Grid.SetRow(_pageOverlayHost, value: 0);
@@ -1064,19 +1128,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        if (PageContentExtendsIntoTitleBar && UsePageContentTitleBarDragZone)
-        {
-            _titleBarDragZone = new Border
-            {
-                Background = Brushes.Transparent,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Stretch
-            }.MapTo(ControlMap.SettingsShell.TitleBar.Move);
-            AttachTitleBarDrag(_titleBarDragZone);
-            titleBar.Children.Add(_titleBarDragZone);
-        }
-        else
-            AttachTitleBarDrag(titleBar);
+        AttachTitleBarDrag(titleBar);
 
         StackPanel buttons = new()
         {
@@ -1422,13 +1474,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Control? previousSidebarHeader = _sidebarHeader;
         ColumnDefinition? previousSidebarColumn = _sidebarColumn;
         SettingsSidebarResizeHandle? previousSidebarResizeHandle = _sidebarResizeHandle;
-        Control? previousSidebarOverlay = _sidebarOverlay;
         bool? previousSidebarControlsCollapsedState = _sidebarControlsCollapsedState;
         IReadOnlyList<SettingsNavItem> previousSidebarNavigationActions = _sidebarNavigationActions;
         IReadOnlyList<SettingsNavItem> previousSidebarFooterActions = _sidebarFooterActions;
         Grid? previousPageOverlayHost = _pageOverlayHost;
         bool previousPageOverlayAlignsToContentArea = _pageOverlayAlignsToContentArea;
-        Border? previousTitleBarDragZone = _titleBarDragZone;
         double previousCurrentSidebarWidth = _currentSidebarWidth;
         SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
         Border? previousConfirmOverlay = _confirmOverlay;
@@ -1460,11 +1510,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebarHeader = null;
             _sidebarColumn = null;
             _sidebarResizeHandle = null;
-            _sidebarOverlay = null;
             _sidebarControlsCollapsedState = null;
             _pageOverlayHost = null;
             _pageOverlayAlignsToContentArea = false;
-            _titleBarDragZone = null;
             _settingsSearchBox = null;
             _confirmOverlay = null;
             _confirmTitle = null;
@@ -1531,13 +1579,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebarHeader = previousSidebarHeader;
             _sidebarColumn = previousSidebarColumn;
             _sidebarResizeHandle = previousSidebarResizeHandle;
-            _sidebarOverlay = previousSidebarOverlay;
             _sidebarControlsCollapsedState = previousSidebarControlsCollapsedState;
             _sidebarNavigationActions = previousSidebarNavigationActions;
             _sidebarFooterActions = previousSidebarFooterActions;
             _pageOverlayHost = previousPageOverlayHost;
             _pageOverlayAlignsToContentArea = previousPageOverlayAlignsToContentArea;
-            _titleBarDragZone = previousTitleBarDragZone;
             _currentSidebarWidth = previousCurrentSidebarWidth;
             _settingsSearchBox = previousSettingsSearchBox;
             _confirmOverlay = previousConfirmOverlay;
@@ -1564,7 +1610,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             Control root = factory();
-            ControlNames.AssignLogicalSubtree(root, this);
+            // The page key names the page's controls, so a page never names itself
+            ControlNames.AssignLogicalSubtree(root, PageNameToken(key));
             OwnDisposablePageControls(root, resources);
             return new UIContentGeneration($"{GetType().Name}.Page.{key}", root, resources);
         }
@@ -1578,6 +1625,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _buildingPageResources = null;
         }
     }
+
+    private static string PageNameToken(TPageKey key) => key.ToString() ?? typeof(TPageKey).Name;
 
     private void RestorePageScroll(TPageKey key, bool resetBeforeLayout, long pageGenerationID)
     {
@@ -1702,7 +1751,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)),
                 palette)
             : Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)), palette);
-        _confirmOk.Click += (_, _) => CompleteConfirm(true);
+        _confirmOk.Click += (_, _) => CompleteConfirm(!_confirmIsMessage);
         _confirmCancel.Click += (_, _) => CompleteConfirm(false);
         _confirmOk.MapTo(ControlMap.SettingsShell.ConfirmOverlay.Confirm);
         _confirmCancel.MapTo(ControlMap.SettingsShell.ConfirmOverlay.Cancel);
@@ -1854,12 +1903,83 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void OnWindowOpened(object? sender, EventArgs e)
     {
+        AttachThemeChangeSource();
         AttachWndProcHook();
         UpdateSidebarLayout();
         UpdateWindowCornerRadius();
     }
 
     private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e) => UpdateWindowCornerRadius();
+
+    /// <summary>Follows the Windows light/dark switch while the window is open (the theme may be reloaded).</summary>
+    private void AttachThemeChangeSource()
+    {
+        AppTheme source = SettingsTheme ?? AppTheme.Default;
+        if (ReferenceEquals(source, _themeChangeSource)) return;
+
+        DetachThemeChangeSource();
+        source.ThemeChanged += OnThemeSourceChanged;
+        _themeChangeSource = source;
+    }
+
+    private void DetachThemeChangeSource()
+    {
+        AppTheme? source = _themeChangeSource;
+        if (source == null) return;
+
+        source.ThemeChanged -= OnThemeSourceChanged;
+        _themeChangeSource = null;
+    }
+
+    // Raised from a SystemEvents thread; only a window following the Windows mode changes colors
+    private void OnThemeSourceChanged(bool isLightTheme) => Dispatcher.UIThread.Post(RebuildForThemeChangeWhenIdle);
+
+    // The rebuild replaces every control, so it waits while one is mid-edit: a focused text or number box (caret and
+    // uncommitted text), a hotkey key box capturing, an open dropdown, or an open confirmation
+    private void RebuildForThemeChangeWhenIdle()
+    {
+        if (IsClosing
+            || !_shellInitialized
+            || (CommonSettings?.ThemeMode ?? TrayAppDotNETThemeMode.System) != TrayAppDotNETThemeMode.System)
+        {
+            StopDeferredThemeRebuild();
+            return;
+        }
+
+        if (IsEditingInPlace())
+        {
+            _deferredThemeRebuildTimer ??= StartDeferredThemeRebuildTimer();
+            return;
+        }
+
+        StopDeferredThemeRebuild();
+        RebuildShell(CurrentPageKey);
+    }
+
+    private DispatcherTimer StartDeferredThemeRebuildTimer()
+    {
+        DispatcherTimer timer = new(
+            TimeSpan.FromMilliseconds(TimeConstants.SettingsThemeRebuildRetryMs),
+            DispatcherPriority.Background,
+            (_, _) => RebuildForThemeChangeWhenIdle());
+        timer.Start();
+        return timer;
+    }
+
+    private void StopDeferredThemeRebuild()
+    {
+        _deferredThemeRebuildTimer?.Stop();
+        _deferredThemeRebuildTimer = null;
+    }
+
+    /// <summary>Whether a control holds an edit that a shell rebuild would discard.</summary>
+    internal bool IsEditingInPlace() =>
+        _confirmTcs != null
+        || FocusManager?.GetFocusedElement() is TextBox
+        || this.GetVisualDescendants().OfType<ComboBox>().Any(static comboBox => comboBox.IsDropDownOpen);
+
+    /// <summary>Whether a Windows light/dark switch is waiting for an edit to end.</summary>
+    internal bool IsThemeRebuildDeferred => _deferredThemeRebuildTimer != null;
 
     private void OnWindowResized(object? sender, WindowResizedEventArgs e)
     {
@@ -1873,12 +1993,19 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
     {
+        _settingsChangedSinceInput = false;
         if (_confirmTcs != null)
         {
             switch (eventArgs.Key)
             {
-                // The control map runs Cancel on Escape
+                // The control map runs Cancel on Escape; a message has no visible Cancel, so Escape closes it here
                 case Key.Escape:
+                    if (_confirmIsMessage)
+                    {
+                        CompleteConfirm(false);
+                        eventArgs.Handled = true;
+                    }
+
                     return;
                 case Key.Tab:
                 case Key.Left:
@@ -1886,7 +2013,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                     Control? focusedElement = GetTopLevel(this)?
                         .FocusManager
                         .GetFocusedElement() as Control;
-                    SettingsButton? nextButton = ReferenceEquals(focusedElement, _confirmOk)
+                    SettingsButton? nextButton = ReferenceEquals(focusedElement, _confirmOk) && !_confirmIsMessage
                         ? _confirmCancel
                         : _confirmOk;
                     nextButton?.Focus();
@@ -1932,7 +2059,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 $"{GetType().Name}.OnSettingsWindowClosed failed: {exception.GetType().Name}: {exception.Message}");
         }
 
-        foreach (TrayAppDotNETColorPickerWindow picker in _openColorPickers.ToArray())
+        foreach (TrayAppDotNETColorPickerWindow picker in _openColorPickers
+                     .Concat(_openLightColorPickers.Values)
+                     .Concat(_openDarkColorPickers.Values)
+                     .ToArray())
         {
             try
             {
@@ -1945,7 +2075,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         }
 
         _openColorPickers.Clear();
+        _openLightColorPickers.Clear();
+        _openDarkColorPickers.Clear();
 
+        RunWindowCloseCleanup(nameof(DetachThemeChangeSource), DetachThemeChangeSource);
+        RunWindowCloseCleanup(nameof(StopDeferredThemeRebuild), StopDeferredThemeRebuild);
         RunWindowCloseCleanup(nameof(DetachWndProcHook), DetachWndProcHook);
         RunWindowCloseCleanup(nameof(DisposeSettingsSearch), DisposeSettingsSearch);
         RunWindowCloseCleanup(operation: "ClearWindowContent", () => Content = null);
@@ -1972,11 +2106,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebarHeader = null;
         _sidebarColumn = null;
         _sidebarResizeHandle = null;
-        _sidebarOverlay = null;
         _sidebarControlsCollapsedState = null;
         _pageOverlayHost = null;
         _pageOverlayAlignsToContentArea = false;
-        _titleBarDragZone = null;
         _currentSidebarWidth = 0;
         _confirmOverlay = null;
         _confirmTitle = null;
@@ -2011,15 +2143,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _settingsSearchBox?.IsVisible = !usesCompactRail;
         _sidebarResizeHandle?.IsVisible = !isCollapsed;
         sidebarColumn.Width = new GridLength(pageContentLeftInset);
-        _titleBarDragZone?.Width = isCollapsed
-            ? Math.Max(
-                _settingsResources.AxamlSettingsWindow.TitleBarHeight,
-                pageContentLeftInset)
-            : pageContentLeftInset;
         if (_sidebarControlsCollapsedState != isCollapsed)
         {
-            if (_sidebarOverlay != null)
-                UpdateSidebarOverlay(_sidebarOverlay, isCollapsed);
             UpdateSidebarNavigationActions(_sidebarNavigationActions, isCollapsed);
             _sidebarControlsCollapsedState = isCollapsed;
         }
@@ -2166,8 +2291,17 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _wndProcHookAttached = false;
     }
 
-    private static IntPtr WndProcHook(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    /// <summary>
+    /// Window messages for a derived window, seen before the shell's own handling on the one hook the shell
+    /// registers; set <paramref name="handled"/> to stop the message there.
+    /// </summary>
+    protected virtual IntPtr OnWindowMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, ref bool handled) =>
+        IntPtr.Zero;
+
+    private IntPtr WndProcHook(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        IntPtr result = OnWindowMessage(hWnd, msg, wParam, lParam, ref handled);
+        if (handled) return result;
         if (msg != User32.WM_MOUSEACTIVATE) return IntPtr.Zero;
 
         handled = true;

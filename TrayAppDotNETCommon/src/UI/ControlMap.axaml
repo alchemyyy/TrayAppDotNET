@@ -140,7 +140,7 @@
     </Template>
 
     <Template ID="RenderingSection" Source="TrayAppDotNETRenderingSettingsSection.AddCards"
-              Description="AdditionalCards, unused by the apps, would follow RenderingBackend">
+              Description="SettingsWindowCommon.AddRenderingSection; every app">
         <Leaf ID="RenderingBackend" Kind="Select" Event="SelectionChanged"
               Source="TrayAppDotNETRenderingSettingsSection.BuildRenderingBackendCard"
               Description="Saves, then offers a restart through the shell confirm overlay" />
@@ -154,7 +154,7 @@
                   Description="Only when SupportsTrayContextMenuWarmWindow" />
         </Scope>
         <Scope ID="TrayMenu" Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards"
-               Description="Only with TrayMenuSettings">
+               Description="Only in apps whose tray menus have submenus (Task Manager)">
             <Leaf ID="UseSystemSubmenuDelay" Kind="Toggle" Event="Callback"
                   Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards" />
             <Leaf ID="SubmenuOpenDelay" Kind="Number"
@@ -162,6 +162,26 @@
                   Event="Callback" Source="TrayAppDotNETRenderingSettingsSection.AddTrayMenuCards"
                   Description="Hidden while UseSystemSubmenuDelay is on" />
         </Scope>
+    </Template>
+
+    <Template ID="AppearanceSection" Source="SettingsWindowCommon.AddAppearanceSection"
+              Description="Theme page cards every app shares, in this order; each look change rebuilds the window">
+        <Leaf ID="ThemeMode" Kind="Select" Event="Callback" Source="SettingsWindowCommon.AddAppearanceSection"
+              Description="System, Light or Dark" />
+        <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback" Source="SettingsWindowCommon.AddAppearanceSection" />
+        <Scope ID="TextColor" Template="VariantColorCard" Source="SettingsWindowCommon.AddAppearanceSection" />
+        <Scope ID="BackgroundColor" Template="VariantColorCard" Source="SettingsWindowCommon.AddAppearanceSection" />
+        <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback" Source="SettingsWindowCommon.AddAppearanceSection" />
+        <Leaf ID="AnimationMode" Kind="Select" Event="Callback" Source="SettingsWindowCommon.AddAppearanceSection"
+              Description="System, Disabled or Enabled; applied at once" />
+        <Leaf ID="ToolTipShowDelay" Kind="Number" Pointer="Wheel" Event="Callback"
+              Source="SettingsWindowCommon.AddAppearanceSection" Description="Applied at once to open windows" />
+    </Template>
+
+    <Template ID="ContextMenuAppearanceSection" Source="SettingsWindowCommon.AddContextMenuAppearanceSection"
+              Description="Context menu header and the tray menu font size, which scales the whole menu">
+        <Leaf ID="ContextMenuFontSize" Kind="Number" Pointer="Wheel" Event="Callback"
+              Source="SettingsWindowCommon.AddContextMenuAppearanceSection" />
     </Template>
 
     <Template ID="AboutPage" Source="TrayAppDotNETAboutPage.Build">
@@ -176,12 +196,12 @@
                 <Leaf ID="CheckForUpdates" Kind="Button" Event="Click"
                       Source="TrayAppDotNETAboutPage.BuildUpdateActionCard" />
                 <Leaf ID="SkipUpdate" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
-                      Description="Visible only while an update is available; skips after an UpdateConfirmation window" />
+                      Description="Visible only while an update is available; skips after a Confirmation window" />
                 <Leaf ID="UndoSkip" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
                       Description="Takes SkipUpdate's place while a skipped release is withheld; offers it again" />
                 <Leaf ID="InstallUpdate" Kind="Button" Event="Click"
                       Source="TrayAppDotNETAboutPage.BuildUpdateActionCard"
-                      Description="Opens the UpdateConfirmation window; enabled only while an update is available" />
+                      Description="Opens the Confirmation window; enabled only while an update is available" />
             </Scope>
             <Leaf ID="UpdateInterval" Kind="Number"
                   Pointer="Wheel"
@@ -194,8 +214,29 @@
                   Source="TrayAppDotNETAboutPage.AddUpdatesSection"
                   Description="Flyout update button; only when SupportsFlyoutUpdateButton" />
             <Leaf ID="Backdate" Kind="Button" Event="Click" Source="TrayAppDotNETAboutPage.BuildBackdateCard"
-                  Description="Opens the UpdateConfirmation window for the previous release" />
+                  Description="Opens the Confirmation window for the previous release" />
         </Scope>
+    </Template>
+
+    <Template ID="HotkeysSection" Source="TrayAppDotNETHotkeysSection.AddTo"
+              Description="Hotkeys page body; the unnamed slot takes app controls added below the cards">
+        <Scope ID="Hotkey" IsRepeated="True" Source="TrayAppDotNETHotkeysSection.BuildRow"
+               Description="One card per row the app lists, in that order">
+            <Slot ID="RowLeading" />
+            <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged" Source="TrayAppDotNETHotkeysSection.BuildRow" />
+            <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
+                  Description="Read-only; a tunnelling handler records the next key, Enter and Backspace included; Tab
+                               moves focus; modifier keys alone are ignored; Escape, F12 and unsupported keys are
+                               swallowed with a reason in the card's feedback line" />
+            <Leaf ID="Add" Kind="Button" Event="Click" Source="TrayAppDotNETHotkeysSection.BuildRow"
+                  Description="Enabled once a modifier and a key are chosen and no live binding uses the combination;
+                               otherwise the feedback line names the action that has it" />
+            <Slot ID="RowTrailing" />
+            <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
+                  Source="TrayAppDotNETHotkeysSection.BuildEntry"
+                  Description="One per bound combination; deleting a shipped default leaves a tombstone" />
+        </Scope>
+        <Slot />
     </Template>
 
     <!-- Settings cards with more than one control -->
@@ -224,55 +265,43 @@
     <Template ID="VariantColorCard" Source="SettingsWindowCommon.VariantColorCard"
               Description="Only the swatch for the effective theme is visible">
         <Leaf ID="PickLightColor" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
-              Description="Light swatch; opens a ColorPicker window" />
+              Description="Light swatch; opens a ColorPicker window, or brings back the one already open for it" />
         <Leaf ID="PickDarkColor" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
-              Description="Dark swatch; opens a ColorPicker window" />
+              Description="Dark swatch; opens a ColorPicker window, or brings back the one already open for it" />
         <Leaf ID="Reset" Kind="Button" Event="Click" Source="SettingsWindowCommon.VariantColorCard"
-              Description="Clears both variants" />
-    </Template>
-
-    <Template ID="CoordinatorColorCard" Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
-              Description="Same row as VariantColorCard; one picker per variant stays open and is reactivated">
-        <Leaf ID="PickLightColor" Kind="Button" Event="Click"
-              Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
-              Description="Light swatch; opens a ColorPicker window" />
-        <Leaf ID="PickDarkColor" Kind="Button" Event="Click"
-              Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
-              Description="Dark swatch; opens a ColorPicker window" />
-        <Leaf ID="Reset" Kind="Button" Event="Click" Source="TrayAppDotNETSettingsColorCardCoordinator.ColorCard"
               Description="Clears both variants" />
     </Template>
 
     <!-- Common dialogs -->
 
-    <Template ID="UpdateConfirmation" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+    <Template ID="Confirmation" Source="TrayAppDotNETConfirmationWindow.BuildContent"
               Description="Modal; the update prompt uses the modal layout, every other prompt the standard one">
         <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown"
-              Source="TrayAppDotNETUpdateConfirmationWindow.OnWindowKeyDown"
+              Source="TrayAppDotNETConfirmationWindow.OnWindowKeyDown"
               Description="Closes with Cancelled, like Cancel and the caption Close" />
         <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal"
-               Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar" Description="Standard layout only">
+               Source="TrayAppDotNETConfirmationWindow.BuildTitleBar" Description="Standard layout only">
             <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar" />
-            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETUpdateConfirmationWindow.BuildTitleBar"
+                  Source="TrayAppDotNETConfirmationWindow.BuildTitleBar" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="TrayAppDotNETConfirmationWindow.BuildTitleBar"
                   Description="Caption close; closes with Cancelled" />
         </Scope>
-        <Scope ID="Links" Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalLinks"
+        <Scope ID="Links" Source="TrayAppDotNETConfirmationWindow.BuildModalLinks"
                Description="Modal layout with release details only; top right, the dialog stays open">
             <Leaf ID="OpenWebsite" Kind="Button" Pointer="Click" Event="PointerPressed"
-                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalHyperlink" />
+                  Source="TrayAppDotNETConfirmationWindow.BuildModalHyperlink" />
             <Leaf ID="OpenReleases" Kind="Button" Pointer="Click" Event="PointerPressed"
-                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildModalHyperlink" />
+                  Source="TrayAppDotNETConfirmationWindow.BuildModalHyperlink" />
         </Scope>
-        <Scope ID="Actions" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+        <Scope ID="Actions" Source="TrayAppDotNETConfirmationWindow.BuildContent"
                Description="Modal layout row in this order; the standard column puts Cancel above Confirm">
-            <Variant ID="StandardUpdateConfirmation" Order="Alternate Cancel Confirm" />
+            <Variant ID="StandardConfirmation" Order="Alternate Cancel Confirm" />
             <Leaf ID="Alternate" Kind="Button" Event="Click"
-                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+                  Source="TrayAppDotNETConfirmationWindow.BuildContent"
                   Description="Only with alternate text, such as Skip release or No" />
             <Leaf ID="Confirm" Kind="Button" Event="Click"
-                  Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent" />
-            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETUpdateConfirmationWindow.BuildContent"
+                  Source="TrayAppDotNETConfirmationWindow.BuildContent" />
+            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETConfirmationWindow.BuildContent"
                   Description="Only with cancel text" />
         </Scope>
     </Template>
@@ -302,10 +331,10 @@
                   Source="TrayAppDotNETColorPickerWindow.WireEvents" />
         </Scope>
         <Scope ID="Footer" Source="TrayAppDotNETColorPickerWindow.BuildFooterGrid">
-            <Leaf ID="RgbaHex" Kind="Text" Event="TextChanged"
+            <Leaf ID="RGBAHex" Kind="Text" Event="TextChanged"
                   Source="TrayAppDotNETColorPickerWindow.WireEvents"
                   Description="Applies RRGGBB or RRGGBBAA as typed; Enter on key up clears focus" />
-            <Leaf ID="ArgbHex" Kind="Text" Event="TextChanged"
+            <Leaf ID="ARGBHex" Kind="Text" Event="TextChanged"
                   Source="TrayAppDotNETColorPickerWindow.WireEvents"
                   Description="Applies AARRGGBB as typed; Enter on key up clears focus" />
             <Leaf ID="ApplyDefault" Kind="Button" Event="Click" Source="TrayAppDotNETColorPickerWindow.BuildFooterGrid"
@@ -368,6 +397,17 @@
         </Scope>
     </Template>
 
+    <!-- Flyouts -->
+
+    <Template ID="FlyoutConfirmOverlay" Source="TrayAppDotNETConfirmOverlay.TrayAppDotNETConfirmOverlay"
+              Description="In-window confirmation; instantiate on a Tab=Cycle, Arrows=Horizontal scope. Focus moves
+                           to Confirm while shown and returns afterwards">
+        <Leaf ID="Cancel" Kind="Button" Keys="Escape" Event="Click"
+              Source="TrayAppDotNETConfirmOverlay.TrayAppDotNETConfirmOverlay"
+              Description="Hidden in single-button message mode, which only Confirm closes" />
+        <Leaf ID="Confirm" Kind="Button" Event="Click" Source="TrayAppDotNETConfirmOverlay.TrayAppDotNETConfirmOverlay" />
+    </Template>
+
     <!-- Menus and lists -->
 
     <!-- Menu selection follows Win32 popup menus: the focused row is the selection, Up and Down wrap, and with no
@@ -389,8 +429,8 @@
               Source="ContextMenuWindow.ContextMenuWindow"
               Description="In a submenu, closes it and selects its row in the parent menu" />
         <Scope ID="Entries" Tab="Once" Source="ContextMenuWindow.InitializeStandardMenu"
-               Description="Rows run on Enter, Space or a click; Enter or Right on a submenu row opens the submenu and
-                            selects its first row">
+               Description="Rows run on Enter, Space or a click; Enter, Space or Right on a submenu row opens the
+                            submenu and selects its first row">
             <Slot />
         </Scope>
         <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"

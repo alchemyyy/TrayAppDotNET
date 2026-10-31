@@ -5,6 +5,7 @@ using Avalonia.Media;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
+using TrayAppDotNETCommon.Models;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 
@@ -13,101 +14,15 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_Theme_SectionHeader)), p);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Theme_ContextMenu_Header)),
-            p));
-        stack.Children.Add(IntCard(
-            L(nameof(AppStrings.Settings_Theme_FontSize_Title)),
-            L(nameof(AppStrings.Settings_Theme_FontSize_Description)),
-            _settings.ContextMenuFontSize,
-            AXAMLSettingsUI.ContextMenuFontSizeMin,
-            AXAMLSettingsUI.ContextMenuFontSizeMax,
-            v => _settings.ContextMenuFontSize = v,
-            p,
-            searchKeywords:
-            [
-                L(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.ContextMenuFontSize));
+        AddAppearanceSection(stack);
+        AddContextMenuAppearanceSection(stack);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Theme_Appearance_Header)),
+            L(nameof(CommonStrings.Settings_Theme_Flyout_Header)),
             p));
-        stack.Children.Add(StringComboCard(
-            L(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
-            L(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
-            [
-                (ThemeMode.System, L(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
-                (ThemeMode.Light, L(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
-                (ThemeMode.Dark, L(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
-            ],
-            _settings.ThemeMode,
-            v => _settings.ThemeMode = v,
-            p,
-            () => RebuildShell(BrightnessSettingsPage.Theme),
-            searchKeywords:
-            [
-                L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.ThemeStyle));
-        stack.Children.Add(BoolCard(
-            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
-            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
-            _settings.UseWindows11SettingsNavigation,
-            value => _settings.UseWindows11SettingsNavigation = value,
-            p,
-            () => RebuildShell(BrightnessSettingsPage.Theme),
-            [
-                L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.Windows11Navigation));
-        stack.Children.Add(VariantColorCard(
-            name: "Text",
-            L(nameof(AppStrings.Settings_Theme_TextColor_Title)),
-            L(nameof(AppStrings.Settings_Theme_TextColor_Description)),
-            L(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
-            L(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)),
-            _settings.TextColor,
-            theme.Foreground.Light,
-            theme.Foreground.Dark,
-            p,
-            [
-                L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.TextColor.ID));
-        stack.Children.Add(VariantColorCard(
-            name: "Background",
-            L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
-            L(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
-            L(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
-            L(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)),
-            _settings.BackgroundColor,
-            theme.Background.Light,
-            theme.Background.Dark,
-            p,
-            [
-                L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.BackgroundColor.ID));
-
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Theme_Flyout_Header)),
-            p));
-        stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
-            L(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
-            _settings.EnableRoundedCorners,
-            v => _settings.EnableRoundedCorners = v,
-            p,
-            () => RebuildShell(BrightnessSettingsPage.Theme),
-            [
-                L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.RoundedCorners));
-
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
             p,
             autoSizeToText: true,
@@ -140,7 +55,6 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
-            name: "FooterBackground",
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_Title)),
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_Description)),
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_LightTooltip)),
@@ -155,14 +69,14 @@ public sealed partial class BrightnessSettingsWindow
             node: ControlMap.Settings.ThemePage.FooterBackgroundColor.ID));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)),
+            L(nameof(CommonStrings.Settings_Theme_TrayIcon_Header)),
             p));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Title)),
             L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Description)),
             [
-                (TrayIconStyle.Dynamic, L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Dynamic))),
-                (TrayIconStyle.Static, L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Static)))
+                (TrayAppDotNETTrayIconStyle.Dynamic, L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Dynamic))),
+                (TrayAppDotNETTrayIconStyle.Static, L(nameof(AppStrings.Settings_Theme_TrayIconStyle_Static)))
             ],
             _settings.TrayIconStyle,
             v => _settings.TrayIconStyle = v,
@@ -173,7 +87,7 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_TrayIconStyle_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.TrayIconStyle));
-        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, StringComboCard(
+        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Dynamic, StringComboCard(
             L(nameof(AppStrings.Settings_Theme_DynamicIconTracking_Title)),
             L(nameof(AppStrings.Settings_Theme_DynamicIconTracking_Description)),
             [
@@ -189,7 +103,7 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_DynamicIconTracking_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.DynamicIconTracking)));
-        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, BoolCard(
+        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Dynamic, BoolCard(
             L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_Title)),
             L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_Description)),
             _settings.DynamicIconTrackEnabledOnly,
@@ -200,12 +114,11 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.TrackEnabledOnly)));
-        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Static, VariantColorCard(
-            name: "TrayIcon",
-            L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
+        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Static, VariantColorCard(
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_Title)),
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
-            L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
-            L(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
             _settings.TrayIconColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
@@ -214,8 +127,7 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.StaticIconColor.ID)));
-        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
-            name: "TrayIconBright",
+        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Dynamic, VariantColorCard(
             L(nameof(AppStrings.Settings_Theme_BrightColor_Title)),
             L(nameof(AppStrings.Settings_Theme_BrightColor_Description)),
             L(nameof(AppStrings.Settings_Theme_BrightColor_LightTooltip)),
@@ -228,8 +140,7 @@ public sealed partial class BrightnessSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_BrightColor_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.BrightColor.ID)));
-        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
-            name: "TrayIconDim",
+        stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayAppDotNETTrayIconStyle.Dynamic, VariantColorCard(
             L(nameof(AppStrings.Settings_Theme_DimColor_Title)),
             L(nameof(AppStrings.Settings_Theme_DimColor_Description)),
             L(nameof(AppStrings.Settings_Theme_DimColor_LightTooltip)),
@@ -247,7 +158,6 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Theme_Environmental_Header)),
             p));
         stack.Children.Add(VariantColorCard(
-            name: "EnvBrightnessCurve",
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_Title)),
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_Description)),
             L(nameof(AppStrings.Settings_Theme_BrightnessCurveColor_LightTooltip)),
@@ -261,7 +171,6 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.ThemePage.BrightnessCurveColor.ID));
         stack.Children.Add(VariantColorCard(
-            name: "EnvNightLightCurve",
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_Title)),
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_Description)),
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_LightTooltip)),
@@ -275,7 +184,6 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.ThemePage.NightLightCurveColor.ID));
         stack.Children.Add(VariantColorCard(
-            name: "EnvCurrentTime",
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_Title)),
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_Description)),
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_LightTooltip)),
@@ -289,7 +197,6 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.ThemePage.CurrentTimeMarkerColor.ID));
         stack.Children.Add(VariantColorCard(
-            name: "EnvTwilightBackdrop",
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_Title)),
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_Description)),
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_LightTooltip)),
@@ -303,7 +210,6 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.ThemePage.TwilightBackdropColor.ID));
         stack.Children.Add(VariantColorCard(
-            name: "EnvNightBackdrop",
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_Title)),
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_Description)),
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_LightTooltip)),
@@ -317,7 +223,6 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.ThemePage.NightBackdropColor.ID));
         stack.Children.Add(VariantColorCard(
-            name: "EnvGridLine",
             L(nameof(AppStrings.Settings_Theme_GridLineColor_Title)),
             L(nameof(AppStrings.Settings_Theme_GridLineColor_Description)),
             L(nameof(AppStrings.Settings_Theme_GridLineColor_LightTooltip)),

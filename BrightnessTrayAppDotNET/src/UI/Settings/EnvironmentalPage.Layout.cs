@@ -161,7 +161,7 @@ public sealed partial class BrightnessSettingsWindow
             new Thickness(left: 10, top: 0, right: 4, bottom: 0)));
         fields.Children.Add(_disabledPeriodEndBox);
         _disabledPeriodFieldsRow = fields;
-        panel.Children.Add(fields);
+        panel.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(fields));
 
         _disabledPeriodStartBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(true);
         _disabledPeriodEndBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(false);
@@ -218,7 +218,7 @@ public sealed partial class BrightnessSettingsWindow
         Grid.SetColumn(right, value: 1);
         row.Children.Add(right);
 
-        right.Children.Add(BuildEnvironmentalDateRow(p));
+        right.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(BuildEnvironmentalDateRow(p)));
 
         _previewSweepButton = Button(L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Idle_Button)),
             p).MapTo(ControlMap.Settings.EnvironmentalPage.PreviewSweep);
@@ -230,7 +230,7 @@ public sealed partial class BrightnessSettingsWindow
         TrayAppDotNETToolTip.SetTip(
             _previewSweepButton,
             L(nameof(AppStrings.Settings_Environmental_PreviewSweep_ToolTip)));
-        right.Children.Add(_previewSweepButton);
+        right.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(_previewSweepButton));
 
         right.Children.Add(BuildEnvironmentalSmoothnessCard(p));
         return row;
@@ -502,7 +502,7 @@ public sealed partial class BrightnessSettingsWindow
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(toggle, text);
         row.Margin = new Thickness(indent, top: 0, right: 0, bottom: 6);
         toggle.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-        panel.Children.Add(row);
+        panel.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(row));
         return row;
     }
 

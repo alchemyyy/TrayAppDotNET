@@ -20,7 +20,7 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required CornerRadius CardRadius { get; init; }
     public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
-    public required Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; }
+    public required Func<string, string, string, string?, Task<bool>> ConfirmAsync { get; init; }
     public required Func<string, string, Task> ShowMessage { get; init; }
     public required Func<bool> GetRunOnStartup { get; init; }
     public required Action<bool> SetRunOnStartup { get; init; }
@@ -39,13 +39,6 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required Action RetargetStartupShortcut { get; init; }
     public required Func<IReadOnlyList<TrayAppDotNETInstallationInfo>> DetectInstallations { get; init; }
     public required int CurrentBuildNumber { get; init; }
-    public Action Shutdown { get; init; } = ShutdownDesktopApp;
-
-    private static void ShutdownDesktopApp()
-    {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
 }
 
 public sealed class TrayAppDotNETInstallCardOptions
@@ -55,16 +48,18 @@ public sealed class TrayAppDotNETInstallCardOptions
     public required string ExecutablePath { get; init; }
     public required bool Elevated { get; init; }
     public required Func<IProgress<TrayAppDotNETInstallProgress>?, TrayAppDotNETInstallResult> Install { get; init; }
-    public required Func<Action, IProgress<TrayAppDotNETInstallProgress>?, Task> UninstallAsync { get; init; }
+
+    /// <summary>
+    /// Opens the uninstaller for this scope, reporting stages to the given progress sink, and completes with whether
+    /// the uninstall started once the uninstaller window closes.
+    /// </summary>
+    public required Func<IProgress<TrayAppDotNETInstallProgress>, Task<bool>> ShowUninstallerAsync { get; init; }
 }
 
 public sealed record TrayAppDotNETStoreInstallOptions(string Title, Func<string> Description);
 
 public sealed class TrayAppDotNETGeneralSettingsSection
 {
-    // An uninstall that returns without ever reporting was cancelled in its confirmation dialog
-    private static readonly TimeSpan UninstallSilenceTimeout = TimeSpan.FromMilliseconds(1500);
-
     private readonly TrayAppDotNETGeneralSettingsSectionOptions _options;
     private readonly List<Action> _refreshers = [];
     private TextBlock? _startupDescription;
@@ -75,7 +70,10 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         _options = options;
     }
 
-    /// <summary>Builds the Language card: Auto, then the neutral language and every translation the app ships.</summary>
+    /// <summary>
+    /// Builds the Language card: Auto, then the neutral language and every translation the app ships. The culture is
+    /// read once at startup, so a change offers the same restart the rendering backend card does.
+    /// </summary>
     public Border BuildLanguageCard()
     {
         List<(string Tag, string Text)> items =
@@ -98,9 +96,30 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             _options.Palette,
             _options.CardRadius,
             _options.Save,
+            afterSave: OfferLanguageRestart,
             autoSizeToText: true,
             searchKeywords: [L(nameof(CommonStrings.Settings_General_Language_SearchKeywords))],
             node: ControlMap.LanguageCard.Language);
+    }
+
+    private void OfferLanguageRestart() =>
+        _ = OfferLanguageRestartAsync();
+
+    private async Task OfferLanguageRestartAsync()
+    {
+        try
+        {
+            await TrayAppDotNETRestartPrompt.PromptAsync(
+                _options.ConfirmAsync,
+                _options.ShowMessage,
+                _options.L,
+                L(nameof(CommonStrings.Settings_General_LanguageRestart_Title)),
+                L(nameof(CommonStrings.Settings_General_LanguageRestart_Message)));
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Language restart prompt failed: {exception}");
+        }
     }
 
     /// <summary>
@@ -327,51 +346,40 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             if (operationInProgress) return;
 
             int generation = BeginOperation();
-            bool updateArrived = false;
             bool terminalArrived = false;
-            DispatcherTimer silenceTimer = new() { Interval = UninstallSilenceTimeout };
-            silenceTimer.Tick += (_, _) =>
-            {
-                silenceTimer.Stop();
-                if (updateArrived) return;
-
-                EndOperation(generation, terminalUpdate: null);
-            };
-            // The uninstall runs in external processes and keeps reporting after the call returns
+            // The uninstall runs in external processes and keeps reporting after the uninstaller window closed
             Progress<TrayAppDotNETInstallProgress> progress = CreateUIProgress(update =>
             {
                 if (generation != operationGeneration || terminalArrived) return;
 
-                updateArrived = true;
-                silenceTimer.Stop();
-                // A first update that outlived the silence fallback re-opens the card
-                if (!operationInProgress)
-                    ShowOperation();
                 ApplyProgress(generation, update);
                 if (!update.IsComplete && !update.IsFailure) return;
 
                 terminalArrived = true;
                 EndOperation(generation, update);
+                if (update.IsFailure) _ = ReportUninstallFailureAsync(update.Message);
             });
 
+            bool started;
             try
             {
-                await entry.UninstallAsync(RefreshAfterInstallChange, progress);
+                started = await entry.ShowUninstallerAsync(progress);
             }
             catch (Exception exception)
             {
-                TADNLog.Log($"Uninstall from {entry.Scope} threw: {exception.Message}");
-                silenceTimer.Stop();
+                TADNLog.Log($"Uninstall from {entry.Scope} threw: {exception}");
+                if (terminalArrived) return;
+
                 terminalArrived = true;
                 TrayAppDotNETInstallProgress failure = TrayAppDotNETInstallProgress.Failed(exception.Message);
                 ApplyProgress(generation, failure);
                 EndOperation(generation, failure);
+                await ReportUninstallFailureAsync(exception.Message);
                 return;
             }
 
-            if (updateArrived || !operationInProgress || generation != operationGeneration) return;
-
-            silenceTimer.Start();
+            // Cancelled in the uninstaller window, or the window showed why it could not start: nothing ran
+            if (!started && !terminalArrived) EndOperation(generation, terminalUpdate: null);
         };
 
         return card;
@@ -465,28 +473,32 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         await StartInstalledInstanceAsync(entry.ExecutablePath);
     }
 
+    /// <summary>
+    /// Restarts as the installed copy: this app's exit path runs first, then the installed copy starts with the same
+    /// settings folder override, so it takes over without having to stop anything.
+    /// </summary>
     private async Task StartInstalledInstanceAsync(string executablePath)
     {
         try
         {
-            if (!File.Exists(executablePath))
-                throw new FileNotFoundException(message: "Installed executable was not found.", executablePath);
-
-            string? workingDirectory = Path.GetDirectoryName(executablePath);
-            if (!ExplorerProcessLauncher.TryShellExecute(
-                    executablePath,
-                    arguments: null,
-                    workingDirectory,
-                    verb: null,
-                    out _,
-                    out string errorMessage))
-                throw new InvalidOperationException(errorMessage);
-
-            _options.Shutdown();
+            TrayAppDotNETAppLifetime.Restart(executablePath, TrayAppDotNETProgram.SettingsDirectoryCommandLine());
         }
         catch (Exception ex)
         {
             await _options.ShowMessage(L(nameof(CommonStrings.Settings_General_RestartFailed_Title)), ex.Message);
+        }
+    }
+
+    /// <summary>Tells the user an uninstall did not finish; the card keeps the reason under its description.</summary>
+    private async Task ReportUninstallFailureAsync(string message)
+    {
+        try
+        {
+            await _options.ShowMessage(L(nameof(CommonStrings.Settings_General_UninstallFailed_Title)), message);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Uninstall failure message could not be shown: {exception}");
         }
     }
 

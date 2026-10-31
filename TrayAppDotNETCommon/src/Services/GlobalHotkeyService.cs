@@ -4,12 +4,6 @@ using TrayAppDotNETCommon.Models;
 
 namespace TrayAppDotNETCommon.Services;
 
-public sealed class HotkeyFiredEventArgs(HotkeyAction action, string parameter) : EventArgs
-{
-    public HotkeyAction Action { get; } = action;
-    public string Parameter { get; } = parameter;
-}
-
 public sealed class HotkeyFiredEventArgs<TAction>(TAction action, string parameter) : EventArgs
     where TAction : struct, Enum
 {
@@ -17,329 +11,209 @@ public sealed class HotkeyFiredEventArgs<TAction>(TAction action, string paramet
     public string Parameter { get; } = parameter;
 }
 
-public sealed class HotkeyApplyResult
+/// <summary>Why a binding is not registered.</summary>
+public enum HotkeyRegistrationError
 {
-    public List<HotkeyBinding> Registered { get; } = [];
+    NoKey,
+    NoModifier,
+    ReservedKey,
 
-    /// <summary>Bindings that failed to register (combo already taken by another app, reserved, etc.).</summary>
-    public Dictionary<HotkeyBinding, string> Failed { get; } = [];
-}
+    /// <summary>An earlier binding of the same app already uses the key combination.</summary>
+    DuplicateInApp,
 
-public sealed class HotkeyApplyResult<TAction, TBinding>
-    where TAction : struct, Enum
-    where TBinding : class, IHotkeyBinding<TAction>
-{
-    public List<TBinding> Registered { get; } = [];
-
-    /// <summary>Bindings that failed to register (combo already taken by another app, reserved, etc.).</summary>
-    public Dictionary<TBinding, string> Failed { get; } = [];
+    /// <summary>Windows refused the combination because another app (or Windows) registered it (error 1409).</summary>
+    InUseByAnotherApp,
+    Failed
 }
 
 /// <summary>
-/// Owns a hidden message-only window, listens for WM_HOTKEY,
-/// and translates the fired ID back into the (action, parameter) pair the user bound.
+/// A binding that is not registered. <see cref="ConflictingBinding"/> names the binding that keeps the combination
+/// for <see cref="HotkeyRegistrationError.DuplicateInApp"/>; <see cref="Win32Error"/> is set for
+/// <see cref="HotkeyRegistrationError.Failed"/>.
 /// </summary>
-public sealed class GlobalHotkeyService(string messageWindowClassPrefix = "TrayAppDotNETCommon.GlobalHotkeyService")
-    : IDisposable
+public sealed record HotkeyRegistrationFailure<TBinding>(
+    HotkeyRegistrationError Error,
+    TBinding? ConflictingBinding = null,
+    int Win32Error = 0)
+    where TBinding : class;
+
+public sealed class HotkeyApplyResult<TBinding>
+    where TBinding : class
 {
-    private Win32MessageWindow? _window;
-    private IntPtr _hwnd;
-    private int _nextId = 1;
-    private readonly Dictionary<int, HotkeyBinding> _byId = [];
-    private bool _disposed;
+    public static readonly HotkeyApplyResult<TBinding> Empty = new([], new Dictionary<TBinding, HotkeyRegistrationFailure<TBinding>>());
 
-    /// <summary>Fired on the UI thread when a registered hotkey is pressed.</summary>
-    public event EventHandler<HotkeyFiredEventArgs>? Fired;
-
-    public void Initialize()
+    public HotkeyApplyResult(
+        IReadOnlyList<TBinding> registered,
+        IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> failed)
     {
-        if (_window != null) return;
-
-        _window = new Win32MessageWindow(messageWindowClassPrefix);
-        _window.Initialize(WndProc);
-        _hwnd = _window.Handle;
+        Registered = registered;
+        Failed = failed;
     }
 
-    /// <summary>
-    /// Diff-and-apply: unregister everything currently registered,
-    /// then re-register each enabled binding from <paramref name="bindings"/>.
-    /// </summary>
-    public HotkeyApplyResult Apply(IEnumerable<HotkeyBinding> bindings)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, nameof(GlobalHotkeyService));
+    public IReadOnlyList<TBinding> Registered { get; }
 
-        if (_window == null) throw new InvalidOperationException("Initialize must be called before Apply.");
-
-        UnregisterAll();
-
-        HotkeyApplyResult result = new();
-        foreach (HotkeyBinding binding in bindings)
-        {
-            if (binding.RemovedByUser) continue;
-            if (!binding.Enabled || !binding.IsBound) continue;
-
-            if (TryRegisterInternal(binding, out string? error))
-                result.Registered.Add(binding);
-            else
-                result.Failed[binding] = error ?? "Registration failed.";
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Validate-and-register a single binding. Used by capture UI to give immediate feedback.
-    /// </summary>
-    public bool TryRegister(HotkeyBinding binding, out string? error)
-    {
-        if (_disposed)
-        {
-            error = "Service disposed.";
-            return false;
-        }
-
-        if (_window == null)
-        {
-            error = "Service not initialized.";
-            return false;
-        }
-
-        if (!binding.IsBound)
-        {
-            error = "Binding is incomplete.";
-            return false;
-        }
-
-        return TryRegisterInternal(binding, out error);
-    }
-
-    private bool TryRegisterInternal(HotkeyBinding binding, out string? error)
-    {
-        if (!Validate(binding, out error)) return false;
-
-        int id = _nextId++;
-        uint modifiers = binding.Modifiers | HotkeyModifiers.NoRepeat;
-        bool ok = HotkeyUser32.RegisterHotKey(_hwnd, id, modifiers, binding.VirtualKey);
-        if (!ok)
-        {
-            int lastError = Marshal.GetLastWin32Error();
-            error = lastError == 1409
-                ? "Already in use by another app."
-                : $"Registration failed (Win32 error {lastError}).";
-            return false;
-        }
-
-        _byId[id] = binding;
-        return true;
-    }
-
-    /// <summary>
-    /// Defence-in-depth validator. Mirrors the capture UI's core rules so hand-edited settings cannot bypass them.
-    /// </summary>
-    public static bool Validate(HotkeyBinding binding, out string? error)
-    {
-        error = null;
-        if (binding.VirtualKey == 0)
-        {
-            error = "No key set.";
-            return false;
-        }
-
-        if ((binding.Modifiers &
-             (HotkeyModifiers.Alt | HotkeyModifiers.Control | HotkeyModifiers.Shift | HotkeyModifiers.Win)) == 0)
-        {
-            error = "At least one modifier (Ctrl, Alt, Shift, Win) is required.";
-            return false;
-        }
-
-        if (binding.VirtualKey == 0x7B)
-        {
-            error = "F12 is reserved by the debugger.";
-            return false;
-        }
-
-        return true;
-    }
-
-    private void UnregisterAll()
-    {
-        if (_hwnd == IntPtr.Zero) return;
-
-        foreach (int id in _byId.Keys)
-        {
-            try { HotkeyUser32.UnregisterHotKey(_hwnd, id); }
-            catch
-            {
-                /* best effort */
-            }
-        }
-
-        _byId.Clear();
-    }
-
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        if (msg != HotkeyUser32.WM_HOTKEY) return IntPtr.Zero;
-
-        int id = wParam.ToInt32();
-        if (!_byId.TryGetValue(id, out HotkeyBinding? binding)) return IntPtr.Zero;
-
-        try { Fired?.Invoke(this, new HotkeyFiredEventArgs(binding.Action, binding.Parameter)); }
-        catch (Exception ex) { TADNLog.Log($"GlobalHotkeyService.Fired handler threw: {ex}"); }
-
-        handled = true;
-        return IntPtr.Zero;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _disposed = true;
-        UnregisterAll();
-        _window?.Dispose();
-        _window = null;
-        _hwnd = IntPtr.Zero;
-    }
+    /// <summary>Enabled, bound bindings that are not registered, keyed by reference.</summary>
+    public IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> Failed { get; }
 }
 
 /// <summary>
-/// Generic variant for apps that keep their hotkey action enum in the app project.
+/// Owns a hidden message-only window, registers the enabled bindings with RegisterHotKey, and translates WM_HOTKEY
+/// back into the (action, parameter) pair the user bound. <see cref="Apply"/> diffs: a key combination that stays
+/// bound keeps its registration, so applying an unchanged list touches no Win32 state.
 /// </summary>
 public sealed class GlobalHotkeyService<TAction, TBinding>(
     string messageWindowClassPrefix = "TrayAppDotNETCommon.GlobalHotkeyService")
     : IDisposable
     where TAction : struct, Enum
-    where TBinding : class, IHotkeyBinding<TAction>
+    where TBinding : HotkeyBindingBase<TAction>
 {
-    private Win32MessageWindow? _window;
-    private IntPtr _hwnd;
+    // Registered combinations keyed by (modifiers without MOD_NOREPEAT, virtual key)
+    private readonly Dictionary<(uint Modifiers, uint VirtualKey), Registration> _registered = [];
+    private readonly Dictionary<int, Registration> _byID = [];
+    private Win32Window? _window;
     private int _nextID = 1;
-    private readonly Dictionary<int, TBinding> _byID = [];
     private bool _disposed;
 
+    /// <summary>Fired on the UI thread when a registered hotkey is pressed.</summary>
     public event EventHandler<HotkeyFiredEventArgs<TAction>>? Fired;
+
+    /// <summary>Result of the latest <see cref="Apply"/>; settings pages read it instead of applying again.</summary>
+    public HotkeyApplyResult<TBinding> LastResult { get; private set; } = HotkeyApplyResult<TBinding>.Empty;
 
     public void Initialize()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_window != null) return;
 
-        _window = new Win32MessageWindow(messageWindowClassPrefix);
-        _window.Initialize(WndProc);
-        _hwnd = _window.Handle;
+        Win32Window window = new();
+        window.Initialize(messageWindowClassPrefix + ".MessageWindow", WndProc, User32.HWND_MESSAGE);
+        _window = window;
     }
 
-    public HotkeyApplyResult<TAction, TBinding> Apply(IEnumerable<TBinding> bindings)
+    /// <summary>
+    /// Brings the registrations in line with <paramref name="bindings"/>: unregisters combinations no longer bound,
+    /// registers new ones, and keeps the rest. The first binding of a combination wins; later bindings with the same
+    /// combination report <see cref="HotkeyRegistrationError.DuplicateInApp"/>. The result is stored in
+    /// <see cref="LastResult"/> and every failure is logged.
+    /// </summary>
+    public HotkeyApplyResult<TBinding> Apply(IEnumerable<TBinding> bindings)
     {
-        ObjectDisposedException.ThrowIf(_disposed, nameof(GlobalHotkeyService<,>));
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IntPtr hwnd = _window?.Handle ?? IntPtr.Zero;
+        if (hwnd == IntPtr.Zero) throw new InvalidOperationException("Initialize must be called before Apply.");
 
-        if (_window == null) throw new InvalidOperationException("Initialize must be called before Apply.");
-
-        UnregisterAll();
-
-        HotkeyApplyResult<TAction, TBinding> result = new();
+        Dictionary<(uint Modifiers, uint VirtualKey), TBinding> wanted = [];
+        Dictionary<TBinding, HotkeyRegistrationFailure<TBinding>> failed = new(ReferenceEqualityComparer.Instance);
         foreach (TBinding binding in bindings)
         {
-            if (binding.RemovedByUser) continue;
-            if (!binding.Enabled || !binding.IsBound) continue;
+            if (binding.RemovedByUser || !binding.Enabled || !binding.IsBound) continue;
 
-            if (TryRegisterInternal(binding, out string? error))
-                result.Registered.Add(binding);
-            else
-                result.Failed[binding] = error ?? "Registration failed.";
+            if (Validate(binding) is { } invalid)
+            {
+                failed[binding] = new HotkeyRegistrationFailure<TBinding>(invalid);
+                continue;
+            }
+
+            (uint, uint) chord = (binding.Modifiers, binding.VirtualKey);
+            if (wanted.TryGetValue(chord, out TBinding? owner))
+            {
+                failed[binding] = new HotkeyRegistrationFailure<TBinding>(
+                    HotkeyRegistrationError.DuplicateInApp,
+                    owner);
+                continue;
+            }
+
+            wanted[chord] = binding;
         }
 
-        return result;
+        foreach (((uint, uint) chord, Registration registration) in _registered.ToArray())
+        {
+            if (wanted.ContainsKey(chord)) continue;
+
+            Unregister(hwnd, registration);
+            _registered.Remove(chord);
+        }
+
+        if (_registered.Count == 0) _nextID = 1;
+
+        List<TBinding> registered = [];
+        foreach (((uint modifiers, uint virtualKey) chord, TBinding binding) in wanted)
+        {
+            if (_registered.TryGetValue(chord, out Registration? existing))
+            {
+                existing.Binding = binding;
+                registered.Add(binding);
+                continue;
+            }
+
+            int id = _nextID++;
+            if (!User32.RegisterHotKey(hwnd, id, chord.modifiers | HotkeyModifiers.NoRepeat, chord.virtualKey))
+            {
+                int lastError = Marshal.GetLastWin32Error();
+                failed[binding] = lastError == ErrorHotkeyAlreadyRegistered
+                    ? new HotkeyRegistrationFailure<TBinding>(HotkeyRegistrationError.InUseByAnotherApp)
+                    : new HotkeyRegistrationFailure<TBinding>(HotkeyRegistrationError.Failed, Win32Error: lastError);
+                continue;
+            }
+
+            Registration registration = new(id, binding);
+            _registered[chord] = registration;
+            _byID[id] = registration;
+            registered.Add(binding);
+        }
+
+        LastResult = new HotkeyApplyResult<TBinding>(registered, failed);
+        foreach ((TBinding binding, HotkeyRegistrationFailure<TBinding> failure) in failed)
+            TADNLog.Log($"Hotkey {binding.Action}({binding.Parameter}) #{binding.BindingID} not registered: {failure}");
+        return LastResult;
     }
 
-    public bool TryRegister(TBinding binding, out string? error)
+    /// <summary>The RegisterHotKey id the binding's combination is registered under, or null when it is not.</summary>
+    internal int? RegistrationIDOf(TBinding binding) =>
+        _registered.TryGetValue((binding.Modifiers, binding.VirtualKey), out Registration? registration)
+        && ReferenceEquals(registration.Binding, binding)
+            ? registration.ID
+            : null;
+
+    /// <summary>
+    /// Defence-in-depth validator. Mirrors the capture UI's core rules so hand-edited settings cannot bypass them.
+    /// Returns null for a valid binding.
+    /// </summary>
+    public static HotkeyRegistrationError? Validate(TBinding binding)
     {
-        if (_disposed)
-        {
-            error = "Service disposed.";
-            return false;
-        }
-
-        if (_window == null)
-        {
-            error = "Service not initialized.";
-            return false;
-        }
-
-        if (!binding.IsBound)
-        {
-            error = "Binding is incomplete.";
-            return false;
-        }
-
-        return TryRegisterInternal(binding, out error);
-    }
-
-    private bool TryRegisterInternal(TBinding binding, out string? error)
-    {
-        if (!Validate(binding, out error)) return false;
-
-        int id = _nextID++;
-        uint modifiers = binding.Modifiers | HotkeyModifiers.NoRepeat;
-        bool ok = HotkeyUser32.RegisterHotKey(_hwnd, id, modifiers, binding.VirtualKey);
-        if (!ok)
-        {
-            int lastError = Marshal.GetLastWin32Error();
-            error = lastError == 1409
-                ? "Already in use by another app."
-                : $"Registration failed (Win32 error {lastError}).";
-            return false;
-        }
-
-        _byID[id] = binding;
-        return true;
-    }
-
-    public static bool Validate(IHotkeyBinding<TAction> binding, out string? error)
-    {
-        error = null;
-        if (binding.VirtualKey == 0)
-        {
-            error = "No key set.";
-            return false;
-        }
-
-        if ((binding.Modifiers &
-             (HotkeyModifiers.Alt | HotkeyModifiers.Control | HotkeyModifiers.Shift | HotkeyModifiers.Win)) == 0)
-        {
-            error = "At least one modifier (Ctrl, Alt, Shift, Win) is required.";
-            return false;
-        }
-
-        if (binding.VirtualKey == 0x7B)
-        {
-            error = "F12 is reserved by the debugger.";
-            return false;
-        }
-
-        return true;
+        if (binding.VirtualKey == 0) return HotkeyRegistrationError.NoKey;
+        if ((binding.Modifiers & HotkeyModifiers.Required) == 0) return HotkeyRegistrationError.NoModifier;
+        if (binding.VirtualKey == HotkeyVirtualKeys.DebuggerReserved) return HotkeyRegistrationError.ReservedKey;
+        return null;
     }
 
     private void UnregisterAll()
     {
-        if (_hwnd == IntPtr.Zero) return;
-
-        foreach (int id in _byID.Keys)
+        IntPtr hwnd = _window?.Handle ?? IntPtr.Zero;
+        if (hwnd != IntPtr.Zero)
         {
-            try { HotkeyUser32.UnregisterHotKey(_hwnd, id); }
-            catch { }
+            foreach (Registration registration in _registered.Values)
+                Unregister(hwnd, registration);
         }
 
+        _registered.Clear();
         _byID.Clear();
+        _nextID = 1;
+    }
+
+    private void Unregister(IntPtr hwnd, Registration registration)
+    {
+        _byID.Remove(registration.ID);
+        if (!User32.UnregisterHotKey(hwnd, registration.ID))
+            TADNLog.Log($"UnregisterHotKey({registration.ID}) failed: {Marshal.GetLastWin32Error()}");
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg != HotkeyUser32.WM_HOTKEY) return IntPtr.Zero;
+        if (msg != User32.WM_HOTKEY) return IntPtr.Zero;
+        if (!_byID.TryGetValue(wParam.ToInt32(), out Registration? registration)) return IntPtr.Zero;
 
-        int id = wParam.ToInt32();
-        if (!_byID.TryGetValue(id, out TBinding? binding)) return IntPtr.Zero;
-
+        TBinding binding = registration.Binding;
         try { Fired?.Invoke(this, new HotkeyFiredEventArgs<TAction>(binding.Action, binding.Parameter)); }
         catch (Exception ex) { TADNLog.Log($"GlobalHotkeyService<{typeof(TAction).Name}>.Fired handler threw: {ex}"); }
 
@@ -355,6 +229,14 @@ public sealed class GlobalHotkeyService<TAction, TBinding>(
         UnregisterAll();
         _window?.Dispose();
         _window = null;
-        _hwnd = IntPtr.Zero;
+        Fired = null;
+    }
+
+    private const int ErrorHotkeyAlreadyRegistered = 1409;
+
+    private sealed class Registration(int id, TBinding binding)
+    {
+        public int ID { get; } = id;
+        public TBinding Binding { get; set; } = binding;
     }
 }

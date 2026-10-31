@@ -8,36 +8,29 @@ using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
-public sealed record TrayAppDotNETRenderingSettingsCardContext(
-    SettingsPalette Palette,
-    CornerRadius CardRadius,
-    Func<string, string> L,
-    Action Save);
-
 public sealed class TrayAppDotNETRenderingSettingsSectionOptions
 {
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius CardRadius { get; init; }
     public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
-    public required Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; }
+    public required Func<string, string, string, string?, Task<bool>> ConfirmAsync { get; init; }
     public required Func<string, string, Task> ShowMessage { get; init; }
     public required ITrayAppDotNETRenderingSettings RenderingSettings { get; init; }
     public ITrayAppDotNETWarmWindowSettings? WarmWindowSettings { get; init; }
-    public ITrayAppDotNETTrayMenuSettings? TrayMenuSettings { get; init; }
+
+    /// <summary>Submenu delay settings; only apps whose tray menus have submenus (Task Manager) set it.</summary>
+    public ITrayAppDotNETTrayMenuSettings? SubmenuSettings { get; init; }
+
     public bool SupportsFlyoutWarmWindow { get; init; }
     public bool SupportsTrayContextMenuWarmWindow { get; init; }
-    public IReadOnlyList<Func<TrayAppDotNETRenderingSettingsCardContext, Control>> AdditionalCards { get; init; } = [];
 }
 
 public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRenderingSettingsSectionOptions options)
 {
     private const double RenderingBackendComboWidth = 172;
 
-    private readonly TrayAppDotNETRenderingSettingsCardContext _cardContext =
-        new(options.Palette, options.CardRadius, options.L, options.Save);
-
-    /// <summary>Adds rendering cards and optional rendering-adjacent cards to the supplied settings page stack.</summary>
+    /// <summary>Adds the rendering backend card, the keep-warm cards and the submenu delay cards the app supports.</summary>
     public void AddCards(StackPanel stack)
     {
         SettingsPalette p = options.Palette;
@@ -45,8 +38,6 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             L(nameof(CommonStrings.Settings_General_Rendering_Header)), p));
 
         stack.Children.Add(BuildRenderingBackendCard());
-        foreach (Func<TrayAppDotNETRenderingSettingsCardContext, Control> buildCard in options.AdditionalCards)
-            stack.Children.Add(buildCard(_cardContext));
 
         ITrayAppDotNETWarmWindowSettings? warmWindowSettings = options.WarmWindowSettings;
         if (warmWindowSettings != null &&
@@ -81,7 +72,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
 
     private void AddTrayMenuCards(StackPanel stack)
     {
-        ITrayAppDotNETTrayMenuSettings? trayMenuSettings = options.TrayMenuSettings;
+        ITrayAppDotNETTrayMenuSettings? trayMenuSettings = options.SubmenuSettings;
         if (trayMenuSettings == null) return;
 
         SettingsPalette palette = options.Palette;
@@ -142,7 +133,12 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
 
             options.RenderingSettings.RenderingBackend = backend;
             options.Save();
-            await PromptRestartAsync();
+            await TrayAppDotNETRestartPrompt.PromptAsync(
+                options.ConfirmAsync,
+                options.ShowMessage,
+                options.L,
+                L(nameof(CommonStrings.Settings_General_RenderingRestart_Title)),
+                L(nameof(CommonStrings.Settings_General_RenderingRestart_Message)));
         };
 
         return TrayAppDotNETSettingsCards.Card(
@@ -173,46 +169,6 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             [L(nameof(CommonStrings.Settings_General_KeepWarm_SearchKeywords))]);
     }
 
-    /// <summary>Asks whether to restart now after a rendering backend change.</summary>
-    private async Task PromptRestartAsync()
-    {
-        bool restart = await options.ConfirmAsync(
-            L(nameof(CommonStrings.Settings_General_RenderingRestart_Title)),
-            L(nameof(CommonStrings.Settings_General_RenderingRestart_Message)),
-            L(nameof(CommonStrings.Settings_General_RenderingRestart_Button)),
-            L(nameof(CommonStrings.Settings_General_NotNow_Button)));
-        if (!restart) return;
-
-        await RestartCurrentProcessAsync();
-    }
-
-    /// <summary>Starts a new process instance and shuts down the current desktop lifetime.</summary>
-    private async Task RestartCurrentProcessAsync()
-    {
-        try
-        {
-            string? executablePath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
-                throw new FileNotFoundException(message: "Current executable was not found.", executablePath);
-
-            string? workingDirectory = Path.GetDirectoryName(executablePath);
-            if (!ExplorerProcessLauncher.TryShellExecute(
-                    executablePath,
-                    TrayAppDotNETProgram.SettingsDirectoryCommandLine(),
-                    workingDirectory,
-                    verb: null,
-                    out _,
-                    out string errorMessage))
-                throw new InvalidOperationException(errorMessage);
-
-            ShutdownDesktopApp();
-        }
-        catch (Exception ex)
-        {
-            await options.ShowMessage(L(nameof(CommonStrings.Settings_General_RestartFailed_Title)), ex.Message);
-        }
-    }
-
     /// <summary>Returns user-facing rendering backend choices.</summary>
     private IReadOnlyList<(TrayAppDotNETRenderingBackend Backend, string Text)> RenderingBackendOptions() =>
     [
@@ -222,13 +178,42 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             L(nameof(CommonStrings.Settings_General_RenderingBackend_Software)))
     ];
 
-    /// <summary>Requests shutdown through the classic desktop lifetime.</summary>
-    private static void ShutdownDesktopApp()
-    {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
-
     /// <summary>Looks up a settings string.</summary>
     private string L(string key) => options.L(key);
+}
+
+/// <summary>The restart offer shared by settings that only apply at startup (rendering backend, language).</summary>
+public static class TrayAppDotNETRestartPrompt
+{
+    /// <summary>
+    /// Asks whether to restart now; on yes, this app's exit path runs and a new instance starts with the same settings
+    /// folder override. A failed restart is shown as a message.
+    /// </summary>
+    public static async Task PromptAsync(
+        Func<string, string, string, string?, Task<bool>> confirmAsync,
+        Func<string, string, Task> showMessage,
+        Func<string, string> L,
+        string title,
+        string message)
+    {
+        bool restart = await confirmAsync(
+            title,
+            message,
+            L(nameof(CommonStrings.Settings_General_RenderingRestart_Button)),
+            L(nameof(CommonStrings.Settings_General_NotNow_Button)));
+        if (!restart) return;
+
+        try
+        {
+            string? executablePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executablePath))
+                throw new FileNotFoundException(message: "Current executable was not found.", executablePath);
+
+            TrayAppDotNETAppLifetime.Restart(executablePath, TrayAppDotNETProgram.SettingsDirectoryCommandLine());
+        }
+        catch (Exception ex)
+        {
+            await showMessage(L(nameof(CommonStrings.Settings_General_RestartFailed_Title)), ex.Message);
+        }
+    }
 }

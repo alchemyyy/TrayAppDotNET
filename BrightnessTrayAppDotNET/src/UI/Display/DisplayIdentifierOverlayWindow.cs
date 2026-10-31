@@ -54,7 +54,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
     private static Grid BuildContent(int displayNumber, ControlNameScope controlNames)
     {
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        bool isLightTheme = AppTheme.ResolveEffectiveIsLightTheme(AppServices.Settings);
+        bool isLightTheme = AppTheme.ResolveIsLight(AppServices.Settings, AppServices.Theme);
 
         TextBlock number = controlNames.Assign(
             new TextBlock

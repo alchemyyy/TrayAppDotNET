@@ -19,7 +19,7 @@ public sealed partial class BrightnessSettingsWindow
             _settings.BrightnessUpdateRateMs,
             TimeConstants.BrightnessUpdateRateMinMs,
             TimeConstants.BrightnessUpdateRateMaxMs,
-            v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            v => _settings.BrightnessUpdateRateMs = v, p, L(nameof(CommonStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_BrightnessRate_SearchKeywords))
             ],
@@ -30,7 +30,7 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.ValidationDwellMinMs,
             TimeConstants.ValidationDwellMaxMs,
             v => _settings.ValidationDwellMs = v, p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            L(nameof(CommonStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationDwell_SearchKeywords))
             ],
@@ -49,7 +49,7 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.DDCOperationTimeoutMinMs,
             TimeConstants.DDCOperationTimeoutMaxMs,
             v => _settings.DDCOperationTimeoutMs = v, p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            L(nameof(CommonStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_SearchKeywords))
             ],
@@ -121,7 +121,7 @@ public sealed partial class BrightnessSettingsWindow
 
             _settings.MonitorOrder.Clear();
             _settings.MonitorOverrides.Clear();
-            _settings.KnownDisplays.Clear();
+            AppServices.KnownDisplays?.Clear();
             Save();
             RebuildShell(BrightnessSettingsPage.Monitors);
         };
@@ -133,6 +133,16 @@ public sealed partial class BrightnessSettingsWindow
             [
                 L(nameof(AppStrings.Settings_Monitors_DisplayOrder_SearchKeywords))
             ]));
+
+        SettingsButton identify = Button(L(nameof(AppStrings.Settings_Monitors_IdentifyDisplays_Button)), p)
+            .MapTo(ControlMap.Settings.MonitorsPage.IdentifyDisplays);
+        identify.Click += (_, _) => DisplayIdentifierService.Show();
+        stack.Children.Add(Card(
+            L(nameof(AppStrings.Settings_Monitors_IdentifyDisplays_Title)),
+            L(nameof(AppStrings.Settings_Monitors_IdentifyDisplays_Description)),
+            identify,
+            p,
+            [L(nameof(AppStrings.Settings_Monitors_IdentifyDisplays_SearchKeywords))]));
 
         foreach (MonitorSettingsRow row in BuildMonitorRows())
             stack.Children.Add(BuildMonitorOverrideCard(row, p));
@@ -238,7 +248,8 @@ public sealed partial class BrightnessSettingsWindow
             .GroupBy(static m => m.EDIDKey, StringComparer.Ordinal)
             .ToDictionary(static g => g.Key, static g => g.First(), StringComparer.Ordinal);
         HashSet<string> keys = new(live.Keys, StringComparer.Ordinal);
-        foreach (KnownDisplayEntry known in _settings.KnownDisplays.Where(known =>
+        IReadOnlyList<KnownDisplayEntry> knownDisplays = AppServices.KnownDisplays?.Entries ?? [];
+        foreach (KnownDisplayEntry known in knownDisplays.Where(known =>
                      !string.IsNullOrWhiteSpace(known.EDIDKey)))
             keys.Add(known.EDIDKey);
         foreach (MonitorOverrideEntry monitorOverrideEntry in _settings.MonitorOverrides.Where(ov =>
@@ -248,8 +259,10 @@ public sealed partial class BrightnessSettingsWindow
         foreach (string EDIDKey in keys.OrderBy(static k => k, StringComparer.OrdinalIgnoreCase))
         {
             live.TryGetValue(EDIDKey, out MonitorInfo? monitor);
-            KnownDisplayEntry? known = _settings.KnownDisplays.FirstOrDefault(k => k.EDIDKey == EDIDKey);
-            MonitorOverrideEntry ov = FindOrCreateMonitorOverride(EDIDKey);
+            KnownDisplayEntry? known = knownDisplays.FirstOrDefault(k => k.EDIDKey == EDIDKey);
+            // Building the page must not add entries; an unsaved default stands in until a value is edited
+            MonitorOverrideEntry ov = _settings.MonitorOverrides.FirstOrDefault(o => o.ID == EDIDKey)
+                                      ?? new MonitorOverrideEntry { ID = EDIDKey };
             string displayName = !string.IsNullOrWhiteSpace(ov.Name)
                 ? ov.Name
                 : monitor?.Name ?? known?.OriginalName ?? L(nameof(AppStrings.Settings_Monitors_DisplayFallback_Name));
@@ -277,21 +290,23 @@ public sealed partial class BrightnessSettingsWindow
     {
         MonitorOverrideEntry entry = FindOrCreateMonitorOverride(EDIDKey);
         update(entry);
-        PruneMonitorOverride(entry);
+        if (IsDefaultMonitorOverride(entry))
+            _settings.MonitorOverrides.Remove(entry);
     }
 
-    private void PruneMonitorOverride(MonitorOverrideEntry entry)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.Name)) return;
-        if (!string.IsNullOrWhiteSpace(entry.PowerOffVcpOverride)) return;
-        if (!string.IsNullOrWhiteSpace(entry.BrightnessVcpOverride)) return;
-        if (entry.ValidationDwellMs > 0) return;
-        if (entry.BrightnessDwellMs > 0) return;
-        if (entry.MinBrightness > 0) return;
-        if (entry.MaxBrightness < 100) return;
-        if (entry.NormCurvePoints.Count > 0) return;
-        _settings.MonitorOverrides.Remove(entry);
-    }
+    /// <summary>
+    /// True when the entry overrides nothing. Dwell -1 inherits the global value, so an explicit 0 ms dwell is an
+    /// override that must be kept.
+    /// </summary>
+    internal static bool IsDefaultMonitorOverride(MonitorOverrideEntry entry) =>
+        string.IsNullOrWhiteSpace(entry.Name)
+        && string.IsNullOrWhiteSpace(entry.PowerOffVcpOverride)
+        && string.IsNullOrWhiteSpace(entry.BrightnessVcpOverride)
+        && entry.ValidationDwellMs < 0
+        && entry.BrightnessDwellMs < 0
+        && entry.MinBrightness <= 0
+        && entry.MaxBrightness >= 100
+        && entry.NormCurvePoints.Count == 0;
 
     private static IReadOnlyList<(PowerOffMode Value, string Text)> PowerOffOptions() =>
     [

@@ -1,8 +1,5 @@
-using System.Diagnostics;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.Settings;
-using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
@@ -11,105 +8,66 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_General_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_General_SectionHeader)), p);
 
-        TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
+        TrayAppDotNETGeneralSettingsSection commonSection =
+            CreateGeneralSettingsSection(AppServices.Install, AppLocalizationCultures.Names);
         stack.Children.Add(commonSection.BuildLanguageCard());
         stack.Children.Add(commonSection.BuildStartupCard());
-        commonSection.AddInstallationSection(
-            stack,
-            [
-                new TrayAppDotNETInstallCardOptions
-                {
-                    Scope = VolumeInstallScope.LocalAppData,
-                    Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
-                    ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
-                    Elevated = false,
-                    Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
-                    UninstallAsync = async (_, progress) =>
-                    {
-                        VolumeUninstallerWindow uninstallerDialog = new(
-                            AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                            VolumeInstallScope.LocalAppData,
-                            progress);
-                        await uninstallerDialog.ShowDialog(this);
-                        HookPostUninstallRefresh(uninstallerDialog);
-                    }
-                },
-                new TrayAppDotNETInstallCardOptions
-                {
-                    Scope = VolumeInstallScope.ProgramFiles,
-                    Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
-                    ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
-                    Elevated = true,
-                    Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
-                    UninstallAsync = async (_, progress) =>
-                    {
-                        VolumeUninstallerWindow uninstallerDialog = new(
-                            AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                            VolumeInstallScope.ProgramFiles,
-                            progress);
-                        await uninstallerDialog.ShowDialog(this);
-                        HookPostUninstallRefresh(uninstallerDialog);
-                    }
-                }
-            ],
-            new TrayAppDotNETStoreInstallOptions(
-                Loc(nameof(AppStrings.Settings_General_WindowsStore_Title)),
-                StoreInstallDescription));
-        CreateRenderingSettingsSection(p).AddCards(stack);
+        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
+        AddRenderingSection(stack, supportsFlyoutWarmWindow: true, supportsTrayContextMenuWarmWindow: true);
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Notifications_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Notifications_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Title)),
-            Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Description)),
+            L(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Title)),
+            L(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Description)),
             _settings.PlayDeviceVolumeChangeSound,
             v => _settings.PlayDeviceVolumeChangeSound = v,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords))
+                L(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.PlayDeviceVolumeChangeSound));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
-            Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
-            Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Description)),
+            L(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
+            L(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Description)),
             _settings.PlayTrayScrollVolumeChangeSound,
             v => _settings.PlayTrayScrollVolumeChangeSound = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords))
+                L(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.PlayTrayScrollVolumeChangeSound)));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
-            Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Description)),
+            L(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
+            L(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Description)),
             _settings.PlayAppVolumeChangeSound,
             v => _settings.PlayAppVolumeChangeSound = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_SearchKeywords))
+                L(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.PlayAppVolumeChangeSound));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
-            Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
-            Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description)),
+            L(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
+            L(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description)),
             _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying,
             v => _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying = v,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords))
+                L(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.SuppressDeviceVolumeChangeSoundWhenAudioPlaying)));
         stack.Children.Add(Maybe(
             _settings is { PlayDeviceVolumeChangeSound: true, SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true },
             IntCard(
-                Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Title)),
-                Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Description)),
+                L(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Title)),
+                L(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Description)),
                 _settings.DingSuppressionPeakThresholdPercent,
                 AppSettings.DingSuppressionPeakThresholdPercentMin,
                 AppSettings.DingSuppressionPeakThresholdPercentMax,
@@ -117,294 +75,23 @@ public sealed partial class VolumeSettingsWindow
                 p,
                 searchKeywords:
                 [
-                    Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_SearchKeywords))
+                    L(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_SearchKeywords))
                 ],
                 node: ControlMap.Settings.GeneralPage.DingSuppressionPeakThreshold)));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Other_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Title)),
-            Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Description)),
+            L(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Title)),
+            L(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Description)),
             _settings.UseLogarithmicVolumeScale,
             v => _settings.UseLogarithmicVolumeScale = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_SearchKeywords))
+                L(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.LogarithmicVolumeScale));
-        stack.Children.Add(IntCard(
-            Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
-            Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Description)),
-            _settings.WheelVolumeStepPercent,
-            AppSettings.WheelVolumeStepPercentMin,
-            AppSettings.WheelVolumeStepPercentMax,
-            v => _settings.WheelVolumeStepPercent = v,
-            p,
-            Loc(nameof(AppStrings.Common_PercentSuffix)),
-            [
-                Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
-            ],
-            node: ControlMap.Settings.GeneralPage.WheelVolumeStepPercent));
-
-        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.General));
         return stack;
-    }
-
-    private TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETGeneralSettingsSectionOptions
-        {
-            Palette = p,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            GetRunOnStartup = static () => AppServices.Startup.GetRunOnStartup(),
-            SetRunOnStartup = enabled =>
-            {
-                AppServices.Startup.SetRunOnStartup(enabled);
-                _settings.RunOnStartup = enabled;
-            },
-            GetLanguage = () => _settings.Language,
-            SetLanguage = language => _settings.Language = language,
-            AvailableLanguages = AppLocalizationCultures.Names,
-            GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
-            RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
-            DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber
-        });
-
-    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETRenderingSettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            RenderingSettings = _settings,
-            TrayMenuSettings = _settings,
-            WarmWindowSettings = _settings,
-            SupportsFlyoutWarmWindow = true,
-            SupportsTrayContextMenuWarmWindow = true
-        });
-
-    private static string StoreInstallDescription()
-    {
-        TrayAppDotNETInstallationInfo? info = AppServices.Installation.DetectAll()
-            .FirstOrDefault(i => i.Scope == VolumeInstallScope.WindowsStore);
-        return info?.Status == TrayAppDotNETInstallStatus.CurrentlyRunning
-            ? Loc(nameof(AppStrings.Settings_General_StoreRunning))
-            : Loc(nameof(AppStrings.Settings_General_StoreNotInstalled));
-    }
-
-    private void HookPostUninstallRefresh(VolumeUninstallerWindow uninstallerDialog)
-    {
-        if (!uninstallerDialog.ConfirmedUninstall) return;
-
-        Process? uninstallProcess = uninstallerDialog.UninstallProcess;
-        if (uninstallProcess == null) return;
-
-        PostUninstallRefreshOwner owner = new(uninstallProcess, OnUninstallProcessCompleted);
-        if (!TryOwnUninstallMonitor(owner))
-        {
-            owner.Dispose();
-            return;
-        }
-
-        owner.Start();
-    }
-
-    private bool TryOwnUninstallMonitor(PostUninstallRefreshOwner owner)
-    {
-        lock (_uninstallMonitorGate) return !_uninstallMonitoringDisposed && _uninstallMonitors.Add(owner);
-    }
-
-    private void OnUninstallProcessCompleted(PostUninstallRefreshOwner owner, int exitCode)
-    {
-        lock (_uninstallMonitorGate)
-        {
-            if (!_uninstallMonitors.Remove(owner) || _uninstallMonitoringDisposed)
-                return;
-        }
-
-        Dispatcher.UIThread.Post(
-            () => _ = ApplyUninstallCompletionAsync(exitCode),
-            DispatcherPriority.Background);
-    }
-
-    private async Task ApplyUninstallCompletionAsync(int exitCode)
-    {
-        lock (_uninstallMonitorGate)
-        {
-            if (_uninstallMonitoringDisposed)
-                return;
-        }
-
-        if (IsClosing) return;
-
-        try
-        {
-            AppServices.Startup.RetargetShortcutIfPresent();
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"Volume uninstall completion startup retarget failed: {exception.Message}");
-        }
-
-        if (CurrentPageKey == VolumeSettingsPage.General)
-        {
-            try
-            {
-                RefreshCurrentPage();
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"Volume uninstall completion refresh failed: {exception.Message}");
-            }
-        }
-
-        if (exitCode == 0 || IsClosing) return;
-
-        try
-        {
-            await ShowMessage(
-                Loc(nameof(AppStrings.Settings_General_UninstallIncomplete_Title)),
-                Loc(nameof(AppStrings.Settings_General_UninstallIncomplete_Message)));
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"Volume uninstall completion message failed: {exception.Message}");
-        }
-    }
-
-    private void DisposeUninstallMonitors()
-    {
-        List<PostUninstallRefreshOwner> owners = [];
-        lock (_uninstallMonitorGate)
-        {
-            if (_uninstallMonitoringDisposed) return;
-            _uninstallMonitoringDisposed = true;
-            owners.AddRange(_uninstallMonitors);
-            _uninstallMonitors.Clear();
-        }
-
-        for (int index = 0; index < owners.Count; index++)
-        {
-            try
-            {
-                owners[index].Dispose();
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"Volume uninstall monitor disposal failed: {exception.Message}");
-            }
-        }
-    }
-
-    /// <summary>Owns a transferred uninstall process until completion or settings-window close.</summary>
-    private sealed class PostUninstallRefreshOwner(
-        Process process,
-        Action<PostUninstallRefreshOwner, int> completed) : IDisposable
-    {
-        private readonly Lock _gate = new();
-        private Process? _process = process;
-        private Action<PostUninstallRefreshOwner, int>? _completed = completed;
-        private bool _started;
-        private bool _finished;
-
-        public void Start()
-        {
-            Process? process;
-            lock (_gate)
-            {
-                if (_finished || _started) return;
-                _started = true;
-                process = _process;
-            }
-
-            if (process == null) return;
-
-            try
-            {
-                process.EnableRaisingEvents = true;
-                process.Exited += OnProcessExited;
-                if (process.HasExited) Complete(true);
-            }
-            catch (Exception exception)
-            {
-                if (!IsFinished)
-                    TADNLog.Log($"Volume uninstall process monitoring failed: {exception.Message}");
-                Complete(true);
-            }
-        }
-
-        public void Dispose() => Complete(false);
-
-        private void OnProcessExited(object? sender, EventArgs e) => Complete(true);
-
-        private bool IsFinished
-        {
-            get
-            {
-                lock (_gate)
-                    return _finished;
-            }
-        }
-
-        private void Complete(bool notify)
-        {
-            Process? process;
-            Action<PostUninstallRefreshOwner, int>? completed;
-            lock (_gate)
-            {
-                if (_finished) return;
-                _finished = true;
-                process = _process;
-                _process = null;
-                completed = notify ? _completed : null;
-                _completed = null;
-            }
-
-            int exitCode = -1;
-            if (process != null)
-            {
-                try { process.Exited -= OnProcessExited; }
-                catch (Exception exception)
-                {
-                    TADNLog.Log($"Volume uninstall process event detachment failed: {exception.Message}");
-                }
-
-                if (notify)
-                {
-                    try { exitCode = process.ExitCode; }
-                    catch (Exception exception)
-                    {
-                        TADNLog.Log($"Volume uninstall process exit read failed: {exception.Message}");
-                    }
-                }
-
-                try { process.Dispose(); }
-                catch (Exception exception)
-                {
-                    TADNLog.Log($"Volume uninstall process disposal failed: {exception.Message}");
-                }
-            }
-
-            if (completed == null) return;
-
-            try
-            {
-                completed(this, exitCode);
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"Volume uninstall process completion failed: {exception.Message}");
-            }
-        }
     }
 }

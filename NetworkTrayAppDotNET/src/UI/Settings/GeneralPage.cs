@@ -9,20 +9,21 @@ public sealed partial class NetworkSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_General_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_General_SectionHeader)), p);
 
-        TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
+        TrayAppDotNETGeneralSettingsSection commonSection =
+            CreateGeneralSettingsSection(AppServices.Install, AppLocalizationCultures.Names);
         stack.Children.Add(commonSection.BuildLanguageCard());
         stack.Children.Add(commonSection.BuildStartupCard());
         stack.Children.Add(ComboCard(
-            Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Title)),
-            Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Description)),
+            L(nameof(AppStrings.Settings_Network_FlyoutStyle_Title)),
+            L(nameof(AppStrings.Settings_Network_FlyoutStyle_Description)),
             [
-                ("Windows10", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows10))),
-                ("Windows11", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows11))),
-                ("QuickSettings", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_QuickSettings))),
-                ("AvailableNetworks", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_AvailableNetworks))),
-                ("Settings", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Settings)))
+                ("Windows10", L(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows10))),
+                ("Windows11", L(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows11))),
+                ("QuickSettings", L(nameof(AppStrings.Settings_Network_FlyoutStyle_QuickSettings))),
+                ("AvailableNetworks", L(nameof(AppStrings.Settings_Network_FlyoutStyle_AvailableNetworks))),
+                ("Settings", L(nameof(AppStrings.Settings_Network_FlyoutStyle_Settings)))
             ],
             _settings.FlyoutStyle.ToString(),
             tag =>
@@ -39,11 +40,11 @@ public sealed partial class NetworkSettingsWindow
             ],
             node: ControlMap.Settings.GeneralPage.FlyoutStyle));
         stack.Children.Add(ComboCard(
-            Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
-            Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Description)),
+            L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
+            L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Description)),
             [
-                ("Explorer", Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Explorer))),
-                ("ControlPanel", Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_ControlPanel)))
+                ("Explorer", L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Explorer))),
+                ("ControlPanel", L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_ControlPanel)))
             ],
             _settings.AdapterSettingsStyle.ToString(),
             tag =>
@@ -59,93 +60,9 @@ public sealed partial class NetworkSettingsWindow
                 L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.AdapterSettingsStyle));
-        commonSection.AddInstallationSection(
-            stack,
-            [
-                new TrayAppDotNETInstallCardOptions
-                {
-                    Scope = InstallScope.LocalAppData,
-                    Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
-                    ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
-                    Elevated = false,
-                    Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
-                    UninstallAsync = (refresh, progress) =>
-                    {
-                        _showUninstaller(AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                            InstallScope.LocalAppData, progress);
-                        return Task.CompletedTask;
-                    }
-                },
-                new TrayAppDotNETInstallCardOptions
-                {
-                    Scope = InstallScope.ProgramFiles,
-                    Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
-                    ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
-                    Elevated = true,
-                    Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
-                    UninstallAsync = (refresh, progress) =>
-                    {
-                        _showUninstaller(AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                            InstallScope.ProgramFiles, progress);
-                        return Task.CompletedTask;
-                    }
-                }
-            ],
-            new TrayAppDotNETStoreInstallOptions(
-                Loc(nameof(AppStrings.Settings_General_WindowsStore_Title)),
-                StoreInstallDescription));
-        CreateRenderingSettingsSection(p).AddCards(stack);
+        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
+        AddRenderingSection(stack, supportsFlyoutWarmWindow: false, supportsTrayContextMenuWarmWindow: true);
 
-        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.General));
         return stack;
-    }
-
-    private TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETGeneralSettingsSectionOptions
-        {
-            Palette = p,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            GetRunOnStartup = static () => AppServices.Startup.GetRunOnStartup(),
-            SetRunOnStartup = enabled =>
-            {
-                AppServices.Startup.SetRunOnStartup(enabled);
-                _settings.RunOnStartup = enabled;
-            },
-            GetLanguage = () => _settings.Language,
-            SetLanguage = language => _settings.Language = language,
-            AvailableLanguages = AppLocalizationCultures.Names,
-            GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
-            RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
-            DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber
-        });
-
-    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETRenderingSettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            RenderingSettings = _settings,
-            TrayMenuSettings = _settings,
-            WarmWindowSettings = _settings,
-            SupportsTrayContextMenuWarmWindow = true
-        });
-
-    private static string StoreInstallDescription()
-    {
-        TrayAppDotNETInstallationInfo? info = AppServices.Installation.DetectAll()
-            .FirstOrDefault(i => i.Scope == InstallScope.WindowsStore);
-        return info?.Status == TrayAppDotNETInstallStatus.CurrentlyRunning
-            ? Loc(nameof(AppStrings.Settings_General_StoreRunning))
-            : Loc(nameof(AppStrings.Settings_General_StoreNotInstalled));
     }
 }

@@ -90,9 +90,9 @@
               Description="Owned modal reorder window; Header takes a subclass option, RowContent fills each row">
         <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
               Source="TaskManagerReorderDialog.TaskManagerReorderDialog" Description="Closes the dialog" />
-        <Scope ID="TitleBar" Source="TaskManagerReorderDialog.BuildTitleBar">
+        <Scope ID="TitleBar" Source="TaskManagerReorderDialog.TaskManagerReorderDialog">
             <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-                  Source="TaskManagerReorderDialog.OnTitleBarPointerPressed"
+                  Source="TrayAppDotNETDialogChrome.TitleBar"
                   Description="Dragging the title bar moves the dialog" />
             <Leaf ID="Close" Kind="Button" Event="Click" Source="TaskManagerReorderDialog.OnCancelClick"
                   Description="TrayAppDotNETCaptionCloseButton" />
@@ -294,11 +294,11 @@
         </Scope>
     </Surface>
 
-    <Surface ID="MainUpdateConfirmation" Template="UpdateConfirmation"
+    <Surface ID="MainUpdateConfirmation" Template="Confirmation"
              Source="TaskManagerWindow.ShowUpdateConfirmationAsync"
              Description="Install prompt opened by the Update footer action" />
 
-    <Surface ID="SettingsUpdateConfirmation" Template="UpdateConfirmation"
+    <Surface ID="SettingsUpdateConfirmation" Template="Confirmation"
              Source="TaskManagerSettingsWindow.BuildAboutPage"
              Description="Install and backdate prompts the Settings About page opens" />
 
@@ -333,7 +333,7 @@
               Description="Reverts instead of hiding the last visible column" />
     </Surface>
 
-    <Surface ID="ProcessColumnResetConfirmation" Template="UpdateConfirmation"
+    <Surface ID="ProcessColumnResetConfirmation" Template="Confirmation"
              Source="ProcessColumnChooserWindow.ConfirmResetAsync"
              Description="Reset process columns prompt, modal over ProcessColumnChooser" />
 
@@ -479,7 +479,7 @@
             <Scope ID="Installation" Template="InstallationSection"
                    Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Scope ID="Rendering" Template="RenderingSection"
-                   Source="TaskManagerSettingsWindow.CreateRenderingSettingsSection" />
+                   Source="SettingsWindowCommon.AddRenderingSection" />
         </Scope>
         <Scope ID="ProcessesPage" Source="TaskManagerSettingsWindow.BuildProcessesPage">
             <Leaf ID="GroupingStyle" Kind="Select" Event="Callback"
@@ -582,18 +582,10 @@
         <!-- HotkeysPage (BuildHotkeysPage) lists the TaskManagerGrid gestures and Table.EndTask Keys this map declares,
              read through TaskManagerGridShortcuts, as read-only cards; no leaves -->
         <Scope ID="ThemePage" Source="TaskManagerSettingsWindow.BuildThemePage" Description="Appearance page">
-            <Leaf ID="ThemeMode" Kind="Select" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildThemePage" />
-            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildThemePage"
-                  Description="Windows 11-style settings menu" />
-            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Scope ID="Appearance" Template="AppearanceSection" Source="TaskManagerSettingsWindow.BuildThemePage" />
+            <Scope ID="ContextMenu" Template="ContextMenuAppearanceSection"
+                   Source="TaskManagerSettingsWindow.BuildThemePage" />
             <Leaf ID="CollapseNavigationWhenNarrow" Kind="Toggle" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildThemePage" />
-            <Leaf ID="Animations" Kind="Select" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildThemePage" />
-            <Leaf ID="ToolTipDelay" Kind="Number" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildThemePage" />
         </Scope>
         <Scope ID="AboutPage" Template="AboutPage" Source="TaskManagerSettingsWindow.BuildAboutPage" />
@@ -619,8 +611,8 @@
 
     <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="TaskManagerAvaloniaApp.ShowTrayMenu">
         <Leaf ID="OpenTaskManager" Kind="ListItem" Event="MenuEntry"
-              Source="TaskManagerTrayMenuWindow.BuildEntries" />
-        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="TaskManagerTrayMenuWindow.BuildEntries" />
+              Source="TaskManagerAvaloniaApp.CreateTrayMenuWindow" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="TrayMenuWindow.BuildEntries" />
     </Surface>
 
     <Surface ID="CPUGraphMenu" Kind="Popup" Template="ContextMenu" Source="PerformancePage.ShowCPUGraphContextMenu"
@@ -663,7 +655,7 @@
         <Leaf ID="OpenServices" Kind="ListItem" Event="MenuEntry" Source="ServicesPage.OnMoreClick" />
     </Surface>
 
-    <Surface ID="Uninstaller" Template="Uninstaller" Source="TaskManagerUninstallerWindow.CreateOptions" />
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="TaskManagerWindow.ShowUninstallerWindow" />
 
     <Surface ID="Installer" Template="Installer"
              Source="TaskManagerAvaloniaApp.OnFrameworkInitializationCompleted" />

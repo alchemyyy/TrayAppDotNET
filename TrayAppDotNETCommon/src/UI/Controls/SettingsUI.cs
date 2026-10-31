@@ -23,7 +23,6 @@ internal static class SettingsUILayout
     private static SettingsUIResources AXAMLResources => SettingsUIResources.Current;
 
     public static Thickness NavItemMargin => AXAMLResources.AxamlSettingsUI.NavItemMargin;
-    public static Thickness NavActionMargin => AXAMLResources.AxamlSettingsUI.NavActionMargin;
     public static double NavIndicatorWidth => AXAMLResources.AxamlSettingsUI.NavIndicatorWidth;
     public static double NavIndicatorHeight => AXAMLResources.AxamlSettingsUI.NavIndicatorHeight;
 
@@ -110,9 +109,6 @@ internal static class SettingsUILayout
     public static Thickness NumberSuffixMargin => AXAMLResources.AxamlSettingsUI.NumberSuffixMargin;
     public static CornerRadius NumberValueCornerRadius => AXAMLResources.AxamlSettingsUI.NumberValueCornerRadius;
 
-    public static double NumberSuffixPlaceholderOpacity =>
-        AXAMLResources.AxamlSettingsUI.NumberSuffixPlaceholderOpacity;
-
     public static double NumberSuffixFontSize => AXAMLResources.AxamlSettingsUI.NumberSuffixFontSize;
     public static double NumberValueFontSize => AXAMLResources.AxamlSettingsUI.NumberValueFontSize;
     public static double NumberAutoWidthReserve => AXAMLResources.AxamlSettingsUI.NumberAutoWidthReserve;
@@ -129,10 +125,6 @@ internal static class SettingsUILayout
     public static double DescriptionFontSize => AXAMLResources.AxamlSettingsUI.DescriptionFontSize;
     public static double DescriptionOpacity => AXAMLResources.AxamlSettingsUI.DescriptionOpacity;
     public static Thickness DescriptionMargin => AXAMLResources.AxamlSettingsUI.DescriptionMargin;
-    public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsUI.RightControlMargin;
-    public static CornerRadius CardCornerRadius => AXAMLResources.AxamlSettingsUI.CardCornerRadius;
-    public static Thickness CardPadding => AXAMLResources.AxamlSettingsUI.CardPadding;
-    public static Thickness CardMargin => AXAMLResources.AxamlSettingsUI.CardMargin;
     public static double TextBoxHeight => AXAMLResources.AxamlSettingsUI.TextBoxHeight;
     public static double TextBoxFontSize => AXAMLResources.AxamlSettingsUI.TextBoxFontSize;
     public static Thickness TextBoxBorderThickness => AXAMLResources.AxamlSettingsUI.TextBoxBorderThickness;
@@ -629,116 +621,6 @@ public sealed class SettingsNavItem : Border
     }
 }
 
-public sealed class SettingsNavAction : Border
-{
-    private readonly SettingsPalette _palette;
-    private readonly Border _outer;
-    private bool _isPointerOver;
-    private bool _isPressed;
-
-    public SettingsNavAction(
-        string text,
-        SettingsPalette palette,
-        CornerRadius? indicatorRadius = null,
-        CornerRadius? itemRadius = null)
-    {
-        _palette = palette;
-        Background = Brushes.Transparent;
-        Margin = SettingsUILayout.NavActionMargin;
-        Cursor = TrayAppDotNETCursors.Hand;
-        Focusable = true;
-        HorizontalAlignment = HorizontalAlignment.Stretch;
-
-        Border indicator = new()
-        {
-            Width = SettingsUILayout.NavIndicatorWidth,
-            Height = SettingsUILayout.NavIndicatorHeight,
-            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorCornerRadius,
-            Background = Brushes.Transparent,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin
-        };
-
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.HorizontalAlignment = HorizontalAlignment.Left;
-
-        Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        row.Children.Add(indicator);
-        Grid.SetColumn(label, value: 1);
-        row.Children.Add(label);
-
-        _outer = new Border
-        {
-            Background = Brushes.Transparent,
-            CornerRadius = itemRadius ?? SettingsUILayout.NavItemCornerRadius,
-            Padding = SettingsUILayout.NavItemPadding,
-            Child = row
-        };
-        Child = _outer;
-
-        PointerEntered += (_, _) =>
-        {
-            _isPointerOver = true;
-            UpdateVisual();
-        };
-        PointerExited += (_, _) =>
-        {
-            _isPointerOver = false;
-            _isPressed = false;
-            UpdateVisual();
-        };
-        PointerPressed += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-            _isPressed = true;
-            UpdateVisual();
-            e.Handled = true;
-        };
-        PointerReleased += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
-            bool clicked = _isPressed && releasedInside;
-            _isPointerOver = releasedInside;
-            _isPressed = false;
-            UpdateVisual();
-            if (!clicked) return;
-            Click?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        };
-        KeyDown += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (e.Key is not (Key.Enter or Key.Space)) return;
-            Click?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        };
-
-        DebugUIProvenance.RecordBuilder(this);
-        DebugUIProvenance.RecordBuilder(label);
-        DebugUIProvenance.RecordBuilder(indicator);
-        DebugUIProvenance.RecordBuilder(_outer);
-    }
-
-    public event EventHandler? Click;
-
-    private void UpdateVisual()
-    {
-        Color background = _isPressed
-            ? _palette.Pressed
-            : _isPointerOver
-                ? _palette.Hover
-                : Colors.Transparent;
-        _outer.Background = TrayAppDotNETSettingsUI.Brush(background);
-        DebugUIProvenance.RecordBuilder(_outer);
-    }
-}
-
 public sealed class SettingsButton : Border
 {
     private readonly TextBlock _label;
@@ -749,15 +631,14 @@ public sealed class SettingsButton : Border
     private bool _isPointerOver;
     private bool _isPressed;
 
-    public SettingsButton(string text, SettingsPalette palette, bool transparentBase = false, bool navGutter = false)
+    public SettingsButton(string text, SettingsPalette palette, bool transparentBase = false)
         : this(
             text,
             palette,
             palette.ControlBackground,
             palette.Hover,
             palette.Pressed,
-            transparentBase,
-            navGutter)
+            transparentBase)
     {
     }
 
@@ -767,15 +648,14 @@ public sealed class SettingsButton : Border
         SettingsPaletteColor normalBackground,
         SettingsPaletteColor hoverBackground,
         SettingsPaletteColor pressedBackground,
-        bool transparentBase = false,
-        bool navGutter = false)
+        bool transparentBase = false)
     {
         _transparentBase = transparentBase;
         _normalBackground = normalBackground;
         _hoverBackground = hoverBackground;
         _pressedBackground = pressedBackground;
         _label = TrayAppDotNETSettingsUI.Text(text, palette);
-        _label.HorizontalAlignment = navGutter ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        _label.HorizontalAlignment = HorizontalAlignment.Center;
         _label.VerticalAlignment = VerticalAlignment.Center;
 
         Background = transparentBase
@@ -786,7 +666,7 @@ public sealed class SettingsButton : Border
         Padding = SettingsUILayout.ButtonPadding;
         Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
-        Child = navGutter ? CreateNavContent(_label) : _label;
+        Child = _label;
 
         PropertyChanged += (_, e) =>
         {
@@ -850,8 +730,8 @@ public sealed class SettingsButton : Border
     /// <summary>
     /// Creates a settings button label from a glyph object.
     /// </summary>
-    public SettingsButton(Glyph glyph, SettingsPalette palette, bool transparentBase = false, bool navGutter = false)
-        : this(glyph.Text, palette, transparentBase, navGutter) =>
+    public SettingsButton(Glyph glyph, SettingsPalette palette, bool transparentBase = false)
+        : this(glyph.Text, palette, transparentBase) =>
         GlyphApplicator.ApplyTo(_label, glyph);
 
     internal SettingsButton(
@@ -860,16 +740,14 @@ public sealed class SettingsButton : Border
         SettingsPaletteColor normalBackground,
         SettingsPaletteColor hoverBackground,
         SettingsPaletteColor pressedBackground,
-        bool transparentBase = false,
-        bool navGutter = false)
+        bool transparentBase = false)
         : this(
             glyph.Text,
             palette,
             normalBackground,
             hoverBackground,
             pressedBackground,
-            transparentBase,
-            navGutter) =>
+            transparentBase) =>
         GlyphApplicator.ApplyTo(_label, glyph);
 
     public event EventHandler? Click;
@@ -903,26 +781,6 @@ public sealed class SettingsButton : Border
         }
 
         DebugUIProvenance.RecordBuilder(this);
-    }
-
-    private static Grid CreateNavContent(TextBlock label)
-    {
-        Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        row.Children.Add(new Border
-        {
-            Width = SettingsUILayout.NavIndicatorWidth,
-            Height = SettingsUILayout.NavIndicatorHeight,
-            CornerRadius = SettingsUILayout.NavIndicatorCornerRadius,
-            Background = Brushes.Transparent,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin
-        });
-
-        Grid.SetColumn(label, value: 1);
-        row.Children.Add(label);
-        return row;
     }
 }
 
@@ -1204,6 +1062,14 @@ public sealed class SettingsScrollHost : Grid, IDisposable
         _scrollBar.IsVisible = isEnabled;
         if (!isEnabled)
             _scrollViewer.Offset = default;
+    }
+
+    /// <summary>Sets the options of the scroll bar's right-click menu, such as the app's menu font size.</summary>
+    public void SetContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        _scrollBar.SetContextMenuOptions(contextMenuOptions);
     }
 
     /// <summary>Replaces the scrollable content without rebuilding the scroll host.</summary>
@@ -1602,11 +1468,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
 internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 {
     private readonly Orientation _orientation;
-#if DEBUG
     private ContextMenuWindowOptions _contextMenuOptions;
-#else
-    private readonly ContextMenuWindowOptions _contextMenuOptions;
-#endif
     private SettingsScrollBarStyle _style;
     private IBrush _trackBrush;
     private IBrush _idleThumbBrush;
@@ -1707,7 +1569,6 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         InvalidateVisual();
     }
 
-#if DEBUG
     /// <summary>Replaces immutable menu options and closes any menu built from the prior snapshot.</summary>
     internal void SetContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
     {
@@ -1716,7 +1577,6 @@ internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
         CloseContextMenu();
         _contextMenuOptions = contextMenuOptions;
     }
-#endif
 
     public override void Render(DrawingContext context)
     {
@@ -2962,10 +2822,17 @@ public sealed class SettingsComboBox : Grid, IDisposable
         e.Handled = true;
     }
 
-    // Keys reach this handler only while the combo box itself has focus; the open list handles its own keys
+    // Keys reach this handler only while the combo box itself has focus; the open list handles its own keys. Only
+    // unmodified keys (and Alt+Down, the Windows drop-down gesture) open the list, so a map accelerator such as
+    // Ctrl+Down on the card still reaches the control map
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (!IsEnabled || !ReferenceEquals(e.Source, this)) return;
+
+        bool unmodified = e.KeyModifiers == KeyModifiers.None;
+        bool dropDownGesture = unmodified || (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt);
+        if (!dropDownGesture) return;
+
         switch (e.Key)
         {
             case Key.Enter:
@@ -3055,7 +2922,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private TopLevel? _outsidePointerHost;
     private bool _isPointerOverValue;
     private bool _isTextFocused;
-    private bool _cancelTextEditOnLostFocus;
+    private WheelStepAccumulator _wheelSteps;
     private double _minimum;
     private double _maximum;
     private int _decimalPlaces;
@@ -3108,7 +2975,8 @@ public sealed class SettingsNumberBox : Grid, IDisposable
             Brushes.Transparent,
             Brushes.Transparent,
             Brushes.Transparent);
-        _textBox.TextInput += (_, e) =>
+        // Tunnel: TextBox.OnTextInput inserts the text and marks the event handled before bubbling handlers run
+        _textBox.AddHandler(TextInputEvent, (_, e) =>
         {
             foreach (char c in e.Text ?? string.Empty)
             {
@@ -3126,7 +2994,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                 e.Handled = true;
                 return;
             }
-        };
+        }, RoutingStrategies.Tunnel);
 
         _suffixText = TrayAppDotNETSettingsUI.Text(suffix, palette, SettingsUILayout.NumberSuffixFontSize);
         _suffixText.Margin = SettingsUILayout.NumberSuffixMargin;
@@ -3172,34 +3040,23 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         };
         _textBox.GotFocus += (_, _) =>
         {
+            if (_isTextFocused) return;
+
             _isTextFocused = true;
             _valueAtTextFocus = Value;
-            _cancelTextEditOnLostFocus = false;
             AttachOutsidePointerHandler();
-            UpdateSuffixOpacity();
             UpdateValueBorder();
+            EditingTextChanged?.Invoke(this, EventArgs.Empty);
         };
         _textBox.LostFocus += (_, _) =>
         {
             DetachOutsidePointerHandler();
             _isTextFocused = false;
-            if (_cancelTextEditOnLostFocus)
-            {
-                _cancelTextEditOnLostFocus = false;
-                RestoreTextFocusValue();
-            }
-            else
-                CommitTextOrRestore();
-
-            UpdateSuffixOpacity();
+            CommitTextOrRestore();
             UpdateValueBorder();
+            EditingTextChanged?.Invoke(this, EventArgs.Empty);
         };
-        _textBox.TextChanged += (_, _) =>
-        {
-            UpdateSuffixOpacity();
-            UpdateAutoWidth();
-            PublishFocusedTextValue();
-        };
+        _textBox.TextChanged += (_, _) => UpdateAutoWidth();
         _textBox.KeyDown += (_, e) =>
         {
             switch (e.Key)
@@ -3226,8 +3083,12 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         PointerWheelChanged += (_, e) =>
         {
             if (!_isTextFocused && !HandleMouseWheelWhenMouseOver) return;
-            double magnitude = WheelStepFromModifiers(e.KeyModifiers);
-            ChangeBy(e.Delta.Y > 0 ? magnitude : -magnitude);
+
+            // A horizontal wheel or swipe has no vertical delta and is left to the scroll host
+            if (e.Delta.Y == 0) return;
+
+            int steps = _wheelSteps.Add(e.Delta.Y);
+            if (steps != 0) ChangeBy(steps * WheelStepFromModifiers(e.KeyModifiers));
             e.Handled = true;
         };
         _upButton.Click += (_, _) => ChangeBy(Step);
@@ -3240,6 +3101,9 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     }
 
     public event EventHandler<SettingsNumberValueChangedEventArgs>? ValueChanged;
+
+    /// <summary>Raised when <see cref="IsEditingText"/> changes.</summary>
+    public event EventHandler? EditingTextChanged;
 
     public double Minimum
     {
@@ -3303,47 +3167,19 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         }
     }
 
-    public bool AllowInherit
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            UpdateText();
-            UpdateAutoWidth();
-        }
-    }
-
-    public int InheritValue
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            UpdateText();
-            UpdateAutoWidth();
-        }
-    } = -1;
-
-    public string PlaceholderText
-    {
-        get;
-        set
-        {
-            field = value;
-            _textBox.PlaceholderText = value;
-            UpdateSuffixOpacity();
-            UpdateAutoWidth();
-        }
-    } = string.Empty;
-
     public bool HandleMouseWheelWhenMouseOver
     {
         get;
         set;
     }
+
+    /// <summary>
+    /// True while the text box has focus. Typed text reaches <see cref="ValueChanged"/> only when Enter or focus
+    /// loss commits it, so a partly typed number such as the 1 of 15 never reaches the owner; spinner buttons, Up and
+    /// Down, and the wheel commit at once, because each is a whole step. Owners that rebuild their content hold the
+    /// rebuild while this is true, so typing is never interrupted.
+    /// </summary>
+    public bool IsEditingText => _isTextFocused;
 
     public string Suffix
     {
@@ -3368,7 +3204,10 @@ public sealed class SettingsNumberBox : Grid, IDisposable
             !TryParseNumber(text, out double current))
             current = delta > 0 ? Minimum : Maximum;
 
-        Value = Math.Clamp(current + delta, Minimum, Maximum);
+        double next = current + delta;
+        if (!double.IsFinite(next)) return;
+
+        Value = Math.Clamp(next, Minimum, Maximum);
         if (_isTextFocused)
             _valueAtTextFocus = Value;
     }
@@ -3387,14 +3226,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         string text = _textBox.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
-            if (AllowInherit)
-            {
-                Value = InheritValue;
-                return;
-            }
-
-            double fallback = Value == InheritValue ? Minimum : Value ?? Minimum;
-            Value = Math.Clamp(fallback, Minimum, Maximum);
+            Value = Math.Clamp(Value ?? Minimum, Minimum, Maximum);
             return;
         }
 
@@ -3404,45 +3236,17 @@ public sealed class SettingsNumberBox : Grid, IDisposable
             return;
         }
 
-        if (AllowInherit)
-        {
-            Value = InheritValue;
-            return;
-        }
-
         UpdateText();
     }
 
-    private void PublishFocusedTextValue()
-    {
-        if (!_isTextFocused) return;
-
-        string text = _textBox.Text ?? string.Empty;
-        if (!TryParseNumber(text, out double parsedValue)) return;
-
-        double roundedValue = Math.Round(
-            parsedValue,
-            DecimalPlaces,
-            MidpointRounding.AwayFromZero);
-        if (!double.IsFinite(roundedValue)
-            || roundedValue < Minimum
-            || roundedValue > Maximum
-            || _value == roundedValue)
-            return;
-
-        double? oldValue = _value;
-        _value = roundedValue;
-        ValueChanged?.Invoke(
-            this,
-            new SettingsNumberValueChangedEventArgs(oldValue, roundedValue));
-    }
-
+    /// <summary>
+    /// Escape: restores the value the edit started from and keeps the caret in the text box, so further digits keep
+    /// typing instead of reaching keyboard shortcuts of the window.
+    /// </summary>
     private void CancelTextEdit()
     {
-        _cancelTextEditOnLostFocus = true;
         RestoreTextFocusValue();
-        _textBox.ClearSelection();
-        Focus();
+        _textBox.SelectAll();
     }
 
     private void RestoreTextFocusValue()
@@ -3493,6 +3297,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
         DetachOutsidePointerHandler();
         ValueChanged = null;
+        EditingTextChanged = null;
     }
 
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) =>
@@ -3500,11 +3305,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
 
     private void SetValue(double? next, bool raiseChanged)
     {
-        double? clamped = next.HasValue
-            ? AllowInherit && (int)Math.Round(next.Value) == InheritValue
-                ? InheritValue
-                : NormalizeValue(next.Value)
-            : null;
+        double? clamped = next is { } nextValue && double.IsFinite(nextValue) ? NormalizeValue(nextValue) : _value;
         if (_value == clamped)
         {
             UpdateText();
@@ -3521,22 +3322,16 @@ public sealed class SettingsNumberBox : Grid, IDisposable
 
     private void UpdateText()
     {
-        string text = _value.HasValue
-            ? AllowInherit && (int)Math.Round(_value.Value) == InheritValue
-                ? string.Empty
-                : FormatValue(_value.Value)
-            : string.Empty;
+        string text = _value.HasValue ? FormatValue(_value.Value) : string.Empty;
         if (_textBox.Text == text) return;
 
         _textBox.Text = text;
         _textBox.CaretIndex = text.Length;
-        UpdateSuffixOpacity();
     }
 
     private void ClampCurrentValue()
     {
         if (!Value.HasValue) return;
-        if (AllowInherit && (int)Math.Round(Value.Value) == InheritValue) return;
         Value = Math.Clamp(Value.Value, Minimum, Maximum);
     }
 
@@ -3564,26 +3359,11 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         };
     }
 
-    private void UpdateSuffixOpacity()
-    {
-        bool placeholderShowing = !string.IsNullOrEmpty(PlaceholderText)
-                                  && string.IsNullOrEmpty(_textBox.Text)
-                                  && !_isTextFocused;
-        _suffixText.Opacity = placeholderShowing
-            ? SettingsUILayout.NumberSuffixPlaceholderOpacity
-            : SettingsUILayout.EnabledOpacity;
-    }
-
     private void UpdateAutoWidth()
     {
         string valueText = _textBox.Text ?? string.Empty;
         if (string.IsNullOrEmpty(valueText))
-            valueText = PlaceholderText;
-        bool isInheritedValue = Value.HasValue && (int)Math.Round(Value.Value) == InheritValue;
-        if (string.IsNullOrEmpty(valueText) && !(AllowInherit && isInheritedValue))
             valueText = FormatValue(Value ?? 0);
-        if (string.IsNullOrEmpty(valueText))
-            valueText = "0";
 
         double suffixWidth = string.IsNullOrEmpty(Suffix)
             ? 0
@@ -3630,9 +3410,11 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private static double NormalizeStep(double value) =>
         double.IsFinite(value) ? Math.Max(MinimumStep, value) : 1;
 
+    // NumberStyles.Float accepts "NaN" and "Infinity", which no setting can hold
     private static bool TryParseNumber(string text, out double value) =>
-        double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
-        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        (double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
+         || double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        && double.IsFinite(value);
 
     private static bool IsDecimalSeparator(char character)
     {
@@ -3821,67 +3603,6 @@ public static class TrayAppDotNETSettingsUI
             Margin = margin ?? SettingsUILayout.DescriptionMargin
         };
 
-    public static StackPanel PageStack(string title, SettingsPalette palette)
-    {
-        StackPanel stack = new() { Background = Brush(palette.Background) };
-        stack.Children.Add(SectionHeader(title, palette));
-        DebugUIProvenance.RecordBuilder(stack);
-        return stack;
-    }
-
-    public static Border Card(string title, string description, Control? rightControl, SettingsPalette palette)
-    {
-        StackPanel text = new()
-        {
-            MinWidth = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        text.Children.Add(TitleText(title, palette));
-        if (!string.IsNullOrEmpty(description))
-            text.Children.Add(DescriptionText(description, palette));
-
-        Grid grid = new();
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.Children.Add(text);
-
-        if (rightControl != null)
-        {
-            rightControl.VerticalAlignment = VerticalAlignment.Center;
-            rightControl.Margin = SettingsUILayout.RightControlMargin;
-            Grid.SetColumn(rightControl, value: 1);
-            grid.Children.Add(rightControl);
-        }
-
-        Border card = new()
-        {
-            Background = Brush(palette.CardBackground),
-            CornerRadius = SettingsUILayout.CardCornerRadius,
-            Padding = SettingsUILayout.CardPadding,
-            Margin = SettingsUILayout.CardMargin,
-            Child = grid
-        };
-        ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
-        DebugUIProvenance.RecordBuilder(card);
-        return SettingsSearchMetadata.MarkCard(card, title);
-    }
-
-    public static Border RawCard(Control content, SettingsPalette palette)
-    {
-        Border card = new()
-        {
-            Background = Brush(palette.CardBackground),
-            CornerRadius = SettingsUILayout.CardCornerRadius,
-            Padding = SettingsUILayout.CardPadding,
-            Margin = SettingsUILayout.CardMargin,
-            Child = content
-        };
-        ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
-        DebugUIProvenance.RecordBuilder(card);
-        return SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
-    }
-
     /// <summary>
     /// Creates a scroll host; scrollBarNode tags its painted scroll bar with the ScrollBar instance it stands for.
     /// </summary>
@@ -3898,14 +3619,6 @@ public static class TrayAppDotNETSettingsUI
     /// Creates a settings button from a glyph object.
     /// </summary>
     public static SettingsButton Button(Glyph glyph, SettingsPalette palette) => new(glyph, palette);
-
-    public static SettingsButton NavAction(string text, SettingsPalette palette) =>
-        new(text, palette, transparentBase: true, navGutter: true)
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = SettingsUILayout.NavItemPadding,
-            Margin = SettingsUILayout.NavActionMargin
-        };
 
     public static SettingsToggle Toggle(SettingsPalette palette, bool isChecked, EventHandler<bool> changed)
     {

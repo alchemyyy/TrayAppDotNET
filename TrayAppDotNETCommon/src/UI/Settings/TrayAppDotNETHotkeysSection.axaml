@@ -1,0 +1,28 @@
+<ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.Settings.TrayAppDotNETHotkeysSectionResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Page -->
+    <Thickness x:Key="HotkeysSection.DescriptionMargin">0,0,0,16</Thickness>
+
+    <!-- Hotkey card row -->
+    <sys:Double x:Key="HotkeysSection.TitleMinWidth">200</sys:Double>
+    <Thickness x:Key="HotkeysSection.TitleMargin">0,0,12,0</Thickness>
+    <sys:Double x:Key="HotkeysSection.ModifierWidth">170</sys:Double>
+    <Thickness x:Key="HotkeysSection.ModifierPadding">8,0,2,0</Thickness>
+    <sys:Double x:Key="HotkeysSection.KeyWidth">90</sys:Double>
+    <sys:Double x:Key="HotkeysSection.AddMinWidth">70</sys:Double>
+    <Thickness x:Key="HotkeysSection.ControlSpacing">0,0,8,0</Thickness>
+    <Thickness x:Key="HotkeysSection.TrailingMargin">8,0,0,0</Thickness>
+    <Thickness x:Key="HotkeysSection.EntriesMargin">0,8,0,0</Thickness>
+    <Thickness x:Key="HotkeysSection.FeedbackMargin">0,6,0,0</Thickness>
+
+    <!-- One bound combination -->
+    <Thickness x:Key="HotkeysSection.EntryMargin">0,0,0,4</Thickness>
+    <Thickness x:Key="HotkeysSection.EntryTextMargin">12,6,0,6</Thickness>
+    <Thickness x:Key="HotkeysSection.StatusMargin">0,0,8,0</Thickness>
+    <sys:Double x:Key="HotkeysSection.DeleteWidth">32</sys:Double>
+    <sys:Double x:Key="HotkeysSection.DeleteHeight">29</sys:Double>
+</ResourceDictionary>

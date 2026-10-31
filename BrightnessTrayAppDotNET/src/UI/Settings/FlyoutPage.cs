@@ -8,11 +8,11 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_Flyout_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_RestoreUndockState_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_RestoreUndockState_Description)),
             _settings.RestoreFlyoutUndockedOnStartup,
             v => _settings.RestoreFlyoutUndockedOnStartup = v,
             p,
@@ -23,11 +23,11 @@ public sealed partial class BrightnessSettingsWindow
             node: ControlMap.Settings.FlyoutPage.RestoreUndockState));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Flyout_Visibility_Header)),
+            L(nameof(CommonStrings.Settings_Flyout_Visibility_Header)),
             p));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_ShowUndockButton_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_ShowUndockButton_Description)),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
@@ -37,8 +37,8 @@ public sealed partial class BrightnessSettingsWindow
             ],
             node: ControlMap.Settings.FlyoutPage.ShowUndockButton));
         stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
-            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
             _settings.ClampUndockedFlyoutToScreen,
             v => _settings.ClampUndockedFlyoutToScreen = v,
             p,

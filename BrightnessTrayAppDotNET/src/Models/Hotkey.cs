@@ -1,4 +1,3 @@
-using System.Xml.Serialization;
 using TrayAppDotNETCommon.Models;
 
 namespace BrightnessTrayAppDotNET.Models;
@@ -21,77 +20,12 @@ public enum BrightnessHotkeyAction
 }
 
 /// <summary>
-/// One persisted hotkey binding.
-/// Identity = (Action, Parameter, BindingID): per (action, parameter) pair there can be N bindings,
-/// distinguished by BindingID. BindingID == 0 is the legacy/primary row; legacy XML files without
-/// the attribute load to 0 and so become the primary row by default.
-/// Modifiers and VirtualKey are raw Win32 values (MOD_* and VK_*) so the storage shape matches RegisterHotKey directly
-/// and the settings model doesn't depend on UI input enums.
-/// MOD_NOREPEAT is added at registration time, never persisted.
+/// One persisted Brightness hotkey binding; the attributes come from <see cref="HotkeyBindingBase{TAction}"/>.
+/// <see cref="BrightnessHotkeyAction.ProfileSelect"/> stores the slot index ("0", "1", ...) in
+/// <see cref="HotkeyBindingBase{TAction}.Parameter"/>; <see cref="BrightnessHotkeyAction.MonitorOff"/> stores a
+/// <see cref="HotkeyTarget"/> ("#N" or "edid:&lt;EDIDKey&gt;"). Fixed-target actions leave it empty.
 /// </summary>
-public sealed class HotkeyBinding
-    : IHotkeyBinding<BrightnessHotkeyAction>
-{
-    [XmlAttribute]
-    public BrightnessHotkeyAction Action { get; set; }
-
-    /// <summary>
-    /// Action-specific parameter, encoded as a string for stable explicit XML persistence.
-    /// <see cref="BrightnessHotkeyAction.ProfileSelect"/> stores the slot index ("0", "1", ...).
-    /// <see cref="BrightnessHotkeyAction.MonitorOff"/> stores either "#N" (Windows-assigned display number)
-    /// or "edid:&lt;EDIDKey&gt;".
-    /// Empty for fixed-target actions.
-    /// </summary>
-    [XmlAttribute]
-    public string Parameter { get; set; } = string.Empty;
-
-    /// <summary>
-    /// MOD_* flags from RegisterHotKey (no MOD_NOREPEAT - added at registration time).
-    /// </summary>
-    [XmlAttribute]
-    public uint Modifiers { get; set; }
-
-    /// <summary>VK_* virtual key code passed to RegisterHotKey.</summary>
-    [XmlAttribute]
-    public uint VirtualKey { get; set; }
-
-    [XmlAttribute]
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
-    /// Disambiguator for multiple bindings sharing the same (Action, Parameter).
-    /// 0 = primary/legacy row; 1, 2, ... = additional bindings added by the user.
-    /// Missing in legacy XML, loads as 0.
-    /// </summary>
-    [XmlAttribute]
-    public int BindingID { get; set; }
-
-    /// <summary>
-    /// Tombstone flag: true means the user explicitly removed this binding through the UI.
-    /// Tombstones are kept in the persisted list (instead of being deleted) so the default-seeder
-    /// in the default hotkey seeder can tell that a default was removed
-    /// on purpose and must not be re-added on the next launch.
-    /// Filtered out of UI display and hotkey registration.
-    /// </summary>
-    [XmlAttribute]
-    public bool RemovedByUser { get; set; }
-
-    [XmlIgnore]
-    public bool IsBound => VirtualKey != 0 && Modifiers != 0;
-
-    /// <summary>
-    /// "Any binding for this (Action, Parameter)" lookup.
-    /// Use the 3-arg overload when row identity matters for persistence/status.
-    /// </summary>
-    public bool Matches(BrightnessHotkeyAction action, string? parameter) =>
-        Action == action && string.Equals(Parameter, parameter ?? string.Empty, StringComparison.Ordinal);
-
-    /// <summary>Strict identity check including the per-row BindingID disambiguator.</summary>
-    public bool Matches(BrightnessHotkeyAction action, string? parameter, int bindingID) =>
-        Action == action
-        && string.Equals(Parameter, parameter ?? string.Empty, StringComparison.Ordinal)
-        && BindingID == bindingID;
-}
+public sealed class HotkeyBinding : HotkeyBindingBase<BrightnessHotkeyAction>;
 
 /// <summary>
 /// Helpers for encoding/decoding the <see cref="HotkeyBinding.Parameter"/> string

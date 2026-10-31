@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 
@@ -123,6 +124,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             foreach (SettingsPageDescriptor<TPageKey> descriptor in _pageDescriptors)
             {
                 Control builtPage = descriptor.BuildPage();
+                ControlNames.AssignLogicalSubtree(builtPage, PageNameToken(descriptor.Key));
                 StackPanel pageRoot;
                 if (builtPage is StackPanel stackPanel)
                     pageRoot = stackPanel;
@@ -144,7 +146,11 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 sources,
                 SettingsSearchSynonymMap.Parse(
                     commonSynonymGroups,
-                    L(SettingsSearchSynonymMap.AppResourceKey)));
+                    LocalizationManager.Instance.TryGetString(
+                        SettingsSearchSynonymMap.AppResourceKey,
+                        out string appSynonymGroups)
+                        ? appSynonymGroups
+                        : string.Empty));
             ControlNames.AssignLogicalSubtree(root, this);
             UIContentGeneration generation = new($"{GetType().Name}.Search", root, resources);
             return (generation, view);

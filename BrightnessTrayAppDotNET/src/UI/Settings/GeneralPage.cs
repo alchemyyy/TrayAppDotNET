@@ -22,9 +22,10 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_General_SectionHeader)), p);
 
-        TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
+        TrayAppDotNETGeneralSettingsSection commonSection =
+            CreateGeneralSettingsSection(AppServices.Install, AppLocalizationCultures.Names);
         stack.Children.Add(commonSection.BuildLanguageCard());
         stack.Children.Add(commonSection.BuildStartupCard());
         stack.Children.Add(BoolCard(
@@ -41,8 +42,8 @@ public sealed partial class BrightnessSettingsWindow
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_Autosave_Title)),
             L(nameof(AppStrings.Settings_General_Autosave_Description)),
-            _settings.Autosave,
-            v => _settings.Autosave = v,
+            _settings.AutosaveProfiles,
+            v => _settings.AutosaveProfiles = v,
             p,
             searchKeywords:
             [
@@ -51,42 +52,9 @@ public sealed partial class BrightnessSettingsWindow
             node: ControlMap.Settings.GeneralPage.Autosave));
         stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
-        commonSection.AddInstallationSection(stack,
-        [
-            new TrayAppDotNETInstallCardOptions
-            {
-                Scope = BrightnessInstallScope.LocalAppData,
-                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
-                ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
-                Elevated = false,
-                Install = static progress => AppServices.Installation.InstallToLocalAppData(progress: progress),
-                UninstallAsync = (refresh, progress) =>
-                {
-                    _showUninstaller(
-                        AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                        BrightnessInstallScope.LocalAppData,
-                        progress);
-                    return Task.CompletedTask;
-                }
-            },
-            new TrayAppDotNETInstallCardOptions
-            {
-                Scope = BrightnessInstallScope.ProgramFiles,
-                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
-                ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
-                Elevated = true,
-                Install = static progress => AppServices.Installation.InstallSystemWide(progress: progress),
-                UninstallAsync = (refresh, progress) =>
-                {
-                    _showUninstaller(
-                        AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                        BrightnessInstallScope.ProgramFiles,
-                        progress);
-                    return Task.CompletedTask;
-                }
-            }
-        ]);
-        CreateRenderingSettingsSection(p).AddCards(stack);
+        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
+        // The flyout hosts the curve session and is always kept warm
+        AddRenderingSection(stack, supportsFlyoutWarmWindow: false, supportsTrayContextMenuWarmWindow: true);
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_NightLight_Header)), p));
@@ -157,11 +125,11 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Title)),
             L(nameof(AppStrings.Settings_General_EnvironmentalTick_Description)),
             _settings.EnvironmentalCurveTickIntervalMs,
-            min: 250,
-            max: 600_000,
+            min: TimeConstants.EnvironmentalCurveTickIntervalMinMs,
+            max: TimeConstants.EnvironmentalCurveTickIntervalMaxMs,
             v => _settings.EnvironmentalCurveTickIntervalMs = v,
             p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            L(nameof(CommonStrings.Common_MillisecondsSuffix)),
             [
                 L(nameof(AppStrings.Settings_General_EnvironmentalTick_SearchKeywords))
             ],
@@ -336,48 +304,6 @@ public sealed partial class BrightnessSettingsWindow
         _profileManager.RaiseProfilesListChanged();
         RebuildProfileSlots();
     }
-
-    private TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETGeneralSettingsSectionOptions
-        {
-            Palette = p,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            GetRunOnStartup = static () => AppServices.Startup.GetRunOnStartup(),
-            SetRunOnStartup = enabled =>
-            {
-                AppServices.Startup.SetRunOnStartup(enabled);
-                _settings.RunOnStartup = enabled;
-            },
-            GetLanguage = () => _settings.Language,
-            SetLanguage = language => _settings.Language = language,
-            AvailableLanguages = AppLocalizationCultures.Names,
-            GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
-            RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
-            DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber
-        });
-
-    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETRenderingSettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            L = L,
-            Save = Save,
-            ConfirmAsync = ConfirmAsync,
-            ShowMessage = ShowMessage,
-            RenderingSettings = _settings,
-            TrayMenuSettings = _settings,
-            WarmWindowSettings = _settings,
-            // The flyout hosts the curve session and is always kept warm
-            SupportsFlyoutWarmWindow = false,
-            SupportsTrayContextMenuWarmWindow = true
-        });
 
     private sealed record ProfileSlotEntry(int Key, string Name);
 }

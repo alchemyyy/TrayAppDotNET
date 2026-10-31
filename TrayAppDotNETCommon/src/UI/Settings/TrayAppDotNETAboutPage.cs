@@ -32,20 +32,20 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required string Tagline { get; init; }
     public required int BuildNumber { get; init; }
     public required string CommitHash { get; init; }
-    public required string Publisher { get; init; }
-    public required string HelpLink { get; init; }
-    public required string OpenSettingsFolderText { get; init; }
+    public string Publisher { get; init; } = TrayAppDotNETConstants.Publisher;
+    public string HelpLink { get; init; } = TrayAppDotNETConstants.HelpLink;
     public required string SettingsFolderPath { get; init; }
     public ITrayAppDotNETUpdateSettings? UpdateSettings { get; init; }
     public Func<UpdateCheckService?> UpdateService { get; init; } = static () => null;
     public IReadOnlyList<TrayAppDotNETKnownIssue> KnownIssues { get; init; } = [];
 
-    public Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; } =
+    public Func<string, string, string, string?, Task<bool>> ConfirmAsync { get; init; } =
         static (_, _, _, _) => Task.FromResult(false);
 
-    public Action Shutdown { get; init; } = ShutdownDesktopApp;
+    /// <summary>Exits the app after an update was staged; the default runs the app's exit path.</summary>
+    public Action Shutdown { get; init; } = TrayAppDotNETAppLifetime.Exit;
     public Action FlushLog { get; init; } = TADNLog.Flush;
-    public Action<string> Log { get; init; } = static _ => { };
+    public Action<string> Log { get; init; } = TADNLog.Log;
     public Func<Window?> PromptOwner { get; init; } = DefaultPromptOwner;
     public Action? RebuildAboutPage { get; init; }
     public bool SupportsFlyoutUpdateButton { get; init; } = true;
@@ -57,12 +57,6 @@ public sealed class TrayAppDotNETAboutPageOptions
     /// map instantiates UpdateConfirmation more than once sets it; otherwise the template root id resolves.
     /// </summary>
     public ControlMapNodeID? UpdatePromptNode { get; init; }
-
-    private static void ShutdownDesktopApp()
-    {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
-    }
 
     private static Window? DefaultPromptOwner() =>
         Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
@@ -855,7 +849,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             .MapTo(ControlMap.AboutPage.OpenSettingsFolder);
         openFolder.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(_options.SettingsFolderPath);
         return TrayAppDotNETSettingsCards.Card(
-            _options.OpenSettingsFolderText,
+            L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Title)),
             L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Description)),
             openFolder,
             p,

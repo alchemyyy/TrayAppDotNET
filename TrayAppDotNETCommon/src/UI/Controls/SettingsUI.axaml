@@ -6,7 +6,6 @@
 
     <!-- Navigation controls -->
     <Thickness x:Key="SettingsUI.NavItemMargin">4,0</Thickness>
-    <Thickness x:Key="SettingsUI.NavActionMargin">4,2</Thickness>
     <sys:Double x:Key="SettingsUI.NavIndicatorWidth">3</sys:Double>
     <sys:Double x:Key="SettingsUI.NavIndicatorHeight">16</sys:Double>
     <CornerRadius x:Key="SettingsUI.NavIndicatorCornerRadius">1.5</CornerRadius>
@@ -94,7 +93,6 @@
     <Thickness x:Key="SettingsUI.NumberTextPadding">6,0,2,0</Thickness>
     <Thickness x:Key="SettingsUI.NumberSuffixMargin">2,0,8,0</Thickness>
     <CornerRadius x:Key="SettingsUI.NumberValueCornerRadius">4</CornerRadius>
-    <sys:Double x:Key="SettingsUI.NumberSuffixPlaceholderOpacity">0.45</sys:Double>
     <sys:Double x:Key="SettingsUI.NumberSuffixFontSize">13</sys:Double>
     <sys:Double x:Key="SettingsUI.NumberValueFontSize">14</sys:Double>
     <sys:Double x:Key="SettingsUI.NumberAutoWidthReserve">32</sys:Double>
@@ -110,10 +108,6 @@
     <sys:Double x:Key="SettingsUI.DescriptionFontSize">12</sys:Double>
     <sys:Double x:Key="SettingsUI.DescriptionOpacity">0.8</sys:Double>
     <Thickness x:Key="SettingsUI.DescriptionMargin">0,2,8,0</Thickness>
-    <Thickness x:Key="SettingsUI.RightControlMargin">16,0,0,0</Thickness>
-    <CornerRadius x:Key="SettingsUI.CardCornerRadius">6</CornerRadius>
-    <Thickness x:Key="SettingsUI.CardPadding">16,12</Thickness>
-    <Thickness x:Key="SettingsUI.CardMargin">0,0,0,6</Thickness>
 
     <!-- Text boxes and caption buttons -->
     <sys:Double x:Key="SettingsUI.TextBoxHeight">32</sys:Double>

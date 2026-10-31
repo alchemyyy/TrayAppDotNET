@@ -1,5 +1,7 @@
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
@@ -8,12 +10,44 @@ internal sealed record SettingsSearchPageSource(string Label, StackPanel Root);
 /// <summary>Indexes and filters the live controls that make up the stitched settings pages.</summary>
 internal sealed class SettingsSearchView
 {
-    private sealed class ControlState(Control control)
+    /// <summary>
+    /// A control the search shows or hides. <see cref="IsNormallyVisible"/> follows the visibility the page itself
+    /// sets while results are shown (a card that appears when its parent toggle turns on), so the next query neither
+    /// hides it again nor shows a card the page has hidden.
+    /// </summary>
+    private sealed class ControlState
     {
-        public readonly Control Control = control;
-        public readonly bool IsNormallyVisible = control.IsVisible;
+        public readonly Control Control;
+        private bool _applying;
 
-        public void SetSearchVisible(bool isVisible) => Control.IsVisible = IsNormallyVisible && isVisible;
+        public ControlState(Control control)
+        {
+            Control = control;
+            IsNormallyVisible = control.IsVisible;
+            control.PropertyChanged += OnControlPropertyChanged;
+        }
+
+        public bool IsNormallyVisible { get; private set; }
+
+        public void SetSearchVisible(bool isVisible)
+        {
+            _applying = true;
+            try
+            {
+                Control.IsVisible = IsNormallyVisible && isVisible;
+            }
+            finally
+            {
+                _applying = false;
+            }
+        }
+
+        private void OnControlPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (_applying || e.Property != Visual.IsVisibleProperty) return;
+
+            IsNormallyVisible = e.GetNewValue<bool>();
+        }
     }
 
     private sealed class SearchEntry(int id, IReadOnlyList<ControlState> controls)
@@ -365,6 +399,11 @@ internal static class SettingsSearchTextExtractor
 
             case ContentControl { Content: Control child }:
                 pending.Add(child);
+                break;
+
+            // A dropdown keeps its items in a popup; indexing them lets a search find options that are not selected
+            case Popup { Child: Control popupChild }:
+                pending.Add(popupChild);
                 break;
 
             case ItemsControl itemsControl:

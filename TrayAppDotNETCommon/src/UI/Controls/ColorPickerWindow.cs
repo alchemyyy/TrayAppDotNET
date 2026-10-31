@@ -154,8 +154,8 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         _rValueLabel = ChannelValueLabel("0");
         _gValueLabel = ChannelValueLabel("0");
         _bValueLabel = ChannelValueLabel("0");
-        _rgbaBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.RgbaHex);
-        _argbBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.ArgbHex);
+        _rgbaBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.RGBAHex);
+        _argbBox = HexBox().MapTo(ControlMap.ColorPicker.Footer.ARGBHex);
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETColorPickerWindow));
 
         _notifyTimer = new DispatcherTimer
@@ -237,32 +237,21 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         };
     }
 
-    private Grid BuildTitleBar(string title, UIResourceScope resources)
-    {
-        Grid titleBar = new Grid { Background = Brushes.Transparent, Height = ColorPickerLayout.TitleBarHeight }
-            .MapTo(ControlMap.ColorPicker.TitleBar.ID);
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        titleBar.PointerPressed += OnTitleBarPointerPressed;
-        resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
-
-        TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, _palette);
-        titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleText.Margin = ColorPickerLayout.TitleMargin;
-        Grid.SetColumn(titleText, value: 0);
-        titleBar.Children.Add(titleText);
-
-        TrayAppDotNETCaptionCloseButton close = new TrayAppDotNETCaptionCloseButton(_palette)
-            .MapTo(ControlMap.ColorPicker.TitleBar.Close);
-        TrayAppDotNETToolTip.SetTip(close, _strings.CloseTooltip);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        close.Click += OnCloseClick;
-        resources.Add(() => close.Click -= OnCloseClick);
-        Grid.SetColumn(close, value: 1);
-        titleBar.Children.Add(close);
-
-        return titleBar;
-    }
+    private Grid BuildTitleBar(string title, UIResourceScope resources) =>
+        TrayAppDotNETDialogChrome.TitleBar(
+            new TrayAppDotNETDialogTitleBarOptions
+            {
+                Window = this,
+                Title = title,
+                Palette = _palette,
+                CloseTooltip = _strings.CloseTooltip,
+                Close = CloseFromTitleBar,
+                BarNode = ControlMap.ColorPicker.TitleBar.ID,
+                CloseNode = ControlMap.ColorPicker.TitleBar.Close,
+                Height = ColorPickerLayout.TitleBarHeight,
+                TitleMargin = ColorPickerLayout.TitleMargin
+            },
+            resources);
 
     private Grid BuildBody(UIResourceScope resources)
     {
@@ -471,14 +460,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         resources.Add(() => _argbBox.TextChanged -= OnArgbTextChanged);
     }
 
-    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (_closed || sender is not Control titleBar) return;
-        if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
-        BeginMoveDrag(e);
-    }
-
-    private void OnCloseClick(object? sender, EventArgs e)
+    private void CloseFromTitleBar()
     {
         if (_closed) return;
         Close();
@@ -1011,7 +993,17 @@ internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
 
     public bool IsDirectionReversed { get; init; }
 
-    public Color CurrentColor { get; set; } = AppTheme.ColorPickerDefaultColor;
+    /// <summary>Gets or sets the colour the alpha strip and thumb are drawn from; a change repaints the slider.</summary>
+    public Color CurrentColor
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            InvalidateVisual();
+        }
+    } = AppTheme.ColorPickerDefaultColor;
 
     public double Value
     {

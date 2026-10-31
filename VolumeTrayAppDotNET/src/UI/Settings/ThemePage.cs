@@ -11,139 +11,14 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_Theme_SectionHeader)), p);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        bool isLight = ResolveEffectiveIsLight();
+
+        AddAppearanceSection(stack);
+        AddContextMenuAppearanceSection(stack);
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
-        stack.Children.Add(IntCard(
-            Loc(nameof(AppStrings.Settings_Theme_FontSize_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_FontSize_Description)),
-            _settings.ContextMenuFontSize,
-            AppSettings.ContextMenuFontSizeMin,
-            AppSettings.ContextMenuFontSizeMax,
-            v => _settings.ContextMenuFontSize = v,
-            p,
-            searchKeywords:
-            [
-                Loc(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.ContextMenuFontSize));
-
-        stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
-        stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
-            [
-                (ThemeMode.System, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
-                (ThemeMode.Light, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
-                (ThemeMode.Dark, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
-            ],
-            _settings.ThemeMode,
-            v => _settings.ThemeMode = v,
-            p,
-            () => RebuildShell(VolumeSettingsPage.Theme),
-            searchKeywords:
-            [
-                Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.ThemeStyle));
-        stack.Children.Add(BoolCard(
-            Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
-            Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
-            _settings.UseWindows11SettingsNavigation,
-            value => _settings.UseWindows11SettingsNavigation = value,
-            p,
-            () => RebuildShell(VolumeSettingsPage.Theme),
-            [
-                Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.Windows11Navigation));
-        stack.Children.Add(VariantColorCard(
-            name: "Text",
-            Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)),
-            Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
-            Loc(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)),
-            _settings.TextColor,
-            theme.Foreground.Light,
-            theme.Foreground.Dark,
-            p,
-            [
-                Loc(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.TextColor.ID));
-        stack.Children.Add(VariantColorCard(
-            name: "Background",
-            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
-            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
-            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)),
-            _settings.BackgroundColor,
-            theme.Background.Light,
-            theme.Background.Dark,
-            p,
-            [
-                Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.BackgroundColor.ID));
-
-        stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
-        stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
-            _settings.EnableRoundedCorners,
-            v => _settings.EnableRoundedCorners = v,
-            p,
-            () => RebuildShell(VolumeSettingsPage.Theme),
-            [
-                Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.RoundedCorners));
-        stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Theme_Animations_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_Animations_Description)),
-            [
-                (TrayAppDotNETAnimationMode.System, Loc(nameof(AppStrings.Settings_Theme_Animations_System))),
-                (TrayAppDotNETAnimationMode.Disabled, Loc(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
-                (TrayAppDotNETAnimationMode.Enabled, Loc(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
-            ],
-            _settings.AnimationMode,
-            v => _settings.AnimationMode = v,
-            p,
-            () =>
-            {
-                if (Application.Current != null)
-                    TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
-                RebuildShell(VolumeSettingsPage.Theme);
-            },
-            searchKeywords:
-            [
-                Loc(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.Animations));
-        stack.Children.Add(IntCard(
-            Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
-            _settings.ToolTipShowDelayMs,
-            TimeConstants.ToolTipShowDelayMinMs,
-            TimeConstants.ToolTipShowDelayMaxMs,
-            v =>
-            {
-                _settings.ToolTipShowDelayMs = v;
-                TrayAppDotNETToolTip.ShowDelayMs = v;
-                TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
-            },
-            p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
-            [
-                Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
-            ],
-            node: ControlMap.Settings.ThemePage.ToolTipShowDelay));
-
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(CommonStrings.Settings_Theme_Flyout_Header)), p));
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
             p,
             autoSizeToText: true,
@@ -169,36 +44,35 @@ public sealed partial class VolumeSettingsWindow
             Save();
         };
         stack.Children.Add(Card(
-            Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_Description)),
+            L(nameof(AppStrings.Settings_Theme_SliderIndicator_Title)),
+            L(nameof(AppStrings.Settings_Theme_SliderIndicator_Description)),
             sliderThumbCombo,
             p,
             [
-                Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
             ]));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(CommonStrings.Settings_Theme_TrayIcon_Header)), p));
         stack.Children.Add(VariantColorCard(
-            name: "TrayIcon",
-            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
-            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
-            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_Title)),
+            L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+            L(nameof(CommonStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
             _settings.TrayIconColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p,
             [
-                Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.TrayIconColor.ID));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
         stack.Children.Add(SingleColorCard(
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Description)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakColor_Title)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakColor_Description)),
             _settings.EffectiveMeterPeakColor,
             ColorMath.TryParseHexOrNull(AppSettings.MeterPeakColorDefaultHex) ?? AppTheme.MeterPeakColorDefault,
             c => _settings.TemporaryMeterPeakColor = c,
@@ -209,14 +83,14 @@ public sealed partial class VolumeSettingsWindow
                 _settings.TemporaryMeterPeakColor = null;
             },
             p,
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip)),
             [
-                Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_MeterPeakColor_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.MeterPeakColor.ID));
         stack.Children.Add(SingleColorCard(
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Description)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Title)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Description)),
             _settings.EffectiveMeterPeakStereoColor,
             ColorMath.TryParseHexOrNull(AppSettings.MeterPeakStereoColorDefaultHex)
             ?? AppTheme.MeterPeakStereoColorDefault,
@@ -228,24 +102,23 @@ public sealed partial class VolumeSettingsWindow
                 _settings.TemporaryMeterPeakStereoColor = null;
             },
             p,
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip)),
             [
-                Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
             ],
             node: ControlMap.Settings.ThemePage.MeterPeakStereoColor.ID));
 
-        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Theme));
         return stack;
     }
 
     private static string SliderThumbDisplayName(string name) => name switch
     {
-        "Capsule" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Capsule)),
-        "Circle" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Circle)),
-        "Diamond" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Diamond)),
-        "Star" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Star)),
-        "Square" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Square)),
-        "Heart" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Heart)),
+        "Capsule" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Capsule)),
+        "Circle" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Circle)),
+        "Diamond" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Diamond)),
+        "Star" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Star)),
+        "Square" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Square)),
+        "Heart" => L(nameof(AppStrings.Settings_Theme_SliderThumb_Heart)),
         _ => name
     };
 

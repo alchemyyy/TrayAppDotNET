@@ -26,8 +26,12 @@ internal static class SettingsCardsLayout
 
 public static class TrayAppDotNETSettingsCards
 {
-    /// <summary>Marks a custom settings card so stitched search results can filter it independently.</summary>
-    public static Border RegisterSearchCard(Border card, params string[] searchKeywords)
+    /// <summary>
+    /// Marks a custom settings card or row so stitched search results can filter it independently; its first text is
+    /// its title.
+    /// </summary>
+    public static T RegisterSearchCard<T>(T card, params string[] searchKeywords)
+        where T : Control
     {
         ArgumentNullException.ThrowIfNull(card);
         SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);

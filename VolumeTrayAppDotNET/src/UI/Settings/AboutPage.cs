@@ -1,48 +1,26 @@
 using Avalonia.Controls;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Settings;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
 public sealed partial class VolumeSettingsWindow
 {
-    private StackPanel BuildAboutPage()
+    private StackPanel BuildAboutPage() => BuildCommonAboutPage(new TrayAppDotNETAboutPageAppInfo
     {
-        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
-            new TrayAppDotNETAboutPageOptions
-            {
-                Palette = Palette,
-                ButtonRadius = RadiusMedium,
-                CardRadius = RadiusLarge,
-                UpdatePromptOwnerBackdrop = ConfirmOverlayBackdrop,
-                UpdatePromptNode = ControlMap.UpdatePrompt.ID,
-                L = L,
-                Save = Save,
-                ApplicationName = Constants.ApplicationName,
-                Tagline = Loc(nameof(AppStrings.Settings_About_Tagline)),
-                BuildNumber = BuildInfo.BuildNumber,
-                CommitHash = BuildInfo.CommitHash,
-                Publisher = Constants.Publisher,
-                HelpLink = Constants.HelpLink,
-                OpenSettingsFolderText = OpenSettingsFolderText,
-                SettingsFolderPath = SettingsFolderPath,
-                UpdateSettings = _settings,
-                UpdateService = static () => AppServices.UpdateCheckService,
-                ConfirmAsync = ConfirmAsync,
-                PromptOwner = () => this,
-                Log = static message => TADNLog.Log(message),
-                RebuildAboutPage = () => RebuildShell(VolumeSettingsPage.About),
-                StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-                UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
-                KnownIssues =
-                [
-                    new TrayAppDotNETKnownIssue(
-                        Loc(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Title)),
-                        Loc(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Description)))
-                ]
-            }));
-        AddPageCleanup(aboutPage.StopUpdateRefresh);
-        StackPanel page = aboutPage.Build();
-        ControlNames.AssignLogicalSubtree(page, nameof(VolumeSettingsPage.About));
-        return page;
-    }
+        ApplicationName = Constants.ApplicationName,
+        Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
+        BuildNumber = BuildInfo.BuildNumber,
+        CommitHash = BuildInfo.CommitHash,
+        SettingsFolderPath = AppSettings.GetDefaultDirectory(),
+        UpdateSettings = _settings,
+        UpdateService = static () => AppServices.UpdateCheckService,
+        UpdatePromptNode = ControlMap.UpdatePrompt.ID,
+        KnownIssues =
+        [
+            new TrayAppDotNETKnownIssue(
+                L(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Title)),
+                L(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Description)))
+        ]
+    });
 }

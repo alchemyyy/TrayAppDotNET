@@ -23,14 +23,14 @@
                            speed warning balloon shows the flyout" />
     </Surface>
 
-    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="FanTrayMenuWindow.BuildEntries">
-        <Leaf ID="Settings" Kind="ListItem" Event="MenuEntry" Source="FanTrayMenuWindow.BuildEntries" />
-        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="FanTrayMenuWindow.BuildEntries" />
+    <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="FanAvaloniaApp.CreateTrayMenuWindow">
+        <Leaf ID="Settings" Kind="ListItem" Event="MenuEntry" Source="TrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="TrayMenuWindow.BuildEntries" />
     </Surface>
 
     <Surface ID="Flyout" Kind="Popup" Source="FanFlyoutWindow.BuildVisualGeneration">
-        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FanFlyoutWindow.FanFlyoutWindow"
-              Description="Hides the flyout, also while the confirmation overlay is open" />
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FlyoutWindowCommon.FlyoutWindowCommon"
+              Description="Hides the flyout; while the confirmation overlay holds focus, Escape cancels it instead" />
         <Scope ID="Header" Source="FanFlyoutWindow.BuildHeader">
             <Scope ID="Actions" Arrows="Horizontal" Source="FanFlyoutWindow.BuildHeader">
                 <Leaf ID="Settings" Kind="Button" Event="PointerReleased" Source="FanFlyoutWindow.BuildHeader" />
@@ -132,13 +132,10 @@
             <Leaf ID="Scroll" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
                   Source="FanFlyoutWindow.BuildCellList" Description="Card list ScrollViewer; no handler" />
         </Scope>
-        <Scope ID="ConfirmOverlay" Tab="Cycle" Arrows="Horizontal" Source="FanFlyoutWindow.BuildConfirmOverlay"
-               Description="Delete confirmation for groups and probe cards">
-            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="FanFlyoutWindow.BuildConfirmOverlay" />
-            <Leaf ID="Confirm" Kind="Button" Event="Click" Source="FanFlyoutWindow.BuildConfirmOverlay" />
-        </Scope>
+        <Scope ID="ConfirmOverlay" Template="FlyoutConfirmOverlay" Tab="Cycle" Arrows="Horizontal"
+               Source="FanFlyoutWindow.BuildVisualGeneration" Description="Delete confirmation for groups and probe cards" />
         <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-              Source="FanFlyoutWindow.OnRootPointerPressed"
+              Source="FlyoutChromeDragController.Attach"
               Description="Drags the undocked flyout from any non-interactive area" />
     </Surface>
 
@@ -203,10 +200,10 @@
     <Surface ID="FanProperties" Source="FanPropertiesWindow.FanPropertiesWindow">
         <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="FanPropertiesWindow.BuildTitleBar">
             <Leaf ID="MoveWindow" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-                  Source="FanPropertiesWindow.BuildTitleBar" Description="Drags the window by its title bar" />
+                  Source="TrayAppDotNETDialogChrome.TitleBar" Description="Drags the window by its title bar" />
             <Leaf ID="Pin" Kind="Toggle" Event="Click" Source="FanPropertiesWindow.FanPropertiesWindow"
                   Description="Pinned windows survive flyout dismissal and refuse Close" />
-            <Leaf ID="Close" Kind="Button" Event="Click" Source="FanPropertiesWindow.FanPropertiesWindow"
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="FanPropertiesWindow.BuildTitleBar"
                   Description="Closes the window unless it is pinned" />
         </Scope>
         <Scope ID="Fields" Source="FanPropertiesWindow.BuildBody">
@@ -303,10 +300,13 @@
 
     <Surface ID="Settings" Template="SettingsShell" Source="FanSettingsWindow.CreatePageDescriptors">
         <Scope ID="GeneralPage" Source="FanSettingsWindow.BuildGeneralPage">
-            <Scope ID="Common" Template="GeneralSection" Source="FanSettingsWindow.BuildGeneralPage"
+            <Scope ID="General" Template="GeneralSection" Source="FanSettingsWindow.BuildGeneralPage"
                    Description="Startup card and installation cards" />
+            <Leaf ID="PawnIoInstall" Kind="Button" Event="Click" Source="FanSettingsWindow.BuildPawnIoCard"
+                  Description="Shown while the PawnIO driver is missing or outdated" />
             <Scope ID="Rendering" Template="RenderingSection" Source="FanSettingsWindow.BuildGeneralPage" />
-            <Leaf ID="DefaultToRPMMode" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildGeneralPage" />
+            <Leaf ID="DefaultToRPMMode" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildGeneralPage"
+                  Description="Under its own Fans header" />
         </Scope>
         <Scope ID="FanPropertiesPage" Source="FanSettingsWindow.BuildFanPropertiesPage">
             <Leaf ID="DefaultJumpstartDutyCycle" Kind="Number" Event="Callback"
@@ -351,8 +351,6 @@
                   Source="FanSettingsWindow.BuildFlyoutPage" />
         </Scope>
         <Scope ID="TrayIconPage" Source="FanSettingsWindow.BuildTrayIconPage">
-            <Leaf ID="TrayScroll" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildTrayIconPage"
-                  Description="Gates tray wheel input; this app subscribes no wheel handler" />
             <Leaf ID="CPUTemperatureTooltip" Kind="Toggle" Event="Callback"
                   Source="FanSettingsWindow.BuildTrayIconPage" />
             <Leaf ID="GPUTemperatureTooltip" Kind="Toggle" Event="Callback"
@@ -374,34 +372,30 @@
                   Source="FanSettingsWindow.BuildTrayIconPage" />
         </Scope>
         <Scope ID="HotkeysPage" Source="FanSettingsWindow.BuildHotkeysPage">
-            <Scope ID="OpenFlyout" Template="HotkeyRow" Source="FanSettingsWindow.BuildHotkeysPage" />
-            <Scope ID="OpenSettings" Template="HotkeyRow" Source="FanSettingsWindow.BuildHotkeysPage" />
+            <Scope ID="Hotkeys" Template="HotkeysSection" Source="SettingsWindowCommon.BuildHotkeysPage"
+                   Description="OpenFlyout, then OpenSettings" />
         </Scope>
         <Scope ID="ThemePage" Source="FanSettingsWindow.BuildThemePage">
-            <Leaf ID="ContextMenuFontSize" Kind="Number" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
-            <Leaf ID="ThemeMode" Kind="Select" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
-            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
-            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback" Source="FanSettingsWindow.BuildThemePage" />
-            <Scope ID="TextColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
-            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="Appearance" Template="AppearanceSection" Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="ContextMenu" Template="ContextMenuAppearanceSection" Source="FanSettingsWindow.BuildThemePage" />
             <Scope ID="FlyoutBackgroundColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
             <Scope ID="FlyoutTitleBarColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
             <Scope ID="FanCardColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
             <Scope ID="GroupCardColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
             <Scope ID="CardBorderColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
-            <Scope ID="TrayIconColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
             <Leaf ID="SliderThumb" Kind="Select" Event="SelectionChanged" Source="FanSettingsWindow.BuildThemePage" />
             <Leaf ID="CurveSliderThumb" Kind="Select" Event="SelectionChanged"
                   Source="FanSettingsWindow.BuildThemePage" />
+            <Scope ID="TrayIconColor" Template="VariantColorCard" Source="FanSettingsWindow.BuildThemePage" />
         </Scope>
         <Scope ID="AboutPage" Template="AboutPage" Source="FanSettingsWindow.BuildAboutPage" />
     </Surface>
 
-    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation" Source="FanFlyoutWindow.ShowUpdateConfirmation" />
+    <Surface ID="UpdateConfirmation" Template="Confirmation" Source="FanFlyoutWindow.ShowUpdateConfirmation" />
 
     <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker" />
 
-    <Surface ID="Uninstaller" Template="Uninstaller" Source="FanUninstallerWindow.CreateOptions" />
+    <Surface ID="Uninstaller" Template="Uninstaller" Source="FanAvaloniaApp.ShowUninstallerWindow" />
 
     <Surface ID="Installer" Template="Installer" Source="FanAvaloniaApp.OnFrameworkInitializationCompleted" />
 
@@ -409,7 +403,7 @@
         <Leaf ID="OpenFlyout" Kind="Command" Event="Hotkey" Source="FanAvaloniaApp.HandleHotkey"
               Description="User-configured RegisterHotKey binding; no default" />
         <Leaf ID="OpenSettings" Kind="Command" Event="Hotkey" Source="FanAvaloniaApp.HandleHotkey"
-              Description="User-configured RegisterHotKey binding; default Ctrl+Alt+Win+S" />
+              Description="User-configured RegisterHotKey binding; no default (the retired Ctrl+Alt+Win+S default is removed on load)" />
     </Surface>
 
     <!-- Local templates for app builders that repeat; candidates for the common map where noted -->
@@ -460,15 +454,5 @@
         <Leaf ID="Value" Kind="Number" Source="FanPropertiesWindow.NumberRow" Description="No handler; read on Save" />
         <Leaf ID="RPMMode" Kind="Toggle" Event="CheckedChanged" Source="FanPropertiesWindow.NumberRow"
               Description="Switches the value between percent and RPM and converts it" />
-    </Template>
-
-    <Template ID="HotkeyRow" Source="FanSettingsWindow.AddHotkeyRow">
-        <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged" Source="FanSettingsWindow.AddHotkeyRow" />
-        <Leaf ID="KeyCapture" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
-              Description="Read-only box that records the next non-modifier key; Tab moves focus; Escape and F12 are
-                           ignored" />
-        <Leaf ID="AddBinding" Kind="Button" Event="Click" Source="FanSettingsWindow.AddHotkeyRow" />
-        <Leaf ID="RemoveBinding" Kind="Button" IsRepeated="True" Event="Click"
-              Source="FanSettingsWindow.BuildHotkeyEntryCard" Description="One per registered binding" />
     </Template>
 </ControlMap>

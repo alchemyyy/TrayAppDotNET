@@ -238,12 +238,6 @@ public sealed partial class BrightnessSettingsWindow
         set => _environmentalPageState?.CurveRuntimeNotifyQueued = value;
     }
 
-    private bool _environmentalCurveColorCallbacksWired
-    {
-        get => _environmentalPageState?.CurveColorCallbacksWired ?? false;
-        set => _environmentalPageState?.CurveColorCallbacksWired = value;
-    }
-
     private static HttpClient EnvironmentalHttpClient =>
         field ??= new HttpClient
         {
@@ -300,10 +294,10 @@ public sealed partial class BrightnessSettingsWindow
 
         StackPanel left = new() { VerticalAlignment = VerticalAlignment.Top };
         left.Children.Add(BuildEnvironmentalLegend(p));
-        left.Children.Add(BuildEnvironmentalProfileRow(p));
+        left.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(BuildEnvironmentalProfileRow(p)));
         left.Children.Add(BuildEnvironmentalModeRows(p));
         left.Children.Add(BuildEnvironmentalDisabledPeriodRows(p));
-        left.Children.Add(BuildEnvironmentalResetButton(p));
+        left.Children.Add(TrayAppDotNETSettingsCards.RegisterSearchCard(BuildEnvironmentalResetButton(p)));
         Grid.SetColumn(left, value: 0);
         top.Children.Add(left);
 
@@ -433,7 +427,8 @@ public sealed partial class BrightnessSettingsWindow
         public bool SuppressSunOverlayCalendarEvents;
         public bool EventsAttached;
         public bool CurveRuntimeNotifyQueued;
-        public bool CurveColorCallbacksWired;
+        // This page's own redraw delegate: an old page's cleanup must not remove a newer page's subscription
+        public Action? CurveColorRedraw;
         public bool IsActivated;
         public bool IsRetired;
 
@@ -471,7 +466,7 @@ public sealed partial class BrightnessSettingsWindow
             MapPicker = null;
             EventsAttached = false;
             CurveRuntimeNotifyQueued = false;
-            CurveColorCallbacksWired = false;
+            CurveColorRedraw = null;
         }
     }
 }

@@ -103,8 +103,6 @@ public sealed partial class BrightnessSettingsWindow
         if (_environmentalMapPicker == null)
         {
             EnvironmentalMapPickerWindow picker = new(
-                _settings.EnvironmentalLatitude,
-                _settings.EnvironmentalLongitude,
                 Palette,
                 AppServices.Theme ?? AppTheme.Default,
                 _settings,
@@ -121,10 +119,8 @@ public sealed partial class BrightnessSettingsWindow
             _environmentalMapPicker = picker;
         }
 
-        if (!_environmentalMapPicker.IsVisible)
-            _environmentalMapPicker.Show(this);
-        else
-            _environmentalMapPicker.Activate();
+        // Every show starts from the saved coordinate, not from a pin an earlier session aborted
+        _environmentalMapPicker.ShowAt(this, _settings.EnvironmentalLatitude, _settings.EnvironmentalLongitude);
     }
 
     private void CloseEnvironmentalMapPicker()

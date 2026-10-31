@@ -1,495 +1,171 @@
 using System.Globalization;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI.Hotkeys;
+using TrayAppDotNETCommon.UI.Settings;
 using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 
 public sealed partial class BrightnessSettingsWindow
 {
-    private static readonly HotkeyRowNodes ActionHotkeyRowNodes = new(
-        ControlMap.Settings.HotkeysPage.Hotkey.ID,
-        ControlMap.Settings.HotkeysPage.Hotkey.Modifiers,
-        ControlMap.Settings.HotkeysPage.Hotkey.Key,
-        ControlMap.Settings.HotkeysPage.Hotkey.Add,
-        ControlMap.Settings.HotkeysPage.Hotkey.DeleteBinding);
+    private StackPanel BuildHotkeysPage() => BuildHotkeysPage(
+        _settings,
+        static () => AppServices.HotkeyService,
+        HotkeyRows(),
+        AddMonitorOffBindingButton);
 
-    private static readonly HotkeyRowNodes MonitorOffHotkeyRowNodes = new(
-        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.ID,
-        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Modifiers,
-        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Key,
-        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Add,
-        ControlMap.Settings.HotkeysPage.MonitorOffHotkey.DeleteBinding);
-
-    private StackPanel BuildHotkeysPage()
+    private List<TrayAppDotNETHotkeyRow<BrightnessHotkeyAction>> HotkeyRows()
     {
-        SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
-        stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(AppStrings.Settings_Hotkeys_SectionDescription)),
-            p,
-            new Thickness(left: 0, top: 0, right: 0, bottom: 16)));
+        List<TrayAppDotNETHotkeyRow<BrightnessHotkeyAction>> rows =
+        [
+            Row(BrightnessHotkeyAction.OpenFlyout,
+                nameof(CommonStrings.Settings_Hotkeys_OpenFlyout_Title),
+                nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
+            Row(BrightnessHotkeyAction.OpenSettings,
+                nameof(CommonStrings.Settings_Hotkeys_OpenSettings_Title),
+                nameof(CommonStrings.Settings_Hotkeys_OpenSettings_Description)),
+            Row(BrightnessHotkeyAction.FullBright,
+                nameof(AppStrings.Settings_Hotkeys_FullBright_Title),
+                nameof(AppStrings.Settings_Hotkeys_FullBright_Description)),
+            Row(BrightnessHotkeyAction.FullDim,
+                nameof(AppStrings.Settings_Hotkeys_FullDim_Title),
+                nameof(AppStrings.Settings_Hotkeys_FullDim_Description)),
+            Row(BrightnessHotkeyAction.IncrementMasterBrightness,
+                nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Title),
+                nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Description)),
+            Row(BrightnessHotkeyAction.DecrementMasterBrightness,
+                nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Title),
+                nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Description)),
+            Row(BrightnessHotkeyAction.NormalizeBrightnesses,
+                nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Title),
+                nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Description)),
+            Row(BrightnessHotkeyAction.ToggleNightLight,
+                nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Title),
+                nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Description)),
+            Row(BrightnessHotkeyAction.IncrementNightLight,
+                nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Title),
+                nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Description)),
+            Row(BrightnessHotkeyAction.DecrementNightLight,
+                nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Title),
+                nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Description)),
+            Row(BrightnessHotkeyAction.PowerOffAllMonitors,
+                nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Title),
+                nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Description))
+        ];
 
-        TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, width: 260)
-            .MapTo(ControlMap.Settings.HotkeysPage.Search);
-        StackPanel searchRow = new()
+        if (_profileManager != null)
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 12)
-        };
-        TextBlock searchLabel =
-            TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
-        searchLabel.VerticalAlignment = VerticalAlignment.Center;
-        searchLabel.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-        searchRow.Children.Add(searchLabel);
-        searchRow.Children.Add(searchBox);
-        stack.Children.Add(searchRow);
+            for (int i = 0; i < _profileManager.Profiles.Profiles.Count; i++)
+            {
+                string name = _profileManager.GetName(i) is { Length: > 0 } profileName
+                    ? profileName
+                    : string.Format(CultureInfo.CurrentCulture,
+                        L(nameof(AppStrings.Settings_Hotkeys_DefaultProfileName_Format)), i + 1);
+                rows.Add(new TrayAppDotNETHotkeyRow<BrightnessHotkeyAction>
+                {
+                    Action = BrightnessHotkeyAction.ProfileSelect,
+                    Parameter = i.ToString(CultureInfo.InvariantCulture),
+                    Title = string.Format(CultureInfo.CurrentCulture,
+                        L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Title_Format)), name),
+                    Description = L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Description))
+                });
+            }
+        }
 
-        List<(Control Control, string SearchText)> rows = [];
-        foreach ((BrightnessHotkeyAction action, string parameter, string title, string description) in HotkeyRows())
-            AddHotkeyRow(stack, rows, action, parameter, title, description, removableMonitorTarget: false, p);
-
+        // Display power-off rows carry their target picker and remove button in the row's extension slots
         foreach (string parameter in ExistingMonitorOffParameters())
         {
-            AddHotkeyRow(
-                stack,
-                rows,
-                BrightnessHotkeyAction.MonitorOff,
-                parameter,
-                L(nameof(AppStrings.Settings_Hotkeys_PowerOffSpecificMonitor_Title)),
-                MonitorTargetLabel(parameter),
-                removableMonitorTarget: true,
-                p);
+            rows.Add(new TrayAppDotNETHotkeyRow<BrightnessHotkeyAction>
+            {
+                Action = BrightnessHotkeyAction.MonitorOff,
+                Parameter = parameter,
+                Title = L(nameof(AppStrings.Settings_Hotkeys_PowerOffSpecificMonitor_Title)),
+                Description = MonitorTargetLabel(parameter),
+                BuildExtras = BuildMonitorTargetExtras
+            });
         }
 
-        AddMonitorOffBindingButton(stack, p);
+        return rows;
 
-        searchBox.TextChanged += (_, _) =>
+        TrayAppDotNETHotkeyRow<BrightnessHotkeyAction> Row(
+            BrightnessHotkeyAction action,
+            string titleKey,
+            string descriptionKey) =>
+            new() { Action = action, Title = L(titleKey), Description = L(descriptionKey) };
+    }
+
+    private TrayAppDotNETHotkeyRowExtras BuildMonitorTargetExtras(TrayAppDotNETHotkeyRowContext row)
+    {
+        SettingsPalette p = Palette;
+        SettingsComboBox targetCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 240)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkeys.MonitorTarget);
+        targetCombo.Margin = new Avalonia.Thickness(left: 0, top: 0, right: 8, bottom: 0);
+        IReadOnlyList<(string Value, string Label)> targets = BuildMonitorTargetOptions();
+        foreach ((string value, string label) in targets)
+            targetCombo.Items.Add(new SettingsComboBoxItem(value, label, p));
+        if (!string.IsNullOrWhiteSpace(row.Parameter)
+            && !targets.Any(t => string.Equals(t.Value, row.Parameter, StringComparison.Ordinal)))
+            targetCombo.Items.Add(new SettingsComboBoxItem(row.Parameter, MonitorTargetLabel(row.Parameter), p));
+        TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, row.Parameter);
+        targetCombo.SelectionChanged += (_, _) =>
         {
-            string query = (searchBox.Text ?? string.Empty).Trim();
-            foreach ((Control row, string searchText) in rows)
+            string newParameter = TrayAppDotNETSettingsUI.SelectedTag(targetCombo) ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(newParameter)
+                || string.Equals(newParameter, row.Parameter, StringComparison.Ordinal))
+                return;
+
+            // A target already used by another power-off row keeps its own row
+            if (ExistingMonitorOffParameters().Contains(newParameter, StringComparer.Ordinal))
             {
-                row.IsVisible = query.Length == 0
-                                || searchText.Contains(query, StringComparison.OrdinalIgnoreCase);
+                TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, row.Parameter);
+                return;
             }
+
+            row.ChangeParameter(newParameter);
         };
 
-        return stack;
-    }
-
-    private IEnumerable<(BrightnessHotkeyAction Action, string Parameter, string Title, string Description)>
-        HotkeyRows()
-    {
-        yield return (BrightnessHotkeyAction.OpenFlyout, "", L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)));
-        yield return (BrightnessHotkeyAction.OpenSettings, "",
-            L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)));
-        yield return (BrightnessHotkeyAction.FullBright, "", L(nameof(AppStrings.Settings_Hotkeys_FullBright_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_FullBright_Description)));
-        yield return (BrightnessHotkeyAction.FullDim, "", L(nameof(AppStrings.Settings_Hotkeys_FullDim_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_FullDim_Description)));
-        yield return (BrightnessHotkeyAction.IncrementMasterBrightness, "",
-            L(nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Description)));
-        yield return (BrightnessHotkeyAction.DecrementMasterBrightness, "",
-            L(nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Description)));
-        yield return (BrightnessHotkeyAction.NormalizeBrightnesses, "",
-            L(nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Description)));
-        yield return (BrightnessHotkeyAction.ToggleNightLight, "",
-            L(nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Description)));
-        yield return (BrightnessHotkeyAction.IncrementNightLight, "",
-            L(nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Description)));
-        yield return (BrightnessHotkeyAction.DecrementNightLight, "",
-            L(nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Description)));
-        yield return (BrightnessHotkeyAction.PowerOffAllMonitors, "",
-            L(nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Title)),
-            L(nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Description)));
-
-        if (_profileManager == null) yield break;
-
-        for (int i = 0; i < _profileManager.Profiles.Profiles.Count; i++)
+        SettingsButton removeTarget = Button(L(nameof(AppStrings.Settings_Hotkeys_Remove_Button)), p)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkeys.RemoveMonitorTarget);
+        removeTarget.Click += (_, _) =>
         {
-            string name = _profileManager.GetName(i) is { Length: > 0 } profileName
-                ? profileName
-                : string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Hotkeys_DefaultProfileName_Format)), i + 1);
-            yield return (
-                BrightnessHotkeyAction.ProfileSelect,
-                i.ToString(CultureInfo.InvariantCulture),
-                string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Title_Format)), name),
-                L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Description)));
-        }
+            string parameter = row.Parameter;
+            _settings.Hotkeys.RemoveAll(b => b.Matches(BrightnessHotkeyAction.MonitorOff, parameter));
+            Save();
+            RebuildShell(BrightnessSettingsPage.Hotkeys);
+        };
+
+        return new TrayAppDotNETHotkeyRowExtras(targetCombo, removeTarget);
     }
 
-    private void AddMonitorOffBindingButton(StackPanel stack, SettingsPalette p)
+    private void AddMonitorOffBindingButton(
+        StackPanel stack,
+        TrayAppDotNETHotkeysSection<BrightnessHotkeyAction, BrightnessHotkeyBinding> section)
     {
         IReadOnlyList<(string Value, string Label)> targets = BuildMonitorTargetOptions();
-        SettingsButton add = Button(L(nameof(AppStrings.Settings_Hotkeys_AddMonitorOffBinding_Button)), p)
-            .MapTo(ControlMap.Settings.HotkeysPage.AddMonitorOffBinding);
+        SettingsButton add = Button(L(nameof(AppStrings.Settings_Hotkeys_AddMonitorOffBinding_Button)), Palette)
+            .MapTo(ControlMap.Settings.HotkeysPage.Hotkeys.AddMonitorOffBinding);
         add.HorizontalAlignment = HorizontalAlignment.Left;
-        add.Margin = new Thickness(left: 0, top: 8, right: 0, bottom: 0);
-        add.IsEnabled = targets.Count > 0
-                        && targets.Any(t => !ExistingMonitorOffParameters().Contains(t.Value, StringComparer.Ordinal));
+        add.Margin = new Avalonia.Thickness(left: 0, top: 8, right: 0, bottom: 0);
+        add.IsEnabled = targets.Any(t => !ExistingMonitorOffParameters().Contains(t.Value, StringComparer.Ordinal));
         add.Click += (_, _) =>
         {
-            string parameter = targets
-                                   .Select(static t => t.Value)
-                                   .FirstOrDefault(v =>
-                                       !ExistingMonitorOffParameters().Contains(v, StringComparer.Ordinal))
-                               ?? string.Empty;
+            string? parameter = targets
+                .Select(static t => t.Value)
+                .FirstOrDefault(v => !ExistingMonitorOffParameters().Contains(v, StringComparer.Ordinal));
             if (string.IsNullOrWhiteSpace(parameter)) return;
 
+            // An unbound row: the target is chosen, the key combination is added on the new card
             _settings.Hotkeys.Add(new BrightnessHotkeyBinding
             {
                 Action = BrightnessHotkeyAction.MonitorOff, Parameter = parameter, Enabled = true, BindingID = 0
             });
-            Save();
+            section.SaveAndApply();
             RebuildShell(BrightnessSettingsPage.Hotkeys);
         };
         stack.Children.Add(add);
-    }
-
-    private void AddHotkeyRow(
-        StackPanel stack,
-        List<(Control Control, string SearchText)> rows,
-        BrightnessHotkeyAction action,
-        string parameter,
-        string title,
-        string description,
-        bool removableMonitorTarget,
-        SettingsPalette p)
-    {
-        StackPanel entries = new() { Spacing = 0 };
-        uint selectedModifiers = 0;
-        uint selectedVirtualKey = 0;
-        string currentParameter = parameter;
-        SettingsComboBox? targetCombo = null;
-        HotkeyRowNodes nodes = removableMonitorTarget ? MonitorOffHotkeyRowNodes : ActionHotkeyRowNodes;
-
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, width: 170).MapTo(nodes.Modifiers);
-        modifiers.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
-        foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
-            modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
-
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, width: 60).MapTo(nodes.Key);
-        keyBox.IsReadOnly = true;
-        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
-
-        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p).MapTo(nodes.Add);
-        addButton.MinWidth = 70;
-        addButton.IsEnabled = false;
-
-        SettingsButton? removeTarget = null;
-        if (removableMonitorTarget)
-        {
-            removeTarget = Button(L(nameof(AppStrings.Settings_Hotkeys_Remove_Button)), p)
-                .MapTo(ControlMap.Settings.HotkeysPage.MonitorOffHotkey.RemoveTarget);
-            removeTarget.Click += (_, _) =>
-            {
-                _settings.Hotkeys.RemoveAll(b => b.Matches(action, currentParameter));
-                Save();
-                RebuildShell(BrightnessSettingsPage.Hotkeys);
-            };
-        }
-
-        if (removableMonitorTarget)
-        {
-            targetCombo = TrayAppDotNETSettingsUI.ComboBox(p, width: 240)
-                .MapTo(ControlMap.Settings.HotkeysPage.MonitorOffHotkey.Target);
-            foreach ((string value, string label) in BuildMonitorTargetOptions())
-                targetCombo.Items.Add(new SettingsComboBoxItem(value, label, p));
-            if (!string.IsNullOrWhiteSpace(currentParameter)
-                && !BuildMonitorTargetOptions()
-                    .Any(t => string.Equals(t.Value, currentParameter, StringComparison.Ordinal)))
-            {
-                targetCombo.Items.Add(new SettingsComboBoxItem(currentParameter, MonitorTargetLabel(currentParameter),
-                    p));
-            }
-
-            TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, currentParameter);
-        }
-
-        modifiers.SelectionChanged += (_, _) =>
-        {
-            selectedModifiers = modifiers.SelectedItem?.Tag is uint mods ? mods : 0;
-            UpdateAddButtonState();
-        };
-        if (targetCombo != null)
-        {
-            targetCombo.SelectionChanged += (_, _) =>
-            {
-                string newParameter = TrayAppDotNETSettingsUI.SelectedTag(targetCombo) ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(newParameter)
-                    || string.Equals(newParameter, currentParameter, StringComparison.Ordinal))
-                    return;
-
-                bool duplicateTarget = ExistingMonitorOffParameters()
-                    .Any(existing => !string.Equals(existing, currentParameter, StringComparison.Ordinal)
-                                     && string.Equals(existing, newParameter, StringComparison.Ordinal));
-                if (duplicateTarget)
-                {
-                    TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, currentParameter);
-                    return;
-                }
-
-                foreach (BrightnessHotkeyBinding binding in _settings.Hotkeys
-                             .Where(h => h.Matches(action, currentParameter)).ToArray())
-                    binding.Parameter = newParameter;
-                currentParameter = newParameter;
-                Save();
-                Refresh();
-            };
-        }
-
-        TrayAppDotNETHotkeyKeys.AttachKeyCapture(keyBox, virtualKey =>
-        {
-            selectedVirtualKey = virtualKey;
-            UpdateAddButtonState();
-        });
-        addButton.Click += (_, _) =>
-        {
-            if (!addButton.IsEnabled || selectedModifiers == 0 || selectedVirtualKey == 0) return;
-            int bindingID = _settings.Hotkeys.Where(h => h.Matches(action, currentParameter)).Select(h => h.BindingID)
-                .DefaultIfEmpty(0).Max() + 1;
-            _settings.Hotkeys.Add(new BrightnessHotkeyBinding
-            {
-                Action = action,
-                Parameter = currentParameter,
-                Modifiers = selectedModifiers,
-                VirtualKey = selectedVirtualKey,
-                Enabled = true,
-                BindingID = bindingID
-            });
-            selectedModifiers = 0;
-            selectedVirtualKey = 0;
-            modifiers.SelectedIndex = -1;
-            keyBox.Text = string.Empty;
-            Save();
-            Refresh();
-        };
-
-        Control content;
-        if (removableMonitorTarget && targetCombo != null && removeTarget != null)
-        {
-            StackPanel panel = new();
-            TextBlock rowTitle = TrayAppDotNETSettingsUI.TitleText(title, p);
-            rowTitle.Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 8);
-            panel.Children.Add(rowTitle);
-
-            Grid monitorGrid = new();
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            monitorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            monitorGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            monitorGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-
-            targetCombo.Padding = new Thickness(left: 8, top: 0, right: 2, bottom: 0);
-            targetCombo.VerticalAlignment = VerticalAlignment.Center;
-            modifiers.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-            keyBox.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-            addButton.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-
-            monitorGrid.Children.Add(targetCombo);
-            Grid.SetColumn(modifiers, value: 2);
-            Grid.SetColumn(keyBox, value: 3);
-            Grid.SetColumn(addButton, value: 4);
-            Grid.SetColumn(removeTarget, value: 5);
-            monitorGrid.Children.Add(modifiers);
-            monitorGrid.Children.Add(keyBox);
-            monitorGrid.Children.Add(addButton);
-            monitorGrid.Children.Add(removeTarget);
-
-            entries.Margin = new Thickness(left: 0, top: 8, right: 8, bottom: 0);
-            Grid.SetRow(entries, value: 1);
-            Grid.SetColumn(entries, value: 2);
-            Grid.SetColumnSpan(entries, value: 2);
-            monitorGrid.Children.Add(entries);
-
-            panel.Children.Add(monitorGrid);
-            content = panel;
-        }
-        else
-        {
-            Grid grid = new();
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 240 });
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-
-            StackPanel text = new()
-            {
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(left: 0, top: 0, right: 12, bottom: 0)
-            };
-            text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, p));
-            if (!string.IsNullOrWhiteSpace(description))
-                text.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(description, p));
-            grid.Children.Add(text);
-
-            modifiers.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-            keyBox.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-            Grid.SetColumn(modifiers, value: 1);
-            Grid.SetColumn(keyBox, value: 2);
-            Grid.SetColumn(addButton, value: 3);
-            grid.Children.Add(modifiers);
-            grid.Children.Add(keyBox);
-            grid.Children.Add(addButton);
-
-            entries.Margin = new Thickness(left: 0, top: 8, right: 8, bottom: 0);
-            Grid.SetRow(entries, value: 1);
-            Grid.SetColumn(entries, value: 1);
-            Grid.SetColumnSpan(entries, value: 3);
-            grid.Children.Add(entries);
-            content = grid;
-        }
-
-        Border card = RawCard(content, p).MapTo(nodes.Row);
-        rows.Add((card, title + "\n" + description));
-        stack.Children.Add(card);
-        Refresh();
-        return;
-
-        void UpdateAddButtonState()
-        {
-            if (selectedModifiers == 0 || selectedVirtualKey == 0)
-            {
-                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-                addButton.IsEnabled = false;
-                return;
-            }
-
-            bool exists = _settings.Hotkeys.Any(b =>
-                !b.RemovedByUser
-                && b.Matches(action, currentParameter)
-                && b.Modifiers == selectedModifiers
-                && b.VirtualKey == selectedVirtualKey);
-            addButton.Text = exists
-                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
-                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-            addButton.IsEnabled = !exists;
-        }
-
-        void Refresh()
-        {
-            HotkeyApplyResult<BrightnessHotkeyAction, BrightnessHotkeyBinding>? applyResult = null;
-            try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
-            catch (Exception ex) { TADNLog.Log($"BrightnessSettingsWindow.Hotkeys.Apply: {ex.Message}"); }
-
-            entries.Children.Clear();
-            foreach (BrightnessHotkeyBinding binding in _settings.Hotkeys
-                         .Where(h => !h.RemovedByUser && h.Matches(action, currentParameter) && h.IsBound)
-                         .OrderBy(h => h.BindingID))
-            {
-                entries.Children.Add(BuildHotkeyEntryCard(
-                    action,
-                    currentParameter,
-                    binding,
-                    applyResult,
-                    Refresh,
-                    nodes.DeleteBinding,
-                    p));
-            }
-
-            entries.IsVisible = entries.Children.Count > 0;
-            UpdateAddButtonState();
-        }
-    }
-
-    private Border BuildHotkeyEntryCard(
-        BrightnessHotkeyAction action,
-        string parameter,
-        BrightnessHotkeyBinding binding,
-        HotkeyApplyResult<BrightnessHotkeyAction, BrightnessHotkeyBinding>? applyResult,
-        Action refresh,
-        ControlMapNodeID deleteNode,
-        SettingsPalette p)
-    {
-        TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
-        display.VerticalAlignment = VerticalAlignment.Center;
-        display.Margin = new Thickness(left: 12, top: 6, right: 0, bottom: 6);
-
-        TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
-        status.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        status.VerticalAlignment = VerticalAlignment.Center;
-        status.Margin = new Thickness(left: 0, top: 0, right: 8, bottom: 0);
-
-        if (AppServices.HotkeyService == null)
-        {
-            status.Text = GlyphCatalog.WARNING.Text;
-            TrayAppDotNETToolTip.SetTip(status,
-                L(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
-        }
-        else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
-        {
-            status.Text = GlyphCatalog.WARNING.Text;
-            TrayAppDotNETToolTip.SetTip(status, error);
-        }
-        else if (binding.IsBound)
-            TrayAppDotNETToolTip.SetTip(status, L(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
-
-        SettingsButton delete = Button(GlyphCatalog.CLOSE, p).MapTo(deleteNode);
-        delete.Width = 32;
-        delete.Height = 29;
-        delete.Padding = new Thickness(0);
-        delete.Label.FontSize = TrayAppDotNETSettingsUI.CloseGlyphFontSize;
-        TrayAppDotNETToolTip.SetTip(delete, L(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip)));
-        TrayAppDotNETToolTip.SuppressWhileEngaged(delete);
-        delete.Click += (_, _) =>
-        {
-            if (AppSettings.IsDefaultHotkeyIdentity(action, parameter, binding.BindingID))
-            {
-                foreach (BrightnessHotkeyBinding existing in _settings.Hotkeys)
-                {
-                    if (!existing.Matches(action, parameter, binding.BindingID)) continue;
-                    existing.RemovedByUser = true;
-                    existing.Enabled = false;
-                }
-            }
-            else
-                _settings.Hotkeys.RemoveAll(b => b.Matches(action, parameter, binding.BindingID));
-
-            Save();
-            refresh();
-        };
-
-        Grid grid = new();
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.Children.Add(display);
-        Grid.SetColumn(status, value: 1);
-        Grid.SetColumn(delete, value: 2);
-        grid.Children.Add(status);
-        grid.Children.Add(delete);
-
-        Border card = new()
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
-            CornerRadius = RadiusMedium,
-            Margin = new Thickness(left: 0, top: 0, right: 0, bottom: 4),
-            Child = grid
-        };
-        ControlNames.AssignLogicalSubtree(card, parentName: "HotkeyBinding");
-        return card;
     }
 
     private IEnumerable<string> ExistingMonitorOffParameters() =>
@@ -517,7 +193,7 @@ public sealed partial class BrightnessSettingsWindow
                     displayNumber)));
         }
 
-        foreach (KnownDisplayEntry known in _settings.KnownDisplays)
+        foreach (KnownDisplayEntry known in AppServices.KnownDisplays?.Entries ?? [])
         {
             if (string.IsNullOrWhiteSpace(known.EDIDKey)) continue;
             string baseLabel = !string.IsNullOrWhiteSpace(known.OriginalName)
@@ -552,22 +228,4 @@ public sealed partial class BrightnessSettingsWindow
 
         return HotkeyTarget.TryParseEDID(parameter, out string EDIDKey) ? EDIDKey : parameter;
     }
-
-    private static string FormatHotkey(BrightnessHotkeyBinding binding)
-    {
-        string modifiers = TrayAppDotNETHotkeyKeys.ModifierText(binding.Modifiers);
-        string key = TrayAppDotNETHotkeyKeys.KeyName(binding.VirtualKey);
-        return string.IsNullOrEmpty(modifiers) ? key : modifiers + " + " + key;
-    }
-
-    private static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> HotkeyModifierOptions =>
-        TrayAppDotNETHotkeyModifierOptions.Create(L);
-
-    /// <summary>Control map nodes of one hotkey row; action rows and display power-off rows are separate scopes.</summary>
-    private sealed record HotkeyRowNodes(
-        ControlMapNodeID Row,
-        ControlMapNodeID Modifiers,
-        ControlMapNodeID Key,
-        ControlMapNodeID Add,
-        ControlMapNodeID DeleteBinding);
 }

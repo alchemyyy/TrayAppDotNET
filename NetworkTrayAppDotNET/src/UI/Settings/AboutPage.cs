@@ -1,59 +1,21 @@
 using Avalonia.Controls;
+using NetworkTrayAppDotNET.Models;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Settings;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 
 public sealed partial class NetworkSettingsWindow
 {
-    private StackPanel BuildAboutPage()
+    private StackPanel BuildAboutPage() => BuildCommonAboutPage(new TrayAppDotNETAboutPageAppInfo
     {
-        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
-            new TrayAppDotNETAboutPageOptions
-            {
-                Palette = Palette,
-                ButtonRadius = RadiusMedium,
-                CardRadius = RadiusLarge,
-                UpdatePromptOwnerBackdrop = ConfirmOverlayBackdrop,
-                L = L,
-                Save = Save,
-                ApplicationName = Constants.ApplicationName,
-                Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
-                BuildNumber = BuildInfo.BuildNumber,
-                CommitHash = BuildInfo.CommitHash,
-                Publisher = Constants.Publisher,
-                HelpLink = Constants.HelpLink,
-                OpenSettingsFolderText = OpenSettingsFolderText,
-                SettingsFolderPath = SettingsFolderPath,
-                UpdateSettings = _settings,
-                UpdateService = static () => AppServices.UpdateCheckService,
-                ConfirmAsync = ConfirmAsync,
-                PromptOwner = () => this,
-                SupportsFlyoutUpdateButton = false,
-                Shutdown = static () =>
-                {
-                    if (Avalonia.Application.Current?.ApplicationLifetime
-                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                        desktop.Shutdown();
-                },
-                Log = TADNLog.Log,
-                RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
-                StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-                UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
-            }));
-        _aboutPageGenerations.Add(aboutPage);
-        _aboutPage = aboutPage;
-        AddPageCleanup(() =>
-        {
-            _aboutPageGenerations.Remove(aboutPage);
-            if (ReferenceEquals(_aboutPage, aboutPage))
-            {
-                _aboutPage = _aboutPageGenerations.Count > 0
-                    ? _aboutPageGenerations[^1]
-                    : null;
-            }
-        });
-        StackPanel page = aboutPage.Build();
-        ControlNames.AssignLogicalSubtree(page, nameof(NetworkSettingsPage.About));
-        return page;
-    }
+        ApplicationName = Constants.ApplicationName,
+        Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
+        BuildNumber = BuildInfo.BuildNumber,
+        CommitHash = BuildInfo.CommitHash,
+        SettingsFolderPath = AppSettings.GetDefaultDirectory(),
+        UpdateSettings = _settings,
+        UpdateService = static () => AppServices.UpdateCheckService,
+        SupportsFlyoutUpdateButton = false
+    });
 }

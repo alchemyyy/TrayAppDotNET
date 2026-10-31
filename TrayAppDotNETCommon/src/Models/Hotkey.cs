@@ -1,43 +1,32 @@
 using System.Xml.Serialization;
+using TrayAppDotNETCommon.Serialization;
 
 namespace TrayAppDotNETCommon.Models;
 
 /// <summary>
-/// Shared hotkey action set. Apps can use the actions they support and ignore the rest.
+/// Hotkey actions of the apps that only bind their flyout and settings window (Battery, Fan, Volume). Apps with more
+/// actions keep their own enum and binding type.
 /// </summary>
 public enum HotkeyAction
 {
     OpenSettings,
-    OpenFlyout,
-    OpenNetworkSettings,
-    OpenAdapterSettings
-}
-
-public interface IHotkeyBinding<out TAction>
-    where TAction : struct, Enum
-{
-    TAction Action { get; }
-    string Parameter { get; }
-    uint Modifiers { get; }
-    uint VirtualKey { get; }
-    bool Enabled { get; }
-    int BindingID { get; }
-    bool RemovedByUser { get; }
-    bool IsBound { get; }
+    OpenFlyout
 }
 
 /// <summary>
-/// One persisted hotkey binding.
+/// One persisted hotkey binding; every app's binding type derives from this, so all of them persist the same
+/// attributes.
 /// Identity = (Action, Parameter, BindingID): per (action, parameter) pair there can be N bindings,
 /// distinguished by BindingID. BindingID == 0 is the legacy/primary row; legacy XML files without
 /// the persisted value become the primary row by default.
 /// Modifiers and VirtualKey are raw Win32 values (MOD_* and VK_*) so the storage shape matches RegisterHotKey
 /// directly and the settings model does not depend on UI-framework input enums.
 /// </summary>
-public sealed class HotkeyBinding : IHotkeyBinding<HotkeyAction>
+public abstract class HotkeyBindingBase<TAction> : ITrayXmlUnknownValueHandler
+    where TAction : struct, Enum
 {
     [XmlAttribute]
-    public HotkeyAction Action { get; set; }
+    public TAction Action { get; set; }
 
     /// <summary>
     /// Free-form action-specific parameter.
@@ -76,111 +65,104 @@ public sealed class HotkeyBinding : IHotkeyBinding<HotkeyAction>
     [XmlIgnore]
     public bool IsBound => VirtualKey != 0 && Modifiers != 0;
 
+    /// <summary>True when the stored action name is not one this build knows; such a binding is dropped on load.</summary>
+    [XmlIgnore]
+    public bool HasUnknownAction { get; private set; }
+
+    void ITrayXmlUnknownValueHandler.OnTrayXmlUnknownValue(string memberName, string value)
+    {
+        if (memberName == nameof(Action)) HasUnknownAction = true;
+    }
+
     /// <summary>
     /// "Any binding for this (Action, Parameter)" lookup.
     /// Use the 3-arg overload when row identity matters for persistence/status.
     /// </summary>
-    public bool Matches(HotkeyAction action, string? parameter) =>
-        Action == action && string.Equals(Parameter, parameter ?? string.Empty, StringComparison.Ordinal);
+    public bool Matches(TAction action, string? parameter) =>
+        EqualityComparer<TAction>.Default.Equals(Action, action)
+        && string.Equals(Parameter, parameter ?? string.Empty, StringComparison.Ordinal);
 
     // Strict identity check including the per-row BindingID disambiguator.
-    public bool Matches(HotkeyAction action, string? parameter, int bindingID) =>
-        Action == action
-        && string.Equals(Parameter, parameter ?? string.Empty, StringComparison.Ordinal)
-        && BindingID == bindingID;
+    public bool Matches(TAction action, string? parameter, int bindingID) =>
+        Matches(action, parameter) && BindingID == bindingID;
+
+    /// <summary>True when this binding is live and uses the same key combination.</summary>
+    public bool HasSameChord(uint modifiers, uint virtualKey) =>
+        !RemovedByUser && Modifiers == modifiers && VirtualKey == virtualKey;
 }
 
+/// <inheritdoc cref="HotkeyBindingBase{TAction}"/>
+public sealed class HotkeyBinding : HotkeyBindingBase<HotkeyAction>;
+
 /// <summary>
-/// Shared hotkey catalog helpers. Common intentionally ships with no built-in defaults;
-/// apps can either use the no-op default catalog or pass their own default bindings to the overloads.
+/// Load-time cleanup of persisted hotkey lists, shared by every app and binding type.
 /// </summary>
 public static class HotkeyDefaults
 {
-    /// <summary>
-    /// Common's built-in default catalog. Empty by design because default hotkeys are app policy.
-    /// </summary>
-    public static IReadOnlyList<HotkeyBinding> Create() => [];
-
-    public static bool IsDefaultIdentity(HotkeyAction action, string parameter, int bindingID) =>
-        IsDefaultIdentity(Create(), action, parameter, bindingID);
-
-    public static bool IsDefaultIdentity(
-        IEnumerable<HotkeyBinding> defaults,
-        HotkeyAction action,
+    /// <summary>True if (action, parameter, bindingID) is the identity of one of <paramref name="defaults"/>.</summary>
+    public static bool IsDefaultIdentity<TBinding, TAction>(
+        IReadOnlyList<TBinding> defaults,
+        TAction action,
         string parameter,
         int bindingID)
+        where TBinding : HotkeyBindingBase<TAction>
+        where TAction : struct, Enum
     {
-        foreach (HotkeyBinding d in defaults)
+        foreach (TBinding binding in defaults)
         {
-            if (d.Matches(action, parameter, bindingID))
-                return true;
+            if (HasIdentity<TBinding, TAction>(binding, action, parameter, bindingID)) return true;
         }
 
         return false;
     }
 
     /// <summary>
-    /// Removes redundant hotkey rows that share the same identity tuple
-    /// (Action, Parameter, BindingID), keeping the first occurrence.
+    /// Normalizes a loaded list in place: drops bindings whose action this build does not know (a newer build or a
+    /// hand edit wrote it), keeps the first of rows sharing one (Action, Parameter, BindingID) identity, and appends
+    /// every entry of <paramref name="freshDefaults"/> whose identity is absent. A tombstoned row
+    /// (<c>RemovedByUser</c>) counts as present, so a default the user removed stays removed.
+    /// Returns true when the list changed.
     /// </summary>
-    public static bool DedupeByIdentity(IList<HotkeyBinding> hotkeys)
+    public static bool Normalize<TBinding, TAction>(List<TBinding> hotkeys, IReadOnlyList<TBinding> freshDefaults)
+        where TBinding : HotkeyBindingBase<TAction>
+        where TAction : struct, Enum
     {
-        HashSet<(HotkeyAction, string, int)> seen = [];
-        int writeIndex = 0;
-        for (int readIndex = 0; readIndex < hotkeys.Count; readIndex++)
-        {
-            HotkeyBinding b = hotkeys[readIndex];
-            (HotkeyAction, string, int) key = (b.Action, b.Parameter, b.BindingID);
-            if (!seen.Add(key)) continue;
+        int countBefore = hotkeys.Count;
+        HashSet<(TAction, string, int)> seen = [];
+        hotkeys.RemoveAll(binding =>
+            binding.HasUnknownAction || !seen.Add((binding.Action, binding.Parameter, binding.BindingID)));
+        bool changed = hotkeys.Count != countBefore;
 
-            if (writeIndex != readIndex) hotkeys[writeIndex] = b;
-            writeIndex++;
+        foreach (TBinding binding in freshDefaults)
+        {
+            if (!seen.Add((binding.Action, binding.Parameter, binding.BindingID))) continue;
+
+            hotkeys.Add(binding);
+            changed = true;
         }
 
-        if (writeIndex == hotkeys.Count) return false;
-
-        int removeCount = hotkeys.Count - writeIndex;
-        for (int i = 0; i < removeCount; i++) hotkeys.RemoveAt(hotkeys.Count - 1);
-        return true;
+        return changed;
     }
-
-    public static bool EnsureDefaults(IList<HotkeyBinding> hotkeys) =>
-        EnsureDefaults(hotkeys, Create());
 
     /// <summary>
-    /// Adds any default bindings that are not already represented by the same
-    /// (Action, Parameter, BindingID), including tombstoned rows.
+    /// One-time removal of a default an older build seeded on the primary row of <paramref name="action"/>: drops it
+    /// while it still has the retired chord, plus any tombstone for that identity. A binding the user changed is kept.
     /// </summary>
-    public static bool EnsureDefaults(
-        IList<HotkeyBinding> hotkeys,
-        IEnumerable<HotkeyBinding> defaults)
-    {
-        bool added = false;
-        foreach (HotkeyBinding d in defaults)
-        {
-            bool present = false;
-            foreach (HotkeyBinding existing in hotkeys)
-            {
-                if (!existing.Matches(d.Action, d.Parameter, d.BindingID)) continue;
+    public static void RetireLegacyBinding<TBinding, TAction>(
+        List<TBinding> hotkeys,
+        TAction action,
+        uint modifiers,
+        uint virtualKey)
+        where TBinding : HotkeyBindingBase<TAction>
+        where TAction : struct, Enum =>
+        hotkeys.RemoveAll(binding =>
+            HasIdentity<TBinding, TAction>(binding, action, string.Empty, bindingID: 0)
+            && (binding.RemovedByUser || (binding.Modifiers == modifiers && binding.VirtualKey == virtualKey)));
 
-                present = true;
-                break;
-            }
-
-            if (present) continue;
-
-            hotkeys.Add(new HotkeyBinding
-            {
-                Action = d.Action,
-                Parameter = d.Parameter,
-                Modifiers = d.Modifiers,
-                VirtualKey = d.VirtualKey,
-                Enabled = d.Enabled,
-                BindingID = d.BindingID
-            });
-            added = true;
-        }
-
-        return added;
-    }
+    private static bool HasIdentity<TBinding, TAction>(TBinding binding, TAction action, string parameter, int bindingID)
+        where TBinding : HotkeyBindingBase<TAction>
+        where TAction : struct, Enum =>
+        EqualityComparer<TAction>.Default.Equals(binding.Action, action)
+        && string.Equals(binding.Parameter, parameter, StringComparison.Ordinal)
+        && binding.BindingID == bindingID;
 }

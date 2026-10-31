@@ -4,6 +4,7 @@ using Avalonia.Media;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
+using TrayAppDotNETCommon.UI.Settings;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -101,7 +102,11 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         return Card(title, description, row, palette, searchKeywords).MapTo(node);
     }
 
-    protected Grid PairColumnHeader(string title, SettingsPalette palette)
+    /// <summary>
+    /// Subsection header with two column captions over the <see cref="PairBoolCard"/> toggles; search treats it as a
+    /// subsection header.
+    /// </summary>
+    protected Grid PairColumnHeader(string title, string leftHeader, string rightHeader, SettingsPalette palette)
     {
         Grid grid = new() { Margin = _commonBindingResources.AxamlCommonBindings.PairHeaderMargin };
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -114,12 +119,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
         pair.ColumnDefinitions.Add(new ColumnDefinition(
             new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
-        TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(
-            Loc(nameof(CommonStrings.Settings_Common_Playback)),
-            palette);
-        TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(
-            Loc(nameof(CommonStrings.Settings_Common_Recording)),
-            palette);
+        TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(leftHeader, palette);
+        TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(rightHeader, palette);
         playback.FontWeight = FontWeight.SemiBold;
         recording.FontWeight = FontWeight.SemiBold;
         playback.HorizontalAlignment = HorizontalAlignment.Center;
@@ -129,7 +130,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         pair.Children.Add(recording);
         Grid.SetColumn(pair, value: 1);
         grid.Children.Add(pair);
-        return grid;
+        return SettingsSearchMetadata.Mark(grid, SettingsSearchRole.SubsectionHeader);
     }
 
     protected Border SingleColorCard(
@@ -150,7 +151,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         swatch.SetColor(currentValue, defaultColor);
         if (!string.IsNullOrWhiteSpace(tooltip))
             TrayAppDotNETToolTip.SetTip(swatch, tooltip);
-        SettingsButton resetButton = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette)
+        SettingsButton resetButton = Button(L(nameof(CommonStrings.Settings_Theme_Reset)), palette)
             .MapTo(ControlMap.SingleColorCard.Reset);
 
         swatch.Click += (_, _) =>
@@ -215,8 +216,11 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             searchKeywords).MapTo(node);
     }
 
+    /// <summary>
+    /// Light/dark color card: only the swatch of the effective theme shows. Each (color, variant) has at most one
+    /// picker; clicking a swatch whose picker is open brings that picker back instead of opening a second one.
+    /// </summary>
     protected Border VariantColorCard(
-        string name,
         string title,
         string description,
         string lightTooltip,
@@ -232,10 +236,10 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsSwatch dark = new SettingsSwatch(palette).MapTo(ControlMap.VariantColorCard.PickDarkColor);
         TrayAppDotNETToolTip.SetTip(light, lightTooltip);
         TrayAppDotNETToolTip.SetTip(dark, darkTooltip);
-        SettingsButton reset = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette)
+        SettingsButton reset = Button(L(nameof(CommonStrings.Settings_Theme_Reset)), palette)
             .MapTo(ControlMap.VariantColorCard.Reset);
 
-        bool effectiveIsLight = ResolveEffectiveIsLightForBindings();
+        bool effectiveIsLight = ResolveEffectiveIsLight();
         light.IsVisible = effectiveIsLight;
         dark.IsVisible = !effectiveIsLight;
         light.SetColor(color.LightColor, lightFallback);
@@ -256,13 +260,11 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         };
 
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
-        row.Tag = name;
 
         // A VariantColorCard instance; the caller's id tells its instances apart
         return Card(title, description, row, palette, searchKeywords).MapTo(node);
     }
 
-    protected virtual bool ResolveEffectiveIsLightForBindings() => false;
 
     private void OpenVariantColorPicker(
         string title,
@@ -272,6 +274,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsPalette palette,
         SettingsSwatch swatch)
     {
+        Dictionary<NullableThemeColor, TrayAppDotNETColorPickerWindow> openPickers =
+            isLight ? _openLightColorPickers : _openDarkColorPickers;
+        if (openPickers.TryGetValue(target, out TrayAppDotNETColorPickerWindow? existing))
+        {
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return;
+        }
+
         Color initial = (isLight ? target.LightColor : target.DarkColor) ?? fallback;
         TrayAppDotNETColorPickerWindow picker = new(
             VariantPickerTitle(title, isLight),
@@ -294,7 +305,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         picker.Closed += (sender, _) =>
         {
             TrayAppDotNETColorPickerWindow closed = (TrayAppDotNETColorPickerWindow)sender!;
-            _openColorPickers.Remove(closed);
+            openPickers.Remove(target);
             if (closed.IsDirty)
             {
                 Color finalColor = closed.CurrentColor;
@@ -310,14 +321,14 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             if (!IsClosing) RefreshPalette();
         };
 
-        _openColorPickers.Add(picker);
+        openPickers[target] = picker;
         try
         {
             picker.Show(this);
         }
         catch
         {
-            _openColorPickers.Remove(picker);
+            openPickers.Remove(target);
             throw;
         }
     }
@@ -327,23 +338,23 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
     private static string VariantPickerTitle(string title, bool isLight) =>
         string.Format(
-            Loc(nameof(CommonStrings.Settings_Theme_PickerTitle_Format)),
+            L(nameof(CommonStrings.Settings_Theme_PickerTitle_Format)),
             title,
-            Loc(isLight
+            L(isLight
                 ? nameof(CommonStrings.Settings_Theme_PickerTitle_LightVariant)
                 : nameof(CommonStrings.Settings_Theme_PickerTitle_DarkVariant)));
 
     private static TrayAppDotNETColorPickerStrings ColorPickerStrings() =>
         new(
-            Loc(nameof(CommonStrings.ColorPicker_DefaultTitle)),
-            Loc(nameof(CommonStrings.ColorPicker_CloseTooltip)),
-            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
-            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
-            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
-            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
-            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
+            L(nameof(CommonStrings.ColorPicker_DefaultTitle)),
+            L(nameof(CommonStrings.ColorPicker_CloseTooltip)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
             L(nameof(CommonStrings.ColorPicker_RGBAHexLabel)),
             L(nameof(CommonStrings.ColorPicker_ARGBHexLabel)),
-            Loc(nameof(CommonStrings.ColorPicker_DefaultButton)),
-            Loc(nameof(CommonStrings.ColorPicker_ResetButton)));
+            L(nameof(CommonStrings.ColorPicker_DefaultButton)),
+            L(nameof(CommonStrings.ColorPicker_ResetButton)));
 }

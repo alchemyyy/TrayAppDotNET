@@ -22,13 +22,13 @@
 
     <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="BatteryAvaloniaApp.CreateTrayMenuWindow">
         <Leaf ID="OpenPowerOptions" Kind="ListItem" Event="MenuEntry"
-              Source="BatteryTrayMenuWindow.BuildEntries" />
+              Source="BatteryAvaloniaApp.CreateTrayMenuWindow" />
         <Leaf ID="OpenBatteryReport" Kind="ListItem" Event="MenuEntry"
-              Source="BatteryTrayMenuWindow.BuildEntries" />
+              Source="BatteryAvaloniaApp.CreateTrayMenuWindow" />
         <Leaf ID="OpenSettings" Kind="ListItem" Event="MenuEntry"
-              Source="BatteryTrayMenuWindow.BuildEntries" />
+              Source="TrayMenuWindow.BuildEntries" />
         <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry"
-              Source="BatteryTrayMenuWindow.BuildEntries" />
+              Source="TrayMenuWindow.BuildEntries" />
     </Surface>
 
     <!-- Default layout (FlyoutHeaderAtBottom and AllowFlyoutUndock on): Undock floats top right and Header is last.
@@ -36,8 +36,10 @@
     <Surface ID="Flyout" Kind="Popup" Source="BatteryFlyoutWindow.BuildContentGeneration">
         <Variant ID="HeaderOnTop" Order="Move Header PowerMode"
                  Description="Header on top, holding Header.Undock instead of the floating Undock" />
+        <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand" Source="FlyoutWindowCommon.FlyoutWindowCommon"
+              Description="Hides the flyout" />
         <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-              Source="BatteryFlyoutWindow.BuildContentGeneration"
+              Source="FlyoutChromeDragController.Attach"
               Description="Drags the flyout by its frame while undocked" />
         <Leaf ID="Undock" Kind="Button" Pointer="Click;Drag" Event="PointerReleased"
               Source="FlyoutUndockButtonController.WireButton"
@@ -71,10 +73,10 @@
 
     <Surface ID="Settings" Template="SettingsShell" Source="BatterySettingsWindow.CreatePageDescriptors">
         <Scope ID="GeneralPage" Source="BatterySettingsWindow.BuildGeneralPage">
-            <Scope ID="General" Template="GeneralSection" Source="BatterySettingsWindow.CreateGeneralSettingsSection"
+            <Scope ID="General" Template="GeneralSection" Source="SettingsWindowCommon.CreateGeneralSettingsSection"
                    Description="Startup and install cards; Uninstall opens the Uninstaller surface" />
             <Scope ID="Rendering" Template="RenderingSection"
-                   Source="BatterySettingsWindow.CreateRenderingSettingsSection" />
+                   Source="SettingsWindowCommon.AddRenderingSection" />
         </Scope>
         <Scope ID="TriggersPage" Source="BatterySettingsWindow.BuildTriggersPage">
             <Scope ID="Trigger" IsFocusable="True" IsRepeated="True" Source="BatterySettingsWindow.BuildTriggerCard">
@@ -112,49 +114,16 @@
                   Source="BatterySettingsWindow.BuildTrayIconPage" />
         </Scope>
         <Scope ID="HotkeysPage" Source="BatterySettingsWindow.BuildHotkeysPage">
-            <Leaf ID="Search" Kind="Text" Event="TextChanged"
-                  Source="BatterySettingsWindow.BuildHotkeysPage"
-                  Description="Filters the hotkey cards; Enter leaves the box" />
-            <Scope ID="OpenFlyoutHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
-                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
-                      Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
-                      Description="Read-only; records the next key press, Enter included; Tab moves focus" />
-                <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
-                      Source="BatterySettingsWindow.BuildHotkeyEntryCard" />
-            </Scope>
-            <Scope ID="OpenSettingsHotkey" Source="BatterySettingsWindow.AddHotkeyRow">
-                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
-                      Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="VirtualKey" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
-                      Description="Read-only; records the next key press, Enter included; Tab moves focus" />
-                <Leaf ID="Add" Kind="Button" Event="Click" Source="BatterySettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Delete" Kind="Button" IsRepeated="True" Event="Click"
-                      Source="BatterySettingsWindow.BuildHotkeyEntryCard" />
-            </Scope>
+            <Scope ID="Hotkeys" Template="HotkeysSection" Source="SettingsWindowCommon.BuildHotkeysPage"
+                   Description="OpenFlyout, then OpenSettings" />
         </Scope>
         <Scope ID="ThemePage" Source="BatterySettingsWindow.BuildThemePage">
-            <Leaf ID="ContextMenuFontSize" Kind="Number"
-                  Pointer="Wheel"
-                  Event="Callback" Source="BatterySettingsWindow.BuildThemePage" />
-            <Leaf ID="ThemeMode" Kind="Select" Event="Callback"
-                  Source="BatterySettingsWindow.BuildThemePage" />
-            <Leaf ID="UseWindows11SettingsNavigation" Kind="Toggle" Event="Callback"
-                  Source="BatterySettingsWindow.BuildThemePage" />
-            <Scope ID="TextColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
-            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
-            <Scope ID="FlyoutBackgroundColor" Template="VariantColorCard"
+            <Scope ID="Appearance" Template="AppearanceSection" Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="ContextMenu" Template="ContextMenuAppearanceSection"
                    Source="BatterySettingsWindow.BuildThemePage" />
+            <Scope ID="FlyoutBackgroundColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
             <Scope ID="FlyoutTitleBarBackgroundColor" Template="VariantColorCard"
                    Source="BatterySettingsWindow.BuildThemePage" />
-            <Leaf ID="EnableRoundedCorners" Kind="Toggle" Event="Callback"
-                  Source="BatterySettingsWindow.BuildThemePage" />
-            <Leaf ID="AnimationMode" Kind="Select" Event="Callback"
-                  Source="BatterySettingsWindow.BuildThemePage" />
-            <Leaf ID="ToolTipShowDelayMs" Kind="Number"
-                  Pointer="Wheel"
-                  Event="Callback" Source="BatterySettingsWindow.BuildThemePage" />
             <Scope ID="TrayIconColor" Template="VariantColorCard" Source="BatterySettingsWindow.BuildThemePage" />
         </Scope>
         <Scope ID="AboutPage" Template="AboutPage" Source="BatterySettingsWindow.BuildAboutPage" />
@@ -163,7 +132,7 @@
     <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"
              Description="Opened by the ThemePage color swatches" />
 
-    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation" Source="TrayAppDotNETAboutPage.InstallUpdateAsync"
+    <Surface ID="UpdateConfirmation" Template="Confirmation" Source="TrayAppDotNETAboutPage.InstallUpdateAsync"
              Description="Install and backdate prompts from the About page" />
 
     <Surface ID="Uninstaller" Template="Uninstaller" Source="BatteryAvaloniaApp.ShowUninstallerWindow"

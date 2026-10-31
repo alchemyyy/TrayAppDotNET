@@ -32,25 +32,25 @@
 
     <Surface ID="TrayMenu" Kind="Popup" Template="ContextMenu" Source="BrightnessAvaloniaApp.CreateTrayMenuWindow">
         <Leaf ID="Profile" Kind="ListItem" IsRepeated="True" Event="MenuEntry"
-              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Source="BrightnessTrayMenuEntries.Build"
               Description="Selects the profile and checks the active one; only with ShowProfileSelectorsInMenu" />
         <Leaf ID="PowerOffAllDisplays" Kind="ListItem" Event="MenuEntry"
-              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Source="BrightnessTrayMenuEntries.Build"
               Description="Only with ShowAllDisplaysPowerButton and a power-capable display" />
         <Leaf ID="PowerOffDisplay" Kind="ListItem" IsRepeated="True" Event="MenuEntry"
-              Source="BrightnessTrayMenuWindow.BuildEntries"
+              Source="BrightnessTrayMenuEntries.Build"
               Description="One per power-capable display; only with ShowMonitorPowerButtons" />
-        <Leaf ID="OpenSettings" Kind="ListItem" Event="MenuEntry" Source="BrightnessTrayMenuWindow.BuildEntries" />
-        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="BrightnessTrayMenuWindow.BuildEntries" />
+        <Leaf ID="OpenSettings" Kind="ListItem" Event="MenuEntry" Source="TrayMenuWindow.BuildEntries" />
+        <Leaf ID="Exit" Kind="ListItem" Event="MenuEntry" Source="TrayMenuWindow.BuildEntries" />
     </Surface>
 
     <!-- Each SelectProfileN command is its own leaf because a map command handler receives no key. The handlers
          exist only while NumberKeysSwitchProfile is on and profile N exists, so other digits reach the focused
          control -->
-    <Surface ID="Flyout" Kind="Popup" Source="BrightnessFlyoutWindow.RebuildVisualCore">
+    <Surface ID="Flyout" Kind="Popup" Source="BrightnessFlyoutWindow.RebuildContent">
         <Leaf ID="Close" Kind="Command" Keys="Escape" Event="MapCommand"
-              Source="BrightnessFlyoutWindow.BrightnessFlyoutWindow"
-              Description="Hides the flyout, also while the confirmation overlay is open" />
+              Source="FlyoutWindowCommon.FlyoutWindowCommon"
+              Description="Hides the flyout; while the confirmation overlay holds focus, Escape cancels it instead" />
         <Leaf ID="SelectProfile1" Kind="Command" Keys="D1;NumPad1" Event="MapCommand"
               Source="BrightnessFlyoutWindow.MapProfileNumberCommands"
               Description="Applies Footer.Profiles.Profile 1 while NumberKeysSwitchProfile is on" />
@@ -89,7 +89,8 @@
                                    degraded DDC display after a one-time warning" />
                 <Leaf ID="StopwatchMinutes" Kind="Number" Pointer="Wheel" Event="ValueChanged"
                       Source="BrightnessFlyoutWindow.BuildCurveStopwatchNumberBox"
-                      Description="Minutes until the curve re-engages; only while the stopwatch runs" />
+                      Description="Minutes until the curve re-engages; only while the stopwatch runs; typed minutes
+                                   apply on Enter or focus loss, spinners, Up, Down, and the wheel at once" />
                 <Leaf ID="Stopwatch" Kind="Toggle" Event="Callback"
                       Source="BrightnessFlyoutWindow.BuildCurveStopwatchButton"
                       Description="Re-engage timer for a manual curve override; shown only during an override" />
@@ -113,7 +114,9 @@
                 <Leaf ID="Curve" Kind="Toggle" Event="Callback" Source="BrightnessFlyoutWindow.BuildRow"
                       Description="Turns the brightness curve on or off" />
                 <Leaf ID="CurveMode" Kind="Toggle" Event="Callback"
-                      Source="BrightnessFlyoutWindow.BuildCurveModeButton" />
+                      Source="BrightnessFlyoutWindow.BuildCurveModeButton"
+                      Description="Manual override also releases every curve-driven display; curve control re-engages
+                                   them" />
                 <Leaf ID="Brightness" Kind="Slider" Pointer="Drag;Wheel;Ctrl+Wheel;DoubleClick" Event="ValueChanged"
                       Source="BrightnessFlyoutWindow.CreateSlider"
                       Description="Moves every participating display, keeping its offset" />
@@ -160,11 +163,9 @@
                 <Leaf ID="OpenSettings" Kind="Button" Event="Callback" Source="BrightnessFlyoutWindow.BuildFooter" />
             </Scope>
         </Scope>
-        <Scope ID="ConfirmOverlay" Tab="Cycle" Arrows="Horizontal" Source="BrightnessFlyoutWindow.BuildConfirmOverlay"
-               Description="Modal hard power-off warning and result; Cancel is hidden for the result message">
-            <Leaf ID="Cancel" Kind="Button" Event="Click" Source="BrightnessFlyoutWindow.ShowConfirmOverlay" />
-            <Leaf ID="Confirm" Kind="Button" Event="Click" Source="BrightnessFlyoutWindow.ShowConfirmOverlay" />
-        </Scope>
+        <Scope ID="ConfirmOverlay" Template="FlyoutConfirmOverlay" Tab="Cycle" Arrows="Horizontal"
+               Source="BrightnessFlyoutWindow.RebuildContent"
+               Description="Hard power-off warning and result; Cancel is hidden for the result message" />
     </Surface>
 
     <Surface ID="Settings" Template="SettingsShell" Source="BrightnessSettingsWindow.CreatePageDescriptors">
@@ -261,7 +262,7 @@
                   Source="BrightnessSettingsWindow.BuildTrayIconPage" />
             <Leaf ID="ShowAllDisplaysPowerSelector" Kind="Toggle" Event="Callback"
                   Source="BrightnessSettingsWindow.BuildTrayIconPage" />
-            <Leaf ID="MenuPosition" Kind="Select" Event="Callback"
+            <Leaf ID="ContextMenuPosition" Kind="Select" Event="Callback"
                   Source="BrightnessSettingsWindow.BuildTrayIconPage" />
             <Leaf ID="WheelAction" Kind="Select" Event="Callback"
                   Source="BrightnessSettingsWindow.AddWheelActionCard"
@@ -304,6 +305,8 @@
                   Source="BrightnessSettingsWindow.BuildMonitorsPage" />
             <Leaf ID="ClearDisplays" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.BuildMonitorsPage"
                   Description="Confirms, then forgets display order, overrides and known displays" />
+            <Leaf ID="IdentifyDisplays" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.BuildMonitorsPage"
+                  Description="Shows each display's Windows number on it for a few seconds" />
             <Scope ID="Display" IsRepeated="True" Source="BrightnessSettingsWindow.BuildMonitorOverrideCard"
                    Description="One override card per live, known or overridden display">
                 <Leaf ID="Name" Kind="Text" Event="LostFocus"
@@ -323,38 +326,19 @@
             </Scope>
         </Scope>
         <Scope ID="HotkeysPage" Source="BrightnessSettingsWindow.BuildHotkeysPage">
-            <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="BrightnessSettingsWindow.BuildHotkeysPage"
-                  Description="Filters the hotkey cards by title and description" />
-            <Scope ID="Hotkey" IsRepeated="True" Source="BrightnessSettingsWindow.AddHotkeyRow"
-                   Description="One card per fixed action and per profile slot">
-                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
-                      Source="BrightnessSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
-                      Description="Read-only capture box; a press records the key; modifier keys, Escape and F12 are
-                                   swallowed; Enter is captured as a key; Tab moves focus" />
-                <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
-                      Description="Enabled once a modifier and a key are chosen and the binding is new" />
-                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
-                      Source="BrightnessSettingsWindow.BuildHotkeyEntryCard"
-                      Description="One per bound hotkey; deleting a default leaves a tombstone" />
+            <Scope ID="Hotkeys" Template="HotkeysSection" Source="SettingsWindowCommon.BuildHotkeysPage"
+                   Description="Fixed actions, one card per profile slot, then one card per display power-off target">
+                <Leaf ID="MonitorTarget" Kind="Select" Event="SelectionChanged" Slot="RowLeading"
+                      Source="BrightnessSettingsWindow.BuildMonitorTargetExtras"
+                      Description="Power-off cards only; display number or EDID target; a target already in use
+                                   reverts" />
+                <Leaf ID="RemoveMonitorTarget" Kind="Button" Event="Click" Slot="RowTrailing"
+                      Source="BrightnessSettingsWindow.BuildMonitorTargetExtras"
+                      Description="Power-off cards only; removes the target with all of its bindings" />
+                <Leaf ID="AddMonitorOffBinding" Kind="Button" Event="Click"
+                      Source="BrightnessSettingsWindow.AddMonitorOffBindingButton"
+                      Description="Adds a power-off card for the first unused target" />
             </Scope>
-            <Scope ID="MonitorOffHotkey" IsRepeated="True" Source="BrightnessSettingsWindow.AddHotkeyRow"
-                   Description="One card per display power-off target">
-                <Leaf ID="Target" Kind="Select" Event="SelectionChanged" Source="BrightnessSettingsWindow.AddHotkeyRow"
-                      Description="Display number or EDID target; choosing a target already in use reverts" />
-                <Leaf ID="Modifiers" Kind="Select" Event="SelectionChanged"
-                      Source="BrightnessSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="Key" Kind="Text" Event="KeyDown" Source="TrayAppDotNETHotkeyKeys.AttachKeyCapture"
-                      Description="Same capture behavior as Hotkey.Key" />
-                <Leaf ID="Add" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow" />
-                <Leaf ID="RemoveTarget" Kind="Button" Event="Click" Source="BrightnessSettingsWindow.AddHotkeyRow"
-                      Description="Removes the target with all of its bindings" />
-                <Leaf ID="DeleteBinding" Kind="Button" IsRepeated="True" Event="Click"
-                      Source="BrightnessSettingsWindow.BuildHotkeyEntryCard" />
-            </Scope>
-            <Leaf ID="AddMonitorOffBinding" Kind="Button" Event="Click"
-                  Source="BrightnessSettingsWindow.AddMonitorOffBindingButton"
-                  Description="Adds a MonitorOffHotkey card for the first unused target" />
         </Scope>
         <Scope ID="EnvironmentalPage" Source="BrightnessSettingsWindow.BuildEnvironmentalPageCandidate">
             <Scope ID="CurveEditor" IsFocusable="True"
@@ -471,15 +455,9 @@
             </Scope>
         </Scope>
         <Scope ID="ThemePage" Source="BrightnessSettingsWindow.BuildThemePage">
-            <Leaf ID="ContextMenuFontSize" Kind="Number" Event="Callback"
-                  Source="BrightnessSettingsWindow.BuildThemePage" />
-            <Leaf ID="ThemeStyle" Kind="Select" Event="Callback" Source="BrightnessSettingsWindow.BuildThemePage" />
-            <Leaf ID="Windows11Navigation" Kind="Toggle" Event="Callback"
-                  Source="BrightnessSettingsWindow.BuildThemePage" />
-            <Scope ID="TextColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage" />
-            <Scope ID="BackgroundColor" Template="VariantColorCard" Source="BrightnessSettingsWindow.BuildThemePage" />
-            <Leaf ID="RoundedCorners" Kind="Toggle" Event="Callback"
-                  Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="Appearance" Template="AppearanceSection" Source="BrightnessSettingsWindow.BuildThemePage" />
+            <Scope ID="ContextMenu" Template="ContextMenuAppearanceSection"
+                   Source="BrightnessSettingsWindow.BuildThemePage" />
             <Leaf ID="SliderIndicator" Kind="Select" Event="SelectionChanged"
                   Source="BrightnessSettingsWindow.BuildThemePage" />
             <Scope ID="FooterBackgroundColor" Template="VariantColorCard"
@@ -526,7 +504,7 @@
              Description="Owned window opened by Settings.EnvironmentalPage.GeoLocation.PickOnMap; closing hides it">
         <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="EnvironmentalMapPickerWindow.BuildContent">
             <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
-                  Source="EnvironmentalMapPickerWindow.BuildContent" />
+                  Source="TrayAppDotNETDialogChrome.TitleBar" />
             <Leaf ID="Close" Kind="Button" Event="Click" Source="EnvironmentalMapPickerWindow.BuildContent" />
         </Scope>
         <Scope ID="Map" IsFocusable="True" Source="EnvironmentalMapPickerWindow.BuildMapViewport"
@@ -557,7 +535,7 @@
         </Scope>
     </Surface>
 
-    <Surface ID="UpdateConfirmation" Template="UpdateConfirmation"
+    <Surface ID="UpdateConfirmation" Template="Confirmation"
              Source="BrightnessFlyoutWindow.ShowUpdateConfirmation"
              Description="Opened by Flyout.Update, TrayIcon.OpenUpdate and the About page" />
     <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"

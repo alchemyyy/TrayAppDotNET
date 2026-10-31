@@ -1,4 +1,3 @@
-using Avalonia.Media;
 using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
@@ -19,99 +18,58 @@ public enum VolumeSettingsPage
 public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSettingsPage>
 {
     private readonly AppSettings _settings;
-    private readonly Lock _uninstallMonitorGate = new();
-    private readonly HashSet<PostUninstallRefreshOwner> _uninstallMonitors = [];
-    private bool _uninstallMonitoringDisposed;
+    private readonly Func<VolumeInstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> _showUninstaller;
 
     public VolumeSettingsWindow()
-        : this(new AppSettings(), static (_, _, _) => { })
+        : this(new AppSettings(), static (_, _) => Task.FromResult(false))
     {
     }
 
     public VolumeSettingsWindow(
         AppSettings settings,
-        Action<string, VolumeInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
+        Func<VolumeInstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> showUninstaller)
     {
         _settings = settings;
-        ConfigureSettingsWindow(Loc(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
+        _showUninstaller = showUninstaller;
+        ConfigureSettingsWindow(L(nameof(CommonStrings.SettingsWindow_Title)), AppServices.AppIcon.LoadWindowIcon());
         InitializeSettingsShell();
     }
 
     internal new void SelectPage(VolumeSettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette ResolvePalette() =>
-        VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight());
+    protected override AppSettingsCommon CommonSettings => _settings;
 
-    protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
-
-    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
-
-    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+    protected override AppTheme? SettingsTheme => AppServices.Theme;
 
     protected override VolumeSettingsPage DefaultPageKey => VolumeSettingsPage.General;
 
-    protected override string HeaderText => Loc(nameof(AppStrings.SettingsWindow_Header));
-
-    protected override string OpenSettingsFolderText =>
-        Loc(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
-
-    protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
-
-    protected override Color ConfirmOverlayBackdrop =>
-        (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
-
-    protected override void Save()
-    {
-        _settings.Save();
-        _settings.RaiseChanged();
-    }
-
-    protected override bool ResolveEffectiveIsLightForBindings() => ResolveEffectiveIsLight();
-
-    protected override void OnSettingsWindowClosed()
-    {
-        try
-        {
-            DisposeUninstallMonitors();
-        }
-        finally
-        {
-            base.OnSettingsWindowClosed();
-        }
-    }
+    protected override string HeaderText => L(nameof(CommonStrings.SettingsWindow_Header));
 
     protected override IReadOnlyList<SettingsPageDescriptor<VolumeSettingsPage>> CreatePageDescriptors() =>
     [
-        new(VolumeSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
+        new(VolumeSettingsPage.General, L(nameof(CommonStrings.Settings_Common_Page_General)),
             BuildGeneralPage,
             CommonSettingsNavigationGlyphs.General),
-        new(VolumeSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
+        new(VolumeSettingsPage.Flyout, L(nameof(CommonStrings.Settings_Common_Page_Flyout)),
             BuildFlyoutPage,
             CommonSettingsNavigationGlyphs.Flyout),
-        new(VolumeSettingsPage.Devices, Loc(nameof(AppStrings.Settings_Common_Page_Devices)),
+        new(VolumeSettingsPage.Devices, L(nameof(AppStrings.Settings_Common_Page_Devices)),
             BuildDevicesPage,
             CommonSettingsNavigationGlyphs.Devices),
-        new(VolumeSettingsPage.DeviceAppDrawers, Loc(nameof(AppStrings.Settings_Common_Page_DeviceAppDrawers)),
+        new(VolumeSettingsPage.DeviceAppDrawers, L(nameof(AppStrings.Settings_Common_Page_DeviceAppDrawers)),
             BuildDeviceAppDrawersPage,
             CommonSettingsNavigationGlyphs.DeviceAppDrawers),
-        new(VolumeSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
+        new(VolumeSettingsPage.TrayIcon, L(nameof(CommonStrings.Settings_Common_Page_TrayIcon)),
             BuildTrayIconPage,
             CommonSettingsNavigationGlyphs.TrayIcon),
-        new(VolumeSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
+        new(VolumeSettingsPage.Hotkeys, L(nameof(CommonStrings.Settings_Common_Page_Hotkeys)),
             BuildHotkeysPage,
             CommonSettingsNavigationGlyphs.Hotkeys),
-        new(VolumeSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
+        new(VolumeSettingsPage.Theme, L(nameof(CommonStrings.Settings_Common_Page_Theme)),
             BuildThemePage,
             CommonSettingsNavigationGlyphs.Theme),
-        new(VolumeSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
+        new(VolumeSettingsPage.About, L(nameof(CommonStrings.Settings_Common_Page_About)),
             BuildAboutPage,
             CommonSettingsNavigationGlyphs.About)
     ];
-
-    private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch
-    {
-        ThemeMode.Light => true,
-        ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? false
-    };
 }

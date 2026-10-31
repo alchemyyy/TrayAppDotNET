@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.Utils;
+using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 
@@ -197,18 +198,24 @@ public sealed partial class BrightnessSettingsWindow
         ApplyEnvironmentalSunOverlayDate(DateTime.Today);
 
     /// <summary>
-    /// Steps the preview date when the focused date box receives mouse-wheel input.
+    /// Steps the preview date when the focused date box receives mouse-wheel input: a horizontal wheel is left to the
+    /// scroll host, and fine (touchpad) deltas add up to whole steps. Wheel up goes back in time.
     /// </summary>
     private void OnEnvironmentalSunOverlayDateBoxPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        if (_sunOverlayDateBox?.IsKeyboardFocusWithin != true) return;
+        if (_sunOverlayDateBox?.IsKeyboardFocusWithin != true || e.Delta.Y == 0) return;
 
-        int direction = e.Delta.Y > 0 ? -1 : 1;
-        StepEnvironmentalSunOverlayDate(e.KeyModifiers.HasFlag(KeyModifiers.Control)
-            ? d => d.AddMonths(direction)
-            : d => d.AddDays(direction));
         e.Handled = true;
+        int steps = _sunOverlayDateWheelSteps.Add(e.Delta.Y);
+        if (steps == 0) return;
+
+        int offset = -steps;
+        StepEnvironmentalSunOverlayDate(e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            ? d => d.AddMonths(offset)
+            : d => d.AddDays(offset));
     }
+
+    private WheelStepAccumulator _sunOverlayDateWheelSteps;
 
     /// <summary>
     /// Opens or closes the environmental preview date calendar popup.

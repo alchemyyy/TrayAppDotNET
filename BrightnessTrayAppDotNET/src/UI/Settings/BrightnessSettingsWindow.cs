@@ -3,7 +3,6 @@ using Avalonia.Media;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI;
-using TrayAppDotNETCommon.UI.Controls;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
@@ -23,29 +22,23 @@ public enum BrightnessSettingsPage
 
 public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<BrightnessSettingsPage>
 {
-    private readonly BrightnessSettingsUIResources _brightnessSettingsUIResources = [];
     private readonly AppSettings _settings;
-    private readonly Action<string, BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?> _showUninstaller;
+    private readonly Func<BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> _showUninstaller;
     private readonly ProfileManager? _profileManager;
     private readonly MonitorService? _monitorService;
     private readonly MonitorBrightnessRangeProvider? _brightnessRangeProvider;
 
-    private BrightnessSettingsUIResources.BrightnessSettingsUIAxamlProperties AXAMLSettingsUI =>
-        _brightnessSettingsUIResources.AxamlBrightnessSettingsUI;
+    private static BrightnessSettingsUIResources.BrightnessSettingsUIAxamlProperties AXAMLSettingsUI =>
+        BrightnessSettingsUIResources.Current.AxamlBrightnessSettingsUI;
 
     public BrightnessSettingsWindow()
-        : this(new AppSettings(), static (_, _, _) => { })
-    {
-    }
-
-    public BrightnessSettingsWindow(AppSettings settings)
-        : this(settings, static (_, _, _) => { })
+        : this(new AppSettings(), static (_, _) => Task.FromResult(false))
     {
     }
 
     public BrightnessSettingsWindow(
         AppSettings settings,
-        Action<string, BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?> showUninstaller)
+        Func<BrightnessInstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> showUninstaller)
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
@@ -53,113 +46,70 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         _monitorService = AppServices.MonitorService;
         _brightnessRangeProvider = AppServices.MonitorBrightnessRangeProvider;
 
-        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(CommonStrings.SettingsWindow_Title)), AppServices.AppIcon.LoadWindowIcon());
         InitializeSettingsShell();
+#if DEBUG
+        BrightnessSettingsUIResources.ResourcesReloaded += OnSettingsUIResourcesReloaded;
+#endif
     }
+
+    protected override void OnSettingsWindowClosed()
+    {
+#if DEBUG
+        BrightnessSettingsUIResources.ResourcesReloaded -= OnSettingsUIResourcesReloaded;
+#endif
+        base.OnSettingsWindowClosed();
+    }
+
+#if DEBUG
+    /// <summary>Rebuilds the open shell so its navigation icons pick up reloaded settings-UI values.</summary>
+    private void OnSettingsUIResourcesReloaded()
+    {
+        if (!IsClosing) RebuildShell(CurrentPageKey);
+    }
+#endif
 
     internal new void SelectPage(BrightnessSettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette ResolvePalette() =>
-        CreatePalette(AppServices.Theme, _settings, ResolveEffectiveIsLight());
+    protected override AppSettingsCommon CommonSettings => _settings;
 
-    protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
-
-    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
-
-    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+    protected override AppTheme? SettingsTheme => AppServices.Theme;
 
     protected override BrightnessSettingsPage DefaultPageKey => BrightnessSettingsPage.General;
 
-    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
-
-    protected override string OpenSettingsFolderText =>
-        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
-
-    protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
-
-    protected override Color ConfirmOverlayBackdrop =>
-        (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
-
-    protected override void Save()
-    {
-        _settings.Save();
-        _settings.RaiseChanged();
-    }
-
-    protected override bool ResolveEffectiveIsLightForBindings() => ResolveEffectiveIsLight();
+    protected override string HeaderText => L(nameof(CommonStrings.SettingsWindow_Header));
 
     protected override IReadOnlyList<SettingsPageDescriptor<BrightnessSettingsPage>> CreatePageDescriptors() =>
     [
-        new(BrightnessSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
-            () => BuildSettingsPage(BrightnessSettingsPage.General, BuildGeneralPage),
+        new(BrightnessSettingsPage.General, L(nameof(CommonStrings.Settings_Common_Page_General)),
+            BuildGeneralPage,
             CommonSettingsNavigationGlyphs.General),
-        new(BrightnessSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Flyout, BuildFlyoutPage),
+        new(BrightnessSettingsPage.Flyout, L(nameof(CommonStrings.Settings_Common_Page_Flyout)),
+            BuildFlyoutPage,
             CommonSettingsNavigationGlyphs.Flyout),
-        new(BrightnessSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
-            () => BuildSettingsPage(BrightnessSettingsPage.TrayIcon, BuildTrayIconPage),
+        new(BrightnessSettingsPage.TrayIcon, L(nameof(CommonStrings.Settings_Common_Page_TrayIcon)),
+            BuildTrayIconPage,
             CommonSettingsNavigationGlyphs.TrayIcon),
-        new(BrightnessSettingsPage.Monitors, Loc(nameof(AppStrings.Settings_Common_Page_Monitors)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Monitors, BuildMonitorsPage),
+        new(BrightnessSettingsPage.Monitors, L(nameof(AppStrings.Settings_Common_Page_Monitors)),
+            BuildMonitorsPage,
             CommonSettingsNavigationGlyphs.MonitorOptions),
-        new(BrightnessSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Hotkeys, BuildHotkeysPage),
+        new(BrightnessSettingsPage.Hotkeys, L(nameof(CommonStrings.Settings_Common_Page_Hotkeys)),
+            BuildHotkeysPage,
             CommonSettingsNavigationGlyphs.Hotkeys,
             NavigationIconTransform: AXAMLSettingsUI.HotkeysNavigationIconTransform),
         new(BrightnessSettingsPage.Environmental, L(nameof(AppStrings.Settings_Common_Page_Environmental)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Environmental, BuildEnvironmentalPage),
+            BuildEnvironmentalPage,
             NavigationIconFactory: BuildEnvironmentalNavigationIcon,
             NavigationIconScale: AXAMLSettingsUI.EnvironmentalNavigationIconScale,
             NavigationIconTransform: AXAMLSettingsUI.EnvironmentalNavigationIconTransform),
-        new(BrightnessSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage),
+        new(BrightnessSettingsPage.Theme, L(nameof(CommonStrings.Settings_Common_Page_Theme)),
+            BuildThemePage,
             CommonSettingsNavigationGlyphs.Theme),
-        new(BrightnessSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
-            () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage),
+        new(BrightnessSettingsPage.About, L(nameof(CommonStrings.Settings_Common_Page_About)),
+            BuildAboutPage,
             CommonSettingsNavigationGlyphs.About)
     ];
 
     private static EnvironmentalCurveGlyphIcon BuildEnvironmentalNavigationIcon(Color color) =>
         new() { IconColor = color };
-
-    internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
-    {
-        AppTheme resolvedTheme = theme ?? AppTheme.Default;
-        return new SettingsPalette(
-            resolvedTheme.ResolveBackground(settings, isLight),
-            resolvedTheme.ResolveForeground(settings, isLight),
-            resolvedTheme.Border.For(isLight),
-            resolvedTheme.Hover.For(isLight),
-            resolvedTheme.Pressed.For(isLight),
-            resolvedTheme.CardBackground.For(isLight),
-            resolvedTheme.ControlBackground.For(isLight),
-            resolvedTheme.SecondaryForeground.For(isLight),
-            resolvedTheme.DisabledForeground.For(isLight),
-            resolvedTheme.Accent.For(isLight),
-            resolvedTheme.ToggleSwitchOnTrack.For(isLight),
-            resolvedTheme.ToggleSwitchOnThumb.For(isLight),
-            resolvedTheme.TextBoxFocused.For(isLight),
-            resolvedTheme.SearchListItemSelected.For(isLight),
-            resolvedTheme.SearchListItemHover.For(isLight),
-            resolvedTheme.SliderProgress.For(isLight),
-            resolvedTheme.SliderTrack.For(isLight),
-            resolvedTheme.SliderThumb.For(isLight),
-            resolvedTheme.CloseButtonHover.For(isLight),
-            resolvedTheme.CloseButtonPressed.For(isLight),
-            resolvedTheme.CloseButtonGlyphActive.For(isLight),
-            resolvedTheme.HoverDeep.For(isLight),
-            resolvedTheme.PressedDeep.For(isLight),
-            resolvedTheme.ControlBackgroundDeep.For(isLight));
-    }
-
-    private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
-
-    private Control BuildSettingsPage(BrightnessSettingsPage page, Func<Control> buildPage)
-    {
-        Control control = buildPage();
-        ControlNames.AssignLogicalSubtree(control, page.ToString());
-        return control;
-    }
-
-    protected override void OnSettingsWindowClosed() => base.OnSettingsWindowClosed();
 }

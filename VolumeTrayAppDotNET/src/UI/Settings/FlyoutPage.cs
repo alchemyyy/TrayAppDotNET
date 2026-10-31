@@ -7,291 +7,291 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
+        StackPanel stack = PageStack(L(nameof(CommonStrings.Settings_Flyout_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_RestoreUndockState_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_RestoreUndockState_Description)),
             _settings.RestoreFlyoutUndockedOnStartup,
             v => _settings.RestoreFlyoutUndockedOnStartup = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.RestoreUndockState));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(CommonStrings.Settings_Flyout_Visibility_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_ShowUndockButton_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_ShowUndockButton_Description)),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowUndockButton));
         stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
+            L(nameof(CommonStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
+            L(nameof(CommonStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
             _settings.ClampUndockedFlyoutToScreen,
             v => _settings.ClampUndockedFlyoutToScreen = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ClampUndockedToScreen)));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Description)),
+            L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Title)),
+            L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Description)),
             [
                 (CommunicationsButtonVisibility.AlwaysShow,
-                    Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_AlwaysShow))),
+                    L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_AlwaysShow))),
                 (CommunicationsButtonVisibility.WhenDuckingOn,
-                    Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_WhenDuckingOn))),
+                    L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_WhenDuckingOn))),
                 (CommunicationsButtonVisibility.Hidden,
-                    Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Hidden)))
+                    L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Hidden)))
             ],
             _settings.FlyoutCommunicationsButtonVisibility,
             v => _settings.FlyoutCommunicationsButtonVisibility = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.CommunicationsButtonVisibility));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_Description)),
+            L(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_Description)),
             _settings.ShowRecordingDevicesInFlyout,
             v => _settings.ShowRecordingDevicesInFlyout = v,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowRecordingDevices));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Description)),
+            L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Title)),
+            L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Description)),
             [
                 (FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow,
-                    Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_NeverShow))),
+                    L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_NeverShow))),
                 (FlyoutDisconnectedBluetoothDeviceVisibility.Show,
-                    Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Show))),
+                    L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Show))),
                 (FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow,
-                    Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow))),
+                    L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow))),
                 (FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed,
-                    Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed)))
+                    L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed)))
             ],
             _settings.FlyoutDisconnectedBluetoothDeviceVisibility,
             v => _settings.FlyoutDisconnectedBluetoothDeviceVisibility = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.DisconnectedBluetoothDevices));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Description)),
+            L(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Title)),
+            L(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_Description)),
             _settings.CollapseDisconnectedBluetoothDevicesInFlyout,
             v => _settings.CollapseDisconnectedBluetoothDevicesInFlyout = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_CollapseDisconnectedBluetoothDevices_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.CollapseDisconnectedBluetoothDevices));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description)),
+            L(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description)),
             _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn,
             v => _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowBluetoothDevicesOnlyWhenOn));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Description)),
+            L(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Description)),
             _settings.ShowBluetoothRadioButtonInFlyoutHeader,
             value => _settings.ShowBluetoothRadioButtonInFlyoutHeader = value,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowBluetoothRadioButton));
         stack.Children.Add(Maybe(_settings.ShowBluetoothRadioButtonInFlyoutHeader, StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Description)),
+            L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Title)),
+            L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Description)),
             [
                 (BluetoothRadioButtonClickGesture.LeftClick,
-                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick))),
+                    L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick))),
                 (BluetoothRadioButtonClickGesture.ControlLeftClick,
-                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick))),
+                    L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick))),
                 (BluetoothRadioButtonClickGesture.AltLeftClick,
-                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick))),
+                    L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick))),
                 (BluetoothRadioButtonClickGesture.ShiftLeftClick,
-                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick)))
+                    L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick)))
             ],
             _settings.FlyoutBluetoothRadioButtonClickGesture,
             value => _settings.FlyoutBluetoothRadioButtonClickGesture = value,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.BluetoothRadioButtonClickGesture)));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description)),
+            L(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title)),
+            L(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description)),
             _settings.UseDynamicPlaybackVolumeGlyphInFlyout,
             v => _settings.UseDynamicPlaybackVolumeGlyphInFlyout = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.UseDynamicPlaybackVolumeGlyph));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_Description)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_Description)),
             _settings.ShowDeviceFormatText,
             v => _settings.ShowDeviceFormatText = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowDeviceFormatText));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_Description)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_Description)),
             _settings.ShowDeviceCodecText,
             v => _settings.ShowDeviceCodecText = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.ShowDeviceCodecText));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Description)),
+            L(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Title)),
+            L(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Description)),
             [
                 (SoundSettingsTarget.LegacySoundPanel,
-                    Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Legacy))),
+                    L(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Legacy))),
                 (SoundSettingsTarget.WindowsSettingsApp,
-                    Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Modern)))
+                    L(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Modern)))
             ],
             _settings.SoundSettingsTarget,
             v => _settings.SoundSettingsTarget = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.SoundSettingsTarget));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(CommonStrings.Settings_Flyout_Layout_Header)), p));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_Description)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceLayout_Title)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceLayout_Description)),
             [
                 (FlyoutDeviceLayoutStyle.AppsAboveDevice,
-                    Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsAbove))),
+                    L(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsAbove))),
                 (FlyoutDeviceLayoutStyle.AppsBelowDevice,
-                    Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsBelow)))
+                    L(nameof(AppStrings.Settings_Flyout_DeviceLayout_AppsBelow)))
             ],
             _settings.FlyoutDeviceLayout,
             v => _settings.FlyoutDeviceLayout = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_DeviceLayout_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.DeviceLayout));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Description)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Title)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Description)),
             [
                 (FlyoutDeviceTitlePosition.BelowSlider,
-                    Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_BelowSlider))),
+                    L(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_BelowSlider))),
                 (FlyoutDeviceTitlePosition.AboveSlider,
-                    Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_AboveSlider)))
+                    L(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_AboveSlider)))
             ],
             _settings.FlyoutDeviceTitlePosition,
             v => _settings.FlyoutDeviceTitlePosition = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.DeviceTitlePosition));
         stack.Children.Add(StringComboCard(
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_Description)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceSort_Title)),
+            L(nameof(AppStrings.Settings_Flyout_DeviceSort_Description)),
             [
-                (FlyoutDeviceSortOrder.StateGrouped, Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_StateGrouped))),
+                (FlyoutDeviceSortOrder.StateGrouped, L(nameof(AppStrings.Settings_Flyout_DeviceSort_StateGrouped))),
                 (FlyoutDeviceSortOrder.WindowsEnumeration,
-                    Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_WindowsEnumeration)))
+                    L(nameof(AppStrings.Settings_Flyout_DeviceSort_WindowsEnumeration)))
             ],
             _settings.FlyoutDeviceSort,
             v => _settings.FlyoutDeviceSort = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_DeviceSort_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.DeviceSort));
         stack.Children.Add(Maybe(_settings.ShowRecordingDevicesInFlyout, BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_IntermixRecording_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_IntermixRecording_Description)),
+            L(nameof(AppStrings.Settings_Flyout_IntermixRecording_Title)),
+            L(nameof(AppStrings.Settings_Flyout_IntermixRecording_Description)),
             _settings.IntermixRecordingWithPlaybackInFlyout,
             v => _settings.IntermixRecordingWithPlaybackInFlyout = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_IntermixRecording_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_IntermixRecording_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.IntermixRecording)));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title)),
-            Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Description)),
+            L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title)),
+            L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Description)),
             _settings.FlyoutHeaderAtBottom,
             v => _settings.FlyoutHeaderAtBottom = v,
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
+                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.HeaderAtBottom));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_PeakMeter_Header)), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_PeakMeter_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Description)),
+            L(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Title)),
+            L(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_Description)),
             _settings.UnifiedPeakMeter,
             v => _settings.UnifiedPeakMeter = v,
             p,
             RefreshCurrentPage,
             [
-                Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.UnifiedPeakMeter));
         stack.Children.Add(Maybe(_settings.UnifiedPeakMeter, IntCard(
-            Loc(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_Description)),
+            L(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_Title)),
+            L(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_Description)),
             _settings.UnifiedMeterLowChannelBiasMultiplier,
             AppSettings.UnifiedMeterLowChannelBiasMultiplierMin,
             AppSettings.UnifiedMeterLowChannelBiasMultiplierMax,
@@ -299,38 +299,37 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.UnifiedMeterBias)));
-        stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_Description)),
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Theme_MeterPeakFps_Title)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakFps_Description)),
             _settings.MeterPeakFps, AppSettings.MeterPeakFpsMin, AppSettings.MeterPeakFpsMax,
             v => _settings.MeterPeakFps = v, p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_MeterPeakFps_SearchKeywords))
             ],
-            node: ControlMap.Settings.FlyoutPage.MeterPeakFps));
-        stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Description)),
+            node: ControlMap.Settings.FlyoutPage.MeterPeakFPS));
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Title)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Description)),
             _settings.MeterPeakSampleRate, AppSettings.MeterPeakSampleRateMin, AppSettings.MeterPeakSampleRateMax,
             v => _settings.MeterPeakSampleRate = v, p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.MeterPeakSampleRate));
-        stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Title)),
-            Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Description)),
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Title)),
+            L(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Description)),
             _settings.MeterPeakChangeCeiling, AppSettings.MeterPeakChangeCeilingMin,
             AppSettings.MeterPeakChangeCeilingMax, v => _settings.MeterPeakChangeCeiling = v, p,
             searchKeywords:
             [
-                Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_SearchKeywords))
+                L(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_SearchKeywords))
             ],
             node: ControlMap.Settings.FlyoutPage.MeterPeakChangeCeiling));
 
-        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Flyout));
         return stack;
     }
 }

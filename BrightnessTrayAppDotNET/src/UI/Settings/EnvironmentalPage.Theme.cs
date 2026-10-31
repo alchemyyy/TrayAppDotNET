@@ -27,24 +27,27 @@ public sealed partial class BrightnessSettingsWindow
 
     private void WireEnvironmentalColorCallbacks()
     {
-        if (_environmentalCurveColorCallbacksWired) return;
-        _environmentalCurveColorCallbacksWired = true;
+        EnvironmentalPageState? state = _environmentalPageState;
+        if (state == null || state.CurveColorRedraw != null) return;
+
+        long pageGeneration = state.Generation;
+        Action redraw = () => DeferredEnvironmentalCurveRedraw(pageGeneration);
+        state.CurveColorRedraw = redraw;
         foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
-        {
-            color.Unsubscribe(DeferredEnvironmentalCurveRedraw);
-            color.Subscribe(DeferredEnvironmentalCurveRedraw);
-        }
+            color.Subscribe(redraw);
     }
 
     private void UnwireEnvironmentalColorCallbacks()
     {
-        if (!_environmentalCurveColorCallbacksWired) return;
-        _environmentalCurveColorCallbacksWired = false;
+        EnvironmentalPageState? state = _environmentalPageState;
+        if (state?.CurveColorRedraw is not { } redraw) return;
+
+        state.CurveColorRedraw = null;
         foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
         {
             RunEnvironmentalPageCleanup(
                 operation: "UnsubscribeEnvironmentalCurveColor",
-                () => color.Unsubscribe(DeferredEnvironmentalCurveRedraw));
+                () => color.Unsubscribe(redraw));
         }
     }
 
@@ -58,9 +61,7 @@ public sealed partial class BrightnessSettingsWindow
         yield return _settings.EnvironmentalGridLineColor;
     }
 
-    private void DeferredEnvironmentalCurveRedraw()
-    {
-        long pageGeneration = _environmentalPageGeneration;
+    private void DeferredEnvironmentalCurveRedraw(long pageGeneration) =>
         Dispatcher.UIThread.Post(
             () =>
             {
@@ -72,7 +73,6 @@ public sealed partial class BrightnessSettingsWindow
                 ApplyLegendColor(_currentTimeLegendItem, palette.CurrentTime);
             },
             DispatcherPriority.Background);
-    }
 
     private static void ApplyLegendColor(StackPanel? item, Color color)
     {
