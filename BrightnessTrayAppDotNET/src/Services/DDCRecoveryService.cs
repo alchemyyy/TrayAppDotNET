@@ -1,3 +1,5 @@
+using TrayAppDotNETCommon.Utils;
+
 namespace BrightnessTrayAppDotNET.Services;
 
 /// <summary>
@@ -414,7 +416,7 @@ public sealed class DDCRecoveryService(
             workerCts?.Cancel();
         }
 
-        DrainWorker(worker);
+        Safe.WaitForStop(worker, TimeConstants.DDCRecoveryShutdownDrainTimeoutMs, owner: "DDCRecoveryService fallback worker");
 
         lock (_gate)
         {
@@ -435,30 +437,5 @@ public sealed class DDCRecoveryService(
 
         lock (_candidateLogLock)
             _lastCandidateSet.Clear();
-    }
-
-    private static void DrainWorker(Task? worker)
-    {
-        if (worker == null) return;
-
-        try
-        {
-            bool completed = worker.Wait(TimeSpan.FromMilliseconds(TimeConstants.DDCRecoveryShutdownDrainTimeoutMs));
-            if (!completed)
-                TADNLog.Log("DDCRecoveryService: fallback worker did not stop before shutdown drain timeout");
-        }
-        catch (AggregateException ex)
-        {
-            foreach (Exception inner in ex.Flatten().InnerExceptions)
-            {
-                if (inner is OperationCanceledException) continue;
-
-                TADNLog.Log($"DDCRecoveryService.DrainWorker: {inner.Message}");
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal shutdown/dispose path.
-        }
     }
 }

@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace BrightnessTrayAppDotNET.Interop.DDCCI;
 
@@ -29,19 +28,6 @@ internal static class Dxva2
     public static extern bool DestroyPhysicalMonitors(
         uint dwPhysicalMonitorArraySize,
         [In] PHYSICAL_MONITOR[] pPhysicalMonitorArray);
-
-    [DllImport("dxva2.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool GetCapabilitiesStringLength(
-        IntPtr hMonitor,
-        out uint pdwCapabilitiesStringLengthInCharacters);
-
-    [DllImport("dxva2.dll", SetLastError = true, CharSet = CharSet.Ansi)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool CapabilitiesRequestAndCapabilitiesReply(
-        IntPtr hMonitor,
-        StringBuilder pszASCIICapabilitiesString,
-        uint dwCapabilitiesStringLengthInCharacters);
 
     [DllImport("dxva2.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -1,4 +1,10 @@
 <linker>
+  <!--
+    The vendored NCalc parses data-source transforms with Parlot. Parlot can compile parsers to IL through
+    System.Linq.Expressions (Compile/Build/BuildAsNonCompilableParser), which Native AOT cannot run, and those members
+    stay reachable through NCalc.EnableParlotParserCompilation. Their bodies are removed so trimming drops the
+    expression-compilation graph; NCalc keeps the interpreted parser, the only one Fan uses.
+  -->
   <assembly fullname="Parlot">
     <type fullname="Parlot.Fluent.Parser`1">
       <method name="Compile" body="remove" />

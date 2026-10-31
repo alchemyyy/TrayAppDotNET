@@ -15,7 +15,6 @@ namespace VolumeTrayAppDotNET.Audio;
 /// </summary>
 internal sealed class CaptureMeterActivationService : IDisposable
 {
-    private const uint MultithreadedApartment = 0;
     private const int MaxPacketsPerDrain = 64;
     private const string ThreadName = "VolumeTrayApp.CaptureMeterActivation";
 
@@ -57,11 +56,11 @@ internal sealed class CaptureMeterActivationService : IDisposable
 
     private void Run()
     {
-        int initializationResult = CoInitializeEx(IntPtr.Zero, MultithreadedApartment);
-        if (initializationResult < 0)
+        // A fresh thread has no apartment yet, so any failure means no MTA
+        using ComApartmentScope apartment = ComApartmentScope.Enter(Ole32.COINIT_MULTITHREADED);
+        if (apartment.HResult < 0)
         {
-            TADNLog.Log(
-                $"CaptureMeterActivationService: CoInitializeEx failed hr=0x{initializationResult:X8}");
+            TADNLog.Log($"CaptureMeterActivationService: CoInitializeEx failed hr=0x{apartment.HResult:X8}");
             return;
         }
 
@@ -111,7 +110,6 @@ internal sealed class CaptureMeterActivationService : IDisposable
         finally
         {
             foreach (CaptureStream stream in activeStreams.Values) Safe.Dispose(stream);
-            CoUninitialize();
         }
     }
 
@@ -251,12 +249,6 @@ internal sealed class CaptureMeterActivationService : IDisposable
 
         TADNLog.Log("CaptureMeterActivationService: worker did not stop before shutdown timeout");
     }
-
-    [DllImport("ole32.dll", ExactSpelling = true, PreserveSig = true)]
-    private static extern int CoInitializeEx(IntPtr reserved, uint initializationMode);
-
-    [DllImport("ole32.dll", ExactSpelling = true)]
-    private static extern void CoUninitialize();
 
     private sealed class CaptureStream : IDisposable
     {

@@ -103,28 +103,88 @@ internal static class CCD
     [DllImport("user32.dll")]
     public static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_SOURCE_DEVICE_NAME packet);
 
+    /// <summary>The two CCD calls behind <see cref="TryQueryActivePaths(string, out DISPLAYCONFIG_PATH_INFO[])"/>.</summary>
+    internal interface IActivePathQuery
+    {
+        int GetBufferSizes(out uint pathCount, out uint modeCount);
+
+        int Query(
+            ref uint pathCount,
+            DISPLAYCONFIG_PATH_INFO[] paths,
+            ref uint modeCount,
+            DISPLAYCONFIG_MODE_INFO_BLOB[] modes);
+    }
+
+    private const int ErrorInsufficientBuffer = 122;
+    private const int MaxActivePathQueryAttempts = 3;
+
+    private static readonly NativeActivePathQuery NativeQuery = new();
+
+    // The numbers of the last good CCD query, replaced whole
+    private static Dictionary<string, int> _lastFriendlyDisplayNumbers = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Reads the active display paths. A topology change between the size query and the query itself makes
+    /// QueryDisplayConfig fail with ERROR_INSUFFICIENT_BUFFER; that race is retried with fresh sizes. Other failures
+    /// (for example access denied in a disconnected remote session) are logged under <paramref name="caller"/>.
+    /// </summary>
+    public static bool TryQueryActivePaths(string caller, out DISPLAYCONFIG_PATH_INFO[] paths) =>
+        TryQueryActivePaths(NativeQuery, caller, out paths);
+
+    internal static bool TryQueryActivePaths(
+        IActivePathQuery query,
+        string caller,
+        out DISPLAYCONFIG_PATH_INFO[] paths)
+    {
+        for (int attempt = 1;; attempt++)
+        {
+            int rc = query.GetBufferSizes(out uint pathCount, out uint modeCount);
+            if (rc != 0)
+            {
+                TADNLog.Log($"{caller}: GetDisplayConfigBufferSizes failed rc={rc}");
+                paths = [];
+                return false;
+            }
+
+            if (pathCount == 0)
+            {
+                paths = [];
+                return true;
+            }
+
+            DISPLAYCONFIG_PATH_INFO[] buffer = new DISPLAYCONFIG_PATH_INFO[pathCount];
+            DISPLAYCONFIG_MODE_INFO_BLOB[] modes = new DISPLAYCONFIG_MODE_INFO_BLOB[modeCount];
+            rc = query.Query(ref pathCount, buffer, ref modeCount, modes);
+            if (rc == 0)
+            {
+                paths = pathCount < buffer.Length ? buffer[..(int)pathCount] : buffer;
+                return true;
+            }
+
+            // Paths were added between the size query and the query itself
+            if (rc == ErrorInsufficientBuffer && attempt < MaxActivePathQueryAttempts) continue;
+
+            TADNLog.Log($"{caller}: QueryDisplayConfig failed rc={rc} (attempt {attempt})");
+            paths = [];
+            return false;
+        }
+    }
+
     /// <summary>
     /// Maps GDI adapter name (<c>\\.\DISPLAY{n}</c> from <see cref="User32Monitor.GetMonitorInfo"/>)
     /// to the 1-based friendly display number that matches Settings.
     /// Scans only currently-active paths because only those have a GDI source name.
     ///
-    /// Returns empty on any CCD failure
-    /// - callers should fall back to parsing the trailing digits.
-    /// CCD has been stable since Win7, so failures here are vanishingly rare.
+    /// When CCD fails, returns the numbers of the last good query, so an adapter that is still present keeps its
+    /// number instead of falling back to the drifting <c>\\.\DISPLAY{n}</c> digits (row IDs are built from it).
     /// </summary>
     public static Dictionary<string, int> BuildFriendlyDisplayNumberMap()
     {
+        if (!TryQueryActivePaths(nameof(BuildFriendlyDisplayNumberMap), out DISPLAYCONFIG_PATH_INFO[] paths))
+            return new Dictionary<string, int>(Volatile.Read(ref _lastFriendlyDisplayNumbers), StringComparer.Ordinal);
+
         Dictionary<string, int> map = new(StringComparer.Ordinal);
-
-        int rc = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out uint pathCount, out uint modeCount);
-        if (rc != 0 || pathCount == 0) return map;
-
-        DISPLAYCONFIG_PATH_INFO[] paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
-        DISPLAYCONFIG_MODE_INFO_BLOB[] modes = new DISPLAYCONFIG_MODE_INFO_BLOB[modeCount];
-        rc = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
-        if (rc != 0) return map;
-
-        for (uint i = 0; i < pathCount; i++)
+        foreach (DISPLAYCONFIG_PATH_INFO path in paths)
         {
             DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceNameRequest = new()
             {
@@ -132,8 +192,8 @@ internal static class CCD
                 {
                     type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
                     size = (uint)Marshal.SizeOf<DISPLAYCONFIG_SOURCE_DEVICE_NAME>(),
-                    adapterId = paths[i].sourceInfo.adapterId,
-                    id = paths[i].sourceInfo.id
+                    adapterId = path.sourceInfo.adapterId,
+                    id = path.sourceInfo.id
                 }
             };
             if (DisplayConfigGetDeviceInfo(ref sourceNameRequest) != 0) continue;
@@ -147,9 +207,10 @@ internal static class CCD
             // later writes win and the user gets approximately-Settings ordering.
             // Multi-GPU labelling in Settings itself isn't strictly defined,
             // so this is close enough.
-            map[adapter] = (int)paths[i].sourceInfo.id + 1;
+            map[adapter] = (int)path.sourceInfo.id + 1;
         }
 
+        Volatile.Write(ref _lastFriendlyDisplayNumbers, new Dictionary<string, int>(map, StringComparer.Ordinal));
         return map;
     }
 
@@ -159,7 +220,6 @@ internal static class CCD
     /// Used to be the primary source of display numbers,
     /// but Windows monotonically bumps <c>n</c> on every new entry
     /// so it stops matching Settings after enough topology churn.
-    /// and <c>DisplayIdentifierService</c> can't diverge on fallback behaviour.
     /// </summary>
     public static int ParseDisplayNumberFromAdapterName(string? adapterName)
     {
@@ -180,5 +240,18 @@ internal static class CCD
         return friendlyByAdapter.TryGetValue(adapterName, out int n)
             ? n
             : ParseDisplayNumberFromAdapterName(adapterName);
+    }
+
+    private sealed class NativeActivePathQuery : IActivePathQuery
+    {
+        public int GetBufferSizes(out uint pathCount, out uint modeCount) =>
+            GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out pathCount, out modeCount);
+
+        public int Query(
+            ref uint pathCount,
+            DISPLAYCONFIG_PATH_INFO[] paths,
+            ref uint modeCount,
+            DISPLAYCONFIG_MODE_INFO_BLOB[] modes) =>
+            QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
     }
 }

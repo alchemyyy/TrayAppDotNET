@@ -36,27 +36,8 @@ public interface IDisplayService
     bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error);
 
     /// <summary>
-    /// Parse the capability string and return every supported VCP feature
-    /// together with its current and maximum values.
-    ///
-    /// This is a multi-step DDC sequence: one capability-string fetch followed by N per-VCP reads.
-    /// Each individual sub-call honours <see cref="OperationTimeoutMs"/> independently,
-    /// but the per-call timeout doesn't make the SEQUENCE atomic.
-    /// Callers that need atomicity against concurrent writes from elsewhere in the app
-    /// must hold the per-monitor mutex (<c>MonitorService.WithDDCLock</c>) for the whole call,
-    /// otherwise an interleaved write can land between the capability fetch and the per-VCP probes
-    /// and produce a stale list.
-    ///
-    /// Pass a linked <paramref name="ct"/> to give the entire sequence one shared deadline
-    /// rather than relying on per-op timeouts for sequence-length-dependent calls.
-    /// </summary>
-    bool TryGetVCPCapabilities(
-        DDCMonitor monitor, out IReadOnlyList<VCPCapability> capabilities, out string? error,
-        CancellationToken ct = default);
-
-    /// <summary>
     /// Read a single VCP feature value from a monitor.
-    /// <paramref name="ct"/> is the optional sequence-level deadline (see <see cref="TryGetVCPCapabilities"/>).
+    /// <paramref name="ct"/> is an optional deadline shared by a sequence of calls.
     /// </summary>
     bool TryGetVCPFeature(
         DDCMonitor monitor, byte code, out uint currentValue, out uint maxValue, out string? error,
@@ -64,7 +45,7 @@ public interface IDisplayService
 
     /// <summary>
     /// Write a new value for a VCP feature on a monitor.
-    /// <paramref name="ct"/> is the optional sequence-level deadline (see <see cref="TryGetVCPCapabilities"/>).
+    /// <paramref name="ct"/> is an optional deadline shared by a sequence of calls.
     /// </summary>
     bool TrySetVCPFeature(DDCMonitor monitor, byte code, uint value, out string? error, CancellationToken ct = default);
 

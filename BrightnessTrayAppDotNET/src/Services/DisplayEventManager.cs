@@ -372,26 +372,15 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         return unaccounted.Count > presence.RowsWithoutInstancePath ? string.Join('|', unaccounted) : null;
     }
 
-    private bool AllProfileMonitorsLoaded()
-    {
-        List<(string ID, string EDIDKey)>? expected = ReadSelectedProfileIdentities();
-        try
-        {
-            return AreProfileMonitorsLoaded(expected, monitorService.Monitors);
-        }
-        catch
-        {
-            // Observable collection mutated during iteration; report "not loaded" so the scan runs
-            return false;
-        }
-    }
+    private bool AllProfileMonitorsLoaded() =>
+        AreProfileMonitorsLoaded(ReadSelectedProfileIdentities(), monitorService.CaptureIdentityKeys());
 
     /// <summary>
     /// Burst and flyout short-circuit gate: true when every monitor in the selected profile has a live row.
     /// </summary>
     internal static bool AreProfileMonitorsLoaded(
         IReadOnlyList<(string ID, string EDIDKey)>? expected,
-        IEnumerable<MonitorInfo> monitors)
+        IEnumerable<(string ID, string EDIDKey)> liveRows)
     {
         if (expected == null || expected.Count == 0) return true;
 
@@ -402,10 +391,10 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         // monitors are missing and burst-refresh forever.
         HashSet<string> loadedIDs = new(StringComparer.Ordinal);
         HashSet<string> loadedEDIDKeys = new(StringComparer.Ordinal);
-        foreach (MonitorInfo monitor in monitors)
+        foreach ((string liveID, string liveEDIDKey) in liveRows)
         {
-            if (!string.IsNullOrEmpty(monitor.ID)) loadedIDs.Add(monitor.ID);
-            if (!string.IsNullOrEmpty(monitor.EDIDKey)) loadedEDIDKeys.Add(monitor.EDIDKey);
+            if (!string.IsNullOrEmpty(liveID)) loadedIDs.Add(liveID);
+            if (!string.IsNullOrEmpty(liveEDIDKey)) loadedEDIDKeys.Add(liveEDIDKey);
         }
 
         foreach ((string id, string EDIDKey) in expected)
@@ -424,34 +413,23 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         // instance: ProfileManager.SelectedIndex has a private setter, so a scanner-owned copy would freeze at
         // startup and miss user-driven profile switches. The file is small and the cost is bounded (at most
         // once per tick, i.e. once per second during a burst).
-        try
-        {
-            if (!TrayXmlSerializer.TryReadFile(
-                    profilesPath,
-                    out ProfileCollection? collection,
-                    ex => TADNLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}")))
-                return null;
-
-            int idx = collection.LastSelectedIndex;
-            if (idx < 0 || idx >= collection.Profiles.Count) return null;
-
-            // Reads the obsolete MonitorState.ID alongside EDIDKey: the scanner's match-set has to tolerate
-            // both shapes until the lazy migration in ProfileManager has had a chance to upgrade every entry.
-            // Suppress the obsolete warning at the read sites only.
-#pragma warning disable CS0618
-            return
-            [
-                .. collection.Profiles[idx].MonitorStates
-                    .Where(s => !string.IsNullOrEmpty(s.ID) || !string.IsNullOrEmpty(s.EDIDKey))
-                    .Select(s => (s.ID, s.EDIDKey))
-            ];
-#pragma warning restore CS0618
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}");
+        if (TrayXmlSerializer.TryLoadFile(
+                profilesPath,
+                out ProfileCollection? collection,
+                static message => TADNLog.Log($"DisplayEventManager: {message}"))
+            != DataFileLoadResult.Loaded)
             return null;
-        }
+
+        int idx = collection!.LastSelectedIndex;
+        if (idx < 0 || idx >= collection.Profiles.Count) return null;
+
+        // Saved profile entries identify monitors by EDIDKey only
+        return
+        [
+            .. collection.Profiles[idx].MonitorStates
+                .Where(static s => !string.IsNullOrEmpty(s.EDIDKey))
+                .Select(static s => (string.Empty, s.EDIDKey))
+        ];
     }
 
     /// <summary>

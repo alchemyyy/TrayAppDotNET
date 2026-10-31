@@ -1,63 +1,88 @@
-using System.Diagnostics;
-using System.Globalization;
+using BatteryTrayAppDotNET.Interop;
 
 namespace BatteryTrayAppDotNET.Services;
 
+/// <summary>
+/// Switches Windows power plans and the Energy Saver threshold through powrprof, so nothing depends on the Windows
+/// display language. A copy of the hidden Ultimate Performance template gets a new GUID; it is recognized by the
+/// GUID this process created or by the friendly name the template itself resolves to in the current language.
+/// </summary>
 internal static class WindowsPowerModeBackend
 {
-    private const int PowerCfgTimeoutMs = 5_000;
-    private const string UltimateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
-    private const string UltimateName = "Ultimate Performance";
-    private const string BalancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
-    private const string PowerSaverGuid = "a1841308-3541-4fab-bc81-f71556f20b4a";
-    private const string EnergySaverSubgroupGuid = "de830923-a562-41af-a086-e3a2c6bad2da";
-    private const string EnergySaverBatteryThresholdGuid = "e69653ca-cf7f-4f05-aa73-cb833fa90ad4";
-    private const string CurrentAcIndexLabel = "Current AC Power Setting Index";
-    private const string CurrentDcIndexLabel = "Current DC Power Setting Index";
-    private const int EnergySaverAlwaysThreshold = 100;
-    private const int EnergySaverNeverThreshold = 0;
+    private const string UltimateEnglishName = "Ultimate Performance";
+    private const uint EnergySaverAlwaysThreshold = 100;
+    private const uint EnergySaverNeverThreshold = 0;
 
-    // A mode switch and an Energy Saver change each take several powercfg calls against SCHEME_CURRENT. One gate
-    // keeps them, and the reads that follow them, from interleaving.
+    private static readonly Guid UltimateTemplateScheme = new("e9a42b02-d5df-448d-aa00-03f14749eb61");
+    private static readonly Guid BalancedScheme = new("381b4222-f694-41f0-9685-ff5bb260df2e");
+    private static readonly Guid PowerSaverScheme = new("a1841308-3541-4fab-bc81-f71556f20b4a");
+    private static readonly Guid EnergySaverSubgroup = new("de830923-a562-41af-a086-e3a2c6bad2da");
+    private static readonly Guid EnergySaverBatteryThreshold = new("e69653ca-cf7f-4f05-aa73-cb833fa90ad4");
+
+    // A mode switch and an Energy Saver change each take several calls against the active scheme. One gate keeps
+    // them, and the reads that follow them, from interleaving.
     private static readonly SemaphoreSlim Gate = new(initialCount: 1, maxCount: 1);
 
-    public static async Task<bool?> ReadEnergySaverAsync(CancellationToken cancellationToken)
-    {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            CommandResult result = await RunAsync(
-                ["/qh", "SCHEME_CURRENT", EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid],
-                cancellationToken).ConfigureAwait(false);
-            if (!result.Success) return null;
+    // The Ultimate plan this process duplicated, found again even when the user renamed it
+    private static Guid? _createdUltimateScheme;
 
-            int? threshold = ParsePowerCfgIndex(result.Output, CurrentDcIndexLabel)
-                             ?? ParsePowerCfgIndex(result.Output, CurrentAcIndexLabel);
-            return threshold.HasValue ? threshold.Value >= EnergySaverAlwaysThreshold : null;
-        }
-        finally
-        {
-            Gate.Release();
-        }
-    }
+    public static Task<bool?> ReadEnergySaverAsync(CancellationToken cancellationToken) =>
+        RunGatedAsync(ReadEnergySaver, cancellationToken);
 
     /// <summary>Sets Energy Saver to Always or Never on the active scheme.</summary>
-    public static async Task<bool> ApplyEnergySaverAsync(bool enabled, CancellationToken cancellationToken)
+    public static Task<bool> ApplyEnergySaverAsync(bool enabled, CancellationToken cancellationToken) =>
+        RunGatedAsync(() => ApplyEnergySaver(enabled), cancellationToken);
+
+    public static Task<BatteryPowerModeReadResult> ReadAsync(CancellationToken cancellationToken) =>
+        RunGatedAsync(ReadMode, cancellationToken);
+
+    public static Task<bool> ApplyAsync(BatteryPowerMode mode, CancellationToken cancellationToken) =>
+        RunGatedAsync(() => ApplyMode(mode), cancellationToken);
+
+    /// <summary>
+    /// The Ultimate plan among <paramref name="schemes"/>: the template itself or the copy this process created,
+    /// else the first plan named like the template in the current language or in English.
+    /// </summary>
+    internal static Guid? SelectUltimateScheme(
+        IEnumerable<(Guid Scheme, string? Name)> schemes,
+        Guid? createdScheme,
+        string? localizedUltimateName)
     {
-        string value = (enabled ? EnergySaverAlwaysThreshold : EnergySaverNeverThreshold)
-            .ToString(CultureInfo.InvariantCulture);
+        Guid? namedScheme = null;
+        foreach ((Guid scheme, string? name) in schemes)
+        {
+            if (scheme == UltimateTemplateScheme || scheme == createdScheme) return scheme;
+            if (namedScheme == null && IsUltimateName(name, localizedUltimateName)) namedScheme = scheme;
+        }
+
+        return namedScheme;
+    }
+
+    internal static BatteryPowerMode? ClassifyScheme(
+        Guid scheme,
+        string? schemeName,
+        Guid? createdScheme,
+        string? localizedUltimateName)
+    {
+        if (scheme == BalancedScheme) return BatteryPowerMode.Balanced;
+        if (scheme == PowerSaverScheme) return BatteryPowerMode.PowerSaver;
+        return SelectUltimateScheme([(scheme, schemeName)], createdScheme, localizedUltimateName) == null
+            ? null
+            : BatteryPowerMode.Ultimate;
+    }
+
+    private static bool IsUltimateName(string? name, string? localizedUltimateName) =>
+        !string.IsNullOrWhiteSpace(name)
+        && (string.Equals(name, localizedUltimateName, StringComparison.CurrentCultureIgnoreCase)
+            || string.Equals(name, UltimateEnglishName, StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<T> RunGatedAsync<T>(Func<T> operation, CancellationToken cancellationToken)
+    {
         await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            bool acSuccess = (await RunAsync(
-                ["/setacvalueindex", "SCHEME_CURRENT", EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid, value],
-                cancellationToken).ConfigureAwait(false)).Success;
-            bool dcSuccess = (await RunAsync(
-                ["/setdcvalueindex", "SCHEME_CURRENT", EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid, value],
-                cancellationToken).ConfigureAwait(false)).Success;
-            bool activeSuccess = (await RunAsync(["/setactive", "SCHEME_CURRENT"], cancellationToken)
-                .ConfigureAwait(false)).Success;
-            return acSuccess && dcSuccess && activeSuccess;
+            // The power policy store can be slow to answer; keep it off the caller's (UI) thread
+            return await Task.Run(operation, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -65,191 +90,188 @@ internal static class WindowsPowerModeBackend
         }
     }
 
-    public static async Task<BatteryPowerModeReadResult> ReadAsync(CancellationToken cancellationToken)
+    private static bool? ReadEnergySaver()
     {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            CommandResult result = await RunAsync(["/getactivescheme"], cancellationToken).ConfigureAwait(false);
-            if (!result.Success || ExtractGuid(result.Output) == null)
-                return new BatteryPowerModeReadResult(false, null);
+        if (!TryGetActiveScheme(out Guid active)) return null;
 
-            BatteryPowerMode? mode = result.Output.Contains(UltimateGuid, StringComparison.OrdinalIgnoreCase)
-                                     || result.Output.Contains($"({UltimateName})", StringComparison.OrdinalIgnoreCase)
-                ? BatteryPowerMode.Ultimate
-                : result.Output.Contains(BalancedGuid, StringComparison.OrdinalIgnoreCase)
-                    ? BatteryPowerMode.Balanced
-                    : result.Output.Contains(PowerSaverGuid, StringComparison.OrdinalIgnoreCase)
-                        ? BatteryPowerMode.PowerSaver
-                        : null;
-            return new BatteryPowerModeReadResult(true, mode);
-        }
-        finally
-        {
-            Gate.Release();
-        }
+        uint? threshold = ReadThreshold(active, ac: false) ?? ReadThreshold(active, ac: true);
+        return threshold.HasValue ? threshold.Value >= EnergySaverAlwaysThreshold : null;
     }
 
-    public static async Task<bool> ApplyAsync(BatteryPowerMode mode, CancellationToken cancellationToken)
+    private static bool ApplyEnergySaver(bool enabled)
     {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            return mode switch
-            {
-                BatteryPowerMode.Ultimate => await ApplyUltimateAsync(cancellationToken).ConfigureAwait(false),
-                BatteryPowerMode.Balanced => await ActivateAsync(BalancedGuid, cancellationToken).ConfigureAwait(false),
-                BatteryPowerMode.PowerSaver => await ActivateAsync(PowerSaverGuid, cancellationToken)
-                    .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(mode))
-            };
-        }
-        finally
-        {
-            Gate.Release();
-        }
+        if (!TryGetActiveScheme(out Guid active)) return false;
+
+        uint value = enabled ? EnergySaverAlwaysThreshold : EnergySaverNeverThreshold;
+        bool acWritten = WriteThreshold(active, ac: true, value);
+        bool dcWritten = WriteThreshold(active, ac: false, value);
+
+        // Re-activating the active scheme applies the changed indexes, as powercfg /setactive does
+        bool applied = SetActiveScheme(active);
+        return acWritten && dcWritten && applied;
     }
+
+    private static BatteryPowerModeReadResult ReadMode()
+    {
+        if (!TryGetActiveScheme(out Guid active)) return new BatteryPowerModeReadResult(false, null);
+
+        BatteryPowerMode? mode = ClassifyScheme(
+            active,
+            ReadFriendlyName(active),
+            _createdUltimateScheme,
+            ReadFriendlyName(UltimateTemplateScheme));
+        return new BatteryPowerModeReadResult(true, mode);
+    }
+
+    private static bool ApplyMode(BatteryPowerMode mode) =>
+        mode switch
+        {
+            BatteryPowerMode.Ultimate => ApplyUltimate(),
+            BatteryPowerMode.Balanced => Activate(BalancedScheme),
+            BatteryPowerMode.PowerSaver => Activate(PowerSaverScheme),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode))
+        };
 
     /// <summary>Activates an Ultimate Performance scheme, duplicating the hidden built-in one when none exists.</summary>
-    private static async Task<bool> ApplyUltimateAsync(CancellationToken cancellationToken)
+    private static bool ApplyUltimate()
     {
-        string? ultimate = await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
-        if (ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false))
-            return true;
+        if (FindUltimateScheme() is { } existing && Activate(existing)) return true;
 
-        CommandResult created = await RunAsync(["/duplicatescheme", UltimateGuid], cancellationToken)
-            .ConfigureAwait(false);
-        ultimate = created.Success ? ExtractGuid(created.Output) : null;
-        ultimate ??= await FindUltimateAsync(cancellationToken).ConfigureAwait(false);
-        return ultimate != null && await ActivateAsync(ultimate, cancellationToken).ConfigureAwait(false);
+        if (!TryDuplicateScheme(UltimateTemplateScheme, out Guid created)) return false;
+
+        _createdUltimateScheme = created;
+        TADNLog.Log($"WindowsPowerModeBackend: created Ultimate Performance plan {created:D}");
+        return Activate(created);
     }
 
-    private static async Task<bool> ActivateAsync(string scheme, CancellationToken cancellationToken)
+    /// <summary>Read-only: the installed Ultimate plan, or null when the template has never been duplicated.</summary>
+    internal static Guid? FindUltimateScheme() =>
+        SelectUltimateScheme(
+            EnumerateSchemes().Select(static scheme => (scheme, ReadFriendlyName(scheme))),
+            _createdUltimateScheme,
+            ReadFriendlyName(UltimateTemplateScheme));
+
+    private static bool Activate(Guid scheme)
     {
-        await CarryEnergySaverThresholdAsync(scheme, cancellationToken).ConfigureAwait(false);
-        return (await RunAsync(["/setactive", scheme], cancellationToken).ConfigureAwait(false)).Success;
+        CarryEnergySaverThreshold(scheme);
+        return SetActiveScheme(scheme);
     }
 
     /// <summary>
     /// Energy Saver's threshold is stored per scheme, so each mode would otherwise switch Energy Saver to its own
     /// setting. Copying the active scheme's threshold keeps Energy Saver where the user left it across mode changes.
     /// </summary>
-    private static async Task CarryEnergySaverThresholdAsync(string targetScheme, CancellationToken cancellationToken)
+    private static void CarryEnergySaverThreshold(Guid targetScheme)
     {
-        CommandResult current = await RunAsync(
-            ["/qh", "SCHEME_CURRENT", EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid],
-            cancellationToken).ConfigureAwait(false);
-        // The query output opens with the active scheme's GUID
-        string? currentScheme = current.Success ? ExtractGuid(current.Output) : null;
-        if (currentScheme == null || currentScheme.Equals(targetScheme, StringComparison.OrdinalIgnoreCase)) return;
+        if (!TryGetActiveScheme(out Guid active) || active == targetScheme) return;
 
-        if (ParsePowerCfgIndex(current.Output, CurrentAcIndexLabel) is { } acThreshold)
+        if (ReadThreshold(active, ac: true) is { } acThreshold) _ = WriteThreshold(targetScheme, ac: true, acThreshold);
+        if (ReadThreshold(active, ac: false) is { } dcThreshold) _ = WriteThreshold(targetScheme, ac: false, dcThreshold);
+    }
+
+    private static unsafe bool TryGetActiveScheme(out Guid scheme)
+    {
+        uint rc = PowrProf.PowerGetActiveScheme(IntPtr.Zero, out Guid* active);
+        if (rc != PowrProf.ErrorSuccess || active == null)
         {
-            await RunAsync(
-                ["/setacvalueindex", targetScheme, EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid,
-                    acThreshold.ToString(CultureInfo.InvariantCulture)],
-                cancellationToken).ConfigureAwait(false);
+            TADNLog.Log($"WindowsPowerModeBackend: PowerGetActiveScheme failed ({rc})");
+            scheme = default;
+            return false;
         }
 
-        if (ParsePowerCfgIndex(current.Output, CurrentDcIndexLabel) is { } dcThreshold)
+        scheme = *active;
+        _ = Kernel32.LocalFree((IntPtr)active);
+        return true;
+    }
+
+    private static unsafe bool SetActiveScheme(Guid scheme)
+    {
+        uint rc = PowrProf.PowerSetActiveScheme(IntPtr.Zero, &scheme);
+        if (rc == PowrProf.ErrorSuccess) return true;
+
+        TADNLog.Log($"WindowsPowerModeBackend: PowerSetActiveScheme({scheme:D}) failed ({rc})");
+        return false;
+    }
+
+    private static unsafe bool TryDuplicateScheme(Guid source, out Guid created)
+    {
+        Guid* destination = null;
+        uint rc = PowrProf.PowerDuplicateScheme(IntPtr.Zero, &source, &destination);
+        if (rc != PowrProf.ErrorSuccess || destination == null)
         {
-            await RunAsync(
-                ["/setdcvalueindex", targetScheme, EnergySaverSubgroupGuid, EnergySaverBatteryThresholdGuid,
-                    dcThreshold.ToString(CultureInfo.InvariantCulture)],
-                cancellationToken).ConfigureAwait(false);
+            TADNLog.Log($"WindowsPowerModeBackend: PowerDuplicateScheme({source:D}) failed ({rc})");
+            created = default;
+            return false;
+        }
+
+        created = *destination;
+        _ = Kernel32.LocalFree((IntPtr)destination);
+        return true;
+    }
+
+    internal static unsafe List<Guid> EnumerateSchemes()
+    {
+        List<Guid> schemes = [];
+        for (uint index = 0;; index++)
+        {
+            Guid scheme;
+            uint size = (uint)sizeof(Guid);
+            uint rc = PowrProf.PowerEnumerate(
+                IntPtr.Zero,
+                schemeGuid: null,
+                subGroupOfPowerSettingsGuid: null,
+                PowrProf.AccessScheme,
+                index,
+                (byte*)&scheme,
+                &size);
+            if (rc == PowrProf.ErrorNoMoreItems) return schemes;
+            if (rc != PowrProf.ErrorSuccess)
+            {
+                TADNLog.Log($"WindowsPowerModeBackend: PowerEnumerate({index}) failed ({rc})");
+                return schemes;
+            }
+
+            schemes.Add(scheme);
         }
     }
 
-    private static async Task<string?> FindUltimateAsync(CancellationToken cancellationToken)
+    internal static unsafe string? ReadFriendlyName(Guid scheme)
     {
-        CommandResult result = await RunAsync(["/list"], cancellationToken).ConfigureAwait(false);
-        if (!result.Success) return null;
+        uint size = 0;
+        uint rc = PowrProf.PowerReadFriendlyName(IntPtr.Zero, &scheme, null, null, null, &size);
+        if (rc is not (PowrProf.ErrorSuccess or PowrProf.ErrorMoreData) || size < sizeof(char)) return null;
 
-        string? namedGuid = null;
-        foreach (string line in result.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        byte[] buffer = new byte[size];
+        fixed (byte* name = buffer)
         {
-            string? guid = ExtractGuid(line);
-            if (guid == null) continue;
-            if (guid.Equals(UltimateGuid, StringComparison.OrdinalIgnoreCase)) return guid;
-            if (line.Contains($"({UltimateName})", StringComparison.OrdinalIgnoreCase)) namedGuid ??= guid;
-        }
+            rc = PowrProf.PowerReadFriendlyName(IntPtr.Zero, &scheme, null, null, name, &size);
+            if (rc != PowrProf.ErrorSuccess) return null;
 
-        return namedGuid;
-    }
-
-    private static string? ExtractGuid(string output)
-    {
-        foreach (string token in output.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-            if (Guid.TryParse(token, out Guid guid)) return guid.ToString("D");
-        return null;
-    }
-
-    private static int? ParsePowerCfgIndex(string output, string label)
-    {
-        foreach (string line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (!line.Contains(label, StringComparison.OrdinalIgnoreCase)) continue;
-            int colon = line.IndexOf(':');
-            if (colon < 0 || colon == line.Length - 1) return null;
-            string token = line[(colon + 1)..].Trim();
-            return token.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-                ? int.TryParse(token[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int hexValue)
-                    ? hexValue : null
-                : int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
-                    ? value : null;
-        }
-
-        return null;
-    }
-
-    private static async Task<CommandResult> RunAsync(string[] arguments, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(PowerCfgTimeoutMs);
-        ProcessStartInfo start = new()
-        {
-            FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "powercfg.exe"),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        foreach (string argument in arguments) start.ArgumentList.Add(argument);
-        using Process process = new();
-        process.StartInfo = start;
-        try
-        {
-            if (!process.Start()) return new CommandResult(false, string.Empty);
-
-            // Drain both pipes concurrently with a cancellable exit wait so neither pipe can bypass the timeout.
-            Task<string> output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            Task<string> error = process.StandardError.ReadToEndAsync(timeout.Token);
-            await Task.WhenAll(output, error, process.WaitForExitAsync(timeout.Token)).ConfigureAwait(false);
-            if (process.ExitCode != 0)
-                TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: exit {process.ExitCode}");
-            return new CommandResult(process.ExitCode == 0, await output.ConfigureAwait(false));
-        }
-        catch (OperationCanceledException)
-        {
-            TryKill(process);
-            cancellationToken.ThrowIfCancellationRequested();
-            TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: timed out");
-            return new CommandResult(false, string.Empty);
-        }
-        catch (Exception ex)
-        {
-            TryKill(process);
-            TADNLog.Log($"WindowsPowerModeBackend powercfg {string.Join(' ', arguments)}: {ex.Message}");
-            return new CommandResult(false, string.Empty);
+            return new string((char*)name, startIndex: 0, (int)(size / sizeof(char))).TrimEnd('\0');
         }
     }
 
-    private static void TryKill(Process process)
+    private static unsafe uint? ReadThreshold(Guid scheme, bool ac)
     {
-        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-        catch { /* Best effort after timeout, cancellation, or startup failure. */ }
+        Guid subgroup = EnergySaverSubgroup;
+        Guid setting = EnergySaverBatteryThreshold;
+        uint value;
+        uint rc = ac
+            ? PowrProf.PowerReadACValueIndex(IntPtr.Zero, &scheme, &subgroup, &setting, &value)
+            : PowrProf.PowerReadDCValueIndex(IntPtr.Zero, &scheme, &subgroup, &setting, &value);
+        return rc == PowrProf.ErrorSuccess ? value : null;
     }
 
-    private readonly record struct CommandResult(bool Success, string Output);
+    private static unsafe bool WriteThreshold(Guid scheme, bool ac, uint value)
+    {
+        Guid subgroup = EnergySaverSubgroup;
+        Guid setting = EnergySaverBatteryThreshold;
+        uint rc = ac
+            ? PowrProf.PowerWriteACValueIndex(IntPtr.Zero, &scheme, &subgroup, &setting, value)
+            : PowrProf.PowerWriteDCValueIndex(IntPtr.Zero, &scheme, &subgroup, &setting, value);
+        if (rc == PowrProf.ErrorSuccess) return true;
+
+        TADNLog.Log($"WindowsPowerModeBackend: writing the Energy Saver threshold to {scheme:D} failed ({rc})");
+        return false;
+    }
 }

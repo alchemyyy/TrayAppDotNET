@@ -1,4 +1,5 @@
 using System.Globalization;
+using TrayAppDotNETCommon.Serialization;
 
 namespace FanControlTrayAppDotNET.Services;
 
@@ -8,18 +9,32 @@ namespace FanControlTrayAppDotNET.Services;
 /// restores that snapshot. After a crash the registers stay at the crashed instance's last duty, so the next
 /// instance's snapshot (and every SetDefault) is that duty, not BIOS auto. The marker file holds the boot
 /// time; a marker from the same boot means firmware defaults can't be trusted until the next reboot.
+/// The marker tracks machine state, not user settings, so it lives under the shared root
+/// (<c>%LOCALAPPDATA%\TrayAppDotNET</c>), which <c>--settings-dir</c> does not move: a crash under one settings
+/// folder is still seen by a later launch under another. Older builds kept it beside the settings
+/// (<see cref="LegacyPath"/>); Load honours a same-boot marker there and deletes that file.
+/// Known limitation: the boot time is wall time minus uptime, and Fast Startup resumes the kernel session with its
+/// uptime, so a Fast Startup power cycle counts as the same boot. That keeps defaults untrusted (curve fallbacks write
+/// Max Duty instead of SetDefault) until a full restart: the loud, safe side.
 /// </summary>
 internal sealed class FanControlDirtyShutdownMarker
 {
     internal const string FileName = "fan-control-active.marker";
 
+    internal static string DefaultPath => Path.Combine(Program.LocalAppDataRoot, FileName);
+
+    /// <summary>Where builds before the shared-root move wrote the marker: the app's settings folder.</summary>
+    internal static string LegacyPath => Path.Combine(AppSettings.GetDefaultDirectory(), FileName);
+
     private readonly string _path;
+    private readonly string? _legacyPath;
     private readonly Lock _lock = new();
     private bool _written;
 
-    public FanControlDirtyShutdownMarker(string path)
+    public FanControlDirtyShutdownMarker(string path, string? legacyPath = null)
     {
         _path = path;
+        _legacyPath = string.Equals(legacyPath, path, StringComparison.OrdinalIgnoreCase) ? null : legacyPath;
     }
 
     /// <summary>
@@ -60,35 +75,38 @@ internal sealed class FanControlDirtyShutdownMarker
         !(TryParse(markerText, out DateTime markerBootUtc) && IsSameBoot(markerBootUtc, currentBootUtc));
 
     /// <summary>
-    /// Startup check. Keeps a same-boot marker (the registers stay suspect until reboot) and deletes any other.
+    /// Startup check. Keeps a same-boot marker (the registers stay suspect until reboot) and deletes any other. A
+    /// legacy-path marker counts the same; it is moved to the shared root when it is from this boot, then deleted.
     /// </summary>
     public void Load(DateTime currentBootUtc)
     {
         lock (_lock)
         {
-            string? text;
-            try
+            string? legacyText = _legacyPath == null ? null : TryRead(_legacyPath);
+            bool legacyTrusted = AreFirmwareDefaultsTrusted(legacyText, currentBootUtc);
+            string? text = TryRead(_path, out bool readFailed);
+            if (readFailed && legacyTrusted) return;
+
+            bool trusted = AreFirmwareDefaultsTrusted(text, currentBootUtc);
+            FirmwareDefaultsTrusted = trusted && legacyTrusted;
+            if (FirmwareDefaultsTrusted)
             {
-                if (!File.Exists(_path)) return;
-                text = File.ReadAllText(_path);
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"FanControlDirtyShutdownMarker: read failed: {ex.Message}");
+                TryDelete(_path);
+                if (_legacyPath != null && legacyText != null) TryDelete(_legacyPath);
                 return;
             }
 
-            FirmwareDefaultsTrusted = AreFirmwareDefaultsTrusted(text, currentBootUtc);
-            if (!FirmwareDefaultsTrusted)
-            {
-                _written = true;
-                TADNLog.Log(
-                    "FanControlDirtyShutdownMarker: an earlier instance this boot exited without restoring fans; "
-                    + "firmware defaults are untrusted, curve fallbacks write Max Duty instead of SetDefault");
-                return;
-            }
+            // A same-boot legacy marker that is the only record of the unclean exit moves to the shared root first;
+            // it stays where it is only when that copy could not be written
+            bool legacyIsOnlyRecord = !legacyTrusted && trusted;
+            bool carried = legacyIsOnlyRecord && !readFailed && TryWrite(legacyText!);
+            if (_legacyPath != null && legacyText != null && (!legacyIsOnlyRecord || carried))
+                TryDelete(_legacyPath);
 
-            TryDelete();
+            _written = true;
+            TADNLog.Log(
+                "FanControlDirtyShutdownMarker: an earlier instance this boot exited without restoring fans; "
+                + "firmware defaults are untrusted, curve fallbacks write Max Duty instead of SetDefault");
         }
     }
 
@@ -101,16 +119,7 @@ internal sealed class FanControlDirtyShutdownMarker
         {
             if (_written) return;
             _written = true;
-            try
-            {
-                string? directory = Path.GetDirectoryName(_path);
-                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                File.WriteAllText(_path, Format(currentBootUtc));
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"FanControlDirtyShutdownMarker: write failed: {ex.Message}");
-            }
+            _ = TryWrite(Format(currentBootUtc));
         }
     }
 
@@ -125,20 +134,51 @@ internal sealed class FanControlDirtyShutdownMarker
         {
             if (!FirmwareDefaultsTrusted) return;
 
-            TryDelete();
+            TryDelete(_path);
             _written = false;
         }
     }
 
-    private void TryDelete()
+    private static string? TryRead(string path) => TryRead(path, out _);
+
+    private static string? TryRead(string path, out bool failed)
     {
+        failed = false;
         try
         {
-            File.Delete(_path);
+            return File.Exists(path) ? File.ReadAllText(path) : null;
         }
         catch (Exception ex)
         {
-            TADNLog.Log($"FanControlDirtyShutdownMarker: delete failed: {ex.Message}");
+            failed = true;
+            TADNLog.Log($"FanControlDirtyShutdownMarker: reading '{path}' failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private bool TryWrite(string text)
+    {
+        try
+        {
+            AtomicFile.WriteAllText(_path, text);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanControlDirtyShutdownMarker: write failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanControlDirtyShutdownMarker: deleting '{path}' failed: {ex.Message}");
         }
     }
 }

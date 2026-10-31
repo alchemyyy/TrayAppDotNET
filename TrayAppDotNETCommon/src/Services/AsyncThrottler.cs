@@ -13,6 +13,8 @@ public sealed class AsyncThrottler<TKey>(
 {
     private readonly Dictionary<TKey, Slot> _slots = new(comparer ?? EqualityComparer<TKey>.Default);
     private readonly Lock _gate = new();
+    // Cancelled on Dispose but never disposed: drivers still running read its token afterwards, and a source with no
+    // timer and no linked parents owns nothing that needs releasing.
     private readonly CancellationTokenSource _shutdownTokenSource = new();
     private readonly int _drainPollIntervalMs = Math.Max(val1: 1, drainPollIntervalMs);
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
@@ -143,12 +145,6 @@ public sealed class AsyncThrottler<TKey>(
             }
 
             _slots.Clear();
-        }
-
-        try { _shutdownTokenSource.Dispose(); }
-        catch
-        {
-            /* best-effort */
         }
     }
 

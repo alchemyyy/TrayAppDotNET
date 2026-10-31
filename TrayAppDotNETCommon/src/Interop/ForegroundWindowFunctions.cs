@@ -25,8 +25,8 @@ public static class ForegroundWindowFunctions
         if (User32.SetForegroundWindow(windowHandle) && User32.GetForegroundWindow() == windowHandle)
             return true;
 
-        uint foregroundThreadID = GetWindowThreadProcessId(User32.GetForegroundWindow(), IntPtr.Zero);
-        uint currentThreadID = GetCurrentThreadId();
+        uint foregroundThreadID = User32.GetWindowThreadProcessId(User32.GetForegroundWindow(), out _);
+        uint currentThreadID = Kernel32.GetCurrentThreadId();
         if (foregroundThreadID == 0
             || foregroundThreadID == currentThreadID
             || !AttachThreadInput(currentThreadID, foregroundThreadID, attach: true))
@@ -34,7 +34,7 @@ public static class ForegroundWindowFunctions
 
         try
         {
-            _ = BringWindowToTop(windowHandle);
+            _ = User32.BringWindowToTop(windowHandle);
             _ = User32.SetForegroundWindow(windowHandle);
         }
         finally
@@ -48,22 +48,12 @@ public static class ForegroundWindowFunctions
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint inputCount, ref NativeInput inputs, int inputSize);
 
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, IntPtr processID);
-
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AttachThreadInput(
         uint attachingThreadID,
         uint attachedThreadID,
         [MarshalAs(UnmanagedType.Bool)] bool attach);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool BringWindowToTop(IntPtr windowHandle);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
 
     // INPUT with its MOUSEINPUT arm; 40 bytes on x64, matching the size SendInput validates
     [StructLayout(LayoutKind.Sequential)]

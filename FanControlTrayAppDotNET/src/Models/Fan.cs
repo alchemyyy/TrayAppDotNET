@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
 
@@ -452,8 +453,16 @@ public class Fan : INotifyPropertyChanged
     [XmlIgnore]
     public string AssignedCurveDisplayLabel =>
         string.IsNullOrWhiteSpace(Group)
-            ? string.IsNullOrEmpty(AssignedCurveName) ? "Curve: None" : $"Curve: {AssignedCurveName}"
-            : $"Group: {Group}";
+            ? string.IsNullOrEmpty(AssignedCurveName)
+                ? LocalizationManager.Instance[nameof(AppStrings.Fan_CurveLabel_None)]
+                : string.Format(
+                    CultureInfo.CurrentCulture,
+                    LocalizationManager.Instance[nameof(AppStrings.Fan_CurveLabel_Format)],
+                    AssignedCurveName)
+            : string.Format(
+                CultureInfo.CurrentCulture,
+                LocalizationManager.Instance[nameof(AppStrings.Fan_GroupLabel_Format)],
+                Group);
 
     // Period-delimited LHM tree path that locates this fan's Control entry. Spaces -> underscores.
     // Also serves as this Fan's key when serialized so curves/triggers can reference it.
@@ -639,10 +648,6 @@ public class Fan : INotifyPropertyChanged
         }
     } = FanControlMode.Curve;
 
-    [XmlArray("Triggers")]
-    [XmlArrayItem("Trigger")]
-    public List<Trigger> Triggers { get; set; } = [];
-
     // Reference by name into DeadbandsList.DeadbandsLists. Empty == no deadbands applied.
 
     [XmlAttribute]
@@ -722,8 +727,7 @@ public class Fan : INotifyPropertyChanged
         Group = Group,
         FlyoutDisplayOrder = FlyoutDisplayOrder,
         ModeLocked = ModeLocked,
-        ForcedNonFunctioning = ForcedNonFunctioning,
-        Triggers = CloneTriggers(Triggers)
+        ForcedNonFunctioning = ForcedNonFunctioning
     };
 
     public void ApplyUserSettings(FanUserSettings? settings)
@@ -755,8 +759,6 @@ public class Fan : INotifyPropertyChanged
         FlyoutDisplayOrder = settings.FlyoutDisplayOrder;
         ModeLocked = settings.ModeLocked;
         ForcedNonFunctioning = settings.ForcedNonFunctioning;
-        Triggers = CloneTriggers(settings.Triggers);
-        OnPropertyChanged(nameof(Triggers));
     }
 
     public void ApplyUserSettings(Fan? source)
@@ -814,15 +816,6 @@ public class Fan : INotifyPropertyChanged
             ? value / (double)DutyCycleMaximum * rpmReference
             : value / (double)Math.Max(val1: 1, rpmReference) * DutyCycleMaximum;
         return (int)Math.Round(converted);
-    }
-
-    private static List<Trigger> CloneTriggers(IEnumerable<Trigger> triggers)
-    {
-        List<Trigger> cloned = [];
-        foreach (Trigger trigger in triggers)
-            cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled });
-
-        return cloned;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)

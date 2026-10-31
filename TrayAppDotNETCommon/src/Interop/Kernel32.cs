@@ -3,9 +3,7 @@ using System.Text;
 
 namespace TrayAppDotNETCommon.Interop;
 
-// Shared kernel32 P/Invokes consumed by both the icon-extraction pipeline and the per-session
-// process-lifetime watchers (ProcessHelper / ProcessExitMonitor). One declaration site avoids the
-// three-copy drift the pre-refactor layout shipped with.
+// Shared kernel32 P/Invokes. Every app declares these members here only (process handles, waits, events, std handles).
 public static class Kernel32
 {
     public const uint PROCESS_TERMINATE = 0x0001;
@@ -18,6 +16,7 @@ public static class Kernel32
 
     public const uint WAIT_OBJECT_0 = 0x00000000;
     public const uint WAIT_TIMEOUT = 0x00000102;
+    public const uint WAIT_FAILED = 0xFFFFFFFF;
     public const uint INFINITE = 0xFFFFFFFF;
 
     // Standard device handles for GetStdHandle. WinExe processes only get valid ones when the parent
@@ -69,6 +68,42 @@ public static class Kernel32
     public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern unsafe uint WaitForMultipleObjects(
+        uint nCount,
+        IntPtr* lpHandles,
+        [MarshalAs(UnmanagedType.Bool)] bool bWaitAll,
+        uint dwMilliseconds);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateEventW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateEvent(
+        IntPtr lpEventAttributes,
+        [MarshalAs(UnmanagedType.Bool)] bool bManualReset,
+        [MarshalAs(UnmanagedType.Bool)] bool bInitialState,
+        string? lpName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetEvent(IntPtr hEvent);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ResetEvent(IntPtr hEvent);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetNamedPipeClientProcessId(SafeHandle pipe, out uint clientProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetNamedPipeServerProcessId(SafeHandle pipe, out uint serverProcessId);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
 
@@ -83,6 +118,10 @@ public static class Kernel32
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseHandle(IntPtr hObject);
+
+    /// <summary>Frees memory Windows allocated for the caller (security descriptors, powrprof GUIDs).</summary>
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr LocalFree(IntPtr hMem);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr GetStdHandle(int nStdHandle);

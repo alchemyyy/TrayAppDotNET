@@ -84,9 +84,8 @@ internal static class NightLightCloudStore
     //
     // Defaults are mirrored to
     // %LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\nightlight\nightlight_known_rvas.xml on first run so
-    // users can add entries for new Windows builds without recompiling. If the file matches the
-    // canonical default XML byte-for-byte we keep the in-memory defaults; if it has been hand-edited we discard
-    // defaults and load the file. See LoadKnownRVAs for the full reconciliation logic.
+    // users can add entries for new Windows builds without recompiling. The file's entries win; shipped defaults
+    // fill in the builds it lacks. See LoadKnownRVAs for the full reconciliation logic.
     private const string KnownRVAsFileName = "nightlight_known_rvas.xml";
 
     private static readonly string KnownRVAsFilePath =
@@ -100,6 +99,11 @@ internal static class NightLightCloudStore
     private static readonly Lock _gate = new();
     private static readonly Lock _streamGate = new();
     private static volatile bool _supported;
+
+    // After a failed initialization: false only when this Windows build cannot run the native backend (the DLL is
+    // missing, or its symbols lack the required names); every other failure (thread start, RoInitialize, LoadLibrary,
+    // symbol download, Initialize) may pass in a later helper process
+    private static volatile bool _initializationFailureRetryable = true;
     private static bool _shutdownRequested;
     private static BlockingCollection<BackendRequest>? _backendRequests;
     private static Thread? _backendThread;
@@ -128,6 +132,12 @@ internal static class NightLightCloudStore
         EnsureInit();
         return _supported;
     }
+
+    /// <summary>
+    /// After <see cref="IsSupported"/> returned false: true when the failure may pass in a later helper process,
+    /// false when this Windows build cannot run the native backend.
+    /// </summary>
+    public static bool InitializationFailureRetryable => _initializationFailureRetryable;
 
     /// <summary>
     /// Accepts a hot-path slider update without waiting for CloudStore persistence. Updates are latest-wins on
@@ -696,8 +706,15 @@ internal static class NightLightCloudStore
 
     private static void InitializeNativeBackendOnMTAThread()
     {
+        // Every failure below may pass in a later helper (a transient LoadLibrary or RoInitialize error, Initialize
+        // leaving its pointers empty), except a missing DLL and symbols this build definitely lacks
+        _initializationFailureRetryable = true;
         if (!File.Exists(SettingsHandlersDllPath))
+        {
+            _initializationFailureRetryable = false;
             throw new InvalidOperationException($"'{SettingsHandlersDllPath}' missing");
+        }
+
         _hSettingsHandlersDll = LoadLibraryW(SettingsHandlersDllPath);
         if (_hSettingsHandlersDll == IntPtr.Zero)
         {
@@ -742,8 +759,10 @@ internal static class NightLightCloudStore
                         SymBlueLightSingletonSetPreviewColorTemperatureChanges,
                         SymBlueLightSingletonSetBlueLightActive
                     ],
-                    out Dictionary<string, int> rvas))
+                    out Dictionary<string, int> rvas,
+                    out bool retryable))
             {
+                _initializationFailureRetryable = retryable;
                 throw new InvalidOperationException(
                     $"Could not resolve required symbols for SettingsHandlers_Display v{version}");
             }
@@ -840,11 +859,11 @@ internal static class NightLightCloudStore
 
     /// <summary>
     /// Reconciles the in-source defaults from <see cref="BuildDefaultKnownRVAs"/> with a user-editable XML
-    /// mirror at <c>%LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\nightlight_known_rvas.xml</c>. First run writes the
-    /// defaults; subsequent runs use byte-equality against the canonical default XML to decide
-    /// whether the file is unmodified (keep defaults) or has been hand-edited (clear defaults, load file).
-    /// Any IO/parse failure logs and falls back to in-memory defaults so init never blocks on filesystem
-    /// mishaps.
+    /// mirror at <c>%LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\nightlight_known_rvas.xml</c>. First run
+    /// writes the defaults. Later runs use the file's entries (users add or correct builds there) and add every
+    /// shipped default for a build the file lacks, writing those back, so a newer default is never hidden by an
+    /// older mirror. Any IO/parse failure logs and falls back to in-memory defaults so init never blocks on
+    /// filesystem mishaps.
     /// </summary>
     private static Dictionary<string,
             (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
@@ -856,31 +875,24 @@ internal static class NightLightCloudStore
                 int SetBlueLightActiveRVA)>
             defaults = BuildDefaultKnownRVAs();
 
-        byte[] defaultsBytes;
         try
         {
             // Ensure the parent dir exists - PDBSymbolResolver only creates AppDataDir, not the
             // nightlight subdir we hang our XML mirror off of.
             Directory.CreateDirectory(PDBSymbolResolver.NightlightDir);
-            defaultsBytes = SerializeKnownRVAs(defaults);
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log(
-                $"NightLightCloudStore.LoadKnownRVAs: setup failed, using in-memory defaults: {ex.Message}");
-            return defaults;
-        }
-
-        try
-        {
             if (!File.Exists(KnownRVAsFilePath))
             {
-                File.WriteAllBytes(KnownRVAsFilePath, defaultsBytes);
+                AtomicFile.WriteAllBytes(KnownRVAsFilePath, SerializeKnownRVAs(defaults));
                 return defaults;
             }
 
-            byte[] onDisk = File.ReadAllBytes(KnownRVAsFilePath);
-            return BytesEqual(onDisk, defaultsBytes) ? defaults : ParseKnownRVAs(onDisk);
+            Dictionary<string,
+                    (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                    int SetBlueLightActiveRVA)>
+                known = ParseKnownRVAs(File.ReadAllBytes(KnownRVAsFilePath));
+            if (MergeMissingDefaults(known, defaults))
+                AtomicFile.WriteAllBytes(KnownRVAsFilePath, SerializeKnownRVAs(known));
+            return known;
         }
         catch (Exception ex)
         {
@@ -888,6 +900,27 @@ internal static class NightLightCloudStore
                 $"NightLightCloudStore.LoadKnownRVAs: file IO/parse failed, using in-memory defaults: {ex.Message}");
             return defaults;
         }
+    }
+
+    /// <summary>Adds each default whose build <paramref name="known"/> lacks; true when it added one.</summary>
+    internal static bool MergeMissingDefaults(
+        Dictionary<string,
+                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)>
+            known,
+        Dictionary<string,
+                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)>
+            defaults)
+    {
+        bool added = false;
+        foreach (KeyValuePair<string,
+                         (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                         int SetBlueLightActiveRVA)>
+                     entry in defaults)
+            added |= known.TryAdd(entry.Key, entry.Value);
+
+        return added;
     }
 
     private static byte[] SerializeKnownRVAs(
@@ -918,7 +951,11 @@ internal static class NightLightCloudStore
         return stream.ToArray();
     }
 
-    private static Dictionary<string,
+    /// <summary>
+    /// Reads the mirror. An entry with any RVA that is not a positive number (a malformed attribute reads as 0) is
+    /// skipped with a log line, so it can never send a call to the start of the DLL.
+    /// </summary>
+    internal static Dictionary<string,
             (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
             int SetBlueLightActiveRVA)>
         ParseKnownRVAs(byte[] xmlBytes)
@@ -926,7 +963,7 @@ internal static class NightLightCloudStore
         Dictionary<string,
                 (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
                 int SetBlueLightActiveRVA)>
-            result = [];
+            result = new(StringComparer.OrdinalIgnoreCase);
 
         using MemoryStream stream = new(xmlBytes, writable: false);
         NightLightKnownRVAsDocument document = TrayXmlSerializer.Read<NightLightKnownRVAsDocument>(stream);
@@ -934,6 +971,15 @@ internal static class NightLightCloudStore
         foreach (NightLightKnownRVAEntry entry in document.Entries)
         {
             if (string.IsNullOrWhiteSpace(entry.Version)) continue;
+            if (entry.Initialize <= 0 || entry.SInstance <= 0 || entry.SetTargetColorTemperature <= 0
+                || entry.SetPreview <= 0 || entry.SetBlueLightActive <= 0)
+            {
+                TADNLog.Log(
+                    $"NightLightCloudStore: ignoring known-RVA entry '{entry.Version}': every RVA must be a positive "
+                    + "number");
+                continue;
+            }
+
             result[entry.Version] = (
                 entry.Initialize,
                 entry.SInstance,
@@ -943,18 +989,6 @@ internal static class NightLightCloudStore
         }
 
         return result;
-    }
-
-    private static bool BytesEqual(byte[] a, byte[] b)
-    {
-        if (a.Length != b.Length) return false;
-        for (int i = 0; i < a.Length; i++)
-        {
-            if (a[i] != b[i])
-                return false;
-        }
-
-        return true;
     }
 }
 

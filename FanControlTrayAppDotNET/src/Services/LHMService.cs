@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Threading;
 using LibreHardwareMonitor.Hardware;
+using Microsoft.Win32;
 
 namespace FanControlTrayAppDotNET.Services;
 
@@ -23,6 +24,10 @@ namespace FanControlTrayAppDotNET.Services;
 //     duty, so curve fallbacks write the fan's Max Duty instead.
 //   * Warn Low / Warn High are checked every tick against measured speed; a confirmed excursion
 //     raises FanSpeedWarningRaised once.
+//   * Hardware IO (open, enumeration, reset, updates, control writes) runs on workers under _hardwareLock. The
+//     DataSource registry, Fans and AppSettings are UI-thread state: a hardware walk only collects
+//     DiscoveredSource records, which ApplyDiscovery registers on the UI thread.
+//   * Resume: firmware may re-initialize the fan chip, so the hardware is reset and every fan written again.
 //
 // Not done yet: Disabled/Detached state classification beyond a naive check.
 public sealed class LHMService : IDisposable
@@ -32,6 +37,12 @@ public sealed class LHMService : IDisposable
     private readonly Lock _hardwareLock = new();
     private readonly Lock _controlWriteQueueLock = new();
     private readonly Dictionary<string, ISensor> _controlSensorsByKey = new(StringComparer.OrdinalIgnoreCase);
+
+    // Under _hardwareLock: control keys whose missing sensor was already logged by a control write
+    private readonly HashSet<string> _missingControlSensorsLogged = new(StringComparer.OrdinalIgnoreCase);
+
+    // UI thread: the control sensors the last discovery found; fans outside this set are unavailable
+    private readonly HashSet<string> _availableControlKeys = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, FanControlWriteRequest> _pendingControlWrites =
         new(StringComparer.OrdinalIgnoreCase);
@@ -45,8 +56,9 @@ public sealed class LHMService : IDisposable
 
     // Dirty-shutdown marker: written before this process's first SetSoftware, cleared after the clean-exit
     // restore. A same-boot marker at startup means firmware defaults are untrusted for this process.
-    private readonly FanControlDirtyShutdownMarker _shutdownMarker =
-        new(Path.Combine(AppSettings.GetDefaultDirectory(), FanControlDirtyShutdownMarker.FileName));
+    private readonly FanControlDirtyShutdownMarker _shutdownMarker = new(
+        FanControlDirtyShutdownMarker.DefaultPath,
+        FanControlDirtyShutdownMarker.LegacyPath);
 
     private DateTime _bootTimeUtc;
 
@@ -97,7 +109,6 @@ public sealed class LHMService : IDisposable
         nameof(Fan.AssignedCurveName),
         nameof(Fan.UserDefinedName),
         nameof(Fan.CurrentControlMode),
-        nameof(Fan.Triggers),
         nameof(Fan.DeadbandsName),
         nameof(Fan.Group),
         nameof(Fan.ModeLocked),
@@ -120,7 +131,12 @@ public sealed class LHMService : IDisposable
     // Raised on the UI thread once per confirmed Warn Low / Warn High excursion.
     public event Action<Fan, FanSpeedWarning>? FanSpeedWarningRaised;
 
-    public void Start()
+    /// <summary>
+    /// Opens the hardware and runs the cold enumeration on a worker thread, then registers what it found on the UI
+    /// thread and starts polling. Opening loads the drivers and enumerates every device, which takes seconds, so it
+    /// must not run on the UI thread; the DataSource registry, Fans and settings it fills are UI-thread state.
+    /// </summary>
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_pollingCancellationToken != null) return;
@@ -128,26 +144,125 @@ public sealed class LHMService : IDisposable
         _bootTimeUtc = FanControlDirtyShutdownMarker.CurrentBootTimeUtc();
         _shutdownMarker.Load(_bootTimeUtc);
 
-        lock (_hardwareLock)
-        {
-            _computer.Open();
-            // Cold enumeration runs on whatever thread starts us (the UI thread at startup). That's
-            // fine because it only mutates Fans / DataSources once and the UI hasn't bound yet.
-            RebuildFromHardware();
-        }
+        List<DiscoveredSource> discovered = await Task.Run(
+            () =>
+            {
+                lock (_hardwareLock)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    _computer.Open();
+                    return DiscoverHardwareLocked();
+                }
+            },
+            cancellationToken).ConfigureAwait(false);
 
+        await _dispatcher.InvokeAsync(
+            () =>
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                ApplyDiscovery(discovered);
+            },
+            DispatcherPriority.Normal,
+            cancellationToken);
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _pollingCancellationToken = new CancellationTokenSource();
         _pollTask = Task.Run(() => PollLoop(_pollingCancellationToken.Token));
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+    }
+
+    /// <summary>Only a resume can find the fan chip re-initialized by firmware.</summary>
+    internal static bool ShouldReapplyControl(PowerModes mode) => mode == PowerModes.Resume;
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (_disposed || !ShouldReapplyControl(e.Mode)) return;
+
+        _ = ReapplyControlAfterResumeAsync();
+    }
+
+    /// <summary>
+    /// After resume (always after hibernate) the firmware may have put the fan chip back on BIOS control while every
+    /// Fan still shows the user's setting. LHM writes a control only when its value changes, so the hardware is
+    /// reset (fresh controls, fresh register snapshot at the next SetSoftware) and every fan's state is queued again.
+    /// A controller that is not back yet (a USB fan hub) is missing from the first rediscovery, so while control
+    /// sensors are missing it is retried a few times with growing delays; fans whose sensor stays missing are shown
+    /// as unavailable until a later discovery finds it.
+    /// </summary>
+    private async Task ReapplyControlAfterResumeAsync()
+    {
+        try
+        {
+            HashSet<string> controlKeysBefore;
+            lock (_hardwareLock)
+                controlKeysBefore = new HashSet<string>(_controlSensorsByKey.Keys, StringComparer.OrdinalIgnoreCase);
+
+            for (int attempt = 1;; attempt++)
+            {
+                List<DiscoveredSource>? discovered = await Task.Run(() =>
+                {
+                    lock (_hardwareLock)
+                    {
+                        if (_disposed) return null;
+
+                        _computer.Reset();
+                        return DiscoverHardwareLocked();
+                    }
+                }).ConfigureAwait(false);
+                if (discovered == null) return;
+
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    if (_disposed) return;
+
+                    ApplyDiscovery(discovered);
+                    _curveControlStates.Clear();
+                    foreach (Fan fan in Fans)
+                        QueueFanControlWriteForCurrentState(fan);
+                    TADNLog.Log(
+                        $"LHMService: hardware reset after resume (attempt {attempt}); re-applied control to "
+                        + $"{Fans.Count} fans");
+                });
+
+                List<string> missing = MissingControlKeys(
+                    controlKeysBefore,
+                    discovered.Where(static found => found.IsControl).Select(static found => found.Key));
+                if (missing.Count == 0) return;
+
+                if (attempt >= TimeConstants.ResumeRediscoveryMaxAttempts)
+                {
+                    TADNLog.Log(
+                        $"LHMService: after resume {missing.Count} control sensors are still missing "
+                        + $"({string.Join(", ", missing)}); their fans stay unavailable");
+                    return;
+                }
+
+                await Task.Delay(TimeConstants.ResumeRediscoveryRetryDelayMs * attempt).ConfigureAwait(false);
+                if (_disposed) return;
+            }
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"LHMService: re-applying fan control after resume failed: {ex}");
+        }
+    }
+
+    /// <summary>Control sensors present before a rediscovery that it did not find again.</summary>
+    internal static List<string> MissingControlKeys(IReadOnlySet<string> before, IEnumerable<string> after)
+    {
+        HashSet<string> found = new(after, StringComparer.OrdinalIgnoreCase);
+        return [.. before.Where(key => !found.Contains(key)).Order(StringComparer.OrdinalIgnoreCase)];
     }
 
     public void Stop()
     {
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         CancellationTokenSource? pollingCancellationToken = _pollingCancellationToken;
         Task? pollTask = _pollTask;
         if (pollingCancellationToken == null) return;
 
         pollingCancellationToken.Cancel();
-        WaitForTask(pollTask, taskName: "poll loop");
+        Safe.WaitForStop(pollTask, TimeConstants.BackgroundPollShutdownWaitMs, owner: "LHMService poll loop");
         pollingCancellationToken.Dispose();
         _pollingCancellationToken = null;
         _pollTask = null;
@@ -197,20 +312,108 @@ public sealed class LHMService : IDisposable
         }
     }
 
-    // Cold-start: enumerate hardware, register a DataSource for every sensor, and instantiate a
-    // Fan for every Control sensor we find. Called once on Start() and again whenever topology
-    // changes are detected (future pass).
-    private void RebuildFromHardware()
+    /// <summary>
+    /// Walks the hardware (worker thread, <see cref="_hardwareLock"/> held): refreshes the control-sensor map and
+    /// collects every sensor plus the synthetic CPU clock sources, in registration order. Touches no UI-thread state.
+    /// </summary>
+    private List<DiscoveredSource> DiscoverHardwareLocked()
     {
-        _discoveryChanged = false;
         _controlSensorsByKey.Clear();
-        foreach (DataSource source in DataSource.DataSources.Values)
-            source.IsLiveHardwareSensor = false;
-
+        _missingControlSensorsLogged.Clear();
+        List<DiscoveredSource> discovered = [];
         foreach (IHardware hardware in _computer.Hardware)
         {
             hardware.Update();
-            VisitHardware(hardware);
+            DiscoverHardware(hardware, discovered);
+        }
+
+        return discovered;
+    }
+
+    private void DiscoverHardware(IHardware hardware, List<DiscoveredSource> discovered)
+    {
+        bool isCPU = hardware.HardwareType == HardwareType.Cpu;
+        bool hasCoreClockSensors = false;
+        bool hasCoreEffectiveClockSensors = false;
+        string hardwareType = hardware.HardwareType.ToString();
+        foreach (ISensor sensor in hardware.Sensors)
+        {
+            DisableUnusedSensorHistory(sensor);
+
+            string key = BuildSensorKey(hardware, sensor);
+            DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
+            hasCoreClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreClockSensor(type, sensor.Name);
+            hasCoreEffectiveClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreEffectiveClockSensor(
+                type,
+                sensor.Name);
+
+            bool isControl = sensor.SensorType == SensorType.Control;
+            if (isControl) _controlSensorsByKey[key] = sensor;
+            discovered.Add(new DiscoveredSource(key, hardware.Name, hardwareType, sensor.Name, type, isControl));
+        }
+
+        if (hasCoreClockSensors)
+        {
+            discovered.Add(new DiscoveredSource(
+                LHMSyntheticProbeSources.BuildMaxClockKey(hardware.Name),
+                hardware.Name,
+                hardwareType,
+                LHMSyntheticProbeSources.MaxClockDisplayName,
+                DataSourceTypeEnum.Clock,
+                IsControl: false,
+                IsSyntheticClock: true));
+        }
+
+        if (hasCoreEffectiveClockSensors)
+        {
+            discovered.Add(new DiscoveredSource(
+                LHMSyntheticProbeSources.BuildMaxEffectiveClockKey(hardware.Name),
+                hardware.Name,
+                hardwareType,
+                LHMSyntheticProbeSources.MaxEffectiveClockDisplayName,
+                DataSourceTypeEnum.Clock,
+                IsControl: false,
+                IsSyntheticClock: true));
+        }
+
+        foreach (IHardware sub in hardware.SubHardware)
+        {
+            sub.Update();
+            DiscoverHardware(sub, discovered);
+        }
+    }
+
+    /// <summary>
+    /// UI thread: registers a DataSource for every discovered sensor and a Fan for every Control sensor, then saves
+    /// when discovery changed the settings.
+    /// </summary>
+    private void ApplyDiscovery(IReadOnlyList<DiscoveredSource> discovered)
+    {
+        _dispatcher.VerifyAccess();
+
+        _discoveryChanged = false;
+        foreach (DataSource source in DataSource.DataSources.Values)
+            source.IsLiveHardwareSensor = false;
+
+        _availableControlKeys.Clear();
+        foreach (DiscoveredSource found in discovered)
+        {
+            if (found.IsControl) _availableControlKeys.Add(found.Key);
+        }
+
+        foreach (Fan fan in Fans)
+            UpdateFanFunctionalState(fan);
+
+        foreach (DiscoveredSource found in discovered)
+        {
+            if (found.IsSyntheticClock)
+            {
+                EnsureSyntheticClockSource(found);
+                continue;
+            }
+
+            RegisterOrRefreshSource(found);
+            if (found.IsControl) EnsureFanForControlSensor(found);
         }
 
         if (_settings?.EnsureDefaultDeviceNicknameRules() == true)
@@ -220,75 +423,39 @@ public sealed class LHMService : IDisposable
         if (_discoveryChanged) PersistLiveState();
     }
 
-    private void VisitHardware(IHardware hardware)
+    private void RegisterOrRefreshSource(DiscoveredSource found)
     {
-        bool isCPU = hardware.HardwareType == HardwareType.Cpu;
-        bool hasCoreClockSensors = false;
-        bool hasCoreEffectiveClockSensors = false;
-        foreach (ISensor sensor in hardware.Sensors)
+        if (DataSource.Find(found.Key) is not { } existingSource)
         {
-            DisableUnusedSensorHistory(sensor);
-
-            string key = BuildSensorKey(hardware, sensor);
-            DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
-            string hardwareType = hardware.HardwareType.ToString();
-            hasCoreClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreClockSensor(
-                type,
-                sensor.Name);
-            hasCoreEffectiveClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreEffectiveClockSensor(
-                type,
-                sensor.Name);
-
-            if (DataSource.Find(key) is not { } existingSource)
+            DataSource source = new()
             {
-                DataSource source = new()
-                {
-                    DataSourceKey = key,
-                    UserDefinedName = sensor.Name,
-                    ControllerName = hardware.Name,
-                    ControllerHardwareType = hardwareType,
-                    DataSourceType = type,
-                    IsLiveHardwareSensor = true
-                };
-                source.EnsureDisplayMetadata();
-                DataSource.Register(source);
-                _discoveryChanged = true;
-            }
-            else
-            {
-                existingSource.IsLiveHardwareSensor = true;
-                if (string.IsNullOrWhiteSpace(existingSource.ControllerName))
-                    existingSource.ControllerName = hardware.Name;
-                if (!string.Equals(existingSource.ControllerHardwareType, hardwareType, StringComparison.Ordinal))
-                {
-                    existingSource.ControllerHardwareType = hardwareType;
-                    _discoveryChanged = true;
-                }
-
-                if (existingSource.DataSourceType == DataSourceTypeEnum.Unknown)
-                    existingSource.DataSourceType = type;
-                if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
-                    existingSource.UserDefinedName = sensor.Name;
-                existingSource.EnsureDisplayMetadata();
-            }
-
-            if (sensor.SensorType == SensorType.Control)
-            {
-                _controlSensorsByKey[key] = sensor;
-                EnsureFanForControlSensor(hardware, sensor, key);
-            }
+                DataSourceKey = found.Key,
+                UserDefinedName = found.Name,
+                ControllerName = found.HardwareName,
+                ControllerHardwareType = found.HardwareType,
+                DataSourceType = found.Type,
+                IsLiveHardwareSensor = true
+            };
+            source.EnsureDisplayMetadata();
+            DataSource.Register(source);
+            _discoveryChanged = true;
+            return;
         }
 
-        if (hasCoreClockSensors)
-            EnsureMaxClockSource(hardware);
-        if (hasCoreEffectiveClockSensors)
-            EnsureMaxEffectiveClockSource(hardware);
-
-        foreach (IHardware sub in hardware.SubHardware)
+        existingSource.IsLiveHardwareSensor = true;
+        if (string.IsNullOrWhiteSpace(existingSource.ControllerName))
+            existingSource.ControllerName = found.HardwareName;
+        if (!string.Equals(existingSource.ControllerHardwareType, found.HardwareType, StringComparison.Ordinal))
         {
-            sub.Update();
-            VisitHardware(sub);
+            existingSource.ControllerHardwareType = found.HardwareType;
+            _discoveryChanged = true;
         }
+
+        if (existingSource.DataSourceType == DataSourceTypeEnum.Unknown)
+            existingSource.DataSourceType = found.Type;
+        if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
+            existingSource.UserDefinedName = found.Name;
+        existingSource.EnsureDisplayMetadata();
     }
 
     /// <summary>
@@ -363,38 +530,18 @@ public sealed class LHMService : IDisposable
     }
 
     /// <summary>
-    /// Registers a synthetic max-clock source for CPU core clock sensors.
+    /// Registers or refreshes one synthetic CPU clock source (max core clock or max effective clock).
     /// </summary>
-    private void EnsureMaxClockSource(IHardware hardware) =>
-        EnsureSyntheticClockSource(
-            hardware,
-            LHMSyntheticProbeSources.BuildMaxClockKey(hardware.Name),
-            LHMSyntheticProbeSources.MaxClockDisplayName);
-
-    /// <summary>
-    /// Registers a synthetic max-effective-clock source for CPU effective clock sensors.
-    /// </summary>
-    private void EnsureMaxEffectiveClockSource(IHardware hardware) =>
-        EnsureSyntheticClockSource(
-            hardware,
-            LHMSyntheticProbeSources.BuildMaxEffectiveClockKey(hardware.Name),
-            LHMSyntheticProbeSources.MaxEffectiveClockDisplayName);
-
-    /// <summary>
-    /// Registers or refreshes one synthetic CPU clock source.
-    /// </summary>
-    private void EnsureSyntheticClockSource(IHardware hardware, string key, string displayName)
+    private void EnsureSyntheticClockSource(DiscoveredSource found)
     {
-        string hardwareType = hardware.HardwareType.ToString();
-
-        if (DataSource.Find(key) is not { } existingSource)
+        if (DataSource.Find(found.Key) is not { } existingSource)
         {
             DataSource source = new()
             {
-                DataSourceKey = key,
-                UserDefinedName = displayName,
-                ControllerName = hardware.Name,
-                ControllerHardwareType = hardwareType,
+                DataSourceKey = found.Key,
+                UserDefinedName = found.Name,
+                ControllerName = found.HardwareName,
+                ControllerHardwareType = found.HardwareType,
                 DataSourceType = DataSourceTypeEnum.Clock,
                 IsLiveHardwareSensor = true
             };
@@ -406,10 +553,10 @@ public sealed class LHMService : IDisposable
 
         existingSource.IsLiveHardwareSensor = true;
         if (string.IsNullOrWhiteSpace(existingSource.ControllerName))
-            existingSource.ControllerName = hardware.Name;
-        if (!string.Equals(existingSource.ControllerHardwareType, hardwareType, StringComparison.Ordinal))
+            existingSource.ControllerName = found.HardwareName;
+        if (!string.Equals(existingSource.ControllerHardwareType, found.HardwareType, StringComparison.Ordinal))
         {
-            existingSource.ControllerHardwareType = hardwareType;
+            existingSource.ControllerHardwareType = found.HardwareType;
             _discoveryChanged = true;
         }
 
@@ -420,7 +567,7 @@ public sealed class LHMService : IDisposable
         }
 
         if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
-            existingSource.UserDefinedName = displayName;
+            existingSource.UserDefinedName = found.Name;
         existingSource.EnsureDisplayMetadata();
     }
 
@@ -467,13 +614,17 @@ public sealed class LHMService : IDisposable
     }
 
     // Promote a Control sensor into a Fan model entry if we haven't seen this key before.
-    private void EnsureFanForControlSensor(IHardware hardware, ISensor sensor, string key)
+    private void EnsureFanForControlSensor(DiscoveredSource controlSensor)
     {
+        string key = controlSensor.Key;
         if (FindFanByControlKey(key) != null) return;
 
         Fan fan = new()
         {
-            DataSourceKey = key, ControllerModel = hardware.Name, ControlsName = "Controls", FansName = sensor.Name
+            DataSourceKey = key,
+            ControllerModel = controlSensor.HardwareName,
+            ControlsName = "Controls",
+            FansName = controlSensor.Name
         };
         ApplyDefaultsToNewFan(fan);
         if (_settings?.FindPersistedFan(key) is { } persisted) fan.ApplyUserSettings(persisted);
@@ -532,6 +683,9 @@ public sealed class LHMService : IDisposable
     {
         if (_disposed || string.IsNullOrWhiteSpace(fan.DataSourceKey)) return;
 
+        // A fan whose control sensor is gone (shown as unavailable) gets no writes until discovery finds it again
+        if (!_availableControlKeys.Contains(fan.DataSourceKey)) return;
+
         if (fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Curve })
         {
             ApplyCurveControl(fan, Environment.TickCount64);
@@ -556,6 +710,7 @@ public sealed class LHMService : IDisposable
         {
             if (fan is not { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Curve }) continue;
             if (string.IsNullOrWhiteSpace(fan.DataSourceKey)) continue;
+            if (!_availableControlKeys.Contains(fan.DataSourceKey)) continue;
             ApplyCurveControl(fan, nowMs);
         }
     }
@@ -692,7 +847,9 @@ public sealed class LHMService : IDisposable
         {
             if (!_controlSensorsByKey.TryGetValue(request.DataSourceKey, out ISensor? sensor))
             {
-                TADNLog.Log($"LHMService control write skipped; sensor not found: {request.DataSourceKey}");
+                // Logged once per key; the next discovery that finds the sensor again resets this
+                if (_missingControlSensorsLogged.Add(request.DataSourceKey))
+                    TADNLog.Log($"LHMService control write skipped; sensor not found: {request.DataSourceKey}");
                 return;
             }
 
@@ -726,17 +883,27 @@ public sealed class LHMService : IDisposable
         return (float)Math.Clamp(value, min: 0.0, max: 100.0);
     }
 
-    private static void UpdateFanFunctionalState(Fan fan)
-    {
-        if (fan.ForcedNonFunctioning)
-        {
-            fan.CurrentState = FanState.Detached;
-            return;
-        }
+    private void UpdateFanFunctionalState(Fan fan) =>
+        fan.CurrentState = ResolveFanState(
+            _availableControlKeys.Contains(fan.DataSourceKey),
+            fan.ForcedNonFunctioning,
+            fan.CurrentDutyCycle,
+            fan.CurrentRPM);
 
-        fan.CurrentState = fan is { CurrentDutyCycle: > 0.001, CurrentRPM: <= 0 }
-            ? FanState.Detached
-            : FanState.Normal;
+    /// <summary>
+    /// Disabled when the fan's control sensor is gone (for example a controller that did not come back after
+    /// resume), Detached when forced or when it reports duty without RPM, Normal otherwise.
+    /// </summary>
+    internal static FanState ResolveFanState(
+        bool controlAvailable,
+        bool forcedNonFunctioning,
+        double dutyCycle,
+        int rpm)
+    {
+        if (!controlAvailable) return FanState.Disabled;
+        if (forcedNonFunctioning) return FanState.Detached;
+
+        return dutyCycle > 0.001 && rpm <= 0 ? FanState.Detached : FanState.Normal;
     }
 
     public void PersistLiveState(bool save = true)
@@ -841,7 +1008,7 @@ public sealed class LHMService : IDisposable
             controlWriteTask = _controlWriteTask;
         }
 
-        WaitForTask(controlWriteTask, taskName: "control write worker");
+        Safe.WaitForStop(controlWriteTask, TimeConstants.BackgroundPollShutdownWaitMs, owner: "LHMService control write worker");
 
         lock (_controlWriteQueueLock)
         {
@@ -859,29 +1026,6 @@ public sealed class LHMService : IDisposable
         foreach (Fan fan in Fans.ToArray())
             fan.PropertyChanged -= OnFanPropertyChanged;
         Fans.Clear();
-    }
-
-    /// <summary>
-    /// Waits for a background task and logs only unexpected shutdown failures.
-    /// </summary>
-    private static void WaitForTask(Task? task, string taskName)
-    {
-        if (task == null) return;
-
-        try
-        {
-            bool completed = task.Wait(TimeConstants.BackgroundPollShutdownWaitMs);
-            if (!completed)
-                TADNLog.Log($"LHMService {taskName} did not stop within the shutdown timeout.");
-        }
-        catch (AggregateException ex)
-        {
-            foreach (Exception inner in ex.Flatten().InnerExceptions)
-            {
-                if (inner is OperationCanceledException) continue;
-                TADNLog.Log($"LHMService {taskName} stopped with {inner.GetType().Name}: {inner.Message}");
-            }
-        }
     }
 
     private readonly record struct FanControlWriteRequest(
@@ -902,4 +1046,14 @@ public sealed class LHMService : IDisposable
         string SensorName,
         SensorType SensorType,
         float Value);
+
+    /// <summary>One sensor, or synthetic CPU clock source, found by a hardware walk; no live LHM object.</summary>
+    private sealed record DiscoveredSource(
+        string Key,
+        string HardwareName,
+        string HardwareType,
+        string Name,
+        DataSourceTypeEnum Type,
+        bool IsControl,
+        bool IsSyntheticClock = false);
 }

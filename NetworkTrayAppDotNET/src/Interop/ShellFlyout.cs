@@ -16,17 +16,6 @@ internal static unsafe partial class ShellFlyout
     private static readonly Guid IID_NetworkFlyoutExperienceManager = new("c9ddc674-b44b-4c67-9d79-2b237d9be05a");
     private static readonly Guid IID_ControlCenterExperienceManager = new("d669a58e-6b18-4d1d-9004-a8862adb0a20");
 
-    private const int CLSCTX_LOCAL_SERVER = 4;
-
-    // 'in' / 'out' Guid parameters need DllImport - LibraryImport doesn't marshal them the same way.
-    [DllImport("ole32.dll")]
-    private static extern int CoCreateInstance(
-        in Guid rclsid,
-        IntPtr pUnkOuter,
-        int dwClsContext,
-        in Guid riid,
-        out IntPtr ppv);
-
     [LibraryImport("combase.dll", EntryPoint = "WindowsCreateString", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int WindowsCreateString(string sourceString, int length, out IntPtr hstring);
 
@@ -61,7 +50,7 @@ internal static unsafe partial class ShellFlyout
 
     private static bool TryAcquireFlyoutInterfaces(string experienceName, Guid experienceIID, ref ComHandles handles)
     {
-        int hr = CoCreateInstance(CLSID_ImmersiveShell, IntPtr.Zero, CLSCTX_LOCAL_SERVER,
+        int hr = Ole32.CoCreateInstance(CLSID_ImmersiveShell, IntPtr.Zero, Ole32.CLSCTX_LOCAL_SERVER,
             IID_IServiceProvider, out handles.ServiceProvider);
         if (hr < 0 || handles.ServiceProvider == IntPtr.Zero) return false;
 

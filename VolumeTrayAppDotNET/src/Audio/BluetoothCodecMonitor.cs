@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Text;
 using Avalonia.Threading;
 using Microsoft.Diagnostics.Tracing;
@@ -16,23 +14,29 @@ namespace VolumeTrayAppDotNET.Audio;
 /// <c>Microsoft.Windows.Bluetooth.BthA2dp</c>. There is no public API surface for it; ETW is
 /// the same channel the Win11 Settings app's "Audio codec: AAC" line ultimately reads from
 /// (via WPA recipes), and the same one BluetoothAudioCodecInspector ships against. We open a
-/// realtime session, decode the codec ids, and publish them as an observable property.
+/// realtime session, decode the codec ids, and publish them through <see cref="CodecChanged"/>.
+/// <para/>
+/// Lifetime: AudioDeviceManager starts the session only while the flyout shows codec names and stops it when the
+/// setting goes off. A realtime ETW session is a kernel object that outlives the process that created it, so
+/// <see cref="Stop"/> and <see cref="Dispose"/> stop it explicitly, and <see cref="Start"/> first stops one a crashed
+/// earlier run left behind under the same name.
 /// <para/>
 /// Threading: the TraceEvent worker thread fires the codec callback; we marshal the
-/// <see cref="CurrentCodec"/> mutation (and the PropertyChanged / CodecChanged fanout) onto
-/// the dispatcher captured at construction so consumers don't have to.
+/// <see cref="CurrentCodec"/> mutation (and the <see cref="CodecChanged"/> fanout) onto
+/// the dispatcher captured at construction so consumers don't have to. Start, Stop and Dispose run on that thread.
+/// Stop retires the session at once (a generation check drops its late events) and stops and joins its worker on
+/// the thread pool, so the UI never waits for ETW; a Start during that retirement opens the new session once the old
+/// one is gone, because both use the same kernel session name.
 /// <para/>
 /// Privilege: <c>StartTraceW</c> requires Administrator or membership in the local
-/// "Performance Log Users" group. If the elevation check fails, <see cref="Start"/> sets
-/// <see cref="RequiresElevation"/> and stays inert - it never throws. The UI can communicate
-/// "codec unavailable - needs admin" off that flag without burning a try/catch at the call site.
+/// "Performance Log Users" group. Without it <see cref="Start"/> logs once and stays inert; it never throws.
 /// <para/>
 /// Driver caveat (verbatim from the BluetoothAudioCodecInspector README): "this utility may
 /// have delay depending on the Bluetooth chipset used; A2DP streaming event may not be presented
 /// in realtime. Format information may appear during the audio playback session or at the end
 /// of the audio playback session. This is a Windows Bluetooth Audio Stack limitation."
 /// </summary>
-internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyPropertyChanged, IDisposable
+internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : IDisposable
 {
     // Stable session name so a prior crashed run can be detected and stopped before we open
     // ours - TraceEvent's Create option throws ERROR_ALREADY_EXISTS otherwise.
@@ -51,7 +55,6 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
     private static readonly Guid LegacyProviderGuid = new("ddb6da39-08a7-4579-8d0c-68011146e205");
     private const string StreamingEventName = "A2dpStreaming";
 
-
     // Payload field positions for the A2dpStreaming event. Position is the safer contract
     // than PayloadByName because manifest field names aren't always populated when accessed
     // through trimmed assemblies; the BluetoothAudioCodecInspector reference uses positions
@@ -63,27 +66,30 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
     private TraceEventSession? _session;
     private Thread? _worker;
     private BluetoothCodec? _currentCodec;
-    private bool _isRunning;
+    private bool _elevationMissingLogged;
+
+    // Incremented by every Start and Stop; events of an earlier session carry an older value and are dropped
+    private int _generation;
+
+    // The retirement of the last stopped session, and whether a Start waits for it to finish
+    private Task _retirement = Task.CompletedTask;
+    private bool _startAfterRetirement;
 
     // One-shot diagnostic: log the full payload schema on the first event so a user reporting
     // an issue can hand us the field names / types their build emits without rebuilding the app.
     private bool _schemaLogged;
     private bool _disposed;
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     /// <summary>
     /// Fires on the dispatcher whenever the cached codec changes (including the transition to
-    /// null on <see cref="Reset"/>). Subscribers can update bindings directly without a Dispatcher
-    /// hop of their own.
+    /// null on <see cref="Reset"/> and <see cref="Stop"/>). Subscribers can update bindings directly without a
+    /// Dispatcher hop of their own.
     /// </summary>
     public event Action<BluetoothCodec?>? CodecChanged;
 
     /// <summary>
     /// The most recently observed A2DP codec, or null when nothing has been seen yet (or after
-    /// <see cref="Reset"/>). Mutated only on the dispatcher. Equality short-circuited so Avalonia
-    /// bindings don't see spurious PropertyChanged storms during ETW bursts; the unconditional
-    /// re-fanout that newly-promoted endpoints rely on goes through <see cref="RaiseCodecChanged"/>.
+    /// <see cref="Reset"/> / <see cref="Stop"/>). Mutated only on the dispatcher.
     /// </summary>
     public BluetoothCodec? CurrentCodec
     {
@@ -92,70 +98,40 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         {
             if (Equals(_currentCodec, value)) return;
             _currentCodec = value;
-            OnPropertyChanged();
             CodecChanged?.Invoke(value);
-        }
-    }
-
-    /// <summary>
-    /// Re-fires <see cref="CodecChanged"/> with the current codec without mutating
-    /// <see cref="CurrentCodec"/>. Used to re-fan the cached codec into a newly-promoted or
-    /// freshly-Active BT endpoint that may never see another A2DP renegotiation.
-    /// </summary>
-    public void RaiseCodecChanged()
-    {
-        if (_disposed) return;
-        try { dispatcher.InvokeAsync(() => CodecChanged?.Invoke(_currentCodec)); }
-        catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.RaiseCodecChanged: {ex.Message}"); }
-    }
-
-    /// <summary>True once the ETW session is open and the worker is pumping events.</summary>
-    public bool IsRunning
-    {
-        get => _isRunning;
-        private set
-        {
-            if (_isRunning != value)
-            {
-                _isRunning = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// True when <see cref="Start"/> was called by a non-elevated process. The session never
-    /// opened and CurrentCodec will stay null; the UI binds against this to surface the
-    /// "needs admin" hint without throwing.
-    /// </summary>
-    public bool RequiresElevation
-    {
-        get;
-        private set
-        {
-            if (field != value)
-            {
-                field = value;
-                OnPropertyChanged();
-            }
         }
     }
 
     /// <summary>
     /// Opens a realtime ETW session on the BthA2dp provider and spawns a background worker that
     /// pumps events through <see cref="TraceEventSession.Source"/>'s blocking
-    /// <c>Process()</c> loop. Idempotent: calling twice is a no-op.
+    /// <c>Process()</c> loop. Idempotent: calling it while the session runs is a no-op.
     /// </summary>
     public void Start()
     {
-        if (_disposed || _isRunning) return;
+        if (_disposed || _session != null) return;
+
+        if (!_retirement.IsCompleted)
+        {
+            // The previous session still holds the kernel session name; open the new one once it is gone
+            if (_startAfterRetirement) return;
+
+            _startAfterRetirement = true;
+            _ = _retirement.ContinueWith(
+                _ => dispatcher.Post(StartAfterRetirement),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return;
+        }
 
         // IsElevated returns null on failure to determine; treat that as "not elevated" to be
         // safe rather than letting EnableProvider throw a less helpful native error.
         if (TraceEventSession.IsElevated() != true)
         {
-            RequiresElevation = true;
-            TADNLog.Log("BluetoothCodecMonitor.Start: requires admin / Performance Log Users; staying inert.");
+            if (!_elevationMissingLogged)
+                TADNLog.Log("BluetoothCodecMonitor.Start: requires admin / Performance Log Users; staying inert.");
+            _elevationMissingLogged = true;
             return;
         }
 
@@ -163,17 +139,14 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         {
             StopOrphanedSession();
 
-            _session = new TraceEventSession(SessionName)
-            {
-                // Belt-and-braces: even if Dispose is missed (e.g. force-kill via taskkill on
-                // build prep), the session goes away with the process by way of the ETW
-                // session-private flag we'd get from Create. StopOnDispose enforces explicit
-                // cleanup on graceful exit.
-                StopOnDispose = true
-            };
+            int generation = Interlocked.Increment(ref _generation);
+
+            // StopOnDispose stops the kernel session when the TraceEventSession is disposed (Stop, Dispose).
+            // A force-killed process skips that, which is what StopOrphanedSession cleans up on the next Start.
+            _session = new TraceEventSession(SessionName) { StopOnDispose = true };
 
             _session.Source.Dynamic.AddCallbackForProviderEvent(
-                ProviderName, StreamingEventName, OnStreamingEvent);
+                ProviderName, StreamingEventName, evt => OnStreamingEvent(evt, generation));
 
             // matchAnyKeywords = 0 selects every event on the provider, matching the reference
             // implementation. The provider only emits a small handful of event types, so we
@@ -187,10 +160,10 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
             try { _session.EnableProvider(LegacyProviderGuid, TraceEventLevel.Verbose, matchAnyKeywords: 0); }
             catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Start: legacy provider enable: {ex.Message}"); }
 
-            _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BluetoothCodecMonitor.ETW" };
+            TraceEventSession session = _session;
+            _worker = new Thread(() => WorkerLoop(session)) { IsBackground = true, Name = "BluetoothCodecMonitor.ETW" };
             _worker.Start();
 
-            IsRunning = true;
             TADNLog.Log("BluetoothCodecMonitor.Start: session opened on provider " + ProviderName);
         }
         catch (Exception ex)
@@ -201,9 +174,61 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         }
     }
 
-    // Defensive cleanup of a stale session from a previous run. TraceEventSession sessions
-    // outlive a crashed process by design (they live in the kernel until explicitly stopped),
-    // so opening Create on the same name immediately afterwards fails with ALREADY_EXISTS.
+    /// <summary>
+    /// Retires the ETW session and clears the cached codec at once; the session is stopped and its worker joined
+    /// on the thread pool. <see cref="Start"/> may open it again.
+    /// </summary>
+    public void Stop()
+    {
+        _startAfterRetirement = false;
+        TraceEventSession? session = _session;
+        Thread? worker = _worker;
+        _session = null;
+        _worker = null;
+        if (session == null) return;
+
+        _ = Interlocked.Increment(ref _generation);
+        Task previous = _retirement;
+        _retirement = Task.Run(async () =>
+        {
+            await previous.ConfigureAwait(false);
+            RetireSession(session, worker);
+        });
+        Reset();
+    }
+
+    /// <summary>Whether an event stamped with <paramref name="eventGeneration"/> belongs to the live session.</summary>
+    internal static bool IsCurrentGeneration(int eventGeneration, int currentGeneration) =>
+        eventGeneration == currentGeneration;
+
+    private void StartAfterRetirement()
+    {
+        if (!_startAfterRetirement) return;
+
+        _startAfterRetirement = false;
+        Start();
+    }
+
+    private static void RetireSession(TraceEventSession session, Thread? worker)
+    {
+        // Disposing the session stops it, which makes Source.Process return on the worker
+        Safe.Dispose(session);
+        if (worker != null)
+        {
+            try
+            {
+                if (!worker.Join(TimeSpan.FromMilliseconds(TimeConstants.BluetoothCodecWorkerJoinTimeoutMs)))
+                    TADNLog.Log("BluetoothCodecMonitor.Stop: the ETW worker did not stop in time.");
+            }
+            catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Stop: join: {ex.Message}"); }
+        }
+
+        TADNLog.Log("BluetoothCodecMonitor.Stop: session closed.");
+    }
+
+    // Defensive cleanup of a stale session from a previous run. Realtime ETW sessions outlive a
+    // crashed process (they live in the kernel until explicitly stopped), so opening one under the
+    // same name immediately afterwards would fail with ALREADY_EXISTS.
     private static void StopOrphanedSession()
     {
         try
@@ -229,14 +254,14 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         }
     }
 
-    private void WorkerLoop()
+    private static void WorkerLoop(TraceEventSession session)
     {
         try
         {
-            // Blocks until the session is disposed. Exceptions from individual event callbacks
+            // Blocks until the session is stopped. Exceptions from individual event callbacks
             // are swallowed inside OnStreamingEvent so a single bad event can't tear the pump
             // down.
-            _session?.Source.Process();
+            session.Source.Process();
         }
         catch (Exception ex)
         {
@@ -244,10 +269,12 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         }
     }
 
-    private void OnStreamingEvent(TraceEvent evt)
+    private void OnStreamingEvent(TraceEvent evt, int generation)
     {
         try
         {
+            if (!IsCurrentGeneration(generation, Volatile.Read(ref _generation))) return;
+
             LogSchemaOnce(evt);
 
             byte standardId = Convert.ToByte(evt.PayloadValue(FieldStandardCodecId));
@@ -258,7 +285,14 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
             TADNLog.Log($"BluetoothCodecMonitor: A2DP codec = {codec.FriendlyName} " +
                         $"(std=0x{standardId:X2} vendor=0x{vendorId:X4} codec=0x{vendorCodecId:X4})");
 
-            try { dispatcher.InvokeAsync(() => CurrentCodec = codec); }
+            // The session may be retired while this hop is queued; recheck on the dispatcher
+            try
+            {
+                dispatcher.InvokeAsync(() =>
+                {
+                    if (IsCurrentGeneration(generation, _generation)) CurrentCodec = codec;
+                });
+            }
             catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor: dispatch failed: {ex.Message}"); }
         }
         catch (Exception ex)
@@ -309,27 +343,18 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
         catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Reset: {ex.Message}"); }
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
     public void Dispose()
     {
         if (_disposed) return;
+        Stop();
         _disposed = true;
-        IsRunning = false;
 
-        // Disposing the session causes Source.Process to return on the worker. Capture the
-        // worker reference before the field is nulled so a racing setter can't swap a new
-        // thread in mid-shutdown.
-        Thread? worker = _worker;
-        Safe.Dispose(_session);
-        _session = null;
-        _worker = null;
-
-        if (worker != null)
+        // App exit: the kernel session must be stopped before the process ends, so this one waits (bounded)
+        try
         {
-            try { worker.Join(TimeSpan.FromMilliseconds(TimeConstants.BluetoothCodecWorkerJoinTimeoutMs)); }
-            catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Dispose: join: {ex.Message}"); }
+            if (!_retirement.Wait(TimeSpan.FromMilliseconds(TimeConstants.BluetoothCodecWorkerJoinTimeoutMs * 2)))
+                TADNLog.Log("BluetoothCodecMonitor.Dispose: the session did not retire in time.");
         }
+        catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Dispose: {ex.Message}"); }
     }
 }

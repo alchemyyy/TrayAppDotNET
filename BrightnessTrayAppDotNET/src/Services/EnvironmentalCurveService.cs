@@ -160,7 +160,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         EnvironmentalCurve? stored = ResolveStoredCurve();
         if (curve == null || stored == null) return null;
 
-        double t = EnvironmentalCurveSampler.CurrentDayFraction();
+        double t = TrayAppDotNETCommon.UI.Controls.Curves.MonotonicCurveSampler.CurrentDayFraction();
         if (EnvironmentalCurveSampler.IsInDisabledPeriod(stored, t)) return null;
 
         double smoothness = (_appSettings?.EnvironmentalCurveSmoothness ?? 100) / 100.0;
@@ -642,7 +642,7 @@ public sealed class EnvironmentalCurveService : IDisposable
                 return;
             }
 
-            double t = EnvironmentalCurveSampler.CurrentDayFraction();
+            double t = TrayAppDotNETCommon.UI.Controls.Curves.MonotonicCurveSampler.CurrentDayFraction();
             // Disabled-period state lives on the stored curve, not the sun-shifted clone
             // (SunShifter.BuildPreview's ClonePoints intentionally only carries the Y-curves and their offset clamps,
             // since the period has its own independent anchor and shift handling).
@@ -941,18 +941,14 @@ public sealed class EnvironmentalCurveService : IDisposable
     }
 
     /// <summary>
-    /// Reads the user-configured tick interval from <see cref="AppSettings"/>,
-    /// clamped to the same bounds the settings UI enforces (250ms .. 60s).
-    /// The clamp is a defence against a hand-edited settings.xml:
-    /// a 0 or negative interval would either busy-loop the dispatcher or silently never fire.
+    /// The user-configured tick interval. <see cref="AppSettings.EnvironmentalCurveTickIntervalMs"/> clamps to
+    /// <see cref="TimeConstants.EnvironmentalCurveTickIntervalMinMs"/> ..
+    /// <see cref="TimeConstants.EnvironmentalCurveTickIntervalMaxMs"/>, the same range the settings card offers, so a
+    /// hand-edited 0 or negative value can never busy-loop the dispatcher.
     /// </summary>
-    private TimeSpan ResolveCurveTickInterval()
-    {
-        int ms = _appSettings?.EnvironmentalCurveTickIntervalMs ??
-                 TimeConstants.EnvironmentalCurveTickIntervalDefaultMs;
-        ms = Math.Clamp(ms, min: 250, max: 60_000);
-        return TimeSpan.FromMilliseconds(ms);
-    }
+    private TimeSpan ResolveCurveTickInterval() =>
+        TimeSpan.FromMilliseconds(
+            _appSettings?.EnvironmentalCurveTickIntervalMs ?? TimeConstants.EnvironmentalCurveTickIntervalDefaultMs);
 
     private void OnSelectedProfileChanged(int newIndex)
     {

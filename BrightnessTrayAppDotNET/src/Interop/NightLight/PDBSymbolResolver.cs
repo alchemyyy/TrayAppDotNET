@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using TrayAppDotNETCommon.Serialization;
 
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
@@ -86,13 +87,19 @@ internal static class PDBSymbolResolver
     /// - dbghelp's UNDNAME flag handles both.
     /// </param>
     /// <param name="rvas">Filled on success with name -&gt; RVA. Reused as the output dict.</param>
+    /// <param name="retryable">
+    /// On failure: true when a later attempt may succeed (the DLL could not be read, or the symbol download
+    /// failed); false when this DLL build cannot be resolved (no PDB identity, or the PDB lacks the names).
+    /// </param>
     public static bool TryResolveSymbols(
         string dllPath,
         IntPtr loadedModuleBase,
         IReadOnlyList<string> symbolNames,
-        out Dictionary<string, int> rvas)
+        out Dictionary<string, int> rvas,
+        out bool retryable)
     {
         rvas = new Dictionary<string, int>(symbolNames.Count);
+        retryable = false;
 
         FileVersionInfo info;
         long fileSize;
@@ -104,6 +111,7 @@ internal static class PDBSymbolResolver
         catch (Exception ex)
         {
             TADNLog.Log($"PDBSymbolResolver: failed to stat '{dllPath}': {ex.Message}");
+            retryable = true;
             return false;
         }
 
@@ -133,7 +141,7 @@ internal static class PDBSymbolResolver
             // Re-check the cache inside the lock - another thread may have just resolved while we waited.
             if (TryReadFromCache(dllPath, version, fileSize, PDBSignature, PDBAge, symbolNames, rvas)) return true;
 
-            if (!ResolveByDownloadingPDB(dllPath, loadedModuleBase, symbolNames, rvas)) return false;
+            if (!ResolveByDownloadingPDB(dllPath, loadedModuleBase, symbolNames, rvas, out retryable)) return false;
 
             try
             {
@@ -313,40 +321,40 @@ internal static class PDBSymbolResolver
         return 0;
     }
 
-    private static void WriteCacheEntries(IEnumerable<CacheEntry> entries)
-    {
-        using FileStream stream = new(CacheFile, FileMode.Create, FileAccess.Write, FileShare.None);
-        using Utf8JsonWriter writer = new(stream, CacheJsonWriterOptions);
-
-        writer.WriteStartObject();
-        writer.WritePropertyName("Entries");
-        writer.WriteStartArray();
-        foreach (CacheEntry entry in entries)
+    private static void WriteCacheEntries(IEnumerable<CacheEntry> entries) =>
+        AtomicFile.Write(CacheFile, stream =>
         {
-            writer.WriteStartObject();
-            writer.WriteString(propertyName: "DLLPath", entry.DLLPath);
-            writer.WriteString(propertyName: "Version", entry.Version);
-            writer.WriteNumber(propertyName: "FileSize", entry.FileSize);
-            writer.WriteString(propertyName: "PDBSignature", entry.PDBSignature);
-            writer.WriteNumber(propertyName: "PDBAge", entry.PDBAge);
-            writer.WritePropertyName("Symbols");
-            writer.WriteStartObject();
-            foreach (KeyValuePair<string, int> symbol in entry.Symbols.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
-                writer.WriteNumber(symbol.Key, symbol.Value);
-            writer.WriteEndObject();
-            writer.WriteEndObject();
-        }
+            using Utf8JsonWriter writer = new(stream, CacheJsonWriterOptions);
 
-        writer.WriteEndArray();
-        writer.WriteEndObject();
-        writer.Flush();
-        stream.Flush(true);
-    }
+            writer.WriteStartObject();
+            writer.WritePropertyName("Entries");
+            writer.WriteStartArray();
+            foreach (CacheEntry entry in entries)
+            {
+                writer.WriteStartObject();
+                writer.WriteString(propertyName: "DLLPath", entry.DLLPath);
+                writer.WriteString(propertyName: "Version", entry.Version);
+                writer.WriteNumber(propertyName: "FileSize", entry.FileSize);
+                writer.WriteString(propertyName: "PDBSignature", entry.PDBSignature);
+                writer.WriteNumber(propertyName: "PDBAge", entry.PDBAge);
+                writer.WritePropertyName("Symbols");
+                writer.WriteStartObject();
+                foreach (KeyValuePair<string, int> symbol in entry.Symbols.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
+                    writer.WriteNumber(symbol.Key, symbol.Value);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.Flush();
+        });
 
     private static bool ResolveByDownloadingPDB(
         string dllPath, IntPtr loadedModuleBase,
-        IReadOnlyList<string> symbolNames, Dictionary<string, int> rvas)
+        IReadOnlyList<string> symbolNames, Dictionary<string, int> rvas, out bool retryable)
     {
+        retryable = false;
         if (!TryReadCodeViewInfo(loadedModuleBase, out string pdbName, out Guid pdbSig, out uint pdbAge))
         {
             TADNLog.Log(
@@ -370,15 +378,53 @@ internal static class PDBSymbolResolver
             catch (Exception ex)
             {
                 TADNLog.Log($"PDBSymbolResolver: could not create PDB cache dir '{pdbDir}': {ex.Message}");
+                retryable = true;
                 return false;
             }
 
             string url = $"{SymbolServer}/{pdbName}/{symbolKey}/{pdbName}";
-            if (!TryDownloadFile(url, pdbPath)) return false;
+            if (!TryDownloadFile(url, pdbPath))
+            {
+                retryable = true;
+                return false;
+            }
             TADNLog.Log($"PDBSymbolResolver: downloaded {pdbName} ({symbolKey}) -> {pdbPath}");
         }
 
-        return ResolveViaDbghelp(loadedModuleBase, pdbDir, pdbPath, symbolNames, rvas);
+        bool resolved = ResolveViaDbghelp(loadedModuleBase, pdbDir, pdbPath, symbolNames, rvas);
+        if (resolved) PruneOtherPDBFolders(Path.Combine(NightlightDir, pdbName), symbolKey);
+        return resolved;
+    }
+
+    /// <summary>
+    /// Deletes the cached PDBs of earlier DLL builds (the sibling symbol-key folders under
+    /// <paramref name="pdbRoot"/>); otherwise every Windows update leaves its old PDB, tens of MB, behind. The
+    /// current build's PDB stays for a later cache miss.
+    /// </summary>
+    internal static void PruneOtherPDBFolders(string pdbRoot, string keepSymbolKey)
+    {
+        try
+        {
+            foreach (string folder in Directory.EnumerateDirectories(pdbRoot))
+            {
+                if (string.Equals(Path.GetFileName(folder), keepSymbolKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
+                {
+                    Directory.Delete(folder, recursive: true);
+                    TADNLog.Log($"PDBSymbolResolver: pruned the PDB of an earlier build: '{folder}'");
+                }
+                catch (Exception ex)
+                {
+                    TADNLog.Log($"PDBSymbolResolver: could not prune '{folder}': {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"PDBSymbolResolver: could not list '{pdbRoot}' for pruning: {ex.Message}");
+        }
     }
 
     /// <summary>

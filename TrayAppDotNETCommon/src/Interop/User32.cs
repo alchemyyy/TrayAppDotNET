@@ -3,7 +3,8 @@ using System.Runtime.InteropServices;
 namespace TrayAppDotNETCommon.Interop;
 
 /// <summary>
-/// User32.dll and GDI32.dll interop declarations for tray icon and DPI handling.
+/// user32.dll interop (plus the few gdi32 and shcore members the tray code needs). Every app declares these members
+/// here only.
 /// </summary>
 public static class User32
 {
@@ -69,11 +70,13 @@ public static class User32
 
     // Virtual key codes for modifier detection
     public const int VK_LBUTTON = 0x01;
+    public const int VK_RBUTTON = 0x02;
     public const int VK_CONTROL = 0x11;
     public const int VK_MENU = 0x12;
 
     // System metrics and DPI
     public const int SM_CXSMICON = 49;
+    public const int SM_SWAPBUTTON = 23;
     public const int LOGPIXELSX = 88;
     public const uint MONITOR_DEFAULTTONULL = 0x00000000;
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
@@ -87,12 +90,7 @@ public static class User32
     public const uint SPI_GETMENUSHOWDELAY = 0x006A;
     public const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
 
-    // Global hotkeys (RegisterHotKey / WM_HOTKEY)
-    public const uint MOD_ALT = 0x0001;
-    public const uint MOD_CONTROL = 0x0002;
-    public const uint MOD_SHIFT = 0x0004;
-    public const uint MOD_WIN = 0x0008;
-    public const uint MOD_NOREPEAT = 0x4000;
+    // Global hotkeys (RegisterHotKey / WM_HOTKEY); the MOD_* flags are HotkeyModifiers
     public const int WM_HOTKEY = 0x0312;
     public static readonly IntPtr HWND_MESSAGE = new(-3);
 
@@ -104,12 +102,25 @@ public static class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int hotKeyID);
 
-    [DllImport("user32.dll")]
+    // Translates a virtual key into the unshifted character of the current keyboard layout (hotkey key names)
+    public const uint MAPVK_VK_TO_CHAR = 2;
+
+    [DllImport("user32.dll", EntryPoint = "MapVirtualKeyW")]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDoubleClickTime();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
 
     public const int SW_RESTORE = 9;
 
@@ -117,9 +128,179 @@ public static class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    /// <summary>Posts the show request instead of waiting for it, so a hung window in another process cannot stall the caller.</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsIconic(IntPtr hWnd);
+
+    // Window enumeration and identity
+    public const uint GW_OWNER = 4;
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW")]
+    public static extern unsafe int GetClassName(IntPtr hWnd, char* lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextLengthW", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    // Hung-window detection (Task Manager's Status column and window grouping)
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsHungAppWindow(IntPtr hWnd);
+
+    // Exported by name from user32 but absent from the SDK headers; Taskmgr.exe imports both
+    [DllImport("user32.dll")]
+    public static extern IntPtr GhostWindowFromHungWindow(IntPtr hwndHung);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr HungWindowFromGhostWindow(IntPtr hwndGhost);
+
+    // WinEvent hooks (out of context: the callback runs on the hooking thread's message loop)
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    public const uint EVENT_OBJECT_DESTROY = 0x8001;
+    public const uint EVENT_OBJECT_SHOW = 0x8002;
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+
+    public delegate void WinEventProc(
+        IntPtr hWinEventHook,
+        uint eventType,
+        IntPtr hwnd,
+        int idObject,
+        int idChild,
+        uint idEventThread,
+        uint dwmsEventTime);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        IntPtr hmodWinEventProc,
+        WinEventProc pfnWinEventProc,
+        uint idProcess,
+        uint idThread,
+        uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+    // Message pump
+    public const int WM_QUIT = 0x0012;
+    public const uint PM_REMOVE = 0x0001;
+    public const uint QS_ALLINPUT = 0x04FF;
+    public const uint MWMO_INPUTAVAILABLE = 0x0004;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public POINT pt;
+        public uint lPrivate;
+    }
+
+    /// <summary>Returns a positive value for a message, 0 for WM_QUIT and -1 on failure.</summary>
+    [DllImport("user32.dll", EntryPoint = "GetMessageW", SetLastError = true)]
+    public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll", EntryPoint = "PeekMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool TranslateMessage(in MSG lpMsg);
+
+    [DllImport("user32.dll", EntryPoint = "DispatchMessageW")]
+    public static extern IntPtr DispatchMessage(in MSG lpMsg);
+
+    [DllImport("user32.dll", EntryPoint = "PostThreadMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern unsafe uint MsgWaitForMultipleObjectsEx(
+        uint nCount,
+        IntPtr* pHandles,
+        uint dwMilliseconds,
+        uint dwWakeMask,
+        uint dwFlags);
+
+    // Window classes and windows (message-only windows)
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct WNDCLASSEX
+    {
+        public int cbSize;
+        public int style;
+        public IntPtr lpfnWndProc;
+        public int cbClsExtra;
+        public int cbWndExtra;
+        public IntPtr hInstance;
+        public IntPtr hIcon;
+        public IntPtr hCursor;
+        public IntPtr hbrBackground;
+        public string? lpszMenuName;
+        public string lpszClassName;
+        public IntPtr hIconSm;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "RegisterClassExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
+
+    [DllImport("user32.dll", EntryPoint = "UnregisterClassW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnregisterClass(string lpClassName, IntPtr hInstance);
+
+    [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateWindowEx(
+        int dwExStyle,
+        string lpClassName,
+        string? lpWindowName,
+        int dwStyle,
+        int x,
+        int y,
+        int nWidth,
+        int nHeight,
+        IntPtr hWndParent,
+        IntPtr hMenu,
+        IntPtr hInstance,
+        IntPtr lpParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", EntryPoint = "DefWindowProcW", CharSet = CharSet.Unicode)]
+    public static extern IntPtr DefWindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -158,6 +339,9 @@ public static class User32
     public static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
 
     [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -190,6 +374,16 @@ public static class User32
         int cyDesired,
         uint flags);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr CreateIconFromResourceEx(
+        IntPtr presbits,
+        int dwResSize,
+        [MarshalAs(UnmanagedType.Bool)] bool fIcon,
+        IconExtraction.IconCursorVersion dwVer,
+        int cxDesired,
+        int cyDesired,
+        IconExtraction.LoadImageFlags flags);
+
     [DllImport("gdi32.dll")]
     public static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
 
@@ -215,14 +409,6 @@ public static class User32
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool UnregisterTouchWindow(IntPtr hwnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool RegisterPointerInputTargetEx(IntPtr hwnd, uint pointerType, bool observe);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool UnregisterPointerInputTargetEx(IntPtr hwnd, uint pointerType);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -335,21 +521,6 @@ public static class User32
     {
         public uint dwSizeHid;
         public uint dwCount;
-    }
-
-    // x64 layout: RAWINPUTHEADER is 24 bytes (4+4+8+8), so the union starts at offset 24.
-    // EarTrumpet uses 16 because it ships x86; this project is x64.
-    [StructLayout(LayoutKind.Explicit)]
-    public struct RAWINPUT
-    {
-        [FieldOffset(0)]
-        public RAWINPUTHEADER header;
-
-        [FieldOffset(24)]
-        public RAWMOUSE mouse;
-
-        [FieldOffset(24)]
-        public RAWHID hid;
     }
 
     [StructLayout(LayoutKind.Sequential)]

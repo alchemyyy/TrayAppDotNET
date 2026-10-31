@@ -8,7 +8,6 @@ namespace VolumeTrayAppDotNET.Audio;
 /// </summary>
 internal sealed class CoreAudioSessionMTAThread : IDisposable
 {
-    private const uint MultithreadedApartment = 0;
     private const string ThreadName = "VolumeTrayApp.CoreAudioSessionMTA";
 
     private readonly ManualResetEventSlim _started = new(false);
@@ -38,11 +37,12 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
 
     private void Run()
     {
-        int initializationResult = CoInitializeEx(IntPtr.Zero, MultithreadedApartment);
-        if (initializationResult < 0)
+        // A fresh thread has no apartment yet, so any failure (including RPC_E_CHANGED_MODE) means no MTA
+        using ComApartmentScope apartment = ComApartmentScope.Enter(Ole32.COINIT_MULTITHREADED);
+        if (apartment.HResult < 0)
         {
-            _startupException = Marshal.GetExceptionForHR(initializationResult)
-                                ?? new COMException(message: "CoInitializeEx failed.", initializationResult);
+            _startupException = Marshal.GetExceptionForHR(apartment.HResult)
+                                ?? new COMException(message: "CoInitializeEx failed.", apartment.HResult);
             _started.Set();
             return;
         }
@@ -58,7 +58,6 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
         finally
         {
             Volatile.Write(ref _isRunning, value: 0);
-            CoUninitialize();
         }
     }
 
@@ -71,10 +70,4 @@ internal sealed class CoreAudioSessionMTAThread : IDisposable
         _started.Dispose();
         _shutdown.Dispose();
     }
-
-    [DllImport("ole32.dll", ExactSpelling = true, PreserveSig = true)]
-    private static extern int CoInitializeEx(IntPtr reserved, uint initializationMode);
-
-    [DllImport("ole32.dll", ExactSpelling = true)]
-    private static extern void CoUninitialize();
 }

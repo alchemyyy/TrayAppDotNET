@@ -5,8 +5,9 @@ namespace NetworkTrayAppDotNET.Services;
 
 /// <summary>
 /// Watches Windows network connectivity via WinRT and surfaces a single rolled-up
-/// NetworkIconState plus a per-connection tooltip string. Fires NetworkStateChanged
-/// only when the rolled-up state actually changes (callers Dispatcher-marshal).
+/// NetworkIconState plus a per-connection tooltip string. Every refresh runs on a thread-pool thread (poll ticks
+/// through <see cref="RequestRefresh"/>, NetworkStatusChanged and Wi-Fi notifications alike), and
+/// NetworkStateChanged fires there when the state or the connection list changed (callers Dispatcher-marshal).
 /// While no connection reaches the internet, the Wi-Fi adapter state from WLAN AutoConfig
 /// picks between the Wi-Fi connecting, Wi-Fi disconnected and no network states.
 /// </summary>
@@ -18,13 +19,14 @@ public sealed class NetworkMonitor : IDisposable
     private int _refreshPending;
     private int _disposed;
     private int _initialized;
+    private long _lastProjectionReleaseTick;
 
     public event Action<NetworkIconState>? NetworkStateChanged;
 
     public NetworkIconState CurrentState { get; private set; } = NetworkIconState.NoNetwork;
     public List<(string Name, bool IsWifi, bool HasInternet)> AllConnections { get; private set; } = [];
 
-    public NetworkMonitor() => _networkHandler = _ => RefreshState();
+    public NetworkMonitor() => _networkHandler = _ => RequestRefresh();
 
     public void Initialize()
     {
@@ -35,7 +37,7 @@ public sealed class NetworkMonitor : IDisposable
         {
             NetworkInformation.NetworkStatusChanged += _networkHandler;
             _wifiAdapters.StateChanged += OnWifiAdapterStateChanged;
-            RefreshState();
+            RequestRefresh();
         }
         catch (Exception ex)
         {
@@ -52,7 +54,15 @@ public sealed class NetworkMonitor : IDisposable
         }
     }
 
-    public void RefreshState()
+    /// <summary>Queues a refresh on the thread pool; the caller never waits for WinRT.</summary>
+    public void RequestRefresh() =>
+        ThreadPool.QueueUserWorkItem(static monitor =>
+        {
+            try { monitor.RefreshState(); }
+            catch (Exception ex) { TADNLog.Log($"NetworkMonitor queued refresh: {ex.Message}"); }
+        }, this, preferLocal: false);
+
+    private void RefreshState()
     {
         // Poll ticks, NetworkStatusChanged and Wi-Fi notifications never wait on each other: a request that arrives
         // while a refresh runs is picked up by that refresh before it releases the gate
@@ -76,19 +86,24 @@ public sealed class NetworkMonitor : IDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
 
         NetworkIconState previousState = CurrentState;
+        bool changed;
 
         try
         {
             NetworkSnapshot snapshot = BuildSnapshot(_wifiAdapters);
-            UpdateState(snapshot.State, snapshot.Connections, previousState);
+            changed = UpdateState(snapshot.State, snapshot.Connections, previousState);
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NetworkMonitor.RefreshState: {ex.Message}");
-            UpdateState(NetworkIconState.NoNetwork, [], previousState);
+            changed = UpdateState(NetworkIconState.NoNetwork, [], previousState);
         }
-        finally
+
+        // Profiles churn when something changed; otherwise the wrappers only need releasing now and then
+        long now = Environment.TickCount64;
+        if (changed || now - _lastProjectionReleaseTick >= TimeConstants.NetworkProjectionReleaseIntervalMs)
         {
+            _lastProjectionReleaseTick = now;
             ReleaseWinRTProjectionReferencesAfterRefresh();
         }
     }
@@ -158,49 +173,58 @@ public sealed class NetworkMonitor : IDisposable
     }
 
     /// <summary>
-    /// Forces C#/WinRT projection wrappers to release native COM references after each refresh.
+    /// Forces C#/WinRT projection wrappers to release native COM references. Runs on the refreshing pool thread, after
+    /// a change or at most every <see cref="TimeConstants.NetworkProjectionReleaseIntervalMs"/>.
     /// </summary>
     private static void ReleaseWinRTProjectionReferencesAfterRefresh()
     {
         // ConnectionProfile and the profile list returned by GetConnectionProfiles do not implement
         // IDisposable. Long-run dumps showed ConnectionProfileServer and CAgileReferenceMarshaled buildup
-        // after repeated refreshes. Refreshes are low frequency, so a full blocking GC is acceptable for now.
+        // after repeated refreshes, which only a full collection releases.
         // TODO network: replace this hot path with lower-level APIs that expose explicit native ownership.
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
         GC.WaitForPendingFinalizers();
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
     }
 
-    private void UpdateState(NetworkIconState state, List<(string, bool, bool)> connections,
+    private bool UpdateState(NetworkIconState state, List<(string Name, bool IsWifi, bool HasInternet)> connections,
         NetworkIconState previous)
     {
+        bool changed = state != previous || !connections.SequenceEqual(AllConnections);
         CurrentState = state;
         AllConnections = connections;
-        if (state != previous) NetworkStateChanged?.Invoke(state);
+        if (changed) NetworkStateChanged?.Invoke(state);
+        return changed;
     }
 
     // WLAN AutoConfig raises notifications on its own callback thread, which must not run a refresh
-    private void OnWifiAdapterStateChanged() =>
-        ThreadPool.QueueUserWorkItem(static monitor =>
-        {
-            try { monitor.RefreshState(); }
-            catch (Exception ex) { TADNLog.Log($"NetworkMonitor Wi-Fi notification refresh: {ex.Message}"); }
-        }, this, preferLocal: false);
+    private void OnWifiAdapterStateChanged() => RequestRefresh();
 
     public string GetTooltipText()
     {
         if (AllConnections.Count > 0)
         {
-            IEnumerable<string> entries = AllConnections.Select(c =>
-                $"{c.Name}\r\n{(c.HasInternet ? "Internet access" : "No internet")}");
-            return string.Join(separator: "\r\n\r\n", entries);
+            // Whole connections only, so the shell's tooltip limit never cuts one in half
+            System.Text.StringBuilder text = new();
+            foreach (string entry in AllConnections.Select(c =>
+                         $"{c.Name}\n{(c.HasInternet ? "Internet access" : "No internet")}"))
+            {
+                int separatorLength = text.Length == 0 ? 0 : 2;
+                if (text.Length + separatorLength + entry.Length > TrayTooltipText.MaxLength && text.Length > 0)
+                    break;
+
+                if (separatorLength > 0) text.Append("\n\n");
+                text.Append(entry);
+            }
+
+            return text.ToString();
         }
 
         return CurrentState switch
         {
-            NetworkIconState.WifiDisconnected => "Wi-Fi\r\nDisconnected",
-            NetworkIconState.WifiConnecting => "Wi-Fi\r\nConnecting...",
-            NetworkIconState.EthernetDisconnected => "Ethernet\r\nDisconnected",
+            NetworkIconState.WifiDisconnected => "Wi-Fi\nDisconnected",
+            NetworkIconState.WifiConnecting => "Wi-Fi\nConnecting...",
+            NetworkIconState.EthernetDisconnected => "Ethernet\nDisconnected",
             _ => "No network connection"
         };
     }

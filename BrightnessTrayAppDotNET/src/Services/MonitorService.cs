@@ -127,7 +127,7 @@ public sealed class MonitorService : IDisposable
 
     // Wall-clock of the last topology event reported by the caller (via NotifyTopologyEvent).
     // Phase B uses (now - this) to decide whether the monitor MCU still needs a post-arrival
-    // settle window. Cold-start RefreshInitial from the ctor leaves this at MinValue so Phase B starts
+    // settle window. The cold-start enumeration from the ctor leaves this at MinValue so Phase B starts
     // immediately - the monitors have been connected since boot and don't need a settle.
     // WM_DEVICECHANGE-driven Refresh from DisplayEventManager sets this to UtcNow before calling
     // Refresh, so Phase B defers for the remaining settle window. Event-driven gating, no
@@ -172,35 +172,47 @@ public sealed class MonitorService : IDisposable
     public Func<bool>? IsInDisabledPeriodQuery { get; set; }
 
     /// <summary>
-    /// Creates the monitor service and optionally uses an injected known-display store.
+    /// Creates the monitor service on the app's single known-display store (also used by every profile manager and
+    /// the settings pages; the caller owns and disposes it). The first enumeration runs on the refresh worker:
+    /// it includes the WMI attach of Windows-brightness panels, which must not hold up the UI thread at startup.
     /// </summary>
-    public MonitorService(IDisplayService display, AppSettings settings, KnownDisplaysStore? knownDisplays = null)
-        : this(display, settings, knownDisplays, new AvaloniaMonitorServiceDispatcher(Dispatcher.UIThread))
+    public MonitorService(IDisplayService display, AppSettings settings, KnownDisplaysStore knownDisplays)
+        : this(
+            display,
+            settings,
+            knownDisplays,
+            new AvaloniaMonitorServiceDispatcher(Dispatcher.UIThread),
+            enumerateInitialSnapshotOnWorker: true)
     {
     }
 
+    /// <param name="enumerateInitialSnapshotOnWorker">
+    /// False applies the first snapshot before the constructor returns, which deterministic tests rely on.
+    /// </param>
     internal MonitorService(
         IDisplayService display,
         AppSettings settings,
-        KnownDisplaysStore? knownDisplays,
+        KnownDisplaysStore knownDisplays,
         IMonitorServiceDispatcher dispatcher,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool enumerateInitialSnapshotOnWorker = false)
     {
         _display = display;
         _settings = settings;
         _dispatcher = dispatcher;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _knownDisplays = knownDisplays;
 
-        // Optional injection: callers wired up before the displays.json extraction keep working with the
-        // two-arg constructor.
-        // A default-constructed store points at the same %LocalAppData% folder as settings.xml, so behaviour matches a
-        // manually-injected instance.
-        _knownDisplays = knownDisplays ?? new KnownDisplaysStore();
-
-        // First-run migration: when displays.json doesn't exist yet, seed the new store from the legacy
+        // First-run migration: when displays.json doesn't exist yet, seed the store from the legacy
         // AppSettings.KnownDisplays list so users upgrading from a build without the extracted store don't lose their
         // accumulated history (or, more importantly, the sticky WasEverDDCCapable flags DDCRecoveryService relies on).
-        _knownDisplays.Load(_settings.KnownDisplays);
+        // The legacy list is emptied only once the entries are on disk; a locked or unreadable displays.json, or a
+        // failed migration write, keeps it in settings.xml as the only durable copy.
+        if (_knownDisplays.Load(_settings.KnownDisplays) && _settings.KnownDisplays.Count > 0)
+        {
+            _settings.KnownDisplays.Clear();
+            _settings.Save();
+        }
 
         _writeCooldownMs = Math.Max(val1: 0, settings.BrightnessUpdateRateMs);
         _validationDwellMs = Math.Max(val1: 0, settings.ValidationDwellMs);
@@ -221,7 +233,8 @@ public sealed class MonitorService : IDisposable
         // Re-sort the monitor list whenever the sort settings or manual override change.
         _settings.Changed += OnSettingsChanged;
 
-        RefreshInitial();
+        if (enumerateInitialSnapshotOnWorker) Refresh();
+        else RefreshInitial();
 
         // Cold-start recovery: re-Refresh a couple of seconds later so panels whose registry EDID wasn't yet populated
         // when the constructor ran get their proper edid-keyed identity before the user notices a stuck slider.
@@ -469,7 +482,7 @@ public sealed class MonitorService : IDisposable
     /// <summary>
     /// Pushes the per-monitor norm curve (<see cref="MonitorOverrideEntry.NormCurvePoints"/>)
     /// onto every DDC-supported <see cref="MonitorEntry"/> as pre-sorted xs/ys arrays
-    /// ready for <see cref="EnvironmentalCurveSampler.InterpolateLinear"/>.
+    /// ready for <see cref="TrayAppDotNETCommon.UI.Controls.Curves.MonotonicCurveSampler.InterpolateLinear"/>.
     /// Lookup is keyed by EDIDKey so the curve survives identity-strategy changes.
     /// When the resolved curve actually changes for a monitor, the entry's previous target acknowledgement
     /// is invalidated and a fresh write of the current slider position is queued -
@@ -963,13 +976,41 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
+    /// Fire-and-forget entry of <see cref="RefreshProbePhaseCoreAsync"/>. Every failure is logged here: an
+    /// unobserved task exception would end the process through the crash handler.
+    /// </summary>
+    private async Task RefreshProbePhaseAsync(
+        Dictionary<string, DDCMonitor> latestByID,
+        Dictionary<string, string> EDIDKeyByID,
+        Dictionary<string, string> nameOverridesByEDID,
+        bool strategyChanged,
+        int phaseGen,
+        long brightnessReplayGeneration)
+    {
+        try
+        {
+            await RefreshProbePhaseCoreAsync(
+                latestByID,
+                EDIDKeyByID,
+                nameOverridesByEDID,
+                strategyChanged,
+                phaseGen,
+                brightnessReplayGeneration);
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"MonitorService.RefreshProbePhaseAsync failed (gen {phaseGen}): {ex}");
+        }
+    }
+
+    /// <summary>
     /// Per-monitor probe + reconcile + add phase of <see cref="Refresh"/>.
     /// Split out so a settle delay can sit between the (immediate) enumeration/removal phase and this
     /// (deferred) phase. See the comment block in <see cref="Refresh"/> for the rationale.
     /// Runs row mutations on the UI dispatcher; retrying DDC reads are awaited off-dispatcher so
     /// retry backoffs do not block startup or hot-plug UI.
     /// </summary>
-    private async Task RefreshProbePhaseAsync(
+    private async Task RefreshProbePhaseCoreAsync(
         Dictionary<string, DDCMonitor> latestByID,
         Dictionary<string, string> EDIDKeyByID,
         Dictionary<string, string> nameOverridesByEDID,
@@ -1949,7 +1990,7 @@ public sealed class MonitorService : IDisposable
             .ToHashSet(StringComparer.Ordinal);
         if (capable.Count == 0) return true;
 
-        return InvokeOnDispatcher(Check);
+        return InvokeOnDispatcher(Check, resultWhileDraining: true);
 
         bool Check()
         {
@@ -1964,7 +2005,9 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>True when a live row is still keyed by the GDI adapter name of its source.</summary>
     private bool HasAdapterNameIdentity() =>
-        InvokeOnDispatcher(() => !_disposed && Monitors.Any(m => IsAdapterNamePortKey(m.EDIDKey)));
+        InvokeOnDispatcher(
+            () => !_disposed && Monitors.Any(m => IsAdapterNamePortKey(m.EDIDKey)),
+            resultWhileDraining: false);
 
     /// <summary>
     /// Returns the <see cref="MonitorInfo.ID"/> of every monitor that's a candidate for the DDC fallback worker:
@@ -1982,7 +2025,7 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed) return [];
 
-        return InvokeOnDispatcher(Snapshot);
+        return InvokeOnDispatcher<List<string>>(Snapshot, resultWhileDraining: []);
 
         List<string> Snapshot()
         {
@@ -2035,6 +2078,19 @@ public sealed class MonitorService : IDisposable
         || monitor.SuppressDDCRecoveryForPowerIntent;
 
     /// <summary>
+    /// ID and EDID key of every live row, read on the UI thread that owns <see cref="Monitors"/>, so timer and
+    /// thread-pool callers never enumerate the collection while it changes.
+    /// </summary>
+    internal List<(string ID, string EDIDKey)> CaptureIdentityKeys()
+    {
+        if (_disposed) return [];
+
+        return InvokeOnDispatcher<List<(string ID, string EDIDKey)>>(Snapshot, resultWhileDraining: []);
+
+        List<(string ID, string EDIDKey)> Snapshot() => [.. Monitors.Select(static m => (m.ID, m.EDIDKey))];
+    }
+
+    /// <summary>
     /// Device-instance paths of the panels behind live rows, and how many live rows have none on record.
     /// The display event scanner compares them with Device Manager to find monitors no row accounts for.
     /// </summary>
@@ -2042,7 +2098,9 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed) return new MonitorPresence(new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
 
-        return InvokeOnDispatcher(Snapshot);
+        return InvokeOnDispatcher(
+            Snapshot,
+            resultWhileDraining: new MonitorPresence(new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0));
 
         MonitorPresence Snapshot()
         {
@@ -2480,7 +2538,8 @@ public sealed class MonitorService : IDisposable
         bool poweredOffAtProbeStart) =>
         InvokeOnDispatcher(() =>
             (poweredOffAtProbeStart || !info.SuppressDDCRecoveryForPowerIntent)
-            && PromoteRecovered(info, ddc, current, max));
+            && PromoteRecovered(info, ddc, current, max),
+            resultWhileDraining: false);
 
     // What a panel's power-mode VCP says
     private enum PanelPowerReading
@@ -2763,7 +2822,9 @@ public sealed class MonitorService : IDisposable
             return PromoteRecoveredUnlessPoweredOff(info, ddc, current, max, poweredOffAtProbeStart: true);
 
         return power == PanelPowerReading.On
-               && InvokeOnDispatcher(() => ResumePoweredOnRow(info, ddc, max, powerIntentGeneration));
+               && InvokeOnDispatcher(
+                   () => ResumePoweredOnRow(info, ddc, max, powerIntentGeneration),
+                   resultWhileDraining: false);
     }
 
     /// <summary>
@@ -4245,7 +4306,7 @@ public sealed class MonitorService : IDisposable
     private bool IsReadDegraded(string monitorID)
     {
         if (string.IsNullOrEmpty(monitorID)) return false;
-        return InvokeOnDispatcher(Snapshot);
+        return InvokeOnDispatcher(Snapshot, resultWhileDraining: false);
 
         bool Snapshot()
         {
@@ -4321,6 +4382,8 @@ public sealed class MonitorService : IDisposable
         }
     }
 
+    // Shutdown blocks the UI thread while it waits for the drain, so a worker hopping to it once draining would stall
+    // both until the drain timeout. A skipped hop only updated rows that shutdown is about to discard.
     private void InvokeOnDispatcher(Action action)
     {
         if (_dispatcher.CheckAccess())
@@ -4329,13 +4392,14 @@ public sealed class MonitorService : IDisposable
             return;
         }
 
+        if (_draining) return;
         _dispatcher.Invoke(action);
     }
 
-    private T InvokeOnDispatcher<T>(Func<T> action)
+    private T InvokeOnDispatcher<T>(Func<T> action, T resultWhileDraining)
     {
         if (_dispatcher.CheckAccess()) return action();
-        return _dispatcher.Invoke(action);
+        return _draining ? resultWhileDraining : _dispatcher.Invoke(action);
     }
 
     public void Dispose()
@@ -4354,13 +4418,12 @@ public sealed class MonitorService : IDisposable
         _rowsWithContradictedWrites.Clear();
         _disconnectedMonitors.Clear();
 
-        // Flush any pending debounced brightness / offset stamps so a last-moment slider drag
-        // doesn't get lost on shutdown, and dispose the timer (H-15). Dispose internally flushes
-        // and stops the debounce timer so the System.Threading.Timer is not leaked.
-        try { _knownDisplays.Dispose(); }
-        catch
+        // Write any pending debounced brightness stamp so a last-moment slider drag isn't lost on shutdown. The store
+        // is shared with the profile managers and the settings pages, so its owner (App) disposes it.
+        try { _knownDisplays.Save(); }
+        catch (Exception ex)
         {
-            /* best-effort during shutdown */
+            TADNLog.Log($"MonitorService.Dispose: known-display save failed: {ex.Message}");
         }
 
         // Tear down the throttlers - cancels any in-flight payload at its next dwell-await
@@ -4392,22 +4455,8 @@ public sealed class MonitorService : IDisposable
             }
         }
 
-        // Release the per-monitor mutexes. Anything still holding one is in-flight;
-        // SemaphoreSlim doesn't track owner so we can't preempt,
-        // but the monitor's helper process timeout caps how long app-level callers wait.
-        lock (_ddcLocksGate)
-        {
-            foreach (SemaphoreSlim sem in _ddcLocks.Values)
-            {
-                try { sem.Dispose(); }
-                catch
-                {
-                    /* best-effort during shutdown */
-                }
-            }
-
-            _ddcLocks.Clear();
-        }
+        // The per-monitor DDC semaphores are never disposed: an op still in flight when the drain timed out
+        // releases its semaphore later, and SemaphoreSlim owns no native handle unless AvailableWaitHandle is read
     }
 
     /// <summary>
@@ -4567,7 +4616,7 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Synchronously serialises a DDC func against the monitor's per-panel mutex.
-    /// Use from non-async paths (UI-thread Refresh, sync helpers);
+    /// Use from synchronous worker paths (probe and recovery helpers that already run off the UI thread);
     /// for async paths (write loop, verify loop) use <see cref="WithDDCLockAsync{T}"/>
     /// so the await machinery isn't blocked on the wait.
     /// </summary>
@@ -4735,7 +4784,7 @@ public sealed class MonitorService : IDisposable
         NormCurveProjection? normCurve = Volatile.Read(ref entry.NormCurve);
         if (normCurve?.Xs is not { Length: >= 2 } xs || normCurve.Ys is not { Length: >= 2 } ys) return percent;
 
-        double y = EnvironmentalCurveSampler.InterpolateLinear(xs, ys, percent);
+        double y = TrayAppDotNETCommon.UI.Controls.Curves.MonotonicCurveSampler.InterpolateLinear(xs, ys, percent);
         return (int)Math.Round(Math.Clamp(y, min: 0.0, max: 100.0));
     }
 }

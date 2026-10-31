@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
 using System.Text;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
@@ -10,10 +11,10 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 /// </summary>
 internal static class NightLightHelperClient
 {
-    private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-
     internal static readonly Encoding PipeEncoding =
         new UTF8Encoding(false);
+
+    private const string PipeNamePrefix = "BrightnessTrayAppNightLight";
 
     private static readonly Lock StateGate = new();
     private static readonly NightLightLatestStrengthQueue PendingStrength = new();
@@ -21,8 +22,12 @@ internal static class NightLightHelperClient
     private static readonly CancellationTokenSource ShutdownTokenSource = new();
     private static readonly List<Task> RetirementTasks = [];
 
-    private static readonly Lazy<Task<bool>> InitializationTask =
-        new(InitializeAsync, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly RetryableInitialization Initialization = new(
+        InitializeAttemptAsync,
+        static () => Environment.TickCount64,
+        TimeConstants.NightLightHelperInitRetryBaseMs,
+        TimeConstants.NightLightHelperInitRetryMaxMs,
+        nameof(NightLightHelperClient));
 
     private static NightLightHelperConnection? _activeHelper;
     private static Task<NightLightHelperConnection?>? _warmingHelperTask;
@@ -31,9 +36,10 @@ internal static class NightLightHelperClient
     private static int _warmupRetryAfterOperationCount;
     private static bool _recycleRequested;
     private static bool _shutdownRequested;
+    private static bool _anyHelperReportedReady;
     private static long _lastQueuedStrengthTick;
 
-    internal static bool HasStartedInitialization => InitializationTask.IsValueCreated;
+    internal static bool HasStartedInitialization => Initialization.HasStarted;
 
     /// <summary>
     /// How long a new helper gets to connect and report ready. Readiness waits on the symbol download, so the wait
@@ -43,37 +49,25 @@ internal static class NightLightHelperClient
         Math.Max(pdbDownloadTimeoutMs, 0) + TimeConstants.NightLightHelperStartGraceMs;
 
     /// <summary>
-    /// Starts and primes one helper, then waits until the production IPC pump is blocked and ready for input.
+    /// False after shutdown or once a helper reported the native backend unsupported on this Windows build, which
+    /// is never retried. Never starts or waits for a helper: the first write starts initialization on a worker,
+    /// and a failed start may be retried after a backoff.
     /// </summary>
-    public static bool IsSupported()
-    {
-        lock (StateGate)
-        {
-            if (_shutdownRequested)
-                return false;
-        }
-
-        try
-        {
-            return InitializationTask.Value.GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NightLightHelperClient.IsSupported: initialization failed: {ex.Message}");
-            return false;
-        }
-    }
+    public static bool IsBackendAvailable() => Initialization.IsAvailable;
 
     /// <summary>
-    /// Stores the newest strength and returns immediately. True means the coordinator accepted the value;
-    /// helper IPC and native preview streaming run entirely off the caller's thread.
+    /// Stores the newest strength and returns immediately. True means the coordinator accepted the value: while
+    /// the helper initializes on a worker the value waits in the length-one queue, and the pump applies it once
+    /// the helper is ready. During the backoff after a failed start the value is kept too, and the next successful
+    /// attempt replays it. False while Night Light is off, after shutdown, or once the backend is known to be
+    /// unsupported.
     /// </summary>
     public static bool TryQueueSettingsKelvin(int percent)
     {
         // Keep this invariant here as well as at the provider: no future direct caller may initialize the native
         // helper merely because a stale curve or UI update attempted to write strength while Night Light is off.
         if (!NightLightRegistry.IsEnabled()) return false;
-        if (!IsSupported()) return false;
+        if (!ShouldKeepQueuedStrength(EnsureInitializationStarted() != null, Initialization.IsAvailable)) return false;
 
         int clamped = Math.Clamp(percent, min: 0, max: 100);
         lock (StateGate)
@@ -94,8 +88,10 @@ internal static class NightLightHelperClient
     /// <summary>
     /// Applies an explicit active-state transition through SettingsHandlers_Display. A supplied enable strength
     /// is committed in the helper before the active transition, which also initializes fresh Windows profiles.
+    /// Helper initialization is awaited, never blocked on, so a UI-thread caller cannot freeze behind a helper
+    /// start or a symbol download.
     /// </summary>
-    public static bool SetEnabled(bool enabled, int? enableStrength)
+    public static async Task<bool> SetEnabledAsync(bool enabled, int? enableStrength)
     {
         if (!enabled) CancelPendingStrength();
 
@@ -103,7 +99,8 @@ internal static class NightLightHelperClient
         if (stateStatus.IsInitialized && stateStatus.IsEnabled == enabled) return true;
         if (!enabled && !stateStatus.IsInitialized) return true;
 
-        if (!IsSupported()) return false;
+        Task<bool>? initialization = EnsureInitializationStarted();
+        if (initialization == null || !await initialization.ConfigureAwait(false)) return false;
 
         NightLightHelperConnection? helper = GetActiveHelper();
         if (helper == null) return false;
@@ -113,8 +110,8 @@ internal static class NightLightHelperClient
             : null;
         try
         {
-            return helper.SetEnabledAsync(enabled, clampedStrength, ShutdownTokenSource.Token)
-                .GetAwaiter().GetResult();
+            return await helper.SetEnabledAsync(enabled, clampedStrength, ShutdownTokenSource.Token)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -122,6 +119,11 @@ internal static class NightLightHelperClient
                 $"NightLightHelperClient: helper PID {helper.ProcessID} active-state operation failed: "
                 + ex.Message);
             return false;
+        }
+        finally
+        {
+            // The helper wrote the CloudStore blobs; the readback must not race their change notification
+            NightLightRegistry.InvalidateCachedBlobs();
         }
     }
 
@@ -152,34 +154,76 @@ internal static class NightLightHelperClient
     internal static bool ShouldRecycle(int completedOperations) =>
         completedOperations >= Constants.NightLightHelperRecycleOperationCount;
 
+    /// <summary>
+    /// Returns the running or succeeded initialization, or starts one on the thread pool. Null after shutdown,
+    /// during the backoff after a failed start, and once the backend is known to be unsupported.
+    /// </summary>
+    private static Task<bool>? EnsureInitializationStarted() => Initialization.EnsureStarted();
+
+    /// <summary>
+    /// A strength is kept while an attempt runs or has succeeded, and during the backoff after a failed one (the
+    /// next successful attempt replays it); never once the backend is unsupported or shut down.
+    /// </summary>
+    internal static bool ShouldKeepQueuedStrength(bool initializationRunningOrSucceeded, bool backendAvailable) =>
+        initializationRunningOrSucceeded || backendAvailable;
+
+    /// <summary>
+    /// An UNSUPPORTED reply disables the backend for the session only while no helper has ever reported READY: once
+    /// one worked on this Windows build, a later warm-up or recovery helper's failure is transient.
+    /// </summary>
+    internal static bool IsUnsupportedReplyPermanent(bool anyHelperReportedReady) => !anyHelperReportedReady;
+
+    private static async Task<bool> InitializeAttemptAsync()
+    {
+        bool initialized = await InitializeAsync().ConfigureAwait(false);
+
+        // The latest strength stays queued across a failed attempt; a successful one replays it through the pump
+        if (initialized) SignalPendingWork();
+        return initialized;
+    }
+
     private static async Task<bool> InitializeAsync()
     {
+        // Pump recovery may already have installed a working helper (after the helper of an earlier attempt died);
+        // that is a successful initialization, so no extra helper is started
+        if (IsHelperServing()) return true;
+
         NightLightHelperConnection? helper =
             await StartHelperSafelyAsync(ShutdownTokenSource.Token).ConfigureAwait(false);
         if (helper == null) return false;
 
-        bool accepted;
+        bool installed;
+        bool shutdown;
         lock (StateGate)
         {
-            accepted = !_shutdownRequested;
-            if (accepted)
+            shutdown = _shutdownRequested;
+            installed = !shutdown && _activeHelper == null;
+            if (installed)
                 _activeHelper = helper;
         }
 
-        if (!accepted)
+        if (!installed)
         {
+            // Shutdown, or recovery installed a helper while this one started: keep the installed one
             await helper.StopAsync(false).ConfigureAwait(false);
-            return false;
+            if (shutdown) return false;
         }
-
-        await PrimeInitialHelperAsync(helper, ShutdownTokenSource.Token).ConfigureAwait(false);
+        else
+        {
+            await PrimeInitialHelperAsync(helper, ShutdownTokenSource.Token).ConfigureAwait(false);
+        }
 
         TaskCompletionSource<bool> pumpReadySource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool accepted;
         lock (StateGate)
         {
             accepted = !_shutdownRequested && _activeHelper != null;
-            if (accepted) _pumpTask = Task.Run(() => PumpAsync(ShutdownTokenSource.Token, pumpReadySource));
+            if (accepted)
+            {
+                if (_pumpTask is { IsCompleted: false }) pumpReadySource.TrySetResult(true);
+                else _pumpTask = Task.Run(() => PumpAsync(ShutdownTokenSource.Token, pumpReadySource));
+            }
         }
 
         if (!accepted) return false;
@@ -191,6 +235,12 @@ internal static class NightLightHelperClient
         TADNLog.Log(
             $"NightLightHelperClient: active helper PID {activeHelper.ProcessID} primed and ready");
         return true;
+    }
+
+    private static bool IsHelperServing()
+    {
+        lock (StateGate)
+            return !_shutdownRequested && _activeHelper != null && _pumpTask is { IsCompleted: false };
     }
 
     private static async Task PrimeInitialHelperAsync(
@@ -608,10 +658,31 @@ internal static class NightLightHelperClient
     {
         try
         {
-            return await NightLightHelperConnection.StartAsync(cancellationToken).ConfigureAwait(false);
+            NightLightHelperConnection helper =
+                await NightLightHelperConnection.StartAsync(cancellationToken).ConfigureAwait(false);
+            lock (StateGate)
+                _anyHelperReportedReady = true;
+            return helper;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            return null;
+        }
+        catch (HelperUnsupportedException ex)
+        {
+            bool permanent;
+            lock (StateGate)
+                permanent = IsUnsupportedReplyPermanent(_anyHelperReportedReady);
+            if (!permanent)
+            {
+                TADNLog.Log($"NightLightHelperClient: {ex.Message} An earlier helper worked, so this is transient.");
+                return null;
+            }
+
+            // Permanent for this session: the native backend does not exist on this Windows build
+            Initialization.MarkPermanentlyFailed();
+            PendingStrength.Clear();
+            TADNLog.Log($"NightLightHelperClient: {ex.Message} Night Light SettingsHandler writes are disabled.");
             return null;
         }
         catch (Exception ex)
@@ -648,13 +719,13 @@ internal static class NightLightHelperClient
             if (_shutdownRequested) return;
 
             _shutdownRequested = true;
+            Initialization.Close();
             PendingStrength.Clear();
             _recycleRequested = false;
             recycleQuietTimer = _recycleQuietTimer;
             _recycleQuietTimer = null;
             pumpTask = _pumpTask;
-            if (InitializationTask.IsValueCreated)
-                initializationTask = InitializationTask.Value;
+            initializationTask = Initialization.Current;
         }
 
         try { recycleQuietTimer?.Dispose(); }
@@ -761,53 +832,25 @@ internal static class NightLightHelperClient
         public static async Task<NightLightHelperConnection> StartAsync(
             CancellationToken cancellationToken)
         {
-            string? executablePath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(executablePath))
-                throw new InvalidOperationException("Current executable path is unavailable.");
-
-            string pipeName = "BrightnessTrayAppNightLight_"
-                              + Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
-                              + "_"
-                              + Guid.NewGuid().ToString("N");
-            NamedPipeServerStream pipe = new(
-                pipeName,
-                PipeDirection.InOut,
-                maxNumberOfServerInstances: 1,
-                PipeTransmissionMode.Byte,
-                PipeOptions.Asynchronous);
-            Process? process = null;
+            // One read so the helper's download timeout and our startup wait can't disagree
+            int pdbDownloadTimeoutMs = PDBSymbolResolver.DownloadTimeout;
+            TrayAppDotNETHelperProcess helper = TrayAppDotNETHelperProcess.Start(
+                NightLightHelperServer.ServerArg,
+                PipeNamePrefix,
+                NightLightHelperServer.BuildArguments(pdbDownloadTimeoutMs));
             StreamWriter? writer = null;
             StreamReader? reader = null;
 
             try
             {
-                // One read so the helper's download timeout and our startup wait can't disagree
-                int pdbDownloadTimeoutMs = PDBSymbolResolver.DownloadTimeout;
-                ProcessStartInfo startInfo = new()
-                {
-                    FileName = executablePath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                foreach (string argument in NightLightHelperServer.BuildArguments(
-                             Environment.ProcessId,
-                             pipeName,
-                             pdbDownloadTimeoutMs))
-                    startInfo.ArgumentList.Add(argument);
-                startInfo.Environment[NoWatcherEnvironmentVariable] = "1";
-
-                process = Process.Start(startInfo)
-                          ?? throw new InvalidOperationException("Process.Start returned null.");
-
                 using CancellationTokenSource startupTokenSource =
                     CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 startupTokenSource.CancelAfter(GetStartTimeoutMs(pdbDownloadTimeoutMs));
-                await pipe.WaitForConnectionAsync(startupTokenSource.Token).ConfigureAwait(false);
+                await helper.WaitForConnectionAsync(startupTokenSource.Token).ConfigureAwait(false);
 
-                writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
+                writer = new StreamWriter(helper.Pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
                 reader = new StreamReader(
-                    pipe,
+                    helper.Pipe,
                     PipeEncoding,
                     detectEncodingFromByteOrderMarks: false,
                     leaveOpen: true);
@@ -817,10 +860,15 @@ internal static class NightLightHelperClient
                     .ConfigureAwait(false);
                 return readyResponse switch
                 {
-                    NightLightHelperServer.ReadyResponse => new NightLightHelperConnection(process, pipe, writer,
+                    NightLightHelperServer.ReadyResponse => new NightLightHelperConnection(
+                        helper.Process,
+                        helper.Pipe,
+                        writer,
                         reader),
-                    NightLightHelperServer.UnsupportedResponse => throw new InvalidOperationException(
+                    NightLightHelperServer.UnsupportedResponse => throw new HelperUnsupportedException(
                         "Helper reported the native backend unsupported."),
+                    NightLightHelperServer.UnavailableResponse => throw new IOException(
+                        "Helper could not initialize the native backend this time (symbol download failed)."),
                     null => throw new IOException("Helper exited before its readiness response."),
                     _ => throw new IOException($"Unknown helper readiness response '{readyResponse}'.")
                 };
@@ -833,13 +881,8 @@ internal static class NightLightHelperClient
                 try { reader?.Dispose(); }
                 catch { }
 
-                try { pipe.Dispose(); }
-                catch { }
-
-                KillProcess(process);
-                try { process?.Dispose(); }
-                catch { }
-
+                helper.Kill();
+                helper.Dispose();
                 throw;
             }
         }
@@ -1046,6 +1089,9 @@ internal static class NightLightHelperClient
             }
         }
     }
+
+    /// <summary>The helper answered UNSUPPORTED: SettingsHandlers_Display lacks the native backend on this build.</summary>
+    private sealed class HelperUnsupportedException(string message) : Exception(message);
 }
 
 /// <summary>
@@ -1054,8 +1100,6 @@ internal static class NightLightHelperClient
 internal static class NightLightHelperServer
 {
     public const string ServerArg = "--night-light-helper-server";
-    public const string ParentProcessIDArg = "--parent-pid";
-    public const string PipeNameArg = "--pipe-name";
 
     // Symbol download timeout in milliseconds; the helper does the download, so the user's setting must reach it
     public const string PDBDownloadTimeoutArg = "--pdb-download-timeout-ms";
@@ -1066,6 +1110,10 @@ internal static class NightLightHelperServer
     public const string ExitCommand = "EXIT";
     public const string ReadyResponse = "READY";
     public const string UnsupportedResponse = "UNSUPPORTED";
+
+    // Initialization failed in a way a later helper may get past (symbol download, LoadLibrary, RoInitialize,
+    // Initialize); the client retries. UNSUPPORTED is only for a missing DLL or symbols this build lacks.
+    public const string UnavailableResponse = "UNAVAILABLE";
     public const string SuccessResponse = "OK";
     public const string PongResponse = "PONG";
     public const string DrainedResponse = "DRAINED";
@@ -1073,26 +1121,38 @@ internal static class NightLightHelperServer
 
     private const int HelperPipeConnectTimeoutMs = 5_000;
 
+    // The helper logs to nightlight-helper.log beside the app's own log
+    private const string HelperLogName = "nightlight-helper";
+
     public static bool TryRun(string[] args, out int exitCode)
     {
         exitCode = 0;
-        if (!HasArg(args, ServerArg)) return false;
+        if (!args.Contains(ServerArg, StringComparer.OrdinalIgnoreCase)) return false;
 
-        StartParentWatchdog(ParseParentProcessID(args));
-        if (ParsePDBDownloadTimeoutMs(args) is { } pdbDownloadTimeoutMs)
-            PDBSymbolResolver.DownloadTimeout = pdbDownloadTimeoutMs;
+        if (!TrayAppDotNETProgram.InitializeHelperProcess(args, Constants.ApplicationName, HelperLogName))
+        {
+            exitCode = 2;
+            return true;
+        }
 
-        string? pipeName = ParseArgValue(args, PipeNameArg);
-        if (string.IsNullOrWhiteSpace(pipeName))
+        if (!TrayAppDotNETHelperHost.TryWatchParent(args))
         {
             exitCode = 1;
             return true;
         }
 
+        if (ParsePDBDownloadTimeoutMs(args) is { } pdbDownloadTimeoutMs)
+            PDBSymbolResolver.DownloadTimeout = pdbDownloadTimeoutMs;
+
         try
         {
-            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
-            pipe.Connect(HelperPipeConnectTimeoutMs);
+            using NamedPipeClientStream? pipe = TrayAppDotNETHelperHost.TryConnectToParent(args, HelperPipeConnectTimeoutMs);
+            if (pipe == null)
+            {
+                exitCode = 1;
+                return true;
+            }
+
             using StreamReader reader = new(
                 pipe,
                 NightLightHelperClient.PipeEncoding,
@@ -1105,7 +1165,10 @@ internal static class NightLightHelperServer
                 leaveOpen: true) { AutoFlush = true };
 
             bool supported = NightLightCloudStore.IsSupported();
-            writer.WriteLine(supported ? ReadyResponse : UnsupportedResponse);
+            writer.WriteLine(
+                supported ? ReadyResponse
+                : NightLightCloudStore.InitializationFailureRetryable ? UnavailableResponse
+                : UnsupportedResponse);
             writer.Flush();
             if (!supported)
             {
@@ -1217,35 +1280,9 @@ internal static class NightLightHelperServer
         return FailureResponse;
     }
 
-    private static bool HasArg(string[] args, string name)
-    {
-        foreach (string argument in args)
-        {
-            if (argument.Equals(name, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static int? ParseParentProcessID(string[] args)
-    {
-        string? value = ParseArgValue(args, ParentProcessIDArg);
-        if (value != null &&
-            int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
-            return parentProcessID;
-
-        return null;
-    }
-
-    /// <summary>Command line the main process starts a helper with.</summary>
-    internal static string[] BuildArguments(int parentProcessID, string pipeName, int pdbDownloadTimeoutMs) =>
-    [
-        ServerArg,
-        ParentProcessIDArg, parentProcessID.ToString(CultureInfo.InvariantCulture),
-        PipeNameArg, pipeName,
-        PDBDownloadTimeoutArg, pdbDownloadTimeoutMs.ToString(CultureInfo.InvariantCulture)
-    ];
+    /// <summary>The helper-specific arguments the main process starts a helper with.</summary>
+    internal static string[] BuildArguments(int pdbDownloadTimeoutMs) =>
+        [PDBDownloadTimeoutArg, pdbDownloadTimeoutMs.ToString(CultureInfo.InvariantCulture)];
 
     /// <summary>
     /// Download timeout handed down by the main process, clamped to the settings range. Null when absent or not a
@@ -1253,7 +1290,7 @@ internal static class NightLightHelperServer
     /// </summary>
     internal static int? ParsePDBDownloadTimeoutMs(string[] args)
     {
-        string? value = ParseArgValue(args, PDBDownloadTimeoutArg);
+        string? value = TrayAppDotNETProgram.TryGetArgValue(args, PDBDownloadTimeoutArg);
         if (value == null ||
             !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int timeoutMs))
             return null;
@@ -1262,42 +1299,5 @@ internal static class NightLightHelperServer
             timeoutMs,
             TimeConstants.PDBSymbolResolverDownloadTimeoutMinSeconds * 1_000,
             TimeConstants.PDBSymbolResolverDownloadTimeoutMaxSeconds * 1_000);
-    }
-
-    private static string? ParseArgValue(string[] args, string name)
-    {
-        for (int index = 0; index < args.Length - 1; index++)
-        {
-            if (args[index].Equals(name, StringComparison.OrdinalIgnoreCase))
-                return args[index + 1];
-        }
-
-        return null;
-    }
-
-    private static void StartParentWatchdog(int? parentProcessID)
-    {
-        if (parentProcessID is not ({ } parentPID and > 0)) return;
-
-        Thread watchdog = new(() => WatchParent(parentPID))
-        {
-            IsBackground = true, Name = "BrightnessTrayApp.NightLightHelperParentWatchdog"
-        };
-        watchdog.Start();
-    }
-
-    private static void WatchParent(int parentProcessID)
-    {
-        try
-        {
-            using Process parent = Process.GetProcessById(parentProcessID);
-            parent.WaitForExit();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"NightLightHelperServer parent watchdog ended: {ex.Message}");
-        }
-
-        Environment.Exit(0);
     }
 }

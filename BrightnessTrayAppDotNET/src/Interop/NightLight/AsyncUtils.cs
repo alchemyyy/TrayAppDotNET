@@ -6,7 +6,9 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
 public static class AsyncUtils
 {
-    private const int RegNotifyChangeLastSet = 0x4;
+    // REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_THREAD_AGNOSTIC: the notification is armed on a pool thread after an
+    // await, and without the agnostic flag it would end as soon as that thread exits
+    internal const int RegNotifyChangeLastSetThreadAgnostic = 0x4 | 0x10000000;
 
     public static Task<bool> WaitOneAsync(WaitHandle handle, int timeoutMs)
     {
@@ -109,7 +111,7 @@ public static class AsyncUtils
                 int rc = RegNotifyChangeKeyValue(
                     key.Handle,
                     bWatchSubtree: false,
-                    RegNotifyChangeLastSet,
+                    RegNotifyChangeLastSetThreadAgnostic,
                     eventWaitHandle.SafeWaitHandle,
                     fAsynchronous: true);
                 if (rc == 0)
@@ -145,7 +147,7 @@ public static class AsyncUtils
     }
 
     [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern int RegNotifyChangeKeyValue(
+    internal static extern int RegNotifyChangeKeyValue(
         SafeRegistryHandle hKey,
         [MarshalAs(UnmanagedType.Bool)] bool bWatchSubtree,
         int dwNotifyFilter,

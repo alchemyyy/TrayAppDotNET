@@ -5,11 +5,11 @@ namespace TrayAppDotNETCommon.Interop;
 /// <summary>
 /// Trim-friendly IShellLink / IPersistFile wrapper for Windows .lnk shortcuts.
 /// </summary>
-public static unsafe partial class ShellLink
+public static unsafe class ShellLink
 {
-    private const uint CLSCTX_INPROC_SERVER = 0x1;
     private const uint SLGP_RAWPATH = 0x0004;
-    private const int MaxPath = 1024;
+    // Long-path and argument maximum (32,767 characters plus the terminator); allocated on the heap, not the stack
+    private const int MaxPath = 32_768;
 
     private static readonly Guid ShellLinkClsid = new("00021401-0000-0000-c000-000000000046");
     private static readonly Guid ShellLinkIid = new("000214f9-0000-0000-c000-000000000046");
@@ -70,10 +70,10 @@ public static unsafe partial class ShellLink
 
     private static ComPtr CreateShellLink()
     {
-        int hr = CoCreateInstance(
+        int hr = Ole32.CoCreateInstance(
             in ShellLinkClsid,
             IntPtr.Zero,
-            CLSCTX_INPROC_SERVER,
+            Ole32.CLSCTX_INPROC_SERVER,
             in ShellLinkIid,
             out IntPtr ptr);
 
@@ -85,14 +85,6 @@ public static unsafe partial class ShellLink
     {
         if (hr < 0) Marshal.ThrowExceptionForHR(hr);
     }
-
-    [LibraryImport("ole32.dll")]
-    private static partial int CoCreateInstance(
-        in Guid rclsid,
-        IntPtr pUnkOuter,
-        uint dwClsContext,
-        in Guid riid,
-        out IntPtr ppv);
 
     private readonly struct ComPtr : IDisposable
     {
@@ -130,11 +122,13 @@ public static unsafe partial class ShellLink
 
         public string GetArguments()
         {
-            char* buffer = stackalloc char[MaxPath];
-            buffer[0] = '\0';
-            int hr = ((delegate* unmanaged[Stdcall]<void*, char*, int, int>)VTable[10])(_ptr, buffer, MaxPath);
-            ThrowIfFailed(hr);
-            return new string(buffer);
+            char[] buffer = new char[MaxPath];
+            fixed (char* pointer = buffer)
+            {
+                int hr = ((delegate* unmanaged[Stdcall]<void*, char*, int, int>)VTable[10])(_ptr, pointer, MaxPath);
+                ThrowIfFailed(hr);
+                return new string(pointer);
+            }
         }
 
         public int SetArguments(string arguments)
@@ -163,16 +157,18 @@ public static unsafe partial class ShellLink
 
         public string GetPath()
         {
-            char* buffer = stackalloc char[MaxPath];
-            buffer[0] = '\0';
-            int hr = ((delegate* unmanaged[Stdcall]<void*, char*, int, void*, uint, int>)VTable[3])(
-                _ptr,
-                buffer,
-                MaxPath,
-                null,
-                SLGP_RAWPATH);
-            ThrowIfFailed(hr);
-            return new string(buffer);
+            char[] buffer = new char[MaxPath];
+            fixed (char* pointer = buffer)
+            {
+                int hr = ((delegate* unmanaged[Stdcall]<void*, char*, int, void*, uint, int>)VTable[3])(
+                    _ptr,
+                    pointer,
+                    MaxPath,
+                    null,
+                    SLGP_RAWPATH);
+                ThrowIfFailed(hr);
+                return new string(pointer);
+            }
         }
 
         public void Dispose()

@@ -130,34 +130,6 @@ internal static class EqualizerAPOMonitor
     }
 
     /// <summary>
-    /// Pushes an AvailabilityChanged so every device row re-runs its probe. Called after our
-    /// install / uninstall path mutates the registry - the FileSystemWatcher only fires on
-    /// install-dir flips, so per-device toggles need an explicit poke to repaint the UI.
-    /// </summary>
-    public static void NotifyAvailabilityChanged()
-    {
-        if (_disposed) return;
-        try { AvailabilityChanged?.Invoke(); }
-        catch (Exception ex) { TADNLog.Log($"EqualizerAPOMonitor.NotifyAvailabilityChanged: {ex.Message}"); }
-    }
-
-    /// <summary>
-    /// Stops and disposes the install-directory watcher. Later IsAvailable reads may start it again.
-    /// </summary>
-    public static void Stop()
-    {
-        FileSystemWatcher? watcher;
-        lock (InitGate)
-        {
-            watcher = _dirWatcher;
-            _dirWatcher = null;
-            _initialized = false;
-        }
-
-        DisposeWatcher(watcher);
-    }
-
-    /// <summary>
     /// Terminal shutdown cleanup for the process-lifetime monitor.
     /// </summary>
     public static void Dispose()

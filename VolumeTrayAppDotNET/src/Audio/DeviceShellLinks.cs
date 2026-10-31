@@ -3,13 +3,15 @@ using System.Diagnostics;
 namespace VolumeTrayAppDotNET.Audio;
 
 /// <summary>
-/// Helpers for opening Windows Sound surfaces. OpenDeviceProperties uses the per-endpoint
+/// Helpers for opening Windows Sound and Bluetooth surfaces. OpenDeviceProperties uses the per-endpoint
 /// ms-settings deep-link "ms-settings:sound-properties?endpointId=&lt;IMMDevice id&gt;" which the
 /// Win11 Settings app resolves to the specific device's properties page (volume, output format,
 /// audio enhancements, spatial sound, allow-exclusive-control). The endpoint ID format the URI
 /// expects ("{0.0.x.00000000}.{guid}") is exactly the string IMMDevice.GetId returns, so no
 /// translation is needed. Legacy mmsys.cpl tab launchers stay for the global menu entries
 /// (Playback / Recording / Sounds / Communications) where per-endpoint context doesn't apply.
+/// OpenBluetoothQuickSettings serves both the tray menu's Bluetooth entry and the flyout header's
+/// Bluetooth button.
 /// </summary>
 internal static class DeviceShellLinks
 {
@@ -27,6 +29,10 @@ internal static class DeviceShellLinks
     private const string TabRecording = "recording";
     private const string TabSounds = "sounds";
     private const string TabCommunications = "communications";
+
+    // Bluetooth page of the Windows quick settings panel, opened through explorer.exe
+    private const string Explorer = "explorer.exe";
+    private const string UriBluetoothQuickSettings = "ms-actioncenter:controlcenter/bluetooth";
 
     /// <summary>
     /// Opens the Windows 11 Settings per-device properties page for <paramref name="device"/>.
@@ -68,6 +74,21 @@ internal static class DeviceShellLinks
                 OpenPlaybackTab();
                 break;
         }
+    }
+
+    /// <summary>Opens the Bluetooth page of the Windows quick settings panel.</summary>
+    public static void OpenBluetoothQuickSettings()
+    {
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = Explorer,
+                Arguments = UriBluetoothQuickSettings,
+                UseShellExecute = false
+            });
+        }
+        catch (Exception ex) { TADNLog.Log($"DeviceShellLinks.OpenBluetoothQuickSettings: {ex.Message}"); }
     }
 
     // Modern Settings app is a singleton; finding the SystemSettings.exe host and focusing its main
@@ -153,12 +174,12 @@ internal static class DeviceShellLinks
         return false;
     }
 
-    // Un-minimize then activate. SetForegroundWindow is gated by Windows foreground rules, but the
-    // caller is always reacting to a synchronous user click on our own window, so we hold the
-    // foreground-rights token at call time.
+    // Un-minimize then activate. ShowWindowAsync posts the restore, so a hung target window cannot stall the UI
+    // thread. SetForegroundWindow is gated by Windows foreground rules, but the caller is always reacting to a
+    // synchronous user click on our own window, so we hold the foreground-rights token at call time.
     private static bool FocusWindow(IntPtr hwnd)
     {
-        if (User32.IsIconic(hwnd)) User32.ShowWindow(hwnd, User32.SW_RESTORE);
+        if (User32.IsIconic(hwnd)) User32.ShowWindowAsync(hwnd, User32.SW_RESTORE);
         return User32.SetForegroundWindow(hwnd);
     }
 

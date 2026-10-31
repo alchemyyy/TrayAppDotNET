@@ -8,6 +8,7 @@ namespace BatteryTrayAppDotNET.Services;
 public sealed class BatteryMonitorService : IDisposable
 {
     private const int PollIntervalMs = BatteryTimeEstimator.CheckIntervalSeconds * 1_000;
+    private const int PollShutdownWaitMs = 2_000;
     private const byte BatteryFlagCharging = 0x08;
     private const byte BatteryFlagNoSystemBattery = 0x80;
     private const byte BatteryFlagUnknown = 0xFF;
@@ -327,40 +328,16 @@ public sealed class BatteryMonitorService : IDisposable
             _forceRefreshTask = null;
         }
 
-        WaitForPollTask(pollTask, nameof(_pollTask));
+        Safe.WaitForStop(pollTask, PollShutdownWaitMs, owner: "BatteryMonitorService poll task");
         if (!ReferenceEquals(forceRefreshTask, pollTask))
-            WaitForPollTask(forceRefreshTask, nameof(_forceRefreshTask));
+            Safe.WaitForStop(forceRefreshTask, PollShutdownWaitMs, owner: "BatteryMonitorService forced refresh");
         pollingCancellationToken?.Dispose();
 
         // Polling has stopped, so the estimator is no longer observed and can be read from this thread
         if (_learnedUsagePath != null && _timeEstimator.LearnedUsage is { } usage && usage != _savedLearnedUsage)
             QueueLearnedUsageSave(_learnedUsagePath, usage);
-        WaitForPollTask(_learnedUsageSave, nameof(_learnedUsageSave));
+        Safe.WaitForStop(_learnedUsageSave, PollShutdownWaitMs, owner: "BatteryMonitorService learned-usage save");
         _pollGate.Dispose();
-    }
-
-    private static void WaitForPollTask(Task? task, string taskName)
-    {
-        if (task == null) return;
-
-        try
-        {
-            bool completed = task.Wait(2_000);
-            if (!completed) TADNLog.Log($"BatteryMonitorService.Dispose: {taskName} did not stop before timeout");
-        }
-        catch (AggregateException ex)
-        {
-            foreach (Exception inner in ex.Flatten().InnerExceptions)
-            {
-                if (inner is OperationCanceledException) continue;
-
-                TADNLog.Log($"BatteryMonitorService.Dispose: {taskName}: {inner.Message}");
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal shutdown/dispose path.
-        }
     }
 
     [DllImport("kernel32.dll")]

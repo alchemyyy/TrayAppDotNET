@@ -1,10 +1,5 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text;
-using BrightnessTrayAppDotNET.DDCCI.Parser;
-using BrightnessTrayAppDotNET.DDCCI.Parser.Nodes;
-using BrightnessTrayAppDotNET.DDCCI.Tokenizer;
-using BrightnessTrayAppDotNET.DDCCI.Tokenizer.Tokens;
 using BrightnessTrayAppDotNET.Interop.DDCCI;
 using BrightnessTrayAppDotNET.Interop.WindowsBrightness;
 using Microsoft.Win32;
@@ -378,88 +373,6 @@ public class DisplayService : IDisplayService, IDisposable
         monitor.BrightnessCode = VCPConstants.Brightness;
     }
 
-    public bool TryGetCapabilities(
-        DDCMonitor monitor, out string capabilities, out string? error, CancellationToken ct = default)
-    {
-        // Two-step DDC sequence: read length, then read bytes.
-        // Both failures collapse into the same "no usable capability string" bucket.
-        // Capabilities are optional - many monitors don't expose one even when VCP read/write works fine.
-        // Soft failure with a descriptive error.
-        DDCCallOutcome<string> outcome = RunWithTimeout(
-            monitor,
-            () => TryWithPhysicalMonitor<string>(monitor, handle =>
-            {
-                if (!Dxva2.GetCapabilitiesStringLength(handle, out uint length) || length == 0)
-                {
-                    return DDCCallOutcome<string>.Fail(
-                        $"GetCapabilitiesStringLength failed (Win32: {Marshal.GetLastWin32Error()})");
-                }
-
-                StringBuilder capabilitiesBuffer = new((int)length);
-                if (!Dxva2.CapabilitiesRequestAndCapabilitiesReply(handle, capabilitiesBuffer, length))
-                {
-                    return DDCCallOutcome<string>.Fail(
-                        $"CapabilitiesRequestAndCapabilitiesReply failed (Win32: {Marshal.GetLastWin32Error()})");
-                }
-
-                return DDCCallOutcome<string>.Ok(capabilitiesBuffer.ToString());
-            }),
-            $"GetCapabilities('{monitor.Name}')",
-            ct,
-            (helper, timeoutMs, helperCancellationToken) =>
-                helper.TryGetCapabilities(monitor, timeoutMs, helperCancellationToken));
-
-        capabilities = outcome.Value;
-        error = outcome.Error;
-        return outcome.Success;
-    }
-
-    public bool TryGetVCPCapabilities(
-        DDCMonitor monitor, out IReadOnlyList<VCPCapability> capabilities, out string? error,
-        CancellationToken ct = default)
-    {
-        if (monitor.BrightnessControlKind == MonitorBrightnessControlKind.Windows)
-        {
-            capabilities =
-            [
-                new VCPCapability
-                {
-                    Name = "Windows brightness (0x10)", OptCode = VCPConstants.Brightness, Value = 0, MaxValue = 100
-                }
-            ];
-            error = null;
-            return true;
-        }
-
-        if (!TryGetCapabilities(monitor, out string capsString, out error, ct))
-        {
-            capabilities = [];
-            return false;
-        }
-
-        CapabilitiesTokenizer tokenizer = new();
-        CapabilitiesParser parser = new();
-        INodeFormatter formatter = new NodeFormatter();
-
-        IEnumerable<IToken> tokens = tokenizer.GetTokens(capsString);
-        INode root = parser.Parse(tokens);
-
-        IEnumerable<INode> rootChildren = root.Nodes ?? [];
-        INode? vcpNode = rootChildren
-            .RecursiveSelect(n => n.Nodes ?? [])
-            .FirstOrDefault(n => string.Equals(n.Value, b: "vcp", StringComparison.OrdinalIgnoreCase));
-
-        if (vcpNode?.Nodes == null)
-        {
-            capabilities = [];
-            return true;
-        }
-
-        capabilities = ReadCapabilities(monitor, vcpNode, formatter, ct).ToList();
-        error = null;
-        return true;
-    }
-
     public bool TryGetVCPFeature(
         DDCMonitor monitor, byte code, out uint currentValue, out uint maxValue, out string? error,
         CancellationToken ct = default)
@@ -609,27 +522,6 @@ public class DisplayService : IDisplayService, IDisposable
 
         int percent = (int)Math.Clamp(value, min: 0, max: 100);
         return WindowsBrightnessWmi.TrySetBrightness(monitor.WindowsBrightnessMethodPath, percent, out error);
-    }
-
-    private IEnumerable<VCPCapability> ReadCapabilities(
-        DDCMonitor monitor, INode vcpNode, INodeFormatter formatter, CancellationToken ct)
-    {
-        foreach (INode capabilityNode in vcpNode.Nodes!)
-        {
-            if (!byte.TryParse(
-                    capabilityNode.Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte code))
-                continue;
-
-            string? formatted = formatter.FormatNode(capabilityNode);
-            if (formatted == null) continue;
-
-            if (!TryGetVCPFeature(monitor, code, out uint current, out uint max, out _, ct) || max == 0) continue;
-
-            yield return new VCPCapability
-            {
-                Name = $"{formatted} (0x{capabilityNode.Value})", OptCode = code, Value = current, MaxValue = max
-            };
-        }
     }
 
     public bool RefreshHandle(DDCMonitor monitor)

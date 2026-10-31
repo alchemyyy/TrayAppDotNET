@@ -65,6 +65,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private long _meteringGeneration;
     private long _activeMeteringGeneration;
     private long _peakSampleDispatchGeneration;
+    private int _peakSampleTickActive;
     private long _peakRenderDispatchGeneration;
     private readonly AppSettings? _settings;
 
@@ -73,11 +74,6 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // queued through this throttler with latest-pending-wins semantics. One throttler is enough -
     // it keys per device/session id internally so independent sliders don't block each other.
     private readonly AsyncThrottler<string> _volumeThrottler;
-
-    // Watches every audio session's PID; on exit fires a callback the session uses to mark itself
-    // disconnected. Closes the gap where the audio engine leaves a session as Inactive long after
-    // the owning process is force-killed instead of firing Expired promptly.
-    private readonly ProcessExitMonitor _processExitMonitor;
 
     // Coalesces the notification storm that follows a single device disable / default-change.
     // Up to four IMMNotificationClient callbacks (Console / Multimedia / Communications role
@@ -186,21 +182,6 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
         }
     }
-
-    /// <summary>
-    /// Bluetooth A2DP codec monitor. Exposed so UI can bind to its IsRunning / RequiresElevation
-    /// flags (e.g. to show a "codec unavailable - needs admin" hint). Per-device codec state is
-    /// already surfaced as <see cref="AudioDevice.CurrentCodec"/> - this property is for the
-    /// service-level flags, not for codec readout.
-    /// </summary>
-    public BluetoothCodecMonitor CodecMonitor => _codecMonitor;
-
-    /// <summary>
-    /// Bluetooth battery monitor. Exposed so UI can bind to its <see cref="BluetoothBatteryMonitor.IsRunning"/>
-    /// flag for diagnostics. Per-device battery readout is already surfaced as
-    /// <see cref="AudioDevice.BatteryLevel"/>.
-    /// </summary>
-    public BluetoothBatteryMonitor BatteryMonitor => _batteryMonitor;
 
     /// <summary>
     /// Best-effort, single-flight reconnect request for a disconnected Bluetooth audio device. Like the
@@ -494,7 +475,6 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             _volumeThrottler = new AsyncThrottler<string>(
                 TimeConstants.VolumeWriteRateDefaultMs,
                 StringComparer.Ordinal);
-            _processExitMonitor = new ProcessExitMonitor();
 
             // Cooldown 0; the dwell-then-bail pattern in ScheduleUpdateAllDefaults's payload provides
             // the coalescing instead. Cooldown would only space out successive runs, which we don't
@@ -540,16 +520,14 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             RebuildDeviceList();
 
-            // Bluetooth codec monitor. Start fires up an ETW worker thread if elevated; on non-admin
-            // runs it stays inert and exposes RequiresElevation = true. CodecChanged marshals onto
-            // the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
+            // Bluetooth codec monitor. The ETW session runs only while the flyout shows codec names
+            // (ShowDeviceCodecText) and only when elevated; otherwise it stays inert. CodecChanged marshals
+            // onto the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
             _codecMonitor = new BluetoothCodecMonitor(dispatcher);
             _codecMonitorInitialized = true;
             _codecMonitor.CodecChanged += OnBluetoothCodecChanged;
-            try { _codecMonitor.Start(); }
-            catch (Exception ex) { TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor disabled: {ex.Message}"); }
-
-            PropagateCodecToBluetoothDevices(_codecMonitor.CurrentCodec);
+            if (_settings != null) _settings.PropertyChanged += OnSettingsPropertyChanged;
+            UpdateCodecMonitorState();
 
             // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
             // classifies Bluetooth containers and reads DEVPKEY_Bluetooth_Battery. The first pass
@@ -661,7 +639,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
         if (_codecMonitorInitialized)
         {
-            try { _codecMonitor.CodecChanged -= OnBluetoothCodecChanged; }
+            try
+            {
+                _codecMonitor.CodecChanged -= OnBluetoothCodecChanged;
+                if (_settings != null) _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: codec unsubscribe failed: {ex.Message}");
@@ -716,7 +698,6 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_volumeThrottler);
         Safe.Dispose(_defaultsRefreshThrottler);
         Safe.Dispose(_deviceListRefreshThrottler);
-        Safe.Dispose(_processExitMonitor);
         Safe.Release(enumerator);
         Safe.Dispose(_captureMeterActivationService);
         Safe.Dispose(_sessionNotificationMTAThread);
@@ -748,6 +729,27 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         int rate = _settings?.MeterPeakSampleRate ?? AppSettings.MeterPeakSampleRateDefault;
         if (rate < 1) rate = 1;
         return Math.Max(val1: 1, fps / rate);
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.ShowDeviceCodecText)) UpdateCodecMonitorState();
+    }
+
+    // UI thread. Starts the ETW session when codec names are shown and stops it (clearing the cached codec) when not.
+    private void UpdateCodecMonitorState()
+    {
+        if (_disposed || !_codecMonitorInitialized) return;
+
+        try
+        {
+            if (_settings?.ShowDeviceCodecText == true) _codecMonitor.Start();
+            else _codecMonitor.Stop();
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor state change failed: {ex.Message}");
+        }
     }
 
     private void OnMeterPeakFpsChanged()
@@ -904,6 +906,21 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         if (!ReferenceEquals(sender, _peakSampleTimer) || !IsMeteringGenerationCurrent(generation)) return;
 
+        // The AutoReset timer starts the next Elapsed on another pool thread even while this one still runs
+        if (Interlocked.Exchange(ref _peakSampleTickActive, value: 1) != 0) return;
+
+        try
+        {
+            SamplePeaks(generation);
+        }
+        finally
+        {
+            Volatile.Write(ref _peakSampleTickActive, value: 0);
+        }
+    }
+
+    private void SamplePeaks(long generation)
+    {
         int steps = ResolveInterpolationSteps();
         // Snapshot the unified-meter config once per tick so every device/session this sample
         // touches sees a coherent (unified, bias) pair even if the user flips the toggle mid-tick.
@@ -1159,6 +1176,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (FindDeviceByID(id) != null) return;
 
         IMMDevice? device = null;
+        AudioDevice? wrapped;
         try
         {
             _enumerator.GetDevice(id, out device);
@@ -1172,10 +1190,22 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 return;
             }
 
-            AudioDevice? wrapped = WrapOrRelease(device, flow);
-            if (wrapped == null) return;
+            wrapped = WrapOrRelease(device, flow);
+        }
+        catch (Exception ex)
+        {
+            // Usually the device is gone between the notification and our query; nothing to add
+            TADNLog.Log($"AudioDeviceManager.AddDeviceByID({id}): {FormatExceptionForLog(ex)}");
+            Safe.Release(device);
+            return;
+        }
 
-            _devices.Add(wrapped);
+        if (wrapped == null) return;
+
+        // Published from here on: the wrapper owns the device, so a later failure must not release it
+        _devices.Add(wrapped);
+        try
+        {
             ReconcileCaptureMeterActivation();
             NoteExternalDeviceTopologyChanged();
             ScheduleUpdateAllDefaults();
@@ -1200,10 +1230,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                     EndBluetoothConnectionAttempts([wrapped.Id]);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Device gone between notification and our query; nothing to add.
-            Safe.Release(device);
+            TADNLog.Log($"AudioDeviceManager.AddDeviceByID({id}): follow-up after adding failed: {FormatExceptionForLog(ex)}");
         }
     }
 
@@ -1450,7 +1479,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             return null;
         }
 
-        try { return new AudioDevice(device, flow, _dispatcher, _volumeThrottler, _processExitMonitor); }
+        try { return new AudioDevice(device, flow, _dispatcher, _volumeThrottler); }
         catch
         {
             Safe.Release(device);
@@ -1478,7 +1507,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
 
         try { _enumerator.UnregisterEndpointNotificationCallback(_bridge); }
-        catch { }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"AudioDeviceManager.TryRecreateEnumerator({reason}): unregistering the old enumerator failed: {ex.Message}");
+        }
 
         IMMDeviceEnumerator old = _enumerator;
         _enumerator = replacement;
@@ -2076,6 +2108,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_captureMeterActivationService);
 
         _codecMonitor.CodecChanged -= OnBluetoothCodecChanged;
+        if (_settings != null) _settings.PropertyChanged -= OnSettingsPropertyChanged;
         Safe.Dispose(_codecMonitor);
 
         _batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged;
@@ -2084,7 +2117,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_batteryMonitor);
 
         try { _enumerator.UnregisterEndpointNotificationCallback(_bridge); }
-        catch { }
+        catch (Exception ex) { TADNLog.Log($"AudioDeviceManager.Dispose: notification unregister failed: {ex.Message}"); }
 
         foreach (AudioDevice d in _devices.ToArray()) Safe.Dispose(d);
         _devices.Clear();
@@ -2095,11 +2128,6 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_volumeThrottler);
         Safe.Dispose(_defaultsRefreshThrottler);
         Safe.Dispose(_deviceListRefreshThrottler);
-
-        // Tear the watcher thread down after every device (and so every session) is disposed -
-        // sessions Unwatch on Dispose, so by the time we get here the watch set is empty and the
-        // monitor's worker thread is just blocked on the wake event.
-        Safe.Dispose(_processExitMonitor);
 
         Safe.Release(_enumerator);
         Safe.Dispose(_sessionNotificationMTAThread);
@@ -2170,7 +2198,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             return 0;
         }
 
-        public int OnPropertyValueChanged(string pwstrDeviceId, PROPERTYKEY key)
+        public int OnPropertyValueChanged(string pwstrDeviceId, NotifiedPropertyKey key)
         {
             if (owner._disposed) return 0;
 

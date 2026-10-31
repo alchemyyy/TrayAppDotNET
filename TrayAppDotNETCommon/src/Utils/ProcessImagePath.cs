@@ -26,23 +26,34 @@ public static class ProcessImagePath
 
         try
         {
-            StringBuilder buffer = new(InitialCapacity);
-            while (true)
-            {
-                uint characterCount = (uint)buffer.Capacity;
-                if (Kernel32.QueryFullProcessImageNameW(handle, dwFlags: 0, buffer, ref characterCount))
-                    return buffer.ToString(startIndex: 0, (int)characterCount);
-
-                if (Marshal.GetLastPInvokeError() != NativeErrors.ERROR_INSUFFICIENT_BUFFER
-                    || buffer.Capacity >= MaximumCapacity)
-                    return null;
-
-                buffer.EnsureCapacity(Math.Min(buffer.Capacity * 2, MaximumCapacity));
-            }
+            return TryGet(handle, new StringBuilder(InitialCapacity));
         }
         finally
         {
             Kernel32.CloseHandle(handle);
+        }
+    }
+
+    /// <summary>
+    /// The full image path of a process opened with at least PROCESS_QUERY_LIMITED_INFORMATION, or null on failure
+    /// (Marshal.GetLastPInvokeError then holds the reason). <paramref name="buffer"/> is reused and grown, so a
+    /// sampler can pass the same one on every call.
+    /// </summary>
+    public static string? TryGet(IntPtr processHandle, StringBuilder buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        while (true)
+        {
+            buffer.Clear();
+            uint characterCount = (uint)buffer.Capacity;
+            if (Kernel32.QueryFullProcessImageNameW(processHandle, dwFlags: 0, buffer, ref characterCount))
+                return buffer.ToString(startIndex: 0, (int)characterCount);
+
+            if (Marshal.GetLastPInvokeError() != NativeErrors.ERROR_INSUFFICIENT_BUFFER
+                || buffer.Capacity >= MaximumCapacity)
+                return null;
+
+            buffer.EnsureCapacity(Math.Min(buffer.Capacity * 2, MaximumCapacity));
         }
     }
 }

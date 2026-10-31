@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace TrayAppDotNETCommon.Interop;
 
 /// <summary>
-/// DWMAPI.dll interop for Win11 title bar theming.
+/// DWMAPI.dll interop: Win11 title bar theming and window attribute queries.
 /// </summary>
 public static class DWMAPI
 {
@@ -17,6 +17,10 @@ public static class DWMAPI
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(
         IntPtr hwnd, int attribute, ref int attributeValue, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(
+        IntPtr hwnd, uint attribute, out int attributeValue, int cbAttribute);
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmFlush();

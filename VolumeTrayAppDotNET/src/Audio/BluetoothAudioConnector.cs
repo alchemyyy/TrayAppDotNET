@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using VolumeTrayAppDotNET.Interop;
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
 using IMMDeviceEnumerator = VolumeTrayAppDotNET.Interop.IMMDeviceEnumerator;
-using IPropertyStore = VolumeTrayAppDotNET.Interop.IPropertyStore;
+using IPropertyStore = TrayAppDotNETCommon.Interop.IPropertyStore;
 using MMDeviceEnumeratorFactory = VolumeTrayAppDotNET.Interop.MMDeviceEnumeratorFactory;
 
 namespace VolumeTrayAppDotNET.Audio;
@@ -179,7 +179,7 @@ internal static class BluetoothAudioConnector
             }
             finally
             {
-                Ole32.PropVariantClear(ref value);
+                PropertyStore.PropVariantClear(ref value);
             }
         }
         catch (Exception exception)

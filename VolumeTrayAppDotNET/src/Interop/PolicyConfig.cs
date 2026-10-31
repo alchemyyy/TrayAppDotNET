@@ -58,30 +58,10 @@ internal partial interface IPolicyConfig
     void SetEndpointVisibility(string wszDeviceId, int isVisible);
 }
 
-internal static partial class PolicyConfigFactory
+internal static class PolicyConfigFactory
 {
     private static readonly Guid ClsidPolicyConfigClient = new("870af99c-171d-4f9e-af0d-e63df40c2bc9");
 
-    public static IPolicyConfig Create()
-    {
-        Guid clsid = ClsidPolicyConfigClient;
-        Guid iid = typeof(IPolicyConfig).GUID;
-        int hr = CoCreateInstance(
-            in clsid,
-            IntPtr.Zero,
-            (uint)ClsCtx.ALL,
-            in iid,
-            out IPolicyConfig policyConfig);
-        if (hr < 0) Marshal.ThrowExceptionForHR(hr);
-        return policyConfig;
-    }
-
-    [LibraryImport("ole32.dll", EntryPoint = "CoCreateInstance")]
-    private static partial int CoCreateInstance(
-        in Guid rclsid,
-        IntPtr pUnkOuter,
-        uint dwClsContext,
-        in Guid riid,
-        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IPolicyConfig>))]
-        out IPolicyConfig ppv);
+    public static IPolicyConfig Create() =>
+        COMActivation.CreateInstance<IPolicyConfig>(ClsidPolicyConfigClient, typeof(IPolicyConfig).GUID);
 }

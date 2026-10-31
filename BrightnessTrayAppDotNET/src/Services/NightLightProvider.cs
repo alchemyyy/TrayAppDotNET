@@ -33,6 +33,7 @@ internal static class NightLightProvider
     private static readonly Lock _gate = new();
     private static Backend _lastResolvedBackend = Backend.None;
     private static bool _backendCached;
+    private static int _backendCacheGeneration;
     private static NightLightFallbackMode _lastResolvedFallbackMode = NightLightFallbackMode.Auto;
 
     // True while the gamma-ramp backend owns the Night Light state. Changed only on the settings thread.
@@ -118,6 +119,7 @@ internal static class NightLightProvider
         {
             _backendCached = false;
             _lastResolvedBackend = Backend.None;
+            _backendCacheGeneration++;
         }
     }
 
@@ -138,6 +140,7 @@ internal static class NightLightProvider
     /// True when the selected backend can control Night Light on this machine. This probe is deliberately
     /// non-invasive: it never starts the native SettingsHandler helper, because initializing Microsoft's
     /// singleton against a fresh Windows profile can create transient state before the user requests a toggle.
+    /// A helper that reported the SettingsHandler backend unsupported turns it off for the session.
     /// The gamma-ramp backend is always available; displays it can't tint (HDR) are skipped when it writes.
     /// </summary>
     public static bool IsSupported()
@@ -147,7 +150,7 @@ internal static class NightLightProvider
         NightLightFallbackMode mode = _settings?.NightLightFallbackMode ?? NightLightFallbackMode.Auto;
         return mode switch
         {
-            NightLightFallbackMode.SettingsHandler => NightLightSettingsHandler.CanInitialize(),
+            NightLightFallbackMode.SettingsHandler => NightLightSettingsHandler.IsSupported(),
             _ => NightLightRegistry.IsSupported()
         };
     }
@@ -239,7 +242,10 @@ internal static class NightLightProvider
     /// Toggling off preserves the live strength so the next toggle-on returns the user's same warmth.
     /// Returns true if the underlying backend wrote the requested state and the readback
     /// matched; false if the registry write failed, the readback diverged, or no backend is
-    /// available. Failures are logged via <see cref="TADNLog"/>.
+    /// available. Enabling through the SettingsHandler backend may first have to start its helper (and download
+    /// symbols), so it completes on a worker: true then means the request was started, and
+    /// <see cref="EnabledStateChanged"/> reports the confirmed transition. Failures are logged via
+    /// <see cref="TADNLog"/>.
     /// </summary>
     public static bool SetEnabled(
         bool enabled,
@@ -270,17 +276,35 @@ internal static class NightLightProvider
         Backend backend = GetCachedBackend();
         int? strengthToApply = ResolveEnableStrength(enableStrength);
 
-        bool ok = backend switch
+        if (backend == Backend.SettingsHandler)
         {
-            Backend.Registry => EnableRegistryBackend(strengthToApply),
-            Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(enabled: true, strengthToApply),
-            _ => false
-        };
+            _ = EnableSettingsHandlerBackendAsync(strengthToApply, persistEnableStrengthAsLastUserValue);
+            return true;
+        }
+
+        bool ok = backend == Backend.Registry && EnableRegistryBackend(strengthToApply);
 
         if (ok && strengthToApply.HasValue && persistEnableStrengthAsLastUserValue)
             PersistLastUserStrength(strengthToApply.Value);
 
         return CompleteEnabledStateChange(ok, enabled, backend);
+    }
+
+    private static async Task EnableSettingsHandlerBackendAsync(int? strengthToApply, bool persistStrength)
+    {
+        try
+        {
+            bool ok = await NightLightSettingsHandler.SetEnabledAsync(enabled: true, strengthToApply)
+                .ConfigureAwait(false);
+            if (ok && strengthToApply.HasValue && persistStrength)
+                PersistLastUserStrength(strengthToApply.Value);
+
+            _ = CompleteEnabledStateChange(ok, enabled: true, Backend.SettingsHandler);
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"NightLightProvider: SettingsHandler enable failed: {ex}");
+        }
     }
 
     private static int? ResolveEnableStrength(int? requestedStrength)
@@ -469,7 +493,7 @@ internal static class NightLightProvider
 
         settings.NightLightGammaRampEnabled = true;
         GammaRampNightLight.Activate(settings.NightLightGammaRampStrength);
-        ScheduleStateSave();
+        SaveStateNow();
 
         if (strengthToApply.HasValue && persistEnableStrengthAsLastUserValue)
             PersistLastUserStrength(strengthToApply.Value);
@@ -620,24 +644,55 @@ internal static class NightLightProvider
         }
     }
 
+    /// <summary>
+    /// Saves at once instead of after the debounce. Used when the gamma tint goes on: a crash inside the debounce
+    /// would leave the tint on screen while the saved state says off, so the next start would neither reapply nor
+    /// clear it.
+    /// </summary>
+    private static void SaveStateNow()
+    {
+        AppSettings? settings;
+        lock (_gate)
+        {
+            settings = _settings;
+            _stateSavePending = false;
+        }
+
+        if (settings != null) SaveState(settings);
+    }
+
     // -- Internals -------------------------------------------------------
 
     private static Backend GetCachedBackend()
     {
+        NightLightFallbackMode mode;
+        int generation;
         lock (_gate)
         {
-            if (_backendCached) return _lastResolvedBackend;
+            // A helper that reported the SettingsHandler backend unsupported invalidates that cached answer
+            if (_backendCached
+                && (_lastResolvedBackend != Backend.SettingsHandler || NightLightHelperClient.IsBackendAvailable()))
+                return _lastResolvedBackend;
 
-            NightLightFallbackMode mode = _settings?.NightLightFallbackMode ?? NightLightFallbackMode.Auto;
-            Backend resolved;
-            // Catch-and-fallback so a probe that throws still leaves us with a stable cached answer
-            // (Backend.None) instead of re-throwing on every subsequent public-API call.
-            try { resolved = ResolveBackend(mode, SettingsHandlerSupportedProbe, RegistrySupportedProbe); }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"NightLightProvider.GetCachedBackend probe: {ex.Message}");
-                resolved = Backend.None;
-            }
+            mode = _settings?.NightLightFallbackMode ?? NightLightFallbackMode.Auto;
+            generation = _backendCacheGeneration;
+        }
+
+        // The probes run outside the gate so they never hold up state saves or cache invalidation.
+        // Catch-and-fallback so a probe that throws still leaves us with a stable cached answer
+        // (Backend.None) instead of re-throwing on every subsequent public-API call.
+        Backend resolved;
+        try { resolved = ResolveBackend(mode, SettingsHandlerSupportedProbe, RegistrySupportedProbe); }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"NightLightProvider.GetCachedBackend probe: {ex.Message}");
+            resolved = Backend.None;
+        }
+
+        lock (_gate)
+        {
+            // An invalidation during the probe wins: the next call resolves again with the new inputs
+            if (generation != _backendCacheGeneration) return resolved;
 
             _lastResolvedBackend = resolved;
             _lastResolvedFallbackMode = mode;

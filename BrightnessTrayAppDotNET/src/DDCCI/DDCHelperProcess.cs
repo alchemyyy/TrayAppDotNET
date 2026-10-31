@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
 using System.Text;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace BrightnessTrayAppDotNET.DDCCI;
 
@@ -12,7 +13,7 @@ namespace BrightnessTrayAppDotNET.DDCCI;
 internal sealed class DDCHelperClient(SemaphoreSlim busGate) : IDisposable
 {
     private const int CommandAttempts = 2;
-    private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
+    private const string PipeNamePrefix = "BrightnessTrayAppDDC";
     internal const string DisposedClientError = "DDC helper client is disposed.";
     internal const string RetiredBeforeSendError = "DDC helper client was retired before the command was sent.";
     internal static readonly Encoding PipeEncoding = new UTF8Encoding(false);
@@ -25,31 +26,6 @@ internal sealed class DDCHelperClient(SemaphoreSlim busGate) : IDisposable
     private NamedPipeServerStream? _pipe;
     private volatile bool _disposed;
     private volatile bool _retireWhenIdle;
-
-    public DDCCallOutcome<string> TryGetCapabilities(
-        DDCMonitor monitor,
-        int timeoutMs,
-        CancellationToken cancellationToken)
-    {
-        string command = BuildCommand(verb: "CAPS", monitor);
-        DDCCallOutcome<string[]> response = SendCommand(
-            command,
-            timeoutMs,
-            cancellationToken,
-            $"GetCapabilities('{monitor.Name}')");
-        if (!response.Success) return DDCCallOutcome<string>.Fail(response.Error ?? "DDC helper failed.");
-        if (response.Value.Length < 2)
-            return DDCCallOutcome<string>.Fail("DDC helper returned a malformed CAPS reply.");
-
-        try
-        {
-            return DDCCallOutcome<string>.Ok(DecodeField(response.Value[1]));
-        }
-        catch (Exception ex)
-        {
-            return DDCCallOutcome<string>.Fail($"DDC helper CAPS decode failed: {ex.Message}");
-        }
-    }
 
     public DDCCallOutcome<(uint Cur, uint Max)> TryGetVCPFeature(
         DDCMonitor monitor,
@@ -309,75 +285,39 @@ internal sealed class DDCHelperClient(SemaphoreSlim busGate) : IDisposable
 
         StopHelperProcess(kill: false, sendExit: false);
 
-        string? executablePath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(executablePath))
+        TrayAppDotNETHelperProcess helper;
+        try
         {
-            error = "Current executable path is unavailable.";
+            helper = TrayAppDotNETHelperProcess.Start(DDCHelperServer.ServerArg, PipeNamePrefix, extraArguments: []);
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to start DDC helper: {ex.Message}";
             return false;
         }
 
-        string pipeName = "BrightnessTrayAppDDC_"
-                          + Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
-                          + "_"
-                          + Guid.NewGuid().ToString("N");
-        NamedPipeServerStream pipe = new(
-            pipeName,
-            PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
-        ProcessStartInfo startInfo = new()
-        {
-            FileName = executablePath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        startInfo.ArgumentList.Add(DDCHelperServer.ServerArg);
-        startInfo.ArgumentList.Add(DDCHelperServer.ParentProcessIDArg);
-        startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-        startInfo.ArgumentList.Add(DDCHelperServer.PipeNameArg);
-        startInfo.ArgumentList.Add(pipeName);
-        startInfo.Environment[NoWatcherEnvironmentVariable] = "1";
-
+        _process = helper.Process;
+        _pipe = helper.Pipe;
         try
         {
-            Process? process = Process.Start(startInfo);
-            if (process == null)
-            {
-                error = "Process.Start returned null.";
-                pipe.Dispose();
-                return false;
-            }
-
-            _process = process;
-            _pipe = pipe;
-
-            Task connectTask = pipe.WaitForConnectionAsync(cancellationToken);
             int connectTimeoutMs = timeoutMs > 0
                 ? Math.Min(TimeConstants.DDCHelperConnectTimeoutMs, timeoutMs)
                 : TimeConstants.DDCHelperConnectTimeoutMs;
-            if (!connectTask.Wait(connectTimeoutMs, cancellationToken))
+            if (!helper.WaitForConnectionAsync(cancellationToken).Wait(connectTimeoutMs, cancellationToken))
             {
                 error = "DDC helper did not connect to its command pipe.";
                 StopHelperProcess(kill: true, sendExit: false);
                 return false;
             }
 
-            _writer = new StreamWriter(pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
-            _reader = new StreamReader(pipe, PipeEncoding, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            _writer = new StreamWriter(helper.Pipe, PipeEncoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
+            _reader = new StreamReader(helper.Pipe, PipeEncoding, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
             return true;
         }
         catch (Exception ex)
         {
-            error = $"Failed to start DDC helper: {ex.Message}";
+            error = $"Failed to start DDC helper: {ex.GetBaseException().Message}";
             StopHelperProcess(kill: true, sendExit: false);
-            try { pipe.Dispose(); }
-            catch (Exception cleanupException)
-            {
-                TADNLog.Log($"DDCHelperClient.EnsureStarted pipe cleanup failed: {cleanupException.Message}");
-            }
-
             return false;
         }
     }
@@ -541,21 +481,26 @@ internal sealed class DDCHelperClient(SemaphoreSlim busGate) : IDisposable
 internal static class DDCHelperServer
 {
     public const string ServerArg = "--ddc-helper-server";
-    public const string ParentProcessIDArg = "--parent-pid";
-    public const string PipeNameArg = "--pipe-name";
     public const string ExitCommand = "EXIT";
 
     // Command layout: verb, five identity fields (DeviceID, EDID serial, name, instance path, HMONITOR), then arguments
     private const int FirstArgumentField = 6;
 
+    // The helper logs to ddc-helper.log beside the app's own log
+    private const string HelperLogName = "ddc-helper";
+
     public static bool TryRun(string[] args, out int exitCode)
     {
         exitCode = 0;
-        if (!HasArg(args, ServerArg)) return false;
+        if (!args.Contains(ServerArg, StringComparer.OrdinalIgnoreCase)) return false;
 
-        StartParentWatchdog(ParseParentProcessID(args));
-        string? pipeName = ParseArgValue(args, PipeNameArg);
-        if (string.IsNullOrWhiteSpace(pipeName))
+        if (!TrayAppDotNETProgram.InitializeHelperProcess(args, Constants.ApplicationName, HelperLogName))
+        {
+            exitCode = 2;
+            return true;
+        }
+
+        if (!TrayAppDotNETHelperHost.TryWatchParent(args))
         {
             exitCode = 1;
             return true;
@@ -563,8 +508,14 @@ internal static class DDCHelperServer
 
         try
         {
-            using NamedPipeClientStream pipe = new(serverName: ".", pipeName, PipeDirection.InOut);
-            pipe.Connect(TimeConstants.DDCHelperPipeConnectTimeoutMs);
+            using NamedPipeClientStream? pipe =
+                TrayAppDotNETHelperHost.TryConnectToParent(args, TimeConstants.DDCHelperPipeConnectTimeoutMs);
+            if (pipe == null)
+            {
+                exitCode = 1;
+                return true;
+            }
+
             using StreamReader reader = new(
                 pipe,
                 DDCHelperClient.PipeEncoding,
@@ -632,19 +583,10 @@ internal static class DDCHelperServer
 
         return fields[0] switch
         {
-            "CAPS" => HandleCapabilities(displayService, monitor),
             "GETVCP" => HandleGetVCP(displayService, monitor, fields),
             "SETVCP" => HandleSetVCP(displayService, monitor, fields),
             _ => Fail("Unknown DDC helper command.")
         };
-    }
-
-    private static string HandleCapabilities(DisplayService displayService, DDCMonitor monitor)
-    {
-        if (!displayService.TryGetCapabilities(monitor, out string capabilities, out string? error))
-            return Fail(error ?? "Capabilities request failed.");
-
-        return "OK\t" + DDCHelperClient.EncodeField(capabilities);
     }
 
     private static string HandleGetVCP(DisplayService displayService, DDCMonitor monitor, string[] fields)
@@ -772,64 +714,6 @@ internal static class DDCHelperServer
 
     private static string Fail(string error) =>
         "FAIL\t" + DDCHelperClient.EncodeField(error);
-
-    private static bool HasArg(string[] args, string name)
-    {
-        foreach (string arg in args)
-        {
-            if (arg.Equals(name, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static int? ParseParentProcessID(string[] args)
-    {
-        string? value = ParseArgValue(args, ParentProcessIDArg);
-        if (value != null
-            && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessID))
-            return parentProcessID;
-
-        return null;
-    }
-
-    private static string? ParseArgValue(string[] args, string name)
-    {
-        for (int index = 0; index < args.Length - 1; index++)
-        {
-            if (args[index].Equals(name, StringComparison.OrdinalIgnoreCase))
-                return args[index + 1];
-        }
-
-        return null;
-    }
-
-    private static void StartParentWatchdog(int? parentProcessID)
-    {
-        if (parentProcessID is not ({ } parentPID and > 0)) return;
-
-        Thread watchdog = new(() => WatchParent(parentPID))
-        {
-            IsBackground = true, Name = "BrightnessTrayApp.DDCHelperParentWatchdog"
-        };
-        watchdog.Start();
-    }
-
-    private static void WatchParent(int parentProcessID)
-    {
-        try
-        {
-            using Process parent = Process.GetProcessById(parentProcessID);
-            parent.WaitForExit();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"DDCHelperServer parent watchdog ended: {ex.Message}");
-        }
-
-        Environment.Exit(0);
-    }
 
     internal readonly struct DDCHelperMonitorIdentity(
         string deviceID,

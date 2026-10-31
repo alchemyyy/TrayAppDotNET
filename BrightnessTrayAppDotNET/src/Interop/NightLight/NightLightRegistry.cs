@@ -66,12 +66,17 @@ internal static class NightLightRegistry
 
     private const string CallerName = "NightLightRegistry";
 
+    // Read-only queries (tray refresh, flyout, curves) go through these; read-modify-write paths read fresh blobs.
+    // Both are invalidated by registry change notifications and by this process's own writes.
+    private static readonly RegistryBlobCache StateBlob = new(StateKeyPath, ReadBlob);
+    private static readonly RegistryBlobCache SettingsBlob = new(SettingsKeyPath, ReadBlob);
+
     public static bool IsSupported()
     {
         try
         {
-            byte[]? state = ReadBlob(StateKeyPath);
-            byte[]? settings = ReadBlob(SettingsKeyPath);
+            byte[]? state = StateBlob.Read();
+            byte[]? settings = SettingsBlob.Read();
             NightLightStateStatus stateStatus = InspectStateBlob(state);
             return stateStatus.IsInitialized
                    && settings is not null
@@ -98,7 +103,7 @@ internal static class NightLightRegistry
     {
         if (!IsInitialized()) return 0;
 
-        byte[]? blob = ReadBlob(SettingsKeyPath);
+        byte[]? blob = SettingsBlob.Read();
         if (blob is null || !TryParseOuter(blob, out OuterLayout layout)) return 0;
 
         int tempPos = FindTagValueStart(blob, layout, TempTag);
@@ -304,10 +309,13 @@ internal static class NightLightRegistry
     }
 
     /// <summary>
-    /// Stops and releases the shared post-settle resend timer during app shutdown.
+    /// Stops and releases the shared post-settle resend timer and the blob change watches during app shutdown.
     /// </summary>
     public static void Shutdown()
     {
+        StateBlob.Dispose();
+        SettingsBlob.Dispose();
+
         Timer? timer = Interlocked.Exchange(ref _resendTimer, value: null);
         if (timer == null) return;
 
@@ -615,7 +623,17 @@ internal static class NightLightRegistry
                && blob[valueStart] == 0x02;
     }
 
-    internal static NightLightStateStatus GetStateStatus() => InspectStateBlob(ReadBlob(StateKeyPath));
+    internal static NightLightStateStatus GetStateStatus() => InspectStateBlob(StateBlob.Read());
+
+    /// <summary>
+    /// Drops the cached STATE and SETTINGS blobs after another process this one waited on (the Night Light helper)
+    /// wrote them, so the next read cannot race the change notification.
+    /// </summary>
+    internal static void InvalidateCachedBlobs()
+    {
+        StateBlob.Invalidate();
+        SettingsBlob.Invalidate();
+    }
 
     /// <summary>Decodes initialized/enabled state without touching the registry.</summary>
     internal static NightLightStateStatus InspectStateBlob(byte[]? blob)
@@ -801,10 +819,11 @@ internal static class NightLightRegistry
             using RegistryKey? key = Registry.CurrentUser.OpenSubKey(path, writable: true);
             if (key == null) return;
 
+            // No RegFlushKey: change notifications fire on the in-memory write, and flushing only forces a
+            // synchronous disk write of the hive on every slider step
             key.SetValue(DataValueName, value, RegistryValueKind.Binary);
-            // RegFlushKey: force write-through so RegNotifyChangeKeyValue watchers (the BlueLightReduction service)
-            // see the change immediately rather than waiting for the registry's lazy flush.
-            key.Flush();
+            if (path == StateKeyPath) StateBlob.Invalidate();
+            else if (path == SettingsKeyPath) SettingsBlob.Invalidate();
         }
         catch (Exception ex)
         {

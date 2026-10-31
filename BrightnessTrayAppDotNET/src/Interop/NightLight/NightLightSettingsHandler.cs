@@ -30,7 +30,11 @@ internal static class NightLightSettingsHandler
     private static int _deferredStrengthPercent = -1;
     private static Timer? _deferredRegistryTimer;
 
-    public static bool IsSupported() => NightLightHelperClient.IsSupported();
+    /// <summary>
+    /// True when SettingsHandlers_Display exists and no helper has reported its backend unsupported. Never starts
+    /// or waits for the helper.
+    /// </summary>
+    public static bool IsSupported() => CanInitialize() && NightLightHelperClient.IsBackendAvailable();
 
     /// <summary>
     /// Cheap capability probe that does not load SettingsHandlers_Display or initialize its Night Light
@@ -47,19 +51,10 @@ internal static class NightLightSettingsHandler
     /// <summary>
     /// Drives the Settings UI's own active-state mutator. When enabling with a target strength, the helper
     /// commits that strength before the active transition so a fresh profile cannot flash at a stale value.
+    /// Completes after the helper, started on a worker if needed, applied the transition.
     /// </summary>
-    public static bool SetEnabled(bool enabled, int? enableStrength = null)
-    {
-        if (!enabled)
-            NightLightHelperClient.CancelPendingStrength();
-
-        return NightLightHelperClient.SetEnabled(enabled, enableStrength);
-    }
-
-    /// <summary>
-    /// Toggles via the native SettingsHandler active-state path.
-    /// </summary>
-    public static bool Toggle() => SetEnabled(!NightLightRegistry.IsEnabled());
+    public static Task<bool> SetEnabledAsync(bool enabled, int? enableStrength = null) =>
+        NightLightHelperClient.SetEnabledAsync(enabled, enableStrength);
 
     /// <summary>
     /// Queues a kelvin write through the recyclable helper process. The main-process queue is length-one and

@@ -57,15 +57,18 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     //  - audioses.dll proxies register the FTM, so _meter reads from the sample-timer worker and
     //    _simpleVolume writes from the throttler worker are safe; UI-thread remains canonical
     //    home for any other call.
+    //  - The control is a unique wrapper, so Dispose releases it for real. Workers call it only through
+    //    _workerProxies (ComProxyGate), which Dispose retires before releasing, so no worker can be inside a
+    //    call on a released proxy.
     private readonly IAudioSessionControl _control;
     private readonly IAudioSessionControl2 _control2;
     private readonly ISimpleAudioVolume _simpleVolume;
     private readonly IAudioMeterInformation _meter;
     private readonly EventBridge _events;
     private readonly Dispatcher _dispatcher;
-    private readonly ProcessExitMonitor? _processExitMonitor;
     private readonly VolumeThrottle _volumeWrite;
-    private readonly bool _watchingProcess;
+    private readonly ComProxyGate<SessionProxies> _workerProxies = new();
+    private IDisposable? _processExitRegistration;
 
     private float _volume;
     private bool _isMuted;
@@ -146,10 +149,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             _volume = clamped;
             OnPropertyChanged();
 
-            _volumeWrite.Write(
-                clamped,
-                (volume, eventContext) => _simpleVolume.SetMasterVolume(volume, ref eventContext),
-                OnControlWriteFailed);
+            _volumeWrite.Write(clamped, WriteMasterVolume, OnControlWriteFailed);
         }
     }
 
@@ -190,14 +190,57 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         try
         {
-            MeterReader.ReadStereoPeaks(_meter, unified: false, biasMultiplier: 0, out _, out float maxPeak);
-            return maxPeak;
+            return _workerProxies.TryInvoke(0, static (proxies, _) => ReadPeaks(proxies.Meter, unified: false, biasMultiplier: 0).Max,
+                out float maxPeak)
+                ? maxPeak
+                : 0f;
         }
         catch
         {
             return 0f;
         }
     }
+
+    // Runs on the throttler worker
+    private void WriteMasterVolume(float volume, Guid eventContext) =>
+        _workerProxies.TryInvoke((volume, eventContext), static (proxies, write) =>
+        {
+            Guid ctx = write.eventContext;
+            proxies.Volume.SetMasterVolume(write.volume, ref ctx);
+            return true;
+        }, out _);
+
+    private string? TryReadIconPath()
+    {
+        try
+        {
+            return _workerProxies.TryInvoke(0, static (proxies, _) =>
+            {
+                proxies.Control.GetIconPath(out string iconPath);
+                return iconPath;
+            }, out string? iconPath)
+                ? iconPath
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static (float Min, float Max) ReadPeaks(IAudioMeterInformation meter, bool unified, int biasMultiplier)
+    {
+        MeterReader.ReadStereoPeaks(meter, unified, biasMultiplier, out float minPeak, out float maxPeak);
+        return (minPeak, maxPeak);
+    }
+
+    private sealed record SessionProxies(
+        IAudioSessionControl Control,
+        ISimpleAudioVolume Volume,
+        IAudioMeterInformation Meter);
+
+    private static bool IsUnknownName(string? name) =>
+        string.Equals(name, AudioLocalization.UnknownAppName, StringComparison.Ordinal);
 
     public AudioSessionState State
     {
@@ -234,15 +277,13 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     public AudioSession(
         IAudioSessionControl control,
         Dispatcher dispatcher,
-        AsyncThrottler<string> volumeThrottler,
-        ProcessExitMonitor? processExitMonitor = null)
+        AsyncThrottler<string> volumeThrottler)
     {
         _control = control;
         _control2 = (IAudioSessionControl2)control;
         _simpleVolume = (ISimpleAudioVolume)control;
         _meter = (IAudioMeterInformation)control;
         _dispatcher = dispatcher;
-        _processExitMonitor = processExitMonitor;
 
         // PID + system-sounds determination happens once; both are immutable for the session's lifetime.
         _control2.GetProcessId(out uint pid);
@@ -290,9 +331,14 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // Watch the owning process. Force-killed apps don't always trigger Expired promptly because
         // the audio engine notices on its own schedule; the OS-level handle signal fires within
         // microseconds of the process record going away, so this collapses the disconnect latency.
-        // System sounds (pid 0) and unreachable processes are no-ops in ProcessExitMonitor.Watch.
-        if (_processExitMonitor != null && pid != 0 && !IsSystemSounds)
-            _watchingProcess = _processExitMonitor.Watch(pid, OnProcessExited);
+        // System sounds (pid 0) are not watched. A process this user cannot open (another account,
+        // a service) is not watched either; its session leaves through the audio engine's own events.
+        if (pid is > 0 and <= int.MaxValue && !IsSystemSounds
+            && ProcessExitWatch.TryRegister((int)pid, expectedStartFileTime: null, OnProcessExited, out _processExitRegistration)
+            == ProcessExitWatchResult.Exited)
+            OnProcessExited();
+
+        _workerProxies.Publish(new SessionProxies(_control, _simpleVolume, _meter));
 
         // Kick off the deferred icon + display-name resolution. Capture pid into the closure so we
         // don't read the field after a possible Dispose; ResolveAsyncMetadata guards every COM hop
@@ -422,7 +468,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                         return;
                     }
 
-                    if (string.Equals(_displayName, b: "Unknown", StringComparison.Ordinal))
+                    if (IsUnknownName(_displayName))
                         resolvedName = ProcessHelper.GetDisplayNameForProcess(pid);
                 }
                 catch
@@ -460,7 +506,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     private AppIconResolver.IconHandle? TryAcquireIcon(uint pid, bool isSystemSounds)
     {
         if (_disposed || _disconnected) return null;
-        try { return AppIconResolver.Acquire(_control, pid, isSystemSounds); }
+        try { return AppIconResolver.Acquire(isSystemSounds ? null : TryReadIconPath(), pid, isSystemSounds); }
         catch { return null; }
     }
 
@@ -480,8 +526,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                 }
 
                 if (handle != null) ApplyIconHandle(handle);
-                if (!string.IsNullOrEmpty(resolvedName)
-                    && !string.Equals(resolvedName, b: "Unknown", StringComparison.Ordinal))
+                if (!string.IsNullOrEmpty(resolvedName) && !IsUnknownName(resolvedName))
                     DisplayName = resolvedName;
             });
         }
@@ -532,7 +577,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     {
         if (_disposed || _disconnected || IsSystemSounds) return;
 
-        bool stuckName = string.Equals(_displayName, b: "Unknown", StringComparison.Ordinal);
+        bool stuckName = IsUnknownName(_displayName);
         bool stuckIcon = _icon == null;
         if (!stuckName && !stuckIcon) return;
 
@@ -542,13 +587,13 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             string resolved = !string.IsNullOrEmpty(sessionName)
                 ? sessionName
                 : ProcessHelper.GetDisplayNameForProcess(ProcessID);
-            if (!string.IsNullOrEmpty(resolved) && !string.Equals(resolved, b: "Unknown", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(resolved) && !IsUnknownName(resolved))
                 DisplayName = resolved;
         }
 
         if (stuckIcon)
         {
-            AppIconResolver.IconHandle? acquired = AppIconResolver.Acquire(_control, ProcessID, isSystemSounds: false);
+            AppIconResolver.IconHandle? acquired = AppIconResolver.Acquire(TryReadIconPath(), ProcessID, isSystemSounds: false);
             if (acquired != null) ApplyIconHandle(acquired);
         }
     }
@@ -567,7 +612,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Process-exit callback fired by <see cref="ProcessExitMonitor"/> on its watcher thread.
+    /// Process-exit callback fired by <see cref="ProcessExitWatch"/> on a thread-pool thread.
     /// Marshals to the dispatcher and raises Disconnected so the owning AudioDevice removes the
     /// session immediately - faster than waiting for the audio engine's eventual Expired notification.
     /// </summary>
@@ -604,8 +649,12 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            MeterReader.ReadStereoPeaks(_meter, unified, biasMultiplier, out float minPeak, out float maxPeak);
-            _meterLerp.WriteRawPeaks(minPeak, maxPeak);
+            if (!_workerProxies.TryInvoke((unified, biasMultiplier),
+                    static (proxies, sample) => ReadPeaks(proxies.Meter, sample.unified, sample.biasMultiplier),
+                    out (float Min, float Max) peaks))
+                return;
+
+            _meterLerp.WriteRawPeaks(peaks.Min, peaks.Max);
         }
         catch
         {
@@ -653,8 +702,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         // Stop watching the process before releasing COM proxies. If the watcher fires concurrently
         // the marshaled callback's _disposed guard collapses it to a no-op.
-        if (_watchingProcess && _processExitMonitor != null)
-            RunDisposeStep(operation: "process watcher detach", () => _processExitMonitor.Unwatch(ProcessID));
+        RunDisposeStep(operation: "process watcher detach", () => _processExitRegistration?.Dispose());
 
         // Drop any queued SetMasterVolume so the throttler driver doesn't try to call into the
         // RCW we're about to release. A payload already in flight will catch the COM exception.
@@ -674,11 +722,9 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         if (iconHandle != null)
             RunDisposeStep(operation: "icon lease release", iconHandle.Dispose);
 
-        // The COM RCWs still hold native references; release them deterministically so the
-        // session control's IUnknown ref count drops as soon as we abandon it.
-        Safe.Release(_simpleVolume);
-        Safe.Release(_meter);
-        Safe.Release(_control2);
+        // The control is a unique wrapper (one object behind all four views), so this releases its native
+        // reference now. Retiring the worker proxies first waits out any call still in flight on them.
+        _workerProxies.Retire();
         Safe.Release(_control);
     }
 
@@ -719,7 +765,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             PostIfAlive(() =>
             {
                 AppIconResolver.IconHandle? newHandle = AppIconResolver.Acquire(
-                    owner._control, owner.ProcessID, owner.IsSystemSounds);
+                    owner.TryReadIconPath(), owner.ProcessID, owner.IsSystemSounds);
                 if (newHandle != null) owner.ApplyIconHandle(newHandle);
                 else owner.ClearIconHandle();
             });

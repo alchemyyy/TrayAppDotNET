@@ -3,25 +3,21 @@ using System.Runtime.InteropServices.Marshalling;
 
 namespace TrayAppDotNETCommon.Interop;
 
+/// <summary>
+/// AOT-safe activation and wrapping for source-generated COM interfaces. Every wrapper made here is a unique
+/// instance, so <see cref="TryReleaseGeneratedComObject"/> releases it deterministically.
+/// </summary>
 public static class COMActivation
 {
     private static readonly StrategyBasedComWrappers ComWrappers = new();
     private static int _registeredForMarshalling;
 
-    public const uint ClsCtxInprocServer = 0x1;
-    public const uint ClsCtxInprocHandler = 0x2;
-    public const uint ClsCtxLocalServer = 0x4;
-    public const uint ClsCtxRemoteServer = 0x10;
-
-    public const uint ClsCtxAll =
-        ClsCtxInprocServer | ClsCtxInprocHandler | ClsCtxLocalServer | ClsCtxRemoteServer;
-
-    public static T CreateInstance<T>(Guid clsid, Guid iid, uint clsContext = ClsCtxAll)
+    public static T CreateInstance<T>(Guid clsid, Guid iid, uint clsContext = Ole32.CLSCTX_ALL)
         where T : class
     {
         EnsureRegisteredForMarshalling();
 
-        int hr = CoCreateInstance(in clsid, IntPtr.Zero, clsContext, in iid, out IntPtr instance);
+        int hr = Ole32.CoCreateInstance(in clsid, IntPtr.Zero, clsContext, in iid, out IntPtr instance);
         if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 
         return GetObjectForComInstance<T>(instance, releaseInputReference: true);
@@ -50,6 +46,11 @@ public static class COMActivation
         }
     }
 
+    /// <summary>
+    /// Registers a <see cref="StrategyBasedComWrappers"/> as the process-wide marshalling instance, so runtime paths
+    /// that still go through the built-in marshaller (Marshal.GetObjectForIUnknown and friends) produce
+    /// source-generated wrappers. The generated stubs and the marshallers used here never depend on it.
+    /// </summary>
     public static void EnsureRegisteredForMarshalling()
     {
         if (Interlocked.Exchange(ref _registeredForMarshalling, value: 1) != 0) return;
@@ -60,26 +61,26 @@ public static class COMActivation
         }
         catch (InvalidOperationException)
         {
-            // Another component registered a process-wide marshaller first. Direct calls through
-            // this helper still use the local StrategyBasedComWrappers instance.
+            // Another component already registered a process-wide instance; those runtime paths use it instead
         }
     }
 
+    /// <summary>
+    /// Releases a source-generated wrapper now through <see cref="ComObject.FinalRelease"/> and returns true;
+    /// returns false for anything that is not a source-generated wrapper.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ComObject.FinalRelease"/> only acts on unique instances: a cached wrapper (the default marshaller
+    /// of a generated out-parameter or return value) is left for the finalizer, and the runtime exposes no way to
+    /// tell the two apart. So every generated interface member that hands out a COM object must marshal it with
+    /// <c>[MarshalUsing(typeof(UniqueComInterfaceMarshaller&lt;T&gt;))]</c>, and other wrappers must come from
+    /// <see cref="CreateInstance{T}"/> or <see cref="GetObjectForComInstance{T}"/>.
+    /// </remarks>
     public static bool TryReleaseGeneratedComObject(object? obj)
     {
         if (obj is not ComObject comObject) return false;
 
-        // GetObjectForComInstance uses UniqueComInterfaceMarshaller, so its ComObject wrappers are
-        // UniqueInstance RCWs and support deterministic release through FinalRelease.
         comObject.FinalRelease();
         return true;
     }
-
-    [DllImport("ole32.dll", ExactSpelling = true, PreserveSig = true)]
-    private static extern int CoCreateInstance(
-        in Guid rclsid,
-        IntPtr pUnkOuter,
-        uint dwClsContext,
-        in Guid riid,
-        out IntPtr ppv);
 }

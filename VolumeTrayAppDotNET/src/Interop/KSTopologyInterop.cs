@@ -66,39 +66,9 @@ internal static class KSConstants
         a: 0x05589F81, b: 0xC356, c: 0x11CE, d: 0xBF, e: 0x01, f: 0x00, g: 0xAA, h: 0x00, i: 0x55, j: 0x59, k: 0x5A);
 }
 
-internal static class KSTopologyNative
+// Raw vtable calls through unmanaged function pointers: AOT-safe and allocation-free, unlike a delegate per call.
+internal static unsafe class KSTopologyNative
 {
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int FilterMethod3Fn(IntPtr thisPtr, IntPtr ksData, uint ksDataByteCount, IntPtr unused,
-        out IntPtr outEnumerator);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int EnumGetCountFn(IntPtr thisPtr, out uint count);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int EnumGetItemFn(IntPtr thisPtr, uint index, out IntPtr outItem);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int PartActivateFn(IntPtr thisPtr, ClsCtx clsContext, ref Guid iid, out IntPtr outInterface);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int KSIsFormatSupportedFn(IntPtr thisPtr, IntPtr ksFormat, uint cbFormat, out int supported);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int TopologyGetConnectorFn(IntPtr thisPtr, uint connectorIndex, out IntPtr connector);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int ConnectorGetDeviceIDConnectedToFn(IntPtr thisPtr, out IntPtr deviceID);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int KSPropertyFn(
-        IntPtr thisPtr,
-        ref KSPropertyRequest property,
-        uint propertyLength,
-        IntPtr propertyData,
-        uint dataLength,
-        out uint bytesReturned);
-
     [StructLayout(LayoutKind.Sequential)]
     internal struct KSPropertyRequest
     {
@@ -135,20 +105,32 @@ internal static class KSTopologyNative
         uint ksDataByteCount,
         out IntPtr outEnumerator)
     {
-        FilterMethod3Fn filterByDataFormat = ReadVtableSlot<FilterMethod3Fn>(filterPtr, slotIndex: 3);
-        return filterByDataFormat(filterPtr, ksData, ksDataByteCount, IntPtr.Zero, out outEnumerator);
+        delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, IntPtr, IntPtr*, int> filterByDataFormat =
+            (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, IntPtr, IntPtr*, int>)VtableSlot(filterPtr, slotIndex: 3);
+        IntPtr enumerator = IntPtr.Zero;
+        int hr = filterByDataFormat(filterPtr, ksData, ksDataByteCount, IntPtr.Zero, &enumerator);
+        outEnumerator = enumerator;
+        return hr;
     }
 
     public static int CallEnumeratorGetCount(IntPtr enumeratorPtr, out uint count)
     {
-        EnumGetCountFn getEnumeratorCount = ReadVtableSlot<EnumGetCountFn>(enumeratorPtr, slotIndex: 3);
-        return getEnumeratorCount(enumeratorPtr, out count);
+        delegate* unmanaged[Stdcall]<IntPtr, uint*, int> getEnumeratorCount =
+            (delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)VtableSlot(enumeratorPtr, slotIndex: 3);
+        uint value = 0;
+        int hr = getEnumeratorCount(enumeratorPtr, &value);
+        count = value;
+        return hr;
     }
 
     public static int CallEnumeratorGetItem(IntPtr enumeratorPtr, uint index, out IntPtr outItem)
     {
-        EnumGetItemFn getEnumeratorItem = ReadVtableSlot<EnumGetItemFn>(enumeratorPtr, slotIndex: 4);
-        return getEnumeratorItem(enumeratorPtr, index, out outItem);
+        delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int> getEnumeratorItem =
+            (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)VtableSlot(enumeratorPtr, slotIndex: 4);
+        IntPtr item = IntPtr.Zero;
+        int hr = getEnumeratorItem(enumeratorPtr, index, &item);
+        outItem = item;
+        return hr;
     }
 
     public static int CallPartActivate(
@@ -157,8 +139,12 @@ internal static class KSTopologyNative
         Guid iid,
         out IntPtr outInterface)
     {
-        PartActivateFn activatePartInterface = ReadVtableSlot<PartActivateFn>(partPtr, slotIndex: 13);
-        return activatePartInterface(partPtr, clsContext, ref iid, out outInterface);
+        delegate* unmanaged[Stdcall]<IntPtr, ClsCtx, Guid*, IntPtr*, int> activatePartInterface =
+            (delegate* unmanaged[Stdcall]<IntPtr, ClsCtx, Guid*, IntPtr*, int>)VtableSlot(partPtr, slotIndex: 13);
+        IntPtr activated = IntPtr.Zero;
+        int hr = activatePartInterface(partPtr, clsContext, &iid, &activated);
+        outInterface = activated;
+        return hr;
     }
 
     public static int CallIsFormatSupported(
@@ -167,8 +153,10 @@ internal static class KSTopologyNative
         uint cbFormat,
         out bool supported)
     {
-        KSIsFormatSupportedFn isFormatSupported = ReadVtableSlot<KSIsFormatSupportedFn>(formatSupportPtr, slotIndex: 3);
-        int hr = isFormatSupported(formatSupportPtr, ksFormat, cbFormat, out int rawSupported);
+        delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, int*, int> isFormatSupported =
+            (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, int*, int>)VtableSlot(formatSupportPtr, slotIndex: 3);
+        int rawSupported = 0;
+        int hr = isFormatSupported(formatSupportPtr, ksFormat, cbFormat, &rawSupported);
         supported = rawSupported != 0;
         return hr;
     }
@@ -179,17 +167,24 @@ internal static class KSTopologyNative
         out IntPtr connector)
     {
         // IUnknown (0-2), GetConnectorCount (3), GetConnector (4).
-        TopologyGetConnectorFn getTopologyConnector = ReadVtableSlot<TopologyGetConnectorFn>(topologyPtr, slotIndex: 4);
-        return getTopologyConnector(topologyPtr, connectorIndex, out connector);
+        delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int> getTopologyConnector =
+            (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)VtableSlot(topologyPtr, slotIndex: 4);
+        IntPtr result = IntPtr.Zero;
+        int hr = getTopologyConnector(topologyPtr, connectorIndex, &result);
+        connector = result;
+        return hr;
     }
 
     public static int CallConnectorGetDeviceIDConnectedTo(IntPtr connectorPtr, out IntPtr deviceID)
     {
         // IConnector is its own IUnknown-derived interface. Its eight methods occupy slots 3-10;
         // GetDeviceIdConnectedTo is the final method at slot 10.
-        ConnectorGetDeviceIDConnectedToFn getConnectedDeviceID =
-            ReadVtableSlot<ConnectorGetDeviceIDConnectedToFn>(connectorPtr, slotIndex: 10);
-        return getConnectedDeviceID(connectorPtr, out deviceID);
+        delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int> getConnectedDeviceID =
+            (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)VtableSlot(connectorPtr, slotIndex: 10);
+        IntPtr result = IntPtr.Zero;
+        int hr = getConnectedDeviceID(connectorPtr, &result);
+        deviceID = result;
+        return hr;
     }
 
     public static int CallKSProperty(
@@ -197,21 +192,25 @@ internal static class KSTopologyNative
         ref KSPropertyRequest property,
         out uint bytesReturned)
     {
-        KSPropertyFn submitKSProperty = ReadVtableSlot<KSPropertyFn>(ksControlPtr, slotIndex: 3);
-        return submitKSProperty(
-            ksControlPtr,
-            ref property,
-            (uint)Marshal.SizeOf<KSPropertyRequest>(),
-            IntPtr.Zero,
-            dataLength: 0,
-            out bytesReturned);
+        delegate* unmanaged[Stdcall]<IntPtr, KSPropertyRequest*, uint, IntPtr, uint, uint*, int> submitKSProperty =
+            (delegate* unmanaged[Stdcall]<IntPtr, KSPropertyRequest*, uint, IntPtr, uint, uint*, int>)
+            VtableSlot(ksControlPtr, slotIndex: 3);
+        uint returned = 0;
+        int hr;
+        fixed (KSPropertyRequest* request = &property)
+        {
+            hr = submitKSProperty(
+                ksControlPtr,
+                request,
+                (uint)sizeof(KSPropertyRequest),
+                IntPtr.Zero,
+                0,
+                &returned);
+        }
+
+        bytesReturned = returned;
+        return hr;
     }
 
-    private static TDelegate ReadVtableSlot<TDelegate>(IntPtr objPtr, int slotIndex)
-        where TDelegate : Delegate
-    {
-        IntPtr vtable = Marshal.ReadIntPtr(objPtr);
-        IntPtr slot = Marshal.ReadIntPtr(vtable, slotIndex * IntPtr.Size);
-        return Marshal.GetDelegateForFunctionPointer<TDelegate>(slot);
-    }
+    private static void* VtableSlot(IntPtr objPtr, int slotIndex) => (*(void***)objPtr)[slotIndex];
 }

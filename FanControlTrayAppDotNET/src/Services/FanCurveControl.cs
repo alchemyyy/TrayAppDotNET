@@ -15,6 +15,9 @@ internal static class FanCurveEvaluator
     public static bool TryEvaluate(Curve curve, DataSource source, out double target)
     {
         target = 0.0;
+
+        // The input clamp is the source's own axis; a source whose range changed since the curve was bound moves it
+        curve.FollowDataSourceRange(source);
         if (curve.CurveNodes.Count == 0 || curve.ClampXMin > curve.ClampXMax) return false;
 
         double x = source.DisplayValue;

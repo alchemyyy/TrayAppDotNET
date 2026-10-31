@@ -70,63 +70,6 @@ internal enum ClsCtx : uint
     ALL = INPROC_SERVER | INPROC_HANDLER | LOCAL_SERVER | REMOTE_SERVER
 }
 
-[StructLayout(LayoutKind.Sequential)]
-internal struct PROPERTYKEY(Guid fmtid, uint pid)
-{
-    public Guid fmtid = fmtid;
-    public uint pid = pid;
-}
-
-// PROPVARIANT minimal layout. On x64 the natural size is 24 bytes (8-byte header + 16-byte union),
-// and on x86 it's 16 bytes (8 + 8). Two IntPtr fields after the header match that on both archs.
-// VT_LPWSTR / VT_UI4 / VT_BOOL all live in p1; VT_BLOB uses both - cbSize in the low 32 bits
-// of p1 (with 4 bytes of padding above it on x64) and the data pointer in p2.
-[StructLayout(LayoutKind.Sequential)]
-internal struct PROPVARIANT
-{
-    public ushort vt;
-    public ushort wReserved1;
-    public ushort wReserved2;
-    public ushort wReserved3;
-    public IntPtr p1;
-    public IntPtr p2;
-
-    public const ushort VT_EMPTY = 0;
-    public const ushort VT_I4 = 3;
-    public const ushort VT_BOOL = 11;
-    public const ushort VT_UI4 = 19;
-    public const ushort VT_LPWSTR = 31;
-    public const ushort VT_BLOB = 65;
-    public const ushort VT_CLSID = 72;
-
-    public string? GetString() => vt == VT_LPWSTR ? Marshal.PtrToStringUni(p1) : null;
-
-    public uint GetUInt32() => vt == VT_UI4 ? (uint)p1.ToInt64() : 0u;
-
-    // VT_CLSID: p1 holds a pointer to a 16-byte GUID. Returns null on type mismatch / null
-    // pointer so callers don't have to recheck vt. Used to read PKEY_Device_ContainerId,
-    // which DEVPROP_TYPE_GUID maps to VT_CLSID through IPropertyStore.
-    public Guid? GetGuid()
-    {
-        if (vt != VT_CLSID || p1 == IntPtr.Zero) return null;
-        byte[] buf = new byte[16];
-        Marshal.Copy(p1, buf, startIndex: 0, length: 16);
-        return new Guid(buf);
-    }
-
-    // VT_BLOB: low 32 bits of p1 hold cbSize (rest is alignment padding), p2 holds the data
-    // pointer. Returns null on type mismatch or empty payload so callers don't have to recheck vt.
-    public byte[]? GetBlobBytes()
-    {
-        if (vt != VT_BLOB) return null;
-        int size = (int)p1.ToInt64();
-        if (size <= 0 || p2 == IntPtr.Zero) return null;
-        byte[] buf = new byte[size];
-        Marshal.Copy(p2, buf, startIndex: 0, size);
-        return buf;
-    }
-}
-
 // Well-known Function-Discovery property keys. Verified against
 // functiondiscoverykeys_devpkey.h and mmdeviceapi.h.
 internal static class PropertyKeys
@@ -382,26 +325,4 @@ internal static class Stgm
 internal static class AudioEventContext
 {
     public static readonly Guid Value = new(Constants.AppGUID);
-}
-
-// IPropertyStore: read + write side of the endpoint property store. SetValue / Commit are used
-// for listen-state, exclusive-mode, and friendly-name writes; GetValue for everything else.
-// The store is always addressed by known PROPERTYKEY, so GetCount / GetAt are vtable padding.
-[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
-[Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal partial interface IPropertyStore
-{
-    void Unused_GetCount();
-    void Unused_GetAt();
-    void GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
-    void SetValue(ref PROPERTYKEY key, ref PROPVARIANT propvar);
-    void Commit();
-}
-
-// Frees PROPVARIANT-allocated resources (e.g. the LPWSTR returned by GetValue).
-internal static class Ole32
-{
-    [DllImport("ole32.dll")]
-    public static extern int PropVariantClear(ref PROPVARIANT pvar);
 }

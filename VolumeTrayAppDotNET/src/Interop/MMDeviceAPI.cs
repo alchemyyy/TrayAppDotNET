@@ -11,6 +11,8 @@ namespace VolumeTrayAppDotNET.Interop;
 //   IMMEndpoint                 1be09788-6894-4089-8586-9a2a6c265ac5
 //   IMMNotificationClient       7991eec9-7e89-4d85-8390-6c703cec60c0
 //   CLSID_MMDeviceEnumerator    bcde0395-e52f-467c-8e3d-c4579291692e
+// Every COM object these hand out is marshalled with UniqueComInterfaceMarshaller, so Safe.Release frees it
+// deterministically (see COMActivation.TryReleaseGeneratedComObject).
 
 [GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
 [Guid("d666063f-1587-4e43-81f1-b948e807363f")]
@@ -26,7 +28,9 @@ internal partial interface IMMDevice
         IntPtr pActivationParams,
         out IntPtr ppInterface);
 
-    void OpenPropertyStore(uint stgmAccess, out IPropertyStore ppProperties);
+    void OpenPropertyStore(
+        uint stgmAccess,
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IPropertyStore>))] out IPropertyStore ppProperties);
 
     [PreserveSig]
     int GetId(out string ppstrId);
@@ -41,7 +45,7 @@ internal partial interface IMMDevice
 internal partial interface IMMDeviceCollection
 {
     void GetCount(out uint pcDevices);
-    void Item(uint nDevice, [MarshalAs(UnmanagedType.Interface)] out IMMDevice ppDevice);
+    void Item(uint nDevice, [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IMMDevice>))] out IMMDevice ppDevice);
 }
 
 [GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
@@ -60,17 +64,17 @@ internal partial interface IMMDeviceEnumerator
     void EnumAudioEndpoints(
         EDataFlow dataFlow,
         DeviceState dwStateMask,
-        out IMMDeviceCollection ppDevices);
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IMMDeviceCollection>))] out IMMDeviceCollection ppDevices);
 
     [PreserveSig]
     int GetDefaultAudioEndpoint(
         EDataFlow dataFlow,
         ERole role,
-        out IMMDevice ppEndpoint);
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IMMDevice>))] out IMMDevice ppEndpoint);
 
     void GetDevice(
         string pwstrId,
-        out IMMDevice ppDevice);
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IMMDevice>))] out IMMDevice ppDevice);
 
     void RegisterEndpointNotificationCallback(
         IMMNotificationClient pClient);
@@ -98,7 +102,19 @@ internal partial interface IMMNotificationClient
     int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string? pwstrDefaultDeviceId);
 
     [PreserveSig]
-    int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string pwstrDeviceId, PROPERTYKEY key);
+    int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string pwstrDeviceId, NotifiedPropertyKey key);
+}
+
+/// <summary>
+/// The PROPERTYKEY that IMMNotificationClient.OnPropertyValueChanged receives by value. Declared in this assembly
+/// because source-generated COM only passes structs by value when it compiles them itself; the layout matches
+/// <see cref="PROPERTYKEY"/>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NotifiedPropertyKey
+{
+    public Guid fmtid;
+    public uint pid;
 }
 
 internal static class MMDeviceExtensions
@@ -135,30 +151,10 @@ internal static class MMDeviceExtensions
     }
 }
 
-internal static partial class MMDeviceEnumeratorFactory
+internal static class MMDeviceEnumeratorFactory
 {
     private static readonly Guid ClsidMMDeviceEnumerator = new("bcde0395-e52f-467c-8e3d-c4579291692e");
 
-    public static IMMDeviceEnumerator Create()
-    {
-        Guid clsid = ClsidMMDeviceEnumerator;
-        Guid iid = typeof(IMMDeviceEnumerator).GUID;
-        int hr = CoCreateInstance(
-            in clsid,
-            IntPtr.Zero,
-            (uint)ClsCtx.ALL,
-            in iid,
-            out IMMDeviceEnumerator enumerator);
-        if (hr < 0) Marshal.ThrowExceptionForHR(hr);
-        return enumerator;
-    }
-
-    [LibraryImport("ole32.dll", EntryPoint = "CoCreateInstance")]
-    private static partial int CoCreateInstance(
-        in Guid rclsid,
-        IntPtr pUnkOuter,
-        uint dwClsContext,
-        in Guid riid,
-        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IMMDeviceEnumerator>))]
-        out IMMDeviceEnumerator ppv);
+    public static IMMDeviceEnumerator Create() =>
+        COMActivation.CreateInstance<IMMDeviceEnumerator>(ClsidMMDeviceEnumerator, typeof(IMMDeviceEnumerator).GUID);
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
 using NCalc;
@@ -127,16 +128,19 @@ public class DataSource : INotifyPropertyChanged
         }
     }
 
-    // NCalc expression applied to the raw upstream value. Empty string == passthrough.
-    // Examples: "x * 1.8 + 32" (Celsius to Fahrenheit), "max(x, 50)" (floor at 50).
-    // The single free variable is named "x" by convention.
+    // NCalc expression applied to the upstream reading in display units (degrees, volts, RPM, percent), before it
+    // is stored in milli-units. Examples: "x * 1.8 + 32" (Celsius to Fahrenheit), "max(x, 50)" (floor at 50).
+    // The single free variable is named "x". Set in settings.xml only; no editor exposes it.
     [XmlAttribute]
     public string TransformString { get; set; } = string.Empty;
 
-    // Producer-side setter that runs the TransformString before storing. If the expression
-    // throws or fails to parse, the raw value is stored unchanged so a broken transform never
-    // freezes the signal. Returns false when the transform produced NaN, infinity, or a value too large
-    // for the milli-unit long; Value is left unchanged then so it never silently saturates.
+    // The transform text whose failure was last logged, so a broken expression logs once, not every poll
+    private string? _loggedTransformFailure;
+
+    // Producer-side setter (milli-units in) that runs the TransformString before storing. If the expression
+    // throws, fails to parse, or yields no number, the failure is logged once and the raw value is stored unchanged
+    // so a broken transform never freezes the signal. Returns false when the transform produced NaN, infinity, or a
+    // value too large for the milli-unit long; Value is left unchanged then so it never silently saturates.
     public bool SetValue(long rawValue)
     {
         if (string.IsNullOrWhiteSpace(TransformString))
@@ -147,24 +151,36 @@ public class DataSource : INotifyPropertyChanged
 
         try
         {
-            Expression expression = new(TransformString) { Parameters = { ["x"] = (double)rawValue } };
+            Expression expression = new(TransformString) { Parameters = { ["x"] = rawValue / 1000.0 } };
             object? result = expression.Evaluate();
             if (result is IConvertible convertible)
             {
-                double transformed = Math.Round(Convert.ToDouble(convertible));
+                double transformed = Math.Round(Convert.ToDouble(convertible, CultureInfo.InvariantCulture) * 1000.0);
                 if (!double.IsFinite(transformed) || Math.Abs(transformed) >= long.MaxValue) return false;
 
                 Value = (long)transformed;
                 return true;
             }
+
+            LogTransformFailureOnce($"the result '{result}' is not a number");
         }
-        catch
+        catch (Exception ex)
         {
-            // Fall through to raw on any NCalc error. Visible via the unchanged LastChanged stamp.
+            LogTransformFailureOnce(ex.Message);
         }
 
         Value = rawValue;
         return true;
+    }
+
+    private void LogTransformFailureOnce(string reason)
+    {
+        if (string.Equals(_loggedTransformFailure, TransformString, StringComparison.Ordinal)) return;
+
+        _loggedTransformFailure = TransformString;
+        TADNLog.Log(
+            $"DataSource '{DataSourceKey}': transform '{TransformString}' failed, passing the raw value through: "
+            + reason);
     }
 
     [XmlIgnore]
@@ -173,7 +189,9 @@ public class DataSource : INotifyPropertyChanged
     [XmlIgnore]
     public string DisplayName =>
         string.IsNullOrWhiteSpace(UserDefinedName)
-            ? string.IsNullOrWhiteSpace(DataSourceKey) ? "Data source" : DataSourceKey.Split('.').Last()
+            ? string.IsNullOrWhiteSpace(DataSourceKey)
+                ? LocalizationManager.Instance[nameof(AppStrings.Fan_DataSource_DefaultName)]
+                : DataSourceKey.Split('.').Last()
             : UserDefinedName;
 
     [XmlIgnore]

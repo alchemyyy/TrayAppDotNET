@@ -4,6 +4,8 @@ using System.Runtime.InteropServices.Marshalling;
 namespace VolumeTrayAppDotNET.Interop;
 
 // Audio session interfaces (per-app sessions on a device endpoint).
+// Every COM object these hand out is marshalled with UniqueComInterfaceMarshaller, so Safe.Release frees it
+// deterministically (see COMActivation.TryReleaseGeneratedComObject).
 // Verified against Windows SDK audiopolicy.h and audioclient.h:
 //   IAudioSessionEvents         24918acc-64b3-37c1-8ca9-74a66e9957a8
 //   IAudioSessionControl        f4b1a599-7266-4319-a8ca-e70acb11e8cd
@@ -93,7 +95,9 @@ internal partial interface IAudioSessionControl2
 internal partial interface IAudioSessionEnumerator
 {
     void GetCount(out int SessionCount);
-    void GetSession(int SessionCount, out IAudioSessionControl Session);
+    void GetSession(
+        int SessionCount,
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IAudioSessionControl>))] out IAudioSessionControl Session);
 }
 
 // Implemented in managed code. NO [ComImport] - see CCW rule in AudioInterop.cs header.
@@ -102,8 +106,10 @@ internal partial interface IAudioSessionEnumerator
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal partial interface IAudioSessionNotification
 {
+    // Raw pointer so the implementation wraps it uniquely (COMActivation.GetObjectForComInstance); the default
+    // marshaller would hand over a cached wrapper that Safe.Release cannot free.
     [PreserveSig]
-    int OnSessionCreated(IAudioSessionControl NewSession);
+    int OnSessionCreated(IntPtr NewSession);
 }
 
 // IAudioSessionManager2 inherits IAudioSessionManager (which has GetAudioSessionControl + GetSimpleAudioVolume).
@@ -117,15 +123,16 @@ internal partial interface IAudioSessionManager2
     void GetAudioSessionControl(
         ref Guid AudioSessionGuid,
         uint StreamFlags,
-        out IAudioSessionControl SessionControl);
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IAudioSessionControl>))] out IAudioSessionControl SessionControl);
 
     void GetSimpleAudioVolume(
         ref Guid AudioSessionGuid,
         uint StreamFlags,
-        out ISimpleAudioVolume AudioVolume);
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<ISimpleAudioVolume>))] out ISimpleAudioVolume AudioVolume);
 
     // Added by IAudioSessionManager2
-    void GetSessionEnumerator(out IAudioSessionEnumerator SessionEnum);
+    void GetSessionEnumerator(
+        [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IAudioSessionEnumerator>))] out IAudioSessionEnumerator SessionEnum);
     void RegisterSessionNotification(IAudioSessionNotification SessionNotification);
     void UnregisterSessionNotification(IAudioSessionNotification SessionNotification);
 

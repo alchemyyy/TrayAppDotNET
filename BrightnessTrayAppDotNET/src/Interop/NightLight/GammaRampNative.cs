@@ -16,8 +16,6 @@ internal static class GammaRampNative
 {
     private const int DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO = 9;
     private const uint AdvancedColorEnabledBit = 0x2;
-    private const int ERROR_INSUFFICIENT_BUFFER = 122;
-    private const int MaxDisplayQueryAttempts = 3;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO
@@ -68,49 +66,17 @@ internal static class GammaRampNative
     /// <summary>
     /// Lists active display sources with their advanced-color state. A source that drives several targets (clone
     /// mode) counts as advanced color when any of its targets is. Null when CCD fails (e.g. access denied in a
-    /// disconnected remote session); the buffer-size race with a topology change is retried first.
+    /// disconnected remote session); <see cref="CCD.TryQueryActivePaths(string, out CCD.DISPLAYCONFIG_PATH_INFO[])"/>
+    /// retries the buffer-size race with a topology change first.
     /// </summary>
     public static List<GammaRampDisplay>? EnumerateActiveDisplays()
     {
-        CCD.DISPLAYCONFIG_PATH_INFO[] paths;
-        uint pathCount;
-        int attempt = 1;
-        while (true)
-        {
-            int rc = CCD.GetDisplayConfigBufferSizes(CCD.QDC_ONLY_ACTIVE_PATHS, out pathCount, out uint modeCount);
-            if (rc != 0)
-            {
-                TADNLog.Log($"GammaRampNative: GetDisplayConfigBufferSizes failed rc={rc}");
-                return null;
-            }
-
-            if (pathCount == 0) return [];
-
-            paths = new CCD.DISPLAYCONFIG_PATH_INFO[pathCount];
-            CCD.DISPLAYCONFIG_MODE_INFO_BLOB[] modes = new CCD.DISPLAYCONFIG_MODE_INFO_BLOB[modeCount];
-            rc = CCD.QueryDisplayConfig(
-                CCD.QDC_ONLY_ACTIVE_PATHS,
-                ref pathCount,
-                paths,
-                ref modeCount,
-                modes,
-                IntPtr.Zero);
-            if (rc == 0) break;
-
-            // Paths were added between the size query and the query itself
-            if (rc == ERROR_INSUFFICIENT_BUFFER && attempt < MaxDisplayQueryAttempts)
-            {
-                attempt++;
-                continue;
-            }
-
-            TADNLog.Log($"GammaRampNative: QueryDisplayConfig failed rc={rc} (attempt {attempt})");
+        if (!CCD.TryQueryActivePaths(nameof(GammaRampNative), out CCD.DISPLAYCONFIG_PATH_INFO[] paths))
             return null;
-        }
 
         List<GammaRampDisplay> displays = [];
 
-        for (uint i = 0; i < pathCount; i++)
+        foreach (CCD.DISPLAYCONFIG_PATH_INFO path in paths)
         {
             CCD.DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName = new()
             {
@@ -118,8 +84,8 @@ internal static class GammaRampNative
                 {
                     type = CCD.DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
                     size = (uint)Marshal.SizeOf<CCD.DISPLAYCONFIG_SOURCE_DEVICE_NAME>(),
-                    adapterId = paths[i].sourceInfo.adapterId,
-                    id = paths[i].sourceInfo.id
+                    adapterId = path.sourceInfo.adapterId,
+                    id = path.sourceInfo.id
                 }
             };
             if (CCD.DisplayConfigGetDeviceInfo(ref sourceName) != 0) continue;
@@ -127,7 +93,7 @@ internal static class GammaRampNative
             string deviceName = sourceName.viewGdiDeviceName;
             if (string.IsNullOrEmpty(deviceName)) continue;
 
-            bool isAdvancedColor = IsTargetAdvancedColor(paths[i].targetInfo);
+            bool isAdvancedColor = IsTargetAdvancedColor(path.targetInfo);
             int existing = IndexOf(displays, deviceName);
             if (existing >= 0)
             {

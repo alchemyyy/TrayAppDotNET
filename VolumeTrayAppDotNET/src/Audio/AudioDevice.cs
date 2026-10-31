@@ -15,7 +15,7 @@ using IAudioSessionManager2 = VolumeTrayAppDotNET.Interop.IAudioSessionManager2;
 using IAudioSessionNotification = VolumeTrayAppDotNET.Interop.IAudioSessionNotification;
 using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
 using IPolicyConfig = VolumeTrayAppDotNET.Interop.IPolicyConfig;
-using IPropertyStore = VolumeTrayAppDotNET.Interop.IPropertyStore;
+using IPropertyStore = TrayAppDotNETCommon.Interop.IPropertyStore;
 using PolicyConfigFactory = VolumeTrayAppDotNET.Interop.PolicyConfigFactory;
 
 namespace VolumeTrayAppDotNET.Audio;
@@ -44,19 +44,23 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     //    audioses.dll publishes them with the FTM, so the sample timer and the volume throttler
     //    call them from worker tasks safely. If a future Windows build drops the FTM, those reads
     //    need to move onto the dispatcher.
+    //  - Workers call the endpoint volume and meter only through _endpointProxies (ComProxyGate), and
+    //    ReleaseEndpointProxies retires them through the same gate before releasing, so a worker is never
+    //    inside a call on a released proxy.
     private readonly IMMDevice _device;
 
-    // Nullable because IMMDevice.Activate(IAudioEndpointVolume) returns AUDCLNT_E_DEVICE_INVALIDATED
+    // Empty because IMMDevice.Activate(IAudioEndpointVolume) returns AUDCLNT_E_DEVICE_INVALIDATED
     // on Disabled / NotPresent / Unplugged endpoints. UpgradeFromActiveState retries when the OS
     // reports the device transitioned to Active.
-    private IAudioEndpointVolume? _endpointVolume;
-    private IAudioMeterInformation? _endpointMeter;
+    private readonly ComProxyGate<EndpointProxies> _endpointProxies = new();
+
+    private sealed record EndpointProxies(IAudioEndpointVolume Volume, IAudioMeterInformation Meter);
+
     private IAudioSessionManager2? _sessionManager;
     private EndpointVolumeBridge? _volumeBridge;
     private SessionNotificationBridge? _sessionBridge;
     private readonly Dispatcher _dispatcher;
     private readonly AsyncThrottler<string> _volumeThrottler;
-    private readonly ProcessExitMonitor _processExitMonitor;
 
     // One group per AppID; child processes (Discord, Chromium tabs) collapse into one slider.
     // UI-thread mutations only.
@@ -956,8 +960,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             float clamped = Math.Clamp(value, min: 0f, max: 1f);
             if (Math.Abs(clamped - _volume) < VolumeEqualityEpsilon) return;
             // No endpoint volume proxy on disabled / unplugged devices - bail before churning the UI.
-            IAudioEndpointVolume? proxy = _endpointVolume;
-            if (proxy == null) return;
+            if (_endpointProxies.Current == null) return;
 
             // Update the cached value + raise PropertyChanged synchronously so the slider stays
             // responsive on fast drags. The COM write is queued through the shared throttler with
@@ -966,7 +969,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             _volume = clamped;
             OnPropertyChanged();
 
-            _volumeWrite.Write(clamped, (v, ctx) => proxy.SetMasterVolumeLevelScalar(v, ref ctx));
+            _volumeWrite.Write(clamped, WriteEndpointVolume);
         }
     }
 
@@ -976,15 +979,19 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         set
         {
             if (_isMuted == value) return;
-            IAudioEndpointVolume? proxy = _endpointVolume;
-            if (proxy == null) return;
-
+            bool written;
             try
             {
-                Guid ctx = AudioEventContext.Value;
-                proxy.SetMute(value, ref ctx);
+                written = _endpointProxies.TryInvoke(value, static (proxies, mute) =>
+                {
+                    Guid ctx = AudioEventContext.Value;
+                    proxies.Volume.SetMute(mute, ref ctx);
+                    return true;
+                }, out _);
             }
             catch { return; }
+
+            if (!written) return;
 
             _isMuted = value;
             OnPropertyChanged();
@@ -1017,14 +1024,13 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             return true;
         }
 
-        IAudioMeterInformation? meter = _endpointMeter;
-        if (meter == null)
+        if (!_endpointProxies.TryInvoke(0, static (proxies, _) => ReadPeaks(proxies.Meter, unified: false, biasMultiplier: 0).Max,
+                out float maxPeak))
         {
             peak = _dingSuppressionPeak.Read();
             return true;
         }
 
-        MeterReader.ReadStereoPeaks(meter, unified: false, biasMultiplier: 0, out _, out float maxPeak);
         if (IsDingSuppressionPeakBypassed())
         {
             peak = _dingSuppressionPeak.Observe(ReadExternalSessionPeak());
@@ -1033,6 +1039,21 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
         peak = _dingSuppressionPeak.Observe(maxPeak);
         return true;
+    }
+
+    // Runs on the throttler worker
+    private void WriteEndpointVolume(float volume, Guid eventContext) =>
+        _endpointProxies.TryInvoke((volume, eventContext), static (proxies, write) =>
+        {
+            Guid ctx = write.eventContext;
+            proxies.Volume.SetMasterVolumeLevelScalar(write.volume, ref ctx);
+            return true;
+        }, out _);
+
+    private static (float Min, float Max) ReadPeaks(IAudioMeterInformation meter, bool unified, int biasMultiplier)
+    {
+        MeterReader.ReadStereoPeaks(meter, unified, biasMultiplier, out float minPeak, out float maxPeak);
+        return (minPeak, maxPeak);
     }
 
     /// <summary>Ignores endpoint samples while this app's feedback ding is audible.</summary>
@@ -1078,13 +1099,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public AudioDevice(IMMDevice device, EDataFlow dataFlow, Dispatcher dispatcher,
-        AsyncThrottler<string> volumeThrottler, ProcessExitMonitor processExitMonitor)
+        AsyncThrottler<string> volumeThrottler)
     {
         _device = device;
         DataFlow = dataFlow;
         _dispatcher = dispatcher;
         _volumeThrottler = volumeThrottler;
-        _processExitMonitor = processExitMonitor;
         Groups = new ReadOnlyObservableCollection<AudioAppGroup>(_groups);
         // Republish snapshot on every UI-thread mutation so bg-thread sample reads the
         // field once without allocating per tick.
@@ -1331,7 +1351,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     _ => true
                 };
             }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch { return true; }
         finally { Safe.Release(store); }
@@ -1359,13 +1379,13 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     _ => false
                 };
             }
-            finally { Ole32.PropVariantClear(ref enablePv); }
+            finally { PropertyStore.PropVariantClear(ref enablePv); }
 
             PROPERTYKEY targetKey = PropertyKeys.PKEY_AudioEndpoint_ListenTargetDeviceID;
             store.GetValue(ref targetKey, out PROPVARIANT targetPv);
             string? target;
             try { target = targetPv.GetString(); }
-            finally { Ole32.PropVariantClear(ref targetPv); }
+            finally { PropertyStore.PropVariantClear(ref targetPv); }
 
             return (enabled, target);
         }
@@ -1382,7 +1402,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
 
-        if (_endpointVolume != null)
+        if (_endpointProxies.Current != null)
         {
             RefreshEndpointVolumeState();
             return;
@@ -1406,9 +1426,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             if (meter == null || sessionManager == null) return;
             if (_disposed) return;
 
-            _endpointVolume = endpointVolume;
-            _endpointMeter = meter;
+            _endpointProxies.Publish(new EndpointProxies(endpointVolume, meter));
             _sessionManager = sessionManager;
+
             assignedToFields = true;
 
             // Notify bindings that volume/mute now have real values - the wrapper may have lived as
@@ -1466,16 +1486,20 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         muted = false;
         if (_disposed) return false;
 
-        IAudioEndpointVolume? endpointVolume = _endpointVolume;
-        if (endpointVolume == null) return false;
         try
         {
-            endpointVolume.GetMasterVolumeLevelScalar(out float currentVolume);
-            endpointVolume.GetMute(out bool currentMuted);
-            if (float.IsNaN(currentVolume) || float.IsInfinity(currentVolume)) return false;
+            if (!_endpointProxies.TryInvoke(0, static (proxies, _) =>
+                    {
+                        proxies.Volume.GetMasterVolumeLevelScalar(out float level);
+                        proxies.Volume.GetMute(out bool mute);
+                        return (Level: level, Mute: mute);
+                    }, out (float Level, bool Mute) current))
+                return false;
 
-            volume = Math.Clamp(currentVolume, min: 0f, max: 1f);
-            muted = currentMuted;
+            if (float.IsNaN(current.Level) || float.IsInfinity(current.Level)) return false;
+
+            volume = Math.Clamp(current.Level, min: 0f, max: 1f);
+            muted = current.Mute;
             return true;
         }
         catch
@@ -1534,14 +1558,13 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     {
         _volumeWrite.Drop();
 
-        IAudioEndpointVolume? endpointVolume = _endpointVolume;
-        IAudioMeterInformation? endpointMeter = _endpointMeter;
+        EndpointProxies? retired = _endpointProxies.Retire();
+        IAudioEndpointVolume? endpointVolume = retired?.Volume;
+        IAudioMeterInformation? endpointMeter = retired?.Meter;
         IAudioSessionManager2? sessionManager = _sessionManager;
         EndpointVolumeBridge? volumeBridge = _volumeBridge;
         SessionNotificationBridge? sessionBridge = _sessionBridge;
 
-        _endpointVolume = null;
-        _endpointMeter = null;
         _sessionManager = null;
         _volumeBridge = null;
         _sessionBridge = null;
@@ -1578,8 +1601,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     internal void UpdatePeakValueBackground(bool unified, int biasMultiplier)
     {
         if (_disposed) return;
-        IAudioMeterInformation? meter = _endpointMeter;
-        if (meter == null) return;
+        if (_endpointProxies.Current == null) return;
 
         if (_pinEndpointMeterToSilence)
         {
@@ -1593,7 +1615,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         {
             try
             {
-                MeterReader.ReadStereoPeaks(meter, unified, biasMultiplier, out float minPeak, out float maxPeak);
+                if (!_endpointProxies.TryInvoke((unified, biasMultiplier),
+                        static (proxies, sample) => ReadPeaks(proxies.Meter, sample.unified, sample.biasMultiplier),
+                        out (float Min, float Max) peaks))
+                    return;
+
+                (float minPeak, float maxPeak) = peaks;
                 _meterLerp.WriteRawPeaks(minPeak, maxPeak);
                 float suppressionPeak = IsDingSuppressionPeakBypassed()
                     ? ReadExternalSessionPeak()
@@ -1728,7 +1755,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
 
         AudioSession session;
-        try { session = new AudioSession(ctrl, _dispatcher, _volumeThrottler, _processExitMonitor); }
+        try { session = new AudioSession(ctrl, _dispatcher, _volumeThrottler); }
         catch
         {
             // Construction can fail if the session is already torn down (race with OnSessionCreated);
@@ -2375,7 +2402,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             PROPERTYKEY key = PropertyKeys.PKEY_Device_EnumeratorName;
             store.GetValue(ref key, out PROPVARIANT pv);
             try { return pv.GetString(); }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch { return null; }
         finally { Safe.Release(store); }
@@ -2394,7 +2421,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             PROPERTYKEY key = PropertyKeys.PKEY_Device_ContainerId;
             store.GetValue(ref key, out PROPVARIANT pv);
             try { return pv.GetGuid(); }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch { return null; }
         finally { Safe.Release(store); }
@@ -2421,7 +2448,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             PROPERTYKEY local = key;
             store.GetValue(ref local, out PROPVARIANT pv);
             try { return pv.GetString(); }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch
         {
@@ -2441,7 +2468,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             PROPERTYKEY key = PropertyKeys.PKEY_AudioEngine_DeviceFormat;
             store.GetValue(ref key, out PROPVARIANT pv);
             try { return pv.GetBlobBytes(); }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch
         {
@@ -2512,7 +2539,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 (ushort channels, ushort bits, uint sampleRate) p = parsed.Value;
                 return AudioLocalization.DeviceFormat(p.channels, p.bits, (int)p.sampleRate);
             }
-            finally { Ole32.PropVariantClear(ref pv); }
+            finally { PropertyStore.PropVariantClear(ref pv); }
         }
         catch
         {
@@ -2618,19 +2645,24 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     [GeneratedComClass]
     private sealed partial class SessionNotificationBridge(AudioDevice owner) : IAudioSessionNotification
     {
-        public int OnSessionCreated(IAudioSessionControl newSession)
+        public int OnSessionCreated(IntPtr newSession)
         {
-            // The COM ref count of newSession is given to us; AddSession takes ownership.
-            if (owner._disposed)
+            if (owner._disposed || newSession == IntPtr.Zero) return 0;
+
+            // The caller keeps its reference to the in-parameter. The unique wrapper takes one of its own, which
+            // AddSession owns from here on and releases deterministically.
+            IAudioSessionControl session;
+            try { session = COMActivation.GetObjectForComInstance<IAudioSessionControl>(newSession); }
+            catch (Exception exception)
             {
-                Safe.Release(newSession);
+                TADNLog.Log($"AudioDevice.OnSessionCreated: wrapping the new session failed: {exception.Message}");
                 return 0;
             }
 
-            try { owner._dispatcher.InvokeAsync(() => owner.AddSession(newSession)); }
+            try { owner._dispatcher.InvokeAsync(() => owner.AddSession(session)); }
             catch
             {
-                Safe.Release(newSession);
+                Safe.Release(session);
             }
 
             return 0;

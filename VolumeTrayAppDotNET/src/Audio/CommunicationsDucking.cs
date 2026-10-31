@@ -42,9 +42,9 @@ internal enum CommunicationsDuckingMode
 ///
 /// Missing key or value falls back to the OS default (Reduce 80%, which is active).
 ///
-/// Watcher shape mirrors ProcessExitMonitor: WaitForMultipleObjects blocks on a wake event (slot 0,
-/// auto-reset) and the registry notification event (slot 1, manual-reset). Stop signals the wake
-/// event; the loop sees it at slot 0 and unwinds, closing the key and both events.
+/// Watcher: WaitForMultipleObjects blocks on a wake event (slot 0, auto-reset) and the registry notification event
+/// (slot 1, manual-reset). Stop signals the wake event; the loop sees it at slot 0 and unwinds, closing the key and
+/// both events.
 /// </summary>
 internal static class CommunicationsDucking
 {
@@ -128,7 +128,7 @@ internal static class CommunicationsDucking
 
             // Manual-reset for the registry event so the signal sticks across our re-arm.
             IntPtr hRegEvent =
-                Kernel32Wait.CreateEventW(IntPtr.Zero, bManualReset: true, bInitialState: false, lpName: null);
+                Kernel32.CreateEvent(IntPtr.Zero, bManualReset: true, bInitialState: false, lpName: null);
             if (hRegEvent == IntPtr.Zero)
             {
                 Advapi32.RegCloseKey(hKey);
@@ -138,7 +138,7 @@ internal static class CommunicationsDucking
 
             // Auto-reset wake event so a single SetEvent in Stop wakes the thread exactly once.
             IntPtr hWakeEvent =
-                Kernel32Wait.CreateEventW(IntPtr.Zero, bManualReset: false, bInitialState: false, lpName: null);
+                Kernel32.CreateEvent(IntPtr.Zero, bManualReset: false, bInitialState: false, lpName: null);
             if (hWakeEvent == IntPtr.Zero)
             {
                 Kernel32.CloseHandle(hRegEvent);
@@ -178,7 +178,7 @@ internal static class CommunicationsDucking
             hWake = _hWakeEvent;
         }
 
-        if (hWake != IntPtr.Zero) Kernel32Wait.SetEvent(hWake);
+        if (hWake != IntPtr.Zero) Kernel32.SetEvent(hWake);
         bool joined = false;
         try { joined = toJoin.Join(StopJoinTimeoutMs); }
         catch (Exception ex)
@@ -203,7 +203,7 @@ internal static class CommunicationsDucking
         }
     }
 
-    private static void WatchLoop()
+    private static unsafe void WatchLoop()
     {
         Thread currentThread = Thread.CurrentThread;
         IntPtr hKey;
@@ -234,18 +234,18 @@ internal static class CommunicationsDucking
 
                 // bWaitAll = false + lowest-index-wins: a tie between wake and reg returns wake (slot 0)
                 // so Stop is observed even if a registry write lands on the same kernel pass.
-                uint result =
-                    Kernel32Wait.WaitForMultipleObjects((uint)handles.Length, handles, bWaitAll: false,
-                        Kernel32Wait.INFINITE);
-                if (result == Kernel32Wait.WAIT_FAILED)
+                uint result;
+                fixed (IntPtr* waitHandles = handles)
+                    result = Kernel32.WaitForMultipleObjects((uint)handles.Length, waitHandles, bWaitAll: false, Kernel32.INFINITE);
+                if (result == Kernel32.WAIT_FAILED)
                 {
                     TADNLog.Log("CommunicationsDucking: WaitForMultipleObjects failed");
                     return;
                 }
 
-                if (result == Kernel32Wait.WAIT_OBJECT_0) return; // wake event - unwind cleanly
+                if (result == Kernel32.WAIT_OBJECT_0) return; // wake event - unwind cleanly
 
-                Kernel32Wait.ResetEvent(hRegEvent);
+                Kernel32.ResetEvent(hRegEvent);
 
                 try { Changed?.Invoke(); }
                 catch (Exception ex) { TADNLog.Log($"CommunicationsDucking.Changed: {ex.Message}"); }

@@ -21,12 +21,10 @@ public class DeadbandRange
         Lower = lower;
         Upper = upper;
     }
-
-    public bool Contains(int value) => value >= Lower && value <= Upper;
 }
 
-// User-defined "forbidden zone" for a fan's operating speed. If a curve or manual setting would
-// land inside one of the Bands, the value is snapped to the nearest edge of that band.
+// User-defined "forbidden zone" for a fan's operating speed, stored with the fan settings and assigned by name.
+// No control path applies the bands yet: curve and manual writes ignore them.
 // Common use case: a pump that resonates between 600-900 RPM, or a fan that whines at 30-40% PWM.
 //
 // Lists are reusable across fans: assign by name through the static DeadbandsLists registry.
@@ -56,21 +54,6 @@ public class DeadbandsList : INotifyPropertyChanged
     [XmlArray("Bands")]
     [XmlArrayItem("Band")]
     public List<DeadbandRange> Bands { get; set; } = [];
-
-    // Snap an input value out of any band it falls into, picking the nearer edge. If multiple
-    // overlapping bands cover the value, the snap chases nearest-edge across all of them.
-    public int Snap(int value)
-    {
-        foreach (DeadbandRange band in Bands)
-        {
-            if (!band.Contains(value)) continue;
-            int toLower = value - band.Lower;
-            int toUpper = band.Upper - value;
-            value = toLower <= toUpper ? band.Lower - 1 : band.Upper + 1;
-        }
-
-        return value;
-    }
 
     public static void Register(DeadbandsList list)
     {

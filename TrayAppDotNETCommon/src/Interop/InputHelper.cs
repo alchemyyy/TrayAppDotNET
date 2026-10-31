@@ -4,11 +4,15 @@ namespace TrayAppDotNETCommon.Interop;
 
 /// <summary>
 /// Raw Input subscription helpers.
-/// Used by the shell tray icon host to receive WM_INPUT (mouse wheel) only while the cursor is over the tray icon -
-/// no global hooks.
+/// Used by the shell tray icon host to receive WM_INPUT (mouse wheel and precision touchpad reports) only while the
+/// cursor is over the tray icon - no global hooks.
 /// </summary>
 public static class InputHelper
 {
+    // x64 layout: RAWINPUTHEADER is 24 bytes, RAWHID's two counts follow it, then the report bytes
+    private const int RawInputUnionOffset = 24;
+    private const int RawHidDataOffset = RawInputUnionOffset + 8;
+
     private static readonly RawInputRegistration[] RawInputRegistrations =
     [
         new(Name: "generic-mouse", User32.HID_USAGE_PAGE_GENERIC, User32.HID_USAGE_GENERIC_MOUSE),
@@ -30,21 +34,16 @@ public static class InputHelper
                 hwndTarget = handle
             };
 
-            bool registered = RegisterRawInputDevice(device);
-            if (registered)
+            if (RegisterRawInputDevice(device))
             {
                 anyRegistered = true;
-                TADNLog.Log(
-                    "TrayInputDiag.RawInput.Register: "
-                    + $"{registration.Name} page=0x{registration.UsagePage:X2} usage=0x{registration.Usage:X2}");
+                continue;
             }
-            else
-            {
-                TADNLog.Log(
-                    "TrayInputDiag.RawInput.Register failed: "
-                    + $"{registration.Name} page=0x{registration.UsagePage:X2} usage=0x{registration.Usage:X2} "
-                    + $"error={Marshal.GetLastWin32Error()}");
-            }
+
+            TADNLog.LogDebug(
+                "TrayInputDiag.RawInput.Register failed: "
+                + $"{registration.Name} page=0x{registration.UsagePage:X2} usage=0x{registration.Usage:X2} "
+                + $"error={Marshal.GetLastWin32Error()}");
         }
 
         return anyRegistered;
@@ -63,141 +62,128 @@ public static class InputHelper
                 hwndTarget = IntPtr.Zero
             };
 
-            bool unregistered = RegisterRawInputDevice(device);
-            if (!unregistered)
-            {
-                allUnregistered = false;
-                TADNLog.Log(
-                    "TrayInputDiag.RawInput.Unregister failed: "
-                    + $"{registration.Name} page=0x{registration.UsagePage:X2} usage=0x{registration.Usage:X2} "
-                    + $"error={Marshal.GetLastWin32Error()}");
-            }
+            if (RegisterRawInputDevice(device)) continue;
+
+            allUnregistered = false;
+            TADNLog.LogDebug(
+                "TrayInputDiag.RawInput.Unregister failed: "
+                + $"{registration.Name} page=0x{registration.UsagePage:X2} usage=0x{registration.Usage:X2} "
+                + $"error={Marshal.GetLastWin32Error()}");
         }
 
         return allUnregistered;
     }
 
-    private static bool RegisterRawInputDevice(User32.RAWINPUTDEVICE device)
-    {
-        IntPtr nativeBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(device));
-        try
-        {
-            Marshal.StructureToPtr(device, nativeBuffer, fDeleteOld: false);
-            return User32.RegisterRawInputDevices(nativeBuffer, numDevices: 1, (uint)Marshal.SizeOf(device));
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(nativeBuffer);
-        }
-    }
+    private static unsafe bool RegisterRawInputDevice(User32.RAWINPUTDEVICE device) =>
+        User32.RegisterRawInputDevices(
+            (IntPtr)(&device),
+            numDevices: 1,
+            (uint)sizeof(User32.RAWINPUTDEVICE));
 
     /// <summary>
-    /// Parses a WM_INPUT lParam.
-    /// Returns true if the packet is a mouse event;
-    /// sets <paramref name="wheelDelta"/> when the packet carries a wheel rotation.
+    /// Copies one WM_INPUT packet into <paramref name="buffer"/>, growing it only when a packet is larger than any
+    /// before, and decodes its header. HID report bytes stay in the buffer; read them with
+    /// <see cref="RawInputPacket.HidReport"/>.
     /// </summary>
-    public static bool ProcessMouseInputMessage(IntPtr lParam, out int wheelDelta)
+    public static unsafe bool TryReadRawInput(IntPtr lParam, ref byte[] buffer, out RawInputPacket packet)
     {
-        wheelDelta = 0;
-        if (!TryReadRawInputMessage(lParam, out RawInputDiagnostics rawInput)) return false;
+        packet = default;
 
-        wheelDelta = rawInput.WheelDelta;
-        return rawInput.Type == User32.RIM_TYPEMOUSE;
-    }
-
-    public static bool TryReadRawInputMessage(IntPtr lParam, out RawInputDiagnostics diagnostics)
-    {
-        diagnostics = default;
-
-        uint headerSize = (uint)Marshal.SizeOf<User32.RAWINPUTHEADER>();
+        uint headerSize = (uint)sizeof(User32.RAWINPUTHEADER);
         uint inputDataSize = 0;
         if (User32.GetRawInputData(lParam, User32.RID_INPUT, IntPtr.Zero, ref inputDataSize, headerSize) != 0)
             return false;
 
-        if (inputDataSize == 0) return false;
+        if (inputDataSize < headerSize) return false;
+        if (buffer.Length < inputDataSize) buffer = new byte[inputDataSize];
 
-        IntPtr buffer = Marshal.AllocHGlobal((int)inputDataSize);
-        try
-        {
-            uint written = User32.GetRawInputData(lParam, User32.RID_INPUT, buffer, ref inputDataSize, headerSize);
-            if (written != inputDataSize) return false;
+        uint written;
+        fixed (byte* data = buffer)
+            written = User32.GetRawInputData(lParam, User32.RID_INPUT, (IntPtr)data, ref inputDataSize, headerSize);
 
-            User32.RAWINPUT raw = Marshal.PtrToStructure<User32.RAWINPUT>(buffer);
-            diagnostics = RawInputDiagnostics.FromRawInput(raw, buffer, inputDataSize);
-            return true;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(buffer);
-        }
+        if (written != inputDataSize) return false;
+
+        packet = RawInputPacket.Decode(buffer.AsSpan(start: 0, (int)written));
+        return packet.Length > 0;
     }
 
     private sealed record RawInputRegistration(string Name, ushort UsagePage, ushort Usage);
 
-    public readonly record struct RawInputDiagnostics(
+    /// <summary>The decoded header of one raw input packet.</summary>
+    public readonly record struct RawInputPacket(
         uint Type,
         IntPtr Device,
-        IntPtr RawWParam,
         ushort MouseButtonFlags,
         int WheelDelta,
         int HorizontalWheelDelta,
-        int LastX,
-        int LastY,
-        uint RawButtons,
-        uint HidSize,
-        uint HidCount,
-        string HidData)
+        int HidReportSize,
+        int HidReportCount,
+        int Length)
     {
-        public bool HasWheelDelta => WheelDelta != 0 || HorizontalWheelDelta != 0;
         public bool IsMouse => Type == User32.RIM_TYPEMOUSE;
         public bool IsHid => Type == User32.RIM_TYPEHID;
 
-        public static RawInputDiagnostics FromRawInput(User32.RAWINPUT raw, IntPtr rawInputBuffer, uint inputDataSize)
+        /// <summary>Returns one HID report of this packet from the buffer it was read into.</summary>
+        public ReadOnlySpan<byte> HidReport(ReadOnlySpan<byte> buffer, int index)
         {
-            int wheelDelta = 0;
-            int horizontalWheelDelta = 0;
-            if (raw.header.dwType == User32.RIM_TYPEMOUSE)
-            {
-                if ((raw.mouse.usButtonFlags & User32.RI_MOUSE_WHEEL) == User32.RI_MOUSE_WHEEL)
-                    wheelDelta = raw.mouse.usButtonData;
+            if (!IsHid || (uint)index >= (uint)HidReportCount || HidReportSize <= 0) return default;
 
-                if ((raw.mouse.usButtonFlags & User32.RI_MOUSE_HWHEEL) == User32.RI_MOUSE_HWHEEL)
-                    horizontalWheelDelta = raw.mouse.usButtonData;
-            }
+            long start = RawHidDataOffset + (long)index * HidReportSize;
+            if (start + HidReportSize > Length || start + HidReportSize > buffer.Length) return default;
 
-            string hidData = raw.header.dwType == User32.RIM_TYPEHID
-                ? ReadHidPayloadHex(raw, rawInputBuffer, inputDataSize)
-                : string.Empty;
-
-            return new RawInputDiagnostics(
-                raw.header.dwType,
-                raw.header.hDevice,
-                raw.header.wParam,
-                raw.mouse.usButtonFlags,
-                wheelDelta,
-                horizontalWheelDelta,
-                raw.mouse.lLastX,
-                raw.mouse.lLastY,
-                raw.mouse.ulRawButtons,
-                raw.hid.dwSizeHid,
-                raw.hid.dwCount,
-                hidData);
+            return buffer.Slice((int)start, HidReportSize);
         }
 
-        private static string ReadHidPayloadHex(User32.RAWINPUT raw, IntPtr rawInputBuffer, uint inputDataSize)
+        /// <summary>Decodes the header, the mouse fields and the HID report layout of one packet.</summary>
+        internal static RawInputPacket Decode(ReadOnlySpan<byte> data)
         {
-            ulong byteCount = (ulong)raw.hid.dwSizeHid * raw.hid.dwCount;
-            if (byteCount == 0) return string.Empty;
+            if (data.Length < RawInputUnionOffset) return default;
 
-            int payloadOffset = Marshal.OffsetOf<User32.RAWINPUT>(nameof(User32.RAWINPUT.hid)).ToInt32()
-                                + Marshal.SizeOf<User32.RAWHID>();
-            if (payloadOffset < 0 || payloadOffset >= inputDataSize) return string.Empty;
-
-            int available = checked((int)Math.Min(byteCount, inputDataSize - (uint)payloadOffset));
-            int count = Math.Min(available, val2: 64);
-            byte[] bytes = new byte[count];
-            Marshal.Copy(IntPtr.Add(rawInputBuffer, payloadOffset), bytes, startIndex: 0, count);
-            return Convert.ToHexString(bytes);
+            User32.RAWINPUTHEADER header = MemoryMarshal.Read<User32.RAWINPUTHEADER>(data);
+            switch (header.dwType)
+            {
+                case User32.RIM_TYPEMOUSE when data.Length >= RawInputUnionOffset + Marshal.SizeOf<User32.RAWMOUSE>():
+                {
+                    User32.RAWMOUSE mouse = MemoryMarshal.Read<User32.RAWMOUSE>(data[RawInputUnionOffset..]);
+                    int wheel = (mouse.usButtonFlags & User32.RI_MOUSE_WHEEL) != 0 ? mouse.usButtonData : 0;
+                    int horizontalWheel = (mouse.usButtonFlags & User32.RI_MOUSE_HWHEEL) != 0 ? mouse.usButtonData : 0;
+                    return new RawInputPacket(
+                        header.dwType,
+                        header.hDevice,
+                        mouse.usButtonFlags,
+                        wheel,
+                        horizontalWheel,
+                        HidReportSize: 0,
+                        HidReportCount: 0,
+                        data.Length);
+                }
+                case User32.RIM_TYPEHID when data.Length >= RawHidDataOffset:
+                {
+                    User32.RAWHID hid = MemoryMarshal.Read<User32.RAWHID>(data[RawInputUnionOffset..]);
+                    long available = data.Length - RawHidDataOffset;
+                    int reportSize = (int)Math.Min(hid.dwSizeHid, int.MaxValue);
+                    int reportCount = reportSize == 0 ? 0 : (int)Math.Min(hid.dwCount, available / reportSize);
+                    return new RawInputPacket(
+                        header.dwType,
+                        header.hDevice,
+                        MouseButtonFlags: 0,
+                        WheelDelta: 0,
+                        HorizontalWheelDelta: 0,
+                        reportSize,
+                        reportCount,
+                        data.Length);
+                }
+                default:
+                    return new RawInputPacket(
+                        header.dwType,
+                        header.hDevice,
+                        MouseButtonFlags: 0,
+                        WheelDelta: 0,
+                        HorizontalWheelDelta: 0,
+                        HidReportSize: 0,
+                        HidReportCount: 0,
+                        data.Length);
+            }
         }
     }
 }
