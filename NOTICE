@@ -5,6 +5,10 @@ licensed under the GNU General Public License, version 3 or, at your option,
 any later version. Third-party material is not relicensed. It remains subject
 to the terms identified below and in .notices.
 
+Every app package carries the notices in .notices itself. The notices in
+.notices/<App> ship only with that app, and the notices in .notices/repository
+cover repository tools that are never part of a release archive.
+
 RUNTIME AND NUGET COMPONENTS
 ============================
 
@@ -60,22 +64,16 @@ Tmds.DBus.Protocol, 0.94.1
   Source: https://github.com/tmds/Tmds.DBus/tree/b4a7fed0b878f74cb54f7cca84d2889af4e596ba
   Notice: .notices/Tmds.DBus-MIT.txt
 
-Microsoft.Diagnostics.Tracing.TraceEvent, 3.1.16
+Microsoft.Diagnostics.Tracing.TraceEvent, 3.1.16 (Volume only)
   Copyright (c) Microsoft Corporation.
   License: MIT.
   Source: https://github.com/microsoft/perfview/tree/53b9a9da15f57af15ce7d53f53a06daf4f80cef2
-  Notice: .notices/TraceEvent-MIT.txt
+  Notice: .notices/VolumeTrayAppDotNET/TraceEvent-MIT.txt
 
 Microsoft.Diagnostics.NETCore.Client, 0.2.510501
   Copyright (c) Microsoft Corporation and .NET Foundation contributors.
   License: MIT.
   Source: https://github.com/dotnet/diagnostics/tree/8c08c89a0643d31db91e119b1adb463be3e0ffe5
-  Notice: .notices/dotnet-runtime-MIT.txt
-
-Microsoft.Extensions and System.Windows.Extensions packages, 10.0.0
-  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
-  License: MIT.
-  Source: https://github.com/dotnet/dotnet/tree/b0f34d51fccc69fd334253924abd8d6853fad7aa
   Notice: .notices/dotnet-runtime-MIT.txt
 
 Microsoft.Extensions packages, 6.0.0
@@ -103,70 +101,86 @@ Other System.* and Microsoft.Win32 NuGet packages, 10.0.9
   Notice: .notices/dotnet-runtime-MIT.txt
 
 
+BRIGHTNESS COMPONENTS
+=====================
+
+sunrise-sunset-js, ported to C# (BrightnessTrayAppDotNET/src/SunriseSunset)
+  Copyright (c) Aleksei Udivankin.
+  License: ISC.
+  Source: https://github.com/udivankin/sunrise-sunset-js
+  Notice: .notices/BrightnessTrayAppDotNET/sunrise-sunset-js-ISC.txt
+
+
 FAN CONTROL COMPONENTS
 ======================
 
 LibreHardwareMonitor, pinned commit 30770e0371bb359d1432cfa2447ef3082871af8f
   License: MPL-2.0.
   Source: FanControlTrayAppDotNET/vendor/LibreHardwareMonitor
-  Notice: .notices/MPL-2.0.txt
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
 
 DiskInfoToolkit, pinned commit 66aa99f2750c843fd11280398c2cf1ff4a41ef09
   Copyright (c) Florian K.
   License: MPL-2.0.
   Source: FanControlTrayAppDotNET/vendor/DiskInfoToolkit
-  Notice: .notices/MPL-2.0.txt
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
+
+PCI ID database (pci.ids), embedded in DiskInfoToolkit
+  Copyright (c) Martin Mares and Albert Pool.
+  License: GPL-2.0-or-later or BSD-3-Clause; redistributed under BSD-3-Clause.
+  Source: https://pci-ids.ucw.cz/
+  Notice: .notices/FanControlTrayAppDotNET/pci.ids-BSD-3-Clause.txt
+
+USB ID database (usb.ids), embedded in DiskInfoToolkit
+  Copyright (c) Stephen J. Gowdy.
+  License: GPL-2.0-or-later or BSD-3-Clause; redistributed under BSD-3-Clause.
+  Source: http://www.linux-usb.org/usb-ids.html
+  Notice: .notices/FanControlTrayAppDotNET/usb.ids-BSD-3-Clause.txt
 
 BlackSharp.Core, 1.1.0
   Copyright (c) Florian K.
   License: MPL-2.0.
   Source: https://github.com/Blacktempel/BlackSharp/tree/35f908a3d5cefaf8d4557709273d25e166593109
-  Notice: .notices/MPL-2.0.txt
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
 
 HIDSharp, pinned commit abab3fcca7657a4b4f56a505d99b93ebc1179e68
   Copyright 2010-2019 James F. Bellinger.
   License: Apache-2.0.
   Source: FanControlTrayAppDotNET/vendor/HIDSharp
   Notices:
-    .notices/HIDSharp-Apache-2.0.txt
-    .notices/HIDSharp-NOTICE.txt
+    .notices/FanControlTrayAppDotNET/HIDSharp-Apache-2.0.txt
+    .notices/FanControlTrayAppDotNET/HIDSharp-NOTICE.txt
 
 NCalc, pinned commit ddaaf5ba0fa2c8b06dd6fdcbb3cddc502432465b
   Copyright (c) 2011 Sebastien Ros and contributors.
   Copyright (c) 2025 Eugene Mayevski (Allied Bits).
   License: MIT.
   Source: FanControlTrayAppDotNET/vendor/NCalc
-  Notice: .notices/NCalc-MIT.txt
+  Notice: .notices/FanControlTrayAppDotNET/NCalc-MIT.txt
 
 AlliedBits.Parlot, 1.5.7
   Copyright (c) 2020 Sebastien Ros.
   License: BSD-3-Clause.
   Source: https://github.com/Allied-Bits-Ltd/parlot/tree/2e9a962fe1d49992008c1cc93669975bcc02e241
-  Notice: .notices/Parlot-BSD-3-Clause.txt
+  Notice: .notices/FanControlTrayAppDotNET/Parlot-BSD-3-Clause.txt
 
 ExtendedNumerics.BigDecimal, 3003.2.0.161
   Copyright (c) 2024 Adam White.
   License: MIT.
   Source: https://github.com/AdamWhiteHat/BigDecimal/tree/d9d2bd4dfc67fd297310a05a085087bb6e98cde8
-  Notice: .notices/BigDecimal-MIT.txt
+  Notice: .notices/FanControlTrayAppDotNET/BigDecimal-MIT.txt
 
 Mono.Posix.NETStandard, 1.0.0
   Copyright (c) Mono contributors.
   License: primarily MIT and BSD for the redistributed runtime and class
   library portions; see the complete upstream license inventory.
   Source: https://github.com/mono/mono/tree/b9fb4d885725514cacb8b7732cac6f8b3fa83645/mcs/class/Mono.Posix
-  Notice: .notices/Mono-LICENSE.txt
-
-Aga.Controls
-  Copyright (c) 2009 Andrey Gliznetsov.
-  License: BSD.
-  Source: included in the LibreHardwareMonitor submodule.
-  Notice: .notices/Aga.Controls-BSD.txt
+  Notice: .notices/FanControlTrayAppDotNET/Mono-LICENSE.txt
 
 PawnIO modules included by LibreHardwareMonitor
   License: LGPL-2.1-or-later.
   Source: https://github.com/namazso/PawnIO.Modules/tree/0.1.6
-  Notice: .notices/PawnIO-Modules-LGPL-2.1.txt
+  Notice: .notices/FanControlTrayAppDotNET/PawnIO-Modules-LGPL-2.1.txt
 
 PawnIO Setup is not distributed by TrayAppDotNET. When PawnIO is absent, the
 Fan Control app downloads the official 2.1.0 installer from its publisher and
@@ -214,12 +228,15 @@ Custom fan artwork and font
 REPOSITORY TOOLS AND BUILD-ONLY COMPONENTS
 ==========================================
 
+Nothing in this section is included in release archives.
+
 PlantUML MIT distribution, 1.2026.2
   Copyright (c) 2009-2026 Arnaud Roques.
   License: MIT.
   Source: https://github.com/plantuml/plantuml/tree/v1.2026.2
-  Notice: .notices/PlantUML-MIT.txt
-  The two checked-in JAR copies have the official release SHA-256 digest:
+  Notice: .notices/repository/PlantUML-MIT.txt
+  The checked-in JAR (documentation/plantuml-mit-1.2026.2.jar) has the
+  official release SHA-256 digest:
     397fe169dd408b0f039e8b7be2a12c2d52d35a3399802921b8c84f29cf39e45a
   PlantUML-generated diagrams are owned and licensed according to their PUML
   source, not by PlantUML.
@@ -236,8 +253,16 @@ HotAvalonia, 3.1.1, and Fody, 6.9.2
   These MIT-licensed packages are Debug/build-time dependencies and are not
   included in Release Native AOT output.
   Notices:
-    .notices/HotAvalonia-MIT.txt
-    .notices/Fody-MIT.txt
+    .notices/repository/HotAvalonia-MIT.txt
+    .notices/repository/Fody-MIT.txt
+
+Aga.Controls
+  Copyright (c) 2009 Andrey Gliznetsov.
+  License: BSD.
+  Source: the LibreHardwareMonitor submodule's Windows Forms application,
+  which TrayAppDotNET neither builds nor ships (LibreHardwareMonitorLib does
+  not reference it).
+  Notice: .notices/repository/Aga.Controls-BSD.txt
 
 Roslyn, xUnit, Microsoft test packages, Cloudflare development packages, and
 the remaining package-lock dependencies are build, test, or deployment tools.
