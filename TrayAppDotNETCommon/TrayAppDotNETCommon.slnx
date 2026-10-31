@@ -3,6 +3,7 @@
     <BuildType Name="Debug" />
     <BuildType Name="Prerelease" />
     <BuildType Name="Release" />
+    <BuildType Name="ReleaseWithDebugging" />
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/generators/">
@@ -16,6 +17,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AxamlPropertyLinker.Tests/TrayAppDotNETCommon.AxamlPropertyLinker.Tests.csproj" />
-    <Project Path="tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj" />
+    <Project Path="tests/TrayAppDotNETCommon.Tests/TrayAppDotNETCommon.Tests.csproj" />
+    <Project Path="tests/TrayAppDotNETCommon.TestSupport/TrayAppDotNETCommon.TestSupport.csproj" />
   </Folder>
 </Solution>

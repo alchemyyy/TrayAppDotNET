@@ -1,48 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared app settings, references, resources and targets come from TrayAppDotNET.Parent.props and
+       TrayAppDotNET.Parent.targets; this file holds only what is particular to the app. -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
-    <RootNamespace>FanControlTrayAppDotNET</RootNamespace>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Platforms>x64</Platforms>
-    <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
-    <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
-    <StartupObject>FanControlTrayAppDotNET.Program</StartupObject>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <IsAotCompatible>true</IsAotCompatible>
-    <AvaloniaVersion>12.1.1</AvaloniaVersion>
-    <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
-    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
-    <HotAvaloniaMode>Balanced</HotAvaloniaMode>
-    <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')">..\app.ico</ApplicationIcon>
-    <_DefaultTrayAppDotNETCommonRoot>$(MSBuildProjectDirectory)\..\..\TrayAppDotNETCommon</_DefaultTrayAppDotNETCommonRoot>
-    <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
-    <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
-    <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
-    <FanControlNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(Configuration)\net10.0\</FanControlNCalcAotOutputPath>
-    <FanControlLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlLibreHardwareMonitorOutputPath>
+    <!-- LibreHardwareMonitor's hardware tree needs more heap than the shared default. -->
+    <TrayAppDotNETGCHeapHardLimitBytes>157286400</TrayAppDotNETGCHeapHardLimitBytes>
+    <!-- Visual Studio references the vendored assemblies by output path. LibreHardwareMonitorLib only defines that
+         path for Debug and Release, so every other configuration (Prerelease, ReleaseWithDebugging) builds and
+         references the Release vendor output. -->
+    <FanControlVendoredConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</FanControlVendoredConfiguration>
+    <FanControlVendoredConfiguration Condition="'$(Configuration)' != 'Debug'">Release</FanControlVendoredConfiguration>
+    <FanControlNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(FanControlVendoredConfiguration)\net10.0\</FanControlNCalcAotOutputPath>
+    <FanControlLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(FanControlVendoredConfiguration)\x64\net10.0\</FanControlLibreHardwareMonitorOutputPath>
     <FanControlUseVendoredAssemblyReferences Condition="'$(DesignTimeBuild)' == 'true' or '$(BuildingInsideVisualStudio)' == 'true'">true</FanControlUseVendoredAssemblyReferences>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
-    <SelfContained>true</SelfContained>
-    <PublishAot>true</PublishAot>
-    <PublishSingleFile>false</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
-    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
-    <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
-    <OptimizationPreference>Speed</OptimizationPreference>
-    <InvariantGlobalization>false</InvariantGlobalization>
-    <DebugType>full</DebugType>
-    <DebugSymbols>true</DebugSymbols>
-    <StripSymbols>false</StripSymbols>
   </PropertyGroup>
 
   <!-- Debug LHM uses Mono.Posix.NETStandard through its OpCode path. Keep this enabled
@@ -54,6 +24,10 @@
   <ItemGroup>
     <None Remove="Visuals\FanFont.ttf" />
     <None Remove="Visuals\FAN_GLYPH.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FanControlTrayAppDotNET.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -75,25 +49,6 @@
     <Using Include="FanControlTrayAppDotNET" />
     <Using Include="FanControlTrayAppDotNET.Models" />
     <Using Include="FanControlTrayAppDotNET.Visuals" />
-    <ProjectReference Include="$(TrayAppDotNETCommonProject)"
-                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
-                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
-    <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
-                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
-                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
-                      SkipGetTargetFrameworkProperties="true"
-                      PrivateAssets="all" />
-    <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
-                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
-                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
-                      SkipGetTargetFrameworkProperties="true"
-                      PrivateAssets="all" />
     <!-- Visual Studio restore rejects ProjectReference items whose projects are not in
          the loaded solution. Use the vendor outputs for both design-time and regular VS
          builds; BuildVendoredProjectReferencesInVisualStudio creates them before RAR. -->
@@ -145,42 +100,17 @@
       <Visible>false</Visible>
     </ProjectReference>
     <PackageReference Include="BlackSharp.Core" Version="1.1.0" />
-    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True"
-                      Condition="'$(Configuration)' == 'Debug'" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True"
-                      Condition="'$(Configuration)' == 'Debug'" />
     <!-- Required for LHM startup. ProjectReference restore does not reliably root LHM's
          package runtime assets in the app, especially for Native AOT. Do not remove these:
          Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
          probing. This intentionally does not add System.Management/BMC/IPMI assemblies. -->
     <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" />
-    <PackageReference Include="System.IO.Ports" Version="10.0.9" />
+    <PackageReference Include="System.IO.Ports" Version="$(TrayAppDotNETDotNetPackagesVersion)" />
   </ItemGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="..\app.ico" Link="Assets/app.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')" />
     <AvaloniaResource Include="Visuals\FanFont.ttf" Link="Visuals/FanFont.ttf" />
     <AvaloniaResource Include="Visuals\FAN_GLYPH.png" Link="Visuals/FAN_GLYPH.png" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <AdditionalFiles Include="**\*.axaml" />
-  </ItemGroup>
-
-  <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
-       Exclude source-tree custom-tool output to prevent duplicate classes. -->
-  <ItemGroup>
-    <EmbeddedResource Update="Localization\Strings.resx">
-      <StronglyTypedClassName>Strings</StronglyTypedClassName>
-      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
-      <StronglyTypedLanguage>C#</StronglyTypedLanguage>
-      <StronglyTypedNamespace>$(RootNamespace).Localization</StronglyTypedNamespace>
-      <PublicClass>true</PublicClass>
-    </EmbeddedResource>
-    <Compile Remove="Localization\Strings.Designer.cs" />
   </ItemGroup>
 
   <!-- Visual Studio consumes vendor DLL references, so clean builds need a real vendor
@@ -189,20 +119,19 @@
           BeforeTargets="ResolveProjectReferences"
           Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(FanControlBuildVendoredProjectReferencesInVisualStudio)' != 'false'">
     <PropertyGroup>
-      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;ShouldUnsetParentConfigurationAndPlatform=false;$(TrayAppDotNETPrereleaseProjectProperties)</_VendoredReferenceBuildProperties>
+      <_VendoredReferenceBuildProperties>Configuration=$(FanControlVendoredConfiguration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;ShouldUnsetParentConfigurationAndPlatform=false;$(TrayAppDotNETPrereleaseProjectProperties)</_VendoredReferenceBuildProperties>
       <_VendoredReferenceBuildProperties>$(_VendoredReferenceBuildProperties);SkipKillRunningInstance=$(SkipKillRunningInstance)</_VendoredReferenceBuildProperties>
       <_VendoredReferencePropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</_VendoredReferencePropertiesToRemove>
       <!-- Match the normal ProjectReference: VS-triggered prebuilds must not compile
            IPMI/BMC or RAM SPD paths into the Debug LHM sidecar. -->
-      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
-      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
+      <_LibreHardwareMonitorBuildProperties>TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_NCalcAotBuildProperties>TargetFramework=net10.0;TreatWarningsAsErrors=false</_NCalcAotBuildProperties>
     </PropertyGroup>
 
     <!-- Solution restore cannot see the hidden vendor projects. Restore out of process so
          their first builds evaluate the package imports created by restore. -->
-    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj&quot; -p:Configuration=&quot;$(Configuration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:DisableIpmiWmi=true -p:DisableRamSpd=true" />
-    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj&quot; -p:Configuration=&quot;$(Configuration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:TreatWarningsAsErrors=false" />
+    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj&quot; -p:Configuration=&quot;$(FanControlVendoredConfiguration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:DisableIpmiWmi=true -p:DisableRamSpd=true" />
+    <Exec Command="dotnet restore &quot;$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj&quot; -p:Configuration=&quot;$(FanControlVendoredConfiguration)&quot; -p:Platform=x64 -p:TargetFramework=net10.0 -p:BuildingInsideVisualStudio=false -p:ShouldUnsetParentConfigurationAndPlatform=false -p:TreatWarningsAsErrors=false" />
 
     <MSBuild Projects="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
              Targets="Build"
@@ -226,21 +155,6 @@
     <ItemGroup>
       <ResolvedFileToPublish Include="@(_LibreHardwareMonitorSidecar)" RelativePath="LibreHardwareMonitorLib.dll" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     </ItemGroup>
-  </Target>
-
-  <Target Name="CopyHotAvaloniaRuntimeAssemblies" AfterTargets="Build" Condition="'$(HotAvalonia)' == 'true' and '$(RuntimeIdentifier)' == ''">
-    <PropertyGroup>
-      <_HotAvaloniaCorePath>$(NuGetPackageRoot)hotavalonia.core\$(HotAvaloniaPackageVersion)\lib\netstandard2.1\HotAvalonia.Core.dll</_HotAvaloniaCorePath>
-      <_HotAvaloniaXamlLoaderPath>$(NuGetPackageRoot)avalonia.markup.xaml.loader\$(AvaloniaVersion)\lib\net10.0\Avalonia.Markup.Xaml.Loader.dll</_HotAvaloniaXamlLoaderPath>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(_HotAvaloniaCorePath)')" Text="HotAvalonia.Core.dll was not found at $(_HotAvaloniaCorePath)." />
-    <Error Condition="!Exists('$(_HotAvaloniaXamlLoaderPath)')" Text="Avalonia.Markup.Xaml.Loader.dll was not found at $(_HotAvaloniaXamlLoaderPath)." />
-    <ItemGroup>
-      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaCorePath)" />
-      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaXamlLoaderPath)" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_HotAvaloniaRuntimeAssembly)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
   </Target>
 
   <!-- Mono.Posix.NETStandard's Windows asset lands under runtimes\win-x64.
@@ -271,19 +185,4 @@
             TreatErrorsAsWarnings="true" />
   </Target>
 
-  <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
-    <PropertyGroup>
-      <_PublishOutputPath>$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
-    </PropertyGroup>
-    <Message Importance="High" Text="Publishing Native AOT release..." />
-    <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
-    <MakeDir Directories="$(_PublishOutputPath)" />
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 --no-restore -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true -p:TrayAppDotNETBuildSharedProjectReferences=false $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
-    <RemoveDir Directories="$(_PublishOutputPath)win-x64" Condition="Exists('$(_PublishOutputPath)win-x64')" ContinueOnError="WarnAndContinue" />
-    <ItemGroup>
-      <_TrayAppDotNETPublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_TrayAppDotNETPublishedFile)" DestinationFiles="@(_TrayAppDotNETPublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" ContinueOnError="WarnAndContinue" Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
-    <Message Importance="High" Text="Published to $(OutputPath)" />
-  </Target>
 </Project>

@@ -1,3 +1,20 @@
+<#
+.SYNOPSIS
+Builds TrayAppDotNET apps with a portable .NET SDK and, when needed, the Visual C++ Build Tools.
+
+.PARAMETER Apps
+Comma-separated app names from apps.json, or All. Omitted, the script lists the apps and asks.
+
+.PARAMETER BuildKind
+Debug or NativeAot. Omitted, the script asks.
+#>
+[CmdletBinding()]
+param(
+    [string]$Apps = '',
+    [ValidateSet('', 'Debug', 'NativeAot')]
+    [string]$BuildKind = ''
+)
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
@@ -42,22 +59,17 @@ if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
 [string]$BuildArtifactsRoot = Join-Path $RepositoryRoot ".artifacts\build\$BuildStamp"
 [string]$BuildLogRoot = Join-Path $BuildArtifactsRoot 'logs'
 
-[string[]]$AppNames = @(
-    'BatteryTrayAppDotNET',
-    'BrightnessTrayAppDotNET',
-    'FanControlTrayAppDotNET',
-    'NetworkTrayAppDotNET',
-    'TaskManagerTrayAppDotNET',
-    'VolumeTrayAppDotNET'
-)
+# apps.json is generated from TrayAppDotNET.Apps.props, the one app list of the repository.
+[object[]]$CatalogApps = @((Get-Content -LiteralPath (Join-Path $RepositoryRoot 'apps.json') -Raw | ConvertFrom-Json).apps)
 
 [object[]]$AppDefinitions = @()
-for ([int]$appIndex = 0; $appIndex -lt $AppNames.Count; $appIndex++) {
-    [string]$appName = $AppNames[$appIndex]
+for ([int]$appIndex = 0; $appIndex -lt $CatalogApps.Count; $appIndex++) {
+    [string]$appName = $CatalogApps[$appIndex].name
     $AppDefinitions += [pscustomobject]@{
         Number = $appIndex + 1
         Name = $appName
         ProjectRelativePath = "$appName\src\$appName.csproj"
+        RequiresMsvc = [bool]$CatalogApps[$appIndex].requiresMsvc
     }
 }
 
@@ -435,6 +447,31 @@ function Write-PrerequisiteReport {
 
     Write-Host ("- Build tools folder: {0}" -f $BuildToolsRoot)
     Write-Host ''
+}
+
+function Resolve-AppSelection {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Selection
+    )
+
+    if ($Selection.Trim() -ieq 'All') {
+        return $AppDefinitions
+    }
+
+    $selectedApps = @()
+    foreach ($selectionPart in $Selection.Split(',')) {
+        [string]$appName = $selectionPart.Trim()
+        $appDefinition = $AppDefinitions | Where-Object { $_.Name -ieq $appName }
+        if ($null -eq $appDefinition -or ($selectedApps | Where-Object { $_.Name -ieq $appName })) {
+            Write-Host ("Unknown or repeated app: {0}. Expected All or names from apps.json: {1}" -f $appName, (($AppDefinitions | ForEach-Object { $_.Name }) -join ', '))
+            exit 1
+        }
+
+        $selectedApps += $appDefinition
+    }
+
+    return $selectedApps
 }
 
 function Read-AppSelection {
@@ -1007,18 +1044,21 @@ try {
 
     Set-BuildEnvironment -DotNetPath $dotNetSdkInfo.Path
 
-    $selectedApps = @(Read-AppSelection)
-    [string]$buildType = Read-BuildType
-
-    [bool]$taskManagerSelected = $false
-    foreach ($selectedApp in $selectedApps) {
-        if ($selectedApp.Name -eq 'TaskManagerTrayAppDotNET') {
-            $taskManagerSelected = $true
-            break
-        }
+    if ([string]::IsNullOrWhiteSpace($Apps)) {
+        $selectedApps = @(Read-AppSelection)
+    } else {
+        $selectedApps = @(Resolve-AppSelection -Selection $Apps)
     }
 
-    if (($buildType -eq $BuildTypeNativeAot) -or $taskManagerSelected) {
+    if ([string]::IsNullOrWhiteSpace($BuildKind)) {
+        [string]$buildType = Read-BuildType
+    } else {
+        [string]$buildType = $BuildKind
+    }
+
+    [bool]$msvcRequired = @($selectedApps | Where-Object { $_.RequiresMsvc }).Count -gt 0
+
+    if (($buildType -eq $BuildTypeNativeAot) -or $msvcRequired) {
         $nativeAotToolchain = Get-NativeAotToolchain
         if (-not $nativeAotToolchain.Found) {
             Write-Host ''

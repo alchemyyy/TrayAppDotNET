@@ -3,9 +3,13 @@
     <BuildType Name="Debug" />
     <BuildType Name="Prerelease" />
     <BuildType Name="Release" />
+    <BuildType Name="ReleaseWithDebugging" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="AppIconGenerator.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../AppIconGenerator.Tests/AppIconGenerator.Tests.csproj">
     <Platform Project="x64" />
   </Project>
 </Solution>

@@ -3,6 +3,7 @@
     <BuildType Name="Debug" />
     <BuildType Name="Prerelease" />
     <BuildType Name="Release" />
+    <BuildType Name="ReleaseWithDebugging" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="src/FanControlTrayAppDotNET.csproj">
@@ -18,6 +19,9 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="../TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../TrayAppDotNETCommon/tests/TrayAppDotNETCommon.TestSupport/TrayAppDotNETCommon.TestSupport.csproj">
     <Platform Project="x64" />
   </Project>
 </Solution>

@@ -142,7 +142,7 @@ internal sealed class GlyphOpticalCenterWindow : Window
         RenderGlyph();
     }
 
-    private Control BuildContent()
+    private Grid BuildContent()
     {
         Button renderButton = new() { Content = "Render" };
         renderButton.Click += (_, _) => RenderGlyph();

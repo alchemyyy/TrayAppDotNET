@@ -80,7 +80,7 @@ function Resolve-ProcDumpPath {
         return $procDump64Command.Source
     }
 
-    throw 'procdump64.exe was not found beside this script, in the current directory, or on PATH. Run .tadn_tools\download_procdump.ps1 or pass -ProcDumpPath with the full path to procdump64.exe.'
+    throw 'procdump64.exe was not found beside this script, in the current directory, or on PATH. Run tools\download_procdump.ps1 or pass -ProcDumpPath with the full path to procdump64.exe.'
 }
 
 function New-TrayProcessRecord {

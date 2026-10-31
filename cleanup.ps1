@@ -1,16 +1,20 @@
 <#
 .SYNOPSIS
-Applies configured formatting and C# syntax styles across TrayAppDotNET.
+Applies configured formatting and C# syntax styles to a TrayAppDotNET solution or project.
 
 .DESCRIPTION
-Runs JetBrains CleanupCode with the built-in "Reformat & Apply Syntax Style"
-profile. The solution's .editorconfig and .DotSettings files remain authoritative.
-The shared .editorconfig is temporarily mounted at the solution root so projects
-without a local copy receive the same rules. Vendor sources and build output are
-excluded by default.
+Runs JetBrains CleanupCode on -TargetPath (default: the whole repository solution).
+The repository-root .editorconfig and the solution's .DotSettings files remain
+authoritative for every project. -SettingsPath defaults to the root
+CleanupCode.DotSettings, which defines the "CodeStyleIssuesAndLanguageUsage"
+profile; the default profile is the built-in "Reformat & Apply Syntax Style".
+Vendor sources and build output are excluded by default.
 
 .EXAMPLE
 .\cleanup.ps1
+
+.EXAMPLE
+.\cleanup.ps1 -TargetPath VolumeTrayAppDotNET\VolumeTrayAppDotNET.slnx -Profile CodeStyleIssuesAndLanguageUsage
 
 .EXAMPLE
 .\cleanup.ps1 -NoBuild
@@ -20,14 +24,14 @@ excluded by default.
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$SolutionPath = 'TrayAppDotNET.slnx',
+    [Alias('SolutionPath', 'ProjectPath')]
+    [string]$TargetPath = 'TrayAppDotNET.slnx',
     [string]$Profile = 'Built-in: Reformat & Apply Syntax Style',
     [string]$Include = '**/*.cs',
     [string]$Exclude = '**/vendor/**;**/bin/**;**/obj/**;**/.artifacts/**',
     [string]$Configuration = 'Debug',
     [string]$Platform = 'x64',
-    [string]$SettingsPath,
-    [string]$EditorConfigPath = 'TrayAppDotNETCommon\.editorconfig',
+    [string]$SettingsPath = 'CleanupCode.DotSettings',
     [string]$CleanupCodePath,
     [string]$MSBuildPath,
     [switch]$NoBuild,
@@ -166,21 +170,15 @@ function Resolve-MSBuildExecutable {
     throw 'MSBuild.exe could not be found. Pass -MSBuildPath explicitly.'
 }
 
-[string]$resolvedSolutionPath = Resolve-RepositoryPath -Path $SolutionPath -MustExist
+[string]$resolvedTargetPath = Resolve-RepositoryPath -Path $TargetPath -MustExist
 [string]$resolvedSettingsPath = if ([string]::IsNullOrWhiteSpace($SettingsPath)) {
     [string]::Empty
 }
 else {
     Resolve-RepositoryPath -Path $SettingsPath -MustExist
 }
-[string]$resolvedEditorConfigPath = if ([string]::IsNullOrWhiteSpace($EditorConfigPath)) {
-    [string]::Empty
-}
-else {
-    Resolve-RepositoryPath -Path $EditorConfigPath -MustExist
-}
 
-Write-Host "Solution: $resolvedSolutionPath"
+Write-Host "Target: $resolvedTargetPath"
 Write-Host "Profile: $Profile"
 Write-Host "Configuration: $Configuration"
 Write-Host "Platform: $Platform"
@@ -189,11 +187,8 @@ Write-Host "Exclude: $Exclude"
 if (-not [string]::IsNullOrWhiteSpace($resolvedSettingsPath)) {
     Write-Host "Settings: $resolvedSettingsPath"
 }
-if (-not [string]::IsNullOrWhiteSpace($resolvedEditorConfigPath)) {
-    Write-Host "EditorConfig overlay: $resolvedEditorConfigPath"
-}
 
-if (-not $PSCmdlet.ShouldProcess($resolvedSolutionPath, "Run solution-wide code cleanup with '$Profile'")) {
+if (-not $PSCmdlet.ShouldProcess($resolvedTargetPath, "Run code cleanup with '$Profile'")) {
     return
 }
 
@@ -224,7 +219,7 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedSettingsPath)) {
 }
 
 $cleanupArguments.Add('--no-build')
-$cleanupArguments.Add($resolvedSolutionPath)
+$cleanupArguments.Add($resolvedTargetPath)
 
 Write-Host "Runner: $($cleanupRunner.DisplayName)"
 Write-Host "MSBuild: $MSBuildExecutable"
@@ -233,9 +228,6 @@ Write-Host "MSBuild: $MSBuildExecutable"
 [bool]$hadWorkloadResolver = Test-Path Env:MSBuildEnableWorkloadResolver
 [int]$exitCode = 0
 [bool]$locationPushed = $false
-[string]$editorConfigDestination = Join-Path $repositoryRoot '.editorconfig'
-[string]$editorConfigBackup = [string]::Empty
-[bool]$editorConfigOverlayCreated = $false
 
 try {
     $env:MSBuildEnableWorkloadResolver = 'false'
@@ -243,9 +235,9 @@ try {
     $locationPushed = $true
 
     if (-not $NoBuild) {
-        Write-Host "Prebuilding $Configuration|$Platform before applying the EditorConfig overlay"
+        Write-Host "Prebuilding $Configuration|$Platform"
         & $MSBuildExecutable `
-            $resolvedSolutionPath `
+            $resolvedTargetPath `
             '/restore' `
             '/m' `
             '/verbosity:minimal' `
@@ -258,39 +250,12 @@ try {
         }
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($resolvedEditorConfigPath) -and
-        -not [System.StringComparer]::OrdinalIgnoreCase.Equals(
-            $resolvedEditorConfigPath,
-            $editorConfigDestination)) {
-        if (Test-Path -LiteralPath $editorConfigDestination -PathType Leaf) {
-            $editorConfigBackup = Join-Path $repositoryRoot ".editorconfig.cleanup-backup.$([guid]::NewGuid().ToString('N'))"
-            Move-Item -LiteralPath $editorConfigDestination -Destination $editorConfigBackup
-        }
-
-        Copy-Item -LiteralPath $resolvedEditorConfigPath -Destination $editorConfigDestination
-        $editorConfigOverlayCreated = $true
-    }
-
     & $cleanupRunner.Executable @cleanupArguments
     $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 }
 finally {
     if ($locationPushed) {
         Pop-Location
-    }
-
-    if ($editorConfigOverlayCreated -and
-        (Test-Path -LiteralPath $editorConfigDestination -PathType Leaf)) {
-        Remove-Item -LiteralPath $editorConfigDestination -Force
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($editorConfigBackup) -and
-        (Test-Path -LiteralPath $editorConfigBackup -PathType Leaf)) {
-        if (Test-Path -LiteralPath $editorConfigDestination -PathType Leaf) {
-            Remove-Item -LiteralPath $editorConfigDestination -Force
-        }
-
-        Move-Item -LiteralPath $editorConfigBackup -Destination $editorConfigDestination
     }
 
     if ($hadWorkloadResolver) {

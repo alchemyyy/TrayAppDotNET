@@ -9,8 +9,8 @@ redundancies. Behavior-sensitive inspections remain disabled for this cleanup,
 and RedundantArgumentDefaultValue is explicitly blacklisted so call-site intent
 is preserved.
 
-The existing cleanup.ps1 owns tool discovery, the pre-cleanup build, settings
-overlay handling, and vendor/build-output exclusions. Unless -NoVerify is used,
+The existing cleanup.ps1 owns tool discovery, the pre-cleanup build and
+vendor/build-output exclusions. Unless -NoVerify is used,
 this wrapper serially builds and tests the solution after cleanup.
 
 .EXAMPLE
@@ -29,7 +29,6 @@ param(
     [string]$Exclude = '**/vendor/**;**/bin/**;**/obj/**;**/.artifacts/**',
     [string]$Configuration = 'Debug',
     [string]$Platform = 'x64',
-    [string]$EditorConfigPath = 'TrayAppDotNETCommon\.editorconfig',
     [string]$CleanupCodePath,
     [string]$MSBuildPath,
     [switch]$NoBuild,
@@ -53,14 +52,13 @@ if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
 }
 
 [hashtable]$cleanupParameters = @{
-    SolutionPath     = $SolutionPath
+    TargetPath       = $SolutionPath
     Profile          = 'Safe Code Redundancies'
     Include          = $Include
     Exclude          = $Exclude
     Configuration    = $Configuration
     Platform         = $Platform
     SettingsPath     = $settingsPath
-    EditorConfigPath = $EditorConfigPath
 }
 
 if (-not [string]::IsNullOrWhiteSpace($CleanupCodePath)) {

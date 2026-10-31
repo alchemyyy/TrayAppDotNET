@@ -29,10 +29,10 @@ internal static class Program
         }
     }
 
-    private static GeneratorOptions ParseArguments(IReadOnlyList<string> arguments)
+    private static GeneratorOptions ParseArguments(string[] arguments)
     {
         GeneratorOptions options = new();
-        for (int argumentIndex = 0; argumentIndex < arguments.Count; argumentIndex++)
+        for (int argumentIndex = 0; argumentIndex < arguments.Length; argumentIndex++)
         {
             string argument = arguments[argumentIndex];
             switch (argument)
@@ -58,12 +58,12 @@ internal static class Program
     }
 
     private static string ReadOptionValue(
-        IReadOnlyList<string> arguments,
+        string[] arguments,
         ref int argumentIndex,
         string optionName)
     {
         int valueIndex = argumentIndex + 1;
-        if (valueIndex >= arguments.Count || arguments[valueIndex].StartsWith('-'))
+        if (valueIndex >= arguments.Length || arguments[valueIndex].StartsWith('-'))
             throw new ArgumentException($"{optionName} requires a value.");
 
         argumentIndex = valueIndex;
@@ -112,7 +112,7 @@ internal static class Program
 
     private static IReadOnlyList<IconTarget> SelectTargets(
         IReadOnlyList<IconTarget> allTargets,
-        IReadOnlyList<string> targetNames)
+        List<string> targetNames)
     {
         if (targetNames.Count == 0) return allTargets;
 

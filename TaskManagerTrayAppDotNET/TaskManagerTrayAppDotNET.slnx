@@ -3,6 +3,7 @@
     <BuildType Name="Debug" />
     <BuildType Name="Prerelease" />
     <BuildType Name="Release" />
+    <BuildType Name="ReleaseWithDebugging" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="../TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
@@ -14,6 +15,9 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="tests/TaskManagerTrayAppDotNET.Tests/TaskManagerTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../TrayAppDotNETCommon/tests/TrayAppDotNETCommon.TestSupport/TrayAppDotNETCommon.TestSupport.csproj">
     <Platform Project="x64" />
   </Project>
 </Solution>

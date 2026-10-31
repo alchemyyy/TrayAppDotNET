@@ -5,6 +5,104 @@
     <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
     <TrayAppDotNETIsVendoredProject Condition="'$(TrayAppDotNETIsVendoredProject)' == '' and $([System.String]::Copy('$(MSBuildProjectDirectory)').ToLowerInvariant().Contains('\vendor\'))">true</TrayAppDotNETIsVendoredProject>
     <TrayAppDotNETIsVendoredProject Condition="'$(TrayAppDotNETIsVendoredProject)' == ''">false</TrayAppDotNETIsVendoredProject>
+    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' == ''">Debug</_TrayAppDotNETProjectExtensionsConfiguration>
+    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</_TrayAppDotNETProjectExtensionsConfiguration>
+  </PropertyGroup>
+
+  <!-- The app catalog: one TrayAppDotNETApp item per app. -->
+  <Import Project="$(MSBuildThisFileDirectory)TrayAppDotNET.Apps.props" />
+
+  <!-- Project roles. An app folder is the folder holding buildnumber.txt; its app project is the project named after
+       it (<App>/src/<App>.csproj). Test projects are the projects whose name ends in .Tests; the shared test helpers
+       are the project whose name ends in .TestSupport. Vendored projects have no role. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsVendoredProject)' != 'true'">
+    <TrayAppDotNETAppRoot>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'buildnumber.txt'))</TrayAppDotNETAppRoot>
+    <TrayAppDotNETAppName Condition="'$(TrayAppDotNETAppRoot)' != ''">$([System.IO.Path]::GetFileName('$(TrayAppDotNETAppRoot)'))</TrayAppDotNETAppName>
+    <TrayAppDotNETIsAppProject Condition="'$(TrayAppDotNETAppName)' != '' and '$(MSBuildProjectName)' == '$(TrayAppDotNETAppName)'">true</TrayAppDotNETIsAppProject>
+    <TrayAppDotNETIsCommonProject Condition="'$(MSBuildProjectName)' == 'TrayAppDotNETCommon'">true</TrayAppDotNETIsCommonProject>
+    <TrayAppDotNETIsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests'))">true</TrayAppDotNETIsTestProject>
+    <TrayAppDotNETIsTestSupportProject Condition="$(MSBuildProjectName.EndsWith('.TestSupport'))">true</TrayAppDotNETIsTestSupportProject>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TrayAppDotNETIsAppProject Condition="'$(TrayAppDotNETIsAppProject)' == ''">false</TrayAppDotNETIsAppProject>
+    <TrayAppDotNETIsCommonProject Condition="'$(TrayAppDotNETIsCommonProject)' == ''">false</TrayAppDotNETIsCommonProject>
+    <TrayAppDotNETIsTestProject Condition="'$(TrayAppDotNETIsTestProject)' == ''">false</TrayAppDotNETIsTestProject>
+    <TrayAppDotNETIsTestSupportProject Condition="'$(TrayAppDotNETIsTestSupportProject)' == ''">false</TrayAppDotNETIsTestSupportProject>
+  </PropertyGroup>
+
+  <!-- Package versions shared by more than one project. Vendored projects keep their own pins. -->
+  <PropertyGroup>
+    <TrayAppDotNETAvaloniaVersion>12.1.1</TrayAppDotNETAvaloniaVersion>
+    <TrayAppDotNETHotAvaloniaVersion>3.1.1</TrayAppDotNETHotAvaloniaVersion>
+    <TrayAppDotNETDotNetPackagesVersion>10.0.9</TrayAppDotNETDotNetPackagesVersion>
+    <TrayAppDotNETSkiaSharpVersion>3.119.4</TrayAppDotNETSkiaSharpVersion>
+    <TrayAppDotNETRoslynVersion>4.14.0</TrayAppDotNETRoslynVersion>
+    <TrayAppDotNETTestSdkVersion>18.6.0</TrayAppDotNETTestSdkVersion>
+    <TrayAppDotNETXunitVersion>2.9.3</TrayAppDotNETXunitVersion>
+    <TrayAppDotNETXunitRunnerVersion>3.1.5</TrayAppDotNETXunitRunnerVersion>
+  </PropertyGroup>
+
+  <!-- App projects. Directory.Build.props is imported before the SDK props, which is where BaseIntermediateOutputPath
+       must be set. Only the app project moves its obj\ to the app folder, so test projects and probes beside it keep
+       their own intermediates. Everything here is a default the app csproj can override. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
+    <BaseIntermediateOutputPath>$(TrayAppDotNETAppRoot)\obj\</BaseIntermediateOutputPath>
+    <BuildNumberFile>$(TrayAppDotNETAppRoot)\buildnumber.txt</BuildNumberFile>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>$(MSBuildProjectName).Program</StartupObject>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>$(TrayAppDotNETAppRoot)\bin\$(_TrayAppDotNETProjectExtensionsConfiguration)\</OutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <IsAotCompatible>true</IsAotCompatible>
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
+    <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
+    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
+    <HotAvaloniaMode>Balanced</HotAvaloniaMode>
+    <ApplicationIcon Condition="Exists('$(TrayAppDotNETAppRoot)\app.ico')">$(TrayAppDotNETAppRoot)\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- The Native AOT publish of an app (the inner publish PublishAfterBuild starts carries the runtime identifier). -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishAot>true</PublishAot>
+    <PublishSingleFile>false</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <StripSymbols>false</StripSymbols>
+  </PropertyGroup>
+
+  <!-- Test projects. The installer tests override the target framework and implicit usings. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsTestProject)' == 'true'">
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+  </PropertyGroup>
+
+  <!-- The shared test helper library: test-project settings without the test SDK. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsTestSupportProject)' == 'true'">
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <TrayAppDotNETIsRootSolutionBuild Condition="'$(SolutionDir)' == '$(TrayAppDotNETRoot)'">true</TrayAppDotNETIsRootSolutionBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == '' and '$(TrayAppDotNETIsRootSolutionBuild)' == 'true'">true</TrayAppDotNETAggregateBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
@@ -16,8 +114,6 @@
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETPrereleaseProjectProperties Condition="'$(Configuration)' == 'Prerelease'">Optimize=true;DebugSymbols=false;DebugType=none;CheckForOverflowUnderflow=false</TrayAppDotNETPrereleaseProjectProperties>
-    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' == ''">Debug</_TrayAppDotNETProjectExtensionsConfiguration>
-    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</_TrayAppDotNETProjectExtensionsConfiguration>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>

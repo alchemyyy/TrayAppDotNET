@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test properties, test packages, the app reference and the shared helpers (TrayAppDotNETUseTestSupport) come
+       from TrayAppDotNET.Parent.props and TrayAppDotNET.Parent.targets. -->
+  <PropertyGroup>
+    <TrayAppDotNETUseTestSupport>true</TrayAppDotNETUseTestSupport>
+  </PropertyGroup>
+</Project>

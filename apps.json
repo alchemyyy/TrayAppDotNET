@@ -1,0 +1,10 @@
+{
+  "apps": [
+    { "name": "BatteryTrayAppDotNET", "displayName": "Battery", "slug": "battery", "firstRelease": 100, "checkoutSubmodules": false, "requiresMsvc": false },
+    { "name": "BrightnessTrayAppDotNET", "displayName": "Brightness", "slug": "brightness", "firstRelease": 100, "checkoutSubmodules": false, "requiresMsvc": false },
+    { "name": "FanControlTrayAppDotNET", "displayName": "Fan Control", "slug": "fan-control", "firstRelease": 100, "checkoutSubmodules": true, "requiresMsvc": false },
+    { "name": "NetworkTrayAppDotNET", "displayName": "Network", "slug": "network", "firstRelease": 100, "checkoutSubmodules": false, "requiresMsvc": false },
+    { "name": "TaskManagerTrayAppDotNET", "displayName": "Task Manager", "slug": "task-manager", "firstRelease": 125, "checkoutSubmodules": false, "requiresMsvc": true },
+    { "name": "VolumeTrayAppDotNET", "displayName": "Volume", "slug": "volume", "firstRelease": 100, "checkoutSubmodules": false, "requiresMsvc": false }
+  ]
+}

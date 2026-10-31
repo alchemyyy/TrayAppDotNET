@@ -3,6 +3,7 @@
     <BuildType Name="Debug" />
     <BuildType Name="Prerelease" />
     <BuildType Name="Release" />
+    <BuildType Name="ReleaseWithDebugging" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
@@ -14,7 +15,10 @@
   <Project Path="TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj">
     <Platform Project="x64" />
   </Project>
-  <Project Path="TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj">
+  <Project Path="TrayAppDotNETCommon/tests/TrayAppDotNETCommon.Tests/TrayAppDotNETCommon.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="TrayAppDotNETCommon/tests/TrayAppDotNETCommon.TestSupport/TrayAppDotNETCommon.TestSupport.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="TrayAppDotNETCommon/tests/AxamlPropertyLinker.Tests/TrayAppDotNETCommon.AxamlPropertyLinker.Tests.csproj">
@@ -44,6 +48,9 @@
   <Project Path="NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="NetworkTrayAppDotNET/tests/NetworkTrayAppDotNET.Tests/NetworkTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="TaskManagerTrayAppDotNET/src/TaskManagerTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>
@@ -60,6 +67,12 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="TrayAppDotNETInstaller/tests/TrayAppDotNETInstaller.Tests/TrayAppDotNETInstaller.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="tools/AppIconGenerator/AppIconGenerator.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="tools/AppIconGenerator.Tests/AppIconGenerator.Tests.csproj">
     <Platform Project="x64" />
   </Project>
 </Solution>

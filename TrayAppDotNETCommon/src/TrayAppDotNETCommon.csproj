@@ -13,6 +13,8 @@
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <!-- Generates TrayAppDotNETCommon.Contracts.TrayAppDotNETAppCatalog from TrayAppDotNET.Apps.props. -->
+    <TrayAppDotNETEmbedAppCatalog>true</TrayAppDotNETEmbedAppCatalog>
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaXaml Remove="Theming\**" />
@@ -21,34 +23,15 @@
     <None Remove="Theming\**" />
   </ItemGroup>
 
+  <!-- The generator references and AXAML additional files come from TrayAppDotNET.Parent.targets. -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="12.1.1" PrivateAssets="All"
+    <PackageReference Include="Avalonia" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(TrayAppDotNETAvaloniaVersion)" PrivateAssets="All"
                       Condition="'$(Configuration)' == 'Debug'" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.9" />
-    <PackageReference Include="SkiaSharp" Version="3.119.4" />
-    <ProjectReference Include="..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
-                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
-                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
-                      SkipGetTargetFrameworkProperties="true"
-                      PrivateAssets="all" />
-    <ProjectReference Include="..\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
-                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
-                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
-                      SkipGetTargetFrameworkProperties="true"
-                      PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <AdditionalFiles Include="**\*.axaml" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="$(TrayAppDotNETDotNetPackagesVersion)" />
+    <PackageReference Include="SkiaSharp" Version="$(TrayAppDotNETSkiaSharpVersion)" />
   </ItemGroup>
 
   <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
@@ -65,9 +48,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TrayAppDotNETCommon.XmlSourceGenerator.Tests" />
-    <InternalsVisibleTo Include="TaskManagerTrayAppDotNET.Tests" />
-    <InternalsVisibleTo Include="VolumeTrayAppDotNET.Tests" />
+    <InternalsVisibleTo Include="TrayAppDotNETCommon.Tests" />
+    <!-- TrayAppDotNETProgram.UseSettingsDirectory, the settings folder redirect of every test process -->
+    <InternalsVisibleTo Include="TrayAppDotNETCommon.TestSupport" />
   </ItemGroup>
 
 </Project>

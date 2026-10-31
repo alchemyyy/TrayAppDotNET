@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test properties, test packages, the app reference and the shared helpers (TrayAppDotNETUseTestSupport) come
+       from TrayAppDotNET.Parent.props and TrayAppDotNET.Parent.targets. -->
+  <PropertyGroup>
+    <TrayAppDotNETUseTestSupport>true</TrayAppDotNETUseTestSupport>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(TrayAppDotNETRoslynVersion)" PrivateAssets="all" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(TrayAppDotNETAvaloniaVersion)" PrivateAssets="All"
+                      Condition="'$(Configuration)' == 'Debug'" />
+    <!-- Referenced for GeneratorHost and also run as an analyzer, so test settings types get generated serializers.
+         Both references drop the build-local properties, so Common and the generator stay one build with the copies
+         every other project reaches. -->
+    <ProjectReference Include="..\..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="true"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir;SkipPublishAfterBuild" />
+    <ProjectReference Include="..\..\src\TrayAppDotNETCommon.csproj"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir;SkipPublishAfterBuild" />
+  </ItemGroup>
+
+  <!-- Each app's neutral resources, compiled as in the app, so CommonResourceOverrideTests can load every
+       resource set at run time and compare it with CommonStrings -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\BatteryTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.Battery.resources" Link="AppResources\Battery.resx" />
+    <EmbeddedResource Include="..\..\..\BrightnessTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.Brightness.resources" Link="AppResources\Brightness.resx" />
+    <EmbeddedResource Include="..\..\..\FanControlTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.FanControl.resources" Link="AppResources\FanControl.resx" />
+    <EmbeddedResource Include="..\..\..\NetworkTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.Network.resources" Link="AppResources\Network.resx" />
+    <EmbeddedResource Include="..\..\..\TaskManagerTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.TaskManager.resources" Link="AppResources\TaskManager.resx" />
+    <EmbeddedResource Include="..\..\..\VolumeTrayAppDotNET\src\Localization\Strings.resx"
+                      LogicalName="AppResources.Volume.resources" Link="AppResources\Volume.resx" />
+  </ItemGroup>
+</Project>

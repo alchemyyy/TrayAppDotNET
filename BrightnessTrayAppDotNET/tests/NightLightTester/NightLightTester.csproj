@@ -2,19 +2,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <!-- Match the main project's TFM exactly so referencing it doesn't trigger
-         downlevel-compatibility shims. The cloned NightLightSettingsHandler in
-         this project pokes at WinRT activation, so the Windows-versioned TFM
-         is required regardless. -->
+         downlevel-compatibility shims. -->
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <RootNamespace>BrightnessTrayAppDotNET.Tests.NightLight</RootNamespace>
     <AssemblyName>NightLightTester</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-
-    <!-- Skip the repo-root Directory.Build.props BuildInfo codegen. The main project
-         already emits its own BuildInfo class; a duplicate from this project would
-         mostly waste a build-counter increment on Release. -->
-    <EmitBuildInfo>false</EmitBuildInfo>
   </PropertyGroup>
 
   <ItemGroup>

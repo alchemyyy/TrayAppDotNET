@@ -1,0 +1,55 @@
+<Project>
+  <!-- The one list of TrayAppDotNET apps. Every other list derives from it:
+       - TrayAppDotNET.Parent.targets generates TrayAppDotNETAppCatalog.g.cs from these items for Common and the
+         installer, and rewrites apps.json at the repository root whenever Common builds.
+       - apps.json feeds .github/scripts/publish.py, the release and debug workflows, the version endpoint updater,
+         the generated install-all.bat and tools/tadn_portable_build_script.ps1.
+       - The installer factory embeds <App>/app.ico for every item.
+       Metadata:
+       - DisplayName: the name workflows and release tooling show.
+       - Slug: lower-case id used in workflow file names and CI artifact names.
+       - FirstRelease: the first aggregate TrayAppDotNET release that shipped the app. The version endpoint only
+         requires the app in releases at or above it.
+       - CheckoutSubmodules: the app builds vendored submodules, so CI checks them out.
+       - RequiresMsvc: the app builds native code with the Visual C++ tools, so CI verifies they are installed.
+       Adding an app: add an item here, build TrayAppDotNETCommon once so apps.json follows, and add the app's
+       <slug>-debug.yml caller (workflow triggers cannot be generated). -->
+  <ItemGroup>
+    <TrayAppDotNETApp Include="BatteryTrayAppDotNET"
+                      DisplayName="Battery"
+                      Slug="battery"
+                      FirstRelease="100"
+                      CheckoutSubmodules="false"
+                      RequiresMsvc="false" />
+    <TrayAppDotNETApp Include="BrightnessTrayAppDotNET"
+                      DisplayName="Brightness"
+                      Slug="brightness"
+                      FirstRelease="100"
+                      CheckoutSubmodules="false"
+                      RequiresMsvc="false" />
+    <TrayAppDotNETApp Include="FanControlTrayAppDotNET"
+                      DisplayName="Fan Control"
+                      Slug="fan-control"
+                      FirstRelease="100"
+                      CheckoutSubmodules="true"
+                      RequiresMsvc="false" />
+    <TrayAppDotNETApp Include="NetworkTrayAppDotNET"
+                      DisplayName="Network"
+                      Slug="network"
+                      FirstRelease="100"
+                      CheckoutSubmodules="false"
+                      RequiresMsvc="false" />
+    <TrayAppDotNETApp Include="TaskManagerTrayAppDotNET"
+                      DisplayName="Task Manager"
+                      Slug="task-manager"
+                      FirstRelease="125"
+                      CheckoutSubmodules="false"
+                      RequiresMsvc="true" />
+    <TrayAppDotNETApp Include="VolumeTrayAppDotNET"
+                      DisplayName="Volume"
+                      Slug="volume"
+                      FirstRelease="100"
+                      CheckoutSubmodules="false"
+                      RequiresMsvc="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Helpers every .NET test project shares: the headless Avalonia host, palettes, key input, the settings folder
+       redirect, temporary folders and opt-in facts. Target framework and output come from TrayAppDotNET.Parent.props.
+       The .NET Framework installer tests cannot reference Common and stay out. -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="xunit.assert" Version="$(TrayAppDotNETXunitVersion)" />
+    <PackageReference Include="xunit.extensibility.core" Version="$(TrayAppDotNETXunitVersion)" />
+    <ProjectReference Include="..\..\src\TrayAppDotNETCommon.csproj"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir;SkipPublishAfterBuild" />
+  </ItemGroup>
+</Project>

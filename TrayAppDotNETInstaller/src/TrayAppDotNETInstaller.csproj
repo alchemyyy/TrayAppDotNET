@@ -11,6 +11,9 @@
     <AssemblyName>TrayAppDotNETInstaller</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <LangVersion>latest</LangVersion>
+    <!-- The SDK enables the .NET code analyzers by default only for .NET 5 and newer; enable them here so the
+         repository .editorconfig rules apply to the installer as they do to the apps. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <Nullable>enable</Nullable>
     <!-- The SDK only supplies implicit usings for .NET 6 and newer, so GlobalUsings.cs supplies the set. -->
     <ImplicitUsings>disable</ImplicitUsings>
@@ -22,10 +25,10 @@
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
-    <!-- Keeps LICENSE/NOTICE/.notices out of the output; the payload zips carry their own copies. -->
-    <TrayAppDotNETSingleFileExecutable>true</TrayAppDotNETSingleFileExecutable>
-    <!-- Stops the shared stamping target from trying to make an installer out of the factory itself. -->
-    <TrayAppDotNETIsInstallerFactory>true</TrayAppDotNETIsInstallerFactory>
+    <!-- Generates TrayAppDotNETCommon.Contracts.TrayAppDotNETAppCatalog (the installer cannot reference Common). The
+         shared app targets (legal files, stamping) apply to app projects only, so the factory never packages its own
+         LICENSE/NOTICE/.notices (the payload zips carry them) and never stamps itself. -->
+    <TrayAppDotNETEmbedAppCatalog>true</TrayAppDotNETEmbedAppCatalog>
     <!-- Without this the SDK writes a TrayAppDotNETInstaller.exe.config beside the executable, which the
          app does not need and which would stop the output from being a single file. -->
     <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
@@ -61,25 +64,37 @@
     <Compile Remove="Localization\Strings.Designer.cs" />
   </ItemGroup>
 
-  <!-- Every app icon plus the suite icon travels in the factory. A stamped installer picks its window icon
-       from these by application name, so only the shell icon needs resource surgery. Each icon is a few
-       kilobytes, which is negligible next to the payload. -->
+  <!-- The installer must not reference TrayAppDotNETCommon, so the contracts it shares with the apps (command
+       line, folder names, the progress wire format, the shared native DLL list), the detached cleanup and the
+       elevation policy are compiled in as linked source. These files stay .NET Framework 4.8 compatible. -->
   <ItemGroup>
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\app.ico" IconName="TrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\BatteryTrayAppDotNET\app.ico" IconName="BatteryTrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\BrightnessTrayAppDotNET\app.ico" IconName="BrightnessTrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\FanControlTrayAppDotNET\app.ico" IconName="FanControlTrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\NetworkTrayAppDotNET\app.ico" IconName="NetworkTrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\TaskManagerTrayAppDotNET\app.ico" IconName="TaskManagerTrayAppDotNET" />
-    <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\..\VolumeTrayAppDotNET\app.ico" IconName="VolumeTrayAppDotNET" />
-    <EmbeddedResource Include="@(TrayAppDotNETInstallerIcon)"
-                      LogicalName="$(TrayAppDotNETInstallerIconResourcePrefix)%(IconName).ico"
-                      Link="Icons\%(IconName).ico"
-                      WithCulture="false" />
+    <Compile Include="..\..\TrayAppDotNETCommon\src\Contracts\*.cs" Link="Linked\Contracts\%(Filename)%(Extension)" />
+    <Compile Include="..\..\TrayAppDotNETCommon\src\Utils\DetachedCleanup.cs" Link="Linked\DetachedCleanup.cs" />
+    <Compile Include="..\..\TrayAppDotNETCommon\src\Utils\ElevationPolicy.cs" Link="Linked\ElevationPolicy.cs" />
   </ItemGroup>
 
-  <Target Name="ValidateTrayAppDotNETInstallerIcons" BeforeTargets="PrepareForBuild">
+  <!-- Every catalog app's icon plus the suite icon travels in the factory. A stamped installer picks its window icon
+       from these by application name, so only the shell icon needs resource surgery. Each icon is a few kilobytes,
+       which is negligible next to the payload. -->
+  <Target Name="EmbedTrayAppDotNETInstallerIcons" BeforeTargets="PrepareForBuild">
+    <ItemGroup>
+      <TrayAppDotNETInstallerIcon Include="$(MSBuildProjectDirectory)\..\app.ico" IconName="TrayAppDotNET" />
+      <TrayAppDotNETInstallerIcon Include="$(TrayAppDotNETRoot)%(TrayAppDotNETApp.Identity)\app.ico" IconName="%(TrayAppDotNETApp.Identity)" />
+    </ItemGroup>
     <Error Condition="!Exists('%(TrayAppDotNETInstallerIcon.FullPath)')"
            Text="Installer icon not found: %(TrayAppDotNETInstallerIcon.FullPath). Run tools/AppIconGenerator first." />
+    <ItemGroup>
+      <EmbeddedResource Include="@(TrayAppDotNETInstallerIcon)"
+                        LogicalName="$(TrayAppDotNETInstallerIconResourcePrefix)%(TrayAppDotNETInstallerIcon.IconName).ico"
+                        Link="Icons\%(TrayAppDotNETInstallerIcon.IconName).ico"
+                        WithCulture="false" />
+    </ItemGroup>
   </Target>
+
+  <!-- The icons above are added during the build, which Visual Studio's fast up-to-date check never evaluates. Listing
+       them here makes a changed app or suite icon rebuild the factory. -->
+  <ItemGroup>
+    <UpToDateCheckInput Include="$(MSBuildProjectDirectory)\..\app.ico" />
+    <UpToDateCheckInput Include="@(TrayAppDotNETApp->'$(TrayAppDotNETRoot)%(Identity)\app.ico')" />
+  </ItemGroup>
 </Project>

@@ -4,11 +4,9 @@
     <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">500</CopyRetryDelayMilliseconds>
     <OverwriteReadOnlyFiles Condition="'$(OverwriteReadOnlyFiles)' == ''">true</OverwriteReadOnlyFiles>
     <ErrorOnDuplicatePublishOutputFiles Condition="'$(ErrorOnDuplicatePublishOutputFiles)' == ''">false</ErrorOnDuplicatePublishOutputFiles>
-    <TrayAppDotNETUnlockScript Condition="'$(TrayAppDotNETUnlockScript)' == ''">$(TrayAppDotNETRoot).tadn_tools\unlock_trayappdotnet_build_outputs.ps1</TrayAppDotNETUnlockScript>
+    <TrayAppDotNETUnlockScript Condition="'$(TrayAppDotNETUnlockScript)' == ''">$(TrayAppDotNETRoot)tools\unlock_trayappdotnet_build_outputs.ps1</TrayAppDotNETUnlockScript>
     <TrayAppDotNETUnlockMaxAttempts Condition="'$(TrayAppDotNETUnlockMaxAttempts)' == ''">4</TrayAppDotNETUnlockMaxAttempts>
     <TrayAppDotNETUnlockRetryDelayMilliseconds Condition="'$(TrayAppDotNETUnlockRetryDelayMilliseconds)' == ''">500</TrayAppDotNETUnlockRetryDelayMilliseconds>
-    <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETUnlockProcessNames)' == ''">BatteryTrayAppDotNET;BrightnessTrayAppDotNET;FanControlTrayAppDotNET;NetworkTrayAppDotNET;TaskManagerTrayAppDotNET;VolumeTrayAppDotNET</TrayAppDotNETUnlockProcessNames>
-    <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETAdditionalUnlockProcessNames)' != ''">$(TrayAppDotNETUnlockProcessNames);$(TrayAppDotNETAdditionalUnlockProcessNames)</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
   <!-- Debug owns the hot-reload graph and therefore cannot also be Native AOT. A Debug publish
@@ -112,16 +110,91 @@
     <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=false -p:TrayAppDotNETUseRootOutput=false -p:TrayAppDotNETUseAggregateSharedOutput=true</TrayAppDotNETPublishAggregateProperties>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+  <!-- Shared references of every app project (Common, the Avalonia packages, Debug-only hot reload). SkipPublishAfterBuild
+       is app-only; stripping it keeps Common and the generators one build whether a test or a solution reaches them. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
+    <ProjectReference Include="$(TrayAppDotNETCommonProject)"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir;SkipPublishAfterBuild" />
+    <PackageReference Include="Avalonia" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(TrayAppDotNETAvaloniaVersion)" PrivateAssets="All" Publish="True"
+                      Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(TrayAppDotNETAvaloniaVersion)" />
+    <PackageReference Include="HotAvalonia" Version="$(TrayAppDotNETHotAvaloniaVersion)" PrivateAssets="All" Publish="True"
+                      Condition="'$(Configuration)' == 'Debug'" />
+    <AvaloniaResource Include="$(TrayAppDotNETAppRoot)\app.ico" Link="Assets/app.ico" Condition="Exists('$(TrayAppDotNETAppRoot)\app.ico')" />
+  </ItemGroup>
+
+  <!-- Generate the app's strongly typed resource API under obj so it always matches the RESX.
+       Exclude source-tree custom-tool output to prevent duplicate classes. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
+    <EmbeddedResource Update="Localization\Strings.resx">
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>C#</StronglyTypedLanguage>
+      <StronglyTypedNamespace>$(RootNamespace).Localization</StronglyTypedNamespace>
+      <PublicClass>true</PublicClass>
+    </EmbeddedResource>
+    <Compile Remove="Localization\Strings.Designer.cs" />
+  </ItemGroup>
+
+  <!-- Common and every app run the XML serializer generator and the AXAML property linker, which read the project's
+       AXAML files. The .NET Framework installer and the test projects reference the generators their own way. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true' or '$(TrayAppDotNETIsCommonProject)' == 'true'">
+    <ProjectReference Include="$(TrayAppDotNETCommonRoot)\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
+                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir;SkipPublishAfterBuild"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
+    <ProjectReference Include="$(TrayAppDotNETCommonRoot)\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
+                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir;SkipPublishAfterBuild"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
+    <AdditionalFiles Include="**\*.axaml" />
+  </ItemGroup>
+
+  <!-- Test packages of every test project, and the app reference of the tests inside an app folder. A Release test
+       build outside a solution must not start the app's Native AOT publish. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsTestProject)' == 'true'">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="$(TrayAppDotNETTestSdkVersion)" />
+    <PackageReference Include="xunit" Version="$(TrayAppDotNETXunitVersion)" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="$(TrayAppDotNETXunitRunnerVersion)">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TrayAppDotNETIsTestProject)' == 'true' and '$(TrayAppDotNETAppName)' != ''">
+    <ProjectReference Include="$(TrayAppDotNETAppRoot)\src\$(TrayAppDotNETAppName).csproj"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)">
+      <AdditionalProperties
+          Condition="('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(TrayAppDotNETAggregateBuild)' != 'true' and ('$(SolutionFileName)' == '' or '$(SolutionFileName)' == '*Undefined*')">SkipPublishAfterBuild=true</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- The shared test helpers (TrayAppDotNETCommon.TestSupport) for test projects that set
+       TrayAppDotNETUseTestSupport; the generator, tool and .NET Framework installer tests do without Common. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsTestProject)' == 'true' and '$(TrayAppDotNETUseTestSupport)' == 'true'">
+    <ProjectReference Include="$(TrayAppDotNETCommonRoot)\tests\TrayAppDotNETCommon.TestSupport\TrayAppDotNETCommon.TestSupport.csproj"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)" />
+    <Using Include="TrayAppDotNETCommon.TestSupport" />
+  </ItemGroup>
+
+  <!-- Every app runs with a hard GC heap limit. An app that needs more sets TrayAppDotNETGCHeapHardLimitBytes. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <TrayAppDotNETDefaultGCHeapHardLimitBytes>104857600</TrayAppDotNETDefaultGCHeapHardLimitBytes>
-    <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'FanControlTrayAppDotNET'">157286400</TrayAppDotNETDefaultGCHeapHardLimitBytes>
-    <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'TaskManagerTrayAppDotNET'">209715200</TrayAppDotNETDefaultGCHeapHardLimitBytes>
-    <TrayAppDotNETGCHeapHardLimitBytes Condition="'$(TrayAppDotNETGCHeapHardLimitBytes)' == ''">$(TrayAppDotNETDefaultGCHeapHardLimitBytes)</TrayAppDotNETGCHeapHardLimitBytes>
+    <TrayAppDotNETGCHeapHardLimitBytes Condition="'$(TrayAppDotNETGCHeapHardLimitBytes)' == ''">104857600</TrayAppDotNETGCHeapHardLimitBytes>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(OutputType)' == 'WinExe'">
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
     <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="$(TrayAppDotNETGCHeapHardLimitBytes)" />
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
@@ -132,16 +205,15 @@
     <TrayAppDotNETCommonControlMap>$(TrayAppDotNETCommonRoot)\src\UI\ControlMap.axaml</TrayAppDotNETCommonControlMap>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(OutputType)' == 'WinExe'
-                        and '$(TrayAppDotNETIsVendoredProject)' != 'true'
-                        and '$(TrayAppDotNETIsInstallerFactory)' != 'true'
-                        and Exists('$(TrayAppDotNETCommonControlMap)')">
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and Exists('$(TrayAppDotNETCommonControlMap)')">
     <AdditionalFiles Include="$(TrayAppDotNETCommonControlMap)" TrayAppDotNETControlMapReference="true" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="TrayAppDotNETControlMapReference" />
   </ItemGroup>
 
-  <!-- Single-file executables such as the installer carry their legal files inside their payloads. -->
-  <ItemGroup Condition="'$(OutputType)' == 'WinExe' and '$(TrayAppDotNETIsVendoredProject)' != 'true' and '$(TrayAppDotNETSingleFileExecutable)' != 'true'">
+  <!-- Legal files of every app package: LICENSE, NOTICE, the notices every app ships (.notices\*) and the app's own
+       (.notices\<App>\). .notices\repository\ covers repository tools and never ships. publish.py checks the same
+       sets. -->
+  <ItemGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
     <Content Include="$(TrayAppDotNETRoot)LICENSE"
              Link="LICENSE.txt"
              CopyToOutputDirectory="PreserveNewest"
@@ -150,29 +222,190 @@
              Link="NOTICE"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(TrayAppDotNETRoot).notices\**\*"
-             Link=".notices\%(RecursiveDir)%(Filename)%(Extension)"
+    <Content Include="$(TrayAppDotNETRoot).notices\*"
+             Link=".notices\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(TrayAppDotNETRoot).notices\$(MSBuildProjectName)\**\*"
+             Link=".notices\$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Bake the CI-supplied or file-backed build number and the best available repository commit hash into the app's
+       BuildInfo constants. The file is only rewritten when its content changes, so an unchanged app does not
+       recompile. -->
+  <Target Name="EmbedBuildInfo" BeforeTargets="GenerateAssemblyInfo" Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
+    <PropertyGroup>
+      <_BuildNumberFromFile Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_BuildNumberFromFile>
+      <BuildNumber Condition="'$(BuildNumber)' == '' and '$(_BuildNumberFromFile)' != ''">$(_BuildNumberFromFile)</BuildNumber>
+      <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+      <_BuildCommitHash>$(TrayAppDotNETCommitHash)</_BuildCommitHash>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' == ''">$(SourceRevisionId)</_BuildCommitHash>
+      <_BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</_BuildInfoFile>
+    </PropertyGroup>
+
+    <Exec Command="git rev-parse HEAD"
+          WorkingDirectory="$(TrayAppDotNETRoot)"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          StandardOutputImportance="Low"
+          StandardErrorImportance="Low"
+          Condition="'$(_BuildCommitHash)' == ''">
+      <Output TaskParameter="ConsoleOutput" ItemName="_BuildCommitHashOutput" />
+    </Exec>
+    <PropertyGroup>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' == ''">@(_BuildCommitHashOutput)</_BuildCommitHash>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_BuildCommitHash)', '^(?:[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$')) != 'true'"></_BuildCommitHash>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ItemGroup>
+      <_BuildInfoLines Include="// &lt;auto-generated/&gt;" />
+      <_BuildInfoLines Include="namespace $(RootNamespace)%3B" />
+      <_BuildInfoLines Include="internal static class BuildInfo" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="%20%20%20%20public const int BuildNumber = $(BuildNumber)%3B" />
+      <_BuildInfoLines Include="%20%20%20%20public const string CommitHash = &quot;$(_BuildCommitHash)&quot;%3B" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_BuildInfoFile)"
+                      Lines="@(_BuildInfoLines)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_BuildInfoFile)" />
+      <FileWrites Include="$(_BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The app catalog as C# (TrayAppDotNETCommon.Contracts.TrayAppDotNETAppCatalog) for the projects that set
+       TrayAppDotNETEmbedAppCatalog: Common and the installer, which cannot reference Common. The block namespace keeps
+       the file valid for the .NET Framework installer. -->
+  <Target Name="EmbedTrayAppDotNETAppCatalog" BeforeTargets="GenerateAssemblyInfo" Condition="'$(TrayAppDotNETEmbedAppCatalog)' == 'true'">
+    <PropertyGroup>
+      <_TrayAppDotNETAppCatalogFile>$(IntermediateOutputPath)TrayAppDotNETAppCatalog.g.cs</_TrayAppDotNETAppCatalogFile>
+      <_TrayAppDotNETAppCatalogNames>@(TrayAppDotNETApp->'&quot;%(Identity)&quot;', ', ')</_TrayAppDotNETAppCatalogNames>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TrayAppDotNETAppCatalogLine Include="// &lt;auto-generated/&gt;" />
+      <_TrayAppDotNETAppCatalogLine Include="namespace TrayAppDotNETCommon.Contracts" />
+      <_TrayAppDotNETAppCatalogLine Include="{" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20/// &lt;summary&gt;Every TrayAppDotNET app, generated from TrayAppDotNET.Apps.props.&lt;/summary&gt;" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20public static class TrayAppDotNETAppCatalog" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20{" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20%20%20%20%20/// &lt;summary&gt;Project, folder and executable names of the apps, in catalog order.&lt;/summary&gt;" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20%20%20%20%20public static readonly string[] ApplicationNames = { $(_TrayAppDotNETAppCatalogNames) }%3B" />
+      <_TrayAppDotNETAppCatalogLine Include="%20%20%20%20}" />
+      <_TrayAppDotNETAppCatalogLine Include="}" />
+    </ItemGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <WriteLinesToFile File="$(_TrayAppDotNETAppCatalogFile)"
+                      Lines="@(_TrayAppDotNETAppCatalogLine)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_TrayAppDotNETAppCatalogFile)" />
+      <FileWrites Include="$(_TrayAppDotNETAppCatalogFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- apps.json at the repository root is the app catalog for publish.py, the workflows, the version endpoint updater
+       and the portable build script. Building Common keeps it in step with TrayAppDotNET.Apps.props; the publish.py
+       tests fail when a commit carries the two out of step. -->
+  <Target Name="WriteTrayAppDotNETAppCatalogJson" BeforeTargets="GenerateAssemblyInfo" Condition="'$(TrayAppDotNETIsCommonProject)' == 'true'">
+    <PropertyGroup>
+      <_TrayAppDotNETAppCatalogJsonEntries>@(TrayAppDotNETApp->'{ &quot;name&quot;: &quot;%(Identity)&quot;, &quot;displayName&quot;: &quot;%(DisplayName)&quot;, &quot;slug&quot;: &quot;%(Slug)&quot;, &quot;firstRelease&quot;: %(FirstRelease), &quot;checkoutSubmodules&quot;: %(CheckoutSubmodules), &quot;requiresMsvc&quot;: %(RequiresMsvc) }', ',%0D%0A%20%20%20%20')</_TrayAppDotNETAppCatalogJsonEntries>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TrayAppDotNETAppCatalogJsonLine Include="{" />
+      <_TrayAppDotNETAppCatalogJsonLine Include="%20%20&quot;apps&quot;: [" />
+      <_TrayAppDotNETAppCatalogJsonLine Include="%20%20%20%20$(_TrayAppDotNETAppCatalogJsonEntries)" />
+      <_TrayAppDotNETAppCatalogJsonLine Include="%20%20]" />
+      <_TrayAppDotNETAppCatalogJsonLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(TrayAppDotNETRoot)apps.json"
+                      Lines="@(_TrayAppDotNETAppCatalogJsonLine)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <!-- Copies the HotAvalonia runtime assemblies beside a Debug app. An app whose standalone dictionaries use the
+       runtime XAML loader throughout Debug sets TrayAppDotNETCopyXamlLoaderInDebug. -->
+  <Target Name="CopyHotAvaloniaRuntimeAssemblies"
+          AfterTargets="Build"
+          Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(RuntimeIdentifier)' == '' and ('$(HotAvalonia)' == 'true' or ('$(TrayAppDotNETCopyXamlLoaderInDebug)' == 'true' and '$(Configuration)' == 'Debug'))">
+    <PropertyGroup>
+      <_HotAvaloniaCorePath>$(NuGetPackageRoot)hotavalonia.core\$(TrayAppDotNETHotAvaloniaVersion)\lib\netstandard2.1\HotAvalonia.Core.dll</_HotAvaloniaCorePath>
+      <_HotAvaloniaXamlLoaderPath>$(NuGetPackageRoot)avalonia.markup.xaml.loader\$(TrayAppDotNETAvaloniaVersion)\lib\net10.0\Avalonia.Markup.Xaml.Loader.dll</_HotAvaloniaXamlLoaderPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_HotAvaloniaCorePath)')"
+           Text="HotAvalonia.Core.dll was not found at $(_HotAvaloniaCorePath)." />
+    <Error Condition="!Exists('$(_HotAvaloniaXamlLoaderPath)')"
+           Text="Avalonia.Markup.Xaml.Loader.dll was not found at $(_HotAvaloniaXamlLoaderPath)." />
+    <ItemGroup>
+      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaCorePath)" />
+      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaXamlLoaderPath)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_HotAvaloniaRuntimeAssembly)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
+  </Target>
+
+  <!-- A Release or ReleaseWithDebugging build of an app publishes the Native AOT app into
+       $(IntermediateOutputPath)native-publish\ and copies it into the output folder. The publish folder is also the
+       installer payload, so the sidecars below are pruned there; .github/scripts/publish.py reads these two item lists
+       and prunes CI packages the same way. An app adds TrayAppDotNETPublishOutputStaleFile items for files an earlier
+       non-AOT build may have left in its output folder. -->
+  <ItemGroup>
+    <TrayAppDotNETPublishPruneFile Include="Dia2Lib.dll;TraceReloggerLib.dll" />
+    <TrayAppDotNETPublishPruneDirectory Include="amd64;win-x64" />
+  </ItemGroup>
+
+  <Target Name="PublishAfterBuild"
+          AfterTargets="Build"
+          Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <_PublishOutputPath>$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
+    </PropertyGroup>
+    <Message Importance="High" Text="Publishing Native AOT release..." />
+    <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
+    <MakeDir Directories="$(_PublishOutputPath)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 --no-restore -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true -p:TrayAppDotNETBuildSharedProjectReferences=false $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
+    <Delete Files="@(TrayAppDotNETPublishPruneFile->'$(_PublishOutputPath)%(Identity)')" ContinueOnError="WarnAndContinue" />
+    <RemoveDir Directories="@(TrayAppDotNETPublishPruneDirectory->'$(_PublishOutputPath)%(Identity)')" ContinueOnError="WarnAndContinue" />
+    <ItemGroup>
+      <_TrayAppDotNETPublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_TrayAppDotNETPublishedFile)"
+          DestinationFiles="@(_TrayAppDotNETPublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
+          ContinueOnError="WarnAndContinue"
+          Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
+    <Delete Files="@(TrayAppDotNETPublishOutputStaleFile->'$(OutputPath)%(Identity)')" />
+    <Message Importance="High" Text="Published to $(OutputPath)" />
+  </Target>
 
   <!-- A Release build of an app also stamps that app's own installer beside it. The payload is the app's
        Native AOT publish output, zipped under the release asset name the factory parses. One factory serves
        every app: MSBuild builds it once per session and the other app projects reuse that result.
        Set TrayAppDotNETStampAppInstaller=false to skip stamping during iterative Release work. -->
-  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+  <PropertyGroup Condition="'$(TrayAppDotNETIsAppProject)' == 'true'">
     <TrayAppDotNETInstallerProject Condition="'$(TrayAppDotNETInstallerProject)' == ''">$(TrayAppDotNETRoot)TrayAppDotNETInstaller\src\TrayAppDotNETInstaller.csproj</TrayAppDotNETInstallerProject>
     <TrayAppDotNETInstallerFactoryFileName Condition="'$(TrayAppDotNETInstallerFactoryFileName)' == ''">TrayAppDotNETInstaller.exe</TrayAppDotNETInstallerFactoryFileName>
     <TrayAppDotNETInstallerAssetPrefix Condition="'$(TrayAppDotNETInstallerAssetPrefix)' == ''">Installer_</TrayAppDotNETInstallerAssetPrefix>
     <!-- The inner publish carries a RuntimeIdentifier and SkipPublishAfterBuild, so only the outer
-         Release build reaches this. The factory never stamps an installer for itself. -->
+         Release build reaches this. -->
     <TrayAppDotNETStampAppInstaller
       Condition="'$(TrayAppDotNETStampAppInstaller)' == ''
                  and '$(Configuration)' == 'Release'
                  and '$(RuntimeIdentifier)' == ''
                  and '$(SkipPublishAfterBuild)' != 'true'
-                 and '$(TrayAppDotNETIsVendoredProject)' != 'true'
-                 and '$(TrayAppDotNETIsInstallerFactory)' != 'true'
                  and Exists('$(TrayAppDotNETInstallerProject)')">true</TrayAppDotNETStampAppInstaller>
     <TrayAppDotNETStampAppInstaller Condition="'$(TrayAppDotNETStampAppInstaller)' == ''">false</TrayAppDotNETStampAppInstaller>
   </PropertyGroup>
@@ -271,7 +504,7 @@
       <_TrayAppDotNETLocalizationCulturesLine Include="namespace $(RootNamespace).Localization%3B" />
       <_TrayAppDotNETLocalizationCulturesLine Include="internal static class LocalizationCultures" />
       <_TrayAppDotNETLocalizationCulturesLine Include="{" />
-      <_TrayAppDotNETLocalizationCulturesLine Include="    public static readonly string[] Names = [$(_TrayAppDotNETLocalizationCultureList)]%3B" />
+      <_TrayAppDotNETLocalizationCulturesLine Include="%20%20%20%20public static readonly string[] Names = [$(_TrayAppDotNETLocalizationCultureList)]%3B" />
       <_TrayAppDotNETLocalizationCulturesLine Include="}" />
     </ItemGroup>
     <WriteLinesToFile File="$(_TrayAppDotNETLocalizationCulturesFile)"
@@ -311,17 +544,30 @@
           Condition="'@(_AggregateManagedRuntimeReferenceWithDestination)' != ''" />
   </Target>
 
-  <!-- Probe output files for write access and only kill TrayAppDotNET PIDs
-       that Restart Manager reports as locking those files. -->
+  <!-- Probe output files for write access and only kill TrayAppDotNET PIDs that Restart Manager reports as locking
+       those files. Every catalog app may hold files of a shared output folder; an app adds the names of its helper
+       processes through TrayAppDotNETAdditionalUnlockProcessNames. -->
+  <Target Name="ResolveTrayAppDotNETUnlock" Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(SkipKillRunningInstance)' != 'true'">
+    <Warning Condition="!Exists('$(TrayAppDotNETUnlockScript)')"
+             Text="The build-output unlock script was not found at $(TrayAppDotNETUnlockScript), so running TrayAppDotNET apps that lock this output are not stopped. Set TrayAppDotNETUnlockScript, or pass -p:SkipKillRunningInstance=true to skip unlocking." />
+    <PropertyGroup>
+      <_TrayAppDotNETUnlockProcessNames>@(TrayAppDotNETApp)</_TrayAppDotNETUnlockProcessNames>
+      <_TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETAdditionalUnlockProcessNames)' != ''">$(_TrayAppDotNETUnlockProcessNames);$(TrayAppDotNETAdditionalUnlockProcessNames)</_TrayAppDotNETUnlockProcessNames>
+      <_TrayAppDotNETUnlockCommand>powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(_TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)</_TrayAppDotNETUnlockCommand>
+    </PropertyGroup>
+  </Target>
+
   <Target Name="UnlockTrayAppDotNETOutputFilesBeforeBuild"
           BeforeTargets="BeforeBuild;BeforeClean"
-          Condition="'$(SkipKillRunningInstance)' != 'true' and '$(OutputType)' == 'WinExe' and Exists('$(TrayAppDotNETUnlockScript)')">
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)" />
+          DependsOnTargets="ResolveTrayAppDotNETUnlock"
+          Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(SkipKillRunningInstance)' != 'true'">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="$(_TrayAppDotNETUnlockCommand)" Condition="Exists('$(TrayAppDotNETUnlockScript)')" />
   </Target>
 
   <Target Name="UnlockTrayAppDotNETOutputFilesBeforePostBuildCopy"
           BeforeTargets="CopyHotAvaloniaRuntimeAssemblies;CopyRuntimeReferencesToAggregateManagedOutput;CopyLibreHardwareMonitorManagedRuntimeAssemblies;PublishAfterBuild"
-          Condition="'$(SkipKillRunningInstance)' != 'true' and '$(OutputType)' == 'WinExe' and Exists('$(TrayAppDotNETUnlockScript)')">
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)" />
+          DependsOnTargets="ResolveTrayAppDotNETUnlock"
+          Condition="'$(TrayAppDotNETIsAppProject)' == 'true' and '$(SkipKillRunningInstance)' != 'true' and Exists('$(TrayAppDotNETUnlockScript)')">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="$(_TrayAppDotNETUnlockCommand)" />
   </Target>
 </Project>
