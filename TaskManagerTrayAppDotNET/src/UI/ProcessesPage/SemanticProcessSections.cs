@@ -41,14 +41,18 @@ internal static class SemanticProcessSections
     {
         if (entryCount < 0) throw new ArgumentOutOfRangeException(nameof(entryCount));
 
-        string label = classification switch
+        string labelKey = classification switch
         {
-            SemanticProcessGroupClassification.App => "Apps",
-            SemanticProcessGroupClassification.Background => "Background processes",
-            SemanticProcessGroupClassification.Windows => "Windows processes",
+            SemanticProcessGroupClassification.App => nameof(AppStrings.Processes_Section_Apps),
+            SemanticProcessGroupClassification.Background => nameof(AppStrings.Processes_Section_Background),
+            SemanticProcessGroupClassification.Windows => nameof(AppStrings.Processes_Section_Windows),
             _ => throw new ArgumentOutOfRangeException(nameof(classification))
         };
-        return $"{label} ({entryCount.ToString(CultureInfo.CurrentCulture)})";
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            LocalizationManager.Instance[nameof(AppStrings.Processes_Section_Title_Format)],
+            LocalizationManager.Instance[labelKey],
+            entryCount);
     }
 
     public static ProcessInstanceKey GetInstanceKey(

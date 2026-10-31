@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -17,39 +19,126 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
     private const uint PdhFormatLarge = 0x00000400;
     private const uint PdhFormatNoCap100 = 0x00008000;
     private const int MaximumCounterInstanceNameLength = 1_024;
+    private static readonly TimeSpan AdapterRefreshInterval = TimeSpan.FromSeconds(30);
 
     private readonly Dictionary<GPUAdapterKey, GPUCounterAccumulator> _accumulators = [];
-    private IntPtr _query;
+    private readonly PdhQuery _query;
     private IntPtr _utilizationCounter;
     private IntPtr _dedicatedMemoryCounter;
     private IntPtr _sharedMemoryCounter;
     private IntPtr _counterBuffer;
     private uint _counterBufferSize;
     private bool _queryPrimed;
+    private readonly HashSet<ulong> _unlistedCounterLUIDs = [];
+    private readonly HashSet<ulong> _listedLUIDs = [];
+    private readonly Dictionary<GPUAdapterKey, GPUAdapterPersistentIdentity> _identities = [];
+    private HashSet<ulong> _previousReportingLUIDs = [];
+    private HashSet<ulong> _currentReportingLUIDs = [];
+    private GPUAdapterMetadata[] _adapters = [];
+    private long _adaptersReadTimestamp;
     private bool _disposed;
 
-    /// <summary>Forces the next PDH collection to establish a fresh one-second baseline.</summary>
-    internal void ResetCounterBaseline()
+    public GPUPerformanceSampler() => _query = new PdhQuery(nameof(GPUPerformanceSampler), AddCounters);
+
+    private uint AddCounters(PdhQuery query)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        uint failureStatus = PdhSuccess;
         _queryPrimed = false;
-        _accumulators.Clear();
+        _utilizationCounter = AddCounter(query, UtilizationPath, ref failureStatus);
+        _dedicatedMemoryCounter = AddCounter(query, DedicatedMemoryPath, ref failureStatus);
+        _sharedMemoryCounter = AddCounter(query, SharedMemoryPath, ref failureStatus);
+        return _utilizationCounter != IntPtr.Zero
+               || _dedicatedMemoryCounter != IntPtr.Zero
+               || _sharedMemoryCounter != IntPtr.Zero
+            ? PdhSuccess
+            : failureStatus;
     }
 
-    public GPUPerformanceSampler()
+    /// <summary>
+    /// Returns the DXGI hardware adapters, reusing the previous enumeration: creating a factory and enumerating
+    /// adapters loads driver components, so it does not run every tick. The list is re-read every
+    /// <see cref="AdapterRefreshInterval"/> and as soon as the counters show a change (<see cref="NeedsAdapterRefresh"/>):
+    /// a new LUID (hot-plug or driver restart) or a listed LUID that stopped reporting (unplug or disable).
+    /// </summary>
+    private GPUAdapterMetadata[] GetAdapters(bool countersRead)
     {
-        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
+        _currentReportingLUIDs.Clear();
+        foreach (GPUAdapterKey key in _accumulators.Keys)
+            _currentReportingLUIDs.Add(key.LUID);
 
-        _utilizationCounter = AddCounter(UtilizationPath);
-        _dedicatedMemoryCounter = AddCounter(DedicatedMemoryPath);
-        _sharedMemoryCounter = AddCounter(SharedMemoryPath);
-        if (_utilizationCounter != IntPtr.Zero
-            || _dedicatedMemoryCounter != IntPtr.Zero
-            || _sharedMemoryCounter != IntPtr.Zero)
-            return;
+        long now = Stopwatch.GetTimestamp();
+        bool refresh = _adaptersReadTimestamp == 0
+                       || Stopwatch.GetElapsedTime(_adaptersReadTimestamp, now) >= AdapterRefreshInterval
+                       || NeedsAdapterRefresh(
+                           countersRead,
+                           _listedLUIDs,
+                           _unlistedCounterLUIDs,
+                           _previousReportingLUIDs,
+                           _currentReportingLUIDs);
+        if (refresh)
+        {
+            _adapters = DXGIAdapterEnumerator.Enumerate();
+            _adaptersReadTimestamp = now;
+            _identities.Clear();
+            _listedLUIDs.Clear();
+            for (int adapterIndex = 0; adapterIndex < _adapters.Length; adapterIndex++)
+                _listedLUIDs.Add(_adapters[adapterIndex].LUID);
 
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
+            _unlistedCounterLUIDs.Clear();
+            foreach (ulong adapterLUID in _currentReportingLUIDs)
+            {
+                if (!_listedLUIDs.Contains(adapterLUID)) _unlistedCounterLUIDs.Add(adapterLUID);
+            }
+        }
+
+        // A tick without counters keeps the previous reporters, so it does not hide or fake a disappearance
+        if (countersRead)
+            (_previousReportingLUIDs, _currentReportingLUIDs) = (_currentReportingLUIDs, _previousReportingLUIDs);
+
+        return _adapters;
+    }
+
+    /// <summary>
+    /// Reads a kernel identity once per adapter key until the next adapter enumeration. A failed read is not
+    /// cached, so a transient failure does not leave the card under a fallback ID until the next enumeration.
+    /// </summary>
+    private GPUAdapterPersistentIdentity ReadIdentity(GPUAdapterKey key)
+    {
+        if (_identities.TryGetValue(key, out GPUAdapterPersistentIdentity identity)) return identity;
+
+        identity = D3DKMTAdapterIdentityReader.Read(key);
+        if (IsKnownIdentity(identity)) _identities.Add(key, identity);
+        return identity;
+    }
+
+    internal static bool IsKnownIdentity(GPUAdapterPersistentIdentity identity) =>
+        !string.IsNullOrWhiteSpace(identity.HardwarePNPKey) || identity.UniqueAdapterGUID != Guid.Empty;
+
+    /// <summary>
+    /// Whether the adapter list must be read again now: a counter reports a LUID the list does not have (and that
+    /// a fresh enumeration has not already shown to be unlisted), or a listed adapter that reported counters on
+    /// the previous tick no longer does (unplugged or disabled). Only ticks that read counters can tell.
+    /// </summary>
+    internal static bool NeedsAdapterRefresh(
+        bool countersRead,
+        HashSet<ulong> listedLUIDs,
+        HashSet<ulong> knownUnlistedLUIDs,
+        HashSet<ulong> previousReportingLUIDs,
+        HashSet<ulong> currentReportingLUIDs)
+    {
+        if (!countersRead) return false;
+
+        foreach (ulong adapterLUID in currentReportingLUIDs)
+        {
+            if (!listedLUIDs.Contains(adapterLUID) && !knownUnlistedLUIDs.Contains(adapterLUID)) return true;
+        }
+
+        foreach (ulong adapterLUID in previousReportingLUIDs)
+        {
+            if (listedLUIDs.Contains(adapterLUID) && !currentReportingLUIDs.Contains(adapterLUID)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>Captures one card per hardware PNP display device and attaches raw PDH values.</summary>
@@ -58,11 +147,10 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _accumulators.Clear();
 
-        GPUAdapterMetadata[] adapters = DXGIAdapterEnumerator.Enumerate();
         bool hasUtilizationQuery = false;
         bool hasDedicatedMemoryQuery = false;
         bool hasSharedMemoryQuery = false;
-        if (_query != IntPtr.Zero && PdhCollectQueryData(_query) == PdhSuccess)
+        if (_query.TryCollect())
         {
             bool canReadFormattedValues = _queryPrimed;
             _queryPrimed = true;
@@ -73,6 +161,9 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                 hasSharedMemoryQuery = ReadMemoryCounters(_sharedMemoryCounter, isDedicated: false);
             }
         }
+
+        GPUAdapterMetadata[] adapters = GetAdapters(
+            countersRead: hasUtilizationQuery || hasDedicatedMemoryQuery || hasSharedMemoryQuery);
 
         Dictionary<ulong, GPUAdapterMetadata> metadataByLUID = [];
         for (int adapterIndex = 0; adapterIndex < adapters.Length; adapterIndex++)
@@ -95,13 +186,13 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
                     key.LUID,
                     out GPUAdapterPersistentIdentity baseIdentity))
             {
-                baseIdentity = D3DKMTAdapterIdentityReader.Read(key with { PhysicalAdapterIndex = 0 });
+                baseIdentity = ReadIdentity(key with { PhysicalAdapterIndex = 0 });
                 baseIdentitiesByLUID.Add(key.LUID, baseIdentity);
             }
 
             GPUAdapterPersistentIdentity physicalIdentity = key.PhysicalAdapterIndex == 0
                 ? baseIdentity
-                : D3DKMTAdapterIdentityReader.Read(key);
+                : ReadIdentity(key);
             string? hardwarePNPKey = !string.IsNullOrWhiteSpace(physicalIdentity.HardwarePNPKey)
                 ? physicalIdentity.HardwarePNPKey
                 : baseIdentity.HardwarePNPKey;
@@ -248,10 +339,12 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         return result;
     }
 
-    private IntPtr AddCounter(string path)
+    private static IntPtr AddCounter(PdhQuery query, string path, ref uint failureStatus)
     {
-        uint status = PdhAddEnglishCounterW(_query, path, IntPtr.Zero, out IntPtr counter);
-        return status == PdhSuccess ? counter : IntPtr.Zero;
+        uint status = query.AddCounter(path, out IntPtr counter);
+        if (status == PdhSuccess) return counter;
+        failureStatus = status;
+        return IntPtr.Zero;
     }
 
     private bool ReadUtilizationCounters()
@@ -281,7 +374,7 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
 
             GPUAdapterKey adapterKey = new(instance.AdapterLUID, instance.PhysicalAdapterIndex);
             GPUCounterAccumulator accumulator = GetOrCreateAccumulator(adapterKey);
-            string engineName = NormalizeEngineType(instanceName[instance.EngineTypeStart..]);
+            string engineName = GPUEngineNames.Normalize(instanceName[instance.EngineTypeStart..]);
             accumulator.EngineSamples.Add(new GPUEngineCounterSample(
                 instance.EngineIndex,
                 engineName,
@@ -399,21 +492,6 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         return new ReadOnlySpan<char>(value, length);
     }
 
-    private static string NormalizeEngineType(ReadOnlySpan<char> engineType)
-    {
-        int duplicateSuffixIndex = engineType.IndexOf('#');
-        if (duplicateSuffixIndex >= 0)
-            engineType = engineType[..duplicateSuffixIndex];
-        if (engineType.Equals(other: "3d", StringComparison.OrdinalIgnoreCase)) return "3D";
-        if (engineType.Equals(other: "copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
-        if (engineType.Equals(other: "compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
-        if (engineType.Equals(other: "videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
-        if (engineType.Equals(other: "videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
-        if (engineType.Equals(other: "videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
-        if (engineType.Equals(other: "opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
-        return engineType.ToString();
-    }
-
     /// <summary>Creates a best-effort fallback when Windows exposes no persistent adapter identity.</summary>
     internal static string CreatePCIFallbackDeviceID(
         uint vendorID,
@@ -485,23 +563,8 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
             _counterBufferSize = 0;
         }
 
-        if (_query == IntPtr.Zero) return;
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
+        _query.Dispose();
     }
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhOpenQueryW(string? dataSource, IntPtr userData, out IntPtr query);
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhAddEnglishCounterW(
-        IntPtr query,
-        string fullCounterPath,
-        IntPtr userData,
-        out IntPtr counter);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCollectQueryData(IntPtr query);
 
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
     private static extern uint PdhGetFormattedCounterArrayW(
@@ -510,9 +573,6 @@ internal sealed unsafe class GPUPerformanceSampler : IDisposable
         ref uint bufferSize,
         out uint itemCount,
         IntPtr itemBuffer);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCloseQuery(IntPtr query);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PDH_FORMATTED_COUNTER_VALUE_ITEM
@@ -680,37 +740,17 @@ internal static unsafe class D3DKMTAdapterIdentityReader
     /// <summary>Reads the physical PNP key and unique adapter GUID for one adapter key.</summary>
     public static GPUAdapterPersistentIdentity Read(GPUAdapterKey key)
     {
-        D3DKMT_OPENADAPTERFROMLUID openAdapter = new()
-        {
-            AdapterLUID = new NATIVE_LUID { LowPart = (uint)key.LUID, HighPart = unchecked((int)(key.LUID >> 32)) }
-        };
-
-        int openStatus;
-        try
-        {
-            openStatus = D3DKMTOpenAdapterFromLuid(ref openAdapter);
-        }
-        catch (Exception exception) when (exception is DllNotFoundException
-                                              or EntryPointNotFoundException
-                                              or BadImageFormatException)
-        {
-            return default;
-        }
-
-        if (openStatus < 0 || openAdapter.AdapterHandle == 0) return default;
+        if (!D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle)) return default;
 
         try
         {
-            string hardwarePNPKey = ReadHardwarePNPKey(
-                openAdapter.AdapterHandle,
-                key.PhysicalAdapterIndex);
-            Guid uniqueAdapterGUID = ReadUniqueAdapterGUID(openAdapter.AdapterHandle);
+            string hardwarePNPKey = ReadHardwarePNPKey(adapterHandle, key.PhysicalAdapterIndex);
+            Guid uniqueAdapterGUID = ReadUniqueAdapterGUID(adapterHandle);
             return new GPUAdapterPersistentIdentity(hardwarePNPKey, uniqueAdapterGUID);
         }
         finally
         {
-            D3DKMT_CLOSEADAPTER closeAdapter = new() { AdapterHandle = openAdapter.AdapterHandle };
-            _ = D3DKMTCloseAdapter(ref closeAdapter);
+            D3DKMT.CloseAdapter(adapterHandle);
         }
     }
 
@@ -747,14 +787,8 @@ internal static unsafe class D3DKMTAdapterIdentityReader
                 Destination = (IntPtr)destinationPointer,
                 DestinationCharacterCount = (IntPtr)(&destinationLength)
             };
-            D3DKMT_QUERYADAPTERINFO query = new()
-            {
-                AdapterHandle = adapterHandle,
-                Type = PhysicalAdapterPNPKeyInformation,
-                PrivateDriverData = (IntPtr)(&pnpKeyQuery),
-                PrivateDriverDataSize = (uint)sizeof(D3DKMT_QUERY_PHYSICAL_ADAPTER_PNP_KEY)
-            };
-            if (D3DKMTQueryAdapterInfo(ref query) < 0) return string.Empty;
+            if (!D3DKMT.TryQueryAdapterInfo(adapterHandle, PhysicalAdapterPNPKeyInformation, ref pnpKeyQuery))
+                return string.Empty;
         }
 
         return CanonicalizeHardwarePNPKey(ReadNullTerminatedString(destination));
@@ -765,14 +799,12 @@ internal static unsafe class D3DKMTAdapterIdentityReader
         char[] destination = new char[AdapterUniqueGUIDBufferLength];
         fixed (char* destinationPointer = destination)
         {
-            D3DKMT_QUERYADAPTERINFO query = new()
-            {
-                AdapterHandle = adapterHandle,
-                Type = AdapterUniqueGUIDInformation,
-                PrivateDriverData = (IntPtr)destinationPointer,
-                PrivateDriverDataSize = checked((uint)(destination.Length * sizeof(char)))
-            };
-            if (D3DKMTQueryAdapterInfo(ref query) < 0) return Guid.Empty;
+            if (!D3DKMT.TryQueryAdapterInfo(
+                    adapterHandle,
+                    AdapterUniqueGUIDInformation,
+                    destinationPointer,
+                    checked((uint)(destination.Length * sizeof(char)))))
+                return Guid.Empty;
         }
 
         string uniqueGUID = ReadNullTerminatedString(destination);
@@ -784,41 +816,6 @@ internal static unsafe class D3DKMTAdapterIdentityReader
         int length = Array.IndexOf(value, value: '\0');
         if (length < 0) length = value.Length;
         return length == 0 ? string.Empty : new string(value, startIndex: 0, length);
-    }
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTOpenAdapterFromLuid(
-        ref D3DKMT_OPENADAPTERFROMLUID openAdapter);
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTQueryAdapterInfo(
-        ref D3DKMT_QUERYADAPTERINFO queryAdapterInfo);
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTCloseAdapter(
-        ref D3DKMT_CLOSEADAPTER closeAdapter);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NATIVE_LUID
-    {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct D3DKMT_OPENADAPTERFROMLUID
-    {
-        public NATIVE_LUID AdapterLUID;
-        public uint AdapterHandle;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct D3DKMT_QUERYADAPTERINFO
-    {
-        public uint AdapterHandle;
-        public int Type;
-        public IntPtr PrivateDriverData;
-        public uint PrivateDriverDataSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -894,119 +891,30 @@ internal static class GPUAdapterCounterInstanceParser
     }
 }
 
-internal static unsafe class DXGIAdapterEnumerator
+internal static class DXGIAdapterEnumerator
 {
-    private const int DXGIErrorNotFound = unchecked((int)0x887A0002);
-    private const uint DXGIAdapterFlagSoftware = 0x2;
-    private static readonly Guid FactoryInterfaceID = new("770aae78-f26f-4dba-a829-253c83d1b387");
-
     public static GPUAdapterMetadata[] Enumerate()
     {
-        Guid interfaceID = FactoryInterfaceID;
-        int result;
-        IntPtr factory;
-        try
+        List<DXGI.HardwareAdapter> hardwareAdapters = DXGI.EnumerateHardwareAdapters();
+        GPUAdapterMetadata[] adapters = new GPUAdapterMetadata[hardwareAdapters.Count];
+        for (int adapterIndex = 0; adapterIndex < adapters.Length; adapterIndex++)
         {
-            result = CreateDXGIFactory1(ref interfaceID, out factory);
-        }
-        catch (Exception exception) when (exception is DllNotFoundException
-                                              or EntryPointNotFoundException
-                                              or BadImageFormatException)
-        {
-            return [];
-        }
-
-        if (result < 0 || factory == IntPtr.Zero) return [];
-
-        List<GPUAdapterMetadata> adapters = [];
-        try
-        {
-            IntPtr* factoryVTable = *(IntPtr**)factory;
-            delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int> enumerateAdapters =
-                (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)factoryVTable[12];
-            for (uint adapterIndex = 0; adapterIndex < 256; adapterIndex++)
-            {
-                IntPtr adapter = IntPtr.Zero;
-                int enumerateResult = enumerateAdapters(factory, adapterIndex, &adapter);
-                if (enumerateResult == DXGIErrorNotFound) break;
-                if (enumerateResult < 0 || adapter == IntPtr.Zero) continue;
-
-                try
-                {
-                    IntPtr* adapterVTable = *(IntPtr**)adapter;
-                    delegate* unmanaged[Stdcall]<IntPtr, DXGI_ADAPTER_DESC1*, int> getDescription =
-                        (delegate* unmanaged[Stdcall]<IntPtr, DXGI_ADAPTER_DESC1*, int>)adapterVTable[10];
-                    DXGI_ADAPTER_DESC1 description = default;
-                    if (getDescription(adapter, &description) < 0
-                        || (description.Flags & DXGIAdapterFlagSoftware) != 0)
-                        continue;
-
-                    adapters.Add(new GPUAdapterMetadata(
-                        ToLUID(description.AdapterLUID),
-                        checked((int)adapterIndex),
-                        ReadDescription(description),
-                        description.VendorID,
-                        description.DeviceID,
-                        description.SubsystemID,
-                        description.Revision,
-                        description.DedicatedVideoMemory,
-                        description.SharedSystemMemory,
-                        HasValue: true));
-                }
-                finally
-                {
-                    Release(adapter);
-                }
-            }
-        }
-        finally
-        {
-            Release(factory);
+            DXGI.HardwareAdapter adapter = hardwareAdapters[adapterIndex];
+            DXGI.DXGI_ADAPTER_DESC1 description = adapter.Description;
+            adapters[adapterIndex] = new GPUAdapterMetadata(
+                description.AdapterLUID.ToUInt64(),
+                checked((int)adapter.Index),
+                description.ReadDescription(),
+                description.VendorID,
+                description.DeviceID,
+                description.SubsystemID,
+                description.Revision,
+                description.DedicatedVideoMemory,
+                description.SharedSystemMemory,
+                HasValue: true);
         }
 
-        return [.. adapters];
-    }
-
-    private static string ReadDescription(DXGI_ADAPTER_DESC1 description)
-    {
-        char* descriptionPointer = description.Description;
-        return new string(descriptionPointer).Trim();
-    }
-
-    private static ulong ToLUID(NATIVE_LUID value) =>
-        ((ulong)(uint)value.HighPart << 32) | value.LowPart;
-
-    private static void Release(IntPtr instance)
-    {
-        IntPtr* vTable = *(IntPtr**)instance;
-        delegate* unmanaged[Stdcall]<IntPtr, uint> release =
-            (delegate* unmanaged[Stdcall]<IntPtr, uint>)vTable[2];
-        _ = release(instance);
-    }
-
-    [DllImport("dxgi.dll", ExactSpelling = true)]
-    private static extern int CreateDXGIFactory1(ref Guid interfaceID, out IntPtr factory);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NATIVE_LUID
-    {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DXGI_ADAPTER_DESC1
-    {
-        public fixed char Description[128];
-        public uint VendorID;
-        public uint DeviceID;
-        public uint SubsystemID;
-        public uint Revision;
-        public nuint DedicatedVideoMemory;
-        public nuint DedicatedSystemMemory;
-        public nuint SharedSystemMemory;
-        public NATIVE_LUID AdapterLUID;
-        public uint Flags;
+        return adapters;
     }
 }
 

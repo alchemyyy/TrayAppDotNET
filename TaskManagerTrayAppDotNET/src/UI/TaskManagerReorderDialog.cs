@@ -11,14 +11,15 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     where TItem : class
 {
+    private static string L(string key) => LocalizationManager.Instance[key];
+
     private readonly List<TItem> _items;
     private readonly Func<List<TItem>> _createDefaultItems;
     private readonly Action<IReadOnlyList<TItem>> _itemsChanged;
     private readonly TaskManagerReorderList<TItem> _reorderList;
     private readonly SettingsVerticalScrollViewport? _scrollViewport;
     private readonly TextBox? _searchBox;
-    private readonly Grid _titleBar;
-    private readonly TrayAppDotNETCaptionCloseButton _closeButton;
+    private readonly UIResourceScope _chromeResources = new($"{nameof(TaskManagerReorderDialog<TItem>)}.Chrome");
     private readonly SettingsButton _resetButton;
     private readonly SettingsButton _cancelButton;
     private readonly SettingsButton _doneButton;
@@ -134,20 +135,29 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             _searchBox.MapTo(ControlMap.ReorderDialog.Search);
         }
 
-        _closeButton = new TrayAppDotNETCaptionCloseButton(palette).MapTo(ControlMap.ReorderDialog.TitleBar.Close);
-        _closeButton.Click += OnCancelClick;
-        TrayAppDotNETToolTip.SetTip(_closeButton, tip: "Close");
-        TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
-        _titleBar = BuildTitleBar(title, palette, resources, _closeButton);
-        _titleBar.PointerPressed += OnTitleBarPointerPressed;
+        Grid titleBar = TrayAppDotNETDialogChrome.TitleBar(
+            new TrayAppDotNETDialogTitleBarOptions
+            {
+                Window = this,
+                Title = title,
+                Palette = palette,
+                CloseTooltip = L(nameof(CommonStrings.Common_Close)),
+                Close = () => OnCancelClick(sender: null, EventArgs.Empty),
+                BarNode = ControlMap.ReorderDialog.TitleBar.ID,
+                CloseNode = ControlMap.ReorderDialog.TitleBar.Close,
+                FontSize = resources.AxamlTaskManagerReorderDialog.TitleFontSize,
+                TitleFontWeight = (FontWeight)resources.AxamlTaskManagerReorderDialog.TitleFontWeight,
+                TitleMargin = resources.AxamlTaskManagerReorderDialog.TitleMargin
+            },
+            _chromeResources);
 
-        _resetButton = TrayAppDotNETSettingsUI.Button(text: "Reset", palette)
+        _resetButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(AppStrings.Common_Reset)), palette)
             .MapTo(ControlMap.ReorderDialog.Footer.Reset);
         _resetButton.Click += OnResetClick;
-        _cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+        _cancelButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(CommonStrings.Common_Cancel)), palette)
             .MapTo(ControlMap.ReorderDialog.Footer.Cancel);
         _cancelButton.Click += OnCancelClick;
-        _doneButton = TrayAppDotNETSettingsUI.Button(text: "Done", palette)
+        _doneButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(AppStrings.Reorder_Done)), palette)
             .MapTo(ControlMap.ReorderDialog.Footer.Done);
         _doneButton.Click += OnDoneClick;
 
@@ -178,13 +188,13 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         {
             RowDefinitions =
             {
-                new RowDefinition(new GridLength(_closeButton.Height)),
+                new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
                 new RowDefinition(GridLength.Auto)
             }
         };
-        content.Children.Add(_titleBar);
+        content.Children.Add(titleBar);
 
         Border header = BuildHeader(
             description,
@@ -218,30 +228,6 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         this.MapCommand(ControlMap.ReorderDialog.Dismiss, Dismiss);
         Opened += OnOpened;
         Closed += OnClosed;
-    }
-
-    private static Grid BuildTitleBar(
-        string title,
-        SettingsPalette palette,
-        TaskManagerWindowResources resources,
-        TrayAppDotNETCaptionCloseButton closeButton)
-    {
-        Grid titleBar = new()
-        {
-            Background = Brushes.Transparent,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
-        };
-        TextBlock titleText = TrayAppDotNETSettingsUI.Text(
-            title,
-            palette,
-            resources.AxamlTaskManagerReorderDialog.TitleFontSize,
-            (FontWeight)resources.AxamlTaskManagerReorderDialog.TitleFontWeight);
-        titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleText.Margin = resources.AxamlTaskManagerReorderDialog.TitleMargin;
-        titleBar.Children.Add(titleText);
-        Grid.SetColumn(closeButton, value: 1);
-        titleBar.Children.Add(closeButton);
-        return titleBar;
     }
 
     private static Border BuildHeader(
@@ -382,16 +368,6 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
     private void PublishItemsChanged() => _itemsChanged([.. _items]);
 
-    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
-    {
-        if (Volatile.Read(ref _disposed) != 0) return;
-        if (!eventArgs.GetCurrentPoint(_titleBar).Properties.IsLeftButtonPressed) return;
-        if (_closeButton.IsPointerOver) return;
-
-        BeginMoveDrag(eventArgs);
-        eventArgs.Handled = true;
-    }
-
     // Escape anywhere in the dialog; the control map dispatches it
     private void Dismiss()
     {
@@ -434,8 +410,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
         Closed -= OnClosed;
         Opened -= OnOpened;
-        _titleBar.PointerPressed -= OnTitleBarPointerPressed;
-        _closeButton.Click -= OnCancelClick;
+        _chromeResources.Dispose();
         _resetButton.Click -= OnResetClick;
         _cancelButton.Click -= OnCancelClick;
         _doneButton.Click -= OnDoneClick;

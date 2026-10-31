@@ -223,7 +223,7 @@ internal static class PerformanceDeviceOrdering
     }
 
     private static int FindFallbackInsertionIndex(
-        IReadOnlyList<PerformanceDeviceOrderItem> resolved,
+        List<PerformanceDeviceOrderItem> resolved,
         PerformanceDeviceKind kind,
         IReadOnlyList<PerformanceDeviceKind> priority)
     {
@@ -261,7 +261,7 @@ internal static class PerformanceDeviceOrdering
     }
 
     private static List<string> ReconcileWithStaleExplicitIDs(
-        IReadOnlyList<string> visibleDeviceIDs,
+        List<string> visibleDeviceIDs,
         IEnumerable<string>? explicitDeviceIDs)
     {
         List<string> normalizedExplicitOrder = NormalizeExplicitOrder(explicitDeviceIDs);

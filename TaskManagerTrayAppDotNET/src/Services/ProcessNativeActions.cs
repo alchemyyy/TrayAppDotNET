@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -22,7 +25,6 @@ internal static class ProcessNativeActions
     private const uint ProcessSetInformation = 0x0200;
     private const uint ProcessQueryInformation = 0x0400;
     private const uint ProcessVirtualMemoryRead = 0x0010;
-    private const uint ToolhelpSnapshotProcesses = 0x00000002;
     private const uint MiniDumpWithFullMemory = 0x00000002;
     private const uint MiniDumpWithUnloadedModules = 0x00000020;
     private const uint MiniDumpWithThreadInfo = 0x00001000;
@@ -32,13 +34,10 @@ internal static class ProcessNativeActions
     private const int ShowMaximized = 3;
     private const int ShowMinimized = 6;
     private const int ShowRestored = 9;
-    private const uint GetWindowOwner = 4;
-    private const int WindowExtendedStyle = -20;
-    private const long WindowStyleToolWindow = 0x00000080L;
-    private const uint DwmWindowAttributeCloaked = 14;
 
-    private static readonly NativeMethods.EnumWindowsCallback EnumerateWindowCallback = OnEnumerateWindow;
+    private static readonly User32.EnumWindowsProc EnumerateWindowCallback = OnEnumerateWindow;
     private static readonly object MiniDumpLock = new();
+    private static int _enumerationFailureLogged;
 
     /// <summary>Returns whether the process currently owns a user-facing top-level window.</summary>
     public static bool HasTopLevelWindow(int processID) => TryResolveTopLevelWindow(processID, out _);
@@ -57,28 +56,49 @@ internal static class ProcessNativeActions
                 out errorMessage))
             return false;
 
-        List<ProcessTreeEntry> processEntries = [];
+        List<ProcessTreeNode> processes;
         try
         {
-            if (!TrySnapshotProcesses(processEntries, out errorMessage)) return false;
+            if (!TrySnapshotProcesses(out processes, out errorMessage)) return false;
         }
         finally
         {
             _ = Kernel32.CloseHandle(rootHandle);
         }
 
-        List<int> descendantProcessIDs = FindDescendantProcessIDs(target.ProcessID, processEntries);
-        if (descendantProcessIDs.Count == 0)
+        long rootCreationTime = target.CreationTimeFileTime;
+        if (rootCreationTime == 0)
+        {
+            foreach (ProcessTreeNode process in processes)
+            {
+                if (process.ProcessID != target.ProcessID) continue;
+                rootCreationTime = process.CreationTimeFileTime;
+                break;
+            }
+        }
+
+        if (rootCreationTime == 0)
+        {
+            errorMessage = "The process start time could not be read, so its child processes cannot be verified.";
+            return false;
+        }
+
+        List<ProcessTreeNode> descendants = ProcessTreeDescendants.Collect(
+            target.ProcessID,
+            rootCreationTime,
+            processes);
+        if (descendants.Count == 0)
         {
             errorMessage = string.Empty;
             return true;
         }
 
-        List<ProcessTerminationTarget> descendantTargets = new(descendantProcessIDs.Count);
+        List<ProcessTerminationTarget> descendantTargets = new(descendants.Count);
         List<string> failures = [];
-        for (int descendantIndex = 0; descendantIndex < descendantProcessIDs.Count; descendantIndex++)
+        for (int descendantIndex = 0; descendantIndex < descendants.Count; descendantIndex++)
         {
-            int processID = descendantProcessIDs[descendantIndex];
+            ProcessTreeNode descendant = descendants[descendantIndex];
+            int processID = descendant.ProcessID;
             if (processID == Environment.ProcessId)
             {
                 failures.Add($"PID {processID}: Task Manager will not terminate itself.");
@@ -104,8 +124,8 @@ internal static class ProcessNativeActions
                 continue;
             }
 
-            // A child cannot predate its root. This rejects stale parent PIDs after PID reuse.
-            if (target.CreationTimeFileTime != 0 && creationTime < target.CreationTimeFileTime)
+            // The PID was recycled after the snapshot: the process now behind it is not part of this tree.
+            if (creationTime != descendant.CreationTimeFileTime)
             {
                 _ = Kernel32.CloseHandle(processHandle);
                 continue;
@@ -332,32 +352,84 @@ internal static class ProcessNativeActions
         return win32Error == accessDenied;
     }
 
+    /// <summary>
+    /// Writes a full dump of <paramref name="target"/> into a new file in this user's temp folder. Used when this
+    /// process can read the target itself; for any other target the UI still creates the file here and the elevated
+    /// broker writes into it (<see cref="TryCreateDumpFile"/>, <see cref="TryWriteMemoryDump"/>).
+    /// </summary>
     public static bool TryCreateMemoryDump(
         ProcessTerminationTarget target,
         out string dumpPath,
         out string errorMessage)
     {
+        if (!TryCreateDumpFile(target, out dumpPath, out SafeFileHandle? file, out errorMessage)) return false;
+
+        bool written;
+        using (file)
+        {
+            written = TryWriteMemoryDump(target, file, out errorMessage);
+        }
+
+        if (written) return true;
+
+        DiscardDumpFile(dumpPath);
         dumpPath = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// Creates the empty, uniquely named dump file in this user's temp folder, open for read and write. This always
+    /// runs in the unelevated UI: a same-user process controls that folder (junctions included), so only a process
+    /// with the same rights may create files there.
+    /// </summary>
+    public static bool TryCreateDumpFile(
+        ProcessTerminationTarget target,
+        out string dumpPath,
+        [NotNullWhen(true)] out SafeFileHandle? file,
+        out string errorMessage)
+    {
+        dumpPath = string.Empty;
+        file = null;
+        string processName = $"Process-{target.ProcessID}";
+        if (TryOpenValidatedProcess(target, desiredAccess: 0, out IntPtr processHandle, out _))
+        {
+            if (TryResolveImagePath(processHandle, out string imagePath, out _))
+                processName = Path.GetFileNameWithoutExtension(imagePath);
+            _ = Kernel32.CloseHandle(processHandle);
+        }
+
+        try
+        {
+            string dumpDirectory = Path.Combine(Path.GetTempPath(), path2: "TaskManagerTrayAppDotNET");
+            Directory.CreateDirectory(dumpDirectory);
+            dumpPath = CreateUniqueDumpPath(dumpDirectory, processName, target.ProcessID);
+            file = File.OpenHandle(
+                dumpPath,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.Read,
+                FileOptions.SequentialScan);
+            errorMessage = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            dumpPath = string.Empty;
+            errorMessage = exception.Message;
+            return false;
+        }
+    }
+
+    /// <summary>Writes a full dump of <paramref name="target"/> into an open, empty file.</summary>
+    public static bool TryWriteMemoryDump(ProcessTerminationTarget target, SafeFileHandle file, out string errorMessage)
+    {
+        ArgumentNullException.ThrowIfNull(file);
         uint desiredAccess = ProcessQueryInformation | ProcessVirtualMemoryRead;
         if (!TryOpenValidatedProcess(target, desiredAccess, out IntPtr processHandle, out errorMessage))
             return false;
 
         try
         {
-            string processName = TryResolveImagePath(processHandle, out string imagePath, out _)
-                ? Path.GetFileNameWithoutExtension(imagePath)
-                : $"Process-{target.ProcessID}";
-            string dumpDirectory = Path.Combine(Path.GetTempPath(), path2: "TaskManagerTrayAppDotNET");
-            Directory.CreateDirectory(dumpDirectory);
-            dumpPath = CreateUniqueDumpPath(dumpDirectory, processName, target.ProcessID);
-
-            using FileStream output = new(
-                dumpPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read,
-                bufferSize: 1,
-                FileOptions.SequentialScan);
             const uint dumpFlags = MiniDumpWithFullMemory | MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo;
             bool dumpCreated;
             lock (MiniDumpLock)
@@ -366,7 +438,7 @@ internal static class ProcessNativeActions
                 dumpCreated = NativeMethods.MiniDumpWriteDump(
                     processHandle,
                     (uint)target.ProcessID,
-                    output.SafeFileHandle.DangerousGetHandle(),
+                    file,
                     dumpFlags,
                     IntPtr.Zero,
                     IntPtr.Zero,
@@ -379,24 +451,19 @@ internal static class ProcessNativeActions
                 return true;
             }
 
-            int dumpError = Marshal.GetLastWin32Error();
-            output.Dispose();
-            TryDeleteFile(dumpPath);
-            dumpPath = string.Empty;
-            errorMessage = DescribeWin32Error(dumpError);
-            return false;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            if (!string.IsNullOrEmpty(dumpPath)) TryDeleteFile(dumpPath);
-            dumpPath = string.Empty;
-            errorMessage = exception.Message;
+            errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
             return false;
         }
         finally
         {
             _ = Kernel32.CloseHandle(processHandle);
         }
+    }
+
+    /// <summary>Deletes a dump file that was not written; best effort.</summary>
+    public static void DiscardDumpFile(string dumpPath)
+    {
+        if (!string.IsNullOrEmpty(dumpPath)) TryDeleteFile(dumpPath);
     }
 
     public static bool TryOpenFileLocation(
@@ -451,21 +518,21 @@ internal static class ProcessNativeActions
         switch (action)
         {
             case ProcessWindowAction.SwitchTo:
-                if (NativeMethods.IsIconic(windowHandle))
-                    _ = NativeMethods.ShowWindowAsync(windowHandle, ShowRestored);
-                actionSucceeded = NativeMethods.SetForegroundWindow(windowHandle);
+                if (User32.IsIconic(windowHandle))
+                    _ = User32.ShowWindowAsync(windowHandle, ShowRestored);
+                actionSucceeded = User32.SetForegroundWindow(windowHandle);
                 break;
             case ProcessWindowAction.BringToFront:
-                if (NativeMethods.IsIconic(windowHandle))
-                    _ = NativeMethods.ShowWindowAsync(windowHandle, ShowRestored);
-                _ = NativeMethods.BringWindowToTop(windowHandle);
-                actionSucceeded = NativeMethods.SetForegroundWindow(windowHandle);
+                if (User32.IsIconic(windowHandle))
+                    _ = User32.ShowWindowAsync(windowHandle, ShowRestored);
+                _ = User32.BringWindowToTop(windowHandle);
+                actionSucceeded = User32.SetForegroundWindow(windowHandle);
                 break;
             case ProcessWindowAction.Minimize:
-                actionSucceeded = NativeMethods.ShowWindowAsync(windowHandle, ShowMinimized);
+                actionSucceeded = User32.ShowWindowAsync(windowHandle, ShowMinimized);
                 break;
             case ProcessWindowAction.Maximize:
-                actionSucceeded = NativeMethods.ShowWindowAsync(windowHandle, ShowMaximized);
+                actionSucceeded = User32.ShowWindowAsync(windowHandle, ShowMaximized);
                 break;
             default:
                 errorMessage = "The requested window action is invalid.";
@@ -513,18 +580,10 @@ internal static class ProcessNativeActions
         out string imagePath,
         out string errorMessage)
     {
-        StringBuilder pathBuffer = new(MaximumPathCharacters);
-        uint characterCount = (uint)pathBuffer.Capacity;
-        if (Kernel32.QueryFullProcessImageNameW(processHandle, dwFlags: 0, pathBuffer, ref characterCount))
-        {
-            imagePath = pathBuffer.ToString(startIndex: 0, checked((int)characterCount));
-            errorMessage = string.Empty;
-            return true;
-        }
-
-        imagePath = string.Empty;
-        errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
-        return false;
+        string? path = ProcessImagePath.TryGet(processHandle, new StringBuilder(MaximumPathCharacters));
+        imagePath = path ?? string.Empty;
+        errorMessage = path == null ? DescribeWin32Error(Marshal.GetLastPInvokeError()) : string.Empty;
+        return path != null;
     }
 
     private static bool TryValidateProcessIdentity(
@@ -542,7 +601,7 @@ internal static class ProcessNativeActions
         return true;
     }
 
-    private static bool TryOpenValidatedProcess(
+    internal static bool TryOpenValidatedProcess(
         ProcessTerminationTarget target,
         uint desiredAccess,
         out IntPtr processHandle,
@@ -627,83 +686,24 @@ internal static class ProcessNativeActions
     }
 
     private static bool TrySnapshotProcesses(
-        List<ProcessTreeEntry> processEntries,
+        out List<ProcessTreeNode> processes,
         out string errorMessage)
     {
-        IntPtr snapshotHandle = NativeMethods.CreateToolhelp32Snapshot(ToolhelpSnapshotProcesses, processID: 0);
-        if (snapshotHandle == new IntPtr(-1))
+        Dictionary<int, SystemProcessData> processData = [];
+        using SystemProcessSnapshot snapshot = new();
+        if (!snapshot.TryCapture(processData))
         {
-            errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
+            processes = [];
+            errorMessage = "The process list could not be read.";
             return false;
         }
 
-        try
-        {
-            NativeMethods.ProcessEntry processEntry = new()
-            {
-                Size = (uint)Marshal.SizeOf<NativeMethods.ProcessEntry>()
-            };
-            if (!NativeMethods.Process32First(snapshotHandle, ref processEntry))
-            {
-                errorMessage = DescribeWin32Error(Marshal.GetLastWin32Error());
-                return false;
-            }
+        processes = new List<ProcessTreeNode>(processData.Count);
+        foreach ((int processID, SystemProcessData process) in processData)
+            processes.Add(new ProcessTreeNode(processID, process.ParentProcessID, process.CreationTimeTicks));
 
-            do
-            {
-                processEntries.Add(new ProcessTreeEntry(
-                    checked((int)processEntry.ProcessID),
-                    checked((int)processEntry.ParentProcessID)));
-                processEntry.Size = (uint)Marshal.SizeOf<NativeMethods.ProcessEntry>();
-            } while (NativeMethods.Process32Next(snapshotHandle, ref processEntry));
-
-            errorMessage = string.Empty;
-            return true;
-        }
-        finally
-        {
-            _ = Kernel32.CloseHandle(snapshotHandle);
-        }
-    }
-
-    private static List<int> FindDescendantProcessIDs(
-        int rootProcessID,
-        IReadOnlyList<ProcessTreeEntry> processEntries)
-    {
-        Dictionary<int, List<int>> childrenByParent = new(processEntries.Count);
-        for (int entryIndex = 0; entryIndex < processEntries.Count; entryIndex++)
-        {
-            ProcessTreeEntry processEntry = processEntries[entryIndex];
-            if (!childrenByParent.TryGetValue(processEntry.ParentProcessID, out List<int>? children))
-            {
-                children = [];
-                childrenByParent.Add(processEntry.ParentProcessID, children);
-            }
-
-            children.Add(processEntry.ProcessID);
-        }
-
-        List<int> descendants = [];
-        HashSet<int> visited = [rootProcessID];
-        int parentIndex = -1;
-        while (true)
-        {
-            int parentProcessID = parentIndex < 0 ? rootProcessID : descendants[parentIndex];
-            if (childrenByParent.TryGetValue(parentProcessID, out List<int>? children))
-            {
-                for (int childIndex = 0; childIndex < children.Count; childIndex++)
-                {
-                    int childProcessID = children[childIndex];
-                    if (childProcessID > 0 && visited.Add(childProcessID))
-                        descendants.Add(childProcessID);
-                }
-            }
-
-            parentIndex++;
-            if (parentIndex >= descendants.Count) break;
-        }
-
-        return descendants;
+        errorMessage = string.Empty;
+        return true;
     }
 
     private static bool TryResolveTopLevelWindow(int processID, out IntPtr windowHandle)
@@ -712,7 +712,7 @@ internal static class ProcessNativeActions
         GCHandle stateHandle = GCHandle.Alloc(state, GCHandleType.Normal);
         try
         {
-            _ = NativeMethods.EnumWindows(
+            _ = User32.EnumWindows(
                 EnumerateWindowCallback,
                 GCHandle.ToIntPtr(stateHandle));
             windowHandle = state.WindowHandle;
@@ -726,32 +726,30 @@ internal static class ProcessNativeActions
 
     private static bool OnEnumerateWindow(IntPtr windowHandle, IntPtr statePointer)
     {
-        GCHandle stateHandle = GCHandle.FromIntPtr(statePointer);
-        if (stateHandle.Target is not WindowEnumerationState state) return false;
+        // An exception must never unwind into user32: under Native AOT that terminates the process
+        try
+        {
+            GCHandle stateHandle = GCHandle.FromIntPtr(statePointer);
+            if (stateHandle.Target is not WindowEnumerationState state) return false;
 
-        _ = NativeMethods.GetWindowThreadProcessId(windowHandle, out uint processID);
-        if (processID != (uint)state.ProcessID || !IsUserFacingWindow(windowHandle)) return true;
+            _ = User32.GetWindowThreadProcessId(windowHandle, out uint processID);
+            if (processID != (uint)state.ProcessID || !IsUserFacingWindow(windowHandle)) return true;
 
-        state.WindowHandle = windowHandle;
-        return false;
+            state.WindowHandle = windowHandle;
+            return false;
+        }
+        catch (Exception exception)
+        {
+            if (Interlocked.Exchange(ref _enumerationFailureLogged, value: 1) == 0)
+                TADNLog.Log($"ProcessNativeActions: window enumeration callback failed: {exception}");
+            return false;
+        }
     }
 
-    private static bool IsUserFacingWindow(IntPtr windowHandle)
-    {
-        if (!NativeMethods.IsWindow(windowHandle) || !NativeMethods.IsWindowVisible(windowHandle)) return false;
-        if (NativeMethods.GetWindow(windowHandle, GetWindowOwner) != IntPtr.Zero) return false;
-        if (NativeMethods.GetWindowTextLength(windowHandle) <= 0) return false;
-
-        long extendedStyle = NativeMethods.GetWindowLongPtr(windowHandle, WindowExtendedStyle).ToInt64();
-        if ((extendedStyle & WindowStyleToolWindow) != 0) return false;
-
-        int result = NativeMethods.DwmGetWindowAttribute(
-            windowHandle,
-            DwmWindowAttributeCloaked,
-            out int isCloaked,
-            sizeof(int));
-        return result != 0 || isCloaked == 0;
-    }
+    // An unreadable cloak state counts as user-facing here: switching to a window that turns out to be cloaked is
+    // harmless, while hiding the Switch to entry for a real window is not
+    private static bool IsUserFacingWindow(IntPtr windowHandle) =>
+        TopLevelWindowClassifier.Classify(windowHandle) != TopLevelWindowClass.NotQualifying;
 
     private static string CreateUniqueDumpPath(string directory, string processName, int processID)
     {
@@ -806,8 +804,6 @@ internal static class ProcessNativeActions
         Maximize
     }
 
-    private readonly record struct ProcessTreeEntry(int ProcessID, int ParentProcessID);
-
     private sealed class WindowEnumerationState(int processID)
     {
         public int ProcessID { get; } = processID;
@@ -816,38 +812,6 @@ internal static class ProcessNativeActions
 
     private static class NativeMethods
     {
-        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public delegate bool EnumWindowsCallback(IntPtr windowHandle, IntPtr parameter);
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct ProcessEntry
-        {
-            public uint Size;
-            public uint UsageCount;
-            public uint ProcessID;
-            public nuint DefaultHeapID;
-            public uint ModuleID;
-            public uint ThreadCount;
-            public uint ParentProcessID;
-            public int BasePriority;
-            public uint Flags;
-
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-            public string? ExecutableFile;
-        }
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processID);
-
-        [DllImport("kernel32.dll", EntryPoint = "Process32FirstW", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool Process32First(IntPtr snapshot, ref ProcessEntry entry);
-
-        [DllImport("kernel32.dll", EntryPoint = "Process32NextW", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool Process32Next(IntPtr snapshot, ref ProcessEntry entry);
-
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern uint GetPriorityClass(IntPtr processHandle);
 
@@ -866,62 +830,17 @@ internal static class ProcessNativeActions
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetProcessAffinityMask(IntPtr processHandle, nuint processAffinityMask);
 
+        // Runs in the elevated broker too: never resolve dbghelp.dll from the application folder or PATH.
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("dbghelp.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool MiniDumpWriteDump(
             IntPtr processHandle,
             uint processID,
-            IntPtr fileHandle,
+            SafeFileHandle fileHandle,
             uint dumpType,
             IntPtr exceptionParameters,
             IntPtr userStreamParameters,
             IntPtr callbackParameters);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
-
-        [DllImport("user32.dll")]
-        public static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processID);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsWindow(IntPtr windowHandle);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsWindowVisible(IntPtr windowHandle);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsIconic(IntPtr windowHandle);
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
-        public static extern IntPtr GetWindowLongPtr(IntPtr windowHandle, int index);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetWindow(IntPtr windowHandle, uint command);
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowTextLengthW", CharSet = CharSet.Unicode)]
-        public static extern int GetWindowTextLength(IntPtr windowHandle);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ShowWindowAsync(IntPtr windowHandle, int command);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool BringWindowToTop(IntPtr windowHandle);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetForegroundWindow(IntPtr windowHandle);
-
-        [DllImport("dwmapi.dll")]
-        public static extern int DwmGetWindowAttribute(
-            IntPtr windowHandle,
-            uint attribute,
-            out int value,
-            uint valueSize);
     }
 }

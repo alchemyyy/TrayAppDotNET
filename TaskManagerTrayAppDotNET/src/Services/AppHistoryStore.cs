@@ -3,8 +3,16 @@ using System.Diagnostics;
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Accumulates process CPU deltas and sampled network rates for the current app session.</summary>
+/// <remarks>
+/// CPU time comes from cumulative per-process counters, so a sample after any gap adds exactly what ran. The network
+/// column is a rate, so network bytes are only added for time the page was actually sampling: the page pauses
+/// sampling when it deactivates, and a single step never covers more than a few sampler intervals.
+/// </remarks>
 internal sealed class AppHistoryStore
 {
+    /// <summary>The longest gap one network step may cover: a few process-sampler refresh intervals.</summary>
+    internal const double MaximumNetworkStepSeconds = 3.0 * ProcessSnapshotService.RefreshIntervalMilliseconds / 1000.0;
+
     private readonly Lock _gate = new();
 
     private readonly Dictionary<string, AppAccumulator> _apps =
@@ -130,11 +138,22 @@ internal sealed class AppHistoryStore
 
     internal void Reset(DateTimeOffset startedAt) => DeleteHistory(startedAt);
 
+    /// <summary>
+    /// Stops accounting time until the next sample: the page calls this when it stops consuming snapshots, so the
+    /// time it was inactive never multiplies a later network rate.
+    /// </summary>
+    public void PauseSampling()
+    {
+        lock (_gate)
+            _hasSampleTimestamp = false;
+    }
+
     private double ResolveElapsedSeconds(long sampleTimestamp)
     {
         if (!_hasSampleTimestamp || sampleTimestamp <= _lastSampleTimestamp) return 0;
 
-        return (sampleTimestamp - _lastSampleTimestamp) / (double)Stopwatch.Frequency;
+        double elapsedSeconds = (sampleTimestamp - _lastSampleTimestamp) / (double)Stopwatch.Frequency;
+        return Math.Min(elapsedSeconds, MaximumNetworkStepSeconds);
     }
 
     private AppAccumulator GetOrCreateApp(ProcessImageIdentity image)

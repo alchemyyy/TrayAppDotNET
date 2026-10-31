@@ -35,11 +35,16 @@ internal static class StartupApprovalWire
         if (!Enum.IsDefined((StartupAppScope)scopeValue) || !Enum.IsDefined((StartupAppRegistryView)viewValue))
             return false;
 
-        target = new StartupAppApprovalTarget(
+        StartupAppApprovalTarget decoded = new(
             (StartupAppScope)scopeValue,
             (StartupAppRegistryView)viewValue,
             fields[2],
             fields[3]);
+
+        // Only the StartupApproved subkeys with a named value may reach the elevated registry write
+        if (!decoded.IsValid) return false;
+
+        target = decoded;
         return true;
     }
 }

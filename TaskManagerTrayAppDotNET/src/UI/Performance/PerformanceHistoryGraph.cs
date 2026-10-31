@@ -439,7 +439,7 @@ internal sealed class PerformanceHistoryGraph : Control
             _secondaryLineThickness);
     }
 
-    private IBrush CreateUnderfillBrush(Color accent) =>
+    private SolidColorBrush CreateUnderfillBrush(Color accent) =>
         new SolidColorBrush(PerformanceGraphRendering.CreateUnderfillColor(
             accent,
             _underfillOpacity,

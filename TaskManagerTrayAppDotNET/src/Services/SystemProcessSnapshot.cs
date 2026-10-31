@@ -1,9 +1,12 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Reads all core process counters with one SystemProcessInformation query.</summary>
-internal sealed class SystemProcessSnapshot : IDisposable
+// Records are read in place from the native buffer (no Marshal.PtrToStructure boxing per process and thread per tick)
+internal sealed unsafe class SystemProcessSnapshot : IDisposable
 {
     private const int SystemProcessInformation = 5;
     private const int SystemFullProcessInformation = 148;
@@ -30,6 +33,9 @@ internal sealed class SystemProcessSnapshot : IDisposable
     private bool _disposed;
 
     public bool HasJobObjectIDs => _hasJobObjectIDs;
+
+    /// <summary>Totals of the last successful <see cref="TryCapture"/>, counted like <see cref="TryCaptureTotals"/>.</summary>
+    public SystemProcessTotals LastCaptureTotals { get; private set; }
 
     public bool TryCapture(
         Dictionary<int, SystemProcessData> destination,
@@ -75,8 +81,8 @@ internal sealed class SystemProcessSnapshot : IDisposable
         int entryOffset = 0;
         while (entryOffset + ProcessHeaderSize <= validLength)
         {
-            SYSTEM_PROCESS_INFORMATION process =
-                Marshal.PtrToStructure<SYSTEM_PROCESS_INFORMATION>(IntPtr.Add(_buffer, entryOffset));
+            ref readonly SYSTEM_PROCESS_INFORMATION process =
+                ref *(SYSTEM_PROCESS_INFORMATION*)IntPtr.Add(_buffer, entryOffset);
             processCount++;
             threadCount += process.NumberOfThreads;
             handleCount += process.HandleCount;
@@ -128,14 +134,15 @@ internal sealed class SystemProcessSnapshot : IDisposable
         EnsureBuffer(InitialBufferSize);
         for (int attempt = 0; attempt < 4; attempt++)
         {
-            int status = NtQuerySystemInformation(
+            uint requiredLength;
+            int status = NtDll.NtQuerySystemInformation(
                 informationClass,
-                _buffer,
-                _bufferSize,
-                out int requiredLength);
+                (void*)_buffer,
+                (uint)_bufferSize,
+                &requiredLength);
             if (status >= 0)
             {
-                validLength = requiredLength > 0 ? requiredLength : _bufferSize;
+                validLength = requiredLength > 0 ? checked((int)requiredLength) : _bufferSize;
                 return true;
             }
 
@@ -143,7 +150,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
                 return false;
 
             int requestedSize = requiredLength > _bufferSize
-                ? checked(requiredLength + BufferGrowthSlack)
+                ? checked((int)requiredLength + BufferGrowthSlack)
                 : checked(_bufferSize * 2);
             EnsureBuffer(Math.Min(MaximumBufferSize, requestedSize));
         }
@@ -157,11 +164,16 @@ internal sealed class SystemProcessSnapshot : IDisposable
         bool hasFullProcessInformation)
     {
         int entryOffset = 0;
+        uint processCount = 0;
+        ulong totalThreadCount = 0;
+        ulong totalHandleCount = 0;
         while (entryOffset >= 0 && entryOffset + ProcessHeaderSize <= validLength)
         {
             IntPtr entryAddress = IntPtr.Add(_buffer, entryOffset);
-            SYSTEM_PROCESS_INFORMATION process =
-                Marshal.PtrToStructure<SYSTEM_PROCESS_INFORMATION>(entryAddress);
+            ref readonly SYSTEM_PROCESS_INFORMATION process = ref *(SYSTEM_PROCESS_INFORMATION*)entryAddress;
+            processCount++;
+            totalThreadCount += process.NumberOfThreads;
+            totalHandleCount += process.HandleCount;
             long processIDValue = process.UniqueProcessID.ToInt64();
             if (processIDValue is >= 0 and <= int.MaxValue)
             {
@@ -211,7 +223,15 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     jobObjectID);
             }
 
-            if (process.NextEntryOffset == 0) return true;
+            if (process.NextEntryOffset == 0)
+            {
+                LastCaptureTotals = new SystemProcessTotals(
+                    processCount,
+                    ToUInt32(totalThreadCount),
+                    ToUInt32(totalHandleCount));
+                return true;
+            }
+
             if (process.NextEntryOffset > int.MaxValue
                 || process.NextEntryOffset < ProcessHeaderSize
                 || entryOffset > validLength - (int)process.NextEntryOffset)
@@ -253,8 +273,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
         if (extensionOffset < 0 || extensionOffset > entryLength - ProcessExtensionSize) return -1;
 
         IntPtr extensionAddress = IntPtr.Add(entryAddress, (int)extensionOffset);
-        SYSTEM_PROCESS_INFORMATION_EXTENSION extension =
-            Marshal.PtrToStructure<SYSTEM_PROCESS_INFORMATION_EXTENSION>(extensionAddress);
+        SYSTEM_PROCESS_INFORMATION_EXTENSION extension = *(SYSTEM_PROCESS_INFORMATION_EXTENSION*)extensionAddress;
         return extension.JobObjectID;
     }
 
@@ -289,8 +308,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
         int sampleCount = 0;
         for (int threadIndex = 0; threadIndex < maximumSampleCount; threadIndex++)
         {
-            SYSTEM_THREAD_INFORMATION thread =
-                Marshal.PtrToStructure<SYSTEM_THREAD_INFORMATION>(threadAddress);
+            ref readonly SYSTEM_THREAD_INFORMATION thread = ref *(SYSTEM_THREAD_INFORMATION*)threadAddress;
             long threadID = thread.ClientID.UniqueThread.ToInt64();
             if (threadID > 0)
             {
@@ -314,8 +332,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
         IntPtr threadAddress = IntPtr.Add(processAddress, ProcessHeaderSize);
         for (int threadIndex = 0; threadIndex < threadCount; threadIndex++)
         {
-            SYSTEM_THREAD_INFORMATION thread =
-                Marshal.PtrToStructure<SYSTEM_THREAD_INFORMATION>(threadAddress);
+            ref readonly SYSTEM_THREAD_INFORMATION thread = ref *(SYSTEM_THREAD_INFORMATION*)threadAddress;
             if (thread.ThreadState != WaitingThreadState || thread.WaitReason != SuspendedWaitReason)
                 return false;
             threadAddress = IntPtr.Add(threadAddress, _activeThreadEntrySize);
@@ -332,8 +349,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
             return string.Empty;
 
         IntPtr processAddress = IntPtr.Add(_buffer, process.NativeEntryOffset);
-        SYSTEM_PROCESS_INFORMATION nativeProcess =
-            Marshal.PtrToStructure<SYSTEM_PROCESS_INFORMATION>(processAddress);
+        ref readonly SYSTEM_PROCESS_INFORMATION nativeProcess = ref *(SYSTEM_PROCESS_INFORMATION*)processAddress;
         if (nativeProcess.ImageName.Buffer == IntPtr.Zero || nativeProcess.ImageName.Length == 0)
             return string.Empty;
 
@@ -396,21 +412,6 @@ internal sealed class SystemProcessSnapshot : IDisposable
         ReleaseBuffer();
     }
 
-    [DllImport("ntdll.dll")]
-    private static extern int NtQuerySystemInformation(
-        int systemInformationClass,
-        IntPtr systemInformation,
-        int systemInformationLength,
-        out int returnLength);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct UNICODE_STRING
-    {
-        public ushort Length;
-        public ushort MaximumLength;
-        public IntPtr Buffer;
-    }
-
     [StructLayout(LayoutKind.Sequential)]
     private struct SYSTEM_PROCESS_INFORMATION
     {
@@ -423,7 +424,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
         public long CreateTime;
         public long UserTime;
         public long KernelTime;
-        public UNICODE_STRING ImageName;
+        public NtDll.UNICODE_STRING ImageName;
         public int BasePriority;
         public IntPtr UniqueProcessID;
         public IntPtr InheritedFromUniqueProcessID;
@@ -527,3 +528,41 @@ internal readonly record struct SystemProcessTotals(
     uint ProcessCount,
     uint ThreadCount,
     uint HandleCount);
+
+/// <summary>Process totals a sampler already took this tick, so another sampler need not walk the process list again.</summary>
+internal interface IRecentProcessTotals
+{
+    /// <summary>Returns the latest totals when they were captured no longer than <paramref name="maxAge"/> ago.</summary>
+    bool TryGetRecent(TimeSpan maxAge, out SystemProcessTotals totals);
+}
+
+/// <summary>Thread-safe holder of the latest published process totals and their capture time.</summary>
+internal sealed class RecentProcessTotals(Func<long> getTimestamp) : IRecentProcessTotals
+{
+    private Reading? _latest;
+
+    public RecentProcessTotals()
+        : this(Stopwatch.GetTimestamp)
+    {
+    }
+
+    public void Publish(SystemProcessTotals totals) => Volatile.Write(ref _latest, new Reading(totals, getTimestamp()));
+
+    public void Clear() => Volatile.Write(ref _latest, value: null);
+
+    public bool TryGetRecent(TimeSpan maxAge, out SystemProcessTotals totals)
+    {
+        Reading? latest = Volatile.Read(ref _latest);
+        if (latest == null
+            || Stopwatch.GetElapsedTime(latest.Timestamp, getTimestamp()) > maxAge)
+        {
+            totals = default;
+            return false;
+        }
+
+        totals = latest.Totals;
+        return true;
+    }
+
+    private sealed record Reading(SystemProcessTotals Totals, long Timestamp);
+}

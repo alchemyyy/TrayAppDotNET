@@ -75,7 +75,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         HeaderActions.MapTo(ControlMap.TaskManagerTablePage.Actions.ID);
-        _runTaskButton = AddHeaderAction(label: "Run new task", OnRunTaskClick)
+        _runTaskButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_RunNewTask)], OnRunTaskClick)
             .MapTo(ControlMap.TaskManagerTablePage.Actions.RunNewTask);
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
@@ -99,13 +99,13 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             resources.AxamlTaskManagerDetails.RunInputWidth);
         _runInput.Width = double.NaN;
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _runInput.PlaceholderText = "Executable, document, or URI";
+        _runInput.PlaceholderText = LocalizationManager.Instance[nameof(AppStrings.Processes_Run_Placeholder)];
         _runInput.KeyDown += OnRunInputKeyDown;
         _runInput.MapTo(ControlMap.TaskManagerTablePage.RunTask.CommandLine);
-        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette)
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.Processes_Run_Button)], palette)
             .MapTo(ControlMap.TaskManagerTablePage.RunTask.Run);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(CommonStrings.Common_Cancel)], palette)
             .MapTo(ControlMap.TaskManagerTablePage.RunTask.Cancel);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel();
@@ -135,7 +135,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
 
         Grid tableSurface = new();
         tableSurface.Children.Add(_table);
-        _emptyMessage = TrayAppDotNETSettingsUI.DescriptionText(text: "No items to display.", palette);
+        _emptyMessage = TrayAppDotNETSettingsUI.DescriptionText(text: LocalizationManager.Instance[nameof(AppStrings.Table_NoItems)], palette);
         _emptyMessage.HorizontalAlignment = HorizontalAlignment.Center;
         _emptyMessage.VerticalAlignment = VerticalAlignment.Center;
         _emptyMessage.IsHitTestVisible = false;
@@ -273,7 +273,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         button.Padding = _resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
         button.Label.FontSize = _resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
         GlyphApplicator.ApplyTo(button.Label, TaskManagerGlyphCatalog.MORE);
-        TrayAppDotNETToolTip.SetTip(button, tip: "More");
+        TrayAppDotNETToolTip.SetTip(button, tip: LocalizationManager.Instance[nameof(AppStrings.Processes_More)]);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
         return button;
     }

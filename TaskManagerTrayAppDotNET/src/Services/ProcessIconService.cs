@@ -1,8 +1,5 @@
-using System.Runtime.InteropServices;
-using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 
 namespace TaskManagerTrayAppDotNET.Services;
@@ -17,8 +14,6 @@ internal sealed class ProcessIconService : IDisposable
     private const int MaximumCachedIconCount = 256;
     private const int MaximumPendingRequestCount = 64;
     private const int MaximumResultsPerDispatcherPass = 16;
-    private const uint MultithreadedApartment = 0;
-    private const int RPCChangedMode = unchecked((int)0x80010106);
 
     private readonly Lock _workerGate = new();
     private readonly Queue<ProcessIconSource> _pendingRequests = new(MaximumPendingRequestCount);
@@ -104,31 +99,23 @@ internal sealed class ProcessIconService : IDisposable
 
     private void ProcessRequests()
     {
-        int initializationResult = CoInitializeEx(IntPtr.Zero, MultithreadedApartment);
-        bool uninitializeCOM = initializationResult >= 0;
-        if (initializationResult < 0 && initializationResult != RPCChangedMode)
-            TADNLog.Log($"ProcessIconService.CoInitializeEx failed: 0x{initializationResult:X8}");
+        using ComApartmentScope apartment = ComApartmentScope.Enter(Ole32.COINIT_MULTITHREADED);
+        if (!apartment.IsUsable)
+            TADNLog.Log($"ProcessIconService.CoInitializeEx failed: 0x{apartment.HResult:X8}");
 
-        try
+        while (TryTakeRequest(out ProcessIconSource source))
         {
-            while (TryTakeRequest(out ProcessIconSource source))
+            IconPixels? pixels = null;
+            try
             {
-                IconPixels? pixels = null;
-                try
-                {
-                    pixels = ExtractIcon(source);
-                }
-                catch (Exception exception)
-                {
-                    TADNLog.Log($"ProcessIconService extraction failed for '{source}': {exception}");
-                }
-
-                QueueCompletedResult(new IconLoadResult(source, pixels));
+                pixels = ExtractIcon(source);
             }
-        }
-        finally
-        {
-            if (uninitializeCOM) CoUninitialize();
+            catch (Exception exception)
+            {
+                TADNLog.Log($"ProcessIconService extraction failed for '{source}': {exception}");
+            }
+
+            QueueCompletedResult(new IconLoadResult(source, pixels));
         }
     }
 
@@ -275,184 +262,35 @@ internal sealed class ProcessIconService : IDisposable
 
     private static IconPixels? ExtractIcon(ProcessIconSource source)
     {
+        const IconExtraction.SIIGBF shellFlags = IconExtraction.SIIGBF.SIIGBF_ICONONLY
+                                                 | IconExtraction.SIIGBF.SIIGBF_RESIZETOFIT;
         if (!string.IsNullOrWhiteSpace(source.ApplicationUserModelID))
         {
-            IconPixels? packagedIcon = ExtractFromShell(source.ApplicationUserModelID, isApplicationID: true);
+            IconPixels? packagedIcon = IconExtraction.TryExtractShellImage(
+                source.ApplicationUserModelID,
+                isApplicationID: true,
+                IconPixelSize,
+                shellFlags,
+                MaximumExtractedIconDimension);
             if (packagedIcon.HasValue) return packagedIcon;
         }
 
         if (string.IsNullOrWhiteSpace(source.ExecutablePath)) return null;
 
-        IconPixels? shellIcon = ExtractFromShell(source.ExecutablePath, isApplicationID: false);
-        return shellIcon ?? ExtractFromExecutable(source.ExecutablePath);
+        return IconExtraction.TryExtractShellImage(
+                   source.ExecutablePath,
+                   isApplicationID: false,
+                   IconPixelSize,
+                   shellFlags,
+                   MaximumExtractedIconDimension)
+               ?? IconExtraction.TryExtractDefaultIcon(
+                   source.ExecutablePath,
+                   iconIndex: 0,
+                   IconPixelSize,
+                   MaximumExtractedIconDimension);
     }
 
-    private static IconPixels? ExtractFromShell(string identity, bool isApplicationID)
-    {
-        IntPtr factoryPointer = IntPtr.Zero;
-        try
-        {
-            int result = isApplicationID
-                ? IconExtraction.SHCreateItemInKnownFolder(
-                    in IconExtraction.AppsFolderID,
-                    IconExtraction.KF_FLAG_DONT_VERIFY,
-                    identity,
-                    in IconExtraction.ShellItemImageFactoryIid,
-                    out factoryPointer)
-                : IconExtraction.SHCreateItemFromParsingName(
-                    identity,
-                    IntPtr.Zero,
-                    in IconExtraction.ShellItemImageFactoryIid,
-                    out factoryPointer);
-            if (result < 0 || factoryPointer == IntPtr.Zero) return null;
-
-            IntPtr bitmapHandle = IntPtr.Zero;
-            try
-            {
-                using IconExtraction.ShellImageFactory factory = new(factoryPointer);
-                factoryPointer = IntPtr.Zero;
-                IconExtraction.SIZE size = new() { cx = IconPixelSize, cy = IconPixelSize };
-                const IconExtraction.SIIGBF flags = IconExtraction.SIIGBF.SIIGBF_ICONONLY
-                                                    | IconExtraction.SIIGBF.SIIGBF_RESIZETOFIT;
-                result = factory.GetImage(size, flags, out bitmapHandle);
-                return result < 0 || bitmapHandle == IntPtr.Zero
-                    ? null
-                    : ReadBitmapPixels(bitmapHandle);
-            }
-            finally
-            {
-                if (bitmapHandle != IntPtr.Zero) IconExtraction.DeleteObject(bitmapHandle);
-            }
-        }
-        finally
-        {
-            if (factoryPointer != IntPtr.Zero) Marshal.Release(factoryPointer);
-        }
-    }
-
-    private static IconPixels? ExtractFromExecutable(string executablePath)
-    {
-        IntPtr largeIconHandle = IntPtr.Zero;
-        IntPtr smallIconHandle = IntPtr.Zero;
-        try
-        {
-            const uint iconSizes = ((uint)IconPixelSize << 16) | IconPixelSize;
-            int result = IconExtraction.SHDefExtractIconW(
-                executablePath,
-                iIndex: 0,
-                uFlags: 0,
-                out largeIconHandle,
-                out smallIconHandle,
-                iconSizes);
-            if (result < 0) return null;
-
-            IntPtr selectedIconHandle = largeIconHandle != IntPtr.Zero ? largeIconHandle : smallIconHandle;
-            return selectedIconHandle == IntPtr.Zero ? null : ReadIconPixels(selectedIconHandle);
-        }
-        finally
-        {
-            if (largeIconHandle != IntPtr.Zero) User32.DestroyIcon(largeIconHandle);
-            if (smallIconHandle != IntPtr.Zero) User32.DestroyIcon(smallIconHandle);
-        }
-    }
-
-    private static IconPixels? ReadIconPixels(IntPtr iconHandle)
-    {
-        if (!IconExtraction.GetIconInfo(iconHandle, out IconExtraction.ICONINFO iconInfo)) return null;
-
-        try
-        {
-            return iconInfo.hbmColor == IntPtr.Zero ? null : ReadBitmapPixels(iconInfo.hbmColor);
-        }
-        finally
-        {
-            if (iconInfo.hbmColor != IntPtr.Zero) IconExtraction.DeleteObject(iconInfo.hbmColor);
-            if (iconInfo.hbmMask != IntPtr.Zero) IconExtraction.DeleteObject(iconInfo.hbmMask);
-        }
-    }
-
-    private static IconPixels? ReadBitmapPixels(IntPtr bitmapHandle)
-    {
-        if (IconExtraction.GetObject(
-                bitmapHandle,
-                Marshal.SizeOf<IconExtraction.BITMAP>(),
-                out IconExtraction.BITMAP bitmapInfo) == 0
-            || bitmapInfo.bmWidth <= 0
-            || bitmapInfo.bmHeight == 0)
-            return null;
-
-        int width = bitmapInfo.bmWidth;
-        int height = Math.Abs(bitmapInfo.bmHeight);
-        if (width > MaximumExtractedIconDimension || height > MaximumExtractedIconDimension) return null;
-
-        int stride = checked(width * 4);
-        byte[] pixels = new byte[checked(stride * height)];
-        GCHandle pixelsHandle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
-        IntPtr deviceContext = IntPtr.Zero;
-        try
-        {
-            IconExtraction.BITMAPINFO requestedFormat = new()
-            {
-                bmiHeader = new IconExtraction.BITMAPINFOHEADER
-                {
-                    biSize = (uint)Marshal.SizeOf<IconExtraction.BITMAPINFOHEADER>(),
-                    biWidth = width,
-                    biHeight = -height,
-                    biPlanes = 1,
-                    biBitCount = 32,
-                    biCompression = IconExtraction.BI_RGB,
-                    biSizeImage = (uint)pixels.Length
-                }
-            };
-
-            deviceContext = IconExtraction.GetDC(IntPtr.Zero);
-            if (deviceContext == IntPtr.Zero) return null;
-
-            int copiedLineCount = IconExtraction.GetDIBits(
-                deviceContext,
-                bitmapHandle,
-                start: 0,
-                (uint)height,
-                pixelsHandle.AddrOfPinnedObject(),
-                ref requestedFormat,
-                IconExtraction.DIB_RGB_COLORS);
-            return copiedLineCount == 0 ? null : new IconPixels(width, height, pixels);
-        }
-        finally
-        {
-            if (deviceContext != IntPtr.Zero) _ = IconExtraction.ReleaseDC(IntPtr.Zero, deviceContext);
-            pixelsHandle.Free();
-        }
-    }
-
-    private static WriteableBitmap CreateBitmap(IconPixels pixels)
-    {
-        WriteableBitmap bitmap = new(
-            new PixelSize(pixels.Width, pixels.Height),
-            new Vector(x: 96, y: 96),
-            PixelFormat.Bgra8888,
-            AlphaFormat.Unpremul);
-        try
-        {
-            using ILockedFramebuffer framebuffer = bitmap.Lock();
-            int sourceStride = pixels.Width * 4;
-            for (int rowIndex = 0; rowIndex < pixels.Height; rowIndex++)
-            {
-                Marshal.Copy(
-                    pixels.BGRA,
-                    rowIndex * sourceStride,
-                    IntPtr.Add(framebuffer.Address, rowIndex * framebuffer.RowBytes),
-                    Math.Min(sourceStride, framebuffer.RowBytes));
-            }
-
-            return bitmap;
-        }
-        catch
-        {
-            bitmap.Dispose();
-            throw;
-        }
-    }
+    private static WriteableBitmap CreateBitmap(IconPixels pixels) => IconPixelsBitmap.ToBitmap(pixels);
 
     private void ClearCompletedResults()
     {
@@ -495,14 +333,6 @@ internal sealed class ProcessIconService : IDisposable
             TADNLog.Log($"ProcessIconService bitmap disposal failed: {exception.Message}");
         }
     }
-
-    [DllImport("ole32.dll")]
-    private static extern int CoInitializeEx(IntPtr reserved, uint initializationMode);
-
-    [DllImport("ole32.dll")]
-    private static extern void CoUninitialize();
-
-    private readonly record struct IconPixels(int Width, int Height, byte[] BGRA);
 
     private readonly record struct IconLoadResult(ProcessIconSource Source, IconPixels? Pixels);
 

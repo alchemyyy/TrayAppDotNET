@@ -44,8 +44,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         CheckBox hideUnusedColumns,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : base(
-            title: "Select Processes columns",
-            description: "Choose visible columns and arrange their left-to-right order.",
+            title: LocalizationManager.Instance[nameof(AppStrings.Columns_Chooser_Title)],
+            description: LocalizationManager.Instance[nameof(AppStrings.Columns_Chooser_Description)],
             items,
             GetSearchText,
             (setting, itemChanged) => BuildVisibilityCheckBox(
@@ -68,7 +68,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             resources.AxamlTaskManagerReorderDialog.ColumnWindowHeight,
             resources.AxamlTaskManagerReorderDialog.ColumnWindowMinHeight,
             showSearch: true,
-            searchPlaceholder: "Search columns",
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Columns_Chooser_SearchPlaceholder)],
             CreateScrollBarStyle(resources, background, isLightTheme),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
@@ -128,7 +128,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
 
     private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette, bool isChecked) => new CheckBox
     {
-        Content = "Hide unused columns",
+        Content = LocalizationManager.Instance[nameof(AppStrings.Columns_Chooser_HideUnused)],
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
         IsChecked = isChecked,
         HorizontalAlignment = HorizontalAlignment.Right,
@@ -163,7 +163,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             : definition.Title + " " + setting.Nickname;
     }
 
-    private static Control BuildVisibilityCheckBox(
+    private static Grid BuildVisibilityCheckBox(
         ProcessColumnSetting setting,
         IReadOnlyList<ProcessColumnSetting> settings,
         SettingsPalette palette,
@@ -266,17 +266,17 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     /// <summary>Asks before restoring every column property to its default value.</summary>
     protected override async Task<bool> ConfirmResetAsync()
     {
-        using TrayAppDotNETUpdateConfirmationWindow confirmation = new(
-            title: "Reset process columns?",
-            description: "This will restore the default column visibility, order, widths, and display options.",
-            confirmText: "Reset",
+        using TrayAppDotNETConfirmationWindow confirmation = new(
+            title: LocalizationManager.Instance[nameof(AppStrings.Columns_Reset_Title)],
+            description: LocalizationManager.Instance[nameof(AppStrings.Columns_Reset_Message)],
+            confirmText: LocalizationManager.Instance[nameof(AppStrings.Common_Reset)],
             Palette,
             RoundedCornersEnabled,
-            cancelText: "Cancel") { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            cancelText: LocalizationManager.Instance[nameof(CommonStrings.Common_Cancel)]) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         confirmation.MapTo(ControlMap.ProcessColumnResetConfirmation.ID);
-        TrayAppDotNETUpdatePromptResult result =
-            await confirmation.ShowDialog<TrayAppDotNETUpdatePromptResult>(this);
-        return result == TrayAppDotNETUpdatePromptResult.Confirmed;
+        TrayAppDotNETConfirmationResult result =
+            await confirmation.ShowDialog<TrayAppDotNETConfirmationResult>(this);
+        return result == TrayAppDotNETConfirmationResult.Confirmed;
     }
 
     private static Color ResolveBackground(TaskManagerWindowResources resources, bool isLightTheme) =>

@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -32,7 +33,7 @@ internal sealed class MemoryCompositionView : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.MemoryCompositionMargin;
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(
-            text: "Memory composition",
+            text: L(nameof(AppStrings.Perf_Memory_Composition)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -116,45 +117,29 @@ internal sealed class MemoryCompositionView : StackPanel
         _freeSegment.IsVisible = freeBytes > 0;
 
         _inUseTooltip.Text = BuildInUseTooltip(memory);
-        _modifiedTooltip.Text = string.Concat(
-            str0: "Modified (",
-            FormatMebibytes(modifiedBytes),
-            str2: " MB)\nMemory whose contents must be written to disk before it can be used for another purpose");
-        string standbyTitle = composition.HasCompositionData ? "Standby" : "Available";
-        string standbyDescription = composition.HasCompositionData
-            ? "Memory that contains cached data and code that is not actively in use"
-            : "Memory that can be given immediately to processes, drivers, or the operating system";
-        _standbyTooltip.Text = string.Concat(
-            standbyTitle,
-            " (",
-            FormatMebibytes(standbyBytes),
-            " MB)\n",
-            standbyDescription);
-        _freeTooltip.Text = string.Concat(
-            str0: "Free (",
-            FormatMebibytes(freeBytes),
-            " MB)\nMemory that is not currently in use, and that will be repurposed first when processes, "
-            + "drivers, or the operating system need more memory");
+        _modifiedTooltip.Text = F(nameof(AppStrings.Perf_Memory_ModifiedTooltipFormat), FormatMebibytes(modifiedBytes));
+        _standbyTooltip.Text = F(
+            composition.HasCompositionData
+                ? nameof(AppStrings.Perf_Memory_StandbyTooltipFormat)
+                : nameof(AppStrings.Perf_Memory_AvailableTooltipFormat),
+            FormatMebibytes(standbyBytes));
+        _freeTooltip.Text = F(nameof(AppStrings.Perf_Memory_FreeTooltipFormat), FormatMebibytes(freeBytes));
     }
 
-    private string BuildInUseTooltip(MemoryPerformanceSnapshot memory)
+    private static string BuildInUseTooltip(MemoryPerformanceSnapshot memory)
     {
-        string tooltip = string.Concat(
-            str0: "In use (",
-            FormatMebibytes(memory.UsedPhysicalBytes),
-            str2: " MB)\nMemory used by processes, drivers, or the operating system");
+        string tooltip = F(nameof(AppStrings.Perf_Memory_InUseTooltipFormat), FormatMebibytes(memory.UsedPhysicalBytes));
         MemoryCompositionSnapshot composition = memory.Composition;
         if (!composition.HasCompressionData) return tooltip;
 
         return string.Concat(
             tooltip,
-            "\n\nIn use compressed (",
-            FormatMebibytes(composition.CompressedBytes),
-            " MB)\nCompressed memory stores an estimated ",
-            FormatMebibytes(composition.EstimatedDataBytes),
-            " MB of data, saving the system ",
-            FormatMebibytes(composition.SavedBytes),
-            " MB of memory");
+            "\n\n",
+            F(
+                nameof(AppStrings.Perf_Memory_CompressedTooltipFormat),
+                FormatMebibytes(composition.CompressedBytes),
+                FormatMebibytes(composition.EstimatedDataBytes),
+                FormatMebibytes(composition.SavedBytes)));
     }
 
     private TextBlock CreateTooltip() => new()

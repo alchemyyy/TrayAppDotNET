@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace TrayAppDotNETCommon.Utils;
+namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>
 /// Reads, writes, and removes the Image File Execution Options "Debugger" value that redirects a
@@ -11,9 +11,9 @@ namespace TrayAppDotNETCommon.Utils;
 ///
 /// The value lives under the machine-wide 64-bit HKLM hive, so writes and removals require
 /// administrator rights. Every method is best-effort: it logs and returns false on failure rather
-/// than throwing, matching <see cref="WindowsUninstallRegistry"/>.
+/// than throwing. Only Task Manager's replacement option (<see cref="TaskManagerReplacement"/>) uses it.
 /// </summary>
-public static class IfeoRegistry
+internal static class IfeoRegistry
 {
     private const string ImageFileExecutionOptionsKeyPath =
         @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options";

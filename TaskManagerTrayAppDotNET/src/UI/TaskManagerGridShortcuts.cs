@@ -115,7 +115,7 @@ internal static class TaskManagerGridShortcuts
         or TaskManagerGridShortcutAction.SetZoomBaseline
         or TaskManagerGridShortcutAction.SetStretchBaseline;
 
-    /// <summary>Formats a shortcut as it appears in settings, for example "Ctrl + Alt + Middle click".</summary>
+    /// <summary>Formats a shortcut as it appears in settings, for example "Ctrl + Alt + Middle-click".</summary>
     public static string FormatGesture(TaskManagerGridShortcut shortcut)
     {
         List<string> parts = [];

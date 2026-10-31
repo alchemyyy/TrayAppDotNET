@@ -447,7 +447,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         return null;
     }
 
-    private bool MatchesCurrentRows(IReadOnlyList<PerformanceDeviceColumnRow> rows)
+    private bool MatchesCurrentRows(List<PerformanceDeviceColumnRow> rows)
     {
         if (rows.Count != _rows.Count) return false;
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)

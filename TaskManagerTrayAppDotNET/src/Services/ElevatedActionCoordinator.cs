@@ -1,14 +1,22 @@
+using System.Globalization;
+using Microsoft.Win32.SafeHandles;
 using TaskManagerTrayAppDotNET.Models;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>The UI-facing outcome of a privileged action attempted through the elevated broker.</summary>
-internal readonly record struct ElevatedActionResult(bool Serviced, bool Success, bool Declined, string Message)
+internal readonly record struct ElevatedActionResult(
+    bool Serviced,
+    bool Success,
+    bool Declined,
+    string Message,
+    bool TimedOut = false)
 {
     public static ElevatedActionResult Declination { get; } = new(Serviced: false, Success: false, Declined: true, Message: "");
 
-    public static ElevatedActionResult FailedToStart(string message) =>
-        new(Serviced: false, Success: false, Declined: false, message);
+    /// <summary>The broker never answered: it could not start, the connection dropped, or the request timed out.</summary>
+    public static ElevatedActionResult NotServiced(string message, bool timedOut = false) =>
+        new(Serviced: false, Success: false, Declined: false, message, timedOut);
 
     public static ElevatedActionResult FromResponse(BrokerResponse response) =>
         new(Serviced: true, response.Code == BrokerResultCode.Success, Declined: false, response.Message);
@@ -36,8 +44,9 @@ internal sealed class ElevatedActionCoordinator : IDisposable
     {
         if (ShouldActInProcess())
         {
-            bool ok = ProcessNativeActions.TrySetPriority(target, priority, out string message, out _);
-            return Task.FromResult(InProcessResult(ok, message));
+            return RunInProcess(() => InProcessResult(
+                ProcessNativeActions.TrySetPriority(target, priority, out string message, out _),
+                message));
         }
 
         return RunAsync(ElevationOp.SetPriority, target.ProcessID, target.CreationTimeFileTime, (ulong)(uint)priority, text: "");
@@ -47,31 +56,77 @@ internal sealed class ElevatedActionCoordinator : IDisposable
     {
         if (ShouldActInProcess())
         {
-            bool ok = ProcessNativeActions.TrySetAffinity(target, affinityMask, out string message, out _);
-            return Task.FromResult(InProcessResult(ok, message));
+            return RunInProcess(() => InProcessResult(
+                ProcessNativeActions.TrySetAffinity(target, affinityMask, out string message, out _),
+                message));
         }
 
         return RunAsync(ElevationOp.SetAffinity, target.ProcessID, target.CreationTimeFileTime, affinityMask, text: "");
     }
 
-    /// <summary>Creates a memory dump entirely in the broker; the dump path is returned in the result message.</summary>
+    /// <summary>
+    /// Creates a memory dump; on success the result message is the dump path. Through the broker, this unelevated
+    /// process creates the file in its own temp folder and sends only the handle value: the broker copies the
+    /// handle out of this process and writes into it, so no administrator process ever creates a file in a folder a
+    /// same-user process controls.
+    /// </summary>
     public Task<ElevatedActionResult> CreateDumpAsync(ProcessTerminationTarget target)
     {
         if (ShouldActInProcess())
         {
-            bool ok = ProcessNativeActions.TryCreateMemoryDump(target, out string dumpPath, out string message);
-            return Task.FromResult(InProcessResult(ok, ok ? dumpPath : message));
+            return RunInProcess(() =>
+            {
+                bool ok = ProcessNativeActions.TryCreateMemoryDump(target, out string dumpPath, out string message);
+                return InProcessResult(ok, ok ? dumpPath : message);
+            });
         }
 
-        return RunAsync(ElevationOp.CreateDump, target.ProcessID, target.CreationTimeFileTime, argument: 0, text: "");
+        return CreateDumpThroughBrokerAsync(target);
+    }
+
+    private async Task<ElevatedActionResult> CreateDumpThroughBrokerAsync(ProcessTerminationTarget target)
+    {
+        (bool created, string dumpPath, SafeFileHandle? file, string fileError) = await Task.Run(() =>
+        {
+            bool ok = ProcessNativeActions.TryCreateDumpFile(
+                target,
+                out string path,
+                out SafeFileHandle? handle,
+                out string error);
+            return (ok, path, handle, error);
+        }).ConfigureAwait(true);
+        if (!created || file == null) return InProcessResult(succeeded: false, fileError);
+
+        ElevatedActionResult result;
+        using (file)
+        {
+            // The handle stays open until the broker answered; the broker writes through its own duplicate
+            result = await RunAsync(
+                ElevationOp.CreateDump,
+                target.ProcessID,
+                target.CreationTimeFileTime,
+                argument: (ulong)file.DangerousGetHandle(),
+                text: "").ConfigureAwait(true);
+        }
+
+        if (result is { Serviced: true, Success: true }) return result with { Message = dumpPath };
+
+        // A timed-out broker may still be writing through its copy, so the file stays and its path is reported
+        if (result.TimedOut) return result with { Message = FormatDumpTimedOutMessage(dumpPath) };
+
+        ProcessNativeActions.DiscardDumpFile(dumpPath);
+        return result;
     }
 
     public Task<ElevatedActionResult> DisconnectSessionAsync(int sessionId)
     {
         if (ShouldActInProcess())
         {
-            UserSessionActionResult result = new WindowsUserSessionService(TADNLog.Log).Disconnect(sessionId);
-            return Task.FromResult(InProcessResult(result.Succeeded, result.ErrorMessage));
+            return RunInProcess(() =>
+            {
+                UserSessionActionResult result = new WindowsUserSessionService(TADNLog.Log).Disconnect(sessionId);
+                return InProcessResult(result.Succeeded, result.ErrorMessage);
+            });
         }
 
         return RunAsync(ElevationOp.DisconnectSession, processId: 0, creationTimeFileTime: 0, (ulong)(uint)sessionId, text: "");
@@ -81,14 +136,17 @@ internal sealed class ElevatedActionCoordinator : IDisposable
     {
         if (ShouldActInProcess())
         {
-            WindowsServiceOperationResult result = verb switch
+            return RunInProcess(() =>
             {
-                BrokerServiceVerb.Start => WindowsServiceManager.Start(serviceName),
-                BrokerServiceVerb.Stop => WindowsServiceManager.Stop(serviceName),
-                BrokerServiceVerb.Restart => WindowsServiceManager.Restart(serviceName),
-                _ => new WindowsServiceManager().Disable(serviceName)
-            };
-            return Task.FromResult(InProcessResult(result.Succeeded, result.ErrorMessage));
+                WindowsServiceOperationResult result = verb switch
+                {
+                    BrokerServiceVerb.Start => WindowsServiceManager.Start(serviceName),
+                    BrokerServiceVerb.Stop => WindowsServiceManager.Stop(serviceName),
+                    BrokerServiceVerb.Restart => WindowsServiceManager.Restart(serviceName),
+                    _ => new WindowsServiceManager().Disable(serviceName)
+                };
+                return InProcessResult(result.Succeeded, result.ErrorMessage);
+            });
         }
 
         return RunAsync(ElevationOp.ServiceControl, processId: 0, creationTimeFileTime: 0, (ulong)verb, serviceName);
@@ -98,10 +156,13 @@ internal sealed class ElevatedActionCoordinator : IDisposable
     {
         if (ShouldActInProcess())
         {
-            StartupAppActionResult result = StartupAppsService.SetStatusByTarget(
-                target,
-                enabled ? StartupAppStatus.Enabled : StartupAppStatus.Disabled);
-            return Task.FromResult(InProcessResult(result.Succeeded, result.ErrorMessage));
+            return RunInProcess(() =>
+            {
+                StartupAppActionResult result = StartupAppsService.SetStatusByTarget(
+                    target,
+                    enabled ? StartupAppStatus.Enabled : StartupAppStatus.Disabled);
+                return InProcessResult(result.Succeeded, result.ErrorMessage);
+            });
         }
 
         return RunAsync(
@@ -119,6 +180,12 @@ internal sealed class ElevatedActionCoordinator : IDisposable
     private static ElevatedActionResult InProcessResult(bool succeeded, string message) =>
         new(Serviced: true, succeeded, Declined: false, message);
 
+    /// <summary>
+    /// Runs an in-process admin action on the thread pool: service waits and dumps can take many seconds, and the
+    /// callers are UI continuations.
+    /// </summary>
+    private static Task<ElevatedActionResult> RunInProcess(Func<ElevatedActionResult> action) => Task.Run(action);
+
     private async Task<ElevatedActionResult> RunAsync(
         ElevationOp op,
         int processId,
@@ -135,10 +202,29 @@ internal sealed class ElevatedActionCoordinator : IDisposable
             _confirmAsync).ConfigureAwait(true);
         if (attempt.Serviced) return ElevatedActionResult.FromResponse(attempt.Response);
 
-        return attempt.StartOutcome == BrokerStartOutcome.Declined
-            ? ElevatedActionResult.Declination
-            : ElevatedActionResult.FailedToStart("The elevated helper could not be started.");
+        return attempt.Outcome switch
+        {
+            BrokerAttemptOutcome.Declined => ElevatedActionResult.Declination,
+            BrokerAttemptOutcome.TimedOut => ElevatedActionResult.NotServiced(FormatTimedOutMessage(op), timedOut: true),
+            _ => ElevatedActionResult.NotServiced(
+                LocalizationManager.Instance[nameof(AppStrings.Elevation_HelperStartFailed)])
+        };
     }
+
+    /// <summary>The broker received the request but did not answer in time, so the action may still complete.</summary>
+    internal static string FormatTimedOutMessage(ElevationOp op) =>
+        string.Format(
+            CultureInfo.CurrentCulture,
+            LocalizationManager.Instance[nameof(AppStrings.Elevation_TimedOutFormat)],
+            ElevationBrokerContract.ResponseTimeout(op).TotalSeconds);
+
+    /// <summary>A timed-out dump keeps its file: the broker may still be writing into it through its copy.</summary>
+    internal static string FormatDumpTimedOutMessage(string dumpPath) =>
+        string.Format(
+            CultureInfo.CurrentCulture,
+            LocalizationManager.Instance[nameof(AppStrings.Elevation_DumpTimedOutFormat)],
+            ElevationBrokerContract.DumpOperationTimeout.TotalSeconds,
+            dumpPath);
 
     public void Dispose() => _client.Dispose();
 }

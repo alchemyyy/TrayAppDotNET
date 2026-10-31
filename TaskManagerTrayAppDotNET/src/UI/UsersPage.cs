@@ -37,7 +37,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         Func<ActionConfirmation, Task<bool>> confirmAction,
         Action<string, string> reportMessage)
         : base(
-            title: "Users",
+            title: LocalizationManager.Instance[nameof(AppStrings.Page_Users)],
             ControlMap.Main.UsersPage.ID,
             CreateSchema(resources),
             processIconService,
@@ -46,7 +46,7 @@ internal sealed class UsersPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: "Search users and processes")
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Users_SearchPlaceholder)])
     {
         _snapshotService = snapshotService;
         _sessionService = sessionService;
@@ -56,9 +56,9 @@ internal sealed class UsersPage : TaskManagerTablePage
         _schema = ProcessDataSchema.Create(
             [],
             UserSnapshotBuilder.RequiredColumnMask);
-        _disconnectButton = AddHeaderAction(label: "Disconnect", OnDisconnectClick, isEnabled: false)
+        _disconnectButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Users_Disconnect)], OnDisconnectClick, isEnabled: false)
             .MapTo(ControlMap.Main.UsersPage.Disconnect);
-        _manageUsersButton = AddHeaderAction(label: "Manage user accounts", OnManageUsersClick)
+        _manageUsersButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Users_ManageAccounts)], OnManageUsersClick)
             .MapTo(ControlMap.Main.UsersPage.ManageUserAccounts);
         _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.UsersPage.More);
     }
@@ -68,33 +68,33 @@ internal sealed class UsersPage : TaskManagerTablePage
         [
             new TaskManagerTableColumn(
                 Key: "user",
-                Title: "User",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_User)],
                 resources.AxamlTaskManagerTable.UsersNameColumnWidth),
             new TaskManagerTableColumn(
                 Key: "status",
-                Title: "Status",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Status)],
                 resources.AxamlTaskManagerTable.UsersStatusColumnWidth),
             new TaskManagerTableColumn(
                 Key: "cpu",
-                Title: "CPU",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_CPU)],
                 resources.AxamlTaskManagerTable.UsersCPUColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "memory",
-                Title: "Memory",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Memory)],
                 resources.AxamlTaskManagerTable.UsersMemoryColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "disk",
-                Title: "Disk",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Disk)],
                 resources.AxamlTaskManagerTable.UsersDiskColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "network",
-                Title: "Network",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Network)],
                 resources.AxamlTaskManagerTable.UsersNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true)
@@ -181,6 +181,13 @@ internal sealed class UsersPage : TaskManagerTablePage
             _snapshotService.GetLatestSystemPerformanceSample());
     }
 
+    private static string FormatHeader(string value, string labelKey) =>
+        string.Format(
+            System.Globalization.CultureInfo.CurrentCulture,
+            LocalizationManager.Instance[nameof(AppStrings.Users_HeaderFormat)],
+            value,
+            LocalizationManager.Instance[labelKey]);
+
     private static UserPageRenderData CreateRenderData(
         UserSnapshot snapshot,
         SystemPerformanceSample systemSample)
@@ -215,18 +222,18 @@ internal sealed class UsersPage : TaskManagerTablePage
             }
         }
 
-        string CPUHeader = string.Concat(
+        string CPUHeader = FormatHeader(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.CPUAveragePercent),
-            str1: " CPU");
-        string memoryHeader = string.Concat(
+            nameof(AppStrings.Users_Column_CPU));
+        string memoryHeader = FormatHeader(
             TaskManagerUsageFormatter.FormatCPUPercent(systemSample.MemoryPercent),
-            str1: " Memory");
-        string diskHeader = string.Concat(
+            nameof(AppStrings.Users_Column_Memory));
+        string diskHeader = FormatHeader(
             TaskManagerUsageFormatter.FormatDiskRate(hasDiskUsage, totalDiskBytesPerSecond),
-            str1: " Disk");
-        string networkHeader = string.Concat(
+            nameof(AppStrings.Users_Column_Disk));
+        string networkHeader = FormatHeader(
             TaskManagerUsageFormatter.FormatNetworkRate(hasNetworkUsage, totalNetworkBytesPerSecond),
-            str1: " Network");
+            nameof(AppStrings.Users_Column_Network));
         return new UserPageRenderData(
             rows,
             CPUHeader,
@@ -336,7 +343,7 @@ internal sealed class UsersPage : TaskManagerTablePage
             return true;
         }
 
-        _reportMessage(arg1: "Disconnect failed", result.Message);
+        _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Users_DisconnectFailed_Title)], result.Message);
         return true;
     }
 
@@ -362,7 +369,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         catch (Exception exception)
         {
             TADNLog.Log($"Disconnect user session failed: {exception}");
-            if (!_disposed) _reportMessage(arg1: "Disconnect failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Users_DisconnectFailed_Title)], exception.Message);
         }
         finally
         {
@@ -393,9 +400,9 @@ internal sealed class UsersPage : TaskManagerTablePage
                 return;
 
             _reportMessage(
-                arg1: "Disconnect failed",
+                arg1: LocalizationManager.Instance[nameof(AppStrings.Users_DisconnectFailed_Title)],
                 string.IsNullOrWhiteSpace(result.ErrorMessage)
-                    ? "Windows could not disconnect the selected user session."
+                    ? LocalizationManager.Instance[nameof(AppStrings.Users_DisconnectFailed_Message)]
                     : result.ErrorMessage);
             return;
         }
@@ -409,14 +416,14 @@ internal sealed class UsersPage : TaskManagerTablePage
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh)
+        entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.Common_Refresh)], _snapshotService.RequestRefresh)
         {
             Node = ControlMap.UsersMoreMenu.Refresh
         });
         UserGroupSnapshot? group = SelectedRow?.Tag as UserGroupSnapshot;
         if (!_disconnectPending && group?.CanDisconnect == true)
         {
-            entries.Add(new ContextMenuEntry(Text: "Disconnect", () =>
+            entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.Users_Disconnect)], () =>
             {
                 if (SelectedRow?.Tag is UserGroupSnapshot selectedGroup)
                     _ = DisconnectAsync(selectedGroup);
@@ -424,7 +431,7 @@ internal sealed class UsersPage : TaskManagerTablePage
         }
 
         entries.Add(new ContextMenuEntry(
-            Text: "Manage user accounts",
+            Text: LocalizationManager.Instance[nameof(AppStrings.Users_ManageAccounts)],
             () => _ = _startProcess("ms-settings:otherusers"))
         {
             Node = ControlMap.UsersMoreMenu.ManageUserAccounts

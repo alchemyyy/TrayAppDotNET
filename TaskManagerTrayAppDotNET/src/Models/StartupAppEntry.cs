@@ -50,16 +50,34 @@ internal readonly record struct StartupAppIdentity(
     string EntryName);
 
 /// <summary>Identifies the StartupApproved value that controls one startup registration.</summary>
+/// <remarks>
+/// The elevated broker writes this target under HKLM, so validity is strict: the subkey must be one of the three
+/// Explorer StartupApproved keys and the value name must be present. Anything else is rejected before any
+/// registry access, whoever sent it.
+/// </remarks>
 internal readonly record struct StartupAppApprovalTarget(
     StartupAppScope Scope,
     StartupAppRegistryView RegistryView,
     string RegistrySubKey,
     string ValueName)
 {
+    private const string StartupApprovedRoot = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
+    public const string RunSubKey = StartupApprovedRoot + @"\Run";
+    public const string Run32SubKey = StartupApprovedRoot + @"\Run32";
+    public const string StartupFolderSubKey = StartupApprovedRoot + @"\StartupFolder";
+
     public bool IsValid =>
-        RegistryView != StartupAppRegistryView.None
-        && !string.IsNullOrWhiteSpace(RegistrySubKey)
-        && ValueName != null;
+        Enum.IsDefined(Scope)
+        && RegistryView != StartupAppRegistryView.None
+        && Enum.IsDefined(RegistryView)
+        && IsStartupApprovedSubKey(RegistrySubKey)
+        && !string.IsNullOrEmpty(ValueName);
+
+    /// <summary>Returns whether the subkey is exactly one of the StartupApproved keys the app manages.</summary>
+    public static bool IsStartupApprovedSubKey(string? subKey) =>
+        string.Equals(subKey, RunSubKey, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(subKey, Run32SubKey, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(subKey, StartupFolderSubKey, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Describes which Startup Apps commands apply to the current row.</summary>

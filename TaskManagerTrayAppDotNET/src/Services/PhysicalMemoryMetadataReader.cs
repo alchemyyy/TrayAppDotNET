@@ -1,11 +1,13 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.Marshalling;
+using TrayAppDotNETCommon.Interop.Wmi;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>Reads physical DIMM metadata through the native WMI COM interfaces.</summary>
+/// <summary>Reads physical DIMM metadata through the Common WMI client.</summary>
+/// <remarks>
+/// The read runs as a separate task so the performance sampler thread never waits on WMI, and every WMI wait is
+/// bounded. A failed read is retried with exponential backoff instead of being remembered for the session.
+/// <see cref="Get"/> is called from one thread (the sampler); it only starts reads and picks up finished ones.
+/// </remarks>
 internal sealed class PhysicalMemoryMetadataReader
 {
     private const string WmiNamespace = @"ROOT\CIMV2";
@@ -21,125 +23,146 @@ internal sealed class PhysicalMemoryMetadataReader
     private const string SlotQuery =
         "SELECT MemoryDevices FROM Win32_PhysicalMemoryArray WHERE Use = 3";
 
-    private const int WbemInfinite = -1;
-    private const int WbemFlagReturnImmediately = 0x10;
-    private const int WbemFlagForwardOnly = 0x20;
-    private const int WbemQueryFlags = WbemFlagReturnImmediately | WbemFlagForwardOnly;
+    private const long InitialRetryDelayMilliseconds = 5_000;
+    private const long MaximumRetryDelayMilliseconds = 10 * 60 * 1_000;
 
-    private PhysicalMemoryHardwareMetadata _publicMetadata = PhysicalMemoryHardwareMetadata.Empty;
-    private PhysicalMemoryHardwareMetadata _privateMetadata = PhysicalMemoryHardwareMetadata.Empty;
-    private string? _publicError;
-    private string? _privateError;
-    private bool _publicAttempted;
-    private bool _privateAttempted;
-    private bool _publicSucceeded;
-    private bool _privateSucceeded;
+    private readonly MetadataSlot _public = new();
+    private readonly MetadataSlot _private = new();
 
-    /// <summary>Returns cached module metadata, querying WMI at most once per privacy mode.</summary>
+    /// <summary>
+    /// Returns the cached module metadata for the privacy mode, starting or retrying a background read when needed.
+    /// Until the first read finishes the metadata is empty and the error is null.
+    /// </summary>
     public PhysicalMemoryHardwareMetadata Get(bool includeSerialNumbers, out string? error)
     {
         if (!includeSerialNumbers)
         {
-            EnsurePublicMetadata();
-            error = _publicError;
-            return _publicMetadata;
+            Update(_public, includeSerialNumbers: false);
+            error = _public.Error;
+            return _public.Metadata;
         }
 
-        EnsurePrivateMetadata();
-        if (_privateSucceeded)
+        Update(_private, includeSerialNumbers: true);
+        if (_private.Succeeded)
         {
             error = null;
-            return _privateMetadata;
+            return _private.Metadata;
         }
 
-        EnsurePublicMetadata();
-        error = _privateError ?? _publicError;
-        return _publicMetadata;
+        Update(_public, includeSerialNumbers: false);
+        error = _private.Error ?? _public.Error;
+        return _public.Metadata;
     }
 
-    private void EnsurePublicMetadata()
+    /// <summary>Waits for any read in flight; lets tests observe a completed read deterministically.</summary>
+    internal bool WaitForPendingReads(TimeSpan timeout)
     {
-        if (_publicAttempted) return;
-        _publicAttempted = true;
-        _publicSucceeded = TryRead(
-            includeSerialNumbers: false,
-            out _publicMetadata,
-            out _publicError);
+        Task?[] pending = [_public.Pending, _private.Pending];
+        foreach (Task? task in pending)
+        {
+            if (task != null && !task.Wait(timeout)) return false;
+        }
+
+        return true;
     }
 
-    private void EnsurePrivateMetadata()
+    private void Update(MetadataSlot slot, bool includeSerialNumbers)
     {
-        if (_privateAttempted) return;
-        _privateAttempted = true;
-        _privateSucceeded = TryRead(
-            includeSerialNumbers: true,
-            out _privateMetadata,
-            out _privateError);
-        if (!_privateSucceeded) return;
+        if (slot.Succeeded) return;
 
-        _publicMetadata = RemoveSerialNumbers(_privateMetadata);
-        _publicAttempted = true;
-        _publicSucceeded = true;
-        _publicError = null;
+        if (slot.Pending is { IsCompleted: true } finished)
+        {
+            slot.Pending = null;
+            ReadResult result = finished.Result;
+            if (result.Succeeded)
+            {
+                slot.Metadata = result.Metadata;
+                slot.Error = null;
+                slot.Succeeded = true;
+                slot.ConsecutiveFailures = 0;
+                if (includeSerialNumbers)
+                {
+                    _public.Metadata = RemoveSerialNumbers(result.Metadata);
+                    _public.Error = null;
+                    _public.Succeeded = true;
+                }
+
+                return;
+            }
+
+            slot.Error = result.Error;
+            slot.ConsecutiveFailures++;
+            slot.NextAttempt = DateTime.UtcNow + RetryDelay(slot.ConsecutiveFailures);
+        }
+
+        if (slot.Pending != null || DateTime.UtcNow < slot.NextAttempt) return;
+        slot.Pending = Task.Run(() => TryRead(includeSerialNumbers));
     }
 
-    private static bool TryRead(
-        bool includeSerialNumbers,
-        out PhysicalMemoryHardwareMetadata metadata,
-        out string? error)
+    private static ReadResult TryRead(bool includeSerialNumbers)
     {
-        metadata = PhysicalMemoryHardwareMetadata.Empty;
-        error = null;
-
         try
         {
-            using WmiComApartmentScope _ = WmiComApartmentScope.Enter();
-            IPhysicalMemoryWbemServices? services = null;
-            try
+            using ComApartmentScope apartment = ComApartmentScope.Enter(Ole32.COINIT_MULTITHREADED);
+            if (!apartment.IsUsable)
             {
-                if (!TryConnect(out services, out error)) return false;
+                return new ReadResult(
+                    Succeeded: false,
+                    PhysicalMemoryHardwareMetadata.Empty,
+                    $"CoInitializeEx(MTA) failed ({WmiNative.FormatHResult(apartment.HResult)}).");
+            }
 
+            if (!WmiConnection.TryConnect(WmiNamespace, out WmiConnection? connection, out string? error))
+                return new ReadResult(Succeeded: false, PhysicalMemoryHardwareMetadata.Empty, error);
+
+            using (connection)
+            {
                 List<PhysicalMemoryModuleData> modules = [];
-                Query(
-                    services,
+                connection.Query(
                     includeSerialNumbers ? PrivateModuleQuery : PublicModuleQuery,
                     memoryObject => modules.Add(ReadModule(memoryObject, includeSerialNumbers)));
                 modules.RemoveAll(static module => module.CapacityBytes == 0
                                                    && string.IsNullOrWhiteSpace(module.BankLabel)
                                                    && string.IsNullOrWhiteSpace(module.PartNumber));
                 modules.Sort(CompareModules);
-                int totalSlotCount = ReadTotalSlotCount(services);
-                metadata = BuildMetadata(modules, totalSlotCount);
-                return true;
-            }
-            finally
-            {
-                Safe.Release(services);
+                int totalSlotCount = ReadTotalSlotCount(connection);
+                return new ReadResult(Succeeded: true, BuildMetadata(modules, totalSlotCount), Error: null);
             }
         }
         catch (Exception exception)
         {
-            error = exception.Message;
-            return false;
+            return new ReadResult(Succeeded: false, PhysicalMemoryHardwareMetadata.Empty, exception.Message);
         }
     }
 
+    private sealed class MetadataSlot
+    {
+        public PhysicalMemoryHardwareMetadata Metadata = PhysicalMemoryHardwareMetadata.Empty;
+        public string? Error;
+        public bool Succeeded;
+        public int ConsecutiveFailures;
+        public DateTime NextAttempt = DateTime.MinValue;
+        public Task<ReadResult>? Pending;
+    }
+
+    private readonly record struct ReadResult(bool Succeeded, PhysicalMemoryHardwareMetadata Metadata, string? Error);
+
     private static PhysicalMemoryModuleData ReadModule(
-        IPhysicalMemoryWbemClassObject memoryObject,
+        IWbemClassObject memoryObject,
         bool includeSerialNumbers)
     {
-        _ = TryGetString(memoryObject, propertyName: "BankLabel", out string bankLabel);
-        _ = TryGetUInt64(memoryObject, propertyName: "Capacity", out ulong capacityBytes);
-        _ = TryGetUInt64(
+        _ = WmiConnection.TryGetString(memoryObject, name: "BankLabel", out string bankLabel);
+        _ = WmiConnection.TryGetUInt64(memoryObject, name: "Capacity", out ulong capacityBytes);
+        _ = WmiConnection.TryGetUInt64(
             memoryObject,
-            propertyName: "ConfiguredClockSpeed",
+            name: "ConfiguredClockSpeed",
             out ulong configuredSpeedMegatransfersPerSecond);
-        _ = TryGetUInt64(memoryObject, propertyName: "Speed", out ulong fallbackSpeedMegatransfersPerSecond);
-        _ = TryGetUInt64(memoryObject, propertyName: "FormFactor", out ulong formFactor);
-        _ = TryGetString(memoryObject, propertyName: "PartNumber", out string partNumber);
+        _ = WmiConnection.TryGetUInt64(memoryObject, name: "Speed", out ulong fallbackSpeedMegatransfersPerSecond);
+        _ = WmiConnection.TryGetUInt64(memoryObject, name: "FormFactor", out ulong formFactor);
+        _ = WmiConnection.TryGetString(memoryObject, name: "PartNumber", out string partNumber);
         string serialNumber = string.Empty;
         if (includeSerialNumbers)
-            _ = TryGetString(memoryObject, propertyName: "SerialNumber", out serialNumber);
+            _ = WmiConnection.TryGetString(memoryObject, name: "SerialNumber", out serialNumber);
 
         ulong speedMegatransfersPerSecond = configuredSpeedMegatransfersPerSecond > 0
             ? configuredSpeedMegatransfersPerSecond
@@ -153,15 +176,14 @@ internal sealed class PhysicalMemoryMetadataReader
             NormalizeText(serialNumber));
     }
 
-    private static int ReadTotalSlotCount(IPhysicalMemoryWbemServices services)
+    private static int ReadTotalSlotCount(WmiConnection connection)
     {
         ulong totalSlots = 0;
-        Query(
-            services,
+        connection.Query(
             SlotQuery,
             memoryArray =>
             {
-                if (!TryGetUInt64(memoryArray, propertyName: "MemoryDevices", out ulong memoryDevices)) return;
+                if (!WmiConnection.TryGetUInt64(memoryArray, name: "MemoryDevices", out ulong memoryDevices)) return;
                 totalSlots = SaturatingAdd(totalSlots, memoryDevices);
             });
         return totalSlots > int.MaxValue ? int.MaxValue : (int)totalSlots;
@@ -266,215 +288,16 @@ internal sealed class PhysicalMemoryMetadataReader
     private static ulong SaturatingAdd(ulong left, ulong right) =>
         left > ulong.MaxValue - right ? ulong.MaxValue : left + right;
 
-    private static bool TryConnect(
-        [NotNullWhen(true)] out IPhysicalMemoryWbemServices? services,
-        out string? error)
+    /// <summary>Returns how long to wait before retrying after the given number of consecutive failed reads.</summary>
+    internal static TimeSpan RetryDelay(int consecutiveFailures)
     {
-        services = null;
-        error = null;
-
-        IPhysicalMemoryWbemLocator? locator = null;
-        try
-        {
-            locator = COMActivation.CreateInstance<IPhysicalMemoryWbemLocator>(
-                PhysicalMemoryWmiNative.ClsidWbemLocator,
-                typeof(IPhysicalMemoryWbemLocator).GUID);
-            int result = locator.ConnectServer(
-                WmiNamespace,
-                user: null,
-                password: null,
-                locale: null,
-                securityFlags: 0,
-                authority: null,
-                IntPtr.Zero,
-                out IntPtr servicesPointer);
-            if (result < 0 || servicesPointer == IntPtr.Zero)
-            {
-                error = $"IWbemLocator.ConnectServer('{WmiNamespace}') failed ({FormatResult(result)}).";
-                return false;
-            }
-
-            result = PhysicalMemoryWmiNative.CoSetProxyBlanket(
-                servicesPointer,
-                PhysicalMemoryWmiNative.RpcCAuthenticationWinNT,
-                PhysicalMemoryWmiNative.RpcCAuthorizationNone,
-                IntPtr.Zero,
-                PhysicalMemoryWmiNative.RpcCAuthenticationLevelCall,
-                PhysicalMemoryWmiNative.RpcCImpersonationLevelImpersonate,
-                IntPtr.Zero,
-                PhysicalMemoryWmiNative.EoacNone);
-            if (result < 0)
-            {
-                _ = Marshal.Release(servicesPointer);
-                error = $"CoSetProxyBlanket(IWbemServices) failed ({FormatResult(result)}).";
-                return false;
-            }
-
-            services = COMActivation.GetObjectForComInstance<IPhysicalMemoryWbemServices>(
-                servicesPointer,
-                releaseInputReference: true);
-            return true;
-        }
-        finally
-        {
-            Safe.Release(locator);
-        }
+        if (consecutiveFailures <= 0) return TimeSpan.Zero;
+        int doublings = Math.Min(consecutiveFailures - 1, 16);
+        long delayMilliseconds = Math.Min(
+            InitialRetryDelayMilliseconds << doublings,
+            MaximumRetryDelayMilliseconds);
+        return TimeSpan.FromMilliseconds(delayMilliseconds);
     }
-
-    private static void Query(
-        IPhysicalMemoryWbemServices services,
-        string query,
-        Action<IPhysicalMemoryWbemClassObject> handleObject)
-    {
-        int result = services.ExecQuery(
-            queryLanguage: "WQL",
-            query,
-            WbemQueryFlags,
-            IntPtr.Zero,
-            out IntPtr enumeratorPointer);
-        if (result < 0 || enumeratorPointer == IntPtr.Zero)
-        {
-            throw new InvalidOperationException(
-                $"IWbemServices.ExecQuery failed ({FormatResult(result)}): {query}");
-        }
-
-        IPhysicalMemoryEnumWbemClassObject? enumerator = null;
-        try
-        {
-            enumerator = COMActivation.GetObjectForComInstance<IPhysicalMemoryEnumWbemClassObject>(
-                enumeratorPointer,
-                releaseInputReference: true);
-            while (true)
-            {
-                result = enumerator.Next(
-                    WbemInfinite,
-                    count: 1,
-                    out IntPtr objectPointer,
-                    out uint returnedCount);
-                if (result < 0)
-                {
-                    throw new InvalidOperationException(
-                        $"IEnumWbemClassObject.Next failed ({FormatResult(result)}).");
-                }
-
-                if (returnedCount == 0 || objectPointer == IntPtr.Zero) break;
-
-                IPhysicalMemoryWbemClassObject? memoryObject = null;
-                try
-                {
-                    memoryObject = COMActivation.GetObjectForComInstance<IPhysicalMemoryWbemClassObject>(
-                        objectPointer,
-                        releaseInputReference: true);
-                    handleObject(memoryObject);
-                }
-                finally
-                {
-                    Safe.Release(memoryObject);
-                }
-            }
-        }
-        finally
-        {
-            Safe.Release(enumerator);
-        }
-    }
-
-    private static unsafe bool TryGetString(
-        IPhysicalMemoryWbemClassObject memoryObject,
-        string propertyName,
-        out string value)
-    {
-        value = string.Empty;
-        PhysicalMemoryWmiVariant variant = default;
-        int result = memoryObject.Get(
-            propertyName,
-            flags: 0,
-            (IntPtr)(&variant),
-            IntPtr.Zero,
-            IntPtr.Zero);
-        try
-        {
-            if (result < 0
-                || (variant.VariantType & PhysicalMemoryWmiVariant.VariantTypeMask)
-                != PhysicalMemoryWmiVariant.VariantBStr
-                || variant.PointerValue == IntPtr.Zero)
-                return false;
-
-            value = Marshal.PtrToStringBSTR(variant.PointerValue);
-            return true;
-        }
-        finally
-        {
-            _ = PhysicalMemoryWmiNative.VariantClear((IntPtr)(&variant));
-        }
-    }
-
-    private static unsafe bool TryGetUInt64(
-        IPhysicalMemoryWbemClassObject memoryObject,
-        string propertyName,
-        out ulong value)
-    {
-        value = 0;
-        PhysicalMemoryWmiVariant variant = default;
-        int result = memoryObject.Get(
-            propertyName,
-            flags: 0,
-            (IntPtr)(&variant),
-            IntPtr.Zero,
-            IntPtr.Zero);
-        try
-        {
-            if (result < 0) return false;
-
-            ushort variantType = (ushort)(
-                variant.VariantType & PhysicalMemoryWmiVariant.VariantTypeMask);
-            switch (variantType)
-            {
-                case PhysicalMemoryWmiVariant.VariantUI1:
-                    value = variant.ByteValue;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantUI2:
-                    value = variant.UInt16Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantUI4:
-                case PhysicalMemoryWmiVariant.VariantUInt:
-                    value = variant.UInt32Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantUI8:
-                    value = variant.UInt64Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantI1 when variant.SByteValue >= 0:
-                    value = (ulong)variant.SByteValue;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantI2 when variant.Int16Value >= 0:
-                    value = (ulong)variant.Int16Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantI4:
-                case PhysicalMemoryWmiVariant.VariantInt when variant.Int32Value >= 0:
-                    value = (ulong)variant.Int32Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantI8 when variant.Int64Value >= 0:
-                    value = (ulong)variant.Int64Value;
-                    return true;
-                case PhysicalMemoryWmiVariant.VariantBStr when variant.PointerValue != IntPtr.Zero:
-                    string? text = Marshal.PtrToStringBSTR(variant.PointerValue);
-                    return ulong.TryParse(
-                        text,
-                        NumberStyles.Integer,
-                        CultureInfo.InvariantCulture,
-                        out value);
-                default:
-                    return false;
-            }
-        }
-        finally
-        {
-            _ = PhysicalMemoryWmiNative.VariantClear((IntPtr)(&variant));
-        }
-    }
-
-    private static string FormatResult(int result) =>
-        string.Create(CultureInfo.InvariantCulture, $"0x{unchecked((uint)result):X8}");
 
     private sealed record PhysicalMemoryModuleData(
         string BankLabel,
@@ -498,217 +321,4 @@ internal readonly record struct PhysicalMemoryHardwareMetadata(
         TotalSlotCount: 0,
         FormFactor: "Unknown",
         ReadOnlyMemory<PhysicalMemoryModuleSnapshot>.Empty);
-}
-
-[StructLayout(LayoutKind.Explicit, Size = 24)]
-internal struct PhysicalMemoryWmiVariant
-{
-    public const ushort VariantTypeMask = 0x0FFF;
-    public const ushort VariantI2 = 2;
-    public const ushort VariantI4 = 3;
-    public const ushort VariantBStr = 8;
-    public const ushort VariantI1 = 16;
-    public const ushort VariantUI1 = 17;
-    public const ushort VariantUI2 = 18;
-    public const ushort VariantUI4 = 19;
-    public const ushort VariantI8 = 20;
-    public const ushort VariantUI8 = 21;
-    public const ushort VariantInt = 22;
-    public const ushort VariantUInt = 23;
-
-    [FieldOffset(0)]
-    public ushort VariantType;
-
-    [FieldOffset(8)]
-    public sbyte SByteValue;
-
-    [FieldOffset(8)]
-    public byte ByteValue;
-
-    [FieldOffset(8)]
-    public short Int16Value;
-
-    [FieldOffset(8)]
-    public ushort UInt16Value;
-
-    [FieldOffset(8)]
-    public int Int32Value;
-
-    [FieldOffset(8)]
-    public uint UInt32Value;
-
-    [FieldOffset(8)]
-    public long Int64Value;
-
-    [FieldOffset(8)]
-    public ulong UInt64Value;
-
-    [FieldOffset(8)]
-    public IntPtr PointerValue;
-}
-
-[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
-[Guid("dc12a687-737f-11cf-884d-00aa004b2e24")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal partial interface IPhysicalMemoryWbemLocator
-{
-    [PreserveSig]
-    int ConnectServer(
-        [MarshalAs(UnmanagedType.BStr)] string networkResource,
-        [MarshalAs(UnmanagedType.BStr)] string? user,
-        [MarshalAs(UnmanagedType.BStr)] string? password,
-        [MarshalAs(UnmanagedType.BStr)] string? locale,
-        int securityFlags,
-        [MarshalAs(UnmanagedType.BStr)] string? authority,
-        IntPtr context,
-        out IntPtr services);
-}
-
-[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
-[Guid("9556dc99-828c-11cf-a37e-00aa003240c7")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal partial interface IPhysicalMemoryWbemServices
-{
-    void UnusedOpenNamespace();
-    void UnusedCancelAsyncCall();
-    void UnusedQueryObjectSink();
-    void UnusedGetObject();
-    void UnusedGetObjectAsync();
-    void UnusedPutClass();
-    void UnusedPutClassAsync();
-    void UnusedDeleteClass();
-    void UnusedDeleteClassAsync();
-    void UnusedCreateClassEnum();
-    void UnusedCreateClassEnumAsync();
-    void UnusedPutInstance();
-    void UnusedPutInstanceAsync();
-    void UnusedDeleteInstance();
-    void UnusedDeleteInstanceAsync();
-    void UnusedCreateInstanceEnum();
-    void UnusedCreateInstanceEnumAsync();
-
-    [PreserveSig]
-    int ExecQuery(
-        [MarshalAs(UnmanagedType.BStr)] string queryLanguage,
-        [MarshalAs(UnmanagedType.BStr)] string query,
-        int flags,
-        IntPtr context,
-        out IntPtr enumerator);
-}
-
-[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
-[Guid("dc12a681-737f-11cf-884d-00aa004b2e24")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal partial interface IPhysicalMemoryWbemClassObject
-{
-    void UnusedGetQualifierSet();
-
-    [PreserveSig]
-    int Get(
-        [MarshalAs(UnmanagedType.BStr)] string propertyName,
-        int flags,
-        IntPtr value,
-        IntPtr type,
-        IntPtr flavor);
-}
-
-[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
-[Guid("027947e1-d731-11ce-a357-000000000001")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal partial interface IPhysicalMemoryEnumWbemClassObject
-{
-    void UnusedReset();
-
-    [PreserveSig]
-    int Next(int timeout, uint count, out IntPtr objects, out uint returnedCount);
-}
-
-internal sealed class WmiComApartmentScope : IDisposable
-{
-    private static int _securityInitialized;
-    private readonly bool _uninitialize;
-
-    private WmiComApartmentScope(bool uninitialize) => _uninitialize = uninitialize;
-
-    public static WmiComApartmentScope Enter()
-    {
-        int result = PhysicalMemoryWmiNative.CoInitializeEx(
-            IntPtr.Zero,
-            PhysicalMemoryWmiNative.CoinitMultithreaded);
-        bool uninitialize = result is PhysicalMemoryWmiNative.SOk or PhysicalMemoryWmiNative.SFalse;
-        if (result < 0 && result != PhysicalMemoryWmiNative.RpcEChangedMode)
-            Marshal.ThrowExceptionForHR(result);
-
-        if (Interlocked.Exchange(ref _securityInitialized, value: 1) == 0)
-        {
-            int securityResult = PhysicalMemoryWmiNative.CoInitializeSecurity(
-                IntPtr.Zero,
-                authenticationServiceCount: -1,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                PhysicalMemoryWmiNative.RpcCAuthenticationLevelDefault,
-                PhysicalMemoryWmiNative.RpcCImpersonationLevelImpersonate,
-                IntPtr.Zero,
-                PhysicalMemoryWmiNative.EoacNone,
-                IntPtr.Zero);
-            if (securityResult < 0 && securityResult != PhysicalMemoryWmiNative.RpcETooLate)
-                Marshal.ThrowExceptionForHR(securityResult);
-        }
-
-        return new WmiComApartmentScope(uninitialize);
-    }
-
-    public void Dispose()
-    {
-        if (_uninitialize) PhysicalMemoryWmiNative.CoUninitialize();
-    }
-}
-
-internal static partial class PhysicalMemoryWmiNative
-{
-    public static readonly Guid ClsidWbemLocator = new("4590f811-1d3a-11d0-891f-00aa004b2e24");
-
-    public const int SOk = 0;
-    public const int SFalse = 1;
-    public const int RpcEChangedMode = unchecked((int)0x80010106);
-    public const int RpcETooLate = unchecked((int)0x80010119);
-    public const uint CoinitMultithreaded = 0x0;
-    public const uint RpcCAuthenticationWinNT = 10;
-    public const uint RpcCAuthorizationNone = 0;
-    public const uint RpcCAuthenticationLevelDefault = 0;
-    public const uint RpcCAuthenticationLevelCall = 3;
-    public const uint RpcCImpersonationLevelImpersonate = 3;
-    public const uint EoacNone = 0;
-
-    [LibraryImport("ole32.dll")]
-    public static partial int CoInitializeEx(IntPtr reserved, uint coInit);
-
-    [LibraryImport("ole32.dll")]
-    public static partial void CoUninitialize();
-
-    [LibraryImport("ole32.dll")]
-    public static partial int CoInitializeSecurity(
-        IntPtr securityDescriptor,
-        int authenticationServiceCount,
-        IntPtr authenticationServices,
-        IntPtr reserved1,
-        uint authenticationLevel,
-        uint impersonationLevel,
-        IntPtr authenticationList,
-        uint capabilities,
-        IntPtr reserved3);
-
-    [LibraryImport("ole32.dll")]
-    public static partial int CoSetProxyBlanket(
-        IntPtr proxy,
-        uint authenticationService,
-        uint authorizationService,
-        IntPtr serverPrincipalName,
-        uint authenticationLevel,
-        uint impersonationLevel,
-        IntPtr authenticationInfo,
-        uint capabilities);
-
-    [LibraryImport("oleaut32.dll")]
-    public static partial int VariantClear(IntPtr variant);
 }

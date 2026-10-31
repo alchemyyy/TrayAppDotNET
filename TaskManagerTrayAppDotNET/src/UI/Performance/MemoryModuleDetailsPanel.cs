@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using Avalonia.Controls;
 using Avalonia.Media;
 
@@ -22,7 +23,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.MemoryModulesMargin;
 
         TextBlock heading = TrayAppDotNETSettingsUI.Text(
-            text: "Physical memory layout",
+            text: L(nameof(AppStrings.Perf_Memory_Layout)),
             palette,
             resources.AxamlTaskManagerPerformance.MemoryModuleHeadingFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -62,10 +63,10 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         bool showSerialNumbers)
     {
         string bankLabel = string.IsNullOrWhiteSpace(module.BankLabel)
-            ? "Unavailable"
+            ? Unavailable
             : module.BankLabel;
         TextBlock bank = TrayAppDotNETSettingsUI.Text(
-            string.Concat(str0: "Bank: ", bankLabel),
+            F(nameof(AppStrings.Perf_Memory_BankFormat), bankLabel),
             _palette,
             _resources.AxamlTaskManagerPerformance.MemoryModuleBankFontSize,
             (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -78,23 +79,23 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             {
                 bank,
                 BuildModuleRow(
-                    labelText: "Capacity",
+                    labelText: L(nameof(AppStrings.Perf_Label_Capacity)),
                     module.CapacityBytes > 0
                         ? PerformanceDevicePresentationFactory.FormatBytes(module.CapacityBytes)
-                        : "Unavailable"),
+                        : Unavailable),
                 BuildModuleRow(
-                    labelText: "Part number",
+                    labelText: L(nameof(AppStrings.Perf_Memory_PartNumber)),
                     string.IsNullOrWhiteSpace(module.PartNumber)
-                        ? "Unavailable"
+                        ? Unavailable
                         : module.PartNumber)
             }
         };
         if (showSerialNumbers)
         {
             content.Children.Add(BuildModuleRow(
-                labelText: "Serial number",
+                labelText: L(nameof(AppStrings.Perf_Memory_SerialNumber)),
                 string.IsNullOrWhiteSpace(module.SerialNumber)
-                    ? "Unavailable"
+                    ? Unavailable
                     : module.SerialNumber));
         }
 

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -21,7 +22,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
     private const uint CompressionInformationVersionV1 = 3;
     private const uint CompressionInformationSizeV1 = 40;
 
-    private IntPtr _query;
+    private readonly PdhQuery _query;
     private IntPtr _cacheBytesCounter;
     private IntPtr _freeBytesCounter;
     private IntPtr _modifiedBytesCounter;
@@ -30,22 +31,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
     private IntPtr _standbyReserveBytesCounter;
     private bool _disposed;
 
-    public MemoryCompositionSampler()
-    {
-        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
-
-        if (TryAddCounter(CacheBytesPath, out _cacheBytesCounter)
-            && TryAddCounter(FreeBytesPath, out _freeBytesCounter)
-            && TryAddCounter(ModifiedBytesPath, out _modifiedBytesCounter)
-            && TryAddCounter(StandbyCoreBytesPath, out _standbyCoreBytesCounter)
-            && TryAddCounter(StandbyNormalBytesPath, out _standbyNormalBytesCounter)
-            && TryAddCounter(StandbyReserveBytesPath, out _standbyReserveBytesCounter))
-            return;
-
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
-        ClearCounterHandles();
-    }
+    public MemoryCompositionSampler() => _query = new PdhQuery(nameof(MemoryCompositionSampler), AddCounters);
 
     /// <summary>Captures the current memory-list sizes and compression-store ratio.</summary>
     public MemoryCompositionSample Sample()
@@ -57,7 +43,7 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
         ulong freeBytes = 0;
         ulong modifiedBytes = 0;
         ulong standbyBytes = 0;
-        if (_query != IntPtr.Zero && PdhCollectQueryData(_query) == PdhSuccess
+        if (_query.TryCollect()
                                   && TryReadByteCounter(_cacheBytesCounter, out cacheBytes)
                                   && TryReadByteCounter(_freeBytesCounter, out freeBytes)
                                   && TryReadByteCounter(_modifiedBytesCounter, out modifiedBytes)
@@ -149,8 +135,18 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
             estimatedDataBytes - compressedBytes);
     }
 
-    private bool TryAddCounter(string path, out IntPtr counter) =>
-        PdhAddEnglishCounterW(_query, path, IntPtr.Zero, out counter) == PdhSuccess;
+    private uint AddCounters(PdhQuery query)
+    {
+        ClearCounterHandles();
+        uint status = query.AddCounter(CacheBytesPath, out _cacheBytesCounter);
+        if (status == PdhSuccess) status = query.AddCounter(FreeBytesPath, out _freeBytesCounter);
+        if (status == PdhSuccess) status = query.AddCounter(ModifiedBytesPath, out _modifiedBytesCounter);
+        if (status == PdhSuccess) status = query.AddCounter(StandbyCoreBytesPath, out _standbyCoreBytesCounter);
+        if (status == PdhSuccess) status = query.AddCounter(StandbyNormalBytesPath, out _standbyNormalBytesCounter);
+        if (status == PdhSuccess) status = query.AddCounter(StandbyReserveBytesPath, out _standbyReserveBytesCounter);
+        if (status != PdhSuccess) ClearCounterHandles();
+        return status;
+    }
 
     private static bool TryReadByteCounter(IntPtr counter, out ulong value)
     {
@@ -185,11 +181,11 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
             Data = (IntPtr)(&compressionInformation),
             Length = CompressionInformationSizeV1
         };
-        int status = NtQuerySystemInformation(
+        int status = NtDll.NtQuerySystemInformation(
             SystemStoreInformation,
-            ref storeInformation,
+            &storeInformation,
             (uint)sizeof(SYSTEM_STORE_INFORMATION),
-            IntPtr.Zero);
+            returnLength: null);
         if (status < 0 || compressionInformation.TotalCompressedSize == 0)
         {
             compressedBytes = 0;
@@ -228,27 +224,9 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        if (_query == IntPtr.Zero) return;
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
+        _query.Dispose();
         ClearCounterHandles();
     }
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhOpenQueryW(
-        string? dataSource,
-        IntPtr userData,
-        out IntPtr query);
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhAddEnglishCounterW(
-        IntPtr query,
-        string fullCounterPath,
-        IntPtr userData,
-        out IntPtr counter);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCollectQueryData(IntPtr query);
 
     [DllImport("pdh.dll")]
     private static extern uint PdhGetFormattedCounterValue(
@@ -256,16 +234,6 @@ internal sealed unsafe class MemoryCompositionSampler : IDisposable
         uint format,
         out uint valueType,
         out PDH_FORMATTED_COUNTER_VALUE value);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCloseQuery(IntPtr query);
-
-    [DllImport("ntdll.dll")]
-    private static extern int NtQuerySystemInformation(
-        int systemInformationClass,
-        ref SYSTEM_STORE_INFORMATION systemInformation,
-        uint systemInformationLength,
-        IntPtr returnLength);
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]
     private struct PDH_FORMATTED_COUNTER_VALUE

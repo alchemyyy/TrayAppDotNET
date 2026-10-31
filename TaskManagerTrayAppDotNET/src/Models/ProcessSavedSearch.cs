@@ -178,7 +178,7 @@ internal static class ProcessSavedSearchCollection
     }
 
     private static string ResolveNextDefaultName(
-        IReadOnlyList<ProcessSavedSearch> searches)
+        List<ProcessSavedSearch> searches)
     {
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         for (int searchIndex = 0; searchIndex < searches.Count; searchIndex++)

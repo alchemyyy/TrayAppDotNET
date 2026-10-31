@@ -36,11 +36,11 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly PhysicalMemoryMetadataReader _physicalMemoryMetadataReader = new();
     private readonly NetworkPerformanceSampler _networkSampler = new();
     private readonly DiskPerformanceSampler _diskSampler = new();
-    private readonly DiskDeviceMetadataReader _diskMetadataReader = new();
     private readonly GPUPerformanceSampler _gpuSampler = new();
     private readonly GPUPerformanceDetailsReader _gpuDetailsReader = new();
     private readonly Thread _samplingThread;
     private readonly Action _notifySnapshotUpdated;
+    private readonly IRecentProcessTotals? _sharedProcessTotals;
     private readonly long[] _providerElapsedTicks = new long[SamplingProviderCount];
     private PerformanceSnapshot[] _snapshotHistory;
     private DiskDeviceMetadataSnapshot[] _diskMetadata = [];
@@ -52,7 +52,6 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private int _processTotalsRequested;
     private int _notificationPending;
     private int _refreshRequested;
-    private int _resetBaselinesPending;
     private int _started;
     private int _disposed;
     private int _resourcesDisposed;
@@ -79,16 +78,22 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
     }
 
+    /// <param name="sharedProcessTotals">
+    /// The process sampler's latest totals; while recent, the Performance page reuses them instead of a second
+    /// kernel process snapshot per tick.
+    /// </param>
     public PerformanceSnapshotService(
         int sampleIntervalMilliseconds,
         int maximumHistoryCount,
-        bool includeMemorySerialNumbers = false)
+        bool includeMemorySerialNumbers = false,
+        IRecentProcessTotals? sharedProcessTotals = null)
     {
         ValidateMaximumHistoryCount(maximumHistoryCount);
         _sampleIntervalMilliseconds =
             PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
                 sampleIntervalMilliseconds);
         _includeMemorySerialNumbers = includeMemorySerialNumbers ? 1 : 0;
+        _sharedProcessTotals = sharedProcessTotals;
         _snapshotHistory = CreateHistoryBuffer(maximumHistoryCount);
         _notifySnapshotUpdated = NotifySnapshotUpdated;
         _samplingThread = new Thread(SamplingLoop)
@@ -111,7 +116,6 @@ internal sealed class PerformanceSnapshotService : IDisposable
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (_started != 0) return;
 
-            Interlocked.Exchange(ref _resetBaselinesPending, value: 1);
             _started = 1;
             try
             {
@@ -289,8 +293,6 @@ internal sealed class PerformanceSnapshotService : IDisposable
                         {
                             long samplingTimestamp = Stopwatch.GetTimestamp();
                             previousSamplingTimestamp = samplingTimestamp;
-                            if (Interlocked.Exchange(ref _resetBaselinesPending, value: 0) != 0)
-                                ResetSamplingBaselines();
                             PerformanceSnapshot snapshot = CaptureSnapshot(samplingTimestamp);
                             if (Volatile.Read(ref _disposed) == 0)
                                 Publish(snapshot);
@@ -377,16 +379,6 @@ internal sealed class PerformanceSnapshotService : IDisposable
             CultureInfo.InvariantCulture,
             $"{elapsedTicks * 1_000.0 / Stopwatch.Frequency:F0} ms");
 
-    private void ResetSamplingBaselines()
-    {
-        _systemSampler.ResetProcessorBaseline();
-        _metadataReader.ResetFrequencyBaseline();
-        _networkSampler.ResetCounterBaselines();
-        _diskSampler.ResetCounterBaselines();
-        _gpuSampler.ResetCounterBaseline();
-        _gpuDetailsReader.Clear();
-    }
-
     private SystemPerformanceSample SampleSystem()
     {
         try
@@ -407,7 +399,8 @@ internal sealed class PerformanceSnapshotService : IDisposable
         try
         {
             SystemPerformanceMetadataSample sample = _metadataReader.Sample(
-                Volatile.Read(ref _processTotalsRequested) != 0);
+                Volatile.Read(ref _processTotalsRequested) != 0,
+                _sharedProcessTotals);
             _metadataFailureLogged = false;
             return sample;
         }
@@ -553,7 +546,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             : long.MaxValue;
         try
         {
-            _diskMetadata = _diskMetadataReader.Read();
+            _diskMetadata = DiskDeviceMetadataReader.Read();
             _diskMetadataFailureLogged = false;
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))

@@ -23,48 +23,6 @@ internal static class CriticalProcessActions
     private const string ExplorerProcessName = "explorer";
     private const uint TerminationExitCode = 1;
 
-    public static bool TryTerminate(int processID, out string errorMessage) =>
-        TryTerminate(new ProcessTerminationTarget(processID, CreationTimeFileTime: 0), out errorMessage);
-
-    public static bool TryTerminate(ProcessTerminationTarget target, out string errorMessage)
-    {
-        if (target.ProcessID <= 0)
-        {
-            errorMessage = "The selected process cannot be terminated.";
-            return false;
-        }
-
-        if (target.ProcessID == Environment.ProcessId)
-        {
-            errorMessage = "Task Manager cannot terminate itself from this window.";
-            return false;
-        }
-
-        if (!TryOpenTerminationHandle(target, out IntPtr processHandle, out int openError))
-        {
-            errorMessage = openError == ErrorNotFound
-                ? "The selected process exited or its PID was reused."
-                : new Win32Exception(openError).Message;
-            return false;
-        }
-
-        try
-        {
-            if (TryTerminateHandle(processHandle, out int terminateError))
-            {
-                errorMessage = string.Empty;
-                return true;
-            }
-
-            errorMessage = new Win32Exception(terminateError).Message;
-            return false;
-        }
-        finally
-        {
-            _ = Kernel32.CloseHandle(processHandle);
-        }
-    }
-
     /// <summary>Returns whether the selected process instance has exited or its PID was reused.</summary>
     internal static bool IsTargetGone(ProcessTerminationTarget target)
     {
@@ -273,7 +231,7 @@ internal static class CriticalProcessActions
                 $"Windows Explorer processes could not be enumerated: {exception.Message}");
         }
 
-        if (!ExplorerProcessLauncher.TryOpenDesktopExplorerParent(
+        if (!ParentProcessLauncher.TryOpenDesktopExplorerParent(
                 out ProcessParentHandle? explorerParent,
                 out string parentErrorMessage) || explorerParent == null)
         {
@@ -370,7 +328,7 @@ internal static class CriticalProcessActions
         }
 
         string explorerPath = Path.Combine(windowsDirectory, ExplorerExecutableName);
-        ProcessLaunchResult launchResult = ExplorerProcessLauncher.StartWithParent(
+        ProcessLaunchResult launchResult = ParentProcessLauncher.StartWithParent(
             explorerParent,
             explorerPath,
             arguments: [],

@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ControlMapping;
+using TrayAppDotNETCommon.UI.Drag;
 using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -17,8 +18,13 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     where TItem : class
 {
-    private const string MoveUpToolTip = "Move up";
-    private const string MoveDownToolTip = "Move down";
+    private static string L(string key) => LocalizationManager.Instance[key];
+
+    // Drag start and edge auto-scroll decide how a gesture behaves, so they stay in code rather than in AXAML
+    private const double DragThreshold = 4;
+    private const double AutoScrollEdgeSize = 36;
+    private const double AutoScrollStep = 12;
+    private const int AutoScrollIntervalMilliseconds = 16;
 
     private readonly IList<TItem> _items;
     private readonly IReadOnlyList<TItem> _readOnlyItems;
@@ -78,11 +84,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         HorizontalAlignment = HorizontalAlignment.Stretch;
         Children.Add(_rows);
 
-        _autoScrollTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(
-                TaskManagerReorderResources.Current.AutoScrollIntervalMilliseconds)
-        };
+        _autoScrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(AutoScrollIntervalMilliseconds) };
         _autoScrollTimer.Tick += OnAutoScrollTick;
 
         RebuildRows();
@@ -186,18 +188,18 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         {
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = resources.PrimaryContentMargin,
+            Margin = resources.AxamlTaskManagerReorder.PrimaryContentMargin,
             Child = primaryContent
         };
 
         SettingsButton upButton = BuildMoveButton(
-            TaskManagerGlyphCatalog.CHEVRON_UP_BIG,
-            MoveUpToolTip,
+            TaskManagerGlyphCatalog.CHEVRON_UP_SMALL,
+            L(nameof(AppStrings.Reorder_MoveUp)),
             visibleIndex > 0,
             resources).MapTo(ControlMap.ReorderList.Row.Move.MoveUp);
         SettingsButton downButton = BuildMoveButton(
-            TaskManagerGlyphCatalog.CHEVRON_DOWN_BIG,
-            MoveDownToolTip,
+            TaskManagerGlyphCatalog.CHEVRON_DOWN_SMALL,
+            L(nameof(AppStrings.Reorder_MoveDown)),
             visibleIndex < visibleCount - 1,
             resources).MapTo(ControlMap.ReorderList.Row.Move.MoveDown);
         upButton.Click += (_, _) => MoveItem(item, direction: -1);
@@ -208,7 +210,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Spacing = resources.ButtonSpacing,
+            Spacing = resources.AxamlTaskManagerReorder.ButtonSpacing,
             Children = { upButton, downButton }
         }.MapTo(ControlMap.ReorderList.Row.Move.ID);
 
@@ -216,7 +218,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         {
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = resources.RowMinHeight,
+            MinHeight = resources.AxamlTaskManagerReorder.RowMinHeight,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         rowContent.Children.Add(primaryHost);
@@ -226,9 +228,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Border highlightSurface = new()
         {
             Background = Brushes.Transparent,
-            CornerRadius = _enableRoundedCorners ? resources.RowCornerRadius : default,
+            CornerRadius = _enableRoundedCorners ? resources.AxamlTaskManagerReorder.RowCornerRadius : default,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = resources.RowHighlightPadding,
+            Padding = resources.AxamlTaskManagerReorder.RowHighlightPadding,
             Child = rowContent
         };
 
@@ -237,10 +239,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Background = Brushes.Transparent,
             Cursor = TrayAppDotNETCursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = isLast ? default : resources.RowHitSlotPadding,
+            Padding = isLast ? default : resources.AxamlTaskManagerReorder.RowHitSlotPadding,
             Child = highlightSurface
         }.MapTo(ControlMap.ReorderList.Row.ID);
-        ReorderRow row = new(item, slot, highlightSurface);
+        ReorderRow row = new(item, slot, highlightSurface) { UpButton = upButton, DownButton = downButton };
         slot.PointerEntered += (_, _) => OnRowPointerEntered(row);
         slot.PointerExited += (_, _) => OnRowPointerExited(row);
         slot.AddHandler(
@@ -263,12 +265,12 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         SettingsButton button = new(glyph, _palette)
         {
-            Width = resources.ButtonSize,
-            Height = resources.ButtonSize,
-            MinHeight = resources.ButtonSize,
-            Padding = resources.ButtonPadding,
+            Width = resources.AxamlTaskManagerReorder.ButtonSize,
+            Height = resources.AxamlTaskManagerReorder.ButtonSize,
+            MinHeight = resources.AxamlTaskManagerReorder.ButtonSize,
+            Padding = resources.AxamlTaskManagerReorder.ButtonPadding,
             IsEnabled = isEnabled,
-            Label = { FontSize = resources.ButtonGlyphFontSize }
+            Label = { FontSize = resources.AxamlTaskManagerReorder.ButtonGlyphFontSize }
         };
         TrayAppDotNETToolTip.SetTip(button, toolTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
@@ -283,6 +285,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         int sourceVisibleIndex = TaskManagerReorderListLogic.IndexOfReference(_visibleItems, item);
         if (sourceVisibleIndex < 0) return;
 
+        // Rebuilding detaches the focused Move button, so remember whether keyboard focus was in this list
+        bool hadKeyboardFocus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+                                && this.IsVisualAncestorOf(focused);
         int targetVisibleIndex = sourceVisibleIndex + Math.Sign(direction);
         if (!TaskManagerReorderListLogic.MoveVisibleItem(
                 _items,
@@ -292,7 +297,22 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             return;
 
         RebuildRows();
+        if (hadKeyboardFocus) FocusMoveButton(item, direction);
         ItemsChanged?.Invoke();
+    }
+
+    private void FocusMoveButton(TItem item, int direction)
+    {
+        int visibleIndex = TaskManagerReorderListLogic.IndexOfReference(_visibleItems, item);
+        if (visibleIndex < 0) return;
+
+        ReorderRow row = _visibleRows[visibleIndex];
+        int focusDirection = TaskManagerReorderListLogic.FocusDirectionAfterMove(
+            direction,
+            visibleIndex,
+            _visibleRows.Count);
+        SettingsButton? button = focusDirection < 0 ? row.UpButton : row.DownButton;
+        button?.Focus(NavigationMethod.Tab);
     }
 
     private void OnRowPointerEntered(ReorderRow row)
@@ -380,9 +400,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         {
             double horizontalDistance = current.X - _dragStart.X;
             double verticalDistance = current.Y - _dragStart.Y;
-            double dragThreshold = TaskManagerReorderResources.Current.DragThreshold;
             if (horizontalDistance * horizontalDistance + verticalDistance * verticalDistance
-                < dragThreshold * dragThreshold)
+                < DragThreshold * DragThreshold)
                 return;
 
             _isDragging = true;
@@ -513,10 +532,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         return midpoints;
     }
 
-    private static int CalculateInsertionIndex(IReadOnlyList<double> midpoints, double pointerY)
+    private static int CalculateInsertionIndex(double[] midpoints, double pointerY)
     {
         int insertionIndex = 0;
-        while (insertionIndex < midpoints.Count && pointerY >= midpoints[insertionIndex])
+        while (insertionIndex < midpoints.Length && pointerY >= midpoints[insertionIndex])
             insertionIndex++;
         return insertionIndex;
     }
@@ -600,7 +619,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             Border slot = _visibleRows[rowIndex].Slot;
             if (ReferenceEquals(slot, draggedSlot)) continue;
 
-            double offset = TaskManagerReorderListLogic.ResolvePreviewOffset(
+            double offset = ReorderMath.ResolvePreviewOffset(
                 rowIndex,
                 sourceVisibleIndex,
                 targetVisibleIndex,
@@ -623,7 +642,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Point pointerPosition = eventArgs.GetPosition(scrollViewport);
         double viewportHeight = scrollViewport.Bounds.Height;
         double edgeSize = Math.Min(
-            TaskManagerReorderResources.Current.AutoScrollEdgeSize,
+            AutoScrollEdgeSize,
             viewportHeight / 2);
         int direction = pointerPosition.Y < edgeSize
             ? -1
@@ -657,7 +676,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         double previousOffset = scrollViewport.VerticalOffset;
         double requestedOffset = previousOffset
                                  + _autoScrollDirection
-                                 * TaskManagerReorderResources.Current.AutoScrollStep;
+                                 * AutoScrollStep;
         scrollViewport.SetVerticalOffset(requestedOffset);
         SynchronizeViewportOffset();
         if (scrollViewport.VerticalOffset.Equals(previousOffset)) SetAutoScrollDirection(0);
@@ -696,8 +715,12 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private static void ApplyDraggingVisual(Border slot, bool isDragging)
     {
         TaskManagerReorderResources resources = TaskManagerReorderResources.Current;
-        slot.Opacity = isDragging ? resources.DraggingOpacity : 1;
-        slot.SetValue(ZIndexProperty, isDragging ? resources.DraggingZIndex : resources.NormalZIndex);
+        slot.Opacity = isDragging ? resources.AxamlTaskManagerReorder.DraggingOpacity : 1;
+        slot.SetValue(
+            ZIndexProperty,
+            isDragging
+                ? resources.AxamlTaskManagerReorder.DraggingZIndex
+                : resources.AxamlTaskManagerReorder.NormalZIndex);
     }
 
     private void ResetDraggedSlotVisual()
@@ -763,11 +786,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
 #if DEBUG
     private void OnResourcesReloaded()
     {
-        if (Volatile.Read(ref _disposed) != 0) return;
-
-        _autoScrollTimer.Interval = TimeSpan.FromMilliseconds(
-            TaskManagerReorderResources.Current.AutoScrollIntervalMilliseconds);
-        Refresh();
+        if (Volatile.Read(ref _disposed) == 0) Refresh();
     }
 
     private void OnGlyphResourcesReloaded()
@@ -805,6 +824,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         public Border Slot { get; } = slot;
         public Border HighlightSurface { get; } = highlightSurface;
         public bool IsPointerOver { get; set; }
+        public SettingsButton? UpButton { get; init; }
+        public SettingsButton? DownButton { get; init; }
     }
 
     private sealed class ReadOnlyListView(IList<TItem> items) : IReadOnlyList<TItem>
@@ -822,6 +843,17 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
 /// <summary>Pure ordering and filtering operations used by Task Manager reorder lists.</summary>
 internal static class TaskManagerReorderListLogic
 {
+    /// <summary>
+    /// Chooses which Move button of the moved item receives keyboard focus after the rows are rebuilt: the one in the
+    /// direction just used, unless the item reached that end of the list, in which case the opposite one.
+    /// </summary>
+    internal static int FocusDirectionAfterMove(int direction, int newVisibleIndex, int visibleCount)
+    {
+        int step = Math.Sign(direction);
+        bool sameDirectionEnabled = step < 0 ? newVisibleIndex > 0 : newVisibleIndex < visibleCount - 1;
+        return sameDirectionEnabled ? step : -step;
+    }
+
     /// <summary>Filters items without score-sorting them, preserving their current order.</summary>
     internal static List<TItem> FilterItems<TItem>(
         IEnumerable<TItem> items,
@@ -884,12 +916,8 @@ internal static class TaskManagerReorderListLogic
                 return false;
         }
 
-        List<TItem> reordered = new(visibleItems.Count);
-        for (int visibleIndex = 0; visibleIndex < visibleItems.Count; visibleIndex++)
-            reordered.Add(visibleItems[visibleIndex]);
-        TItem moved = reordered[sourceVisibleIndex];
-        reordered.RemoveAt(sourceVisibleIndex);
-        reordered.Insert(clampedTargetIndex, moved);
+        List<TItem> reordered = [.. visibleItems];
+        ReorderMath.Move(reordered, sourceVisibleIndex, clampedTargetIndex);
 
         for (int visibleIndex = 0; visibleIndex < visibleSlots.Count; visibleIndex++)
             items[visibleSlots[visibleIndex]] = reordered[visibleIndex];
@@ -910,20 +938,6 @@ internal static class TaskManagerReorderListLogic
             ? clampedInsertionIndex - 1
             : clampedInsertionIndex;
         return Math.Clamp(targetVisibleIndex, min: 0, visibleCount - 1);
-    }
-
-    /// <summary>Resolves one sibling row's vertical displacement for a reorder preview.</summary>
-    internal static double ResolvePreviewOffset(
-        int rowIndex,
-        int sourceIndex,
-        int targetIndex,
-        double displacement)
-    {
-        if (displacement <= 0 || rowIndex == sourceIndex || sourceIndex == targetIndex) return 0;
-        if (targetIndex < sourceIndex)
-            return rowIndex >= targetIndex && rowIndex < sourceIndex ? displacement : 0;
-
-        return rowIndex > sourceIndex && rowIndex <= targetIndex ? -displacement : 0;
     }
 
     /// <summary>Finds an item by object identity rather than value equality.</summary>

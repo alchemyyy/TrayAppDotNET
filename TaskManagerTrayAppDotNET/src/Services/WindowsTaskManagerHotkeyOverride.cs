@@ -120,7 +120,7 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
     private void StopHookThread(Thread hookThread)
     {
         uint hookThreadID = Volatile.Read(ref _hookThreadID);
-        if (hookThreadID != 0 && !PostThreadMessageW(hookThreadID, WindowsMessageQuit, IntPtr.Zero, IntPtr.Zero))
+        if (hookThreadID != 0 && !User32.PostThreadMessage(hookThreadID, WindowsMessageQuit, IntPtr.Zero, IntPtr.Zero))
             LogWin32Failure("stop the keyboard hook thread", Marshal.GetLastWin32Error());
 
         if (!hookThread.Join(HookThreadStopTimeoutMilliseconds))
@@ -131,13 +131,13 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
     private unsafe void RunHookThread(TaskCompletionSource<bool> hookInstalled)
     {
         // Creates the thread message queue before the thread ID is published for PostThreadMessage
-        _ = PeekMessageW(out _, IntPtr.Zero, WindowsMessageUser, WindowsMessageUser, PeekMessageNoRemove);
-        Volatile.Write(ref _hookThreadID, GetCurrentThreadId());
+        _ = User32.PeekMessage(out _, IntPtr.Zero, WindowsMessageUser, WindowsMessageUser, PeekMessageNoRemove);
+        Volatile.Write(ref _hookThreadID, Kernel32.GetCurrentThreadId());
 
         IntPtr hookHandle = IntPtr.Zero;
         try
         {
-            IntPtr moduleHandle = GetModuleHandleW(null);
+            IntPtr moduleHandle = Kernel32.GetModuleHandle(lpModuleName: null);
             if (moduleHandle == IntPtr.Zero)
             {
                 LogWin32Failure("resolve the application module", Marshal.GetLastWin32Error());
@@ -159,7 +159,7 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
 
             Volatile.Write(ref _hookHandle, hookHandle);
             hookInstalled.TrySetResult(true);
-            while (GetMessageW(out _, IntPtr.Zero, messageFilterMinimum: 0, messageFilterMaximum: 0) > 0)
+            while (User32.GetMessage(out _, IntPtr.Zero, wMsgFilterMin: 0, wMsgFilterMax: 0) > 0)
             {
             }
         }
@@ -349,47 +349,4 @@ internal sealed class WindowsTaskManagerHotkeyOverride : IDisposable
         int code,
         IntPtr message,
         IntPtr eventData);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern int GetMessageW(
-        out NativeMessage message,
-        IntPtr windowHandle,
-        uint messageFilterMinimum,
-        uint messageFilterMaximum);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PeekMessageW(
-        out NativeMessage message,
-        IntPtr windowHandle,
-        uint messageFilterMinimum,
-        uint messageFilterMaximum,
-        uint removeMessage);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PostThreadMessageW(
-        uint threadID,
-        uint message,
-        IntPtr wParam,
-        IntPtr lParam);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr GetModuleHandleW(string? moduleName);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeMessage
-    {
-        public IntPtr WindowHandle;
-        public uint Message;
-        public IntPtr WParam;
-        public IntPtr LParam;
-        public uint Time;
-        public int PointX;
-        public int PointY;
-        public uint Private;
-    }
 }

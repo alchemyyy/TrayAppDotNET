@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -22,9 +23,12 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
     private readonly bool _needsNPU;
     private readonly bool _needsGPUEngine;
     private readonly bool _needsNPUEngine;
+    private readonly bool _needsUtilizationCounter;
+    private readonly bool _needsDedicatedMemory;
+    private readonly bool _needsSharedMemory;
     private readonly Dictionary<int, ProcessAcceleratorSample> _samples = new(256);
     private readonly AcceleratorAdapterClassifier _adapterClassifier = new();
-    private IntPtr _query;
+    private readonly PdhQuery _query;
     private IntPtr _utilizationCounter;
     private IntPtr _dedicatedMemoryCounter;
     private IntPtr _sharedMemoryCounter;
@@ -45,22 +49,10 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
         _needsNPU = needsNPU;
         _needsGPUEngine = needsGPUEngine;
         _needsNPUEngine = needsNPUEngine;
-
-        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _query) != PdhSuccess) return;
-        if (needsUtilization || needsGPUEngine || needsNPUEngine)
-            _utilizationCounter = AddCounter(UtilizationPath);
-        if (needsDedicatedMemory)
-            _dedicatedMemoryCounter = AddCounter(DedicatedMemoryPath);
-        if (needsSharedMemory)
-            _sharedMemoryCounter = AddCounter(SharedMemoryPath);
-
-        if (_utilizationCounter != IntPtr.Zero
-            || _dedicatedMemoryCounter != IntPtr.Zero
-            || _sharedMemoryCounter != IntPtr.Zero)
-            return;
-
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
+        _needsUtilizationCounter = needsUtilization || needsGPUEngine || needsNPUEngine;
+        _needsDedicatedMemory = needsDedicatedMemory;
+        _needsSharedMemory = needsSharedMemory;
+        _query = new PdhQuery(nameof(AcceleratorPerformanceSampler), AddCounters);
     }
 
     public bool HasUtilizationData { get; private set; }
@@ -79,7 +71,7 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
         HasUtilizationData = false;
         HasDedicatedMemoryData = false;
         HasSharedMemoryData = false;
-        if (_query == IntPtr.Zero || PdhCollectQueryData(_query) != PdhSuccess) return;
+        if (!_query.TryCollect()) return;
 
         if (_utilizationCounter != IntPtr.Zero
             && TryReadCounterArray(
@@ -135,10 +127,25 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
     public bool TryGetSample(int processID, out ProcessAcceleratorSample sample) =>
         _samples.TryGetValue(processID, out sample);
 
-    private IntPtr AddCounter(string path)
+    private uint AddCounters(PdhQuery query)
     {
-        uint status = PdhAddEnglishCounterW(_query, path, IntPtr.Zero, out IntPtr counter);
-        return status == PdhSuccess ? counter : IntPtr.Zero;
+        uint failureStatus = PdhSuccess;
+        _utilizationCounter = _needsUtilizationCounter ? AddCounter(query, UtilizationPath, ref failureStatus) : IntPtr.Zero;
+        _dedicatedMemoryCounter = _needsDedicatedMemory ? AddCounter(query, DedicatedMemoryPath, ref failureStatus) : IntPtr.Zero;
+        _sharedMemoryCounter = _needsSharedMemory ? AddCounter(query, SharedMemoryPath, ref failureStatus) : IntPtr.Zero;
+        return _utilizationCounter != IntPtr.Zero
+               || _dedicatedMemoryCounter != IntPtr.Zero
+               || _sharedMemoryCounter != IntPtr.Zero
+            ? PdhSuccess
+            : failureStatus;
+    }
+
+    private static IntPtr AddCounter(PdhQuery query, string path, ref uint failureStatus)
+    {
+        uint status = query.AddCounter(path, out IntPtr counter);
+        if (status == PdhSuccess) return counter;
+        failureStatus = status;
+        return IntPtr.Zero;
     }
 
     private bool TryReadCounterArray(
@@ -362,23 +369,8 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
             _counterBufferSize = 0;
         }
 
-        if (_query == IntPtr.Zero) return;
-        _ = PdhCloseQuery(_query);
-        _query = IntPtr.Zero;
+        _query.Dispose();
     }
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhOpenQueryW(string? dataSource, IntPtr userData, out IntPtr query);
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhAddEnglishCounterW(
-        IntPtr query,
-        string fullCounterPath,
-        IntPtr userData,
-        out IntPtr counter);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCollectQueryData(IntPtr query);
 
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
     private static extern uint PdhGetFormattedCounterArrayW(
@@ -387,9 +379,6 @@ internal sealed unsafe class AcceleratorPerformanceSampler : IDisposable
         ref uint bufferSize,
         out uint itemCount,
         IntPtr itemBuffer);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCloseQuery(IntPtr query);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PDH_FORMATTED_COUNTER_VALUE_ITEM
@@ -610,7 +599,7 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
         if (_engineLabels.TryGetValue(key, out string? existing)) return existing;
 
         string acceleratorName = adapter.Kind == AcceleratorKind.NPU ? "NPU" : "GPU";
-        string normalizedEngineType = NormalizeEngineType(engineType);
+        string normalizedEngineType = GPUEngineNames.Normalize(engineType);
         string label = string.Concat(
             acceleratorName,
             " ",
@@ -644,7 +633,7 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
         }
         finally
         {
-            Release(adapter);
+            _ = Marshal.Release(adapter);
         }
     }
 
@@ -656,29 +645,6 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
         return isAttributeSupported(adapter, &attribute) != 0;
     }
 
-    private static string NormalizeEngineType(ReadOnlySpan<char> engineType)
-    {
-        if (engineType.Equals(other: "3d", StringComparison.OrdinalIgnoreCase)) return "3D";
-        if (engineType.Equals(other: "copy", StringComparison.OrdinalIgnoreCase)) return "Copy";
-        if (engineType.Equals(other: "compute", StringComparison.OrdinalIgnoreCase)) return "Compute";
-        if (engineType.Equals(other: "videodecode", StringComparison.OrdinalIgnoreCase)) return "Video Decode";
-        if (engineType.Equals(other: "videoencode", StringComparison.OrdinalIgnoreCase)) return "Video Encode";
-        if (engineType.Equals(other: "videoprocessing", StringComparison.OrdinalIgnoreCase)) return "Video Processing";
-        if (engineType.Equals(other: "legacyoverlay", StringComparison.OrdinalIgnoreCase)) return "Legacy Overlay";
-        if (engineType.Equals(other: "sceneassembly", StringComparison.OrdinalIgnoreCase)) return "Scene Assembly";
-        if (engineType.Equals(other: "opticalflow", StringComparison.OrdinalIgnoreCase)) return "Optical Flow";
-        if (engineType.Equals(other: "security", StringComparison.OrdinalIgnoreCase)) return "Security";
-        return engineType.ToString();
-    }
-
-    private static void Release(IntPtr instance)
-    {
-        IntPtr* vTable = *(IntPtr**)instance;
-        delegate* unmanaged[Stdcall]<IntPtr, uint> release =
-            (delegate* unmanaged[Stdcall]<IntPtr, uint>)vTable[2];
-        _ = release(instance);
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
@@ -688,7 +654,7 @@ internal sealed unsafe class AcceleratorAdapterClassifier : IDisposable
         _engineLabels.Clear();
         if (_factory == IntPtr.Zero) return;
 
-        Release(_factory);
+        _ = Marshal.Release(_factory);
         _factory = IntPtr.Zero;
     }
 

@@ -39,8 +39,8 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         TaskManagerWindowResources resources,
         Action<IReadOnlyList<ProcessHeaderButtonKind>> orderChanged)
         : base(
-            title: "Arrange buttons",
-            description: "Drag buttons or use the arrows. The top item is the leftmost header button.",
+            title: LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_Arrange_Title)],
+            description: LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_Arrange_Description)],
             items,
             static item => item.Label,
             (item, notifyItemChanged) => BuildLabel(item, palette),
@@ -91,7 +91,7 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         return items;
     }
 
-    private static IReadOnlyList<ProcessHeaderButtonKind> GetKinds(
+    private static List<ProcessHeaderButtonKind> GetKinds(
         IReadOnlyList<ProcessHeaderButtonArrangementItem> items)
     {
         List<ProcessHeaderButtonKind> kinds = new(items.Count);
@@ -100,7 +100,7 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         return kinds;
     }
 
-    private static Control BuildLabel(
+    private static TextBlock BuildLabel(
         ProcessHeaderButtonArrangementItem item,
         SettingsPalette palette)
     {
@@ -111,10 +111,10 @@ internal sealed class ProcessHeaderButtonArrangementWindow
 
     private static string GetLabel(ProcessHeaderButtonKind kind) => kind switch
     {
-        ProcessHeaderButtonKind.RunNewTask => "Run new task",
-        ProcessHeaderButtonKind.Columns => "Columns",
-        ProcessHeaderButtonKind.EndTask => "End task",
-        ProcessHeaderButtonKind.RestartExplorer => "Restart explorer",
+        ProcessHeaderButtonKind.RunNewTask => LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_RunNewTask)],
+        ProcessHeaderButtonKind.Columns => LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_Columns)],
+        ProcessHeaderButtonKind.EndTask => LocalizationManager.Instance[nameof(AppStrings.Confirm_EndTask_SingleButton)],
+        ProcessHeaderButtonKind.RestartExplorer => LocalizationManager.Instance[nameof(AppStrings.Window_RestartExplorer_Button)],
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, message: "Unknown header button kind.")
     };
 }

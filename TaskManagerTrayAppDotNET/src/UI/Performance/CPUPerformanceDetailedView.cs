@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -77,7 +78,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
         Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
         int graphIndex = 0;
         AddGraph(
-            labelText: "Overall usage",
+            labelText: L(nameof(AppStrings.Perf_CPU_OverallUsage)),
             overallHistory,
             accent,
             hoverMetricProvider: null,
@@ -95,7 +96,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
         }
 
         AddGraph(
-            labelText: "Highest single LP utilization",
+            labelText: L(nameof(AppStrings.Perf_CPU_HighestSingleLP)),
             highestCoreHistory,
             accent,
             hoverMetricProvider: null,
@@ -197,15 +198,14 @@ internal sealed class CPUPerformanceDetailedView : Grid
 
     /// <summary>Formats a CCD graph label when every CCD reports the same level-3 cache.</summary>
     internal static string FormatCCDLabel(int CCDIndex) =>
-        string.Concat(str0: "CCD ", CCDIndex.ToString(CultureInfo.CurrentCulture));
+        F(nameof(AppStrings.Perf_CCDFormat), CCDIndex);
 
     /// <summary>Formats a CCD graph label with its level-3 cache, naming a larger-cache CCD X3D.</summary>
     internal static string FormatCCDLabel(int CCDIndex, ulong l3CacheBytes, bool isX3D) =>
-        string.Concat(
+        F(
+            isX3D ? nameof(AppStrings.Perf_CCDX3DCacheFormat) : nameof(AppStrings.Perf_CCDCacheFormat),
             FormatCCDLabel(CCDIndex),
-            isX3D ? " (X3D, " : " (",
-            PerformanceDevicePresentationFactory.FormatBytes(l3CacheBytes),
-            str3: " L3)");
+            PerformanceDevicePresentationFactory.FormatBytes(l3CacheBytes));
 
     /// <summary>Formats a core-class graph label such as "8 Performance Cores" or "2 Low Power Efficiency Cores".</summary>
     internal static string FormatCoreClassLabel(
@@ -217,22 +217,18 @@ internal sealed class CPUPerformanceDetailedView : Grid
 
         // Windows orders classes by performance but does not name them, so the name follows the order
         // NOTE: names are spelled out because LP already means logical processor in this view
-        string className = isHighestClass
-            ? "Performance Core"
+        bool isOne = coreClass.CoreCount == 1;
+        string classKey = isHighestClass
+            ? isOne ? nameof(AppStrings.Perf_CoreClass_PerformanceOne) : nameof(AppStrings.Perf_CoreClass_PerformanceMany)
             : coreClass.IsOutsideL3Cache
-                ? "Low Power Efficiency Core"
-                : "Efficiency Core";
-        string label = string.Concat(
-            coreClass.CoreCount.ToString(CultureInfo.CurrentCulture),
-            str1: " ",
-            className,
-            coreClass.CoreCount == 1 ? string.Empty : "s");
+                ? isOne ? nameof(AppStrings.Perf_CoreClass_LowPowerOne) : nameof(AppStrings.Perf_CoreClass_LowPowerMany)
+                : isOne ? nameof(AppStrings.Perf_CoreClass_EfficiencyOne) : nameof(AppStrings.Perf_CoreClass_EfficiencyMany);
+        string label = F(classKey, coreClass.CoreCount);
         return showEfficiencyClass && !isHighestClass
-            ? string.Concat(
+            ? F(
+                nameof(AppStrings.Perf_CoreClass_WithClassFormat),
                 label,
-                str1: " (class ",
-                coreClass.EfficiencyClass.ToString(CultureInfo.InvariantCulture),
-                str3: ")")
+                coreClass.EfficiencyClass.ToString(CultureInfo.InvariantCulture))
             : label;
     }
 

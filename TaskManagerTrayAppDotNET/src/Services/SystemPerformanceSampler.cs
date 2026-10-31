@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -9,7 +10,6 @@ internal sealed class SystemPerformanceSampler : IDisposable
     private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
     private const int StatusBufferOverflow = unchecked((int)0x80000005);
     private const int StatusBufferTooSmall = unchecked((int)0xC0000023);
-    private const uint AllProcessorGroups = 0xFFFF;
     private const int ProcessorCapacitySlack = 4;
 
     private static readonly int NativeProcessorTimesSize = Marshal.SizeOf<SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION>();
@@ -130,18 +130,6 @@ internal sealed class SystemPerformanceSampler : IDisposable
         _lastAvailablePhysicalMemoryBytes,
         _lastMemoryPercent);
 
-    /// <summary>Discards processor deltas so the next capture only establishes a fresh baseline.</summary>
-    internal void ResetProcessorBaseline()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _hasPreviousProcessorTimes = false;
-        _previousProcessorCount = 0;
-        _lastProcessorSampleAvailable = false;
-        _lastCPUAveragePercent = 0;
-        _lastCPUHighestCorePercent = 0;
-        Array.Clear(_lastLogicalProcessorPercents);
-    }
-
     /// <summary>Calculates busy time from deltas where kernel time includes idle time.</summary>
     internal static double CalculateCPUUsagePercent(double idleDelta, double totalDelta)
     {
@@ -154,40 +142,60 @@ internal sealed class SystemPerformanceSampler : IDisposable
         return Math.Clamp((1.0 - boundedIdleDelta / totalDelta) * 100.0, min: 0, max: 100);
     }
 
-    private bool TryReadProcessorTimes(out int processorCount)
+    /// <summary>
+    /// Reads cumulative times for every logical processor in every processor group. A plain
+    /// SystemProcessorPerformanceInformation query covers only the calling thread's group, so on machines with more
+    /// than 64 logical processors each group is queried with NtQuerySystemInformationEx and the results are
+    /// concatenated in group order.
+    /// </summary>
+    private unsafe bool TryReadProcessorTimes(out int processorCount)
     {
         processorCount = 0;
-        uint activeProcessorCount = GetActiveProcessorCount(AllProcessorGroups);
-        int requestedProcessorCount = activeProcessorCount is > 0 and <= int.MaxValue
-            ? (int)activeProcessorCount
-            : Math.Max(val1: 1, Environment.ProcessorCount);
-        int requestedBufferSize = checked(
-            (requestedProcessorCount + ProcessorCapacitySlack) * NativeProcessorTimesSize);
-        EnsureProcessorBuffer(requestedBufferSize);
+        ushort groupCount = Math.Max((ushort)1, GetActiveProcessorGroupCount());
+        Span<uint> groupProcessorCounts = stackalloc uint[groupCount];
+        for (ushort group = 0; group < groupCount; group++)
+            groupProcessorCounts[group] = GetActiveProcessorCount(group);
+        EnsureProcessorBuffer(CalculateProcessorBufferBytes(
+            groupProcessorCounts,
+            NativeProcessorTimesSize,
+            ProcessorCapacitySlack));
 
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            int status = NtQuerySystemInformation(
-                SystemProcessorPerformanceInformation,
-                _processorBuffer,
-                _processorBufferSize,
-                out int returnLength);
-            if (status >= 0)
+            int filledBytes = 0;
+            int requiredBytes = 0;
+            for (ushort group = 0; group < groupCount; group++)
             {
-                int returnedProcessorCount = returnLength > 0
-                    ? returnLength / NativeProcessorTimesSize
-                    : requestedProcessorCount;
-                processorCount = Math.Min(returnedProcessorCount, _processorBufferSize / NativeProcessorTimesSize);
+                uint returnedBytes;
+                int status = NtDll.NtQuerySystemInformationEx(
+                    SystemProcessorPerformanceInformation,
+                    &group,
+                    sizeof(ushort),
+                    (void*)IntPtr.Add(_processorBuffer, filledBytes),
+                    (uint)(_processorBufferSize - filledBytes),
+                    &returnedBytes);
+                int returnLength = checked((int)returnedBytes);
+                if (status >= 0)
+                {
+                    filledBytes += returnLength - returnLength % NativeProcessorTimesSize;
+                    continue;
+                }
+
+                if (!IsBufferSizeStatus(status)) return false;
+                requiredBytes = checked(filledBytes + returnLength);
+                break;
+            }
+
+            if (requiredBytes == 0)
+            {
+                processorCount = filledBytes / NativeProcessorTimesSize;
                 if (processorCount <= 0) return false;
 
                 EnsureProcessorTimesCapacity(ref _currentProcessorTimes, processorCount);
                 for (int processorIndex = 0; processorIndex < processorCount; processorIndex++)
                 {
-                    IntPtr processorAddress = IntPtr.Add(
-                        _processorBuffer,
-                        processorIndex * NativeProcessorTimesSize);
-                    SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION native =
-                        Marshal.PtrToStructure<SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION>(processorAddress);
+                    SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION native = *(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION*)
+                        IntPtr.Add(_processorBuffer, processorIndex * NativeProcessorTimesSize);
                     _currentProcessorTimes[processorIndex] = new ProcessorTimes(
                         native.IdleTime,
                         native.KernelTime,
@@ -197,14 +205,25 @@ internal sealed class SystemPerformanceSampler : IDisposable
                 return true;
             }
 
-            if (!IsBufferSizeStatus(status)
-                || returnLength <= _processorBufferSize)
-                return false;
-
-            EnsureProcessorBuffer(checked(returnLength + ProcessorCapacitySlack * NativeProcessorTimesSize));
+            // A group grew (processor hot-add): size the buffer for every group again and retry once
+            EnsureProcessorBuffer(checked(Math.Max(requiredBytes, _processorBufferSize)
+                                          + ProcessorCapacitySlack * NativeProcessorTimesSize * groupCount));
         }
 
         return false;
+    }
+
+    /// <summary>Sizes the per-processor buffer for all groups, with slack per group.</summary>
+    internal static int CalculateProcessorBufferBytes(
+        ReadOnlySpan<uint> groupProcessorCounts,
+        int entrySize,
+        int slackPerGroup)
+    {
+        long processors = 0;
+        foreach (uint count in groupProcessorCounts)
+            processors += Math.Max(count, 1u) + (uint)slackPerGroup;
+        if (groupProcessorCounts.IsEmpty) processors = 1 + slackPerGroup;
+        return checked((int)(processors * entrySize));
     }
 
     private void SaveCurrentProcessorTimes(int processorCount)
@@ -300,15 +319,11 @@ internal sealed class SystemPerformanceSampler : IDisposable
         _lastLogicalProcessorPercents = [];
     }
 
-    [DllImport("ntdll.dll")]
-    private static extern int NtQuerySystemInformation(
-        int systemInformationClass,
-        IntPtr systemInformation,
-        int systemInformationLength,
-        out int returnLength);
+    [DllImport("kernel32.dll")]
+    private static extern uint GetActiveProcessorCount(ushort groupNumber);
 
     [DllImport("kernel32.dll")]
-    private static extern uint GetActiveProcessorCount(uint groupNumber);
+    private static extern ushort GetActiveProcessorGroupCount();
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

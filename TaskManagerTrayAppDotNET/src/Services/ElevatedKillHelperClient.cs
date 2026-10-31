@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -19,7 +21,6 @@ internal readonly record struct ElevatedKillHelperStartResult(
 /// <summary>Owns the fixed shared page and event-driven native helper session.</summary>
 internal sealed unsafe class ElevatedKillHelperClient : IDisposable
 {
-    private const int ErrorCancelled = 1223;
     private const int HelperHandshakeTimeoutMilliseconds = 10_000;
     private const uint HelperResponseWaitHandleCount = 2;
     private const uint HelperProcessWaitOffset = 1;
@@ -61,22 +62,8 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
     }
 
     /// <summary>Creates all kernel objects before launching the requested helper integrity level.</summary>
-    public static ElevatedKillHelperStartResult TryStart(
-        IntPtr ownerWindowHandle,
-        bool elevate,
-        Action<string>? log)
+    public static ElevatedKillHelperStartResult TryStart(bool elevate, Action<string>? log)
     {
-        if (elevate && ownerWindowHandle == IntPtr.Zero)
-        {
-            const string ownerErrorMessage =
-                "The Task Manager window is not ready to own the Windows approval prompt.";
-            log?.Invoke(ownerErrorMessage);
-            return new ElevatedKillHelperStartResult(
-                ElevatedKillHelperStartOutcome.Failed,
-                Session: null,
-                ownerErrorMessage);
-        }
-
         ElevatedKillHelperClient client = new(log);
         ElevatedKillHelperStartOutcome outcome;
         string errorMessage;
@@ -117,7 +104,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             _mailbox->ArmGeneration = generation;
             _ = Interlocked.Increment(ref _mailbox->ArmPayloadSequence);
             _ = Interlocked.Increment(ref _mailbox->ArmRequestSequence);
-            return KillHelperNativeMethods.SetEvent(_requestEvent);
+            return Kernel32.SetEvent(_requestEvent);
         }
     }
 
@@ -141,7 +128,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             Interlocked.Exchange(ref _mailbox->FireResult, KillHelperProtocol.ResultNone);
             Interlocked.Exchange(ref _mailbox->FireError, value: 0);
             requestSequence = Interlocked.Increment(ref _mailbox->FireRequestSequence);
-            return KillHelperNativeMethods.SetEvent(_requestEvent);
+            return Kernel32.SetEvent(_requestEvent);
         }
     }
 
@@ -174,10 +161,10 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
                 long remaining = deadline - Environment.TickCount64;
                 if (remaining <= 0) return false;
 
-                uint waitResult = KillHelperNativeMethods.WaitForMultipleObjects(
+                uint waitResult = Kernel32.WaitForMultipleObjects(
                     HelperResponseWaitHandleCount,
                     waitHandles,
-                    waitForAll: false,
+                    bWaitAll: false,
                     (uint)Math.Min(remaining, int.MaxValue));
                 if (waitResult == Kernel32.WAIT_TIMEOUT) return false;
                 if (waitResult == Kernel32.WAIT_OBJECT_0 + HelperProcessWaitOffset) return false;
@@ -251,22 +238,22 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         if (!_mappingViewLocked)
             LogWin32Failure("VirtualLock managed mailbox");
 
-        _requestEvent = KillHelperNativeMethods.CreateEventW(
+        _requestEvent = Kernel32.CreateEvent(
             IntPtr.Zero,
-            isManualReset: false,
-            initialState: false,
-            name: null);
+            bManualReset: false,
+            bInitialState: false,
+            lpName: null);
         if (_requestEvent == IntPtr.Zero)
         {
             errorMessage = LogWin32Failure("CreateEvent request");
             return ElevatedKillHelperStartOutcome.Failed;
         }
 
-        _responseEvent = KillHelperNativeMethods.CreateEventW(
+        _responseEvent = Kernel32.CreateEvent(
             IntPtr.Zero,
-            isManualReset: false,
-            initialState: false,
-            name: null);
+            bManualReset: false,
+            bInitialState: false,
+            lpName: null);
         if (_responseEvent == IntPtr.Zero)
         {
             errorMessage = LogWin32Failure("CreateEvent response");
@@ -282,16 +269,28 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             _requestEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture),
             " ",
             _responseEvent.ToInt64().ToString(format: "X", CultureInfo.InvariantCulture));
-        string? launchVerb = elevate ? "runas" : null;
-        if (!ExplorerProcessLauncher.TryShellExecute(
+        // The helper needs PROCESS_DUP_HANDLE on this process. A helper started through the desktop Explorer
+        // runs at medium integrity and cannot get that from an elevated Task Manager, so an elevated Task
+        // Manager starts its standard helper directly and the helper inherits the elevated token.
+        bool launched;
+        int launchError = 0;
+        string launchErrorMessage;
+        if (!elevate && AppElevation.IsElevated)
+            launched = TryStartWithInheritedToken(helperPath, arguments, out launchErrorMessage);
+        else
+        {
+            launched = ExplorerProcessLauncher.TryShellExecute(
                 helperPath,
                 arguments,
                 workingDirectory: AppContext.BaseDirectory,
-                verb: launchVerb,
-                out int launchError,
-                out string launchErrorMessage))
+                verb: elevate ? "runas" : null,
+                out launchError,
+                out launchErrorMessage);
+        }
+
+        if (!launched)
         {
-            bool wasCancelled = elevate && launchError == ErrorCancelled;
+            bool wasCancelled = elevate && TrayAppDotNETElevatedLaunch.IsUserCancelled(launchError);
             errorMessage = wasCancelled
                 ? "Windows administrator approval was canceled."
                 : $"Native kill helper launch failed: {launchErrorMessage}";
@@ -382,6 +381,36 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             $"0x{flags:X8}, expected 0x{requiredFlags:X8}.");
     }
 
+    /// <summary>Starts the helper as a child of this process so it runs with this process's (elevated) token.</summary>
+    private static bool TryStartWithInheritedToken(string helperPath, string arguments, out string errorMessage)
+    {
+        try
+        {
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = helperPath,
+                Arguments = arguments,
+                WorkingDirectory = AppContext.BaseDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using Process? process = Process.Start(startInfo);
+            if (process == null)
+            {
+                errorMessage = "The helper process did not start.";
+                return false;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        {
+            errorMessage = exception.Message;
+            return false;
+        }
+    }
+
     private string LogWin32Failure(string operation)
     {
         int errorCode = Marshal.GetLastWin32Error();
@@ -401,7 +430,7 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             {
                 _ = Interlocked.Or(ref _mailbox->ControlFlags, KillHelperProtocol.ControlShutdown);
                 if (_requestEvent != IntPtr.Zero)
-                    _ = KillHelperNativeMethods.SetEvent(_requestEvent);
+                    _ = Kernel32.SetEvent(_requestEvent);
             }
 
             CloseNativeHandle(ref _helperProcessHandle);

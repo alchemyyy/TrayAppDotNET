@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -18,7 +19,6 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
     private const string ProcessorUtilityTotalPath =
         @"\Processor Information(_Total)\% Processor Utility";
 
-    private const uint AllProcessorGroups = 0xFFFF;
     private const int ProcessorPowerInformation = 11;
     private const uint RelationAll = 0xFFFF;
     private const int RelationProcessorCore = 0;
@@ -35,45 +35,42 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
     private const uint PdhValidData = 0;
     private const uint PdhNewData = 1;
 
+    // The process sampler captures once a second; older totals mean it idles, so this reader walks the list itself
+    private static readonly TimeSpan SharedProcessTotalsMaxAge =
+        TimeSpan.FromMilliseconds(2 * ProcessSnapshotService.RefreshIntervalMilliseconds);
+
     private readonly string _processorName = ReadProcessorName();
     private readonly ProcessorTopology _topology = ReadProcessorTopology();
     private readonly ulong _installedPhysicalMemoryBytes = ReadInstalledPhysicalMemoryBytes();
     private readonly ProcessorFrequencyAccumulator _frequencyAccumulator = new();
     private readonly SystemProcessSnapshot _processSnapshot = new();
-    private IntPtr _frequencyQuery;
+    private readonly PdhQuery _frequencyQuery;
     private IntPtr _actualFrequencyTotalCounter;
     private IntPtr _processorUtilityTotalCounter;
     private bool _disposed;
 
-    public SystemPerformanceMetadataReader()
+    public SystemPerformanceMetadataReader() =>
+        _frequencyQuery = new PdhQuery(nameof(SystemPerformanceMetadataReader), AddFrequencyCounters);
+
+    private uint AddFrequencyCounters(PdhQuery query)
     {
-        if (PdhOpenQueryW(dataSource: null, IntPtr.Zero, out _frequencyQuery) != PdhSuccess) return;
-
-        uint status = PdhAddEnglishCounterW(
-            _frequencyQuery,
-            ActualFrequencyTotalPath,
-            IntPtr.Zero,
-            out _actualFrequencyTotalCounter);
+        uint status = query.AddCounter(ActualFrequencyTotalPath, out _actualFrequencyTotalCounter);
         if (status == PdhSuccess)
-        {
-            status = PdhAddEnglishCounterW(
-                _frequencyQuery,
-                ProcessorUtilityTotalPath,
-                IntPtr.Zero,
-                out _processorUtilityTotalCounter);
-        }
+            status = query.AddCounter(ProcessorUtilityTotalPath, out _processorUtilityTotalCounter);
+        if (status == PdhSuccess) return status;
 
-        if (status == PdhSuccess) return;
-
-        _ = PdhCloseQuery(_frequencyQuery);
-        _frequencyQuery = IntPtr.Zero;
         _actualFrequencyTotalCounter = IntPtr.Zero;
         _processorUtilityTotalCounter = IntPtr.Zero;
+        return status;
     }
 
     /// <summary>Captures frequency, counts, commit data, and uptime for the current sample.</summary>
-    /// <param name="includeProcessTotals">Walks every process for the process, thread, and handle counts.</param>
-    public SystemPerformanceMetadataSample Sample(bool includeProcessTotals)
+    /// <param name="includeProcessTotals">Includes the process, thread, and handle counts.</param>
+    /// <param name="sharedProcessTotals">
+    /// Totals another sampler took from its own kernel process snapshot; used while they are recent, so one tick
+    /// walks the process list once. Without recent ones this reader takes its own snapshot.
+    /// </param>
+    public SystemPerformanceMetadataSample Sample(bool includeProcessTotals, IRecentProcessTotals? sharedProcessTotals = null)
     {
         bool hasFrequencyData = TryReadProcessorFrequency(
             out ulong currentSpeedHertz,
@@ -88,6 +85,7 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
             out SystemPerformanceInformation performanceInformation);
         bool hasProcessTotals = TryReadProcessTotals(
             includeProcessTotals,
+            sharedProcessTotals,
             out SystemProcessTotals processTotals);
         return new SystemPerformanceMetadataSample(
             _processorName,
@@ -262,16 +260,11 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
         }
     }
 
-    /// <summary>Discards the current PDH delta baseline after a sampling reset.</summary>
-    internal void ResetFrequencyBaseline() => _frequencyAccumulator.Reset();
-
     /// <summary>Reads the busy-time-weighted mean clock of all logical processors, held until a newer one qualifies.</summary>
     private bool TryReadActualFrequency(out ulong currentSpeedHertz)
     {
         currentSpeedHertz = 0;
-        if (_disposed
-            || _frequencyQuery == IntPtr.Zero
-            || PdhCollectQueryData(_frequencyQuery) != PdhSuccess)
+        if (_disposed || !_frequencyQuery.TryCollect())
             return false;
 
         long collectedTimestamp = Stopwatch.GetTimestamp();
@@ -304,12 +297,25 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
             : (ulong)Math.Round(hertz, MidpointRounding.AwayFromZero);
     }
 
-    /// <summary>Sums every process entry for the counts, or releases the walk buffer while no page shows them.</summary>
-    private bool TryReadProcessTotals(bool includeProcessTotals, out SystemProcessTotals totals)
+    /// <summary>
+    /// Uses recent shared totals, or sums every process entry itself; releases the walk buffer while no page shows
+    /// the counts or the shared totals serve them.
+    /// </summary>
+    private bool TryReadProcessTotals(
+        bool includeProcessTotals,
+        IRecentProcessTotals? sharedProcessTotals,
+        out SystemProcessTotals totals)
     {
         totals = default;
         if (_disposed) return false;
-        if (includeProcessTotals) return _processSnapshot.TryCaptureTotals(out totals);
+        if (includeProcessTotals)
+        {
+            if (sharedProcessTotals == null || !sharedProcessTotals.TryGetRecent(SharedProcessTotalsMaxAge, out totals))
+                return _processSnapshot.TryCaptureTotals(out totals);
+
+            _processSnapshot.ReleaseQueryBuffer();
+            return true;
+        }
 
         _processSnapshot.ReleaseQueryBuffer();
         return false;
@@ -341,13 +347,7 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
             : installedKilobytes * Kilobyte;
     }
 
-    private static int ReadActiveProcessorCount()
-    {
-        uint processorCount = GetActiveProcessorCount(AllProcessorGroups);
-        return processorCount is > 0 and <= int.MaxValue
-            ? (int)processorCount
-            : Math.Max(val1: 1, Environment.ProcessorCount);
-    }
+    private static int ReadActiveProcessorCount() => Kernel32Processor.MachineProcessorCount;
 
     private static ulong PageCountToBytes(nuint pageCount, nuint pageSize)
     {
@@ -365,9 +365,7 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
         _disposed = true;
 
         _processSnapshot.Dispose();
-        if (_frequencyQuery == IntPtr.Zero) return;
-        _ = PdhCloseQuery(_frequencyQuery);
-        _frequencyQuery = IntPtr.Zero;
+        _frequencyQuery.Dispose();
         _actualFrequencyTotalCounter = IntPtr.Zero;
         _processorUtilityTotalCounter = IntPtr.Zero;
     }
@@ -378,9 +376,6 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
         uint relationshipType,
         IntPtr buffer,
         ref uint returnedLength);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetActiveProcessorCount(uint groupNumber);
 
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -407,30 +402,11 @@ internal sealed class SystemPerformanceMetadataReader : IDisposable
         IntPtr outputBuffer,
         uint outputBufferSize);
 
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhOpenQueryW(
-        string? dataSource,
-        IntPtr userData,
-        out IntPtr query);
-
-    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
-    private static extern uint PdhAddEnglishCounterW(
-        IntPtr query,
-        string fullCounterPath,
-        IntPtr userData,
-        out IntPtr counter);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCollectQueryData(IntPtr query);
-
     [DllImport("pdh.dll")]
     private static extern uint PdhGetRawCounterValue(
         IntPtr counter,
         out uint counterType,
         out PDH_RAW_COUNTER value);
-
-    [DllImport("pdh.dll")]
-    private static extern uint PdhCloseQuery(IntPtr query);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PDH_RAW_COUNTER

@@ -191,7 +191,10 @@ namespace TaskManagerTrayAppDotNET
         const KillHelperTarget& target,
         DWORD parentProcessID) noexcept
     {
+        // A target without a creation time cannot be told apart from a process that reused its PID, so the
+        // helper never opens it
         if (target.ProcessID <= 0 ||
+            target.CreationTime == 0 ||
             static_cast<DWORD>(target.ProcessID) == parentProcessID ||
             static_cast<DWORD>(target.ProcessID) == GetCurrentProcessId())
         {
@@ -219,8 +222,7 @@ namespace TaskManagerTrayAppDotNET
         FILETIME exitTime{};
         FILETIME kernelTime{};
         FILETIME userTime{};
-        if (target.CreationTime != 0 &&
-            !s_criticalState.GetProcessTimesCall(
+        if (!s_criticalState.GetProcessTimesCall(
                 processHandle,
                 &creationTime,
                 &exitTime,
@@ -232,7 +234,7 @@ namespace TaskManagerTrayAppDotNET
             return { KILL_HELPER_RESULT_OPEN_FAILED, error };
         }
 
-        if (target.CreationTime != 0 && FileTimeToLONG64(creationTime) != target.CreationTime)
+        if (FileTimeToLONG64(creationTime) != target.CreationTime)
         {
             s_criticalState.CloseHandleCall(processHandle);
             return { KILL_HELPER_RESULT_IDENTITY_MISMATCH, ERROR_NOT_FOUND };

@@ -7,7 +7,6 @@ internal static class TaskManagerUsageFormatter
 {
     private const double BytesPerMebibyte = 1_048_576;
     private const double BytesPerMegabit = 1_000_000.0 / 8;
-    private const string UnavailableText = "Unavailable";
 
     public static string FormatCPUTime(long ticks) => ProcessLifetime.Format(Math.Max(val1: 0, ticks));
 
@@ -75,10 +74,12 @@ internal static class TaskManagerUsageFormatter
 
     public static string FormatSessionState(UserSessionState state) => state switch
     {
-        UserSessionState.Active => "Active",
-        UserSessionState.Connected => "Connected",
-        UserSessionState.Disconnected => "Disconnected",
-        UserSessionState.Idle => "Idle",
+        UserSessionState.Active => LocalizationManager.Instance[nameof(AppStrings.Users_SessionState_Active)],
+        UserSessionState.Connected => LocalizationManager.Instance[nameof(AppStrings.Users_SessionState_Connected)],
+        UserSessionState.Disconnected => LocalizationManager.Instance[nameof(AppStrings.Users_SessionState_Disconnected)],
+        UserSessionState.Idle => LocalizationManager.Instance[nameof(AppStrings.Users_SessionState_Idle)],
         _ => string.Empty
     };
+
+    private static string UnavailableText => LocalizationManager.Instance[nameof(CommonStrings.Common_Unavailable)];
 }

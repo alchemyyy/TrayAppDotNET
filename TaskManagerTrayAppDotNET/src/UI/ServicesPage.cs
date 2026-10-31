@@ -36,7 +36,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         Func<WindowsServiceSnapshot, Task<bool>> confirmDisable,
         Action<string, string> reportMessage)
         : base(
-            title: "Services",
+            title: LocalizationManager.Instance[nameof(AppStrings.Page_Services)],
             ControlMap.Main.ServicesPage.ID,
             CreateSchema(resources),
             processIconService,
@@ -45,21 +45,21 @@ internal sealed class ServicesPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: "Search services")
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Services_SearchPlaceholder)])
     {
         _serviceManager = serviceManager;
         _startProcess = startProcess;
         _confirmDisable = confirmDisable;
         _reportMessage = reportMessage;
-        _startButton = AddHeaderAction(label: "Start", OnStartClick, isEnabled: false)
+        _startButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Services_Start)], OnStartClick, isEnabled: false)
             .MapTo(ControlMap.Main.ServicesPage.Start);
-        _stopButton = AddHeaderAction(label: "Stop", OnStopClick, isEnabled: false)
+        _stopButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Services_Stop)], OnStopClick, isEnabled: false)
             .MapTo(ControlMap.Main.ServicesPage.Stop);
-        _restartButton = AddHeaderAction(label: "Restart", OnRestartClick, isEnabled: false)
+        _restartButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Services_Restart)], OnRestartClick, isEnabled: false)
             .MapTo(ControlMap.Main.ServicesPage.Restart);
-        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false)
+        _disableButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Window_DisableService_Button)], OnDisableClick, isEnabled: false)
             .MapTo(ControlMap.Main.ServicesPage.Disable);
-        _openServicesButton = AddHeaderAction(label: "Open Services", OnOpenServicesClick)
+        _openServicesButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Services_OpenServices)], OnOpenServicesClick)
             .MapTo(ControlMap.Main.ServicesPage.OpenServices);
         _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.ServicesPage.More);
 
@@ -72,25 +72,25 @@ internal sealed class ServicesPage : TaskManagerTablePage
         [
             new TaskManagerTableColumn(
                 Key: "name",
-                Title: "Name",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Name)],
                 resources.AxamlTaskManagerTable.ServicesNameColumnWidth),
             new TaskManagerTableColumn(
                 Key: "pid",
-                Title: "PID",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_PID)],
                 resources.AxamlTaskManagerTable.ServicesPIDColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "description",
-                Title: "Description",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Description)],
                 resources.AxamlTaskManagerTable.ServicesDescriptionColumnWidth),
             new TaskManagerTableColumn(
                 Key: "status",
-                Title: "Status",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Status)],
                 resources.AxamlTaskManagerTable.ServicesStatusColumnWidth),
             new TaskManagerTableColumn(
                 Key: "group",
-                Title: "Group",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Group)],
                 resources.AxamlTaskManagerTable.ServicesGroupColumnWidth)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
@@ -137,9 +137,9 @@ internal sealed class ServicesPage : TaskManagerTablePage
                 if (reportFailure)
                 {
                     _reportMessage(
-                        arg1: "Services unavailable",
+                        arg1: LocalizationManager.Instance[nameof(AppStrings.Services_Unavailable_Title)],
                         string.IsNullOrWhiteSpace(result.ErrorMessage)
-                            ? "Windows could not enumerate local services."
+                            ? LocalizationManager.Instance[nameof(AppStrings.Services_Unavailable_Message)]
                             : result.ErrorMessage);
                 }
 
@@ -160,7 +160,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         {
             TADNLog.Log($"Service refresh failed: {exception}");
             if (reportFailure && !_disposed)
-                _reportMessage(arg1: "Services unavailable", exception.Message);
+                _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Services_Unavailable_Title)], exception.Message);
         }
         finally
         {
@@ -235,8 +235,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
         if (!result.Serviced) return false;
         if (!result.Success)
         {
-            string actionName = action.ToString().ToLowerInvariant();
-            _reportMessage($"Service {actionName} failed", result.Message);
+            _reportMessage(GetFailureTitle(action), result.Message);
         }
 
         return true;
@@ -269,18 +268,21 @@ internal sealed class ServicesPage : TaskManagerTablePage
                     && await TryRunActionElevatedAsync(action, service))
                     return;
 
-                string actionName = action.ToString().ToLowerInvariant();
                 _reportMessage(
-                    $"Service {actionName} failed",
+                    GetFailureTitle(action),
                     string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? $"Windows could not {actionName} '{service.ServiceName}'."
+                        ? string.Format(
+                            System.Globalization.CultureInfo.CurrentCulture,
+                            LocalizationManager.Instance[nameof(AppStrings.Services_ActionFailed_MessageFormat)],
+                            GetActionLabel(action),
+                            service.ServiceName)
                         : result.ErrorMessage);
             }
         }
         catch (Exception exception)
         {
             TADNLog.Log($"Service {action} failed for '{service.ServiceName}': {exception}");
-            if (!_disposed) _reportMessage($"Service {action} failed", exception.Message);
+            if (!_disposed) _reportMessage(GetFailureTitle(action), exception.Message);
         }
         finally
         {
@@ -323,7 +325,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
             {
                 AddServiceActionEntry(
                     entries,
-                    text: "Start",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Services_Start)],
                     WindowsServiceAction.Start,
                     service,
                     ControlMap.ServicesMoreMenu.Start);
@@ -333,7 +335,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
             {
                 AddServiceActionEntry(
                     entries,
-                    text: "Stop",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Services_Stop)],
                     WindowsServiceAction.Stop,
                     service,
                     ControlMap.ServicesMoreMenu.Stop);
@@ -343,7 +345,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
             {
                 AddServiceActionEntry(
                     entries,
-                    text: "Restart",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Services_Restart)],
                     WindowsServiceAction.Restart,
                     service,
                     ControlMap.ServicesMoreMenu.Restart);
@@ -353,7 +355,7 @@ internal sealed class ServicesPage : TaskManagerTablePage
             {
                 AddServiceActionEntry(
                     entries,
-                    text: "Disable",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Window_DisableService_Button)],
                     WindowsServiceAction.Disable,
                     service,
                     ControlMap.ServicesMoreMenu.Disable);
@@ -363,12 +365,12 @@ internal sealed class ServicesPage : TaskManagerTablePage
         }
 
         entries.Add(new ContextMenuEntry(
-            Text: "Refresh",
+            Text: LocalizationManager.Instance[nameof(AppStrings.Common_Refresh)],
             () => _ = RefreshAsync(reportFailure: true, refreshConfiguration: true))
         {
             Node = ControlMap.ServicesMoreMenu.Refresh
         });
-        entries.Add(new ContextMenuEntry(Text: "Open Services", () => _ = _startProcess("services.msc"))
+        entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.Services_OpenServices)], () => _ = _startProcess("services.msc"))
         {
             Node = ControlMap.ServicesMoreMenu.OpenServices
         });
@@ -383,6 +385,22 @@ internal sealed class ServicesPage : TaskManagerTablePage
         WindowsServiceSnapshot service,
         ControlMapNodeID node) =>
         entries.Add(new ContextMenuEntry(text, () => _ = RunActionAsync(action, service)) { Node = node });
+
+    private static string GetActionLabel(WindowsServiceAction action) => LocalizationManager.Instance[action switch
+    {
+        WindowsServiceAction.Start => nameof(AppStrings.Services_Start),
+        WindowsServiceAction.Stop => nameof(AppStrings.Services_Stop),
+        WindowsServiceAction.Restart => nameof(AppStrings.Services_Restart),
+        _ => nameof(AppStrings.Window_DisableService_Button)
+    }];
+
+    private static string GetFailureTitle(WindowsServiceAction action) => LocalizationManager.Instance[action switch
+    {
+        WindowsServiceAction.Start => nameof(AppStrings.Services_StartFailed),
+        WindowsServiceAction.Stop => nameof(AppStrings.Services_StopFailed),
+        WindowsServiceAction.Restart => nameof(AppStrings.Services_RestartFailed),
+        _ => nameof(AppStrings.Services_DisableFailed)
+    }];
 
     public override void Dispose()
     {

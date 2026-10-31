@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using TaskManagerTrayAppDotNET.Interop;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
@@ -19,14 +20,14 @@ internal readonly record struct ProcessAffinityTarget(
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
     // ProcessPriorityMenu rows, top to bottom; Low is the Idle class
-    private static readonly (string Label, ProcessPriorityLevel Priority, ControlMapNodeID Node)[] PriorityEntries =
+    private static readonly (string LabelKey, ProcessPriorityLevel Priority, ControlMapNodeID Node)[] PriorityEntries =
     [
-        ("Realtime", ProcessPriorityLevel.Realtime, ControlMap.ProcessPriorityMenu.Realtime),
-        ("High", ProcessPriorityLevel.High, ControlMap.ProcessPriorityMenu.High),
-        ("Above normal", ProcessPriorityLevel.AboveNormal, ControlMap.ProcessPriorityMenu.AboveNormal),
-        ("Normal", ProcessPriorityLevel.Normal, ControlMap.ProcessPriorityMenu.Normal),
-        ("Below normal", ProcessPriorityLevel.BelowNormal, ControlMap.ProcessPriorityMenu.BelowNormal),
-        ("Low", ProcessPriorityLevel.Idle, ControlMap.ProcessPriorityMenu.Low)
+        (nameof(AppStrings.Processes_Priority_Realtime), ProcessPriorityLevel.Realtime, ControlMap.ProcessPriorityMenu.Realtime),
+        (nameof(AppStrings.Processes_Priority_High), ProcessPriorityLevel.High, ControlMap.ProcessPriorityMenu.High),
+        (nameof(AppStrings.Processes_Priority_AboveNormal), ProcessPriorityLevel.AboveNormal, ControlMap.ProcessPriorityMenu.AboveNormal),
+        (nameof(AppStrings.Processes_Priority_Normal), ProcessPriorityLevel.Normal, ControlMap.ProcessPriorityMenu.Normal),
+        (nameof(AppStrings.Processes_Priority_BelowNormal), ProcessPriorityLevel.BelowNormal, ControlMap.ProcessPriorityMenu.BelowNormal),
+        (nameof(AppStrings.Processes_Priority_Low), ProcessPriorityLevel.Idle, ControlMap.ProcessPriorityMenu.Low)
     ];
 
     private readonly SettingsPalette _palette;
@@ -104,13 +105,13 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         IReadOnlyList<ProcessEndTaskItem> processes = request.EndTaskRequest.Processes;
         bool isMultiple = request.IsMultiple;
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Copy", () => ExecuteCopy(request.CellCopyText))
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_Copy)), () => ExecuteCopy(request.CellCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered),
             Node = ControlMap.ProcessRowMenu.Copy
         });
         entries.Add(new ContextMenuEntry(
-            Text: isMultiple ? "Copy rows" : "Copy row",
+            Text: isMultiple ? L(nameof(AppStrings.Processes_Menu_CopyRows)) : L(nameof(AppStrings.Processes_Menu_CopyRow)),
             () => ExecuteCopy(request.RowCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered),
@@ -118,13 +119,13 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         });
         entries.AddSeparator();
         entries.Add(new ContextMenuEntry(
-            Text: isMultiple ? "End tasks" : "End task",
+            Text: isMultiple ? L(nameof(AppStrings.Confirm_EndTask_MultipleButton)) : L(nameof(AppStrings.Confirm_EndTask_SingleButton)),
             () => _requestEndTask(request.EndTaskRequest))
         {
             Node = ControlMap.ProcessRowMenu.EndTask
         });
         entries.Add(new ContextMenuEntry(
-            Text: isMultiple ? "End process trees" : "End process tree",
+            Text: isMultiple ? L(nameof(AppStrings.Confirm_EndTaskTree_MultipleButton)) : L(nameof(AppStrings.Confirm_EndTaskTree_SingleButton)),
             () => ExecuteEndProcessTrees(processes))
         {
             Node = ControlMap.ProcessRowMenu.EndProcessTree
@@ -135,7 +136,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             ? TaskManagerGlyphCatalog.SHIELD
             : null;
         entries.Add(new ContextMenuEntry(
-            isMultiple ? "Set priorities" : "Set priority",
+            isMultiple ? L(nameof(AppStrings.Processes_Menu_SetPriorities)) : L(nameof(AppStrings.Processes_Menu_SetPriority)),
             static () => { })
         {
             SubmenuFactory = () => BuildPriorityEntries(processes),
@@ -144,7 +145,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             SubmenuNode = ControlMap.ProcessPriorityMenu.ID
         });
         entries.Add(new ContextMenuEntry(
-            isMultiple ? "Set affinities" : "Set affinity",
+            isMultiple ? L(nameof(AppStrings.Processes_Menu_SetAffinities)) : L(nameof(AppStrings.Processes_Menu_SetAffinity)),
             () => ShowAffinityWindow(processes))
         {
             LeadingGlyph = elevationGlyph,
@@ -153,16 +154,16 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (isMultiple) return entries.ToList();
 
         entries.AddSeparator();
-        entries.Add(new ContextMenuEntry(Text: "Create memory dump file", () => ExecuteCreateMemoryDump(target))
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_CreateDump)), () => ExecuteCreateMemoryDump(target))
         {
             Node = ControlMap.ProcessRowMenu.CreateMemoryDump
         });
-        entries.Add(new ContextMenuEntry(Text: "Open file location", () => ExecuteBackground(
-            failureTitle: "Open file location failed",
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_OpenFileLocation)), () => ExecuteBackground(
+            failureTitle: L(nameof(AppStrings.Processes_Failed_OpenFileLocation)),
             target,
             ProcessNativeActions.TryOpenFileLocation)) { Node = ControlMap.ProcessRowMenu.OpenFileLocation });
-        entries.Add(new ContextMenuEntry(Text: "Properties", () => ExecuteBackground(
-            failureTitle: "Properties failed",
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_Properties)), () => ExecuteBackground(
+            failureTitle: L(nameof(AppStrings.Processes_Failed_Properties)),
             target,
             ProcessNativeActions.TryOpenProperties)) { Node = ControlMap.ProcessRowMenu.Properties });
 
@@ -170,20 +171,20 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (ProcessNativeActions.HasTopLevelWindow(target.ProcessID))
         {
             entries.AddSeparator();
-            entries.Add(new ContextMenuEntry(Text: "Switch to", () => ExecuteWindowAction(
-                failureTitle: "Switch to failed",
+            entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_SwitchTo)), () => ExecuteWindowAction(
+                failureTitle: L(nameof(AppStrings.Processes_Failed_SwitchTo)),
                 target,
                 ProcessNativeActions.TrySwitchToWindow)) { Node = ControlMap.ProcessRowMenu.SwitchTo });
-            entries.Add(new ContextMenuEntry(Text: "Bring to front", () => ExecuteWindowAction(
-                failureTitle: "Bring to front failed",
+            entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_BringToFront)), () => ExecuteWindowAction(
+                failureTitle: L(nameof(AppStrings.Processes_Failed_BringToFront)),
                 target,
                 ProcessNativeActions.TryBringWindowToFront)) { Node = ControlMap.ProcessRowMenu.BringToFront });
-            entries.Add(new ContextMenuEntry(Text: "Minimize", () => ExecuteWindowAction(
-                failureTitle: "Minimize failed",
+            entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_Minimize)), () => ExecuteWindowAction(
+                failureTitle: L(nameof(AppStrings.Processes_Failed_Minimize)),
                 target,
                 ProcessNativeActions.TryMinimizeWindow)) { Node = ControlMap.ProcessRowMenu.Minimize });
-            entries.Add(new ContextMenuEntry(Text: "Maximize", () => ExecuteWindowAction(
-                failureTitle: "Maximize failed",
+            entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Processes_Menu_Maximize)), () => ExecuteWindowAction(
+                failureTitle: L(nameof(AppStrings.Processes_Failed_Maximize)),
                 target,
                 ProcessNativeActions.TryMaximizeWindow)) { Node = ControlMap.ProcessRowMenu.Maximize });
         }
@@ -230,7 +231,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         catch (Exception exception)
         {
             TADNLog.Log($"Copy failed: {exception}");
-            if (!_disposed) _reportError(arg1: "Copy failed", exception.Message);
+            if (!_disposed) _reportError(arg1: L(nameof(AppStrings.Processes_Failed_Copy)), exception.Message);
         }
     }
 
@@ -246,7 +247,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         return false;
     }
 
-    private IReadOnlyList<ContextMenuEntry> BuildPriorityEntries(
+    private List<ContextMenuEntry> BuildPriorityEntries(
         IReadOnlyList<ProcessEndTaskItem> processes)
     {
         ProcessPriorityLevel? currentPriority = null;
@@ -257,7 +258,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
                     out ProcessPriorityLevel selectedPriority,
                     out string errorMessage))
             {
-                _reportError(arg1: "Set priority failed", errorMessage);
+                _reportError(arg1: L(nameof(AppStrings.Processes_Failed_SetPriority)), errorMessage);
                 return [];
             }
 
@@ -266,7 +267,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
         ContextMenuEntryBuilder entries = new();
         foreach ((string label, ProcessPriorityLevel priority, ControlMapNodeID node) in PriorityEntries)
-            AddPriorityEntry(entries, label, priority, node, currentPriority, processes);
+            AddPriorityEntry(entries, L(label), priority, node, currentPriority, processes);
         return entries.ToList();
     }
 
@@ -330,7 +331,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             {
                 _requestRefresh();
                 _reportError(
-                    processes.Count > 1 ? "End process trees failed" : "End process tree failed",
+                    processes.Count > 1 ? L(nameof(AppStrings.Processes_Failed_EndTaskTrees)) : L(nameof(AppStrings.Processes_Failed_EndTaskTree)),
                     exception.Message);
             }
 
@@ -342,7 +343,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (string.IsNullOrEmpty(result.ErrorMessage)) return;
 
         _reportError(
-            processes.Count > 1 ? "End process trees failed" : "End process tree failed",
+            processes.Count > 1 ? L(nameof(AppStrings.Processes_Failed_EndTaskTrees)) : L(nameof(AppStrings.Processes_Failed_EndTaskTree)),
             result.ErrorMessage);
     }
 
@@ -385,7 +386,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (processes.Count == 1)
         {
             ExecuteBackground(
-                failureTitle: "Set priority failed",
+                failureTitle: L(nameof(AppStrings.Processes_Failed_SetPriority)),
                 processes[0].Target,
                 (actionTarget, out errorMessage) =>
                     ProcessNativeActions.TrySetPriority(actionTarget, priority, out errorMessage));
@@ -393,7 +394,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
 
         ExecuteBatchBackground(
-            failureTitle: "Set priorities failed",
+            failureTitle: L(nameof(AppStrings.Processes_Failed_SetPriorities)),
             processes,
             (actionTarget, out errorMessage) =>
                 ProcessNativeActions.TrySetPriority(actionTarget, priority, out errorMessage),
@@ -405,37 +406,46 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         IReadOnlyList<ProcessEndTaskItem> processes,
         ProcessPriorityLevel priority)
     {
-        string failureTitle = processes.Count > 1 ? "Set priorities failed" : "Set priority failed";
+        string failureTitle = processes.Count > 1 ? L(nameof(AppStrings.Processes_Failed_SetPriorities)) : L(nameof(AppStrings.Processes_Failed_SetPriority));
         ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
         if (coordinator == null)
         {
-            _reportError(failureTitle, "Elevated actions are unavailable.");
+            _reportError(failureTitle, L(nameof(AppStrings.Processes_ElevatedActionsUnavailable)));
             return;
         }
 
-        List<string> failures = [];
-        bool anyServiced = false;
-        for (int processIndex = 0; processIndex < processes.Count; processIndex++)
+        try
         {
-            ProcessEndTaskItem process = processes[processIndex];
-            if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
-
-            ElevatedActionResult result = await coordinator.SetPriorityAsync(process.Target, priority);
-            if (result.Declined) return;
-            if (!result.Serviced)
+            List<string> failures = [];
+            bool anyServiced = false;
+            for (int processIndex = 0; processIndex < processes.Count; processIndex++)
             {
-                if (!_disposed) _reportError(failureTitle, result.Message);
-                return;
+                ProcessEndTaskItem process = processes[processIndex];
+                if (CriticalProcessActions.IsTargetGone(process.Target)) continue;
+
+                ElevatedActionResult result = await coordinator.SetPriorityAsync(process.Target, priority);
+                if (result.Declined) return;
+                if (!result.Serviced)
+                {
+                    if (!_disposed) _reportError(failureTitle, result.Message);
+                    return;
+                }
+
+                anyServiced = true;
+                if (!result.Success && !CriticalProcessActions.IsTargetGone(process.Target))
+                    failures.Add(processes.Count > 1 ? FormatProcessFailure(process, result.Message) : result.Message);
             }
 
-            anyServiced = true;
-            if (!result.Success && !CriticalProcessActions.IsTargetGone(process.Target))
-                failures.Add(processes.Count > 1 ? FormatProcessFailure(process, result.Message) : result.Message);
+            if (_disposed) return;
+            if (anyServiced) _requestRefresh();
+            if (failures.Count > 0) _reportError(failureTitle, string.Join(separator: "\n", failures));
         }
-
-        if (_disposed) return;
-        if (anyServiced) _requestRefresh();
-        if (failures.Count > 0) _reportError(failureTitle, string.Join(separator: "\n", failures));
+        catch (Exception exception)
+        {
+            // Started fire-and-forget from the menu: an escaped exception would be lost unobserved
+            TADNLog.Log($"{failureTitle}: {exception}");
+            if (!_disposed) _reportError(failureTitle, exception.Message);
+        }
     }
 
     private void ExecuteCreateMemoryDump(ProcessTerminationTarget target)
@@ -447,7 +457,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
 
         ExecuteBackground(
-            failureTitle: "Create memory dump failed",
+            failureTitle: L(nameof(AppStrings.Processes_Failed_CreateDump)),
             () =>
             {
                 bool succeeded = ProcessNativeActions.TryCreateMemoryDump(
@@ -457,30 +467,39 @@ internal sealed class ProcessRowContextMenuController : IDisposable
                 return new ProcessActionResult(succeeded, errorMessage, dumpPath);
             },
             refreshOnSuccess: false,
-            successTitle: "Memory dump created");
+            successTitle: L(nameof(AppStrings.Processes_DumpCreated_Title)));
     }
 
-    /// <summary>Writes the dump in the elevated broker for targets we cannot read at medium integrity.</summary>
+    /// <summary>Has the elevated broker write the dump for targets we cannot read at medium integrity.</summary>
     private async Task ExecuteCreateMemoryDumpElevatedAsync(ProcessTerminationTarget target)
     {
-        const string failureTitle = "Create memory dump failed";
+        string failureTitle = L(nameof(AppStrings.Processes_Failed_CreateDump));
         ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
         if (coordinator == null)
         {
-            _reportError(failureTitle, "Elevated actions are unavailable.");
+            _reportError(failureTitle, L(nameof(AppStrings.Processes_ElevatedActionsUnavailable)));
             return;
         }
 
-        ElevatedActionResult result = await coordinator.CreateDumpAsync(target);
-        if (result.Declined || _disposed) return;
-        if (!result.Serviced || !result.Success)
+        try
         {
-            _reportError(failureTitle, result.Message);
-            return;
-        }
+            ElevatedActionResult result = await coordinator.CreateDumpAsync(target);
+            if (result.Declined || _disposed) return;
+            if (!result.Serviced || !result.Success)
+            {
+                _reportError(failureTitle, result.Message);
+                return;
+            }
 
-        // On success the broker returns the path of the dump it wrote
-        _reportInformation?.Invoke("Memory dump created", result.Message);
+            // On success the message is the path of the dump file this process created for the broker
+            _reportInformation?.Invoke(L(nameof(AppStrings.Processes_DumpCreated_Title)), result.Message);
+        }
+        catch (Exception exception)
+        {
+            // Started fire-and-forget from the menu: an escaped exception would be lost unobserved
+            TADNLog.Log($"{failureTitle}: {exception}");
+            if (!_disposed) _reportError(failureTitle, exception.Message);
+        }
     }
 
     private void ExecuteWindowAction(
@@ -607,16 +626,26 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private static string FormatProcessFailure(ProcessEndTaskItem process, string errorMessage)
     {
         string processName = string.IsNullOrWhiteSpace(process.ProcessName)
-            ? $"PID {process.Target.ProcessID}"
-            : $"{process.ProcessName} (PID {process.Target.ProcessID})";
+            ? F(nameof(AppStrings.Confirm_ProcessIDFormat), process.Target.ProcessID)
+            : F(nameof(AppStrings.Processes_ProcessWithPIDFormat), process.ProcessName, process.Target.ProcessID);
         string detail = string.IsNullOrWhiteSpace(errorMessage)
-            ? "The process action failed."
+            ? L(nameof(AppStrings.Processes_ActionFailedGeneric))
             : errorMessage;
-        return $"{processName}: {detail}";
+        return F(nameof(AppStrings.Processes_FailureLineFormat), processName, detail);
     }
 
     private void ShowAffinityWindow(IReadOnlyList<ProcessEndTaskItem> processes)
     {
+        // A 64-bit affinity mask only describes one processor group; on a machine with several it would silently
+        // move the process into the caller's group, so the dialog explains instead of offering a wrong choice
+        if (Kernel32Processor.ProcessorGroupCount > 1)
+        {
+            _reportError(
+                L(nameof(AppStrings.Processes_Affinity_Failed_Title)),
+                L(nameof(AppStrings.Processes_Affinity_MultipleGroups_Message)));
+            return;
+        }
+
         List<ProcessAffinityTarget> affinityTargets = new(processes.Count);
         List<string> failures = [];
         for (int processIndex = 0; processIndex < processes.Count; processIndex++)
@@ -643,7 +672,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (failures.Count > 0)
         {
             _reportError(
-                processes.Count > 1 ? "Set affinities failed" : "Set affinity failed",
+                processes.Count > 1 ? L(nameof(AppStrings.Processes_Affinity_FailedMultiple_Title)) : L(nameof(AppStrings.Processes_Affinity_Failed_Title)),
                 string.Join(separator: "\n", failures));
             return;
         }
@@ -665,6 +694,11 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         _actionWindows.Add(affinityWindow);
         affinityWindow.Show(owner);
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
+
+    private static string F(string key, params object[] arguments) =>
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, L(key), arguments);
 
     private void ShowMenu(IReadOnlyList<ContextMenuEntry> entries)
     {
@@ -756,6 +790,11 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 /// <summary>Nonmodal processor-affinity editor for identity-checked process instances.</summary>
 internal sealed class ProcessAffinityWindow : Window
 {
+    private static string L(string key) => LocalizationManager.Instance[key];
+
+    private static string F(string key, params object[] arguments) =>
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, L(key), arguments);
+
     private readonly ProcessAffinityTarget[] _targets;
     private readonly Action<string, string> _reportError;
     private readonly List<CheckBox> _processorChecks = [];
@@ -790,8 +829,8 @@ internal sealed class ProcessAffinityWindow : Window
         _reportError = reportError;
         TaskManagerWindowResources resources = TaskManagerWindowResources.Current;
         Title = targets.Count == 1
-            ? $"Processor affinity - PID {targets[0].Process.Target.ProcessID}"
-            : $"Processor affinities - {targets.Count} processes";
+            ? F(nameof(AppStrings.Processes_Affinity_SingleTitleFormat), targets[0].Process.Target.ProcessID)
+            : F(nameof(AppStrings.Processes_Affinity_MultipleTitleFormat), targets.Count);
         Width = resources.AxamlProcessAffinity.WindowWidth;
         Height = resources.AxamlProcessAffinity.WindowHeight;
         MinWidth = resources.AxamlProcessAffinity.WindowWidth;
@@ -809,7 +848,7 @@ internal sealed class ProcessAffinityWindow : Window
         Content = BuildContent(palette, resources, out _applyButton);
     }
 
-    private Control BuildContent(
+    private Grid BuildContent(
         SettingsPalette palette,
         TaskManagerWindowResources resources,
         out SettingsButton applyButton)
@@ -830,8 +869,8 @@ internal sealed class ProcessAffinityWindow : Window
 
         TextBlock explanation = TrayAppDotNETSettingsUI.Text(
             text: _targets.Length == 1
-                ? "Select the processors on which this process may run."
-                : "Select the processors on which the selected processes may run. Mixed values are preserved.",
+                ? L(nameof(AppStrings.Processes_Affinity_SingleDescription))
+                : L(nameof(AppStrings.Processes_Affinity_MultipleDescription)),
             palette,
             resources.AxamlProcessAffinity.ExplanationFontSize);
         explanation.Margin = resources.AxamlProcessAffinity.ExplanationMargin;
@@ -870,7 +909,7 @@ internal sealed class ProcessAffinityWindow : Window
 
             CheckBox processorCheck = new()
             {
-                Content = $"CPU {processorIndex}",
+                Content = F(nameof(AppStrings.Processes_Affinity_CPUFormat), processorIndex),
                 IsThreeState = _targets.Length > 1,
                 IsChecked = isSelectedByAll
                     ? true
@@ -911,11 +950,11 @@ internal sealed class ProcessAffinityWindow : Window
 #if DEBUG
         _actions = actions;
 #endif
-        SettingsButton selectAllButton = TrayAppDotNETSettingsUI.Button(text: "Select all", palette)
+        SettingsButton selectAllButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(AppStrings.Processes_Affinity_SelectAll)), palette)
             .MapTo(ControlMap.ProcessAffinity.Actions.SelectAll);
         selectAllButton.Click += OnSelectAllClick;
         actions.Children.Add(selectAllButton);
-        SettingsButton clearButton = TrayAppDotNETSettingsUI.Button(text: "Clear", palette)
+        SettingsButton clearButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(AppStrings.Processes_Affinity_Clear)), palette)
             .MapTo(ControlMap.ProcessAffinity.Actions.Clear);
         clearButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
@@ -928,12 +967,12 @@ internal sealed class ProcessAffinityWindow : Window
 #endif
         Grid.SetColumn(clearButton, value: 1);
         actions.Children.Add(clearButton);
-        SettingsButton cancelButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+        SettingsButton cancelButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(CommonStrings.Common_Cancel)), palette)
             .MapTo(ControlMap.ProcessAffinity.Actions.Cancel);
         cancelButton.Click += OnCancelClick;
         Grid.SetColumn(cancelButton, value: 3);
         actions.Children.Add(cancelButton);
-        applyButton = TrayAppDotNETSettingsUI.Button(text: "Apply", palette)
+        applyButton = TrayAppDotNETSettingsUI.Button(text: L(nameof(AppStrings.Processes_Affinity_Apply)), palette)
             .MapTo(ControlMap.ProcessAffinity.Actions.Apply);
         applyButton.Margin = new Thickness(
             resources.AxamlProcessAffinity.ActionButtonSpacing,
@@ -1033,8 +1072,8 @@ internal sealed class ProcessAffinityWindow : Window
             if (selectedMasks[targetIndex] != 0) continue;
 
             _reportError(
-                _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
-                "Select at least one processor for every selected process.");
+                _targets.Length > 1 ? L(nameof(AppStrings.Processes_Affinity_FailedMultiple_Title)) : L(nameof(AppStrings.Processes_Affinity_Failed_Title)),
+                L(nameof(AppStrings.Processes_Affinity_SelectAtLeastOne)));
             return;
         }
 
@@ -1042,7 +1081,7 @@ internal sealed class ProcessAffinityWindow : Window
         _applyButton.IsEnabled = false;
         try
         {
-            string failureTitle = _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed";
+            string failureTitle = _targets.Length > 1 ? L(nameof(AppStrings.Processes_Affinity_FailedMultiple_Title)) : L(nameof(AppStrings.Processes_Affinity_Failed_Title));
             if (AffinityTargetsRequireElevation())
             {
                 string? elevatedError = await ApplyAffinitiesElevatedAsync(selectedMasks);
@@ -1070,7 +1109,7 @@ internal sealed class ProcessAffinityWindow : Window
         {
             TADNLog.Log($"Set affinities failed: {exception}");
             _reportError(
-                _targets.Length > 1 ? "Set affinities failed" : "Set affinity failed",
+                _targets.Length > 1 ? L(nameof(AppStrings.Processes_Affinity_FailedMultiple_Title)) : L(nameof(AppStrings.Processes_Affinity_Failed_Title)),
                 exception.Message);
         }
         finally
@@ -1092,10 +1131,10 @@ internal sealed class ProcessAffinityWindow : Window
     }
 
     /// <summary>Applies affinity through the elevated broker; returns null when the user declines elevation.</summary>
-    private async Task<string?> ApplyAffinitiesElevatedAsync(IReadOnlyList<ulong> selectedMasks)
+    private async Task<string?> ApplyAffinitiesElevatedAsync(ulong[] selectedMasks)
     {
         ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
-        if (coordinator == null) return "Elevated actions are unavailable.";
+        if (coordinator == null) return L(nameof(AppStrings.Processes_ElevatedActionsUnavailable));
 
         List<string> failures = [];
         for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
@@ -1113,7 +1152,7 @@ internal sealed class ProcessAffinityWindow : Window
         return string.Join(separator: "\n", failures);
     }
 
-    private string ApplyAffinities(IReadOnlyList<ulong> selectedMasks)
+    private string ApplyAffinities(ulong[] selectedMasks)
     {
         List<string> failures = [];
         for (int targetIndex = 0; targetIndex < _targets.Length; targetIndex++)
@@ -1138,11 +1177,11 @@ internal sealed class ProcessAffinityWindow : Window
     private static string FormatAffinityFailure(ProcessEndTaskItem process, string errorMessage)
     {
         string processName = string.IsNullOrWhiteSpace(process.ProcessName)
-            ? $"PID {process.Target.ProcessID}"
-            : $"{process.ProcessName} (PID {process.Target.ProcessID})";
+            ? F(nameof(AppStrings.Confirm_ProcessIDFormat), process.Target.ProcessID)
+            : F(nameof(AppStrings.Processes_ProcessWithPIDFormat), process.ProcessName, process.Target.ProcessID);
         string detail = string.IsNullOrWhiteSpace(errorMessage)
-            ? "The process affinity could not be changed."
+            ? L(nameof(AppStrings.Processes_Affinity_FailedGeneric))
             : errorMessage;
-        return $"{processName}: {detail}";
+        return F(nameof(AppStrings.Processes_FailureLineFormat), processName, detail);
     }
 }

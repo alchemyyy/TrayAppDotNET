@@ -27,7 +27,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         Func<string, bool> startProcess,
         Action<string, string> reportMessage)
         : base(
-            title: "Startup apps",
+            title: LocalizationManager.Instance[nameof(AppStrings.Page_StartupApps)],
             ControlMap.Main.StartupAppsPage.ID,
             CreateSchema(resources),
             processIconService,
@@ -36,15 +36,15 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: "Search startup apps and publishers")
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Startup_SearchPlaceholder)])
     {
         _startupAppsService = startupAppsService;
         _reportMessage = reportMessage;
-        _enableButton = AddHeaderAction(label: "Enable", OnEnableClick, isEnabled: false)
+        _enableButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Startup_Enable)], OnEnableClick, isEnabled: false)
             .MapTo(ControlMap.Main.StartupAppsPage.Enable);
-        _disableButton = AddHeaderAction(label: "Disable", OnDisableClick, isEnabled: false)
+        _disableButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Window_DisableService_Button)], OnDisableClick, isEnabled: false)
             .MapTo(ControlMap.Main.StartupAppsPage.Disable);
-        _propertiesButton = AddHeaderAction(label: "Properties", OnPropertiesClick, isEnabled: false)
+        _propertiesButton = AddHeaderAction(label: LocalizationManager.Instance[nameof(AppStrings.Processes_Menu_Properties)], OnPropertiesClick, isEnabled: false)
             .MapTo(ControlMap.Main.StartupAppsPage.Properties);
         _moreButton = AddMoreAction(OnMoreClick).MapTo(ControlMap.Main.StartupAppsPage.More);
     }
@@ -54,19 +54,19 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         [
             new TaskManagerTableColumn(
                 Key: "name",
-                Title: "Name",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Name)],
                 resources.AxamlTaskManagerTable.StartupNameColumnWidth),
             new TaskManagerTableColumn(
                 Key: "publisher",
-                Title: "Publisher",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Startup_Column_Publisher)],
                 resources.AxamlTaskManagerTable.StartupPublisherColumnWidth),
             new TaskManagerTableColumn(
                 Key: "status",
-                Title: "Status",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Status)],
                 resources.AxamlTaskManagerTable.StartupStatusColumnWidth),
             new TaskManagerTableColumn(
                 Key: "impact",
-                Title: "Startup impact",
+                Title: LocalizationManager.Instance[nameof(AppStrings.Startup_Column_Impact)],
                 resources.AxamlTaskManagerTable.StartupImpactColumnWidth)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
@@ -108,7 +108,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         {
             TADNLog.Log($"Startup Apps refresh failed: {exception}");
             if (reportFailure && !_disposed)
-                _reportMessage(arg1: "Startup apps unavailable", exception.Message);
+                _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Startup_Unavailable_Title)], exception.Message);
         }
         finally
         {
@@ -143,18 +143,18 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
 
     private static string GetStatusText(StartupAppStatus status) => status switch
     {
-        StartupAppStatus.Enabled => "Enabled",
-        StartupAppStatus.Disabled => "Disabled",
-        _ => "Unknown"
+        StartupAppStatus.Enabled => LocalizationManager.Instance[nameof(AppStrings.Startup_Status_Enabled)],
+        StartupAppStatus.Disabled => LocalizationManager.Instance[nameof(AppStrings.Startup_Status_Disabled)],
+        _ => LocalizationManager.Instance[nameof(AppStrings.Startup_Status_Unknown)]
     };
 
     private static string GetImpactText(StartupAppImpact impact) => impact switch
     {
-        StartupAppImpact.None => "None",
-        StartupAppImpact.Low => "Low",
-        StartupAppImpact.Medium => "Medium",
-        StartupAppImpact.High => "High",
-        _ => "Not measured"
+        StartupAppImpact.None => LocalizationManager.Instance[nameof(AppStrings.Startup_Impact_None)],
+        StartupAppImpact.Low => LocalizationManager.Instance[nameof(AppStrings.Processes_Priority_Low)],
+        StartupAppImpact.Medium => LocalizationManager.Instance[nameof(AppStrings.Startup_Impact_Medium)],
+        StartupAppImpact.High => LocalizationManager.Instance[nameof(AppStrings.Processes_Priority_High)],
+        _ => LocalizationManager.Instance[nameof(AppStrings.Startup_Impact_NotMeasured)]
     };
 
     private void UpdateActionButtons(StartupAppEntry? entry)
@@ -178,11 +178,11 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
     }
 
     /// <summary>Toggles an all-users startup entry through the elevated broker.</summary>
-    private async Task<StartupAppActionResult> ChangeStatusElevatedAsync(StartupAppEntry entry, StartupAppStatus status)
+    private static async Task<StartupAppActionResult> ChangeStatusElevatedAsync(StartupAppEntry entry, StartupAppStatus status)
     {
         ElevatedActionCoordinator? coordinator = AppServices.ElevatedActions;
         if (coordinator == null)
-            return StartupAppActionResult.Failure(entry.Status, "Elevated actions are unavailable.");
+            return StartupAppActionResult.Failure(entry.Status, LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedActionsUnavailable)]);
 
         ElevatedActionResult result = await coordinator.SetStartupApprovalAsync(
             entry.ApprovalTarget,
@@ -218,16 +218,21 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             if (!result.Succeeded)
             {
                 _reportMessage(
-                    arg1: "Startup app change failed",
+                    arg1: LocalizationManager.Instance[nameof(AppStrings.Startup_ChangeFailed_Title)],
                     string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? $"Windows could not mark '{entry.Name}' {status.ToString().ToLowerInvariant()}."
+                        ? string.Format(
+                            System.Globalization.CultureInfo.CurrentCulture,
+                            status == StartupAppStatus.Enabled
+                                ? LocalizationManager.Instance[nameof(AppStrings.Startup_ChangeFailed_EnableFormat)]
+                                : LocalizationManager.Instance[nameof(AppStrings.Startup_ChangeFailed_DisableFormat)],
+                            entry.Name)
                         : result.ErrorMessage);
             }
         }
         catch (Exception exception)
         {
             TADNLog.Log($"Startup app status change failed for '{entry.Name}': {exception}");
-            if (!_disposed) _reportMessage(arg1: "Startup app change failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Startup_ChangeFailed_Title)], exception.Message);
         }
         finally
         {
@@ -248,7 +253,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
     private void ShowProperties(StartupAppEntry entry)
     {
         if (ShellFileActions.TryShowProperties(entry.TargetPath, out string errorMessage)) return;
-        _reportMessage(arg1: "Properties unavailable", errorMessage);
+        _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Startup_PropertiesUnavailable)], errorMessage);
     }
 
     private void OnMoreClick(object? sender, EventArgs eventArgs)
@@ -260,7 +265,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             if (!_operationPending && eligibility.CanEnable)
             {
                 entries.Add(new ContextMenuEntry(
-                    Text: "Enable",
+                    Text: LocalizationManager.Instance[nameof(AppStrings.Startup_Enable)],
                     () => _ = ChangeStatusAsync(entry, StartupAppStatus.Enabled))
                 {
                     Node = ControlMap.StartupAppsMoreMenu.Enable
@@ -270,7 +275,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             if (!_operationPending && eligibility.CanDisable)
             {
                 entries.Add(new ContextMenuEntry(
-                    Text: "Disable",
+                    Text: LocalizationManager.Instance[nameof(AppStrings.Window_DisableService_Button)],
                     () => _ = ChangeStatusAsync(entry, StartupAppStatus.Disabled))
                 {
                     Node = ControlMap.StartupAppsMoreMenu.Disable
@@ -279,7 +284,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
 
             if (!_operationPending && eligibility.CanShowProperties)
             {
-                entries.Add(new ContextMenuEntry(Text: "Properties", () => ShowProperties(entry))
+                entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.Processes_Menu_Properties)], () => ShowProperties(entry))
                 {
                     Node = ControlMap.StartupAppsMoreMenu.Properties
                 });
@@ -288,7 +293,7 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             if (entries.Count > 0) entries.AddSeparator();
         }
 
-        entries.Add(new ContextMenuEntry(Text: "Refresh", () => _ = RefreshAsync(true))
+        entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.Common_Refresh)], () => _ = RefreshAsync(true))
         {
             Node = ControlMap.StartupAppsMoreMenu.Refresh
         });

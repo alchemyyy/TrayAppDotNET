@@ -1,14 +1,22 @@
 namespace TaskManagerTrayAppDotNET.Models;
 
 /// <summary>Defines normalized Performance sampling and history-retention bounds.</summary>
+/// <remarks>
+/// Every history and the snapshot ring preallocate their full capacity, so the bounds keep the worst case small:
+/// the 250 ms floor at the 60 minute maximum is 14,400 samples, and <see cref="MaximumHistorySampleCount"/> caps any
+/// combination. Stored settings below the floor load as the floor.
+/// </remarks>
 internal static class PerformanceSamplingSettings
 {
     public const int DefaultHistoryLengthMinutes = 1;
     public const int MinimumHistoryLengthMinutes = 1;
     public const int MaximumHistoryLengthMinutes = 60;
     public const int DefaultSampleIntervalMilliseconds = 1_000;
-    public const int MinimumSampleIntervalMilliseconds = 1;
+    public const int MinimumSampleIntervalMilliseconds = 250;
     public const int MaximumSampleIntervalMilliseconds = 60_000;
+
+    /// <summary>The most samples one history may hold, whatever the length and interval.</summary>
+    public const int MaximumHistorySampleCount = 36_000;
 
     private const int MillisecondsPerMinute = 60_000;
 
@@ -31,6 +39,6 @@ internal static class PerformanceSamplingSettings
         int maximumHistoryCount = normalizedHistoryLength
                                   * MillisecondsPerMinute
                                   / normalizedSampleInterval;
-        return Math.Max(val1: 1, maximumHistoryCount);
+        return Math.Clamp(maximumHistoryCount, min: 1, MaximumHistorySampleCount);
     }
 }

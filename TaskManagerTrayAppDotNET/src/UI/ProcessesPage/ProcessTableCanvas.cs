@@ -73,6 +73,10 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private const string UnavailableText = ProcessTableValuePresentation.UnavailableText;
     private const double BytesPerMebibyte = 1_048_576;
     private const double BytesPerMegabit = 1_000_000.0 / 8;
+
+    // Pointer travel before a header press becomes a column drag; gesture behavior, so not an AXAML resource
+    private const double HeaderDragThreshold = 4;
+
     private const int TreeLayoutValueMask = 0x1FF;
     private const int SemanticSectionLayoutFlag = 1 << 9;
     private const int SemanticSectionHeaderLayoutFlag = 1 << 10;
@@ -1890,8 +1894,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             {
                 double horizontalDistance = Math.Abs(position.X - _headerPressPosition.X);
                 double verticalDistance = Math.Abs(position.Y - _headerPressPosition.Y);
-                if (horizontalDistance < _visualMetrics.HeaderDragThreshold
-                    && verticalDistance < _visualMetrics.HeaderDragThreshold)
+                if (horizontalDistance < HeaderDragThreshold
+                    && verticalDistance < HeaderDragThreshold)
                     return;
 
                 _headerInteraction = HeaderInteractionMode.Reordering;
@@ -2252,7 +2256,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     }
 #endif
 
-    private string LocalizeUnavailableText(string value) =>
+    private static string LocalizeUnavailableText(string value) =>
         string.Equals(value, NativeProcessInfo.Unavailable, StringComparison.Ordinal)
             ? UnavailableText
             : value;
@@ -3945,7 +3949,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         };
     }
 
-    private string FormatDisplayCode(long value)
+    private static string FormatDisplayCode(long value)
     {
         ProcessDisplayCode code = (ProcessDisplayCode)value;
         return code == ProcessDisplayCode.Unavailable
@@ -3953,14 +3957,14 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             : ProcessDisplayCodeText.Get(code);
     }
 
-    private string FormatJobObjectID(long value) => value switch
+    private static string FormatJobObjectID(long value) => value switch
     {
         < 0 => UnavailableText,
         0 => string.Empty,
         _ => value.ToString(TableCulture)
     };
 
-    private string FormatPercent(double value, ProcessColumnSetting setting)
+    private static string FormatPercent(double value, ProcessColumnSetting setting)
     {
         long quantized = QuantizePercent(value, setting.ShowDecimalUsage);
         if (quantized < 0) return UnavailableText;
@@ -4009,7 +4013,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         ? ZeroText
         : unchecked((ulong)value).ToString(format: "N0", TableCulture);
 
-    private string FormatTransferRate(
+    private static string FormatTransferRate(
         double bytesPerSecond,
         double bytesPerDisplayUnit,
         string suffix)
@@ -5248,7 +5252,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             resources.AxamlProcessTable.DefaultViewportHeight,
             resources.AxamlProcessTable.GridLineThickness,
             resources.AxamlProcessTable.ColumnResizeHitRadius,
-            resources.AxamlProcessTable.HeaderDragThreshold,
             resources.AxamlProcessTable.ColumnInteractionLineThickness,
             resources.AxamlProcessTable.TextUnderlineThickness,
             resources.AxamlProcessTable.SortCaretFontSize,
@@ -5291,7 +5294,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             resources.AxamlProcessTable.CommandLineColumnWidth);
 #endif
 
-    private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
+    private static ProcessTableColumn[] CreateColumns(List<ProcessColumnSetting> source)
     {
         List<ProcessTableColumn> columns = new(source.Count);
         double left = 0;
@@ -5314,7 +5317,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     }
 
     private static ProcessColumnSetting[] CreateColumnSettingsIndex(
-        IReadOnlyList<ProcessColumnSetting> settings)
+        List<ProcessColumnSetting> settings)
     {
         ProcessColumnSetting[] settingsByColumn =
             new ProcessColumnSetting[ProcessTableColumnCatalog.Definitions.Length];
@@ -5407,7 +5410,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         return false;
     }
 
-    private bool ShouldShareCell(ProcessTableColumnKind column, string value)
+    private static bool ShouldShareCell(ProcessTableColumnKind column, string value)
     {
         if (value == ZeroText
             || value == ZeroMemoryText
@@ -5923,7 +5926,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         double DefaultViewportHeight,
         double GridLineThickness,
         double ColumnResizeHitRadius,
-        double HeaderDragThreshold,
         double ColumnInteractionLineThickness,
         double TextUnderlineThickness,
         double SortCaretFontSize,

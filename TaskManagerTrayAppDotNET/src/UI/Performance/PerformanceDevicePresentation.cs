@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.NetworkInformation;
 using Avalonia.Media;
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
 
@@ -101,11 +102,9 @@ internal static class PerformanceDevicePresentationFactory
     {
         int normalizedLength = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
             historyLengthMinutes);
-        string unit = normalizedLength == 1 ? "minute" : "minutes";
-        return string.Concat(
-            normalizedLength.ToString(CultureInfo.CurrentCulture),
-            str1: " ",
-            unit);
+        return F(
+            normalizedLength == 1 ? nameof(AppStrings.Perf_MinuteFormat) : nameof(AppStrings.Perf_MinutesFormat),
+            normalizedLength);
     }
 
     /// <summary>Calculates the normalized network value used by cards and history graphs.</summary>
@@ -136,48 +135,48 @@ internal static class PerformanceDevicePresentationFactory
         bool hasCurrentSpeed = sample is { HasFrequencyData: true, CurrentSpeedHertz: > 0 };
         string speed = hasCurrentSpeed
             ? FormatHertz(sample.CurrentSpeedHertz)
-            : "Unavailable";
+            : Unavailable;
         string summary = hasCurrentSpeed
             ? string.Concat(utilization, str1: "  ", speed)
             : utilization;
         PerformanceStatistic[] statistics =
         [
-            new(Label: "Utilization", utilization),
-            new(Label: "Speed", speed),
+            new(Label: L(nameof(AppStrings.Perf_Label_Utilization)), utilization),
+            new(Label: L(nameof(AppStrings.Perf_Label_Speed)), speed),
             new(
-                Label: "Highest logical processor",
+                Label: L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor)),
                 FormatPercent(sample.HasUtilizationSample, sample.HighestLogicalProcessorPercent)),
-            new(Label: "Processes", FormatOptionalCount(sample.HasProcessTotals, sample.ProcessCount)),
-            new(Label: "Threads", FormatOptionalCount(sample.HasProcessTotals, sample.ThreadCount)),
-            new(Label: "Handles", FormatOptionalCount(sample.HasProcessTotals, sample.HandleCount)),
-            new(Label: "Up time", FormatUptime(sample.Uptime)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Processes)), FormatOptionalCount(sample.HasProcessTotals, sample.ProcessCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Threads)), FormatOptionalCount(sample.HasProcessTotals, sample.ThreadCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Handles)), FormatOptionalCount(sample.HasProcessTotals, sample.HandleCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_UpTime)), FormatUptime(sample.Uptime)),
             new(
-                Label: "Highest recorded speed",
+                Label: L(nameof(AppStrings.Perf_Label_HighestRecordedSpeed)),
                 sample.HighestRecordedSpeedHertz > 0
                     ? FormatHertz(sample.HighestRecordedSpeedHertz)
-                    : "Unavailable"),
-            new(Label: "Sockets", FormatCount(sample.SocketCount)),
-            new(Label: "Physical cores", FormatCount(sample.CoreCount)),
-            new(Label: "Logical processors", FormatCount(sample.LogicalProcessorCount)),
-            new(Label: "Virtualization", sample.IsVirtualizationFirmwareEnabled ? "Enabled" : "Disabled"),
-            new(Label: "L1 cache", FormatOptionalBytes(sample.L1CacheBytes)),
-            new(Label: "L2 cache", FormatOptionalBytes(sample.L2CacheBytes)),
-            new(Label: "L3 cache", FormatOptionalBytes(sample.L3CacheBytes)),
+                    : Unavailable),
+            new(Label: L(nameof(AppStrings.Perf_Label_Sockets)), FormatCount(sample.SocketCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_PhysicalCores)), FormatCount(sample.CoreCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_LogicalProcessors)), FormatCount(sample.LogicalProcessorCount)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Virtualization)), sample.IsVirtualizationFirmwareEnabled ? L(nameof(AppStrings.Perf_Enabled)) : L(nameof(AppStrings.Perf_Disabled))),
+            new(Label: L(nameof(AppStrings.Perf_Label_L1Cache)), FormatOptionalBytes(sample.L1CacheBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_L2Cache)), FormatOptionalBytes(sample.L2CacheBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_L3Cache)), FormatOptionalBytes(sample.L3CacheBytes)),
             new(
-                Label: "Base speed",
+                Label: L(nameof(AppStrings.Perf_Label_BaseSpeed)),
                 sample is { HasFrequencyData: true, BaseSpeedHertz: > 0 }
                     ? FormatHertz(sample.BaseSpeedHertz)
-                    : "Unavailable")
+                    : Unavailable)
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
             sample.Kind,
             sample.SortKey,
-            Title: "CPU",
+            Title: L(nameof(AppStrings.Perf_Title_CPU)),
             hardwareName,
             summary,
             hardwareName,
-            string.Concat(str0: "% Utilization over ", graphWindow),
+            F(nameof(AppStrings.Perf_Graph_UtilizationOverFormat), graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
             GetAccent(PerformanceDeviceKind.CPU),
@@ -189,9 +188,9 @@ internal static class PerformanceDevicePresentationFactory
         string graphWindow,
         PerformanceHardwareNameResolver hardwareNameResolver)
     {
-        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, hardwareName: "Physical memory");
-        string used = sample.HasMemoryData ? FormatBytes(sample.UsedPhysicalBytes) : "Unavailable";
-        string total = sample.HasMemoryData ? FormatBytes(sample.TotalPhysicalBytes) : "Unavailable";
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, hardwareName: L(nameof(AppStrings.Perf_PhysicalMemory)));
+        string used = sample.HasMemoryData ? FormatBytes(sample.UsedPhysicalBytes) : Unavailable;
+        string total = sample.HasMemoryData ? FormatBytes(sample.TotalPhysicalBytes) : Unavailable;
         string inUse = sample.Composition.HasCompressionData
             ? string.Concat(
                 used,
@@ -207,56 +206,56 @@ internal static class PerformanceDevicePresentationFactory
                 " (",
                 FormatPercent(isAvailable: true, sample.UtilizationPercent),
                 ")")
-            : "Unavailable";
+            : Unavailable;
         PerformanceStatistic[] statistics =
         [
-            new(Label: "In use (Compressed)", inUse),
+            new(Label: L(nameof(AppStrings.Perf_Label_InUseCompressed)), inUse),
             new(
-                Label: "Available",
-                sample.HasMemoryData ? FormatBytes(sample.AvailablePhysicalBytes) : "Unavailable"),
+                Label: L(nameof(AppStrings.Perf_Label_Available)),
+                sample.HasMemoryData ? FormatBytes(sample.AvailablePhysicalBytes) : Unavailable),
             new(
-                Label: "Committed",
+                Label: L(nameof(AppStrings.Perf_Label_Committed)),
                 FormatOptionalBytePair(sample.CommittedBytes, sample.CommitLimitBytes)),
-            new(Label: "Cached", FormatOptionalBytes(sample.CachedBytes)),
-            new(Label: "Paged pool", FormatOptionalBytes(sample.PagedPoolBytes)),
-            new(Label: "Non-paged pool", FormatOptionalBytes(sample.NonPagedPoolBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Cached)), FormatOptionalBytes(sample.CachedBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_PagedPool)), FormatOptionalBytes(sample.PagedPoolBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_NonPagedPool)), FormatOptionalBytes(sample.NonPagedPoolBytes)),
             new(
-                Label: "Speed",
+                Label: L(nameof(AppStrings.Perf_Label_Speed)),
                 sample.Hardware.SpeedMegatransfersPerSecond > 0
                     ? string.Concat(
                         sample.Hardware.SpeedMegatransfersPerSecond.ToString(
                             format: "0",
                             CultureInfo.CurrentCulture),
                         str1: " MT/s")
-                    : "Unavailable"),
+                    : Unavailable),
             new(
-                Label: "Slots used",
+                Label: L(nameof(AppStrings.Perf_Label_SlotsUsed)),
                 sample.Hardware is { UsedSlotCount: > 0, TotalSlotCount: > 0 }
                     ? string.Concat(
                         sample.Hardware.UsedSlotCount.ToString(CultureInfo.CurrentCulture),
                         str1: " of ",
                         sample.Hardware.TotalSlotCount.ToString(CultureInfo.CurrentCulture))
-                    : "Unavailable"),
+                    : Unavailable),
             new(
-                Label: "Form factor",
+                Label: L(nameof(AppStrings.Perf_Label_FormFactor)),
                 string.Equals(sample.Hardware.FormFactor, b: "Unknown", StringComparison.Ordinal)
-                    ? "Unavailable"
+                    ? Unavailable
                     : sample.Hardware.FormFactor),
             new(
-                Label: "Hardware reserved",
+                Label: L(nameof(AppStrings.Perf_Label_HardwareReserved)),
                 sample is { InstalledPhysicalBytes: > 0, HasMemoryData: true }
                     ? FormatBytes(sample.HardwareReservedBytes)
-                    : "Unavailable")
+                    : Unavailable)
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
             sample.Kind,
             sample.SortKey,
-            Title: "Memory",
+            Title: L(nameof(AppStrings.Perf_Title_Memory)),
             total,
             summary,
             hardwareName,
-            string.Concat(str0: "Memory use over ", graphWindow),
+            F(nameof(AppStrings.Perf_Graph_MemoryUseOverFormat), graphWindow),
             sample.HasMemoryData,
             sample.UtilizationPercent,
             GetAccent(PerformanceDeviceKind.Memory),
@@ -278,10 +277,10 @@ internal static class PerformanceDevicePresentationFactory
             : sample.DedicatedMemoryCapacityBytes;
         string dedicatedMemory = sample.HasDedicatedMemoryData
             ? FormatBytePair(sample.DedicatedMemoryBytes, dedicatedMemoryCapacityBytes)
-            : "Unavailable";
+            : Unavailable;
         string sharedMemory = sample.HasSharedMemoryData
             ? FormatBytePair(sample.SharedMemoryBytes, sample.SharedMemoryCapacityBytes)
-            : "Unavailable";
+            : Unavailable;
         bool hasGPUMemoryData = sample is { HasDedicatedMemoryData: true, HasSharedMemoryData: true };
         ulong totalGPUMemoryBytes = SaturatingAdd(
             sample.DedicatedMemoryBytes,
@@ -291,12 +290,12 @@ internal static class PerformanceDevicePresentationFactory
             sample.SharedMemoryCapacityBytes);
         string totalGPUMemory = hasGPUMemoryData && totalGPUMemoryCapacityBytes > 0
             ? FormatBytePair(totalGPUMemoryBytes, totalGPUMemoryCapacityBytes)
-            : "Unavailable";
+            : Unavailable;
         string temperature = details?.HasTemperatureData == true
             ? string.Concat(
                 details.TemperatureCelsius.ToString(format: "N0", CultureInfo.CurrentCulture),
                 str1: " \u00B0C")
-            : "Unavailable";
+            : Unavailable;
         string directXVersion = details != null
                                 && !string.IsNullOrWhiteSpace(details.DirectXVersion)
             ? string.IsNullOrWhiteSpace(details.FeatureLevel)
@@ -306,44 +305,44 @@ internal static class PerformanceDevicePresentationFactory
                     str1: " (FL ",
                     details.FeatureLevel,
                     str3: ")")
-            : "Unavailable";
+            : Unavailable;
         PerformanceStatistic[] statistics =
         [
-            new(Label: "Utilization", utilization),
-            new(Label: "Dedicated GPU memory", dedicatedMemory),
-            new(Label: "GPU Memory", totalGPUMemory),
-            new(Label: "Shared GPU memory", sharedMemory),
-            new(Label: "Temperature", temperature),
+            new(Label: L(nameof(AppStrings.Perf_Label_Utilization)), utilization),
+            new(Label: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)), dedicatedMemory),
+            new(Label: L(nameof(AppStrings.Perf_Label_GPUMemory)), totalGPUMemory),
+            new(Label: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)), sharedMemory),
+            new(Label: L(nameof(AppStrings.Perf_Label_Temperature)), temperature),
             new(
-                Label: "Driver version",
+                Label: L(nameof(AppStrings.Perf_Label_DriverVersion)),
                 details != null && !string.IsNullOrWhiteSpace(details.DriverVersion)
                     ? details.DriverVersion
-                    : "Unavailable"),
+                    : Unavailable),
             new(
-                Label: "Driver date",
+                Label: L(nameof(AppStrings.Perf_Label_DriverDate)),
                 details?.DriverDate?.ToString(format: "d", CultureInfo.CurrentCulture)
-                ?? "Unavailable"),
-            new(Label: "DirectX version", directXVersion),
+                ?? Unavailable),
+            new(Label: L(nameof(AppStrings.Perf_Label_DirectXVersion)), directXVersion),
             new(
-                Label: "Physical location",
+                Label: L(nameof(AppStrings.Perf_Label_PhysicalLocation)),
                 details != null && !string.IsNullOrWhiteSpace(details.PhysicalLocation)
                     ? details.PhysicalLocation
-                    : "Unavailable"),
+                    : Unavailable),
             new(
-                Label: "Hardware reserved memory",
+                Label: L(nameof(AppStrings.Perf_Label_HardwareReservedMemory)),
                 details?.HasHardwareReservedMemoryData == true
                     ? FormatBytes(details.HardwareReservedMemoryBytes)
-                    : "Unavailable")
+                    : Unavailable)
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
             sample.Kind,
             sample.SortKey,
-            string.Concat(str0: "GPU ", sample.SortKey.ToString(CultureInfo.CurrentCulture)),
+            F(nameof(AppStrings.Perf_Title_GPUFormat), sample.SortKey),
             hardwareName,
             utilization,
             hardwareName,
-            string.Concat(str0: "% Utilization over ", graphWindow),
+            F(nameof(AppStrings.Perf_Graph_UtilizationOverFormat), graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
             GetAccent(PerformanceDeviceKind.GPU),
@@ -366,19 +365,19 @@ internal static class PerformanceDevicePresentationFactory
                 str2: "  R: ",
                 FormatBytesPerSecond(sample.ReceiveBytesPerSecond))
             : sample.IsOperational
-                ? "Collecting throughput..."
-                : "Disconnected";
+                ? L(nameof(AppStrings.Perf_CollectingThroughput))
+                : L(nameof(AppStrings.Perf_Disconnected));
         PerformanceStatistic[] statistics =
         [
-            new(Label: "Send", FormatOptionalBytesPerSecond(sample.HasThroughputSample, sample.SendBytesPerSecond)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Send)), FormatOptionalBytesPerSecond(sample.HasThroughputSample, sample.SendBytesPerSecond)),
             new(
-                Label: "Receive",
+                Label: L(nameof(AppStrings.Perf_Label_Receive)),
                 FormatOptionalBytesPerSecond(sample.HasThroughputSample, sample.ReceiveBytesPerSecond)),
-            new(Label: "Link speed", FormatBitRate(sample.LinkSpeedBitsPerSecond)),
-            new(Label: "Status", sample.IsOperational ? "Connected" : "Disconnected"),
-            new(Label: "Adapter type", sample.InterfaceType),
-            new(Label: "Total sent", FormatSignedBytes(sample.TotalBytesSent)),
-            new(Label: "Total received", FormatSignedBytes(sample.TotalBytesReceived))
+            new(Label: L(nameof(AppStrings.Perf_Label_LinkSpeed)), FormatBitRate(sample.LinkSpeedBitsPerSecond)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Status)), sample.IsOperational ? L(nameof(AppStrings.Perf_Connected)) : L(nameof(AppStrings.Perf_Disconnected))),
+            new(Label: L(nameof(AppStrings.Perf_Label_AdapterType)), sample.InterfaceType),
+            new(Label: L(nameof(AppStrings.Perf_Label_TotalSent)), FormatSignedBytes(sample.TotalBytesSent)),
+            new(Label: L(nameof(AppStrings.Perf_Label_TotalReceived)), FormatSignedBytes(sample.TotalBytesReceived))
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
@@ -388,7 +387,7 @@ internal static class PerformanceDevicePresentationFactory
             FormatNetworkSubtitle(sample.Name, hardwareName),
             summary,
             hardwareName,
-            string.Concat(str0: "% Link utilization over ", graphWindow),
+            F(nameof(AppStrings.Perf_Graph_LinkUtilizationOverFormat), graphWindow),
             hasNormalizedUtilization,
             utilizationPercent,
             GetAccent(PerformanceDeviceKind.Network),
@@ -415,39 +414,37 @@ internal static class PerformanceDevicePresentationFactory
                                        ?? sample.FormattedCapacityBytes;
         string hardwareName = hardwareNameResolver.Resolve(sample.Kind, model);
         string utilization = FormatPercent(hasPerformanceSample, activeTimePercent);
-        string title = string.Concat(
-            str0: "Disk ",
-            sample.SortKey.ToString(CultureInfo.CurrentCulture));
-        if (!string.IsNullOrWhiteSpace(volumeNames))
-            title = string.Concat(title, str1: " (", volumeNames, str3: ")");
+        string title = string.IsNullOrWhiteSpace(volumeNames)
+            ? F(nameof(AppStrings.Perf_Title_DiskFormat), sample.SortKey)
+            : F(nameof(AppStrings.Perf_Title_DiskWithVolumesFormat), sample.SortKey, volumeNames);
         string summary = hasPerformanceSample
             ? utilization
-            : "Collecting disk counters...";
+            : L(nameof(AppStrings.Perf_CollectingDiskCounters));
         PerformanceStatistic[] statistics =
         [
-            new(Label: "Active time", utilization),
+            new(Label: L(nameof(AppStrings.Perf_Label_ActiveTime)), utilization),
             new(
-                Label: "Average response time",
+                Label: L(nameof(AppStrings.Perf_Label_AverageResponseTime)),
                 hasPerformanceSample
                     ? string.Concat(
                         averageResponseTimeMilliseconds.ToString(format: "N1", CultureInfo.CurrentCulture),
                         str1: " ms")
-                    : "Unavailable"),
-            new(Label: "Read speed", FormatOptionalBytesPerSecond(hasPerformanceSample, readBytesPerSecond)),
-            new(Label: "Write speed", FormatOptionalBytesPerSecond(hasPerformanceSample, writeBytesPerSecond)),
-            new(Label: "Capacity", FormatOptionalBytes(capacityBytes)),
-            new(Label: "Formatted", FormatOptionalBytes(formattedCapacityBytes)),
+                    : Unavailable),
+            new(Label: L(nameof(AppStrings.Perf_Label_ReadSpeed)), FormatOptionalBytesPerSecond(hasPerformanceSample, readBytesPerSecond)),
+            new(Label: L(nameof(AppStrings.Perf_Label_WriteSpeed)), FormatOptionalBytesPerSecond(hasPerformanceSample, writeBytesPerSecond)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Capacity)), FormatOptionalBytes(capacityBytes)),
+            new(Label: L(nameof(AppStrings.Perf_Label_Formatted)), FormatOptionalBytes(formattedCapacityBytes)),
             new(
-                Label: "System disk",
+                Label: L(nameof(AppStrings.Perf_Label_SystemDisk)),
                 details?.HasSystemDiskData == true
                     ? FormatBoolean(details.IsSystemDisk)
-                    : "Unavailable"),
+                    : Unavailable),
             new(
-                Label: "Page file",
+                Label: L(nameof(AppStrings.Perf_Label_PageFile)),
                 details?.HasPageFileData == true
                     ? FormatBoolean(details.HasPageFile)
-                    : "Unavailable"),
-            new(Label: "Type", string.IsNullOrWhiteSpace(deviceType) ? "Unavailable" : deviceType)
+                    : Unavailable),
+            new(Label: L(nameof(AppStrings.Perf_Label_Type)), string.IsNullOrWhiteSpace(deviceType) ? Unavailable : deviceType)
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
@@ -457,7 +454,7 @@ internal static class PerformanceDevicePresentationFactory
             hardwareName,
             summary,
             hardwareName,
-            string.Concat(str0: "% Active time over ", graphWindow),
+            F(nameof(AppStrings.Perf_Graph_ActiveTimeOverFormat), graphWindow),
             hasPerformanceSample,
             activeTimePercent,
             GetAccent(PerformanceDeviceKind.Disk),
@@ -467,7 +464,7 @@ internal static class PerformanceDevicePresentationFactory
     private static string FormatNetworkTitle(string interfaceType)
     {
         if (!Enum.TryParse(interfaceType, out NetworkInterfaceType parsedType))
-            return "Network";
+            return L(nameof(AppStrings.Perf_Title_Network));
 
         return parsedType switch
         {
@@ -475,7 +472,7 @@ internal static class PerformanceDevicePresentationFactory
                 or NetworkInterfaceType.FastEthernetFx or NetworkInterfaceType.FastEthernetT => "Ethernet",
             NetworkInterfaceType.Wireless80211 => "Wi-Fi",
             NetworkInterfaceType.Ppp => "VPN",
-            _ => "Network"
+            _ => L(nameof(AppStrings.Perf_Title_Network))
         };
     }
 
@@ -494,30 +491,30 @@ internal static class PerformanceDevicePresentationFactory
             ? string.Concat(
                 Math.Clamp(value, min: 0, max: 100).ToString(format: "N0", CultureInfo.CurrentCulture),
                 str1: "%")
-            : "Unavailable";
+            : Unavailable;
 
     private static string FormatCount(int value) =>
-        value > 0 ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : "Unavailable";
+        value > 0 ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : Unavailable;
 
     private static string FormatOptionalCount(bool isAvailable, uint value) =>
-        isAvailable ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : "Unavailable";
+        isAvailable ? value.ToString(format: "N0", CultureInfo.CurrentCulture) : Unavailable;
 
-    private static string FormatBoolean(bool value) => value ? "Yes" : "No";
+    private static string FormatBoolean(bool value) => value ? L(nameof(AppStrings.Perf_Yes)) : L(nameof(AppStrings.Perf_No));
 
     private static ulong SaturatingAdd(ulong left, ulong right) =>
         left > ulong.MaxValue - right ? ulong.MaxValue : left + right;
 
     private static string FormatOptionalBytes(ulong value) =>
-        value > 0 ? FormatBytes(value) : "Unavailable";
+        value > 0 ? FormatBytes(value) : Unavailable;
 
     private static string FormatOptionalBytePair(ulong value, ulong limit) =>
         value > 0 && limit > 0
             ? FormatBytePair(value, limit)
-            : "Unavailable";
+            : Unavailable;
 
     private static string FormatBytePair(ulong value, ulong limit)
     {
-        if (limit == 0) return "Unavailable";
+        if (limit == 0) return Unavailable;
 
         double divisor;
         string suffix;
@@ -556,21 +553,21 @@ internal static class PerformanceDevicePresentationFactory
     }
 
     private static string FormatSignedBytes(long value) =>
-        value >= 0 ? FormatBytes((ulong)value) : "Unavailable";
+        value >= 0 ? FormatBytes((ulong)value) : Unavailable;
 
     private static string FormatOptionalBytesPerSecond(bool isAvailable, double value) =>
-        isAvailable ? FormatBytesPerSecond(value) : "Unavailable";
+        isAvailable ? FormatBytesPerSecond(value) : Unavailable;
 
     internal static string FormatBytesPerSecond(double value) =>
         double.IsFinite(value) && value >= 0
             ? string.Concat(FormatBytes(value), str1: "/s")
-            : "Unavailable";
+            : Unavailable;
 
     internal static string FormatBytes(ulong value) => FormatBytes((double)value);
 
     internal static string FormatBytes(double value)
     {
-        if (!double.IsFinite(value) || value < 0) return "Unavailable";
+        if (!double.IsFinite(value) || value < 0) return Unavailable;
         if (value >= BytesPerTebibyte)
             return FormatScaled(value / BytesPerTebibyte, suffix: "TB");
         if (value >= BytesPerGibibyte)
@@ -598,11 +595,11 @@ internal static class PerformanceDevicePresentationFactory
             ? string.Concat(
                 (bitsPerSecond / BitsPerMegabit).ToString(format: "N0", CultureInfo.CurrentCulture),
                 str1: " Mbps")
-            : "Unavailable";
+            : Unavailable;
 
     private static string FormatUptime(TimeSpan uptime)
     {
-        if (uptime < TimeSpan.Zero) return "Unavailable";
+        if (uptime < TimeSpan.Zero) return Unavailable;
         return string.Create(
             CultureInfo.CurrentCulture,
             $"{(int)uptime.TotalDays}:{uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}");

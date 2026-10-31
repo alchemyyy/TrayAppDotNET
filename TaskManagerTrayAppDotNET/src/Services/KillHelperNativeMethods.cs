@@ -25,24 +25,6 @@ internal static class KillHelperNativeMethods
         uint fileOffsetLow,
         nuint numberOfBytesToMap);
 
-    [DllImport("kernel32.dll", EntryPoint = "CreateEventW", CharSet = CharSet.Unicode, SetLastError = true)]
-    public static extern IntPtr CreateEventW(
-        IntPtr eventAttributes,
-        [MarshalAs(UnmanagedType.Bool)] bool isManualReset,
-        [MarshalAs(UnmanagedType.Bool)] bool initialState,
-        string? name);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool SetEvent(IntPtr eventHandle);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern unsafe uint WaitForMultipleObjects(
-        uint handleCount,
-        IntPtr* handles,
-        [MarshalAs(UnmanagedType.Bool)] bool waitForAll,
-        uint milliseconds);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool VirtualLock(IntPtr address, nuint size);

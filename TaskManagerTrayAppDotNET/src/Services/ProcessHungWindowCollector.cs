@@ -10,15 +10,15 @@ namespace TaskManagerTrayAppDotNET.Services;
 internal sealed class ProcessHungWindowCollector
 {
     private const int WindowExtendedStyle = -20;
-    private const uint GetWindowOwner = 4;
+    private const uint GetWindowOwner = User32.GW_OWNER;
     private const long WindowStyleExtendedToolWindow = 0x00000080L;
     private const long WindowStyleExtendedApplicationWindow = 0x00040000L;
     private const long WindowStyleExtendedNoActivate = 0x08000000L;
     private const int ClassNameCapacity = 256;
-    private const string TaskbarWindowClassName = "Shell_TrayWnd";
 
-    private readonly NativeMethods.EnumWindowsCallback _enumerateWindowCallback;
+    private readonly User32.EnumWindowsProc _enumerateWindowCallback;
     private readonly HashSet<int> _notRespondingProcessIDs = new(16);
+    private bool _callbackFailureLogged;
 
     public ProcessHungWindowCollector()
     {
@@ -29,7 +29,7 @@ internal sealed class ProcessHungWindowCollector
     public void Capture()
     {
         _notRespondingProcessIDs.Clear();
-        _ = NativeMethods.EnumWindows(_enumerateWindowCallback, IntPtr.Zero);
+        _ = User32.EnumWindows(_enumerateWindowCallback, IntPtr.Zero);
     }
 
     /// <summary>Returns whether the latest capture found a hung window owned by the process.</summary>
@@ -56,73 +56,53 @@ internal sealed class ProcessHungWindowCollector
     private bool OnEnumerateWindow(IntPtr windowHandle, IntPtr parameter)
     {
         _ = parameter;
-        if (!NativeMethods.IsWindowVisible(windowHandle)) return true;
+        // An exception must never unwind into user32: under Native AOT that terminates the process
+        try
+        {
+            CollectWindow(windowHandle);
+        }
+        catch (Exception exception)
+        {
+            if (!_callbackFailureLogged)
+            {
+                _callbackFailureLogged = true;
+                TADNLog.Log($"ProcessHungWindowCollector: window enumeration callback failed: {exception}");
+            }
+        }
 
-        long extendedStyle = NativeMethods.GetWindowLongPtr(windowHandle, WindowExtendedStyle).ToInt64();
-        IntPtr ownerWindowHandle = NativeMethods.GetWindow(windowHandle, GetWindowOwner);
+        return true;
+    }
+
+    private void CollectWindow(IntPtr windowHandle)
+    {
+        if (!User32.IsWindowVisible(windowHandle)) return;
+
+        long extendedStyle = User32.GetWindowLongPtr(windowHandle, WindowExtendedStyle).ToInt64();
+        IntPtr ownerWindowHandle = User32.GetWindow(windowHandle, GetWindowOwner);
         bool hasVisibleOwner = ownerWindowHandle != IntPtr.Zero
-                               && NativeMethods.IsWindowVisible(ownerWindowHandle);
+                               && User32.IsWindowVisible(ownerWindowHandle);
         if (!IsUserInteractiveWindow(
                 extendedStyle,
                 hasVisibleOwner,
                 IsTaskbar(windowHandle),
-                NativeMethods.GhostWindowFromHungWindow(windowHandle) != IntPtr.Zero))
-            return true;
-        if (!NativeMethods.IsHungAppWindow(windowHandle)) return true;
+                User32.GhostWindowFromHungWindow(windowHandle) != IntPtr.Zero))
+            return;
+        if (!User32.IsHungAppWindow(windowHandle)) return;
 
-        IntPtr hungWindowHandle = NativeMethods.HungWindowFromGhostWindow(windowHandle);
+        IntPtr hungWindowHandle = User32.HungWindowFromGhostWindow(windowHandle);
         IntPtr processWindowHandle = hungWindowHandle != IntPtr.Zero ? hungWindowHandle : windowHandle;
-        _ = NativeMethods.GetWindowThreadProcessId(processWindowHandle, out uint processID);
+        _ = User32.GetWindowThreadProcessId(processWindowHandle, out uint processID);
         if (processID is > 0 and <= int.MaxValue)
             _notRespondingProcessIDs.Add((int)processID);
-        return true;
     }
 
     private static unsafe bool IsTaskbar(IntPtr windowHandle)
     {
         char* className = stackalloc char[ClassNameCapacity];
-        int length = NativeMethods.GetClassName(windowHandle, className, ClassNameCapacity);
+        int length = User32.GetClassName(windowHandle, className, ClassNameCapacity);
         return length > 0
                && new ReadOnlySpan<char>(className, length).Equals(
-                   TaskbarWindowClassName,
+                   TrayAppDotNETConstants.TaskbarWindowClassName,
                    StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static class NativeMethods
-    {
-        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public delegate bool EnumWindowsCallback(IntPtr windowHandle, IntPtr parameter);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsWindowVisible(IntPtr windowHandle);
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
-        public static extern IntPtr GetWindowLongPtr(IntPtr windowHandle, int index);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetWindow(IntPtr windowHandle, uint command);
-
-        [DllImport("user32.dll", EntryPoint = "GetClassNameW")]
-        public static extern unsafe int GetClassName(IntPtr windowHandle, char* className, int maxCount);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsHungAppWindow(IntPtr windowHandle);
-
-        // Exported by name from user32 but absent from the SDK headers; Taskmgr.exe imports both
-        [DllImport("user32.dll")]
-        public static extern IntPtr GhostWindowFromHungWindow(IntPtr windowHandle);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr HungWindowFromGhostWindow(IntPtr windowHandle);
-
-        [DllImport("user32.dll")]
-        public static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processID);
     }
 }

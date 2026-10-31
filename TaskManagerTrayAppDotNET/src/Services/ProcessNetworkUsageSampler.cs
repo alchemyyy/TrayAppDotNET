@@ -18,14 +18,6 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
     private const ushort SentBytesColumnID = 3;
     private const ushort ReceivedBytesColumnID = 4;
     private const ushort ProcessIDColumnID = 6;
-    private const uint COMInitializeApartmentThreaded = 2;
-    private const uint COMInitializeDisableOLE1DDE = 4;
-    private const int RPCChangedMode = unchecked((int)0x80010106);
-    private const uint Infinite = uint.MaxValue;
-    private const uint WaitFailed = uint.MaxValue;
-    private const uint QueueStatusAllInput = 0x04FF;
-    private const uint MessageWaitInputAvailable = 0x0004;
-    private const uint PeekMessageRemove = 0x0001;
     private const int RetryIntervalMilliseconds = 30_000;
     private const int ShutdownJoinTimeoutMilliseconds = 5_000;
     private const uint MaximumRecordCount = 65_536;
@@ -96,14 +88,12 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
 
     private void Run()
     {
-        int initializeResult = CoInitializeEx(
-            IntPtr.Zero,
-            COMInitializeApartmentThreaded | COMInitializeDisableOLE1DDE);
-        if (initializeResult == RPCChangedMode)
-            initializeResult = CoInitializeEx(IntPtr.Zero, COMInitializeDisableOLE1DDE);
-        if (initializeResult < 0)
+        // RPC_E_CHANGED_MODE leaves the thread in its existing apartment, which the SRUM client still accepts
+        using ComApartmentScope apartment = ComApartmentScope.Enter(
+            Ole32.COINIT_APARTMENTTHREADED | Ole32.COINIT_DISABLE_OLE1DDE);
+        if (!apartment.IsUsable)
         {
-            LogFailureOnce($"COM initialization failed (0x{initializeResult:X8}).");
+            LogFailureOnce($"COM initialization failed (0x{apartment.HResult:X8}).");
             return;
         }
 
@@ -122,7 +112,6 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         finally
         {
             Volatile.Write(ref _available, value: 0);
-            CoUninitialize();
         }
     }
 
@@ -195,14 +184,14 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         IntPtr shutdownHandle = _shutdown.SafeWaitHandle.DangerousGetHandle();
         while (!_shutdown.WaitOne(0))
         {
-            uint waitResult = MsgWaitForMultipleObjectsEx(
-                count: 1,
+            uint waitResult = User32.MsgWaitForMultipleObjectsEx(
+                nCount: 1,
                 &shutdownHandle,
-                Infinite,
-                QueueStatusAllInput,
-                MessageWaitInputAvailable);
+                Kernel32.INFINITE,
+                User32.QS_ALLINPUT,
+                User32.MWMO_INPUTAVAILABLE);
             if (waitResult == 0) return true;
-            if (waitResult == WaitFailed)
+            if (waitResult == Kernel32.WAIT_FAILED)
             {
                 LogFailureOnce($"The SRUM message pump failed ({Marshal.GetLastPInvokeError()}).");
                 return false;
@@ -211,11 +200,11 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
             if (waitResult != 1) continue;
 
             while (!_shutdown.WaitOne(0)
-                   && PeekMessageW(out MSG message, IntPtr.Zero, messageFilterMinimum: 0, messageFilterMaximum: 0,
-                       PeekMessageRemove))
+                   && User32.PeekMessage(out User32.MSG message, IntPtr.Zero, wMsgFilterMin: 0, wMsgFilterMax: 0,
+                       User32.PM_REMOVE))
             {
-                _ = TranslateMessage(ref message);
-                _ = DispatchMessageW(ref message);
+                _ = User32.TranslateMessage(in message);
+                _ = User32.DispatchMessage(in message);
             }
         }
 
@@ -421,38 +410,8 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
             _cumulativeBytes.Clear();
     }
 
-    [DllImport("ole32.dll")]
-    private static extern int CoInitializeEx(IntPtr reserved, uint coInitialize);
-
-    [DllImport("ole32.dll")]
-    private static extern void CoUninitialize();
-
     [DllImport("kernel32.dll")]
     private static extern void GetSystemTime(SYSTEMTIME* systemTime);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint MsgWaitForMultipleObjectsEx(
-        uint count,
-        IntPtr* handles,
-        uint milliseconds,
-        uint wakeMask,
-        uint flags);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PeekMessageW(
-        out MSG message,
-        IntPtr window,
-        uint messageFilterMinimum,
-        uint messageFilterMaximum,
-        uint removeMessage);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool TranslateMessage(ref MSG message);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr DispatchMessageW(ref MSG message);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SYSTEMTIME
@@ -465,25 +424,6 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         public ushort Minute;
         public ushort Second;
         public ushort Milliseconds;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT
-    {
-        public int X;
-        public int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MSG
-    {
-        public IntPtr Window;
-        public uint Message;
-        public nuint WParam;
-        public nint LParam;
-        public uint Time;
-        public POINT Point;
-        public uint Private;
     }
 
     [StructLayout(LayoutKind.Sequential)]

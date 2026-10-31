@@ -1,25 +1,19 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Low-overhead native process queries used by the Details sampler.</summary>
-internal static class NativeProcessInfo
+internal static unsafe class NativeProcessInfo
 {
     public const string Unavailable = "Unavailable";
-    public const string Enabled = "Enabled";
-    public const string Disabled = "Disabled";
-    public const string NotAllowed = "Not allowed";
-    public const string Yes = "Yes";
-    public const string No = "No";
 
     private const int ErrorInsufficientBuffer = 122;
-    private const int ProcessCommandLineInformation = 60;
     private const int ProcessBasicInformation = 0;
     private const int ProcessBreakOnTermination = 29;
     private const int ProcessProtectionInformation = 61;
     private const int ProcessIOPriority = 33;
-    private const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
     private const uint TokenQuery = 0x0008;
     private const int TokenUser = 1;
     private const int TokenElevation = 20;
@@ -35,16 +29,16 @@ internal static class NativeProcessInfo
     private const int ProcessControlFlowGuardPolicy = 7;
     private const int ProcessUserShadowStackPolicy = 15;
     private const uint CFGEnabled = 0x1;
-    private const uint XFGEnabled = 0x10;
+    // PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY: bit 3 is EnableXfg; bit 4 (0x10) is EnableXfgAuditMode
+    internal const uint XFGEnabled = 0x8;
     private const uint UserShadowStackEnabled = 0x1;
-    private const uint AllProcessorGroups = 0xFFFF;
     private const int ProcessorPowerInformation = 11;
     private const double MegahertzToHertz = 1_000_000;
     private const ushort ImageFileMachineUnknown = 0x0000;
     private const ushort ImageFileMachineI386 = 0x014c;
     private const ushort ImageFileMachineAMD64 = 0x8664;
     private const ushort ImageFileMachineARM64 = 0xAA64;
-    private const int MaximumPackageNameLength = 4096;
+    private const int PackageFullNameBufferLength = 128;
 
     /// <summary>Reads installed physical memory once for percentage-based column formatting.</summary>
     public static long ReadTotalPhysicalMemoryBytes()
@@ -55,20 +49,13 @@ internal static class NativeProcessInfo
             : 0;
     }
 
-    public static long ReadCreationTimeTicks(IntPtr processHandle, long fallback)
-    {
-        return TryReadCreationTimeTicks(processHandle, out long creationTimeTicks)
-            ? creationTimeTicks
-            : fallback;
-    }
-
     /// <summary>Reads an exact kernel creation time without substituting a snapshot timestamp.</summary>
     public static bool TryReadCreationTimeTicks(IntPtr processHandle, out long creationTimeTicks)
     {
         creationTimeTicks = 0;
-        if (!GetProcessTimes(
+        if (!Kernel32.GetProcessTimes(
                 processHandle,
-                out FILETIME creationTime,
+                out Kernel32.FILETIME creationTime,
                 out _,
                 out _,
                 out _))
@@ -82,28 +69,17 @@ internal static class NativeProcessInfo
     /// <summary>Reads the kernel creator PID when the bulk system snapshot is unavailable.</summary>
     public static int ReadParentProcessID(IntPtr processHandle)
     {
-        int informationSize = Marshal.SizeOf<PROCESS_BASIC_INFORMATION>();
-        IntPtr informationBuffer = Marshal.AllocHGlobal(informationSize);
-        try
-        {
-            int returnLength = 0;
-            int status = NtQueryInformationProcess(
-                processHandle,
-                ProcessBasicInformation,
-                informationBuffer,
-                informationSize,
-                ref returnLength);
-            if (status < 0) return -1;
+        PROCESS_BASIC_INFORMATION information;
+        int status = NtDll.NtQueryInformationProcess(
+            processHandle,
+            ProcessBasicInformation,
+            &information,
+            sizeof(PROCESS_BASIC_INFORMATION),
+            returnLength: null);
+        if (status < 0) return -1;
 
-            PROCESS_BASIC_INFORMATION information =
-                Marshal.PtrToStructure<PROCESS_BASIC_INFORMATION>(informationBuffer);
-            long parentProcessID = information.InheritedFromUniqueProcessID.ToInt64();
-            return parentProcessID is >= 0 and <= int.MaxValue ? (int)parentProcessID : -1;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(informationBuffer);
-        }
+        long parentProcessID = information.InheritedFromUniqueProcessID.ToInt64();
+        return parentProcessID is >= 0 and <= int.MaxValue ? (int)parentProcessID : -1;
     }
 
     public static bool TryReadMemoryCounters(IntPtr processHandle, out ProcessMemoryCounters counters)
@@ -150,39 +126,6 @@ internal static class NativeProcessInfo
 
     public static int ReadGDIObjectCount(IntPtr processHandle) =>
         ToSignedCount(GetGuiResources(processHandle, GDIObjectCount));
-
-    public static string ReadCommandLine(IntPtr processHandle)
-    {
-        int requiredLength = 0;
-        int status = NtQueryInformationProcess(
-            processHandle,
-            ProcessCommandLineInformation,
-            IntPtr.Zero,
-            processInformationLength: 0,
-            ref requiredLength);
-        if (status != StatusInfoLengthMismatch || requiredLength <= Marshal.SizeOf<UNICODE_STRING>())
-            return string.Empty;
-
-        IntPtr buffer = Marshal.AllocHGlobal(requiredLength);
-        try
-        {
-            status = NtQueryInformationProcess(
-                processHandle,
-                ProcessCommandLineInformation,
-                buffer,
-                requiredLength,
-                ref requiredLength);
-            if (status < 0) return string.Empty;
-
-            UNICODE_STRING commandLine = Marshal.PtrToStructure<UNICODE_STRING>(buffer);
-            if (commandLine.Buffer == IntPtr.Zero || commandLine.Length == 0) return string.Empty;
-            return Marshal.PtrToStringUni(commandLine.Buffer, commandLine.Length / sizeof(char));
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(buffer);
-        }
-    }
 
     public static string ReadUserName(IntPtr processHandle)
     {
@@ -286,28 +229,27 @@ internal static class NativeProcessInfo
         return isPackaged ? ProcessDisplayCode.UWP : ProcessDisplayCode.NoIsolation;
     }
 
-    public static string ReadPackageName(IntPtr processHandle)
-    {
-        uint length = MaximumPackageNameLength;
-        StringBuilder packageName = new(MaximumPackageNameLength);
-        int result = GetPackageFullName(processHandle, ref length, packageName);
-        return result switch
-        {
-            0 => packageName.ToString(),
-            _ => string.Empty
-        };
-    }
-
     /// <summary>Returns null for a failed query and empty for a known unpackaged process.</summary>
-    public static string? ReadPackageFullNameForGrouping(IntPtr processHandle)
+    public static unsafe string? ReadPackageFullNameForGrouping(IntPtr processHandle)
     {
         const int AppModelErrorNoPackage = 15700;
-        uint length = MaximumPackageNameLength;
-        StringBuilder packageName = new(MaximumPackageNameLength);
-        int result = GetPackageFullName(processHandle, ref length, packageName);
+        // PACKAGE_FULL_NAME_MAX_LENGTH is 127 characters plus the terminator, so a stack buffer covers every package
+        char* stackBuffer = stackalloc char[PackageFullNameBufferLength];
+        uint length = PackageFullNameBufferLength;
+        int result = GetPackageFullName(processHandle, ref length, stackBuffer);
+        if (result == ErrorInsufficientBuffer && length is > PackageFullNameBufferLength and <= ushort.MaxValue)
+        {
+            char[] heapBuffer = new char[length];
+            fixed (char* heapPointer = heapBuffer)
+            {
+                result = GetPackageFullName(processHandle, ref length, heapPointer);
+                if (result == 0) return new string(heapPointer);
+            }
+        }
+
         return result switch
         {
-            0 => packageName.ToString(),
+            0 => new string(stackBuffer),
             AppModelErrorNoPackage => string.Empty,
             _ => null
         };
@@ -319,37 +261,27 @@ internal static class NativeProcessInfo
     /// </summary>
     public static bool ReadIsCritical(IntPtr processHandle)
     {
-        int returnLength = 0;
         int breakOnTermination = 0;
-        int status = NtQueryInformationProcess(
+        int status = NtDll.NtQueryInformationProcess(
             processHandle,
             ProcessBreakOnTermination,
-            ref breakOnTermination,
+            &breakOnTermination,
             sizeof(int),
-            ref returnLength);
+            returnLength: null);
         return status >= 0 && breakOnTermination != 0;
     }
 
     /// <summary>Reads whether the process runs as a protected or protected light process; false when the query fails.</summary>
     public static bool ReadIsProtected(IntPtr processHandle)
     {
-        IntPtr protectionBuffer = Marshal.AllocHGlobal(sizeof(byte));
-        try
-        {
-            Marshal.WriteByte(protectionBuffer, 0);
-            int returnLength = 0;
-            int status = NtQueryInformationProcess(
-                processHandle,
-                ProcessProtectionInformation,
-                protectionBuffer,
-                sizeof(byte),
-                ref returnLength);
-            return status >= 0 && Marshal.ReadByte(protectionBuffer) != 0;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(protectionBuffer);
-        }
+        byte protection = 0;
+        int status = NtDll.NtQueryInformationProcess(
+            processHandle,
+            ProcessProtectionInformation,
+            &protection,
+            sizeof(byte),
+            returnLength: null);
+        return status >= 0 && protection != 0;
     }
 
     public static ProcessDisplayCode ReadArchitecture(IntPtr processHandle)
@@ -374,23 +306,46 @@ internal static class NativeProcessInfo
         _ => ProcessDisplayCode.Unavailable
     };
 
-    public static ProcessDisplayCode ReadDataExecutionPrevention(IntPtr processHandle)
+    /// <summary>
+    /// Reads the DEP state. GetProcessDEPPolicy only works for 32-bit processes (64-bit ones fail with
+    /// ERROR_NOT_SUPPORTED), and DEP is always on and permanent for 64-bit processes, so only x86 targets are queried.
+    /// </summary>
+    public static ProcessDisplayCode ReadDataExecutionPrevention(IntPtr processHandle, ProcessDisplayCode architecture)
     {
-        return GetProcessDEPPolicy(processHandle, out uint flags, out bool permanent)
-            ? (flags & 0x1) != 0 ? ProcessDisplayCode.Enabled : ProcessDisplayCode.Disabled
-            : ProcessDisplayCode.Unavailable;
+        if (architecture != ProcessDisplayCode.X86)
+            return DecodeDataExecutionPrevention(architecture, policyRead: false, flags: 0);
+
+        bool policyRead = GetProcessDEPPolicy(processHandle, out uint flags, out _);
+        return DecodeDataExecutionPrevention(architecture, policyRead, flags);
+    }
+
+    /// <summary>Maps the architecture and, for x86, the DEP policy flags to the column value.</summary>
+    internal static ProcessDisplayCode DecodeDataExecutionPrevention(
+        ProcessDisplayCode architecture,
+        bool policyRead,
+        uint flags) => architecture switch
+    {
+        ProcessDisplayCode.X64 or ProcessDisplayCode.ARM64 => ProcessDisplayCode.Enabled,
+        ProcessDisplayCode.X86 when policyRead => (flags & 0x1) != 0 ? ProcessDisplayCode.Enabled : ProcessDisplayCode.Disabled,
+        _ => ProcessDisplayCode.Unavailable
+    };
+
+    /// <summary>Maps CFG policy flags to the Extended Control Flow Guard column value.</summary>
+    internal static ProcessDisplayCode DecodeExtendedControlFlowGuard(uint flags)
+    {
+        if ((flags & CFGEnabled) == 0) return ProcessDisplayCode.Disabled;
+        return (flags & XFGEnabled) != 0 ? ProcessDisplayCode.Enabled : ProcessDisplayCode.Disabled;
     }
 
     public static ProcessDisplayCode ReadIOPriority(IntPtr processHandle)
     {
         int priority = 0;
-        int returnLength = 0;
-        int status = NtQueryInformationProcess(
+        int status = NtDll.NtQueryInformationProcess(
             processHandle,
             ProcessIOPriority,
-            ref priority,
+            &priority,
             sizeof(int),
-            ref returnLength);
+            returnLength: null);
         if (status < 0) return ProcessDisplayCode.Unavailable;
 
         return priority switch
@@ -473,18 +428,13 @@ internal static class NativeProcessInfo
                 Marshal.SizeOf<PROCESS_MITIGATION_POLICY_INFORMATION>()))
             return ProcessDisplayCode.Unavailable;
 
-        if ((policy.Flags & CFGEnabled) == 0) return ProcessDisplayCode.Disabled;
-        return (policy.Flags & XFGEnabled) != 0
-            ? ProcessDisplayCode.Enabled
-            : ProcessDisplayCode.Disabled;
+        return DecodeExtendedControlFlowGuard(policy.Flags);
     }
-
-    public static uint ReadPriorityClass(IntPtr processHandle) => GetPriorityClass(processHandle);
 
     /// <summary>Returns the aggregate nominal cycle capacity of all active logical processors.</summary>
     public static double ReadNominalProcessorCycleCapacity()
     {
-        uint processorCount = GetActiveProcessorCount(AllProcessorGroups);
+        uint processorCount = (uint)Kernel32Processor.MachineProcessorCount;
         if (processorCount is 0 or > 4_096) return 0;
 
         int entrySize = Marshal.SizeOf<PROCESSOR_POWER_INFORMATION>();
@@ -565,15 +515,6 @@ internal static class NativeProcessInfo
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetProcessTimes(
-        IntPtr process,
-        out FILETIME creationTime,
-        out FILETIME exitTime,
-        out FILETIME kernelTime,
-        out FILETIME userTime);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool QueryProcessCycleTime(IntPtr process, out ulong cycleTime);
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -613,9 +554,6 @@ internal static class NativeProcessInfo
         out ushort processMachine,
         out ushort nativeMachine);
 
-    [DllImport("kernel32.dll")]
-    private static extern uint GetActiveProcessorCount(uint groupNumber);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
@@ -629,8 +567,7 @@ internal static class NativeProcessInfo
         uint outputBufferSize);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetPackageFullName(IntPtr process, ref uint packageFullNameLength,
-        StringBuilder packageFullName);
+    private static extern unsafe int GetPackageFullName(IntPtr process, ref uint packageFullNameLength, char* packageFullName);
 
     [DllImport("psapi.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -673,31 +610,8 @@ internal static class NativeProcessInfo
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr memory);
 
-    [DllImport("ntdll.dll")]
-    private static extern int NtQueryInformationProcess(
-        IntPtr process,
-        int processInformationClass,
-        IntPtr processInformation,
-        int processInformationLength,
-        ref int returnLength);
-
-    [DllImport("ntdll.dll", EntryPoint = "NtQueryInformationProcess")]
-    private static extern int NtQueryInformationProcess(
-        IntPtr process,
-        int processInformationClass,
-        ref int processInformation,
-        int processInformationLength,
-        ref int returnLength);
-
     [DllImport("shcore.dll")]
     private static extern int GetProcessDpiAwareness(IntPtr process, out int awareness);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct FILETIME
-    {
-        public uint LowDateTime;
-        public uint HighDateTime;
-    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MEMORYSTATUSEX
@@ -740,14 +654,6 @@ internal static class NativeProcessInfo
         public ulong ReadTransferCount;
         public ulong WriteTransferCount;
         public ulong OtherTransferCount;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct UNICODE_STRING
-    {
-        public ushort Length;
-        public ushort MaximumLength;
-        public IntPtr Buffer;
     }
 
     [StructLayout(LayoutKind.Sequential)]

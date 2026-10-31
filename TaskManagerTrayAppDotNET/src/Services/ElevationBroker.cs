@@ -1,32 +1,36 @@
-using System.ComponentModel;
-using System.Globalization;
 using System.IO.Pipes;
-using System.Runtime.InteropServices;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 using TaskManagerTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>
 /// The elevated side of the privileged-action broker. Launched as "tmtadn.exe --elevated-broker"
-/// with one UAC consent, it serves an enumerated op set from the medium-integrity UI over a named
-/// pipe and exits when the UI (its parent) exits. The UI is the client; this process owns the pipe
-/// ACL and authenticates the connecting client before serving any request.
+/// with one UAC consent, it serves an enumerated op set (priority, affinity, memory dumps, session
+/// disconnect, service control, startup approval) from the medium-integrity UI over a named pipe.
 ///
-/// This foundation handles the process-handle ops (priority, affinity). Terminate re-parenting and
-/// the registry/SCM/WTS ops are layered on top later without changing this shape.
+/// The UI is the client and the only process the broker serves: the command line names its PID and
+/// start time, the broker opens that process and checks the start time before creating the pipe, and a
+/// connecting client must be that PID (the broker's open handle keeps the PID from being recycled). A
+/// same-user process that connects first is rejected and never served. The broker serves exactly one
+/// accepted connection and exits when it drops or the UI exits, so a later request launches a new broker.
+/// Every served operation is logged with its target, the client PID and the result. The broker writes no log file:
+/// its lines go to the UI over the pipe and the UI writes them into its own log.
 /// </summary>
 internal static class ElevationBroker
 {
-    private const uint Synchronize = 0x00100000;
-    private const int MaximumPathCharacters = 32_768;
     private const int ExitBadArguments = 2;
     private const int ExitParentUnavailable = 3;
+    private const int ExitParentMismatch = 4;
 
     private static readonly Lock ServerSync = new();
+    private static readonly BrokerLogBuffer PendingLog = new();
+
+    // The pinned UI process, opened with PROCESS_DUP_HANDLE so the dump op can take the UI's file handle
+    private static IntPtr _parentProcess;
 
     /// <summary>Returns true when this launch is the elevated broker mode.</summary>
     public static bool IsBrokerLaunch(string[] args)
@@ -37,115 +41,176 @@ internal static class ElevationBroker
             argument => string.Equals(argument, ElevationBrokerContract.ModeArgument, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Runs the broker loop until the parent exits. Never shows a UI.</summary>
+    /// <summary>
+    /// The broker's log sink (see <see cref="TADNLog.InitializeForElevatedProcess"/>): the elevated broker writes no
+    /// file, so lines wait here and travel to the UI ahead of the next response. Lines logged when no UI ever
+    /// connects (bad arguments, a parent mismatch) are lost; the UI then logs its own connect failure.
+    /// </summary>
+    public static void QueueLogLine(string message) => PendingLog.Add(message);
+
+    /// <summary>Serves the launching UI's connection until it drops or the UI exits. Never shows a UI.</summary>
     public static int Run(string[] args)
     {
-        if (!TryGetArgumentValue(args, ElevationBrokerContract.ParentArgument, out string? parentText) ||
-            !int.TryParse(parentText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parentProcessId) ||
-            !TryGetArgumentValue(args, ElevationBrokerContract.PipeArgument, out string? pipeName) ||
-            string.IsNullOrWhiteSpace(pipeName))
+        if (!ElevationBrokerContract.TryParseArguments(
+                args,
+                out int parentProcessId,
+                out long parentStartFileTime,
+                out string pipeName))
         {
-            TADNLog.Log("ElevationBroker: missing or invalid --broker-parent / --broker-pipe arguments.");
+            TADNLog.Log("ElevationBroker: missing or invalid --broker-parent / --broker-parent-start / --broker-pipe arguments.");
             return ExitBadArguments;
         }
 
-        IntPtr parentHandle = Kernel32.OpenProcess(Synchronize, bInheritHandle: false, (uint)parentProcessId);
-        if (parentHandle == IntPtr.Zero)
-        {
-            TADNLog.Log($"ElevationBroker: parent process {parentProcessId} is unavailable; exiting.");
-            return ExitParentUnavailable;
-        }
-
-        string expectedClientImage = Environment.ProcessPath ?? string.Empty;
         using ManualResetEventSlim stopping = new(initialState: false);
         NamedPipeServerStream?[] activeServer = [null];
-
-        Thread parentWatch = new(() => WatchParent(parentHandle, stopping, activeServer))
+        ProcessExitWatchResult parentWatch = ProcessExitWatch.TryRegister(
+            parentProcessId,
+            parentStartFileTime,
+            () => StopServing(stopping, activeServer),
+            out IDisposable? parentRegistration);
+        switch (parentWatch)
         {
-            IsBackground = true,
-            Name = Constants.ApplicationName + ".BrokerParentWatch"
-        };
-        parentWatch.Start();
-
-        try
-        {
-            RunAcceptLoop(pipeName, expectedClientImage, stopping, activeServer);
+            case ProcessExitWatchResult.Exited:
+                TADNLog.Log($"ElevationBroker: process {parentProcessId} is not the running UI that launched the broker; exiting.");
+                return ExitParentMismatch;
+            case ProcessExitWatchResult.Unavailable:
+                TADNLog.Log($"ElevationBroker: parent process {parentProcessId} is unavailable; exiting.");
+                return ExitParentUnavailable;
         }
-        finally
+
+        // PROCESS_DUP_HANDLE on the same pinned parent lets the dump op take the file handle the UI created
+        if (!ProcessNativeActions.TryOpenValidatedProcess(
+                new ProcessTerminationTarget(parentProcessId, parentStartFileTime),
+                DumpFileHandoff.ProcessDuplicateHandle,
+                out _parentProcess,
+                out string parentError))
+            TADNLog.Log($"ElevationBroker: cannot open the UI to take dump file handles: {parentError}");
+
+        using (parentRegistration)
         {
-            stopping.Set();
-            _ = Kernel32.CloseHandle(parentHandle);
+            try
+            {
+                ServeParent(pipeName, parentProcessId, stopping, activeServer);
+            }
+            finally
+            {
+                stopping.Set();
+                if (_parentProcess != IntPtr.Zero) _ = Kernel32.CloseHandle(_parentProcess);
+                _parentProcess = IntPtr.Zero;
+            }
         }
 
         return 0;
     }
 
-    private static void RunAcceptLoop(
+    private static void ServeParent(
         string pipeName,
-        string expectedClientImage,
+        int parentProcessId,
         ManualResetEventSlim stopping,
         NamedPipeServerStream?[] activeServer)
     {
-        while (!stopping.IsSet)
+        NamedPipeServerStream server = TrayAppDotNETPipeSecurity.CreateServer(pipeName, PipeDirection.InOut);
+        lock (ServerSync)
         {
-            NamedPipeServerStream server = CreateServerStream(pipeName);
-            lock (ServerSync)
+            if (stopping.IsSet)
             {
-                if (stopping.IsSet)
-                {
-                    server.Dispose();
-                    return;
-                }
-
-                activeServer[0] = server;
+                server.Dispose();
+                return;
             }
 
-            try
+            activeServer[0] = server;
+        }
+
+        try
+        {
+            while (!stopping.IsSet)
             {
                 server.WaitForConnection();
                 if (stopping.IsSet) return;
-                if (AuthenticateClient(server, expectedClientImage))
-                    ServeConnection(server, stopping);
-            }
-            catch (Exception exception) when (exception is ObjectDisposedException or IOException)
-            {
-                // The parent-watch thread disposed the server, or the client dropped; loop re-evaluates stopping
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"ElevationBroker accept loop: {exception.Message}");
-            }
-            finally
-            {
-                lock (ServerSync)
+
+                if (TrayAppDotNETPipeSecurity.TryGetClientProcessId(server, out int clientProcessId)
+                    && ElevationBrokerContract.IsAuthorizedClient((uint)clientProcessId, parentProcessId))
                 {
-                    activeServer[0] = null;
+                    TADNLog.Log($"ElevationBroker: serving the UI (PID {clientProcessId}).");
+                    ServeConnection(server, clientProcessId, stopping);
+                    TADNLog.Log("ElevationBroker: the UI disconnected; exiting.");
+                    return;
                 }
 
-                server.Dispose();
+                // Somebody else reached the pipe first: refuse it and keep waiting for the UI
+                TADNLog.Log($"ElevationBroker: rejected client PID {clientProcessId}; only PID {parentProcessId} is served.");
+                server.Disconnect();
             }
+        }
+        catch (Exception exception) when (exception is ObjectDisposedException or IOException)
+        {
+            // The parent-watch thread disposed the server, or the client dropped
+        }
+        finally
+        {
+            lock (ServerSync)
+            {
+                activeServer[0] = null;
+            }
+
+            server.Dispose();
         }
     }
 
-    private static void ServeConnection(NamedPipeServerStream server, ManualResetEventSlim stopping)
+    private static void ServeConnection(NamedPipeServerStream server, int clientProcessId, ManualResetEventSlim stopping)
     {
         using StreamReader reader = new(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-        using StreamWriter writer = new(server, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true };
+        using StreamWriter writer = new(server, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: true)
+        {
+            AutoFlush = true
+        };
 
         while (server.IsConnected && !stopping.IsSet)
         {
             string? line = reader.ReadLine();
             if (line == null) return;
-            if (!BrokerRequest.TryParse(line, out BrokerRequest request))
+
+            BrokerResponse response;
+            if (BrokerRequest.TryParse(line, out BrokerRequest request))
             {
-                TADNLog.Log("ElevationBroker: discarded a malformed request.");
-                continue;
+                response = Execute(request);
+                TADNLog.Log(
+                    $"ElevationBroker: {request.Op} {DescribeTarget(request)} for client PID {clientProcessId}: " +
+                    $"{response.Code}{(response.Code == BrokerResultCode.Success ? string.Empty : " (" + response.Message + ")")}");
+            }
+            else
+            {
+                // Always answer, so the client never waits on a line the broker could not read
+                response = new BrokerResponse(
+                    BrokerRequest.ReadCorrelationId(line),
+                    BrokerResultCode.Failed,
+                    "The request was malformed.");
+                TADNLog.Log($"ElevationBroker: rejected a malformed request from client PID {clientProcessId}.");
             }
 
-            BrokerResponse response = Execute(request);
+            SendPendingLog(writer);
             writer.WriteLine(response.ToWire());
         }
     }
+
+    // Log lines ride ahead of the response on the same connection, so the UI writes them in order
+    private static void SendPendingLog(StreamWriter writer)
+    {
+        foreach (string message in PendingLog.TakeAll())
+            writer.WriteLine(BrokerLogLine.Encode(message));
+    }
+
+    private static string DescribeTarget(BrokerRequest request) => request.Op switch
+    {
+        ElevationOp.SetPriority or ElevationOp.SetAffinity => $"PID {request.ProcessID} value {request.Argument}",
+        ElevationOp.CreateDump => $"PID {request.ProcessID}",
+        ElevationOp.DisconnectSession => $"session {(int)(uint)request.Argument}",
+        ElevationOp.ServiceControl => $"service '{request.Text}' verb {request.Argument}",
+        ElevationOp.SetStartupApproval => StartupApprovalWire.TryDecode(request.Text, out StartupAppApprovalTarget target)
+            ? $"{target.Scope} '{target.RegistrySubKey}\\{target.ValueName}' enabled={request.Argument == 1UL}"
+            : "an undecodable startup entry",
+        _ => string.Empty
+    };
 
     private static BrokerResponse Execute(BrokerRequest request)
     {
@@ -165,7 +230,7 @@ internal static class ElevationBroker
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"ElevationBroker.Execute({request.Op}): {exception.Message}");
+            TADNLog.Log($"ElevationBroker.Execute({request.Op}): {exception}");
             return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, exception.Message);
         }
     }
@@ -195,12 +260,16 @@ internal static class ElevationBroker
 
     private static BrokerResponse ExecuteCreateDump(BrokerRequest request, ProcessTerminationTarget target)
     {
-        // The broker performs the whole dump: it opens the target, creates the file, and writes it, then
-        // returns the path. No file handle is marshaled across the process boundary.
-        if (ProcessNativeActions.TryCreateMemoryDump(target, out string dumpPath, out string errorMessage))
-            return new BrokerResponse(request.CorrelationId, BrokerResultCode.Success, dumpPath);
+        // The UI created the file in its own temp folder and sent its handle value; the broker never opens a path
+        // there (a same-user junction could redirect an elevated create). It copies the handle out of the pinned
+        // UI process, checks it is an empty regular file, and writes the dump into it; the UI reports the path.
+        using SafeFileHandle? file = DumpFileHandoff.TryTake(_parentProcess, request.Argument, out string errorMessage);
+        if (file == null)
+            return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, errorMessage);
 
-        return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, errorMessage);
+        return ProcessNativeActions.TryWriteMemoryDump(target, file, out errorMessage)
+            ? new BrokerResponse(request.CorrelationId, BrokerResultCode.Success, string.Empty)
+            : new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, errorMessage);
     }
 
     private static BrokerResponse ExecuteDisconnectSession(BrokerRequest request)
@@ -233,8 +302,11 @@ internal static class ElevationBroker
 
     private static BrokerResponse ExecuteSetStartupApproval(BrokerRequest request)
     {
+        // TryDecode only accepts the StartupApproved subkeys with a named value
         if (!StartupApprovalWire.TryDecode(request.Text, out StartupAppApprovalTarget target))
-            return new BrokerResponse(request.CorrelationId, BrokerResultCode.InvalidTarget, "The startup entry could not be decoded.");
+            return new BrokerResponse(request.CorrelationId, BrokerResultCode.InvalidTarget, "The startup entry is not a StartupApproved target.");
+        if (request.Argument > 1UL)
+            return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, "The requested startup state is invalid.");
 
         StartupAppStatus desiredStatus = request.Argument == 1UL ? StartupAppStatus.Enabled : StartupAppStatus.Disabled;
         StartupAppActionResult result = StartupAppsService.SetStatusByTarget(target, desiredStatus);
@@ -250,114 +322,19 @@ internal static class ElevationBroker
 
     private static BrokerResultCode MapWin32(int win32Error) => win32Error switch
     {
-        ErrorAccessDenied => BrokerResultCode.AccessDenied,
-        ErrorInvalidParameter => BrokerResultCode.InvalidTarget,
+        NativeErrors.ERROR_ACCESS_DENIED => BrokerResultCode.AccessDenied,
+        NativeErrors.ERROR_INVALID_PARAMETER => BrokerResultCode.InvalidTarget,
         _ => BrokerResultCode.Failed
     };
 
-    private static bool AuthenticateClient(NamedPipeServerStream server, string expectedClientImage)
+    // Runs on a thread-pool thread once the UI exits
+    private static void StopServing(ManualResetEventSlim stopping, NamedPipeServerStream?[] activeServer)
     {
-        if (string.IsNullOrEmpty(expectedClientImage)) return false;
-        if (!TryGetNamedPipeClientProcessId(server.SafePipeHandle.DangerousGetHandle(), out uint clientProcessId))
-        {
-            TADNLog.Log("ElevationBroker: could not resolve the connecting client process.");
-            return false;
-        }
-
-        if (!TryGetProcessImagePath((int)clientProcessId, out string clientImage))
-        {
-            TADNLog.Log("ElevationBroker: could not read the connecting client image path.");
-            return false;
-        }
-
-        bool authorized = string.Equals(
-            Path.GetFullPath(clientImage),
-            Path.GetFullPath(expectedClientImage),
-            StringComparison.OrdinalIgnoreCase);
-        if (!authorized)
-            TADNLog.Log("ElevationBroker: rejected a client whose image does not match this executable.");
-        return authorized;
-    }
-
-    private static void WatchParent(
-        IntPtr parentHandle,
-        ManualResetEventSlim stopping,
-        NamedPipeServerStream?[] activeServer)
-    {
-        _ = Kernel32.WaitForSingleObject(parentHandle, Kernel32.INFINITE);
         stopping.Set();
         lock (ServerSync)
         {
-            // Unblock a pending WaitForConnection so the accept loop can exit
+            // Unblock a pending WaitForConnection or read so the broker can exit
             activeServer[0]?.Dispose();
         }
     }
-
-    private static NamedPipeServerStream CreateServerStream(string pipeName)
-    {
-        PipeSecurity security = new();
-        SecurityIdentifier currentUser = WindowsIdentity.GetCurrent().User
-                                         ?? throw new InvalidOperationException("The current user SID is unavailable.");
-        security.AddAccessRule(new PipeAccessRule(
-            currentUser,
-            PipeAccessRights.FullControl,
-            AccessControlType.Allow));
-
-        return NamedPipeServerStreamAcl.Create(
-            pipeName,
-            PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous,
-            inBufferSize: 0,
-            outBufferSize: 0,
-            security);
-    }
-
-    private static bool TryGetProcessImagePath(int processId, out string imagePath)
-    {
-        imagePath = string.Empty;
-        if (processId <= 0) return false;
-
-        IntPtr handle = Kernel32.OpenProcess(
-            Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
-            bInheritHandle: false,
-            (uint)processId);
-        if (handle == IntPtr.Zero) return false;
-
-        try
-        {
-            StringBuilder pathBuffer = new(MaximumPathCharacters);
-            uint characterCount = (uint)pathBuffer.Capacity;
-            if (!Kernel32.QueryFullProcessImageNameW(handle, dwFlags: 0, pathBuffer, ref characterCount))
-                return false;
-
-            imagePath = pathBuffer.ToString(startIndex: 0, checked((int)characterCount));
-            return true;
-        }
-        finally
-        {
-            _ = Kernel32.CloseHandle(handle);
-        }
-    }
-
-    private static bool TryGetArgumentValue(string[] args, string name, out string? value)
-    {
-        value = null;
-        int index = Array.FindIndex(args, argument => string.Equals(argument, name, StringComparison.OrdinalIgnoreCase));
-        if (index < 0 || index + 1 >= args.Length) return false;
-
-        value = args[index + 1];
-        return true;
-    }
-
-    private const int ErrorAccessDenied = 5;
-    private const int ErrorInvalidParameter = 87;
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetNamedPipeClientProcessId(IntPtr pipeHandle, out uint clientProcessId);
-
-    private static bool TryGetNamedPipeClientProcessId(IntPtr pipeHandle, out uint clientProcessId) =>
-        GetNamedPipeClientProcessId(pipeHandle, out clientProcessId) && clientProcessId != 0;
 }

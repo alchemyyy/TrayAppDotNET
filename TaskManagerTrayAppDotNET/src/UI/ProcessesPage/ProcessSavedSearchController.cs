@@ -13,8 +13,8 @@ namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 /// <summary>Hosts the saved-search menu anchored directly beneath the Processes search box.</summary>
 internal sealed class ProcessSavedSearchController : IDisposable
 {
-    private const string SaveSearchTip = "Save search";
-    private const string SearchAlreadySavedTip = "Search already saved";
+    private static string SaveSearchTip => LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Save)];
+    private static string SearchAlreadySavedTip => LocalizationManager.Instance[nameof(AppStrings.SavedSearch_AlreadySaved)];
 
     private readonly TextBox _textBox;
     private readonly SettingsPalette _palette;
@@ -75,7 +75,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
         _clearButton.MapTo(ControlMap.Main.ProcessesPage.Search.Clear);
         _clearButton.Click += OnClearClick;
-        TrayAppDotNETToolTip.SetTip(_clearButton, tip: "Clear search");
+        TrayAppDotNETToolTip.SetTip(_clearButton, tip: LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Clear)]);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_clearButton);
 
         _saveButton = new InsetGlyphButton(
@@ -198,7 +198,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         if (TopLevel.GetTopLevel(_textBox) is not Window owner) return;
 
         EditableContextMenuWindow menuWindow =
-            TaskManagerContextMenuWindow.CreateSavedSearchMenu(
+            TaskManagerSavedSearchMenu.Create(
                 BuildEntries(),
                 _palette,
                 _enableRoundedCorners,
@@ -239,12 +239,12 @@ internal sealed class ProcessSavedSearchController : IDisposable
         }
     }
 
-    private IReadOnlyList<EditableContextMenuEntry> BuildEntries()
+    private List<EditableContextMenuEntry> BuildEntries()
     {
         List<EditableContextMenuEntry> entries = [];
         if (_savedSearches.Count == 0)
         {
-            entries.Add(new EditableContextMenuEntry(Text: "No saved searches", static () => { })
+            entries.Add(new EditableContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.SavedSearch_None)], static () => { })
                 { IsEnabled = false });
             return entries;
         }
@@ -257,7 +257,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             EditableContextMenuEntryButton renameButton = new(static () => { })
             {
                 Glyph = TaskManagerGlyphCatalog.MORE,
-                ToolTip = "Rename saved search",
+                ToolTip = LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Rename)],
                 DismissMenuOnClick = false,
                 Size = resources.AxamlTaskManagerContextMenu.SavedSearchButtonSize,
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchButtonGlyphFontSize,
@@ -266,7 +266,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             EditableContextMenuEntryButton deleteButton = new(() => RequestDeleteSavedSearch(capturedSearchIndex))
             {
                 Glyph = TaskManagerGlyphCatalog.CLOSE,
-                ToolTip = "Delete saved search",
+                ToolTip = LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Delete)],
                 DismissMenuOnClick = false,
                 Size = resources.AxamlTaskManagerContextMenu.SavedSearchButtonSize,
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchDeleteButtonFontSize,

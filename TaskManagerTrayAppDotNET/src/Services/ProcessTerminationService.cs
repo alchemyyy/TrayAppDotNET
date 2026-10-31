@@ -17,7 +17,6 @@ internal readonly record struct ElevatedHelperStatus(
     string ErrorMessage);
 
 internal delegate ElevatedKillHelperStartResult StartKillHelperAction(
-    IntPtr ownerWindowHandle,
     bool elevate,
     Action<string>? log);
 
@@ -152,8 +151,8 @@ internal sealed class ProcessTerminationService : IDisposable
         return resultTask;
     }
 
-    /// <summary>Starts one owner-parented elevation attempt on a dedicated STA thread.</summary>
-    public Task<ElevatedHelperStatus> EnableElevatedHelperAsync(IntPtr ownerWindowHandle)
+    /// <summary>Starts one elevation attempt on a dedicated STA thread.</summary>
+    public Task<ElevatedHelperStatus> EnableElevatedHelperAsync()
     {
         ElevatedKillHelperSession? unavailableSession = null;
         TaskCompletionSource<ElevatedHelperStatus>? failedCompletion = null;
@@ -180,14 +179,6 @@ internal sealed class ProcessTerminationService : IDisposable
                                  ElevatedHelperState.Failed,
                                  ErrorMessage: "The elevated helper launch task is unavailable."));
             }
-            else if (ownerWindowHandle == IntPtr.Zero)
-            {
-                _elevatedHelperState = ElevatedHelperState.Failed;
-                _elevatedHelperError =
-                    "The Task Manager window is not ready to own the Windows approval prompt.";
-                resultTask = Task.FromResult(CreateStatusWithoutLock());
-                failedStatus = CreateStatusWithoutLock();
-            }
             else
             {
                 TaskCompletionSource<ElevatedHelperStatus> completion = new(
@@ -201,7 +192,7 @@ internal sealed class ProcessTerminationService : IDisposable
                 try
                 {
                     Thread launcherThread = new(
-                        () => RunElevatedHelperLaunch(ownerWindowHandle, completion))
+                        () => RunElevatedHelperLaunch(completion))
                     {
                         IsBackground = true,
                         Name = ElevationLauncherThreadName
@@ -401,7 +392,7 @@ internal sealed class ProcessTerminationService : IDisposable
         ElevatedKillHelperStartResult startResult;
         try
         {
-            startResult = _startKillHelper(IntPtr.Zero, elevate: false, log: _log);
+            startResult = _startKillHelper(elevate: false, log: _log);
         }
         catch (Exception exception)
         {
@@ -477,14 +468,12 @@ internal sealed class ProcessTerminationService : IDisposable
         _ = completion.TrySetResult(helperReady);
     }
 
-    private void RunElevatedHelperLaunch(
-        IntPtr ownerWindowHandle,
-        TaskCompletionSource<ElevatedHelperStatus> completion)
+    private void RunElevatedHelperLaunch(TaskCompletionSource<ElevatedHelperStatus> completion)
     {
         ElevatedKillHelperStartResult startResult;
         try
         {
-            startResult = _startKillHelper(ownerWindowHandle, elevate: true, log: _log);
+            startResult = _startKillHelper(elevate: true, log: _log);
         }
         catch (Exception exception)
         {

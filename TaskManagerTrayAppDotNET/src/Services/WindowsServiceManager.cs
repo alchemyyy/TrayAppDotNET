@@ -376,7 +376,7 @@ internal sealed partial class WindowsServiceManager
             serviceName,
             WindowsServiceStatus.Unknown,
             ErrorServiceRequestTimeout,
-            $"The service did not reach the {WindowsServiceState.GetStatusText(targetStatus)} state within "
+            $"The service did not reach the {targetStatus} state within "
             + $"{DefaultOperationTimeoutMilliseconds / 1_000} seconds.");
     }
 

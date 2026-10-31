@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -10,13 +11,13 @@ internal static unsafe class GPUAdapterNativeDetailsReader
     private const int GetSegmentSizeInformation = 3;
     private const int NodeMetadataInformation = 25;
     private const int AdapterPerformanceDataInformation = 62;
-    private const int DXGIErrorNotFound = unchecked((int)0x887A0002);
     private const int MaximumEngineNodeCount = 256;
-    private const uint DXGIAdapterFlagSoftware = 0x2;
     private const uint MaximumTemperatureDeciCelsius = 2_000;
-
-    private static readonly Guid DXGIFactoryInterfaceID =
-        new("770aae78-f26f-4dba-a829-253c83d1b387");
+    private const int DXGIErrorDeviceRemoved = unchecked((int)0x887A0005);
+    private const int DXGIErrorDeviceHung = unchecked((int)0x887A0006);
+    private const int DXGIErrorDeviceReset = unchecked((int)0x887A0007);
+    private const int DXGIErrorDriverInternalError = unchecked((int)0x887A0020);
+    private const int EOutOfMemory = unchecked((int)0x8007000E);
 
     private static readonly Guid D3D12DeviceInterfaceID =
         new("189819f1-1db6-4b57-be54-1821339b85f7");
@@ -29,6 +30,8 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         new(Value: 0xB100, Name: "11.1"),
         new(Value: 0xB000, Name: "11.0")
     ];
+
+    private static readonly DirectXFeatureLevelCache FeatureLevelCache = new();
 
     /// <summary>Reads static adapter metadata suitable for caching by LUID tuple.</summary>
     public static GPUAdapterHardwareMetadata ReadMetadata(
@@ -46,7 +49,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         ulong visibleDedicatedMemoryBytes = 0;
         string kernelPhysicalLocation = string.Empty;
         bool hasKernelMetadata = false;
-        if (TryOpenAdapter(key.LUID, out uint adapterHandle))
+        if (D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle))
         {
             hasKernelMetadata = true;
             try
@@ -74,7 +77,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             }
             finally
             {
-                CloseAdapter(adapterHandle);
+                D3DKMT.CloseAdapter(adapterHandle);
             }
         }
         else
@@ -120,7 +123,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
     {
         temperatureCelsius = 0;
         if (key.PhysicalAdapterIndex < 0) return false;
-        if (!TryOpenAdapter(key.LUID, out uint adapterHandle)) return false;
+        if (!D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle)) return false;
 
         try
         {
@@ -128,7 +131,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             {
                 PhysicalAdapterIndex = checked((uint)key.PhysicalAdapterIndex)
             };
-            if (!TryQueryAdapterInformation(
+            if (!D3DKMT.TryQueryAdapterInfo(
                     adapterHandle,
                     AdapterPerformanceDataInformation,
                     ref performanceData)
@@ -141,7 +144,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         }
         finally
         {
-            CloseAdapter(adapterHandle);
+            D3DKMT.CloseAdapter(adapterHandle);
         }
     }
 
@@ -183,7 +186,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                 NodeOrdinalAndAdapterIndex =
                     ((uint)physicalAdapterIndex << 16) | (uint)engineIndex
             };
-            if (!TryQueryAdapterInformation(
+            if (!D3DKMT.TryQueryAdapterInfo(
                     adapterHandle,
                     NodeMetadataInformation,
                     ref metadata))
@@ -194,7 +197,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                 engineName = GetEngineTypeName(metadata.NodeData.EngineType);
             engines.Add(new GPUAdapterEngineIdentity(
                 engineIndex,
-                GPUPerformanceDetailsReader.NormalizeEngineName(engineName)));
+                GPUEngineNames.Normalize(engineName)));
         }
 
         return [.. engines];
@@ -223,129 +226,56 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         _ => "GPU Engine"
     };
 
-    private static (string DirectXVersion, string FeatureLevel) ReadDirectXFeatureLevel(
-        ulong adapterLUID)
+    private static (string DirectXVersion, string FeatureLevel) ReadDirectXFeatureLevel(ulong adapterLUID) =>
+        FeatureLevelCache.GetOrAdd(adapterLUID, ProbeDirectXFeatureLevel);
+
+    /// <summary>
+    /// Tests the highest supported D3D12 feature level without creating a device (a real device loads the vendor
+    /// driver and can wake a discrete GPU). A definitive answer cannot change for an adapter LUID (a replaced adapter
+    /// has a new LUID), so it is kept for the process lifetime; a missing adapter or a removed, reset or failing device
+    /// is retried later instead.
+    /// </summary>
+    private static DirectXProbeResult ProbeDirectXFeatureLevel(ulong adapterLUID)
     {
-        IntPtr adapter = FindDXGIAdapter(adapterLUID);
-        if (adapter == IntPtr.Zero) return (string.Empty, string.Empty);
+        IntPtr adapter = DXGI.FindHardwareAdapter(adapterLUID);
+        if (adapter == IntPtr.Zero) return DirectXProbeResult.Transient;
 
         try
         {
+            bool transientFailure = false;
             for (int featureIndex = 0; featureIndex < D3D12FeatureLevels.Length; featureIndex++)
             {
                 DirectXFeatureLevel featureLevel = D3D12FeatureLevels[featureIndex];
                 Guid interfaceID = D3D12DeviceInterfaceID;
-                IntPtr device;
                 int result;
                 try
                 {
-                    result = D3D12CreateDevice(
-                        adapter,
-                        featureLevel.Value,
-                        ref interfaceID,
-                        out device);
+                    result = D3D12CreateDevice(adapter, featureLevel.Value, ref interfaceID, device: null);
                 }
                 catch (Exception exception) when (exception is DllNotFoundException
                                                       or EntryPointNotFoundException
                                                       or BadImageFormatException)
                 {
-                    return (string.Empty, string.Empty);
+                    // This Windows has no usable D3D12
+                    return DirectXProbeResult.Unsupported;
                 }
 
-                if (result < 0 || device == IntPtr.Zero)
-                {
-                    if (device != IntPtr.Zero) ReleaseCOMObject(device);
-                    continue;
-                }
-
-                ReleaseCOMObject(device);
-                return ("12", featureLevel.Name);
+                if (result >= 0) return new DirectXProbeResult("12", featureLevel.Name, IsDefinitive: true);
+                transientFailure |= IsTransientProbeFailure(result);
             }
 
-            return (string.Empty, string.Empty);
+            return transientFailure ? DirectXProbeResult.Transient : DirectXProbeResult.Unsupported;
         }
         finally
         {
-            ReleaseCOMObject(adapter);
+            _ = Marshal.Release(adapter);
         }
     }
 
-    private static IntPtr FindDXGIAdapter(ulong adapterLUID)
-    {
-        Guid interfaceID = DXGIFactoryInterfaceID;
-        int result;
-        IntPtr factory;
-        try
-        {
-            result = CreateDXGIFactory1(ref interfaceID, out factory);
-        }
-        catch (Exception exception) when (exception is DllNotFoundException
-                                              or EntryPointNotFoundException
-                                              or BadImageFormatException)
-        {
-            return IntPtr.Zero;
-        }
-
-        if (result < 0 || factory == IntPtr.Zero) return IntPtr.Zero;
-
-        try
-        {
-            IntPtr* factoryVTable = *(IntPtr**)factory;
-            delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int> enumerateAdapters =
-                (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)factoryVTable[12];
-            for (uint adapterIndex = 0; adapterIndex < 256; adapterIndex++)
-            {
-                IntPtr adapter = IntPtr.Zero;
-                int enumerateResult = enumerateAdapters(factory, adapterIndex, &adapter);
-                if (enumerateResult == DXGIErrorNotFound) break;
-                if (enumerateResult < 0 || adapter == IntPtr.Zero) continue;
-
-                IntPtr* adapterVTable = *(IntPtr**)adapter;
-                delegate* unmanaged[Stdcall]<IntPtr, DXGI_ADAPTER_DESC1*, int> getDescription =
-                    (delegate* unmanaged[Stdcall]<IntPtr, DXGI_ADAPTER_DESC1*, int>)adapterVTable[10];
-                DXGI_ADAPTER_DESC1 description = default;
-                if (getDescription(adapter, &description) >= 0
-                    && (description.Flags & DXGIAdapterFlagSoftware) == 0
-                    && ToUInt64(description.AdapterLUID) == adapterLUID)
-                    return adapter;
-
-                ReleaseCOMObject(adapter);
-            }
-
-            return IntPtr.Zero;
-        }
-        finally
-        {
-            ReleaseCOMObject(factory);
-        }
-    }
-
-    private static bool TryOpenAdapter(ulong adapterLUID, out uint adapterHandle)
-    {
-        D3DKMT_OPENADAPTERFROMLUID openAdapter = new() { AdapterLUID = ToNativeLUID(adapterLUID) };
-        int result;
-        try
-        {
-            result = D3DKMTOpenAdapterFromLuid(ref openAdapter);
-        }
-        catch (Exception exception) when (exception is DllNotFoundException
-                                              or EntryPointNotFoundException
-                                              or BadImageFormatException)
-        {
-            adapterHandle = 0;
-            return false;
-        }
-
-        adapterHandle = result >= 0 ? openAdapter.AdapterHandle : 0;
-        return adapterHandle != 0;
-    }
-
-    private static void CloseAdapter(uint adapterHandle)
-    {
-        if (adapterHandle == 0) return;
-        D3DKMT_CLOSEADAPTER closeAdapter = new() { AdapterHandle = adapterHandle };
-        _ = D3DKMTCloseAdapter(ref closeAdapter);
-    }
+    /// <summary>Failures that say nothing about the adapter's feature level: the device is gone or busy.</summary>
+    internal static bool IsTransientProbeFailure(int hresult) => hresult is
+        DXGIErrorDeviceRemoved or DXGIErrorDeviceHung or DXGIErrorDeviceReset or DXGIErrorDriverInternalError
+        or EOutOfMemory;
 
     private static bool TryReadAdapterInformation<T>(
         uint adapterHandle,
@@ -354,97 +284,16 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         where T : unmanaged
     {
         information = default;
-        return TryQueryAdapterInformation(adapterHandle, informationType, ref information);
+        return D3DKMT.TryQueryAdapterInfo(adapterHandle, informationType, ref information);
     }
 
-    private static bool TryQueryAdapterInformation<T>(
-        uint adapterHandle,
-        int informationType,
-        ref T information)
-        where T : unmanaged
-    {
-        fixed (T* informationPointer = &information)
-        {
-            D3DKMT_QUERYADAPTERINFO query = new()
-            {
-                AdapterHandle = adapterHandle,
-                Type = informationType,
-                PrivateDriverData = (IntPtr)informationPointer,
-                PrivateDriverDataSize = checked((uint)sizeof(T))
-            };
-            return D3DKMTQueryAdapterInfo(ref query) >= 0;
-        }
-    }
-
-    private static NATIVE_LUID ToNativeLUID(ulong value) => new()
-    {
-        LowPart = (uint)value, HighPart = unchecked((int)(value >> 32))
-    };
-
-    private static ulong ToUInt64(NATIVE_LUID value) =>
-        ((ulong)(uint)value.HighPart << 32) | value.LowPart;
-
-    private static void ReleaseCOMObject(IntPtr instance)
-    {
-        if (instance == IntPtr.Zero) return;
-        IntPtr* vTable = *(IntPtr**)instance;
-        delegate* unmanaged[Stdcall]<IntPtr, uint> release =
-            (delegate* unmanaged[Stdcall]<IntPtr, uint>)vTable[2];
-        _ = release(instance);
-    }
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTOpenAdapterFromLuid(
-        ref D3DKMT_OPENADAPTERFROMLUID openAdapter);
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTQueryAdapterInfo(
-        ref D3DKMT_QUERYADAPTERINFO queryAdapterInformation);
-
-    [DllImport("gdi32.dll")]
-    private static extern int D3DKMTCloseAdapter(
-        ref D3DKMT_CLOSEADAPTER closeAdapter);
-
-    [DllImport("dxgi.dll", ExactSpelling = true)]
-    private static extern int CreateDXGIFactory1(
-        ref Guid interfaceID,
-        out IntPtr factory);
-
+    // A null ppDevice only tests support: no device is created and S_FALSE means the feature level is supported
     [DllImport("d3d12.dll", ExactSpelling = true)]
     private static extern int D3D12CreateDevice(
         IntPtr adapter,
         int minimumFeatureLevel,
         ref Guid interfaceID,
-        out IntPtr device);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NATIVE_LUID
-    {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct D3DKMT_OPENADAPTERFROMLUID
-    {
-        public NATIVE_LUID AdapterLUID;
-        public uint AdapterHandle;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct D3DKMT_QUERYADAPTERINFO
-    {
-        public uint AdapterHandle;
-        public int Type;
-        public IntPtr PrivateDriverData;
-        public uint PrivateDriverDataSize;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct D3DKMT_CLOSEADAPTER
-    {
-        public uint AdapterHandle;
-    }
+        IntPtr* device);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct D3DKMT_SEGMENTSIZEINFO
@@ -492,21 +341,6 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         public uint Power;
         public uint Temperature;
         public byte PowerStateOverride;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DXGI_ADAPTER_DESC1
-    {
-        public fixed char Description[128];
-        public uint VendorID;
-        public uint DeviceID;
-        public uint SubsystemID;
-        public uint Revision;
-        public nuint DedicatedVideoMemory;
-        public nuint DedicatedSystemMemory;
-        public nuint SharedSystemMemory;
-        public NATIVE_LUID AdapterLUID;
-        public uint Flags;
     }
 
     private readonly record struct DirectXFeatureLevel(int Value, string Name);

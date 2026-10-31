@@ -1,8 +1,10 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -35,9 +37,11 @@ internal sealed class DiskPerformanceSampler
     private const int StorageIDTypeSCSINameString = 8;
     private const int DriveGeometryBufferSize = 256;
     private const int DiskSizeOffset = 24;
-    private const int InitialDeviceNameBufferLength = 32_768;
-    private const int MaximumDeviceNameBufferLength = 1_048_576;
-    private const int ErrorInsufficientBuffer = 122;
+    private static readonly TimeSpan PhysicalDiskListLifetime = TimeSpan.FromSeconds(10);
+    private const int ErrorFileNotFound = 2;
+    private const int ErrorPathNotFound = 3;
+    private const int ErrorNoSuchDevice = 433;
+    private const int ErrorDeviceNotConnected = 1167;
     private const double HundredNanosecondsPerSecond = TimeSpan.TicksPerSecond;
     private const double HundredNanosecondsPerMillisecond = TimeSpan.TicksPerMillisecond;
 
@@ -45,13 +49,8 @@ internal sealed class DiskPerformanceSampler
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _activeDeviceIDs = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Discards kernel-counter baselines after sampling has been paused.</summary>
-    internal void ResetCounterBaselines()
-    {
-        _previousCounters.Clear();
-        _activeDeviceIDs.Clear();
-    }
+    private uint[] _physicalDiskNumbers = [];
+    private long _physicalDiskNumbersTimestamp;
 
     /// <summary>Captures every exposed physical disk and merges any ready-volume metadata.</summary>
     public DiskPerformanceSnapshot[] Sample()
@@ -68,6 +67,12 @@ internal sealed class DiskPerformanceSampler
                 CultureInfo.InvariantCulture,
                 $@"\\.\PhysicalDrive{physicalDiskNumber}");
             using SafeFileHandle diskHandle = OpenDevice(physicalDiskPath);
+            if (diskHandle.IsInvalid && IsDiskGone(Marshal.GetLastPInvokeError()))
+            {
+                // Removed since the list was read: no ghost card, and re-read the list next tick
+                _physicalDiskNumbersTimestamp = 0;
+                continue;
+            }
 
             DiskIdentity identity = diskHandle.IsInvalid
                 ? DiskIdentity.Fallback(physicalDiskNumber)
@@ -167,10 +172,32 @@ internal sealed class DiskPerformanceSampler
         return true;
     }
 
-    private static Dictionary<uint, DiskCandidateBuilder> EnumeratePhysicalDisks()
+    /// <summary>Whether opening a PhysicalDrive failed because the disk is no longer there.</summary>
+    internal static bool IsDiskGone(int win32Error) =>
+        win32Error is ErrorFileNotFound or ErrorPathNotFound or ErrorNoSuchDevice or ErrorDeviceNotConnected;
+
+    /// <summary>
+    /// The PhysicalDrive numbers, re-read at most every <see cref="PhysicalDiskListLifetime"/>: listing every DOS
+    /// device name returns tens of KiB, too much to repeat each tick. A disk that disappears in between fails to
+    /// open with a not-found error; it is skipped and the list is re-read on the next tick.
+    /// </summary>
+    private uint[] GetPhysicalDiskNumbers()
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (_physicalDiskNumbersTimestamp == 0
+            || Stopwatch.GetElapsedTime(_physicalDiskNumbersTimestamp, now) >= PhysicalDiskListLifetime)
+        {
+            _physicalDiskNumbers = EnumeratePhysicalDiskNumbers();
+            _physicalDiskNumbersTimestamp = now;
+        }
+
+        return _physicalDiskNumbers;
+    }
+
+    private Dictionary<uint, DiskCandidateBuilder> EnumeratePhysicalDisks()
     {
         Dictionary<uint, DiskCandidateBuilder> disksByNumber = [];
-        uint[] physicalDiskNumbers = EnumeratePhysicalDiskNumbers();
+        uint[] physicalDiskNumbers = GetPhysicalDiskNumbers();
         for (int diskIndex = 0; diskIndex < physicalDiskNumbers.Length; diskIndex++)
             disksByNumber.Add(physicalDiskNumbers[diskIndex], new DiskCandidateBuilder());
 
@@ -179,42 +206,18 @@ internal sealed class DiskPerformanceSampler
     }
 
     /// <summary>Enumerates PhysicalDrive DOS-device names without probing arbitrary indices.</summary>
-    internal static uint[] EnumeratePhysicalDiskNumbers()
-    {
-        int bufferLength = InitialDeviceNameBufferLength;
-        while (true)
-        {
-            char[] deviceNames = new char[bufferLength];
-            uint characterCount = QueryDosDeviceW(deviceName: null, deviceNames, (uint)deviceNames.Length);
-            if (characterCount > 0)
-            {
-                int validLength = Math.Min(deviceNames.Length, checked((int)characterCount));
-                return ParsePhysicalDiskNumbers(deviceNames.AsSpan(start: 0, validLength));
-            }
-
-            if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
-                || bufferLength == MaximumDeviceNameBufferLength)
-                return [];
-
-            bufferLength = Math.Min(
-                checked(bufferLength * 2),
-                MaximumDeviceNameBufferLength);
-        }
-    }
+    internal static uint[] EnumeratePhysicalDiskNumbers() => ParsePhysicalDiskNumbers(DosDevices.ListNames());
 
     /// <summary>Parses, de-duplicates, and sorts PhysicalDrive names from a DOS-device multi-string.</summary>
-    internal static uint[] ParsePhysicalDiskNumbers(ReadOnlySpan<char> deviceNames)
+    internal static uint[] ParsePhysicalDiskNumbers(ReadOnlySpan<char> deviceNames) =>
+        ParsePhysicalDiskNumbers(DosDevices.ParseMultiString(deviceNames));
+
+    private static uint[] ParsePhysicalDiskNumbers(string[] deviceNames)
     {
         HashSet<uint> physicalDiskNumbers = [];
-        int position = 0;
-        while (position < deviceNames.Length)
+        for (int nameIndex = 0; nameIndex < deviceNames.Length; nameIndex++)
         {
-            ReadOnlySpan<char> remainingNames = deviceNames[position..];
-            int terminatorOffset = remainingNames.IndexOf('\0');
-            int nameLength = terminatorOffset >= 0 ? terminatorOffset : remainingNames.Length;
-            if (nameLength == 0) break;
-
-            ReadOnlySpan<char> deviceName = remainingNames[..nameLength];
+            ReadOnlySpan<char> deviceName = deviceNames[nameIndex];
             if (deviceName.StartsWith(PhysicalDrivePrefix, StringComparison.OrdinalIgnoreCase)
                 && uint.TryParse(
                     deviceName[PhysicalDrivePrefix.Length..],
@@ -222,8 +225,6 @@ internal sealed class DiskPerformanceSampler
                     CultureInfo.InvariantCulture,
                     out uint physicalDiskNumber))
                 physicalDiskNumbers.Add(physicalDiskNumber);
-
-            position += nameLength + 1;
         }
 
         uint[] result = new uint[physicalDiskNumbers.Count];
@@ -605,12 +606,6 @@ internal sealed class DiskPerformanceSampler
         uint creationDisposition,
         uint flagsAndAttributes,
         IntPtr templateFile);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern uint QueryDosDeviceW(
-        string? deviceName,
-        [Out] char[] targetPath,
-        uint maximumCharacterCount);
 
     [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

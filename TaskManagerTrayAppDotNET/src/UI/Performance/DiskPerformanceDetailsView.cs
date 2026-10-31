@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -34,7 +35,7 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.DiskTransferMargin;
 
         TextBlock heading = TrayAppDotNETSettingsUI.Text(
-            text: "Disk transfer rate",
+            text: L(nameof(AppStrings.Perf_Disk_TransferRate)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);

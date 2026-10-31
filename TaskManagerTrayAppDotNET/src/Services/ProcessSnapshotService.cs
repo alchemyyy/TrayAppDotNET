@@ -3,17 +3,17 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia.Threading;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Samples only the active Details schema and publishes compact right-sized snapshots.</summary>
-internal sealed class ProcessSnapshotService : IDisposable
+internal sealed class ProcessSnapshotService : IDisposable, IRecentProcessTotals
 {
     public const int MaximumProcessCount = 8_192;
-    private const int RefreshIntervalMilliseconds = 1_000;
+    internal const int RefreshIntervalMilliseconds = 1_000;
     private const int ShutdownJoinTimeoutMilliseconds = 2_000;
     private const int InitialProcessPathCapacity = 1_024;
-    private const int MaximumProcessPathCapacity = 32_767;
     private const uint ProcessQueryInformation = 0x0400;
     private const uint ProcessVMRead = 0x0010;
 
@@ -82,6 +82,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly Thread _samplingThread;
     private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
+    private readonly RecentProcessTotals _latestProcessTotals = new();
     private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
     private readonly ProcessWindowGroupingFactsCollector _windowGroupingFactsCollector = new();
     private readonly ProcessImagePathResolver _imagePathResolver = new();
@@ -119,6 +120,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private int _notificationPending;
     private int _started;
     private int _disposed;
+    private int _resourcesReleased;
     private bool _sampleEveryProcess;
     private bool _acceleratorSamplesEveryProcess;
     private bool _networkUsageNeedsInitialFullSample;
@@ -139,6 +141,10 @@ internal sealed class ProcessSnapshotService : IDisposable
     }
 
     public event Action? SnapshotAvailable;
+
+    /// <summary>The totals of this sampler's latest kernel process snapshot, shared with the Performance sampler.</summary>
+    public bool TryGetRecent(TimeSpan maxAge, out SystemProcessTotals totals) =>
+        _latestProcessTotals.TryGetRecent(maxAge, out totals);
 
     /// <summary>Replaces the active storage schema; inactive columns are discarded on the next sample.</summary>
     public void SetActiveSchema(ProcessDataSchema schema)
@@ -286,19 +292,28 @@ internal sealed class ProcessSnapshotService : IDisposable
 
     private void SamplingLoop()
     {
-        while (Volatile.Read(ref _disposed) == 0)
+        try
         {
-            try
+            while (Volatile.Read(ref _disposed) == 0)
             {
-                RefreshCore();
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"ProcessSnapshotService.RefreshCore: {exception}");
-            }
+                try
+                {
+                    RefreshCore();
+                }
+                catch (Exception exception)
+                {
+                    TADNLog.Log($"ProcessSnapshotService.RefreshCore: {exception}");
+                }
 
-            if (Volatile.Read(ref _disposed) != 0) return;
-            _refreshWake.WaitOne(RefreshIntervalMilliseconds);
+                if (Volatile.Read(ref _disposed) != 0) return;
+                _refreshWake.WaitOne(RefreshIntervalMilliseconds);
+            }
+        }
+        finally
+        {
+            // The worker owns the native samplers and buffers once it has started: a capture that outlives the
+            // shutdown join must never find them freed underneath it
+            ReleaseSamplingResources();
         }
     }
 
@@ -345,6 +360,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool hasSystemSnapshot = _systemProcessSnapshot.TryCapture(
             _systemProcessData,
             schema.IsVisible(ProcessTableColumnKind.JobObjectID));
+        if (hasSystemSnapshot) _latestProcessTotals.Publish(_systemProcessSnapshot.LastCaptureTotals);
+        else _latestProcessTotals.Clear();
         if (semanticGroupingEnabled) _windowGroupingFactsCollector.Capture();
         if (schema.IsVisible(ProcessTableColumnKind.Status)) _hungWindowCollector.Capture();
         int generation = NextHistoryGeneration();
@@ -778,7 +795,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             string commandLine = processHandle == IntPtr.Zero
                 ? string.Empty
-                : NativeProcessInfo.ReadCommandLine(processHandle);
+                : ProcessCommandLine.TryRead(processHandle) ?? string.Empty;
             SetStaticText(schema, textValues, ProcessTableColumnKind.CommandLine, commandLine);
         }
 
@@ -789,7 +806,8 @@ internal sealed class ProcessSnapshotService : IDisposable
             ProcessDisplayCode.Windows);
 
         bool needsArchitecture = schema.IsVisible(ProcessTableColumnKind.Platform)
-                                 || schema.IsVisible(ProcessTableColumnKind.Architecture);
+                                 || schema.IsVisible(ProcessTableColumnKind.Architecture)
+                                 || schema.IsVisible(ProcessTableColumnKind.DataExecutionPrevention);
         ProcessDisplayCode architecture = needsArchitecture && processHandle != IntPtr.Zero
             ? NativeProcessInfo.ReadArchitecture(processHandle)
             : ProcessDisplayCode.Unavailable;
@@ -817,7 +835,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 ProcessTableColumnKind.DataExecutionPrevention,
                 processHandle == IntPtr.Zero
                     ? ProcessDisplayCode.Unavailable
-                    : NativeProcessInfo.ReadDataExecutionPrevention(processHandle));
+                    : NativeProcessInfo.ReadDataExecutionPrevention(processHandle, architecture));
         }
 
         bool needsPackageName = schema.IsVisible(ProcessTableColumnKind.PackageName)
@@ -923,7 +941,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 history.LastProcessorSampleTimestamp,
                 totalProcessorTicks,
                 sampleTimestamp,
-                Environment.ProcessorCount);
+                Kernel32Processor.MachineProcessorCount);
             SetDynamicDouble(schema, history, ProcessTableColumnKind.CPU, cpuPercent);
             if (schema.IsVisible(ProcessTableColumnKind.CPUSingle))
             {
@@ -1486,24 +1504,8 @@ internal sealed class ProcessSnapshotService : IDisposable
         return new ProcessIconSource(imagePath.Length == 0 ? null : imagePath, applicationUserModelID);
     }
 
-    private string ReadExecutablePath(IntPtr processHandle)
-    {
-        while (true)
-        {
-            _processPathBuffer.Clear();
-            uint characterCount = (uint)_processPathBuffer.Capacity;
-            if (Kernel32.QueryFullProcessImageNameW(processHandle, dwFlags: 0, _processPathBuffer, ref characterCount))
-                return _processPathBuffer.ToString(startIndex: 0, (int)characterCount);
-
-            int error = Marshal.GetLastPInvokeError();
-            if (error != NativeErrors.ERROR_INSUFFICIENT_BUFFER
-                || _processPathBuffer.Capacity >= MaximumProcessPathCapacity)
-                return string.Empty;
-
-            int nextCapacity = Math.Min(_processPathBuffer.Capacity * 2, MaximumProcessPathCapacity);
-            _processPathBuffer.EnsureCapacity(nextCapacity);
-        }
-    }
+    private string ReadExecutablePath(IntPtr processHandle) =>
+        ProcessImagePath.TryGet(processHandle, _processPathBuffer) ?? string.Empty;
 
     private string? ReadApplicationUserModelID(IntPtr processHandle)
     {
@@ -1988,8 +1990,20 @@ internal sealed class ProcessSnapshotService : IDisposable
 
         SnapshotAvailable = null;
         _refreshWake.Set();
-        if (Volatile.Read(ref _started) != 0 && !_samplingThread.Join(ShutdownJoinTimeoutMilliseconds))
-            TADNLog.Log("ProcessSnapshotService sampling thread did not stop before the shutdown timeout.");
+        if (Volatile.Read(ref _started) == 0)
+        {
+            ReleaseSamplingResources();
+            return;
+        }
+
+        // A started worker releases everything itself as it exits, even when that happens after this returns
+        if (!_samplingThread.Join(ShutdownJoinTimeoutMilliseconds))
+            TADNLog.Log("ProcessSnapshotService sampling thread did not stop before the shutdown timeout; it releases its native state when the current capture ends.");
+    }
+
+    private void ReleaseSamplingResources()
+    {
+        if (Interlocked.Exchange(ref _resourcesReleased, value: 1) != 0) return;
 
         _refreshWake.Dispose();
         _acceleratorSampler?.Dispose();

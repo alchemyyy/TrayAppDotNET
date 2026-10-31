@@ -14,27 +14,15 @@ internal sealed partial class StartupAppsService : IDisposable
     private const string RunRegistrySubKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunOnceRegistrySubKey = @"Software\Microsoft\Windows\CurrentVersion\RunOnce";
 
-    private const string StartupApprovedRegistryRoot =
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
-
-    private const string StartupApprovedRunSubKey = StartupApprovedRegistryRoot + @"\Run";
-    private const string StartupApprovedRun32SubKey = StartupApprovedRegistryRoot + @"\Run32";
-    private const string StartupApprovedFolderSubKey = StartupApprovedRegistryRoot + @"\StartupFolder";
+    private const string StartupApprovedRunSubKey = StartupAppApprovalTarget.RunSubKey;
+    private const string StartupApprovedRun32SubKey = StartupAppApprovalTarget.Run32SubKey;
+    private const string StartupApprovedFolderSubKey = StartupAppApprovalTarget.StartupFolderSubKey;
     private const string URLFilePrefix = "URL=";
     private const string DesktopConfigurationFileName = "desktop.ini";
     private const int MaximumURLFileLines = 128;
-    private const int MaximumWindowsPathLength = 32_768;
-    private const uint COMMultithreaded = 0;
-    private const uint COMInProcessServer = 1;
-    private const uint StorageModeRead = 0;
-    private const uint ShellLinkGetPathRaw = 0x00000004;
-    private const int COMChangedMode = unchecked((int)0x80010106);
 
     private static readonly object MissingRegistryValue = new();
     private static readonly string[] ExecutableCommandExtensions = [".exe", ".com", ".bat", ".cmd"];
-    private static readonly Guid ShellLinkClassID = new("00021401-0000-0000-C000-000000000046");
-    private static readonly Guid ShellLinkInterfaceID = new("000214F9-0000-0000-C000-000000000046");
-    private static readonly Guid PersistFileInterfaceID = new("0000010B-0000-0000-C000-000000000046");
 
     private int _disposed;
 
@@ -112,7 +100,7 @@ internal sealed partial class StartupAppsService : IDisposable
         {
             return StartupAppActionResult.Failure(
                 entry.Status,
-                errorMessage: "Startup application status changes are only supported on Windows.");
+                errorMessage: LocalizationManager.Instance[nameof(AppStrings.Startup_WindowsOnly)]);
         }
 
         if (desiredStatus is not (StartupAppStatus.Enabled or StartupAppStatus.Disabled))
@@ -148,8 +136,13 @@ internal sealed partial class StartupAppsService : IDisposable
         }
         catch (Exception exception) when (IsExpectedWindowsAccessException(exception))
         {
-            string action = desiredStatus == StartupAppStatus.Enabled ? "enable" : "disable";
-            string errorMessage = $"Could not {action} {entry.Name}: {exception.Message}";
+            string errorMessage = string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                desiredStatus == StartupAppStatus.Enabled
+                    ? LocalizationManager.Instance[nameof(AppStrings.Startup_SetStatusFailed_EnableFormat)]
+                    : LocalizationManager.Instance[nameof(AppStrings.Startup_SetStatusFailed_DisableFormat)],
+                entry.Name,
+                exception.Message);
             TADNLog.Log($"StartupAppsService.SetStatus: {errorMessage}");
             return StartupAppActionResult.Failure(entry.Status, errorMessage);
         }
@@ -622,90 +615,19 @@ internal sealed partial class StartupAppsService : IDisposable
         return null;
     }
 
-    private static unsafe bool TryResolveShellLink(string shortcutPath, out string targetPath)
+    private static bool TryResolveShellLink(string shortcutPath, out string targetPath)
     {
-        targetPath = string.Empty;
-        int initializationResult = CoInitializeEx(IntPtr.Zero, COMMultithreaded);
-        bool uninitializeCOM = initializationResult >= 0;
-        if (initializationResult < 0 && initializationResult != COMChangedMode) return false;
-
-        IntPtr shellLinkPointer = IntPtr.Zero;
-        IntPtr persistFilePointer = IntPtr.Zero;
-        try
-        {
-            int result = CoCreateInstance(
-                in ShellLinkClassID,
-                IntPtr.Zero,
-                COMInProcessServer,
-                in ShellLinkInterfaceID,
-                out shellLinkPointer);
-            if (result < 0 || shellLinkPointer == IntPtr.Zero) return false;
-
-            Guid persistFileInterfaceID = PersistFileInterfaceID;
-            IntPtr queriedPersistFilePointer = IntPtr.Zero;
-            IntPtr* shellLinkVTable = *(IntPtr**)shellLinkPointer;
-            delegate* unmanaged[Stdcall]<IntPtr, Guid*, IntPtr*, int> queryInterface =
-                (delegate* unmanaged[Stdcall]<IntPtr, Guid*, IntPtr*, int>)shellLinkVTable[0];
-            result = queryInterface(
-                shellLinkPointer,
-                &persistFileInterfaceID,
-                &queriedPersistFilePointer);
-            if (result < 0 || queriedPersistFilePointer == IntPtr.Zero) return false;
-            persistFilePointer = queriedPersistFilePointer;
-
-            IntPtr* persistFileVTable = *(IntPtr**)persistFilePointer;
-            delegate* unmanaged[Stdcall]<IntPtr, char*, uint, int> load =
-                (delegate* unmanaged[Stdcall]<IntPtr, char*, uint, int>)persistFileVTable[5];
-            fixed (char* shortcutPathPointer = shortcutPath)
-                result = load(persistFilePointer, shortcutPathPointer, StorageModeRead);
-            if (result < 0) return false;
-
-            char[] targetBuffer = new char[MaximumWindowsPathLength];
-            fixed (char* targetBufferPointer = targetBuffer)
-            {
-                delegate* unmanaged[Stdcall]<IntPtr, char*, int, IntPtr, uint, int> getPath =
-                    (delegate* unmanaged[Stdcall]<IntPtr, char*, int, IntPtr, uint, int>)shellLinkVTable[3];
-                result = getPath(
-                    shellLinkPointer,
-                    targetBufferPointer,
-                    targetBuffer.Length,
-                    IntPtr.Zero,
-                    ShellLinkGetPathRaw);
-                if (result < 0 || targetBuffer[0] == '\0') return false;
-                targetPath = new string(targetBufferPointer).Trim();
-            }
-
-            return targetPath.Length > 0;
-        }
-        catch (Exception exception) when (IsExpectedFileAccessException(exception))
-        {
-            TADNLog.LogDebug(
-                $"StartupAppsService could not resolve shortcut {shortcutPath}: "
-                + exception.Message);
-            return false;
-        }
-        finally
-        {
-            ReleaseCOMPointer(persistFilePointer);
-            ReleaseCOMPointer(shellLinkPointer);
-            if (uninitializeCOM) CoUninitialize();
-        }
-    }
-
-    private static unsafe void ReleaseCOMPointer(IntPtr pointer)
-    {
-        if (pointer == IntPtr.Zero) return;
-
-        IntPtr* virtualTable = *(IntPtr**)pointer;
-        delegate* unmanaged[Stdcall]<IntPtr, uint> release =
-            (delegate* unmanaged[Stdcall]<IntPtr, uint>)virtualTable[2];
-        _ = release(pointer);
+        using ComApartmentScope apartment = ComApartmentScope.Enter(Ole32.COINIT_MULTITHREADED);
+        targetPath = apartment.IsUsable
+            ? ShellLink.TryRead(shortcutPath, static message => TADNLog.LogDebug(message))?.Trim() ?? string.Empty
+            : string.Empty;
+        return targetPath.Length > 0;
     }
 
     private static string ResolveDisplayName(string sourceName, string? targetPath)
     {
         if (!string.IsNullOrWhiteSpace(sourceName)) return sourceName.Trim();
-        if (string.IsNullOrWhiteSpace(targetPath)) return "Unnamed startup app";
+        if (string.IsNullOrWhiteSpace(targetPath)) return LocalizationManager.Instance[nameof(AppStrings.Startup_UnnamedApp)];
 
         string fileName = Path.GetFileNameWithoutExtension(targetPath);
         return string.IsNullOrWhiteSpace(fileName) ? targetPath : fileName;
@@ -890,20 +812,6 @@ internal sealed partial class StartupAppsService : IDisposable
         _ = Interlocked.Exchange(ref _disposed, value: 1);
         GC.SuppressFinalize(this);
     }
-
-    [LibraryImport("ole32.dll")]
-    private static partial int CoInitializeEx(IntPtr reserved, uint concurrencyModel);
-
-    [LibraryImport("ole32.dll")]
-    private static partial void CoUninitialize();
-
-    [LibraryImport("ole32.dll")]
-    private static partial int CoCreateInstance(
-        in Guid classID,
-        IntPtr outer,
-        uint context,
-        in Guid interfaceID,
-        out IntPtr instance);
 
     private readonly record struct StartupAppDeduplicationKey(
         StartupAppSourceKind SourceKind,

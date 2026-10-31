@@ -172,17 +172,17 @@ internal static class WindowsServiceState
         _ => WindowsServiceStartType.Unknown
     };
 
-    public static string GetStatusText(WindowsServiceStatus status) => status switch
+    public static string GetStatusText(WindowsServiceStatus status) => LocalizationManager.Instance[status switch
     {
-        WindowsServiceStatus.Stopped => "Stopped",
-        WindowsServiceStatus.StartPending => "Starting",
-        WindowsServiceStatus.StopPending => "Stopping",
-        WindowsServiceStatus.Running => "Running",
-        WindowsServiceStatus.ContinuePending => "Continuing",
-        WindowsServiceStatus.PausePending => "Pausing",
-        WindowsServiceStatus.Paused => "Paused",
-        _ => "Unknown"
-    };
+        WindowsServiceStatus.Stopped => nameof(AppStrings.Services_Status_Stopped),
+        WindowsServiceStatus.StartPending => nameof(AppStrings.Services_Status_Starting),
+        WindowsServiceStatus.StopPending => nameof(AppStrings.Services_Status_Stopping),
+        WindowsServiceStatus.Running => nameof(AppStrings.Services_Status_Running),
+        WindowsServiceStatus.ContinuePending => nameof(AppStrings.Services_Status_Continuing),
+        WindowsServiceStatus.PausePending => nameof(AppStrings.Services_Status_Pausing),
+        WindowsServiceStatus.Paused => nameof(AppStrings.Services_Status_Paused),
+        _ => nameof(AppStrings.Services_Status_Unknown)
+    }];
 
     public static string NormalizeServiceName(string? serviceName) => serviceName?.Trim() ?? string.Empty;
 

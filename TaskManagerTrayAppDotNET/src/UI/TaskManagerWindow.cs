@@ -35,18 +35,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private const uint WindowMessageMoving = 0x0216;
     private const uint WindowMessageExitSizeMove = 0x0232;
     private const double SidebarCaretRotationDegrees = 90;
-    private const string CollapseNavigationText = "Collapse navigation";
-    private const string ExpandNavigationText = "Expand navigation";
+    private static string CollapseNavigationText => L(nameof(AppStrings.Window_CollapseNavigation));
+    private static string ExpandNavigationText => L(nameof(AppStrings.Window_ExpandNavigation));
+    private static string RestartExplorerConfirmationMessage => L(nameof(AppStrings.Window_RestartExplorer_Message));
+    private static string ElevatedTerminationExplanation => L(nameof(AppStrings.Window_ElevatedTermination_Message));
 
-    private const string RestartExplorerConfirmationMessage =
-        "This will close every running explorer.exe process, including the desktop, taskbar, and open File " +
-        "Explorer windows, and then start a fresh explorer.exe process.";
-
-    private const string ElevatedTerminationExplanation =
-        "Task Manager normally sends End task requests to a native helper running with standard permissions. " +
-        "Enabling elevated termination replaces it with a helper running with administrator privileges so it " +
-        "can end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, " +
-        "the standard native helper and managed fallback remain available.";
 
     private static readonly ProcessDataSchema IdleProcessSchema = ProcessDataSchema.Create(
         []);
@@ -63,7 +56,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly WindowsServiceManager _windowsServiceManager = new();
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
-    private readonly Win32Properties.CustomWndProcHookCallback _windowDragWndProcHook;
     private readonly Bitmap? _applicationIconBitmap;
     private TaskManagerPageLayout? _activePageLayout;
     private ITaskManagerSearchOverlayPage? _searchOverlayPage;
@@ -78,7 +70,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private TaskManagerShellViewState? _hotReloadShellViewState;
     private (double FontSize, double RowSpacing)? _hotReloadGridTypography;
 #endif
-    private bool _windowDragWndProcHookAttached;
     private bool _activePageWorkEnabled;
     private bool _avoidSearchBoxDuringRestoreDrag;
     private bool _restoreDragSearchRangeResolved;
@@ -89,8 +80,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool _initialElevationDeferred;
     private bool _manualElevationPromptPending;
     private bool _isConfirmationOverlayVisible;
-    private bool _isUpdateDialogOpen;
-    private bool _isUpdateDownloadInFlight;
     private bool _exitRequested;
 
     public TaskManagerWindow(
@@ -109,10 +98,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
-        _windowDragWndProcHook = WindowDragWndProcHook;
-        _applicationIconBitmap = AppThemeStore.LoadAppBitmap();
-        ConfigureSettingsWindow(Constants.DisplayName, icon: null);
-        ApplyInitialAXAMLWindowDimensions();
+        _applicationIconBitmap = AppServices.AppIcon.LoadBitmap(Constants.ApplicationBitmapSize);
+        ConfigureSettingsWindow(Constants.DisplayName, icon: null, InitialAXAMLWindowDimensions());
         Topmost = settings.AlwaysOnTop;
         Closed += OnWindowClosedForDragHook;
         Closing += OnWindowClosing;
@@ -131,13 +118,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 #endif
     }
 
-    protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
+    protected override AppSettingsCommon CommonSettings => _settings;
+    protected override AppTheme? SettingsTheme => _theme;
     protected override bool UseWindows11SettingsNavigation => true;
-    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
+    // The main window keeps its own sidebar width; a resize saves it without rebuilding the window
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings.MainWindowSidebar;
     protected override bool ShowSettingsSearchBox => false;
     protected override bool UseExtendedTitleBarDragZone => false;
     protected override bool PageContentExtendsIntoTitleBar => true;
-    protected override bool UsePageContentTitleBarDragZone => false;
     protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
 
@@ -190,11 +179,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override double SidebarWidth => _taskManagerResources.AxamlTaskManagerWindow.SidebarWidth;
     protected override TaskManagerPage DefaultPageKey => TaskManagerPage.Processes;
     protected override string HeaderText => Constants.DisplayName;
-    protected override string OpenSettingsFolderText => "Open Task Manager settings folder";
-    protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
-
-    protected override Color ConfirmOverlayBackdrop =>
-        _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
     protected override void OnConfirmOverlayVisibilityChanged(bool isVisible)
     {
@@ -312,13 +296,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override void OnOpened(EventArgs eventArgs)
     {
-        // Register before the shared shell hook so its handled-message return value remains last
-        if (!_windowDragWndProcHookAttached && OperatingSystem.IsWindows())
-        {
-            Win32Properties.AddWndProcHookCallback(this, _windowDragWndProcHook);
-            _windowDragWndProcHookAttached = true;
-        }
-
         base.OnOpened(eventArgs);
         UpdateActivePageActivity();
     }
@@ -333,18 +310,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     /// Handles a notification icon click. The window the user was working in hides; a hidden, minimized or covered
     /// window comes forward where it was.
     /// </summary>
-    internal void ToggleFromTray(TaskbarForegroundTracker foregroundTracker)
+    internal void ToggleFromTray(TrayWindowToggle toggle)
     {
-        IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-        if (IsVisible
-            && WindowState != WindowState.Minimized
-            && foregroundTracker.WasForegroundBeforeTaskbar(windowHandle))
+        switch (toggle.Decide(this))
         {
-            Hide();
-            return;
+            case TrayToggleAction.Hide:
+                Hide();
+                break;
+            case TrayToggleAction.Show:
+            case TrayToggleAction.Activate:
+                _ = ShowInPlaceAndActivateAsync();
+                break;
         }
-
-        _ = ShowInPlaceAndActivateAsync();
     }
 
     /// <summary>
@@ -379,15 +356,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         catch (Exception exception)
         {
             TADNLog.Log($"TaskManagerWindow.ShowUpdateConfirmationAsync: {exception}");
-            _isUpdateDialogOpen = false;
-            _isUpdateDownloadInFlight = false;
-            RefreshUpdateSidebarButton();
         }
     }
 
     private async Task ShowUpdateConfirmationAsync()
     {
-        if (_isUpdateDialogOpen || _isUpdateDownloadInFlight) return;
+        if (TrayAppDotNETUpdatePromptPresenter.IsBusy(this)) return;
 
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
@@ -406,38 +380,28 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                 Log = TADNLog.Log,
                 FlushLog = TADNLog.Flush,
                 Shutdown = _exitApplication,
-                SetPromptOpen = isOpen =>
-                {
-                    _isUpdateDialogOpen = isOpen;
-                    RefreshUpdateSidebarButton();
-                },
-                SetDownloadInFlight = isInFlight =>
-                {
-                    _isUpdateDownloadInFlight = isInFlight;
-                    RefreshUpdateSidebarButton();
-                },
+                BusyChanged = _ => RefreshUpdateSidebarButton(),
                 Node = ControlMap.MainUpdateConfirmation.ID
             });
     }
 
-    protected override SettingsPalette ResolvePalette() =>
-        VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLight());
-
-    protected override bool ResolveEffectiveIsLightForBindings() => ResolveEffectiveIsLight();
 
     protected override IReadOnlyList<SettingsPageDescriptor<TaskManagerPage>> CreatePageDescriptors() =>
     [
-        new(TaskManagerPage.Processes, Label: "Processes", BuildProcessesPage, TaskManagerGlyphCatalog.PROCESSES),
-        new(TaskManagerPage.Performance, Label: "Performance", BuildPerformancePage,
+        new(TaskManagerPage.Processes, Label: L(nameof(AppStrings.Page_Processes)), BuildProcessesPage,
+            TaskManagerGlyphCatalog.PROCESSES),
+        new(TaskManagerPage.Performance, Label: L(nameof(AppStrings.Page_Performance)), BuildPerformancePage,
             TaskManagerGlyphCatalog.PERFORMANCE),
-        new(TaskManagerPage.AppHistory, Label: "App history", BuildAppHistoryPage, TaskManagerGlyphCatalog.APP_HISTORY),
-        new(TaskManagerPage.StartupApps, Label: "Startup apps", BuildStartupAppsPage,
+        new(TaskManagerPage.AppHistory, Label: L(nameof(AppStrings.AppHistory_Title)), BuildAppHistoryPage,
+            TaskManagerGlyphCatalog.APP_HISTORY),
+        new(TaskManagerPage.StartupApps, Label: L(nameof(AppStrings.Page_StartupApps)), BuildStartupAppsPage,
             TaskManagerGlyphCatalog.STARTUP_APPS),
-        new(TaskManagerPage.Users, Label: "Users", BuildUsersPage, TaskManagerGlyphCatalog.USERS),
-        new(TaskManagerPage.Services, Label: "Services", BuildServicesPage, TaskManagerGlyphCatalog.SERVICES),
+        new(TaskManagerPage.Users, Label: L(nameof(AppStrings.Page_Users)), BuildUsersPage, TaskManagerGlyphCatalog.USERS),
+        new(TaskManagerPage.Services, Label: L(nameof(AppStrings.Page_Services)), BuildServicesPage,
+            TaskManagerGlyphCatalog.SERVICES),
 
         // Only the footer row: HandleNavigationRequest opens TaskManagerSettingsWindow, so this page never builds
-        new(TaskManagerPage.Settings, Label: "Settings", static () => new StackPanel(),
+        new(TaskManagerPage.Settings, Label: L(nameof(AppStrings.Page_Settings)), static () => new StackPanel(),
             SettingsNavigationGlyphs.Settings)
     ];
 
@@ -467,7 +431,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         SettingsNavItem updateButton = SidebarFooterActions[0];
         bool isUpdateAvailable = AppServices.UpdateCheckService?.AvailableUpdate != null;
         updateButton.IsVisible = isUpdateAvailable;
-        updateButton.IsEnabled = isUpdateAvailable && !_isUpdateDialogOpen && !_isUpdateDownloadInFlight;
+        updateButton.IsEnabled = isUpdateAvailable && !TrayAppDotNETUpdatePromptPresenter.IsBusy(this);
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>
@@ -564,18 +528,20 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     }
 #endif
 
-    private void ApplyInitialAXAMLWindowDimensions()
+    private SettingsWindowDimensions InitialAXAMLWindowDimensions()
     {
-        Width = _taskManagerResources.AxamlTaskManagerWindow.Width;
-        Height = _taskManagerResources.AxamlTaskManagerWindow.Height;
-        MinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
-        MinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
+        SettingsWindowDimensions dimensions = new(
+            _taskManagerResources.AxamlTaskManagerWindow.Width,
+            _taskManagerResources.AxamlTaskManagerWindow.Height,
+            _taskManagerResources.AxamlTaskManagerWindow.MinWidth,
+            _taskManagerResources.AxamlTaskManagerWindow.MinHeight);
 #if DEBUG
-        _axamlWindowWidth = Width;
-        _axamlWindowHeight = Height;
-        _axamlWindowMinWidth = MinWidth;
-        _axamlWindowMinHeight = MinHeight;
+        _axamlWindowWidth = dimensions.Width;
+        _axamlWindowHeight = dimensions.Height;
+        _axamlWindowMinWidth = dimensions.MinWidth;
+        _axamlWindowMinHeight = dimensions.MinHeight;
 #endif
+        return dimensions;
     }
 
     /// <summary>Starts one silent elevation attempt after startup, only when the user opted in via settings.</summary>
@@ -589,8 +555,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             return;
 
         _initialElevationAttemptConsumed = true;
-        IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-        _ = RunInitialElevatedTerminationAttemptAsync(ownerWindowHandle);
+        _ = RunInitialElevatedTerminationAttemptAsync();
     }
 
     private void StartDeferredInitialElevationAttempt()
@@ -637,15 +602,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settingsWindow = null;
     }
 
-    private void ShowUninstallerWindow(
-        string installDirectory,
-        InstallScope scope,
-        IProgress<TrayAppDotNETInstallProgress>? progress)
-    {
-        TaskManagerUninstallerWindow uninstaller = new(installDirectory, scope, progress);
-        Window owner = _settingsWindow != null ? _settingsWindow : this;
-        uninstaller.Show(owner);
-    }
+    private Task<bool> ShowUninstallerWindow(InstallScope scope, IProgress<TrayAppDotNETInstallProgress>? progress) =>
+        AppServices.Host?.ShowUninstallerWindow(scope, progress, _settingsWindow != null ? _settingsWindow : this)
+        ?? Task.FromResult(false);
 
     private Control BuildProcessesPage()
     {
@@ -839,7 +798,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
                                            && _searchOverlayPage != null;
     }
 
-    private IntPtr WindowDragWndProcHook(
+    // Keeps the search box clear of the cursor while a maximized window is dragged back to its restored size
+    protected override IntPtr OnWindowMessage(
         IntPtr windowHandle,
         uint message,
         IntPtr wParam,
@@ -960,11 +920,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private void OnWindowClosedForDragHook(object? sender, EventArgs eventArgs)
     {
         ResetRestoredWindowDrag();
-        if (_windowDragWndProcHookAttached && OperatingSystem.IsWindows())
-        {
-            Win32Properties.RemoveWndProcHookCallback(this, _windowDragWndProcHook);
-            _windowDragWndProcHookAttached = false;
-        }
 
         _applicationIconBitmap?.Dispose();
         Closed -= OnWindowClosedForDragHook;
@@ -1000,11 +955,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);
 
-    private async Task RunInitialElevatedTerminationAttemptAsync(IntPtr ownerWindowHandle)
+    private async Task RunInitialElevatedTerminationAttemptAsync()
     {
         try
         {
-            _ = await _processTerminationService.EnableElevatedHelperAsync(ownerWindowHandle);
+            _ = await _processTerminationService.EnableElevatedHelperAsync();
         }
         catch (Exception exception)
         {
@@ -1033,34 +988,31 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         try
         {
             bool enable = await ConfirmAsync(
-                title: "Enable elevated process termination?",
+                title: L(nameof(AppStrings.Window_ElevatedTermination_Title)),
                 ElevatedTerminationExplanation,
-                confirmText: "Enable",
-                cancelText: "Not now");
+                confirmText: L(nameof(AppStrings.Window_ElevatedTermination_Button)),
+                cancelText: L(nameof(AppStrings.Window_ElevatedTermination_NotNow)));
             if (!enable || _allowClose || !IsVisible) return;
 
             if (WindowState == WindowState.Minimized)
                 WindowState = WindowState.Normal;
             Activate();
 
-            IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-            ElevatedHelperStatus completedStatus = await _processTerminationService
-                .EnableElevatedHelperAsync(ownerWindowHandle);
+            ElevatedHelperStatus completedStatus = await _processTerminationService.EnableElevatedHelperAsync();
             if (_allowClose || !IsVisible) return;
 
             switch (completedStatus.State)
             {
                 case ElevatedHelperState.Declined:
                     await ShowMessage(
-                        title: "Elevated termination not enabled",
-                        "Windows administrator approval was canceled. Task Manager will continue using its " +
-                        "standard native helper and managed fallback.");
+                        title: L(nameof(AppStrings.Window_ElevatedTermination_Declined_Title)),
+                        L(nameof(AppStrings.Window_ElevatedTermination_Declined_Message)));
                     break;
                 case ElevatedHelperState.Failed:
                     await ShowMessage(
-                        title: "Elevated termination failed",
+                        title: L(nameof(AppStrings.Window_ElevatedTermination_Failed_Title)),
                         string.IsNullOrWhiteSpace(completedStatus.ErrorMessage)
-                            ? "The elevated termination helper could not be started."
+                            ? L(nameof(AppStrings.Window_ElevatedTermination_Failed_Message))
                             : completedStatus.ErrorMessage);
                     break;
             }
@@ -1100,9 +1052,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             if (!await ConfirmAdministratorApprovalAsync()) return ElevatedTerminationRequestOutcome.Declined;
             if (_allowClose || !IsVisible) return ElevatedTerminationRequestOutcome.Unavailable;
 
-            IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-            ElevatedHelperStatus completedStatus = await _processTerminationService
-                .EnableElevatedHelperAsync(ownerWindowHandle);
+            ElevatedHelperStatus completedStatus = await _processTerminationService.EnableElevatedHelperAsync();
             switch (completedStatus.State)
             {
                 case ElevatedHelperState.Ready:
@@ -1129,10 +1079,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         ArgumentNullException.ThrowIfNull(savedSearch);
         return ConfirmAsync(
-            title: "Delete saved search?",
-            $"\"{savedSearch.Name}\" uses a regular expression. Delete this saved search?",
-            confirmText: "Delete",
-            cancelText: "Cancel");
+            title: L(nameof(AppStrings.Window_DeleteSavedSearch_Title)),
+            string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                L(nameof(AppStrings.Window_DeleteSavedSearch_MessageFormat)),
+                savedSearch.Name),
+            confirmText: L(nameof(AppStrings.Window_DeleteSavedSearch_Button)),
+            cancelText: L(nameof(CommonStrings.Common_Cancel)));
     }
 
     private Task<bool> ConfirmRestartExplorerAsync()
@@ -1140,10 +1093,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (_settings.SkipRestartExplorerConfirmation) return Task.FromResult(true);
 
         return ConfirmAsync(
-            title: "Restart Windows Explorer?",
+            title: L(nameof(AppStrings.Window_RestartExplorer_Title)),
             RestartExplorerConfirmationMessage,
-            confirmText: "Restart explorer",
-            cancelText: "Cancel");
+            confirmText: L(nameof(AppStrings.Window_RestartExplorer_Button)),
+            cancelText: L(nameof(CommonStrings.Common_Cancel)));
     }
 
     private Task<bool> ConfirmDisableServiceAsync(WindowsServiceSnapshot service)
@@ -1153,11 +1106,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             ? service.ServiceName
             : service.DisplayName;
         return ConfirmAsync(
-            title: "Disable service?",
-            $"Windows will not start {serviceLabel} again until its startup type is changed. "
-            + "Disabling a running service does not stop its current instance.",
-            confirmText: "Disable",
-            cancelText: "Cancel");
+            title: L(nameof(AppStrings.Window_DisableService_Title)),
+            string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                L(nameof(AppStrings.Window_DisableService_MessageFormat)),
+                serviceLabel),
+            confirmText: L(nameof(AppStrings.Window_DisableService_Button)),
+            cancelText: L(nameof(CommonStrings.Common_Cancel)));
     }
 
     private Task<ExplorerRestartResult> RestartExplorerAsync() =>
@@ -1169,16 +1124,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         if (CriticalProcessActions.TryStart(command, out string errorMessage)) return true;
 
-        _ = ShowMessage(title: "Run new task failed", errorMessage);
+        _ = ShowMessage(title: L(nameof(AppStrings.Window_RunNewTaskFailed_Title)), errorMessage);
         return false;
     }
 
-    private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch
-    {
-        TrayAppDotNETThemeMode.Light => true,
-        TrayAppDotNETThemeMode.Dark => false,
-        _ => _theme.IsLightTheme
-    };
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
@@ -1200,7 +1149,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {
-        if (_allowClose || Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime)
+        if (_allowClose
+            || IsShutdownClose(eventArgs.CloseReason)
+            || Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime)
             return;
 
         eventArgs.Cancel = true;
@@ -1214,6 +1165,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _exitRequested = true;
         Dispatcher.UIThread.Post(_exitApplication);
     }
+
+    /// <summary>
+    /// Application shutdown and Windows shutdown or sign-out must close the window: cancelling them would keep the
+    /// app alive (or block the session end) behind a hidden window.
+    /// </summary>
+    internal static bool IsShutdownClose(WindowCloseReason reason) =>
+        reason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown;
 
     private sealed class TaskManagerSidebarHeader : Grid
     {

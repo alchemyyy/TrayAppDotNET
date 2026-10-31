@@ -1,41 +1,48 @@
-using System.Globalization;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>Why a brokered request could not be serviced, when it was not.</summary>
-internal enum BrokerStartOutcome
+/// <summary>Whether a brokered request was serviced, and why not when it was not.</summary>
+internal enum BrokerAttemptOutcome
 {
     Ready,
     Declined,
-    Failed
+    Failed,
+
+    /// <summary>The request was sent but no answer came in time; the broker may still complete it.</summary>
+    TimedOut
 }
 
-/// <summary>The result of asking the broker to run one op: either it was serviced, or it never started.</summary>
+/// <summary>The result of asking the broker to run one op: either it was serviced, or why it was not.</summary>
 internal readonly record struct BrokerAttempt(
     bool Serviced,
-    BrokerStartOutcome StartOutcome,
+    BrokerAttemptOutcome Outcome,
     BrokerResponse Response)
 {
-    public static BrokerAttempt NotStarted(BrokerStartOutcome outcome) => new(Serviced: false, outcome, default);
-    public static BrokerAttempt FromResponse(BrokerResponse response) => new(Serviced: true, BrokerStartOutcome.Ready, response);
+    public static BrokerAttempt NotServiced(BrokerAttemptOutcome outcome) => new(Serviced: false, outcome, default);
+    public static BrokerAttempt FromResponse(BrokerResponse response) => new(Serviced: true, BrokerAttemptOutcome.Ready, response);
 }
 
 /// <summary>
-/// Medium-integrity client for the elevated broker. On the first request it prompts once (in-app
+/// Medium-integrity client for the elevated broker. On the first request it prompts (in-app
 /// confirmation, then the Windows UAC prompt) to launch "tmtadn.exe --elevated-broker"; the broker
-/// then persists for the session and every later request reuses the same connection with no further
-/// prompt. A declined consent is remembered for the session so the user is not re-prompted on every
-/// subsequent privileged action.
+/// serves this one connection for as long as it stays up, so later requests reuse it with no further
+/// prompt. When the connection drops (the broker exited, crashed or timed out) the next request
+/// prompts again and launches a new broker. A decline is never remembered.
+///
+/// All pipe I/O is asynchronous with a per-operation timeout (<see cref="ElevationBrokerContract.ResponseTimeout"/>),
+/// so a slow or hung broker never blocks the UI thread; a timed-out request drops the connection. The broker's log
+/// lines arrive on the same connection ahead of each response and are written into this app's log.
 /// </summary>
 internal sealed class ElevationBrokerClient : IDisposable
 {
     private const int ConnectAttempts = 25;
     private const int ConnectRetryDelayMilliseconds = 200;
     private const int ConnectTimeoutMilliseconds = 250;
-    private const int ErrorCancelled = 1223;
 
     private readonly Action<string>? _log;
     private readonly SemaphoreSlim _gate = new(initialCount: 1, maxCount: 1);
@@ -66,18 +73,22 @@ internal sealed class ElevationBrokerClient : IDisposable
         await _gate.WaitAsync().ConfigureAwait(true);
         try
         {
-            BrokerStartOutcome startOutcome = await EnsureConnectedAsync(confirmAsync).ConfigureAwait(true);
-            if (startOutcome != BrokerStartOutcome.Ready)
-                return BrokerAttempt.NotStarted(startOutcome);
+            BrokerAttemptOutcome startOutcome = await EnsureConnectedAsync(confirmAsync).ConfigureAwait(true);
+            if (startOutcome != BrokerAttemptOutcome.Ready)
+                return BrokerAttempt.NotServiced(startOutcome);
 
             long correlationId = Interlocked.Increment(ref _correlationCounter);
             BrokerRequest request = new(correlationId, op, processId, creationTimeFileTime, argument, text);
-            if (TrySendAndReceive(request, out BrokerResponse response))
-                return BrokerAttempt.FromResponse(response);
+            (BrokerResponse? response, bool timedOut) = await TrySendAndReceiveAsync(
+                request,
+                ElevationBrokerContract.ResponseTimeout(op)).ConfigureAwait(true);
+            if (response is { } received)
+                return BrokerAttempt.FromResponse(received);
 
-            // The connection dropped mid-request (broker gone); drop it so a later request can relaunch
+            // The connection dropped or timed out mid-request; drop it so a later request can relaunch. A timed-out
+            // request was delivered, so the broker may still finish it after the UI stops waiting.
             DropConnection();
-            return BrokerAttempt.NotStarted(BrokerStartOutcome.Failed);
+            return BrokerAttempt.NotServiced(timedOut ? BrokerAttemptOutcome.TimedOut : BrokerAttemptOutcome.Failed);
         }
         finally
         {
@@ -85,37 +96,38 @@ internal sealed class ElevationBrokerClient : IDisposable
         }
     }
 
-    private async Task<BrokerStartOutcome> EnsureConnectedAsync(Func<Task<bool>> confirmAsync)
+    private async Task<BrokerAttemptOutcome> EnsureConnectedAsync(Func<Task<bool>> confirmAsync)
     {
-        if (_pipe is { IsConnected: true }) return BrokerStartOutcome.Ready;
+        if (_pipe is { IsConnected: true }) return BrokerAttemptOutcome.Ready;
 
         DropConnection();
 
         // A decline is never remembered: every admin action re-prompts until elevation is actually granted
         bool confirmed = await confirmAsync().ConfigureAwait(true);
-        if (!confirmed) return BrokerStartOutcome.Declined;
+        if (!confirmed) return BrokerAttemptOutcome.Declined;
 
         string pipeName = ElevationBrokerContract.CreatePipeName();
-        BrokerStartOutcome launchOutcome = await Task.Run(() => Launch(pipeName)).ConfigureAwait(true);
-        if (launchOutcome != BrokerStartOutcome.Ready) return launchOutcome;
+        BrokerAttemptOutcome launchOutcome = await Task.Run(() => Launch(pipeName)).ConfigureAwait(true);
+        if (launchOutcome != BrokerAttemptOutcome.Ready) return launchOutcome;
 
         return await ConnectAsync(pipeName).ConfigureAwait(true)
-            ? BrokerStartOutcome.Ready
-            : BrokerStartOutcome.Failed;
+            ? BrokerAttemptOutcome.Ready
+            : BrokerAttemptOutcome.Failed;
     }
 
-    private BrokerStartOutcome Launch(string pipeName)
+    private BrokerAttemptOutcome Launch(string pipeName)
     {
         string? executable = Environment.ProcessPath;
         if (string.IsNullOrEmpty(executable))
         {
             _log?.Invoke("ElevationBrokerClient: the process path is unavailable.");
-            return BrokerStartOutcome.Failed;
+            return BrokerAttemptOutcome.Failed;
         }
 
-        string arguments = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{ElevationBrokerContract.ModeArgument} {ElevationBrokerContract.ParentArgument} {Environment.ProcessId} {ElevationBrokerContract.PipeArgument} {pipeName}");
+        string arguments = ElevationBrokerContract.BuildArguments(
+            Environment.ProcessId,
+            ProcessExitWatch.CurrentProcessStartFileTime,
+            pipeName);
         if (ExplorerProcessLauncher.TryShellExecute(
                 executable,
                 arguments,
@@ -123,30 +135,33 @@ internal sealed class ElevationBrokerClient : IDisposable
                 verb: "runas",
                 out int launchError,
                 out string launchErrorMessage))
-            return BrokerStartOutcome.Ready;
+            return BrokerAttemptOutcome.Ready;
 
-        if (launchError == ErrorCancelled)
+        if (TrayAppDotNETElevatedLaunch.IsUserCancelled(launchError))
         {
             _log?.Invoke("ElevationBrokerClient: administrator approval was canceled.");
-            return BrokerStartOutcome.Declined;
+            return BrokerAttemptOutcome.Declined;
         }
 
         _log?.Invoke($"ElevationBrokerClient: broker launch failed: {launchErrorMessage}");
-        return BrokerStartOutcome.Failed;
+        return BrokerAttemptOutcome.Failed;
     }
 
     private async Task<bool> ConnectAsync(string pipeName)
     {
         for (int attempt = 0; attempt < ConnectAttempts; attempt++)
         {
-            NamedPipeClientStream pipe = new(
-                serverName: ".",
-                pipeName,
-                PipeDirection.InOut,
-                PipeOptions.Asynchronous);
+            NamedPipeClientStream pipe = TrayAppDotNETPipeSecurity.CreateClient(pipeName, PipeDirection.InOut);
             try
             {
                 await pipe.ConnectAsync(ConnectTimeoutMilliseconds).ConfigureAwait(true);
+                if (!IsOurBroker(pipe))
+                {
+                    pipe.Dispose();
+                    _log?.Invoke("ElevationBrokerClient: the broker pipe is not served by this app's broker; refusing it.");
+                    return false;
+                }
+
                 _pipe = pipe;
                 _reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
                 _writer = new StreamWriter(pipe, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true };
@@ -170,25 +185,57 @@ internal sealed class ElevationBrokerClient : IDisposable
         return false;
     }
 
-    private bool TrySendAndReceive(BrokerRequest request, out BrokerResponse response)
+    // The broker was started through the shell, so its PID is unknown here: accept a server owned by this account whose
+    // process runs this executable
+    private static bool IsOurBroker(NamedPipeClientStream pipe)
     {
-        response = default;
-        if (_writer == null || _reader == null) return false;
+        if (!TrayAppDotNETPipeSecurity.IsServerOwnedByCurrentUser(pipe)
+            || !TrayAppDotNETPipeSecurity.TryGetServerProcessId(pipe, out int serverProcessId))
+            return false;
 
+        string serverImage = PathNormalization.Normalize(ProcessImagePath.TryGet(serverProcessId));
+        return serverImage.Length > 0
+               && string.Equals(serverImage, PathNormalization.Normalize(Environment.ProcessPath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<(BrokerResponse? Response, bool TimedOut)> TrySendAndReceiveAsync(
+        BrokerRequest request,
+        TimeSpan timeout)
+    {
+        if (_writer == null || _reader == null) return (null, false);
+
+        using CancellationTokenSource timeoutSource = new(timeout);
         try
         {
-            _writer.WriteLine(request.ToWire());
-            string? line = _reader.ReadLine();
-            if (line != null && BrokerResponse.TryParse(line, out response) && response.CorrelationId == request.CorrelationId)
-                return true;
+            await _writer.WriteLineAsync(request.ToWire().AsMemory(), timeoutSource.Token).ConfigureAwait(true);
+            while (true)
+            {
+                string? line = await _reader.ReadLineAsync(timeoutSource.Token).ConfigureAwait(true);
 
-            _log?.Invoke("ElevationBrokerClient: no matching response from the broker.");
-            return false;
+                // The broker writes no log file of its own; its lines arrive ahead of the response
+                if (BrokerLogLine.TryDecode(line, out string brokerMessage))
+                {
+                    _log?.Invoke("[elevated broker] " + brokerMessage);
+                    continue;
+                }
+
+                if (line != null && BrokerResponse.TryParse(line, out BrokerResponse response)
+                                 && response.CorrelationId == request.CorrelationId)
+                    return (response, false);
+
+                _log?.Invoke($"ElevationBrokerClient: no matching response from the broker for {request.Op}.");
+                return (null, false);
+            }
+        }
+        catch (OperationCanceledException) when (timeoutSource.IsCancellationRequested)
+        {
+            _log?.Invoke($"ElevationBrokerClient: {request.Op} timed out after {timeout.TotalSeconds:0} s.");
+            return (null, true);
         }
         catch (Exception exception) when (exception is IOException or ObjectDisposedException)
         {
-            _log?.Invoke($"ElevationBrokerClient.TrySendAndReceive: {exception.Message}");
-            return false;
+            _log?.Invoke($"ElevationBrokerClient.TrySendAndReceiveAsync: {exception.Message}");
+            return (null, false);
         }
     }
 

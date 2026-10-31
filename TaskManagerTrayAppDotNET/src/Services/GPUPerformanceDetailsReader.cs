@@ -89,9 +89,6 @@ internal sealed class GPUPerformanceDetailsReader
             metadata.HardwareReservedMemoryBytes);
     }
 
-    /// <summary>Removes cached metadata after display topology or driver changes.</summary>
-    public void Clear() => _metadata.Clear();
-
     /// <summary>Schedules quick failure retries and periodic successful metadata refreshes.</summary>
     internal static long CalculateNextMetadataRefreshTick(long currentTick, bool hasError)
     {
@@ -124,7 +121,7 @@ internal sealed class GPUPerformanceDetailsReader
             GPUAdapterEngineIdentity identity = catalog[catalogIndex];
             if (identity.EngineIndex < 0) continue;
 
-            string normalizedName = NormalizeEngineName(identity.Name);
+            string normalizedName = GPUEngineNames.Normalize(identity.Name);
             identitiesByIndex.TryAdd(
                 identity.EngineIndex,
                 identity with { Name = normalizedName });
@@ -143,7 +140,7 @@ internal sealed class GPUPerformanceDetailsReader
                     engine.EngineIndex,
                     new GPUAdapterEngineIdentity(
                         engine.EngineIndex,
-                        NormalizeEngineName(engine.Name)));
+                        GPUEngineNames.Normalize(engine.Name)));
             }
         }
 
@@ -204,35 +201,6 @@ internal sealed class GPUPerformanceDetailsReader
         }
 
         return result;
-    }
-
-    /// <summary>Normalizes kernel and PDH spellings to stable user-facing engine names.</summary>
-    internal static string NormalizeEngineName(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "GPU Engine";
-
-        ReadOnlySpan<char> value = name.AsSpan().Trim();
-        int duplicateSuffixIndex = value.IndexOf('#');
-        if (duplicateSuffixIndex >= 0)
-            value = value[..duplicateSuffixIndex];
-
-        string compactName =
-            string.Concat(value.ToString().Where(static character => character is not ' ' and not '-' and not '_'));
-        return compactName.ToLowerInvariant() switch
-        {
-            "3d" => "3D",
-            "copy" => "Copy",
-            "compute" => "Compute",
-            "videodecode" => "Video Decode",
-            "videoencode" => "Video Encode",
-            "videoprocessing" => "Video Processing",
-            "sceneassembly" => "Scene Assembly",
-            "opticalflow" => "Optical Flow",
-            "overlay" => "Overlay",
-            "crypto" => "Crypto",
-            "videocodec" => "Video Codec",
-            _ => value.ToString()
-        };
     }
 
     private static GPUPerformanceDetailEngineSnapshot[] CreateEngineSamples(

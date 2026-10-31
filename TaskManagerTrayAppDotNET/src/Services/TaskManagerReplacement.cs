@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
@@ -25,6 +26,12 @@ internal readonly record struct TaskManagerReplacementState(
 /// Manager through CreateProcess (Ctrl+Shift+Esc, the Ctrl+Alt+Del screen, the taskbar menu, Win+X,
 /// or running taskmgr from Run) launches tmtadn instead.
 ///
+/// Because the value applies to every account, it may only ever point at the Program Files system
+/// install: a per-user or portable copy lives in one user's writable profile and disappears with a
+/// per-user uninstall, which would leave taskmgr.exe broken for everyone. Ownership is decided by the
+/// full executable path, never the file name, so removing one copy never deletes a redirect that
+/// another copy (or another tool) owns.
+///
 /// Writing and removing the value needs administrator rights (HKLM), so the settings toggle relaunches
 /// this executable elevated with <see cref="ConfigureModeArgument"/>; that relaunch performs the
 /// registry change and exits without starting the UI. Redirected taskmgr launches arrive with the
@@ -42,7 +49,6 @@ internal static class TaskManagerReplacement
 
     private const int ConfigureSuccessExitCode = 0;
     private const int ConfigureFailureExitCode = 2;
-    private const int ErrorCancelled = 1223;
     private const int ActivationTimeoutMilliseconds = 1_500;
 
     /// <summary>Reads the current redirect state from the registry.</summary>
@@ -52,9 +58,22 @@ internal static class TaskManagerReplacement
         if (string.IsNullOrWhiteSpace(registered))
             return new TaskManagerReplacementState(IsEnabled: false, PointsElsewhere: false, RegisteredExecutable: null);
 
-        bool pointsAtThisApp = PointsAtThisApp(registered);
+        bool pointsAtThisApp = IsOwnedBy(registered, OwnedExecutables());
         return new TaskManagerReplacementState(pointsAtThisApp, PointsElsewhere: !pointsAtThisApp, registered);
     }
+
+    /// <summary>
+    /// Returns true when the replacement can be turned on: only a Program Files system install may be registered
+    /// machine-wide.
+    /// </summary>
+    public static bool IsAvailable => File.Exists(SystemInstallExecutable);
+
+    /// <summary>
+    /// Returns whether the settings toggle may be used: turning the redirect on needs a system install, while a
+    /// redirect this copy owns can always be turned off.
+    /// </summary>
+    internal static bool CanToggle(bool systemInstallExists, TaskManagerReplacementState state) =>
+        systemInstallExists || state.IsEnabled;
 
     /// <summary>Returns true when the arguments describe an IFEO-redirected taskmgr.exe launch.</summary>
     public static bool IsRedirectedLaunch(string[] arguments)
@@ -83,6 +102,18 @@ internal static class TaskManagerReplacement
         return TaskManagerActivationServer.TryActivateRunningInstance(ActivationTimeoutMilliseconds, TADNLog.Log);
     }
 
+    /// <summary>Returns true when this launch is the elevated taskmgr.exe redirect change.</summary>
+    public static bool IsElevatedConfigureLaunch(string[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return FindConfigureModeIndex(arguments) >= 0;
+    }
+
+    private static int FindConfigureModeIndex(string[] arguments) =>
+        Array.FindIndex(
+            arguments,
+            argument => string.Equals(argument, ConfigureModeArgument, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// Performs the elevated registry change when launched with <see cref="ConfigureModeArgument"/>.
     /// Runs before the UI and single-instance machinery so it neither shows a window nor takes over a
@@ -94,9 +125,7 @@ internal static class TaskManagerReplacement
         ArgumentNullException.ThrowIfNull(arguments);
         exitCode = ConfigureSuccessExitCode;
 
-        int modeIndex = Array.FindIndex(
-            arguments,
-            argument => string.Equals(argument, ConfigureModeArgument, StringComparison.OrdinalIgnoreCase));
+        int modeIndex = FindConfigureModeIndex(arguments);
         if (modeIndex < 0) return false;
 
         string? mode = modeIndex + 1 < arguments.Length ? arguments[modeIndex + 1] : null;
@@ -142,10 +171,17 @@ internal static class TaskManagerReplacement
                 if (process == null) return TaskManagerReplacementResult.Failed;
 
                 process.WaitForExit();
-                if (process.ExitCode != ConfigureSuccessExitCode) return TaskManagerReplacementResult.Failed;
+                if (process.ExitCode != ConfigureSuccessExitCode)
+                {
+                    // The elevated configure process writes no log file; its exit code is the whole report
+                    TADNLog.Log(
+                        $"TaskManagerReplacement.SetEnabledElevatedAsync: the elevated change exited with code {process.ExitCode}.");
+                    return TaskManagerReplacementResult.Failed;
+                }
+
                 return enable ? TaskManagerReplacementResult.Enabled : TaskManagerReplacementResult.Disabled;
             }
-            catch (Win32Exception exception) when (exception.NativeErrorCode == ErrorCancelled)
+            catch (Win32Exception exception) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(exception))
             {
                 // The user declined the UAC prompt
                 return TaskManagerReplacementResult.Declined;
@@ -159,47 +195,72 @@ internal static class TaskManagerReplacement
     }
 
     /// <summary>
-    /// Removes the redirect during uninstall so Ctrl+Shift+Esc never points at a deleted executable.
-    /// Only removes a redirect that targets this application, and only succeeds when the caller is
-    /// elevated (a system uninstall); a per-user uninstall logs and moves on.
+    /// Removes the redirect during uninstall so Ctrl+Shift+Esc never points at a deleted executable. Only a
+    /// redirect whose full path is the executable of the copy being removed is deleted, so uninstalling one copy
+    /// never removes a redirect that another copy or another tool owns. HKLM needs elevation: a system uninstall
+    /// has it; a per-user copy is never registered by current builds, and a stale registration left by an older
+    /// build is logged because an unelevated uninstall cannot remove it. Returns false only when a matching
+    /// redirect could not be removed.
     /// </summary>
-    public static void RemoveForUninstall()
+    public static bool RemoveForUninstall(InstallScope removingScope)
     {
-        if (!RedirectPointsAtThisApp()) return;
-        _ = IfeoRegistry.RemoveDebugger(TaskManagerImageName, TADNLog.Log);
+        string? registered = IfeoRegistry.GetDebuggerExecutable(TaskManagerImageName, TADNLog.Log);
+        string removedExecutable = removingScope switch
+        {
+            InstallScope.ProgramFiles => SystemInstallExecutable,
+            InstallScope.LocalAppData => AppServices.Install.Layout.LocalAppDataInstallExecutable,
+            _ => Environment.ProcessPath ?? string.Empty
+        };
+        if (!IsOwnedBy(registered, [removedExecutable])) return true;
+
+        if (IfeoRegistry.RemoveDebugger(TaskManagerImageName, TADNLog.Log)) return true;
+        TADNLog.Log(
+            $"TaskManagerReplacement.RemoveForUninstall: taskmgr.exe still redirects to '{registered}', which this " +
+            "uninstall removes; an administrator must turn the replacement off or delete the IFEO Debugger value.");
+        return false;
     }
 
-    /// <summary>Resolves the executable to register: the stable system install when present, else this process.</summary>
-    internal static string ResolveTargetExecutable()
-    {
-        string programFilesExecutable = AppServices.InstallLayout.ProgramFilesInstallExecutable;
-        if (File.Exists(programFilesExecutable)) return programFilesExecutable;
-        return Environment.ProcessPath ?? programFilesExecutable;
-    }
+    /// <summary>The only executable the machine-wide redirect may point at.</summary>
+    internal static string SystemInstallExecutable => AppServices.Install.Layout.ProgramFilesInstallExecutable;
 
-    /// <summary>Returns true when the resolved target is the machine-wide system install path.</summary>
-    internal static bool TargetIsSystemInstall() =>
-        string.Equals(
-            Path.GetFullPath(ResolveTargetExecutable()),
-            Path.GetFullPath(AppServices.InstallLayout.ProgramFilesInstallExecutable),
-            StringComparison.OrdinalIgnoreCase)
-        && File.Exists(AppServices.InstallLayout.ProgramFilesInstallExecutable);
-
-    internal static bool PointsAtThisApp(string? registeredExecutable)
+    /// <summary>
+    /// Returns true when the registered Debugger executable is exactly one of the candidate executables (full,
+    /// normalized, case-insensitive path comparison; a file with the same name in another folder never matches).
+    /// </summary>
+    internal static bool IsOwnedBy(string? registeredExecutable, IReadOnlyList<string?> candidateExecutables)
     {
         if (string.IsNullOrWhiteSpace(registeredExecutable)) return false;
-        return string.Equals(
-            Path.GetFileName(registeredExecutable.Trim()),
-            ExpectedExecutableFileName,
-            StringComparison.OrdinalIgnoreCase);
+        string registered = registeredExecutable.Trim().Trim('"');
+        if (!Path.IsPathFullyQualified(registered)) return false;
+        string normalizedRegistered = PathNormalization.Normalize(registered);
+        for (int index = 0; index < candidateExecutables.Count; index++)
+        {
+            string? candidate = candidateExecutables[index];
+            if (string.IsNullOrWhiteSpace(candidate) || !Path.IsPathFullyQualified(candidate)) continue;
+            if (string.Equals(
+                    normalizedRegistered,
+                    PathNormalization.Normalize(candidate),
+                    StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
+
+    /// <summary>
+    /// The executables whose redirect this copy may report as its own and turn off: the system install, plus this
+    /// process's own path so a stale registration made by an older per-user build can still be removed.
+    /// </summary>
+    private static string?[] OwnedExecutables() => [SystemInstallExecutable, Environment.ProcessPath];
 
     private static bool EnableRedirection()
     {
-        string target = ResolveTargetExecutable();
-        if (string.IsNullOrEmpty(target) || !File.Exists(target))
+        string target = SystemInstallExecutable;
+        if (!File.Exists(target))
         {
-            TADNLog.Log($"TaskManagerReplacement.EnableRedirection: target '{target}' does not exist.");
+            TADNLog.Log(
+                $"TaskManagerReplacement.EnableRedirection: no system install at '{target}'; only a Program Files " +
+                "install can replace Task Manager.");
             return false;
         }
 
@@ -208,13 +269,9 @@ internal static class TaskManagerReplacement
 
     private static bool DisableRedirection()
     {
-        // Never clobber a redirect that some other tool (for example Process Explorer) installed
-        if (!RedirectPointsAtThisApp()) return true;
+        // Never clobber a redirect that some other tool (for example Process Explorer) or another copy installed
+        if (!IsOwnedBy(IfeoRegistry.GetDebuggerExecutable(TaskManagerImageName, TADNLog.Log), OwnedExecutables()))
+            return true;
         return IfeoRegistry.RemoveDebugger(TaskManagerImageName, TADNLog.Log);
     }
-
-    private static bool RedirectPointsAtThisApp() =>
-        PointsAtThisApp(IfeoRegistry.GetDebuggerExecutable(TaskManagerImageName, TADNLog.Log));
-
-    private static string ExpectedExecutableFileName => Constants.ApplicationName + ".exe";
 }

@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
@@ -89,7 +90,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         bool isLightTheme,
         PerformanceSnapshotService snapshotService,
         string? initialSelectedDeviceID)
-        : base(title: "Performance", palette, resources, isLightTheme)
+        : base(title: L(nameof(AppStrings.Page_Performance)), palette, resources, isLightTheme)
     {
         _settings = settings;
         _palette = palette;
@@ -148,7 +149,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         MainContent.Children.Add(details);
 
         _detailTitle = TrayAppDotNETSettingsUI.Text(
-            text: "Performance",
+            text: L(nameof(AppStrings.Page_Performance)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailTitleFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
@@ -172,8 +173,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         details.Children.Add(detailHeader);
 
         _detailGraphLabel = TrayAppDotNETSettingsUI.Text(
-            string.Concat(
-                str0: "% Utilization over ",
+            F(
+                nameof(AppStrings.Perf_Graph_UtilizationOverFormat),
                 PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
@@ -972,46 +973,38 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     internal static string FormatNetworkTransferHoverMetric(
         double sendBytesPerSecond,
         double receiveBytesPerSecond) =>
-        string.Concat(
-            str0: "Send: ",
+        F(
+            nameof(AppStrings.Perf_Hover_SendReceiveFormat),
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
-            str2: "\nReceive: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
 
     internal static string FormatCPUOverallHoverMetric(
         double highestCPUUtilizationPercent,
         double overallUtilizationPercent) =>
-        string.Concat(
-            str0: "Highest LP: ",
-            PerformanceDevicePresentationFactory.FormatPercent(
-                isAvailable: true,
-                highestCPUUtilizationPercent),
-            str2: "\nOverall util: ",
-            PerformanceDevicePresentationFactory.FormatPercent(
-                isAvailable: true,
-                overallUtilizationPercent));
+        F(
+            nameof(AppStrings.Perf_Hover_CPUOverallFormat),
+            PerformanceDevicePresentationFactory.FormatPercent(isAvailable: true, highestCPUUtilizationPercent),
+            PerformanceDevicePresentationFactory.FormatPercent(isAvailable: true, overallUtilizationPercent));
 
     internal static string FormatNetworkDeviceColumnHoverMetric(
         double sendBytesPerSecond,
         double receiveBytesPerSecond) =>
-        string.Concat(
-            str0: "S: ",
+        F(
+            nameof(AppStrings.Perf_Hover_ShortSendReceiveFormat),
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
-            str2: "\nR: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
 
     internal static string FormatDiskTransferHoverMetric(
         double readBytesPerSecond,
         double writeBytesPerSecond) =>
-        string.Concat(
-            str0: "R: ",
+        F(
+            nameof(AppStrings.Perf_Hover_ShortReadWriteFormat),
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(readBytesPerSecond),
-            str2: "\nW: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(writeBytesPerSecond));
 
     internal static string FormatMemoryDeviceColumnHoverMetric(double usedBytes)
     {
-        if (!double.IsFinite(usedBytes) || usedBytes < 0) return "Unavailable";
+        if (!double.IsFinite(usedBytes) || usedBytes < 0) return Unavailable;
 
         double usedGigabytes = usedBytes / BytesPerGibibyte;
         return string.Concat(
@@ -1228,7 +1221,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         CloseCPUGraphContextMenu();
         ContextMenuEntryBuilder entries = new();
         entries.Add(new ContextMenuEntry(
-            Text: "Logical processors",
+            Text: L(nameof(AppStrings.Perf_Label_LogicalProcessors)),
             () => SetCPUGraphView(CPUPerformanceGraphView.LogicalProcessors))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
@@ -1238,7 +1231,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Node = ControlMap.CPUGraphMenu.LogicalProcessors
         });
         entries.Add(new ContextMenuEntry(
-            Text: "Overall utilization",
+            Text: L(nameof(AppStrings.Perf_CPUView_OverallUtilization)),
             () => SetCPUGraphView(CPUPerformanceGraphView.OverallUtilization))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
@@ -1248,7 +1241,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Node = ControlMap.CPUGraphMenu.OverallUtilization
         });
         entries.Add(new ContextMenuEntry(
-            Text: "Detailed view",
+            Text: L(nameof(AppStrings.Perf_CPUView_DetailedView)),
             () => SetCPUGraphView(CPUPerformanceGraphView.DetailedView))
         {
             TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
@@ -1313,7 +1306,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _selectedDeviceID,
                 out PerformanceDevicePresentation? selectedDevice))
         {
-            _detailTitle.Text = "No devices";
+            _detailTitle.Text = L(nameof(AppStrings.Perf_NoDevices));
             _detailHardwareName.Text = string.Empty;
             _detailGraphLabel.Text = string.Empty;
             _detailGraph.SetSecondaryHistory(null);
@@ -1660,7 +1653,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
             PointerEntered += OnPointerEntered;
             PointerExited += OnPointerExited;
-            TrayAppDotNETToolTip.SetTip(this, tip: "Select or drag to reorder. Use Ctrl+Up/Down from the keyboard.");
+            TrayAppDotNETToolTip.SetTip(this, tip: L(nameof(AppStrings.Perf_DeviceColumn_ReorderTip)));
             UpdateSurface();
         }
 

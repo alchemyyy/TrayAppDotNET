@@ -82,7 +82,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         Func<Task<ExplorerRestartResult>> restartExplorer,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
-        : base(title: "Processes", palette, resources, isLightTheme)
+        : base(title: LocalizationManager.Instance[nameof(AppStrings.Page_Processes)], palette, resources, isLightTheme)
     {
         _snapshotService = snapshotService;
         _settings = settings;
@@ -150,16 +150,16 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             reportMessage);
 
         HeaderActions.MapTo(ControlMap.Main.ProcessesPage.CommandBar.ID);
-        _runTaskButton = TrayAppDotNETSettingsUI.Button(text: "Run new task", palette)
+        _runTaskButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_RunNewTask)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.CommandBar.RunNewTask);
         _runTaskButton.Click += OnRunTaskClick;
-        _restartExplorerButton = TrayAppDotNETSettingsUI.Button(text: "Restart explorer", palette)
+        _restartExplorerButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.Window_RestartExplorer_Button)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.CommandBar.RestartExplorer);
         _restartExplorerButton.Click += OnRestartExplorerClick;
-        _columnsButton = TrayAppDotNETSettingsUI.Button(text: "Columns..", palette)
+        _columnsButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.Processes_ColumnsButton)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.CommandBar.Columns);
         _columnsButton.Click += OnColumnsClick;
-        _endTaskButton = TrayAppDotNETSettingsUI.Button(text: "End task", palette)
+        _endTaskButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.Confirm_EndTask_SingleButton)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.CommandBar.EndTask);
         _endTaskButton.IsEnabled = false;
         _endTaskButton.Click += OnEndTaskClick;
@@ -175,7 +175,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _moreActionsButton.Padding = resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
         _moreActionsButton.Label.FontSize = resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
         _moreActionsButton.Click += OnMoreActionsClick;
-        TrayAppDotNETToolTip.SetTip(_moreActionsButton, tip: "More");
+        TrayAppDotNETToolTip.SetTip(_moreActionsButton, tip: LocalizationManager.Instance[nameof(AppStrings.Processes_More)]);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_moreActionsButton);
         _groupProcessesHeaderControl = BuildGroupProcessesHeaderControl(palette, resources);
         PopulateHeaderActions();
@@ -183,15 +183,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
-        _searchBox.PlaceholderText = "Search by name, PID, or enter an expression";
+        _searchBox.PlaceholderText = LocalizationManager.Instance[nameof(AppStrings.Processes_SearchPlaceholder)];
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.TextChanged += OnSearchTextChanged;
         _searchBox.MapTo(ControlMap.Main.ProcessesPage.Search.SearchText);
         TrayAppDotNETToolTip.SetTip(
             _searchBox,
-            "Name/PID contains search is the default. Expressions support =, !=, <, <=, >, >=, &&, and ||.\n"
-            + "Regex uses =~ or !~. Example: {Name}=~\"^(chrome|firefox)\\.exe$\".\n"
-            + "Lifetime example: {Lifetime}>=1h&&{Lifetime}<2h. Type { and press Tab to complete a column.");
+            LocalizationManager.Instance[nameof(AppStrings.Processes_SearchHelp)]);
         _searchAutocomplete = new ProcessSearchAutocompleteController(
             _searchBox,
             settings.DetailsColumns,
@@ -242,13 +240,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             resources.AxamlTaskManagerDetails.RunInputWidth);
         _runInput.Width = double.NaN;
         _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _runInput.PlaceholderText = "Executable, document, or URI";
+        _runInput.PlaceholderText = LocalizationManager.Instance[nameof(AppStrings.Processes_Run_Placeholder)];
         _runInput.KeyDown += OnRunInputKeyDown;
         _runInput.MapTo(ControlMap.Main.ProcessesPage.RunPanel.CommandText);
-        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: "Run", palette)
+        _submitRunButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(AppStrings.Processes_Run_Button)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.RunPanel.Run);
         _submitRunButton.Click += OnSubmitRunClick;
-        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: "Cancel", palette)
+        _cancelRunButton = TrayAppDotNETSettingsUI.Button(text: LocalizationManager.Instance[nameof(CommonStrings.Common_Cancel)], palette)
             .MapTo(ControlMap.Main.ProcessesPage.RunPanel.Cancel);
         _cancelRunButton.Click += OnCancelRunClick;
         _runPanel = BuildRunPanel(palette, resources);
@@ -381,7 +379,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         TaskManagerWindowResources resources)
     {
         TextBlock label = TrayAppDotNETSettingsUI.Text(
-            text: "Group processes",
+            text: LocalizationManager.Instance[nameof(AppStrings.Processes_GroupProcesses)],
             palette,
             resources.AxamlTaskManagerDetails.ToolbarFontSize,
             (FontWeight)resources.AxamlTaskManagerDetails.ToolbarFontWeight);
@@ -645,7 +643,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         int selectedCount = _processCanvas.SelectedProcessCount;
         _endTaskButton.IsEnabled = selectedCount > 0;
-        _endTaskButton.Text = selectedCount > 1 ? "End tasks" : "End task";
+        _endTaskButton.Text = selectedCount > 1 ? LocalizationManager.Instance[nameof(AppStrings.Confirm_EndTask_MultipleButton)] : LocalizationManager.Instance[nameof(AppStrings.Confirm_EndTask_SingleButton)];
         _armTerminationTarget(target);
     }
 
@@ -798,7 +796,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
         CloseHeaderActionsMenu();
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Arrange buttons", ShowHeaderButtonArrangement)
+        entries.Add(new ContextMenuEntry(Text: LocalizationManager.Instance[nameof(AppStrings.HeaderButtons_Arrange_Title)], ShowHeaderButtonArrangement)
         {
             Node = ControlMap.ProcessMoreMenu.ArrangeButtons
         });
@@ -822,24 +820,24 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             case ElevatedHelperState.NotRequested:
                 AddElevatedTerminationEntry(
                     entries,
-                    text: "Enable elevated termination...",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedTermination_Enable)],
                     _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Declined:
             case ElevatedHelperState.Failed:
                 AddElevatedTerminationEntry(
                     entries,
-                    text: "Retry elevated termination...",
+                    text: LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedTermination_Retry)],
                     _requestElevatedTermination);
                 break;
             case ElevatedHelperState.Starting:
-                AddElevatedTerminationEntry(entries, text: "Waiting for Windows approval", static () => { });
+                AddElevatedTerminationEntry(entries, text: LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedTermination_Waiting)], static () => { });
                 break;
             case ElevatedHelperState.Ready:
-                AddElevatedTerminationEntry(entries, text: "Elevated termination enabled", static () => { });
+                AddElevatedTerminationEntry(entries, text: LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedTermination_Enabled)], static () => { });
                 break;
             case ElevatedHelperState.Disposed:
-                AddElevatedTerminationEntry(entries, text: "Elevated termination unavailable", static () => { });
+                AddElevatedTerminationEntry(entries, text: LocalizationManager.Instance[nameof(AppStrings.Processes_ElevatedTermination_Unavailable)], static () => { });
                 break;
         }
     }
@@ -1009,7 +1007,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             if (_disposed) return;
             if (!result.Succeeded)
             {
-                _reportMessage(arg1: "Restart explorer failed", result.ErrorMessage);
+                _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_RestartExplorer)], result.ErrorMessage);
                 return;
             }
 
@@ -1018,7 +1016,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         catch (Exception exception)
         {
             TADNLog.Log($"Restart Explorer failed: {exception}");
-            if (!_disposed) _reportMessage(arg1: "Restart explorer failed", exception.Message);
+            if (!_disposed) _reportMessage(arg1: LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_RestartExplorer)], exception.Message);
         }
         finally
         {
@@ -1055,7 +1053,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
                 _reportMessage(
-                    request.Count > 1 ? "End tasks failed" : "End task failed",
+                    request.Count > 1 ? LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTasks)] : LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTask)],
                     result.ErrorMessage);
                 return;
             }
@@ -1066,7 +1064,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             if (!_disposed)
             {
                 _reportMessage(
-                    request.Count > 1 ? "End tasks failed" : "End task failed",
+                    request.Count > 1 ? LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTasks)] : LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTask)],
                     exception.Message);
             }
         }

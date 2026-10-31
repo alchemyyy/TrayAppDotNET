@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using TaskManagerTrayAppDotNET.Services;
@@ -34,7 +35,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         bool isLightTheme,
         Func<string, bool> startProcess)
         : base(
-            title: "App history",
+            title: L(nameof(AppStrings.AppHistory_Title)),
             ControlMap.Main.AppHistoryPage.ID,
             CreateSchema(resources),
             processIconService,
@@ -43,7 +44,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: "Search app history")
+            searchPlaceholder: L(nameof(AppStrings.AppHistory_SearchPlaceholder)))
     {
         _snapshotService = snapshotService;
         _historyStore = historyStore;
@@ -52,7 +53,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             AppHistoryStore.RequiredColumnMask);
 
         _deleteHistoryButton = new SettingsButton(
-            text: "Delete usage history",
+            text: L(nameof(AppStrings.AppHistory_DeleteUsageHistory)),
             palette,
             transparentBase: true)
         {
@@ -77,23 +78,23 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         [
             new TaskManagerTableColumn(
                 Key: "name",
-                Title: "Name",
+                Title: L(nameof(AppStrings.AppHistory_Column_Name)),
                 resources.AxamlTaskManagerTable.AppHistoryNameColumnWidth),
             new TaskManagerTableColumn(
                 Key: "cpuTime",
-                Title: "CPU time",
+                Title: L(nameof(AppStrings.AppHistory_Column_CPUTime)),
                 resources.AxamlTaskManagerTable.AppHistoryCPUTimeColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "network",
-                Title: "Network",
+                Title: L(nameof(AppStrings.AppHistory_Column_Network)),
                 resources.AxamlTaskManagerTable.AppHistoryNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true),
             new TaskManagerTableColumn(
                 Key: "notifications",
-                Title: "Notifications",
+                Title: L(nameof(AppStrings.AppHistory_Column_Notifications)),
                 resources.AxamlTaskManagerTable.AppHistoryNotificationsColumnWidth,
                 TaskManagerTableAlignment.Right,
                 SortDescendingByDefault: true)
@@ -120,6 +121,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
 
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _refreshRequested = false;
+        _historyStore.PauseSampling();
     }
 
     private void OnSnapshotAvailable() =>
@@ -186,7 +188,7 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             AppHistoryEntry entry = snapshot.Entries[entryIndex];
             TaskManagerTableCell notifications = entry.NotificationsAvailable
                 ? TaskManagerTableCell.SignedCell(
-                    entry.NotificationCount.ToString("N0"),
+                    entry.NotificationCount.ToString("N0", CultureInfo.CurrentCulture),
                     entry.NotificationCount)
                 : TaskManagerTableCell.Empty;
             rows.Add(new TaskManagerTableRow
@@ -220,20 +222,20 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
 
     private void UpdateHistoryDescription()
     {
-        _historyDescription.Text = string.Concat(
-            str0: "Resource usage collected by TaskManagerTrayAppDotNET since ",
-            _historyStore.StartedAt.ToString("g"),
-            str2: " for current user and system accounts.");
+        _historyDescription.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            L(nameof(AppStrings.AppHistory_DescriptionFormat)),
+            _historyStore.StartedAt.ToString("g", CultureInfo.CurrentCulture));
     }
 
     private void OnMoreClick(object? sender, EventArgs eventArgs)
     {
         ContextMenuEntryBuilder entries = new();
-        entries.Add(new ContextMenuEntry(Text: "Refresh", _snapshotService.RequestRefresh)
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.Common_Refresh)), _snapshotService.RequestRefresh)
         {
             Node = ControlMap.AppHistoryMoreMenu.Refresh
         });
-        entries.Add(new ContextMenuEntry(Text: "Delete usage history", () =>
+        entries.Add(new ContextMenuEntry(Text: L(nameof(AppStrings.AppHistory_DeleteUsageHistory)), () =>
         {
             _historyStore.DeleteHistory();
             UpdateHistoryDescription();
@@ -251,6 +253,8 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         _deleteHistoryButton.Click -= OnDeleteHistoryClick;
         base.Dispose();
     }
+
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private sealed record AppHistoryRenderData(
         long Version,

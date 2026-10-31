@@ -31,13 +31,6 @@ internal sealed unsafe class NetworkPerformanceSampler
     private readonly HashSet<string> _activeDeviceIDs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<NetworkCandidate> _candidates = [];
 
-    /// <summary>Discards byte-counter baselines after sampling has been paused.</summary>
-    internal void ResetCounterBaselines()
-    {
-        _previousCounters.Clear();
-        _activeDeviceIDs.Clear();
-    }
-
     /// <summary>Captures connected hardware interfaces and excludes filters, tunnels, and endpoints.</summary>
     public NetworkPerformanceSnapshot[] Sample(long timestamp)
     {

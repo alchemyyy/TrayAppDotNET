@@ -1,3 +1,4 @@
+using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -91,7 +92,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _dedicatedMemoryGraph = new PerformanceMetricHistoryGraph(
             _dedicatedMemoryHistory,
             secondaryHistory: null,
-            primaryLabel: "Dedicated GPU memory",
+            primaryLabel: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)),
             string.Empty,
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
@@ -103,9 +104,9 @@ internal sealed class GPUPerformanceDetailsView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         Grid dedicatedCell = BuildGraphCell(
-            title: "Dedicated GPU memory",
+            title: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)),
             _dedicatedMemoryGraph,
-            initialValue: "Unavailable",
+            initialValue: Unavailable,
             out _,
             out _dedicatedCapacityLabel);
         SetRow(dedicatedCell, value: 2);
@@ -115,7 +116,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _sharedMemoryGraph = new PerformanceMetricHistoryGraph(
             _sharedMemoryHistory,
             secondaryHistory: null,
-            primaryLabel: "Shared GPU memory",
+            primaryLabel: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)),
             string.Empty,
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
@@ -127,9 +128,9 @@ internal sealed class GPUPerformanceDetailsView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         Grid sharedCell = BuildGraphCell(
-            title: "Shared GPU memory",
+            title: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)),
             _sharedMemoryGraph,
-            initialValue: "Unavailable",
+            initialValue: Unavailable,
             out _,
             out _sharedCapacityLabel);
         SetRow(sharedCell, value: 3);
@@ -228,7 +229,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
                     ? PerformanceDevicePresentationFactory.FormatPercent(
                         isAvailable: true,
                         utilizationPercent)
-                    : "Unavailable";
+                    : Unavailable;
             }
 
             if (selectedGPU.HasDedicatedMemoryData)
@@ -393,10 +394,10 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _sharedMemoryGraph.SetMaximumValue(sharedCapacity);
         _dedicatedCapacityLabel.Text = dedicatedCapacityBytes > 0
             ? PerformanceDevicePresentationFactory.FormatBytes(dedicatedCapacityBytes)
-            : "Unavailable";
+            : Unavailable;
         _sharedCapacityLabel.Text = GPU.SharedMemoryCapacityBytes > 0
             ? PerformanceDevicePresentationFactory.FormatBytes(GPU.SharedMemoryCapacityBytes)
-            : "Unavailable";
+            : Unavailable;
     }
 
     private void RefreshGraphs()

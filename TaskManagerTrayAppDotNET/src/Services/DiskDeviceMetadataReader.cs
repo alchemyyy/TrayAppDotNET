@@ -3,11 +3,12 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using TaskManagerTrayAppDotNET.Interop;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Reads physical-disk volume roles and media behavior through native storage APIs.</summary>
-internal sealed class DiskDeviceMetadataReader
+internal static class DiskDeviceMetadataReader
 {
     private const uint FileShareRead = 0x00000001;
     private const uint FileShareWrite = 0x00000002;
@@ -23,14 +24,11 @@ internal sealed class DiskDeviceMetadataReader
     private const int VolumeNameBufferLength = 1_024;
     private const int InitialPathBufferLength = 256;
     private const int MaximumPathBufferLength = 32_768;
-    private const int InitialDosDeviceBufferLength = 32_768;
-    private const int MaximumDosDeviceBufferLength = 1_048_576;
     private const int InitialExtentBufferLength = 256;
     private const int MaximumExtentBufferLength = 1_048_576;
     private const int VolumeExtentArrayOffset = 8;
     private const int DiskExtentSize = 24;
     private const int DiskExtentLengthOffset = 16;
-    private const int ErrorInsufficientBuffer = 122;
     private const int ErrorMoreData = 234;
     private const string ExtendedPathPrefix = @"\\?\";
     private const string NativeDosPathPrefix = @"\??\";
@@ -38,7 +36,7 @@ internal sealed class DiskDeviceMetadataReader
     private const string SystemRootPrefix = @"\SystemRoot";
 
     /// <summary>Reads metadata for every currently exposed physical disk.</summary>
-    public DiskDeviceMetadataSnapshot[] Read()
+    public static DiskDeviceMetadataSnapshot[] Read()
     {
         uint[] physicalDiskNumbers = DiskPerformanceSampler.EnumeratePhysicalDiskNumbers();
         return Read(physicalDiskNumbers);
@@ -334,7 +332,7 @@ internal sealed class DiskDeviceMetadataReader
                 StringComparison.Ordinal)
                 ? volumeName[ExtendedPathPrefix.Length..]
                 : volumeName;
-            string[] nativePaths = QueryDosDeviceTargets(queryName);
+            string[] nativePaths = DosDevices.QueryTargets(queryName);
             for (int pathIndex = 0; pathIndex < nativePaths.Length; pathIndex++)
             {
                 string nativePath = nativePaths[pathIndex].TrimEnd(Path.DirectorySeparatorChar);
@@ -348,30 +346,6 @@ internal sealed class DiskDeviceMetadataReader
         }
 
         return volumeByNativeDevicePath;
-    }
-
-    private static string[] QueryDosDeviceTargets(string queryName)
-    {
-        int bufferLength = InitialDosDeviceBufferLength;
-        while (true)
-        {
-            char[] targets = new char[bufferLength];
-            uint characterCount = QueryDosDeviceW(
-                queryName,
-                targets,
-                (uint)targets.Length);
-            if (characterCount > 0)
-            {
-                int validLength = Math.Min(targets.Length, checked((int)characterCount));
-                return ParseMultiString(targets.AsSpan(start: 0, validLength));
-            }
-
-            if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer
-                || bufferLength == MaximumDosDeviceBufferLength)
-                return [];
-
-            bufferLength = Math.Min(bufferLength * 2, MaximumDosDeviceBufferLength);
-        }
     }
 
     private static string ReadSystemVolumeName(out bool hasSystemDiskData)
@@ -569,7 +543,7 @@ internal sealed class DiskDeviceMetadataReader
                 out uint requiredLength);
             if (succeeded)
             {
-                string[] allPaths = ParseMultiString(paths);
+                string[] allPaths = DosDevices.ParseMultiString(paths);
                 SortedSet<string> driveLetters =
                     new(StringComparer.OrdinalIgnoreCase);
                 for (int pathIndex = 0; pathIndex < allPaths.Length; pathIndex++)
@@ -692,24 +666,6 @@ internal sealed class DiskDeviceMetadataReader
         return new string(characters, startIndex: 0, length);
     }
 
-    private static string[] ParseMultiString(ReadOnlySpan<char> value)
-    {
-        List<string> items = [];
-        int position = 0;
-        while (position < value.Length)
-        {
-            ReadOnlySpan<char> remaining = value[position..];
-            int terminatorOffset = remaining.IndexOf('\0');
-            int itemLength = terminatorOffset >= 0 ? terminatorOffset : remaining.Length;
-            if (itemLength == 0) break;
-
-            items.Add(remaining[..itemLength].ToString());
-            position += itemLength + 1;
-        }
-
-        return [.. items];
-    }
-
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFileW(
         string fileName,
@@ -735,12 +691,6 @@ internal sealed class DiskDeviceMetadataReader
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool FindVolumeClose(IntPtr searchHandle);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern uint QueryDosDeviceW(
-        string deviceName,
-        [Out] char[] targetPath,
-        uint maximumCharacterCount);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
