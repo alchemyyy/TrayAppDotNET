@@ -213,21 +213,36 @@ All apps come with the following features:
 * Flyout undocking (where applicable)
 * Searchable settings (with fuzzing)
 * Live theme customization
-* Rebindable Hotkeys
+* Rebindable global hotkeys (Task Manager instead has fixed table and window shortcuts plus an optional Ctrl+Shift+Esc takeover)
 * Update system
 * Crash recovery
 * Customizable tray menus (where applicable)
+
+User documentation for every app and the shared features is in [`documentation/docs`](./documentation/docs/index.md).
 
 ## Development
 
 I use Visual Studio 2026 with this project. Here are the necessary tools to compile it yourself.
 
+* The .NET SDK pinned in `global.json` (.NET 10)
 * Visual Studio Build Tools 17 with:
   * Desktop C++ environment
   * MSVC v143
   * Windows 11 SDK 10
 
-This mono-repo is set up such that every app also has its own slnx file, if opening only one app is desired.
+This mono-repo is set up such that every app also has its own slnx file, if opening only one app is desired. Fan Control vendors LibreHardwareMonitor and its other dependencies as git submodules, so clone with `--recurse-submodules` (or run `git submodule update --init --recursive`).
+
+```powershell
+# Everything, Debug (apps, Common, generators, installer factory, tests)
+dotnet build TrayAppDotNET.slnx -c Debug -p:Platform=x64
+dotnet test TrayAppDotNET.slnx -c Debug -p:Platform=x64 --no-build
+
+# One app, Release: publishes Native AOT and stamps Installer_<App>_<build>.exe beside it
+dotnet build VolumeTrayAppDotNET\src\VolumeTrayAppDotNET.csproj -c Release -p:Platform=x64
+# Add -p:TrayAppDotNETStampAppInstaller=false to skip the installer stamping while iterating
+```
+
+The installer elevated-worker tests in `TrayAppDotNETInstaller.Tests` and Task Manager's opt-in kill-helper smoke test touch elevation; see `.agents/PROJECT_MAP.md` for the test projects, build files and CI workflows (`.github/workflows/tests.yml` runs every test project on pushes and pull requests).
 
 ## Misc Details
 
@@ -239,28 +254,28 @@ This mono-repo is set up such that every app also has its own slnx file, if open
 | No arguments | User | Start the app normally under the crash watcher. |
 | `--autostart` | Startup shortcut | Mark a sign-in launch. The Run on startup shortcut passes it, the watcher forwards it to every monitored process it starts, and apps with a Start minimized option only honor that option when it is present. |
 | `--hidden` | Installer | Start in the notification area without showing a window, whatever the startup settings say. The installer passes it to the apps it launches when it finishes, and the watcher forwards it to every monitored process it starts. Only Task Manager opens a window at startup, so it is the only app this changes. |
-| `--settings-dir <path>` | User/script | Use `<path>` instead of `%LOCALAPPDATA%\TrayAppDotNET\<App>` for settings.xml, logs and the app's other data files. Relative paths resolve against the working directory and environment variables such as `%USERPROFILE%` expand. The folder is created on first use. If the value after the flag is missing or is not a usable folder path, the app exits with code 2; a path that ends in a backslash must not be quoted. The watcher, the rendering restart and the update restart keep the override. Turning on Run on startup from an instance with an override writes it into the startup shortcut, and a new override folder does not turn Run on startup on by itself. The single-instance rule is unchanged, so starting a second copy with a different folder still replaces the running one. The Windows uninstall entry passes no override, so removing settings there deletes only the default folder. |
-| `--installer` or `--install-gui` | User | Open the one-page installer. Local installation is selected by default. Selecting system installation causes Windows to display a UAC prompt after Install is clicked. |
+| `--settings-dir <path>` | User/script | Use `<path>` instead of `%LOCALAPPDATA%\TrayAppDotNET\<App>` for settings.xml, logs and the app's other data files. Relative paths resolve against the working directory and environment variables such as `%USERPROFILE%` expand. The folder is created on first use. If the value after the flag is missing or is not a usable folder path, the app exits with code 2; a path that ends in a backslash must not be quoted. The watcher, the rendering restart, Restart from installed, the update restart and Brightness's Night Light and DDC helpers keep the override. Task Manager's elevated helpers don't receive it and write no files; the broker's log lines go to the app's own log. Turning on Run on startup from an instance with an override writes it into the startup shortcut, and a new override folder does not turn Run on startup on by itself. The single-instance rule is unchanged, so starting a second copy with a different folder still replaces the running one: it asks the running copy to exit through its normal exit path and ends it by force only after five seconds. The Windows uninstall entry passes no override, so removing settings there deletes only the default folder. |
+| `--installer` or `--install-gui` | User | Open the one-page installer. Local installation is selected by default. Selecting system installation causes Windows to display a UAC prompt after Install is clicked. The window writes no settings and creates no startup shortcut. |
 | `--install-headless <scope>` | User/script | Install without opening a window, print progress lines (`[NN%] stage`) and the result to the parent console or redirected standard output, then exit without starting the installed copy. `<scope>` is `local` or `system`. System scope causes Windows to display a UAC prompt. |
 | `--install <scope>` | User/script | Compatibility alias for `--install-headless <scope>`. |
-| `--installlocal` | User/script | Install locally without opening a window, then start the installed instance (without `--hidden`). |
-| `--installsystem` | User/script | Install system-wide without opening a window, display the Windows UAC prompt, then start the installed instance (without `--hidden`). |
-| `--desktop-shortcut <true|false>` | User/script | Choose whether a headless install creates a desktop shortcut. The default is `false`. |
-| `--start-menu-shortcut <true|false>` | User/script | Choose whether a headless install creates a Start Menu entry. The default is `true`. |
-| `--uninstall <installDir> --scope <scope>` | App/Windows uninstall entry | Open the uninstaller for the supplied installation. Confirming a system uninstall causes Windows to display a UAC prompt. |
+| `--installlocal` | User/script | Install locally without opening a window, then start the installed instance (through the desktop shell with `--hidden` when the caller is elevated). |
+| `--installsystem` | User/script | Install system-wide without opening a window, display the Windows UAC prompt, then start the installed instance (through the desktop shell with `--hidden` when the caller is elevated). |
+| `--desktop-shortcut <true|false>` | User/script | Create or remove the desktop shortcut during a headless install. Omitted, an existing shortcut is left as it is. |
+| `--start-menu-shortcut <true|false>` | User/script | Keep or remove the Start Menu entry during a headless install. Omitted, a fresh install gets one and a reinstall leaves the entries as they are. |
+| `--uninstall <installDir> --scope <scope>` | App/Windows uninstall entry | Open the uninstaller for the supplied installation. Confirming a system uninstall causes Windows to display a UAC prompt; declining it keeps the window open with the reason. The window writes no settings. |
 | `--uninstall-gui <installDir> --scope <scope>` | App/Windows uninstall entry | Alias for `--uninstall`. |
 | `--uninstall-headless <scope>` | User/script | Uninstall without opening a window, printing progress lines (`[NN%] stage`) to the parent console or redirected standard output. `<scope>` is `local` (or `user`, `localappdata`) or `system` (or `programfiles`); store scopes are rejected. System scope causes Windows to display a UAC prompt. |
 | `--delete-settings <true|false>` | User/script | Choose whether `--uninstall-headless` also removes the application's settings. The default is `false`. |
 | `--scope <scope>` | App helper | Select an installation for uninstall operations. Accepted values are `user`, `local`, `localappdata`, `system`, `programfiles`, `store`, and `windowsstore`. |
-| `--watcher` | App helper | Run the crash watcher process. |
+| `--watcher` | App helper | Run the crash watcher process. It restarts the app after a crash, stops when the app exits with code 0 or 1, and after exit code 3 while it sees Windows ending the session restarts it only once the session turns out to continue. Exit code 3 at any other time counts as a crash. Every restart counts toward the repeated-crash limit. |
 | `--monitored --watcher-pid <pid>` | App helper | Run the monitored app process owned by the watcher with the supplied watcher PID. |
 | `--watcher-pid <pid>` | App helper | Supplies the watcher PID to a monitored app instance. |
 | `--install-system --source <sourceExe> --build <buildNumber>` | App helper | Continue a system installation after Windows has displayed the UAC prompt, then write system uninstall and shortcut metadata. |
-| `--sync-start-menu [--remove-scope <scope>]` | App helper | Reconcile all-user Start Menu shortcuts from a process started through the Windows UAC prompt. |
-| `--uninstall-prepare --scope <scope> [--delete-settings <true|false>]` | App helper | Remove shell integration, stop the installed process, and optionally delete settings before the batch cleanup stage. For system scope, the owning batch is started through the Windows UAC prompt. |
+| `--sync-start-menu [--remove-scope <scope>]` | App helper | Reconcile the Start Menu shortcuts of every profile. Refused (exit code 1) when not elevated. |
+| `--uninstall-prepare --scope <scope> [--delete-settings <true|false>] [--settings-dir <path>]` | App helper | The uninstall, run by the installed exe of the scope (through the Windows UAC prompt for system scope): remove shell integration, stop the installed process, remove the app's files, optionally delete settings, and delete its own exe through a detached System32 `cmd.exe` once it has exited. |
 | `--progress-pipe <name>` | App helper | Named pipe through which an elevated install or uninstall helper reports its progress stages to the process that started it. |
 | `--remove-scope <scope>` | App helper | Scope value consumed by `--sync-start-menu` when removing shortcuts for an uninstalling scope. |
-| `--update-apply` | App helper | Apply a staged update after the running app exits. Windows displays a UAC prompt only when the installation directory requires elevation. |
+| `--update-apply` | App helper | Run by the installed exe itself: copy the downloaded package into a staging folder inside the install folder, verify its SHA-256, and replace the app's payload files as a journaled transaction after the running app exits. Windows displays a UAC prompt only when the installation directory requires elevation. |
 | `--update-restart` | App helper | Restart the installed app after update commit or rollback, then clean the staging directory. This process is deliberately not elevated. |
 
 </details>
@@ -268,7 +283,7 @@ This mono-repo is set up such that every app also has its own slnx file, if open
 ### Architecture
 
 * Apps: .NET 10, Avalonia 12, compiled to Native AOT.
-* Installers: .NET 10, WPF
+* Installers: .NET Framework 4.8, WPF (`Installer_<App>_<version>.exe` and the suite installer; each app also has its own built-in install and uninstall windows)
 
 ### AI Usage
 

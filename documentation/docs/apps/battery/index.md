@@ -41,11 +41,11 @@ Anything Windows doesn't report shows **N/A**.
 
 ### Power Mode
 
-The **Power mode** slider has three stops, left to right: **Power Saver**, **Balanced**, **Ultimate**. Drag it, click it, or use the scroll wheel over it. The mode is applied when you let go.
+The **Power mode** slider has three stops, left to right: **Power saver**, **Balanced**, **Ultimate**. Drag it, click it, or use the scroll wheel over it. The mode is applied when you let go.
 
-These are the actual Windows power plans (Power saver, Balanced, Ultimate Performance), switched with `powercfg`. A few things to know:
+These are the actual Windows power plans (Power saver, Balanced, Ultimate Performance), switched through the Windows power-plan API, so it works the same in every Windows display language. A few things to know:
 
-- If no Ultimate Performance plan exists on your machine, picking **Ultimate** creates one by duplicating Windows' hidden built-in Ultimate Performance plan, then activates it. After that you'll see it in Control Panel's power plans like any other.
+- If no Ultimate Performance plan exists on your machine, picking **Ultimate** creates one by duplicating Windows' hidden built-in Ultimate Performance plan, then activates it. After that you'll see it in Control Panel's power plans like any other. The app recognizes that copy by its name (in your Windows language or in English), or, while it keeps running, as the copy it just created even if you rename it, so it doesn't create another one next time.
 - If your active plan isn't one of those three (e.g. a plan your laptop vendor installed), the heading reads **Power mode: Custom** and the slider has no thumb until you pick a mode.
 - If the app can't read the active plan at all, the heading reads **Power mode: Unknown**.
 - Switching modes keeps your Energy Saver setting. Windows stores Energy Saver per plan, so without this every mode switch would also flip Energy Saver around.
@@ -55,7 +55,7 @@ These are the actual Windows power plans (Power saver, Balanced, Ultimate Perfor
 
 The flyout's title bar has these buttons:
 
-- **Energy Saver**: shows **Energy Saver: On** or **Energy Saver: Off**. Clicking it sets Windows' Energy Saver to Always (on) or Never (off) on your active power plan. It shows as on if Energy Saver is currently running or set to Always. If the app can't read the Energy Saver threshold, the button is grayed out.
+- **Energy saver**: shows **Energy Saver: On** or **Energy Saver: Off**. Clicking it sets Windows' Energy Saver to Always (on) or Never (off) on your active power plan. It shows as on if Energy Saver is currently running or set to Always. If the app can't read the Energy Saver threshold, the button is grayed out.
 - **Battery health**: opens a small **Battery health** window with **Health** (full charge capacity as a percentage of the designed capacity), **Full charge**, and **Designed**, both in Wh. Close it with **Close** or ++esc++.
 - **Power settings**: opens Windows Settings at **Power & battery**.
 - **Settings**: opens the app's settings window.
@@ -121,7 +121,7 @@ Several cards can share a condition, and each one fires. When more than one trig
 An example setup:
 
 - **Trigger 1**: **Battery at 20% or less** -> **Show notification**.
-- **Trigger 2**: **Battery at 10% or less** -> **Open flyout**, which puts the **Energy Saver** button and the power mode slider right in front of you.
+- **Trigger 2**: **Battery at 10% or less** -> **Open flyout**, which puts the **Energy saver** button and the power mode slider right in front of you.
 - **Trigger 3**: **Battery at 80% or more** -> **Show notification**, as a reminder to unplug.
 
 ### Flyout
@@ -170,4 +170,4 @@ Fixed keys:
 - ***No battery, no data.*** On a desktop the app still runs, but the flyout shows `--` and **No battery detected**, every number is **N/A**, and the tray icon is grayed out. The power mode slider and Energy Saver button still work there, since they're plain Windows power plan settings.
 - Readings refresh about every 5 seconds. After the PC sleeps, the rate averaging starts over, and sleep time never counts toward **Predicted life**.
 - How accurate any of this is depends on what your battery firmware reports. Some batteries report no rate or no designed capacity, which shows up as **N/A** (and no **Health**).
-- **Energy Saver** here is Windows' battery threshold setting, switched between Always and Never. If you had it on a percentage threshold (e.g. turn on at 20%), toggling the button replaces that with Always or Never.
+- **Energy saver** here is Windows' battery threshold setting, switched between Always and Never. If you had it on a percentage threshold (e.g. turn on at 20%), toggling the button replaces that with Always or Never.

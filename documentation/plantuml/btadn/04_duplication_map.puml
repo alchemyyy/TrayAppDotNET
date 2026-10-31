@@ -1,6 +1,7 @@
 @startuml duplication_map
 ' Revised 2026-07-12: DDC pipeline audit and simplification plan
-!include dark-theme.puml
+' Revised 2026-10-30: shared code moved into TrayAppDotNETCommon (tray, flyout, theme, number box, hex parsing)
+!include ../dark-theme.puml
 title Duplication map - status of repeated code & parallel implementations
 
 legend top right
@@ -17,14 +18,14 @@ package "DUP-1  WM_DEVICECHANGE listeners" $TINT_RESOLVED {
     One HWND owns the only DeviceNotification registration.
     Fast path: DispatcherTimer 250 ms coalescer.
     Slow path: System.Threading.Timer 1 s x 10 burst.
-    App.xaml.cs only consumes events; it does not register a sink.
+    App.cs only consumes events; it does not register a sink.
   end note
 }
 
-' ----- DUP-2: NumericSpinner is the single spinner control -----
-package "DUP-2  Numeric spinners" $TINT_RESOLVED {
-  [NumericSpinner.xaml.cs\n(single UserControl)] as D2X
-  [MonitorsPage / GeneralPage / FlyoutPage\ncall sites] as D2A
+' ----- DUP-2: the Common settings number box is the single numeric input -----
+package "DUP-2  Numeric inputs" $TINT_RESOLVED {
+  [TrayAppDotNETCommon SettingsNumberBox\n(UI/Controls/SettingsUI.cs)] as D2X
+  [MonitorsPage / GeneralPage cards\n+ flyout curve stopwatch] as D2A
   D2X -[#green]- D2A : single source
 }
 
@@ -35,25 +36,25 @@ package "DUP-3  Curve application" $TINT_RESOLVED {
   D3A -[#green]- D3B : single owner
 }
 
-' ----- DUP-4: WindowDragHelper owns drag/snap math -----
+' ----- DUP-4: Common flyout drag owns drag/snap math -----
 package "DUP-4  Window-drag snap-zone math" $TINT_RESOLVED {
-  [WindowDragHelper.cs] as D4X
-  [BrightnessFlyout\nUndockButton + RootCard handlers] as D4A
-  D4X -[#green]- D4A : both handlers delegate\nBeginDrag / ComputeNatural /\nApplyDragPosition / IsCurrentlySnapped
+  [TrayAppDotNETCommon\nFlyoutWindowDragHelper +\nFlyoutDockingController] as D4X
+  [FlyoutUndockButtonController\n+ FlyoutChromeDragController\n(every app flyout)] as D4A
+  D4X -[#green]- D4A : undock button and frame drag\nshare one drag / snap path
 }
 
-' ----- DUP-5: DPI / icon helpers consolidated -----
-package "DUP-5  DPI + icon-conversion helpers" $TINT_RESOLVED {
-  [IconRenderingHelper\n.GetTaskbarDpi /\n.GetIconSizeForDpi /\n.BitmapToIcon] as D5X
-  [TrayIconRenderer\n+ NightLightIconRenderer] as D5C
-  D5X -[#green]- D5C : single source
+' ----- DUP-5: tray icon size + icon conversion consolidated in Common -----
+package "DUP-5  Tray icon size + icon-conversion helpers" $TINT_RESOLVED {
+  [TrayAppDotNETCommon UI/Tray\nTrayIconPresenter (icon size, dedupe)\nTrayIconRasterizer (bitmap -> HICON)] as D5X
+  [BrightnessTrayIcon\n(ITrayIconRenderer)] as D5C
+  D5X -[#green]- D5C : single source for every app
 }
 
 ' ----- DUP-6: GlyphCatalog is the single glyph source -----
 package "DUP-6  Glyph definitions" $TINT_RESOLVED {
-  [Visuals/GlyphCatalog.cs\n(canonical codepoints)] as D6X
-  [ThemeGlyphs (defaults from D6X,\nXML-overridable in ThemeSettings.xml)] as D6B
-  [TrayIconRenderer / NightLightIconRenderer\n(consume GlyphCatalog directly)] as D6C
+  [Common + Brightness GlyphCatalog\n(GlyphCatalog.axaml codepoints)] as D6X
+  [Flyout glyph controls\n(NightLightBulbGlyphIcon,\nEnvironmentalCurveGlyphIcon)] as D6B
+  [BrightnessTrayIcon\n(consumes GlyphCatalog directly)] as D6C
   D6X -[#green]- D6B
   D6X -[#green]- D6C
 }
@@ -61,7 +62,7 @@ package "DUP-6  Glyph definitions" $TINT_RESOLVED {
 ' ----- DUP-7: theme palette vs brightness-aware dimming (orthogonal layers) -----
 package "DUP-7  Color resolution" $TINT_RESOLVED {
   [AppTheme.ResolveForeground /\nResolveBackground\n(user override -> theme default)] as D7A
-  [TrayIconRenderer.ResolveForegroundColor\n(brightness-aware dimming\non top of theme default)] as D7B
+  [BrightnessTrayIcon\n(dynamic brightness tracking\non top of theme default)] as D7B
   D7A -[#green]- D7B : layered by design,\nnot a duplicate
 }
 
@@ -69,67 +70,66 @@ package "DUP-7  Color resolution" $TINT_RESOLVED {
 package "DUP-8  P/Invoke structs" $TINT_OPEN {
   [Interop/Shell32.cs\nRECT (Left/Top/Right/Bottom\n+ Contains helper)] as D8A
   [DDCCI/Interop/User32Monitor.cs\nRect (left/top/right/bottom)] as D8B
-  D8A -[#red]- D8B : same layout,\ndiffers only in casing &\nthe Contains convenience.\nGammaRamp.cs has been removed,\nso DISPLAY_DEVICE is now\nsingle-sourced in User32Monitor.
+  D8A -[#red]- D8B : same layout,\ndiffers only in casing &\nthe Contains convenience.\nDISPLAY_DEVICE is\nsingle-sourced in User32Monitor.
 }
 
 ' ----- DUP-9: tray-icon refresh single funnel -----
 package "DUP-9  Tray icon refresh" $TINT_RESOLVED {
   [App.RequestTrayRefresh\n(single funnel)] as D9X
-  [TrayIconManager.Update\n(only invoked via D9X)] as D9Y
+  [TrayIconPresenter.Refresh\n(only invoked via D9X)] as D9Y
   D9X -[#green]- D9Y : startup, theme, settings,\ntopology, brightness, scroll all\nflow through RequestTrayRefresh
 }
 
-' ----- DUP-10 PARTIAL: timer inventory (6 timers still undocumented) -----
+' ----- DUP-10 PARTIAL: timer inventory -----
 package "DUP-10  Timer inventory" $TINT_PARTIAL {
   [DisplayEventManager._coalesce\n(DispatcherTimer, 250 ms)] as D10A
   [DisplayEventManager._burstTimer\n(System.Threading.Timer, 1 s x 10)] as D10B
-  [EnvironmentalCurveService._curveTimer\n+ _curveEventThrottleTimer\n(both DispatcherTimer)] as D10C
+  [EnvironmentalCurveService._curveTimer\n(DispatcherTimer)] as D10C
   [DDCRecoveryService fallback worker\n(Task.Delay loop only while\nDDC candidates exist)] as D10D
   [NightLightRegistry._resendTimer\n(System.Threading.Timer, debounced resend)] as D10E
   [DisplayIdentifierService._timer\n(DispatcherTimer, overlay auto-hide)] as D10F
-  [TADNLog._timer\n(System.Threading.Timer, async flush)] as D10G
-  [ShellNotifyIcon._taskbarRecreateTimer\n(DispatcherTimer)] as D10H
+  [TADNLog flush timer\n(Common, async flush)] as D10G
   [NightLightSettingsHandler._deferredRegistryTimer\n(System.Threading.Timer; 6089fd8 NL flicker-fix)] as D10I
   [KnownDisplaysStore._stampDebounceTimer\n(System.Threading.Timer)] as D10J
-  [BrightnessFlyout._activeRecoveryTooltipCloseTimer\n(DispatcherTimer)] as D10K
   [BrightnessFlyout._previewSweepTimer\n(DispatcherTimer, 50 ms cadence)] as D10L
-  [AboutPage._staleTimer\n(DispatcherTimer)] as D10M
-  [CurveEditor._currentTimeTimer\n(DispatcherTimer)] as D10N
+  [TrayAppDotNETAboutPage._staleTimer\n(Common, DispatcherTimer)] as D10M
+  [EnvironmentalCurveEditor._currentTimeTimer\n(DispatcherTimer)] as D10N
   [EnvironmentalPage._curveSaveDebounceTimer\n(DispatcherTimer)] as D10O
   note bottom
     Each timer owns a distinct domain.
-    TrayIconManager itself is event-driven (no internal timer).
-    PARTIAL: six timers (D10I..D10O) still
-    not documented in audits/notes; audit_21 F3
-    proposed try/catch on threading-timer callbacks
-    to prevent process tear-down (M-11 / D-11).
+    The tray icon presenter is event-driven (no internal timer);
+    taskbar re-creation is handled by the Common shell tray icon.
+    PARTIAL: the threading-timer callbacks guard their own
+    exceptions, but the inventory is still not documented
+    outside this map.
   end note
 }
 
-' ----- DUP-11 PARTIAL: hex color parsing (three slightly different copies) -----
+' ----- DUP-11 PARTIAL: hex color parsing (theme and overrides share ColorMath; the picker keeps its own) -----
 package "DUP-11  Hex color parsing / formatting" $TINT_PARTIAL {
-  [Visuals/AppTheme.cs\n.ParseHex / .ToHex\n(throws on bad input)] as D11A
-  [Models/AppSettings.cs\nThemeColorOverride.TryParse / .ToHex\n(returns nullable, swallows on error)] as D11B
-  [UI/Controls/ColorPickerWindow.cs\n.TryParseHex (ARGB or RGBA order,\n3/4/6/8-char input)] as D11C
-  D11A -[#orange]- D11B : same 6/8-char branch,\ndifferent error policy
-  D11A -[#orange]- D11C : color-picker accepts\nshort forms the others reject
+  [Common Utils/ColorMath.cs\n.TryParseHexOrNull / .ParseHexStrict] as D11X
+  [Common Visuals/AppTheme.cs\n(strict: throws on bad input)] as D11A
+  [Common UI/Models/NullableThemeColor.cs\n(user overrides: nullable)] as D11B
+  [Common UI/Controls/ColorPickerWindow.cs\n.TryParseHex (ARGB or RGBA order,\n3/4/6/8-char input)] as D11C
+  D11X -[#green]- D11A : shared primitive
+  D11X -[#green]- D11B : shared primitive
+  D11X -[#orange]- D11C : picker accepts short forms\nand both byte orders
   note bottom
-    Three call-site shapes (validating ctor,
-    nullable model getter, picker text input)
-    are real - but the 6/8-char Convert.ToByte
-    blocks are byte-for-byte parallel and
-    could share a primitive.
+    The theme and override paths share one parser with
+    two error policies. The picker's text boxes still
+    parse on their own because they accept short forms
+    and ARGB / RGBA order.
   end note
 }
 
 ' ----- DUP-12 PARTIAL: monitor-id prefix vocabulary -----
 package "DUP-12  Monitor-id prefix vocabulary" $TINT_PARTIAL {
-  [MonitorService.GetIdentityKey\n(produces edid: / port: / num:)] as D12A
-  [DisplayEventManager.ExtractHwid\n(strips port: prefix,\nsplits DISPLAY\\... / MONITOR\\...)] as D12B
-  [Models/Hotkey.cs HotkeyTarget\n(EdidPrefix const "edid:")] as D12C
-  [Services/ProfileManager.cs\n(EdidIdPrefix const "edid:",\nlegacy migration only)] as D12D
+  [MonitorService.ComputeEDIDKey /\nComputePortFormKey\n(produce edid: / port: / num:)] as D12A
+  [MonitorService\n(PortKeyPrefix const + inline\n"edid:" / "port:" StartsWith checks)] as D12B
+  [Models/Hotkey.cs HotkeyTarget\n(EDIDPrefix const "edid:")] as D12C
+  [DDCCI/DisplayService.cs\n(own instance: / edid: / name: keys)] as D12D
   D12A -[#orange]- D12B : producer / consumer
-  D12C -[#orange]- D12D : same literal,\ntwo private const fields
+  D12A -[#orange]- D12C : same literal,\nseparate const
   note bottom
     The "edid:" / "port:" / "num:" tokens
     are produced in one place but each consumer
@@ -141,9 +141,9 @@ package "DUP-12  Monitor-id prefix vocabulary" $TINT_PARTIAL {
 
 ' ----- DUP-13 RESOLVED: hotkey paths route through Notify*Adjustment helper -----
 package "DUP-13  Hotkey vs tray-scroll Notify discipline" $TINT_RESOLVED {
-  [App.xaml.cs:AdjustAllMonitorBrightness\nApp.xaml.cs:AdjustNightLightBrightness\nApp.xaml.cs:ApplyOrRestoreBrightness] as D13A
-  [App.xaml.cs:TrayScroll handler] as D13B
-  [App.xaml.cs:Notify*Adjustment helper\n(single funnel)] as D13C
+  [App.cs:AdjustAllMonitorBrightness\nApp.cs:AdjustNightLightBrightness\nApp.cs:ApplyOrRestoreBrightness] as D13A
+  [App.cs:OnTrayScrolled] as D13B
+  [Notify*Adjustment helpers\n(App.cs + BrightnessFlyoutWindow,\nsingle funnel)] as D13C
   D13A -[#green]- D13C : all hotkey paths now\ncall NotifyUserBrightnessAdjustment /\nNotifyUserNightLightAdjustment
   D13B -[#green]- D13C : tray scroll routes through\nthe same helper
   note bottom
@@ -213,22 +213,22 @@ package "DUP-22  Recovery enumeration" $TINT_OPEN {
 ' ----- DUP-19 RESOLVED: night-light spaced write discipline -----
 package "DUP-19  Night-light spaced write discipline" $TINT_RESOLVED {
   [NightLightRegistry.EnqueueSetStrengthSpaced\n(throttled, debounced)] as D19A
-  [NightLightProvider.EnsureNonZeroStrengthBeforeEnable\n(calls EnqueueSetStrengthSpaced)] as D19B
+  [NightLightProvider enable-from-zero path\n(calls EnqueueSetStrengthSpaced)] as D19B
   D19A -[#green]- D19B : Wave-1 fix:\nEnable-from-zero path now uses\nthe same spaced write primitive.\nNL toggle-on no longer visibly flickers.
 }
 
 ' ----- DUP-20 PARTIAL: per-monitor offset capture rules -----
 package "DUP-20  Per-monitor offset capture" $TINT_PARTIAL {
-  [BrightnessFlyout.CaptureOffsetsFromMaster\n(reads LastUserBrightness)] as D20A
-  [BrightnessFlyout.HandleCurveSliderTouch\nre-engage path\n(reads Brightness)] as D20B
+  [MonitorInfo.CaptureOffsetsFromMaster\n(reads LastUserBrightness)] as D20A
+  [MonitorInfo.HandleCurveSliderTouch\nre-engage path\n(reads Brightness)] as D20B
   D20A -[#orange]- D20B : two parallel offset rules\nin same file. Different baseline\nfor CS->CA re-engage vs fresh\nengage. Audit_24 DUP-20 still open.
 }
 
-' ----- T-1 RESOLVED: theme effective-light reimplemented -> consolidated -----
-package "T-1  ResolveEffectiveIsLightTheme" $TINT_RESOLVED {
-  [AppTheme.ResolveEffectiveIsLightTheme(AppSettings?)\n(single canonical impl)] as T1X
-  [App.xaml.cs / SettingsWindow.xaml.cs /\nThemePage.xaml.cs call sites] as T1Y
-  T1X -[#green]- T1Y : Wave-1 fix (M-17):\nthree parallel copies removed.\nAll consumers route through AppTheme.
+' ----- T-1 RESOLVED: light/dark resolution lives once, in Common -----
+package "T-1  Light/dark resolution" $TINT_RESOLVED {
+  [Common AppTheme.ResolveIsLight(settings or mode, theme)\n(the only light/dark resolver)] as T1X
+  [App.cs / BrightnessFlyoutWindow /\nDisplayIdentifierOverlayWindow /\nsettings window palette] as T1Y
+  T1X -[#green]- T1Y : per-app copies removed\n(audit 03-11); every app\nroutes through Common AppTheme
 }
 
 @enduml

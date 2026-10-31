@@ -37,22 +37,26 @@ Clicking **Install update** (or any of the buttons above) opens **Proceed with u
 
 After **Install update**:
 
-1. The app downloads the release zip for itself (up to 3 attempts).
-2. If the install folder needs administrator rights, Windows shows a UAC prompt. That's the case for `C:\Program Files` (i.e. System installs) and any other folder you can't write to. Local installs and portable copies in your own folders update without one. Declining the prompt leaves the running app untouched.
+1. The app downloads the release zip for itself (up to 3 attempts; a download that receives nothing for 30 seconds is abandoned and retried). The zip is only used when its SHA-256 matches the one the release publishes; a missing or different hash stops the update before anything is extracted.
+2. If the install folder needs administrator rights, Windows shows a UAC prompt. That's the case for `C:\Program Files` (i.e. System installs) and any other folder you can't write to. Local installs and portable copies in your own folders update without one. Declining the prompt leaves the running app untouched. The update needs administrator rights for your own account: if Windows would ask for a different administrator's password, the update is refused with an explanation.
 3. The app closes, its files get replaced, and it starts again.
 
 If the update includes a file that the other TADN apps in the same folder also use, those apps get stopped and restarted along with it.
 
-If the download fails, you get **Update failed** / **The update could not be downloaded. Check the log for details.** and the app keeps running as before.
+If the download fails, you get **Update failed** / **The update could not be downloaded. Check the log for details.** and the app keeps running as before. If the same app is already installing an update (say from a second click), you get **Another update of this app is already being installed** instead. Updates of different apps in the same folder don't block each other.
+
+Once you click **Install update**, the update finishes even if you close the flyout or settings window you started it from. A failure message then opens on its own.
 
 ### Rollback
 
-If replacing the files fails partway, the previous version is put back and restarted, and a message box tells you so: "The update could not be installed. The previous version was restored and restarted." It includes the path to a log with the details.
+The files are replaced as a journaled transaction: each old file is moved aside before the new one takes its place, and a journal in the install folder records every step first. If replacing the files fails partway, the previous version is put back and restarted, and a message box tells you so: "The update could not be installed. The previous version was restored and restarted." It includes the path to a log with the details.
 
 !!! warning "Incomplete rollback"
-    In the rare case the rollback itself can't finish, the app is ***not*** restarted, so it never runs from a half-updated folder. The message box lists the folder where the recovery files were kept and the log. Reinstalling the app with the installer gets you back to a working state.
+    In the rare case the rollback itself can't finish, or the update helper is killed midway, the app is ***not*** restarted, so it never runs from a half-updated folder. The journal and the old files stay in the install folder, and the next update or installation of the app finishes the rollback first. Reinstalling the app with the installer gets you back to a working state.
 
-The downloaded zip, the extracted files and the update log go to `%LocalAppData%\Temp` while the update runs (named `<App>_update_<build>_...`) and get cleaned up afterwards.
+The downloaded zip, the extracted files and the update log go to `%LocalAppData%\Temp` while the update runs (named `<App>_update_<build>_...`) and get cleaned up afterwards. The helper that replaces the files is the installed exe itself: it copies the package into a hidden `.tadn-update-<App>-...` folder inside the install folder, checks its SHA-256 again there, and removes that folder when it's done. After a successful update, the build number shown in Windows Settings > Apps is updated too.
+
+Copies installed before this way of updating update one last time the older way: their update starts the downloaded app to replace the files, which this release still accepts for that single step, copying the files through the same protected staging folder. Every update after that uses the checks described above.
 
 ## Skipping a Release
 
@@ -64,7 +68,7 @@ While the skipped release is the newest one, the **About** page shows **Release 
 
 The **Backdate app** card on the **About** page installs the release before the one you're running. It looks up the previous release on GitHub when the page opens, then shows **Previous available version: N. Installing it will restart the app.** (or **No previous release is available for this app.**).
 
-Clicking **Backdate** confirms with **Backdate to N?**, then asks **Skip the current version?** Pick **Yes** if you don't want the version you're leaving to be offered back to you as an update right away. After that it's the same download, replace and restart as a normal update.
+Clicking **Backdate** confirms with **Backdate to N?**, then asks **Skip the current version?** Pick **Yes** if you don't want the version you're leaving to be offered back to you as an update right away. After that it's the same download, replace and restart as a normal update. The skip choice is only saved once the download has been handed to the installer, so a backdate that fails keeps whatever release you had skipped before.
 
 ## Update Settings
 

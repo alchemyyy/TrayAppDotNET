@@ -46,12 +46,12 @@ Set these in **Settings** > **Tray icon**.
 | Setting | Options | Default | What it does |
 | --- | --- | --- | --- |
 | **Style** | **Current**, **Marquee** | **Marquee** | **Current** fills the icon up to the latest value. **Marquee** draws the last 16 samples as a scrolling line graph, with the newest samples given the most width. |
-| **Data source** | **CPU Usage (Average)**, **CPU Usage (Highest Core)**, **Memory (RAM)** | **CPU Usage (Average)** | What the graph measures. **Highest Core** is the busiest single logical processor. |
-| **Show highest core trace** | On / off | Off | Overlays the busiest logical processor on the average CPU graph. Only applies with **Marquee** and **CPU Usage (Average)**. |
+| **Data source** | **CPU usage (average)**, **CPU usage (highest core)**, **Memory (RAM)** | **CPU usage (average)** | What the graph measures. **Highest Core** is the busiest single logical processor. |
+| **Show highest core trace** | On / off | Off | Overlays the busiest logical processor on the average CPU graph. Only applies with **Marquee** and **CPU usage (average)**. |
 
 ## Background Mode
 
-Closing the window doesn't exit the app. With **Close to Tray** on (the default), the close button just hides the window and the app keeps running in the tray. Use **Exit** in the tray menu to actually quit.
+Closing the window doesn't exit the app. With **Close to tray** on (the default), the close button just hides the window and the app keeps running in the tray. Use **Exit** in the tray menu to actually quit.
 
 While the window is hidden or minimized, the pages stop doing work: the process list isn't sampled and nothing is drawn. Two things keep running:
 
@@ -63,15 +63,15 @@ The window settings live in **Settings** > **General** > **Window management**:
 | Setting | Default | What it does |
 | --- | --- | --- |
 | **Always on top** | Off | Keeps the Task Manager window (and its settings window) above other windows. |
-| **Close to Tray** | On | The close button hides the window to the tray. Off makes the close button exit the app. |
-| **Minimize to Tray** | Off | Minimizing hides the window to the tray instead of leaving it on the taskbar. |
+| **Close to tray** | On | The close button hides the window to the tray. Off makes the close button exit the app. |
+| **Minimize to tray** | Off | Minimizing hides the window to the tray instead of leaving it on the taskbar. |
 
 ## Startup Behavior
 
 Task Manager is the only TADN app that opens a window when it starts. Which window state you get depends on how it was started:
 
 - Started by you (Start menu, shortcut, double-clicking the exe): the window always opens.
-- Started at sign-in by **Run on startup**, with **Start minimized** checked: the window stays out of the way. With **Minimize to Tray** on it waits hidden in the tray; otherwise it starts minimized on the taskbar.
+- Started at sign-in by **Run on startup**, with **Start minimized** checked: the window stays out of the way. With **Minimize to tray** on it waits hidden in the tray; otherwise it starts minimized on the taskbar.
 - Started with `--hidden` (the installer does this when it finishes): it starts in the tray without a window, whatever the startup settings say. Click the tray icon or press ++ctrl+shift+esc++ (if you've turned that on) to open it.
 
 **Start minimized** is the check box under **Run on startup** in **Settings** > **General**, off by default, and only usable while **Run on startup** is on. It only applies to sign-in launches, which are the ones that carry `--autostart`. See [Launch Arguments](../../getting-started/launch-arguments.md) for both arguments.
@@ -91,12 +91,13 @@ There are two ways to make Windows open this app instead of its own Task Manager
 **Replace Windows Task Manager** redirects every Windows Task Manager launch to this app, system-wide: ++ctrl+shift+esc++, the ++ctrl+alt+del++ screen, the taskbar menu, ++win+x++, and running `taskmgr` yourself. It works even when this app isn't running, since Windows starts it for you. If it's already running, the existing window just comes forward.
 
 - Turning it on or off needs administrator approval (a UAC prompt), and it applies to every user on the PC. If you decline, the toggle flips back and nothing changes.
-- The redirect points at the system-wide install in Program Files when there is one, and otherwise at the exe you're running right now.
+- It needs the system-wide install in Program Files, and the redirect always points at that install. A current-user or portable copy lives in one user's profile, so it can't be what every account's Task Manager opens: without a system install the card is disabled and says so.
 - If another program (e.g. Process Explorer) already redirects Task Manager, the card tells you which one. Turning the toggle on points it at this app instead. Turning it off never removes another program's redirect.
+- The app decides whether a redirect is its own by the full path of the exe, not just the file name, so turning it off or uninstalling one copy never removes a redirect that points somewhere else.
 - Uninstalling the system-wide install removes the redirect for you.
 
-!!! warning "Turn it off before uninstalling a current-user install"
-    A current-user uninstall runs without administrator rights, so it can't remove the redirect. If the redirect points at that install, Windows would keep sending ++ctrl+shift+esc++ and every other Task Manager launch to an exe that no longer exists. Turn **Replace Windows Task Manager** off first.
+!!! note "Redirects made by older versions"
+    Older versions could point the redirect at a current-user install. If yours does, the card shows it as on and lets you turn it off (with administrator approval). A current-user uninstall runs without administrator rights, so it can't remove that redirect itself. Rather than delete the exe Windows would keep sending ++ctrl+shift+esc++ to, the uninstall stops before removing anything and says why: the uninstaller window stays open with the message, and `--uninstall-headless` prints it and exits with code 1. Turn **Replace Windows Task Manager** off, then uninstall again. An uninstall started from an elevated process removes the redirect on its own.
 
 ## Administrator Actions
 
@@ -110,9 +111,9 @@ The app itself runs as a normal user, never elevated. A few things Windows only 
 
 The first time you do one of those and Windows says no, the app asks **Administrator approval required** first, then shows the Windows UAC prompt. Once you approve, the helper sticks around until the app exits, so later actions don't prompt again. Declining changes nothing and isn't remembered: the next admin action asks again.
 
-Ending processes uses its own elevated termination helper, but **End task** and **End process tree** ask on demand the same way: when Windows refuses to end an elevated process and elevated termination isn't on, you get **Administrator approval required** and then UAC, and only the refused processes are ended again after you approve. Declining leaves them running and asks again next time. **Restart explorer** never asks for administrator approval. You can also turn elevated termination on ahead of time from the **More** menu on the Processes page (**Enable elevated termination...**), or have it requested at startup with the setting below. See [Processes](processes.md).
+Ending processes uses its own elevated termination helper, but **End task** and **End task tree** ask on demand the same way: when Windows refuses to end an elevated process and elevated termination isn't on, you get **Administrator approval required** and then UAC, and only the refused processes are ended again after you approve. Declining leaves them running and asks again next time. **Restart explorer** never asks for administrator approval. You can also turn elevated termination on ahead of time from the **More** menu on the Processes page (**Enable elevated termination...**), or have it requested at startup with the setting below. See [Processes](processes.md).
 
-**End task**, **End process tree**, every **Set priority** level and **Disconnect** also have their own confirmation, and it comes first: **Cancel** there means no administrator prompt either. So does disabling a service. Memory dumps, starting, stopping or restarting a service, and startup app changes have no confirmation of their own.
+**End task**, **End task tree**, every **Set priority** level and **Disconnect** also have their own confirmation, and it comes first: **Cancel** there means no administrator prompt either. So does disabling a service. Memory dumps, starting, stopping or restarting a service, and startup app changes have no confirmation of their own.
 
 Both settings are in **Settings** > **General** > **Administrator actions**:
 
@@ -127,7 +128,7 @@ Open them with **Settings** at the bottom of the sidebar. The settings window ha
 
 | Page | Setting | Default |
 | --- | --- | --- |
-| **General** | **Autosave settings**: save changes to `settings.xml` as they are made | On |
+| **General** | **Autosave settings**: also save changes made outside the settings window (such as column widths and layout) and save at exit. Changes in the settings window are always saved. See [Autosave](../../getting-started/configuration.md#autosave) | On |
 | **General** | **Window management** | See [Background Mode](#background-mode) |
 | **General** | **Replace Ctrl+Shift+Esc shortcut**, **Replace Windows Task Manager** | Off, see [above](#replacing-windows-task-manager) |
 | **General** | **Administrator actions** | See [Administrator Actions](#administrator-actions) |
@@ -139,18 +140,20 @@ Open them with **Settings** at the bottom of the sidebar. The settings window ha
 
 ### Appearance
 
-All of these are on **Settings** > **Appearance**.
+All of these are on **Settings** > **Appearance**. The first group is the shared one every TADN app has, see [Themes](../../shared/themes.md).
 
 ![The Appearance settings page](../../images/task-manager/settings-appearance.png)
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| **Theme mode** | **System** | Follow Windows, or force **Light** or **Dark**. |
+| **Theme style** | **System** | Follow Windows, or force **Light** or **Dark**. |
 | **Windows 11-style settings menu** | On | The settings window navigation style. |
+| **Text color**, **Background color** | App default | Override the window text and background colors, with separate light and dark variants. |
 | **Rounded corners** | On | Rounded corners on Task Manager and its menus. |
-| **Collapse navigation when narrow** | On | Show only navigation icons when the window is narrower than 750 pixels. |
 | **Animations** | **System** | Follow Windows, or keep animations **Disabled** or **Enabled**. |
 | **Tooltip delay** | 750 ms | How long the pointer must hover before a tooltip appears (0 to 10,000 ms). |
+| **Font size** (**Context menu**) | 15 | Size of the menus inside the window (8 to 48). The tray menu keeps its fixed size. |
+| **Collapse navigation when narrow** (**Window**) | On | Show only navigation icons when the window is narrower than 750 pixels. |
 
 ## Key Bindings
 

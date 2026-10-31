@@ -11,7 +11,7 @@ If you'd rather get something else, change **Settings** > **General** > **Left-c
 - **Windows 10 network flyout** (default): the classic network flyout.
 - **Windows 11 control center**: the Windows 11 Quick Settings panel, opened directly.
 - **Quick Settings (Action Center)**: the same panel, opened through the `ms-actioncenter:` link.
-- **Available Networks (ms-availablenetworks)**: the Windows Wi-Fi network list.
+- **Available networks (ms-availablenetworks)**: the Windows Wi-Fi network list.
 - **Settings > Network & Wi-Fi**: the Wi-Fi page of Windows Settings.
 
 The first two talk to undocumented parts of the Windows shell. They work on current builds, but Microsoft can break them whenever it likes. When the option you picked fails to open, the app opens **Available Networks** instead, so a click always does something.
@@ -37,7 +37,7 @@ Hover the icon for a tooltip that lists every active connection by name, each wi
 
 ### Icon Colors
 
-The three state colors are in **Settings** > **Theme** > **Tray icon colors**:
+**Settings** > **Theme** > **Tray icon colors** starts with **Tray icon style**. **Dynamic (state colors)**, the default, colors the icon by connection state with these three colors:
 
 - **Connected color**: an interface has internet access.
 - **No-internet color**: connected locally, no internet. Also used while Wi-Fi is connecting.
@@ -45,31 +45,31 @@ The three state colors are in **Settings** > **Theme** > **Tray icon colors**:
 
 Each has a light and a dark theme variant. Leave one unset and it uses the default from the table above. Color picking itself works like everywhere else in the suite, see [Themes](../../shared/themes.md).
 
-**Note**: the **Static tray icon color** card above them does nothing in this app unless you set `TrayIconStyle` to `Static` in `settings.xml`. Then the icon uses that single color for every state and ignores the three state colors. There's no switch for it in the settings window.
+**Static** draws the icon in the single **Tray icon color** for every state instead; the card for it only shows while **Static** is picked, and the three state colors only while **Dynamic** is.
 
 ## Tray Context Menu
 
 Right-click the tray icon (or press ++shift+f10++ / the menu key while the icon has keyboard focus):
 
-- **Network Settings**: opens **Network & internet** in Windows Settings.
-- **Adapter Settings**: opens the Network Connections window, i.e. the list of adapters where you change IPv4 settings, disable an adapter, etc.
-- **App Settings**: opens this app's settings window.
+- **Network settings**: opens **Network & internet** in Windows Settings.
+- **Adapter settings**: opens the Network Connections window, i.e. the list of adapters where you change IPv4 settings, disable an adapter, etc.
+- **App settings**: opens this app's settings window.
 - **Exit**: closes the app.
 
-By default the menu docks in the bottom-right corner like a Windows 11 flyout. Set **Settings** > **Tray Icon** > **Menu position** to **Classic (at cursor)** if you want it at the mouse instead. The rest of the menu customization is shared, see [Tray Icon and Flyouts](../../shared/tray-and-flyouts.md).
+By default the menu docks in the bottom-right corner like a Windows 11 flyout. Set **Settings** > **Tray icon** > **Menu position** to **Classic** if you want it at the mouse instead. The rest of the menu customization is shared, see [Tray Icon and Flyouts](../../shared/tray-and-flyouts.md).
 
 ### Adapter Settings Window
 
-**Settings** > **General** > **Adapter settings window** picks which window **Adapter Settings** opens:
+**Settings** > **General** > **Adapter settings window** picks which window **Adapter settings** opens:
 
 - **Explorer (Network Connections)** (default): Network Connections as an Explorer window.
 - **Control Panel (ncpa.cpl)**: the classic Control Panel applet.
 
-Both show the same adapters. Windows opens either one in a separate background `explorer.exe` and leaves it running after you close the window. The app watches for that and ends the leftover process once you close the window, so you don't pile up a stray `explorer.exe` every time you open it.
+Both show the same adapters. Windows may open either one in a separate background `explorer.exe` and leave it running after you close the window. The app watches for that and ends the leftover process once you close the window, but only when that process has no other visible window left, so you don't pile up a stray `explorer.exe` every time you open it.
 
 ## Click Actions
 
-Clicking with modifiers held, or double-clicking, runs a different action. Set them in **Settings** > **Tray Icon** > **Modifier-click actions**. Each one can be **Nothing**, **Open app settings**, or **Open adapter settings**. **Nothing** falls through to the plain click (or the plain double-click for the modified double-clicks).
+Clicking with modifiers held, or double-clicking, runs a different action. Set them in **Settings** > **Tray icon** > **Modified actions**. Each one can be **Nothing**, **Open app settings**, or **Open adapter settings**. **Nothing** falls through to the plain click (or the plain double-click for the modified double-clicks).
 
 | Click | Default |
 | --- | --- |
@@ -103,7 +103,7 @@ Global hotkeys work like in every TADN app, see [Hotkeys](../../shared/hotkeys.m
 
 ## Differences from the Other Apps
 
-The app has no window or flyout of its own, the left click belongs to Windows. So there's no flyout undocking, keep-open, or flyout settings here, and no scroll wheel action on the tray icon.
+The app has no window or flyout of its own, the left-click belongs to Windows. So there's no flyout undocking, keep-open, or flyout settings here, and no scroll wheel action on the tray icon.
 
 **Settings** > **General** > **Rendering backend** defaults to **Software** in this app, where most of the suite defaults to **GPU preferred**. Switch it like in any other app, see [Settings Window](../../shared/settings-window.md).
 

@@ -81,3 +81,39 @@ skip never affects another application, and a newer release is still offered.
 While the skipped release is the newest one, the About page shows Undo skip in
 place of Skip this release. Undo skip clears the stored build and offers the
 release again at once.
+
+## Installing an update
+
+`UpdateCheckService.DownloadAndStageAsync` and `UpdateInstaller` (Common) do the work:
+
+1. Integrity: every `versions.xml` app artifact carries `sha256`, and the GitHub API fallback carries each asset's
+   `digest`. The download is hashed while it streams; a release without a hash, or with a different one, fails
+   before extraction. Each attempt has a 30 s inactivity timeout that restarts on every chunk.
+2. Worker: the installed exe itself runs `--update-apply` (elevated only when the install folder needs it, and
+   never as another account; see `TrayAppDotNETElevationPolicy`). It takes the app's own lock
+   `.tadn-update-<App>.lock` (other apps in the folder use their own), rolls back any interrupted earlier update,
+   copies the downloaded zip into `.tadn-update-<App>-<guid>\` inside the install folder while hashing that copy,
+   extracts it there and plans only the app's payload files (`TrayAppDotNETInstallPayload`).
+3. Restarter: the extracted exe runs `--update-restart` unelevated; the parent writes the list of apps to restart
+   (the target, plus every app in the folder when a shared native DLL changes).
+4. Commit: the worker stops the apps through the graceful exit request, takes the install-directory mutex, writes
+   the journal `.tadn-update-<App>.journal`, then for each file renames the old one to a `.bak` and moves the new
+   one into place (shared native DLLs first, the exe last). Success appends a `committed` line to the journal and
+   then deletes it (if neither works the transaction rolls back while it still knows every step), refreshes
+   `DisplayVersion`, and leaves its own exe backup and the staging folder to `DetachedCleanup` after it exits.
+   A journal ending in `committed` is never rolled back; recovery only deletes it and the backups.
+5. Recovery: `UpdateFileTransaction.RecoverInterrupted` replays the journal backwards. It runs at the start of the
+   next worker, before every install copy, and in the restarter when the worker ended with an unknown exit code;
+   an unknown code that cannot be recovered never restarts the apps.
+6. Transitional step: builds from before this handshake start the *downloaded* exe as the worker with only
+   `--update-apply --parent-pid --parent-start --pipe --target --log`. `UpdateInstaller.IsLegacyApplyInvocation`
+   recognizes that command line (no `--archive`, no `--sha256`) and applies the update the old way for that one
+   step: the worker may run from the extracted download (the old parent already chose to run it, elevated if
+   needed, so refusing would only strand the install), it creates the log, copies its own folder into the
+   protected staging folder instead of verifying a package, sends only the ready byte, and writes the restart
+   list the old parent leaves to it (with `CreateNew`). Locking, recovery, the journaled commit, sibling stops
+   and the `DisplayVersion` refresh (with its own build number) are the same as for the current handshake.
+   The old parent's pipe was created with `PipeOptions.CurrentUserOnly`, so its owner is the token's default owner:
+   `BUILTIN\Administrators` for an elevated administrator, which every app is when UAC is off. For this step only,
+   the worker accepts that owner as well as the user SID; the pipe must still be served by the parent's process
+   ID. The current handshake creates the pipe with the user SID as explicit owner and accepts nothing else.

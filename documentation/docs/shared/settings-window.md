@@ -4,7 +4,7 @@ Every TADN app uses the same settings window: a page list on the left, the curre
 
 ## Opening Settings
 
-- Right-click the tray icon and pick **Settings** (**App Settings** in Network).
+- Right-click the tray icon and pick **Settings** (**App settings** in Network).
 - Click the settings button in the flyout (Battery, Brightness, Fan Control, Volume).
 - Press the **Open settings** hotkey, if you've bound one. See [Hotkeys](hotkeys.md).
 - Task Manager has no Settings entry in its tray menu. Use the **Settings** row at the bottom of the main window's sidebar.
@@ -54,7 +54,7 @@ It's forgiving on purpose:
 ## Editing Values
 
 - **Toggles and dropdowns** apply the moment you change them.
-- **Number boxes** apply as you type, once the text is a valid number inside the allowed range. ++enter++ or clicking away commits it; a number outside the range gets pulled to the nearest limit, and an empty box goes back to the last valid value. ++esc++ puts back whatever was there before you started typing.
+- **Number boxes** apply what you type when you press ++enter++ or leave the box, never halfway through a number. A number outside the range gets pulled to the nearest limit, and an empty or invalid box goes back to the last valid value. Only digits and the number's sign and decimal characters can be typed. ++esc++ puts back whatever was there before you started typing and leaves the caret in the box.
 - ++up++ / ++down++ or the small arrow buttons step a number box. Hold ++ctrl++ for bigger steps, ++ctrl+shift++ for even bigger ones (10 and 100 on most boxes). The scroll wheel changes the value while the box has focus.
 - Some changes ask for confirmation in an overlay inside the window, e.g. the restart prompt for the rendering backend. ++esc++ cancels it.
 
@@ -68,15 +68,15 @@ These cards sit at the top of every app's **General** page. App-specific cards f
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| **Language** | **Auto** | **Auto** uses the Windows display language when the app has a translation for it. English is the only language shipped right now. Takes effect the next time the app starts. |
-| **Run on startup** | On | Puts a shortcut in your Startup folder (`shell:startup`) so the app starts when you sign in. While it's on, the card shows the shortcut's target. Called **Run on startup automatically** in Brightness, Fan Control, Network, and Volume. |
+| **Language** | **Auto** | **Auto** uses the Windows display language when the app has a translation for it. English is the only language shipped right now. A change takes effect after a restart; the app offers to restart right away. |
+| **Run on startup** | On | Puts a shortcut in your Startup folder (`shell:startup`) so the app starts when you sign in. While it's on, the card shows the shortcut's target. |
 | **Start minimized** | Off | Task Manager only. A sub-option under **Run on startup**: keep the window minimized when the app starts at sign-in. Starting the app yourself always opens the window. |
 
 Because **Run on startup** defaults to on, a fresh copy adds its startup shortcut the first time it runs. Turn it off here if you don't want that. What the startup shortcut passes to the app is covered in [Launch Arguments](../getting-started/launch-arguments.md).
 
 ### Installation
 
-The **Installation** section has one card per install location (current user and system-wide; the exact labels vary a bit per app) with **Install** and **Uninstall** buttons, plus a **Windows Store** card saying whether this copy runs from the Store. Each card shows whether that location has a copy and which build it is. System-wide installs need administrator approval. The whole install story, including portable use, is in [Installation](../getting-started/installation.md).
+The **Installation** section has one card per install location (current user and system-wide; the exact labels vary a bit per app) with **Install** and **Uninstall** buttons, plus a **Microsoft Store** card saying whether this copy runs from the Store. Each card shows whether that location has a copy and which build it is. System-wide installs need administrator approval. The whole install story, including portable use, is in [Installation](../getting-started/installation.md).
 
 ### Rendering
 
@@ -87,8 +87,8 @@ The bottom of the **General** page is the shared rendering section.
 | **Rendering backend** | **GPU preferred** (**Software** in Network) | **GPU preferred** draws with the GPU and falls back to software rendering if that doesn't work. **Software** forces CPU rendering. GPU rendering is faster but has more RAM overhead. |
 | **Keep flyout warm** | On | Keeps the flyout built in the background so it opens faster. When off, the hidden flyout is released after a short idle delay. Battery, Fan Control, and Volume only. Brightness always keeps its flyout warm, so it has no toggle. |
 | **Keep tray context menu warm** | On | Same idea for the right-click tray menu. Every app except Task Manager. |
-| **Use system submenu delay** | Off | Uses the submenu hover delay configured in Windows. |
-| **Submenu open delay** | 150 ms | How long the pointer has to hover before a submenu opens, 0 to 5000 ms. Hidden while **Use system submenu delay** is on. |
+| **Use system submenu delay** | Off | Task Manager only (its process row menu is the only menu with submenus). Uses the submenu hover delay configured in Windows. |
+| **Submenu open delay** | 150 ms | Task Manager only. How long the pointer has to hover before a submenu opens, 0 to 5000 ms. Hidden while **Use system submenu delay** is on. |
 
 Changing **Rendering backend** saves the choice right away, then asks **Restart required** with **Restart** and **Not now**. The backend is only picked when the app starts, so **Not now** means the old one stays until the next start. **Restart** relaunches the app with the same settings folder.
 
@@ -98,7 +98,7 @@ The **About** page shows the app name and tagline, the **Build** number, the .NE
 
 ![The About page](../images/shared/settings-about.png)
 
-- **Files** has the open-settings-folder card (**Open settings folder**, or **Open Task Manager settings folder** in Task Manager). **Open** opens the folder with this app's settings and logs. What's in there is covered in [Configuration](../getting-started/configuration.md).
+- **Files** has the **Open settings folder** card. **Open** opens the folder with this app's settings and logs. What's in there is covered in [Configuration](../getting-started/configuration.md).
 - **Updates** has the update status line and buttons (**Check for updates**, **Skip this release** / **Undo skip**, and the install button), plus these settings:
 
 | Setting | Default | What it does |
@@ -111,4 +111,4 @@ The **About** page shows the app name and tagline, the **Build** number, the .NE
 
 How updating, skipping, and backdating actually work is in [Updates](../getting-started/updates.md).
 
-**Known Issues**, at the bottom of the page, lists known problems in the apps that have any (Brightness and Volume right now).
+**Known issues**, at the bottom of the page, lists known problems in the apps that have any (Brightness and Volume right now).

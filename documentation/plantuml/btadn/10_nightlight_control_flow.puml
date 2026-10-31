@@ -1,5 +1,5 @@
 @startuml nightlight_control_flow
-!include dark-theme.puml
+!include ../dark-theme.puml
 ' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
 title Night-light - control flow at runtime (UI gesture -> Provider dispatch -> bracket -> broker -> hardware)
 
@@ -43,7 +43,7 @@ package "App entry points" $TINT_BLUE {
 package "NightLightProvider facade (Services/NightLightProvider.cs)" $TINT_AMBER {
   [GetStrength / IsEnabled\n(read via active backend)]        as NLP_READ
   [SetStrength(percent, persistAsLast)\n+ auto-off-at-zero hook] as NLP_SET
-  [SetEnabled(enabled)\n+ EnsureNonZeroStrengthBeforeEnable]   as NLP_EN
+  [SetEnabled(enabled)\n+ ResolveEnableStrength]               as NLP_EN
   [Toggle()\n(flip; restore last warmth if going on at 0)]    as NLP_TOG
   [Reapply()\n(re-issue current strength if enabled)]         as NLP_REAPPLY
 
@@ -110,16 +110,19 @@ note top of NLP_SET
 end note
 
 note top of NLP_EN
-  EnsureNonZeroStrengthBeforeEnable
+  ResolveEnableStrength
   ----
   Guard for the off->on transition only.
   If the active backend reports strength 0,
-  pre-write a restored value via the SPACED
-  pipeline (M-14 fix: now uses
-  EnqueueSetStrengthSpaced rather than a bare
-  synchronous SetStrength, so toggling NL on
-  from strength=0 no longer visibly flickers
-  - DUP-19 closed).
+  the enable carries a restored value.
+  Registry: SetEnabled(true), then
+  EnqueueSetStrengthSpaced (M-14: the SPACED
+  pipeline, not a bare synchronous SetStrength,
+  so toggling NL on from strength=0 no longer
+  visibly flickers - DUP-19 closed).
+  SettingsHandler: SetEnabledAsync(true, strength)
+  in the night-light helper process.
+  Off always goes through Registry.SetEnabled(false).
 
   Restored value:
     AppSettings.NightLightLastNonZeroStrength
@@ -142,7 +145,7 @@ package "Registry backend (Interop/NightLight/NightLightRegistry.cs)" $TINT_GREE
 
   [SetEnabled / Toggle\nflip presence-marker (STATE field 0)\n+ bump inner FILETIME (field 20)] as REG_TOG
 
-  [SetStrength (synchronous)\nWriteKelvin + RefreshStateFileTime;\nused only by EnsureNonZeroStrengthBeforeEnable] as REG_SYNC_SET
+  [SetStrength (synchronous)\nWriteKelvin + RefreshStateFileTime;\nused only by the SettingsHandler\ndeferred registry settle-write] as REG_SYNC_SET
 
   [PulseApply\nToggle off->on as recovery\n(visible flicker; not used by\nProvider's hot path)] as REG_PULSE
 
@@ -153,8 +156,8 @@ NLP_READ --> REG_READ : both Windows backends read via Registry\n(GammaRamp read
 NLP_SET  --> REG_ENQ  : Backend.Registry
 NLP_EN   --> REG_TOG  : Backend.Registry
 NLP_TOG  --> REG_TOG  : Backend.Registry
-NLP_EN   --> REG_SYNC_SET : EnsureNonZeroStrengthBeforeEnable\n(Backend.Registry)
-NLP_TOG  --> REG_SYNC_SET : EnsureNonZeroStrengthBeforeEnable\n(Backend.Registry)
+NLP_EN   --> REG_ENQ  : restored strength after enable\n(Backend.Registry)
+NLP_TOG  --> REG_ENQ  : restored strength after enable\n(Backend.Registry)
 
 REG_ENQ      --> REG_RESEND   : re-arm belt-and-suspenders timer
 REG_ENQ      --> REG_THROTTLE : RunAsync(key="nightlight")
@@ -247,8 +250,8 @@ end note
 ' ---------------------------------------------------------------------------
 ' 4. SettingsHandler backend (RVA-resolved DLL path; explicit opt-in)
 ' ---------------------------------------------------------------------------
-package "SettingsHandler backend (Interop/NightLight)" $TINT_PURPLE {
-  [NightLightSettingsHandler\nthrottler key="nightlight"\nlatest-pending-wins, cooldown=0] as SH_FACADE
+package "SettingsHandler backend (Interop/NightLight; DLL calls run in the night-light helper process)" $TINT_PURPLE {
+  [NightLightSettingsHandler\n-> NightLightHelperClient (pipe to\nthe helper; length-one kelvin queue)] as SH_FACADE
 
   [NightLightCloudStore.EnsureInit\n(MTA thread + LoadLibraryW +\nRVA resolve via known table or PDB +\nBlueLightSingleton::Initialize +\nsanity-check inner ptrs at +272 / +296)] as SH_INIT
 
@@ -258,14 +261,13 @@ package "SettingsHandler backend (Interop/NightLight)" $TINT_PURPLE {
 }
 
 NLP_SET --> SH_FACADE : Backend.SettingsHandler
-NLP_EN  --> REG_TOG   : Backend.SettingsHandler\n(on/off delegates to Registry)
-NLP_TOG --> REG_TOG   : Backend.SettingsHandler\n(on/off delegates to Registry)
-NLP_EN  --> SH_BRACKET : EnsureNonZeroStrengthBeforeEnable\n(SaveSettingsKelvin sync wrap)
-NLP_TOG --> SH_BRACKET : EnsureNonZeroStrengthBeforeEnable\n(SaveSettingsKelvin sync wrap)
+NLP_EN  --> REG_TOG   : off (every backend)
+NLP_EN  --> SH_FACADE : on: SetEnabledAsync(true,\nrestored strength)\n(Backend.SettingsHandler)
+NLP_TOG --> SH_FACADE : on: SetEnabledAsync(true,\nrestored strength)\n(Backend.SettingsHandler)
 
-SH_FACADE --> SH_INIT     : first IsSupported() probe
-SH_FACADE --> SH_BRACKET  : RunAsync(throttled)
-SH_FACADE --> SH_DEFERRED : ArmDeferredRegistryWrite\n(every SetStrength / SetEnabled / Toggle)
+SH_FACADE --> SH_INIT     : helper start: first IsSupported() probe
+SH_FACADE --> SH_BRACKET  : TryQueueSettingsKelvin\n(helper drains the latest kelvin)
+SH_FACADE --> SH_DEFERRED : ArmDeferredRegistryWrite\n(every queued kelvin write)
 SH_DEFERRED --> REG_SYNC_SET : OnDeferredRegistryTimerFired\n-> NightLightRegistry.SetStrength(latest)\n+ RefreshStateFileTime
 
 note bottom of SH_DEFERRED
@@ -296,7 +298,7 @@ note left of SH_INIT
     FreeLibrary would crash the geolocator
     callback we registered.
   * Per-build RVAs sourced from
-    KnownSettingsHandlersRvas table or
+    KnownSettingsHandlersRVAs table or
     PDBSymbolResolver, mirrored to
     %LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\
     nightlight_known_rvas.xml.

@@ -34,21 +34,24 @@ Task Manager already offers. The IFEO "Replace Task Manager" card is independent
    broker via ShellExecute `runas`: one UAC prompt.
 3. Decline leaves everything unchanged and is NOT remembered: every later admin action re-prompts
    until elevation is actually granted.
-4. The broker persists for the session; once granted, every later op reuses it with no prompt. It
-   tears down on UI exit (parent-death watch, the mechanism the kill helper already uses).
+4. The broker serves the UI's one connection; while it stays up, every later op reuses it with no
+   prompt. It exits when that connection drops (a client-side timeout drops it too) or the UI exits
+   (parent-death watch on a handle it holds), and the next admin action prompts and launches a new one.
 
 ## IPC
 
-Named pipe, current-user ACL (the pattern already used by the activation server and the installer
-progress pipe). The broker is the server (it owns the ACL and authenticates clients); the UI is the
-client and connects with a short retry until the broker's pipe is up. Request/response, one enumerated
-op per request, correlation id, typed result (`Success` / `AccessDenied` / `InvalidTarget` /
-`NotFound` / `Failed` + message). The op set is closed:
+Named pipe, current-user ACL. The broker is the server (it owns the ACL and authenticates the client);
+the UI is the client and connects with a short retry until the broker's pipe is up. Request/response,
+one enumerated op per request, correlation id, typed result (`Success` / `AccessDenied` /
+`InvalidTarget` / `NotFound` / `Failed` + message). The client uses asynchronous reads and writes with a
+per-operation timeout (15 s for handle and registry ops, 90 s for service control, 10 minutes for a
+dump) and drops the connection on timeout, so a slow or hung broker never blocks the UI thread. A line
+the broker cannot parse still gets a `Failed` answer. The op set is closed:
 
 - `TerminateProcess(pid, exitCode)`
 - `SetPriority(pid, class)`
 - `SetAffinity(pid, mask)`
-- `CreateDump(pid, kind)`
+- `CreateDump(pid, fileHandle)`: the handle value of an empty file the UI created
 - `ServiceControl(name, verb)`
 - `SetStartupApproval(entry, hive, enabled)`
 - `DisconnectSession(sessionId)`
@@ -66,14 +69,35 @@ next step, because it re-architects the critical kill path and needs runtime ver
 ## Security model
 
 - Pipe ACL restricted to the current user.
-- The broker authenticates the connecting client before serving any request: it resolves the client
-  PID with `GetNamedPipeClientProcessId` and requires the client's image path to equal the broker's
-  own installed executable path. Placing a copy at that path already requires admin, so combined with
-  the current-user ACL this blocks a hostile same-user process from driving the broker. Authenticode
-  publisher verification is a hardening layer to add for signed release builds.
-- Closed op set; each op validates its target and is written to the Task Manager log for auditability.
-- A kill-capable elevated helper already exists today, so this is not a new class of exposure, but it
-  raises the value of the surface, which is why client authentication is added now rather than deferred.
+- The broker serves only the UI that launched it. The command line carries the UI's PID
+  (`--broker-parent`) and process start time (`--broker-parent-start`); the broker opens that process,
+  requires the start time to match, and keeps the handle open for its whole life, so the PID cannot be
+  recycled. A connecting client must have exactly that PID (`GetNamedPipeClientProcessId`). Matching the
+  image path is not enough: a same-user process could start a suspended second copy of the exe, so
+  the image check was replaced. A same-user process that reaches the pipe first is disconnected and
+  never served. Same-user code that can inject into or duplicate handles from the UI process itself is
+  outside what a same-user broker can defend against (Windows does not treat UAC as a boundary).
+- One connection only: after the UI's connection drops, the broker exits instead of listening again.
+- Closed op set with elevated-side input validation: startup approval writes only accept the three
+  `Explorer\StartupApproved` subkeys (`Run`, `Run32`, `StartupFolder`) with a non-empty value name;
+  priorities, verbs and states must be defined values. Every served op is logged with its target, the
+  client PID and the result.
+- No elevated file writes into user folders: the broker writes no log file and takes no settings folder.
+  Its log lines travel to the UI ahead of each response (`log|` lines, line breaks escaped) and the UI
+  writes them into its own log; a same-user process controls that folder and could otherwise redirect an
+  elevated append or rotation with a junction. The elevated taskmgr.exe redirect change reports only
+  through its exit code.
+- The kill helper refuses a target without a creation time, so it never acts on a PID it cannot tell
+  apart from a recycled one. An elevated Task Manager starts the standard kill helper directly so it
+  inherits the elevated token (a helper started through Explorer would run at medium integrity and
+  could not duplicate handles from the elevated parent).
+- `dbghelp.dll`, used by the dump op, is loaded from System32 only.
+- The broker never creates the dump file. The UI creates it in its own `%TEMP%\TaskManagerTrayAppDotNET`
+  (CreateNew, as the medium-integrity user, so a junction there gains nothing) and sends only the handle
+  value. The broker opens the pinned UI process with `PROCESS_DUP_HANDLE`, duplicates that handle, requires
+  a disk file that is a regular, non-directory, non-reparse-point file with a link and zero length, and
+  writes the dump into it. The UI reports the path; on failure it deletes the file, and after a timeout it
+  keeps the file because the broker may still be writing.
 
 ## Build and AOT
 
@@ -103,5 +127,4 @@ helper from it). Everything already wired is managed handlers plus call-site rou
 - Decline memory: resolved - a decline is never remembered; every ungranted admin action re-prompts.
 - Elevated bypass: resolved - `BypassElevationBrokerWhenElevated` (default off) supplies the option
   while keeping the broker path as the consistent default.
-- Open: unifying terminate under the broker, and broker idle lifetime (currently tied to the UI
-  process, no idle timeout).
+- Open: unifying terminate under the broker. Broker lifetime is one UI connection (see Lifecycle).

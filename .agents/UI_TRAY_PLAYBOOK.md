@@ -9,6 +9,8 @@ Use this for tray icon flicker, stale tooltip, hover scroll failures, shell noti
   - `TrayAppDotNETCommon/src/UI/Tray/NativeIcon.cs`
   - `TrayAppDotNETCommon/src/UI/Tray/TrayIconRenderer.cs`
   - `TrayAppDotNETCommon/src/UI/Tray/TrayIconRenderQueue.cs`
+  - `TrayAppDotNETCommon/src/UI/Tray/TrayIconPresenter.cs`
+  - `TrayAppDotNETCommon/src/UI/Tray/TrayMenuController.cs`
 - Shared throttling and timing:
   - `TrayAppDotNETCommon/src/Services/AsyncThrottler.cs`
   - `TrayAppDotNETCommon/src/TimeConstants.cs`
@@ -38,9 +40,16 @@ Use this for tray icon flicker, stale tooltip, hover scroll failures, shell noti
   - Skia icon generation
   - Shell update preparation
 - Marshal only final UI/shell updates to the UI thread.
-- For tray icon dedupe, compare the computed render input against applied and pending render input.
-- Preserve shell icon and tooltip semantics when skipping image generation.
+- Every app refreshes its tray icon through `TrayIconPresenter<TInput>`: it sets the tooltip at once and skips a
+  render whose input equals the last *requested* input at the same taskbar icon size. Renderers return a value-equal
+  input from their state; keep everything that changes the image in it, and nothing that does not.
+- A finished render replaces only the icon (`SetOwnedIcon`), so it never brings back an older tooltip.
 - Tooltip state can update locally immediately, but avoid high-frequency shell `NIM_MODIFY` calls unless the icon changes or tooltip sync is needed.
+- Raw input is registered only while `Scrolled` or `PrecisionTouchpadScrolled` has a handler. `Scrolled` reports
+  whole notches; high-resolution wheel deltas accumulate in Common.
+- Tray input diagnostics (`TrayInputDiag`) exist only in Debug builds.
+- Tray menus are `TrayMenuWindow`s owned by a `TrayMenuController`; call `Invalidate()` when app state shown in the
+  menu changes. Settings and theme changes already invalidate it.
 - When clicks still work but hover scroll, tooltip, or icon are frozen, suspect shell notification/message-window state rather than the whole app being dead.
 
 ## Shell Callback Messages

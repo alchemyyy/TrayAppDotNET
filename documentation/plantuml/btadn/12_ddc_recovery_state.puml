@@ -1,5 +1,5 @@
 @startuml ddc_recovery_state
-!include dark-theme.puml
+!include ../dark-theme.puml
 title DDC recovery state machine\nFresh helper escalation, durable identity, no healthy-row sweep
 
 state Healthy : SliderState != Failed\n!IsReadDegraded\nbrightness target completes only after matching read-back

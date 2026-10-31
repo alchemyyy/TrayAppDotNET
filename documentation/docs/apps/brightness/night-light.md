@@ -14,7 +14,7 @@ Turning Night Light on when its strength is 0 would change nothing you can see, 
 
 ## Other Controls
 
-- **Tray icon**: ++ctrl++ + scroll over the tray icon changes the strength by **Mouse wheel step** per notch (2% by default). That's the default for **Ctrl + mouse wheel** in **Settings** > **Tray Icon** > **Modified actions**, and you can put Night Light on the plain wheel or ++alt++ + wheel there too. See [Brightness](index.md#tray-icon).
+- **Tray icon**: ++ctrl++ + scroll over the tray icon changes the strength by **Mouse wheel step** per notch (2% by default). That's the default for **Ctrl + mouse wheel** in **Settings** > **Tray icon** > **Modified actions**, and you can put Night Light on the plain wheel or ++alt++ + wheel there too. See [Brightness](index.md#tray-icon).
 - **Tooltip**: while Night Light is on, the tray tooltip has a **Night Light: N%** line.
 - **Hotkeys**: **Toggle night light**, **Increment night light** and **Decrement night light** (2% per press). All unbound by default, see [Hotkeys](index.md#hotkeys).
 - **Profiles**: every profile saves the Night Light strength and applies it when you switch to it. Profiles don't save or change whether Night Light is on. See [Profiles](index.md#profiles).
@@ -62,11 +62,13 @@ With **Settings handler** and **Registry**, reading the current state always com
 
 The default. The app drives the same internal Windows component (`SettingsHandlers_Display.dll`) that the Night Light slider in Windows Settings uses, from a small helper process. That way Windows Settings shows the same strength as the flyout, and it can turn Night Light on even on a fresh Windows profile where it was never used.
 
-The catch: it calls internal functions of that DLL, so the app has to know where they are in your exact Windows build. Builds it knows about are built in. When a Windows update brings a DLL it doesn't know, the app downloads the matching debug symbols from Microsoft's public symbol server (`msdl.microsoft.com`), works out the locations, and caches the result in the `nightlight` folder inside the app's data folder (see [Configuration](../../getting-started/configuration.md)). That download happens once per DLL build.
+The catch: it calls internal functions of that DLL, so the app has to know where they are in your exact Windows build. Builds it knows about are built in, and listed in `nightlight_known_rvas.xml` in the `nightlight` folder inside the app's data folder (see [Configuration](../../getting-started/configuration.md)), where you can add or correct a build; an entry with a missing or zero location is ignored. When a Windows update brings a DLL it doesn't know, the app downloads the matching debug symbols from Microsoft's public symbol server (`msdl.microsoft.com`), works out the locations, and caches the result in the same folder. That download happens once per DLL build, and the symbols of earlier builds are deleted afterwards.
+
+The helper starts in the background the first time you change Night Light, so the tray and flyout never wait for it, even during a symbol download; the change is applied as soon as the helper is ready.
 
 If the download can't happen (no internet, the symbol server is blocked, an air-gapped machine) or the symbols don't resolve, the Settings handler backend is unavailable. ***There's no automatic fallback to Registry.*** You'll see the bulb fail to turn Night Light on and the slider do nothing. Switch the backend to **Registry**.
 
-**PDB download timeout** (60 s by default, 5 to 600) caps the whole download. On a slow or metered connection, raise it. The app gives up on the Settings handler for the rest of the session once the download fails, so after raising it, restart the app.
+**PDB download timeout** (60 s by default, 5 to 600) caps the whole download. On a slow or metered connection, raise it. After a failed start the next change retries, at first after 5 seconds and then with longer waits (up to 5 minutes), so raising the timeout takes effect without a restart. When the symbols resolve but your Windows build doesn't have the functions at all, the backend stays off for the rest of the session.
 
 ### Registry
 

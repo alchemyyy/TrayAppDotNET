@@ -1,89 +1,87 @@
 @startuml app_shutdown_sequence
 ' Revised 2026-07-12: DDC scheduler and helper-process drain ownership
-!include dark-theme.puml
-title App shutdown / dispose sequence\nSix paths; Wave 1 fixes applied (annotated inline)
+' Revised 2026-10-30: every graceful exit runs the Common host's shutdown core once
+!include ../dark-theme.puml
+title App shutdown / dispose sequence\nAll graceful paths funnel into TrayAppDotNETAppHost.Shutdown (runs once)
 
-participant "User /\nTray exit" as USER
-participant "Win32 /\nSessionEnding" as WIN
-participant App as APP
+participant "User / tray Exit /\nexit request /\nupdate / restart" as USER
+participant "Win32 /\nsession end" as WIN
+participant "TrayAppDotNETAppHost\n(Common)" as HOST
+participant "App.ShutdownServices\n(Brightness cleanup)" as APP
 participant CrashHandler as CRASH
-participant "Single-instance\nWatcher" as WATCH
-participant "BrightnessFlyout\n+ Settings*" as UI
+participant "Watcher process" as WATCH
+participant "BrightnessFlyout\n+ settings window" as UI
 participant ProfileManager as PM
-participant EnvironmentalCurveService as ECS
-participant MonitorService as MS
 participant DDCRecoveryService as DRS
+participant MonitorService as MS
 participant DisplayService as DS
 participant "Per-monitor\nDDCHelperClient" as DHC
-participant TrayIconManager as TIM
+participant NightLightProvider as NLP
 participant KnownDisplaysStore as KDS
-participant ShellNotifyIcon as SNI
-participant AppSettings as APS
+participant "TrayIconPresenter +\nTrayAppDotNETShellTrayIcon" as TRAY
+participant "AppSettings\n(TrayXmlFileStore)" as APS
 
-== Path A: user-initiated exit (tray menu / hotkey) ==
-USER -> APP : ExitApplication()
-APP -> APP : Mouse.Capture(null) released before teardown\n(no longer drops MouseUp commit)
-APP -> UI  : SettingsWindow.OnClosing flushes curve debounce
-APP -> PM  : SaveOnShutdown (post-H-13 fix; profile state flushed)
-APP -> UI  : OnFlyoutClosed -> release 7 ctor subscriptions\n+ CancelPreviewSweep (post-H-18 / H-19 fixes)
-APP -> ECS : Dispose (called from OnFlyoutClosed; post-H-14 fix)
-APP -> DRS : Dispose -> clear recovery-needed flag\ncancel + bounded-drain fallback worker\nunsubscribe MonitorsRefreshed
-APP -> MS  : BeginDrainAsync -> reject new work\ndrain normal + immediate brightness + refresh schedulers\nwait active DDC operations
+== Path A: graceful exit (tray Exit, hotkey, exit request, update install, rendering restart, Restart from installed) ==
+USER -> HOST : TrayAppDotNETAppLifetime.Exit / Restart\n-> desktop lifetime ShutdownRequested / Exit
+HOST -> HOST : Shutdown() (IsShuttingDown guard: runs once)
+HOST -> HOST : dispose hotkey service, WatcherMonitor,\nupdate check service
+HOST -> APP : ShutdownApp
+APP -> APP : DisplayIdentifierService.Hide;\ndispose DisplayEventManager
+APP -> DRS : Dispose -> clear recovery-needed flag,\ncancel + bounded-drain fallback worker
+APP -> MS  : TryDrainQuickly -> BeginDrainAsync(cap)\nreject new work, drain normal + immediate\nbrightness writes, wait active DDC operations
+APP -> NLP : Shutdown (gamma tint released)
 APP -> MS  : Dispose -> cancel schedulers
 MS  -> DS  : Dispose
 DS  -> DHC : Dispose each stable-identity client\nkill child if still running\nwait boundedly for process exit
-MS  -> KDS : Flush() then Dispose -> _stampDebounceTimer disposed\n(post-H-15 fix)
-APP -> TIM : Dispose -> _renderer cleanup
-APP -> SNI : Dispose -> NIM_DELETE
-APP -> APS : Save (atomic temp+rename, post-M-04 fix)
-APP -> APP : Process.Exit
-
-== Path B: watcher-orphan restart ==
-WATCH -> APP : detect child crash (exit code not in UserExitCodes)
-WATCH -> WATCH : spawn replacement
-note right
-  CrashHandler.Environment.Exit(1) is still in UserExitCodes for
-  graceful exits, but UnhandledException now flows through Path C
-  with a distinct exit code so the watcher CAN restart on crashes.
+APP -> PM  : Dispose
+APP -> KDS : Dispose (after MonitorService and\nProfileManager, which share it; flushes)
+APP -> UI  : close warm flyout slot, tray menu,\nsettings window, flyout
+APP -> TRAY : dispose presenter, click toggle,\ntray icon (NIM_DELETE)
+HOST -> APS : SaveSettingsOnExit\n(implicit save: only while Autosave is on;\natomic temp+replace)
+HOST -> HOST : dispose theme;\nexit request listener last;\nTADNLog.Flush
+note right of HOST
+  Exit code 0, so the watcher stops too.
+  The listener goes last: a new instance taking
+  over waits for this exit instead of killing the
+  process mid-cleanup.
 end note
 
-== Path C: UI thread unhandled exception ==
-APP -> CRASH : OnUnhandledException(args)
-CRASH -> CRASH : log + Environment.Exit (non-user code)
-note right
-  Exit code 1 removed from CrashHandler.UserExitCodes (post-M-13 fix).
-  Watcher now restarts the process on unhandled UI-thread exceptions.
+== Path B: Windows session end (sign-out / shutdown) ==
+WIN -> HOST : ShutdownRequested while Windows reports\nthe session as shutting down
+HOST -> HOST : _sessionEnding = true; Shutdown() (Path A steps)
+HOST -> WATCH : exit code 3 (CrashHandler.SessionEndingExitCode)
+WATCH -> WATCH : sees SM_SHUTTINGDOWN as the app exits:\nwait, then relaunch only if the session continues\n(counts toward the rapid-restart cap)
+note right of WATCH
+  Exit code 3 while Windows is not ending the
+  session (the C runtime's abort also exits 3)
+  is treated as a crash.
 end note
 
-== Path D: background thread exception ==
-note over APP
-  Threading.Timer callbacks now wrapped in try/catch
-  (NightLightRegistry.OnResendTimerFired,
-   NightLightSettingsHandler.OnDeferredRegistryTimerFired)
-  post-M-11 fix. Background timer faults no longer tear down
-  the process; the exception is logged and swallowed.
+== Path C: unhandled exception on any thread ==
+CRASH -> CRASH : AppDomain.UnhandledException:\nlog "FATAL UnhandledException", flush,\nEnvironment.Exit(2)
+WATCH -> WATCH : exit code not 0/1 -> crash:\nwait 1 s, restart\n(5 restarts within 30 s -> give up with a message box)
+
+== Path D: non-fatal exceptions ==
+note over CRASH
+  UI dispatcher exceptions: logged in full
+  (DescribeException) and handled.
+  Unobserved task exceptions: logged in full and
+  marked observed (never fatal).
+  Threading.Timer callbacks (NightLightRegistry,
+  NightLightSettingsHandler) catch and log their own
+  exceptions, so a timer fault never tears down the process.
 end note
 
-== Path E: SessionEnding (logoff / shutdown) ==
-WIN -> APP : SessionEnding event
-APP -> APP : _sessionEnding = true (re-entry guard)
-APP -> APP : ExitApplication() (post-H-17 fix)
-note right
-  Path E now flows through Path A:
-   - NIM_DELETE fires -> no ghost tray icon.
-   - Hotkeys unregistered.
-   - KnownDisplays flushed.
-  The _sessionEnding guard prevents reentry if both
-  WM_QUERYENDSESSION and WM_ENDSESSION fire.
-end note
+== Path E: watcher dies ==
+WATCH -> HOST : WatcherMonitor sees the watcher's\nprocess handle signal -> Exit (Path A)
 
-== Path F: taskkill ==
-note over APP
-  SIGKILL-equivalent. No graceful path.
-  AppSettings.Save and ProfileManager.Save now use atomic
-  temp+rename (post-M-04 fix), so a mid-write taskkill leaves
-  the previous valid file intact instead of a zero-byte stub.
-  KnownDisplaysStore writes are still best-effort.
+== Path F: taskkill / hard kill ==
+note over APS
+  No graceful path. ProcessExit runs the last-chance
+  hook where the runtime allows it (Brightness drains
+  queued DDC writes and removes the gamma tint).
+  Data files are written atomically (temp + replace),
+  so a kill mid-write leaves the previous file intact.
 end note
 
 @enduml

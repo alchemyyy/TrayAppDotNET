@@ -51,7 +51,7 @@ Above each device's slider is its app drawer: one row per app that has audio on 
 - Click an app's icon to mute or unmute that app. Muted apps are drawn dimmed.
 - App sliders work like device sliders: drag, click, scroll wheel, or double-click the percent to type a value. With **Use logarithmic volume scale** on, they follow a decibel curve and the percent is the slider position, see [Logarithmic Scale](#logarithmic-scale).
 - The chevron on the device's title row collapses or expands the drawer. It's greyed out when the device has no apps. Each device remembers its own state; **Expand app drawers by default** only decides the starting state for devices you haven't touched yet.
-- Past **Max apps before scrolling - Full sliders** rows, the drawer scrolls.
+- Past **Max apps before scrolling - full sliders** rows, the drawer scrolls.
 
 Some stuff you won't see in there: **System Sounds**, and VolumeTrayAppDotNET's own beep. When Windows reports the same app on more than one device, it shows up only once: on the device where it's actually playing, or on the default device when it's playing nowhere.
 
@@ -64,7 +64,7 @@ Recording devices get an icon grid instead of sliders by default. Recording devi
 - **Hide inactive**: apps that aren't capturing aren't shown at all.
 - **Don't indicate**: nothing.
 
-The grid's look (icon size, icons per row, stack direction, centering) is all on the **App Drawers** settings page.
+The grid's look (icon size, icons per row, stack direction, centering) is all on the **App drawers** settings page.
 
 ### Logarithmic Scale
 
@@ -165,7 +165,7 @@ The title row of each device can hold a few more buttons. Each one has its own p
 - **Show default-device button**: the button from [Setting the Default Device](#setting-the-default-device).
 - **Show "Listen to this device" button** (recording only): toggles Windows' "Listen to this device", i.e. playing the microphone back through a playback device.
     - Click: turn it on or off. The playback target stays whatever it was.
-    - ++ctrl++ + click: turn it on with **Default Playback Device** as the target.
+    - ++ctrl++ + click: turn it on with **Default playback device** as the target.
     - Right-click: pick the target from a list of your active playback devices.
 
 **Note**: Turning on Listen also turns that recording device's audio enhancements back on if they were disabled ("Disable all enhancements" unchecked). Windows routes the listen monitor through the enhancements pipeline, and with them disabled you'd hear nothing.
@@ -208,7 +208,7 @@ Bluetooth devices get a button in their title row: a battery glyph with the rema
 
 Disconnected devices keep showing their last known charge.
 
-After you click connect, the button gets a countdown ring and the format strip shows **Connection Pending** with the seconds left. Windows doesn't actually report how a connection attempt is going, so that 30 second window is my own estimate of how long an attempt takes. Click again while it's pending to retry. Once the Bluetooth link is up but Windows hasn't brought the audio endpoint up yet, the strip shows **Connected - Audio Waiting**; click to retry if it sits there.
+After you click connect, the button gets a countdown ring and the format strip shows **Connection Pending** with the seconds left. The ring shrinks smoothly, or once a second when **Animations** (**Settings** > **Theme**) is off, and pauses while the flyout is closed. Windows doesn't actually report how a connection attempt is going, so that 30 second window is my own estimate of how long an attempt takes. Click again while it's pending to retry. Once the Bluetooth link is up but Windows hasn't brought the audio endpoint up yet, the strip shows **Connected - audio waiting**; click to retry if it sits there.
 
 ### Bluetooth Button
 
@@ -250,8 +250,8 @@ The tray icon shows the volume of the default playback device: a muted glyph, a 
 | Double-click | Open the flyout (configurable) |
 | Right-click | Tray menu |
 | Scroll wheel | Default device volume up/down by **Wheel volume step (%)** (2) |
-| ++ctrl++ + scroll wheel | Same, by **Wheel volume step (%) - Fine** (1) |
-| ++alt++ + scroll wheel | Same, by **Wheel volume step (%) - Coarse** (5) |
+| ++ctrl++ + scroll wheel | Same, by **Wheel volume step (%) - fine** (1) |
+| ++alt++ + scroll wheel | Same, by **Wheel volume step (%) - coarse** (5) |
 | Touchpad two-finger scroll | Default device volume in 1% steps |
 | ++enter++ / ++space++ on the focused icon | Open the flyout |
 | ++shift+f10++ / ++menu++ on the focused icon | Tray menu |
@@ -264,12 +264,12 @@ With a precision touchpad, two-finger scrolling over the icon moves the volume 1
 
 ### Modified Actions
 
-Under **Settings** > **Tray Icon** > **Modified actions** you can change what each scroll and click does:
+Under **Settings** > **Tray icon** > **Modified actions** you can change what each scroll and click does:
 
 - **Mouse wheel**, **Ctrl + mouse wheel**, **Alt + mouse wheel**: **Nothing**, or one of the three wheel steps.
-- **Ctrl + left click**, **Alt + left click**, **Ctrl + right click**, **Alt + right click**, **Double left click**, **Ctrl + double left click**, **Alt + double left click**: **Nothing** or **Open settings**.
+- **Ctrl + left-click**, **Alt + left-click**, **Ctrl + right-click**, **Alt + right-click**, **Double-click**, **Ctrl + double-click**, **Alt + double-click**: **Nothing** or **Open settings**.
 
-A modified entry (the ones with Ctrl or Alt) set to **Nothing** falls back to the plain action. E.g. with **Ctrl + right click** on **Nothing**, ++ctrl++ + right-click still opens the tray menu. A plain **Mouse wheel** set to **Nothing** turns plain scrolling off.
+A modified entry (the ones with Ctrl or Alt) set to **Nothing** falls back to the plain action. E.g. with **Ctrl + right-click** on **Nothing**, ++ctrl++ + right-click still opens the tray menu. A plain **Mouse wheel** set to **Nothing** turns plain scrolling off.
 
 ## Tray Menu
 
@@ -280,10 +280,10 @@ Right-click the tray icon:
 - **Settings**
 - **Exit**
 
-You can add more entries under **Settings** > **Tray Icon** > **Context menu**:
+You can add more entries under **Settings** > **Tray icon** > **Context menu**:
 
 - **Show "Recording" link in tray menu**, **Show "Sounds" link in tray menu**, **Show "Communications" link in tray menu**: entries that open the Sound control panel straight on that tab.
-- **Show per-device links in tray menu**: one entry per device the flyout lists, at the top of the menu, in the flyout's order flipped over, so the flyout's bottom device (the default device, with the default sort) comes first. The flyout's Bluetooth-only visibility settings don't apply here. Each entry opens that device's page in Windows Settings, same as right-clicking its default-device button in the flyout. **Playback device names**, **Recording device names**, and **Device name max length** control how those entries are labeled: **Name+Model** is the full Windows name (e.g. "Speakers (Realtek(R) Audio)"), **Name** is just "Speakers", **Model** is just "Realtek(R) Audio". Names longer than the max length get cut off with `..`.
+- **Show per-device links in tray menu**: one entry per device the flyout lists, at the top of the menu, in the flyout's order flipped over, so the flyout's bottom device (the default device, with the default sort) comes first. The flyout's Bluetooth-only visibility settings don't apply here. Each entry opens that device's page in Windows Settings, same as right-clicking its default-device button in the flyout. **Playback device names**, **Recording device names**, and **Device name max length** control how those entries are labeled: **Name and model** is the full Windows name (e.g. "Speakers (Realtek(R) Audio)"), **Name** is just "Speakers", **Model** is just "Realtek(R) Audio". Names longer than the max length get cut off with `..`.
 
 **Menu position** picks between **Modern** (default, docked above the taskbar like the Windows 11 system flyouts) and **Classic** (at the cursor). The menu's size follows **Settings** > **Theme** > **Font size**.
 

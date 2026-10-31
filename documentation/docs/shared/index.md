@@ -24,12 +24,12 @@ Not every app has every feature. Network has no flyout of its own (it opens the 
 | Flyout stays open while Settings is open | Yes | Yes | Yes | - | - | Yes |
 | Tray menu items you can show or hide | No | Yes | No | No | No | Yes |
 | Tray menu position (Classic/Modern) | Yes | Yes | Yes | Yes | No (always Modern) | Yes |
-| Tray menu font size | Yes | Yes | Yes | Yes | No | Yes |
+| Tray menu font size | Yes | Yes | Yes | Yes | No (the **Font size** card sizes its in-window menus) | Yes |
 | Ctrl/Alt click actions on the tray icon | No | Yes | Yes | Yes | No | Yes |
 | Scroll wheel on the tray icon | No | Yes | No | No | No | Yes |
 | Rebindable global hotkeys | Yes | Yes | Yes | Yes | No | Yes |
 | Hotkey bound by default | None | **Full bright**: ++ctrl+alt+win+f++ | None | None | - | None |
-| Theme color overrides | Yes | Yes | Yes | Yes | No | Yes |
+| Theme color overrides | Yes | Yes | Yes | Yes | Yes (text and background) | Yes |
 | Searchable settings | Yes | Yes | Yes | Yes | Yes | Yes |
 | Update checks | Yes | Yes | Yes | Yes | Yes | Yes |
 | Update button in the flyout or main window | No | Yes | Yes | No | Yes | Yes |

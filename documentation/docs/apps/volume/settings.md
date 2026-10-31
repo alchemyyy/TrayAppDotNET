@@ -21,7 +21,7 @@ Some cards only appear while the setting they depend on is on, e.g. the touchpad
 | Setting | Default | Notes |
 | --- | --- | --- |
 | **Use logarithmic volume scale** | Off | App sliders only: a decibel curve (6 dB per 10% of travel), and their percent shows the slider position instead of the level Windows stores. Device sliders and tray icon scrolling stay as they are. See [Volume](index.md). |
-| **Wheel volume step (%)** | 2 | 1 to 100. Per scroll wheel notch, over the tray icon and over flyout sliders. Same value as the card on the Tray Icon page. |
+| **Wheel volume step (%)** | 2 | 1 to 100. Per scroll wheel notch, over the tray icon and over flyout sliders. Same value as the card on the Tray icon page. |
 
 ## Flyout
 
@@ -41,7 +41,7 @@ Some cards only appear while the setting they depend on is on, e.g. the touchpad
 | **Collapse disconnected Bluetooth devices** | On | One row per disconnected Bluetooth device instead of one per endpoint. |
 | **Only show Bluetooth devices while Bluetooth is on** | On | Beats the disconnected Bluetooth setting above. |
 | **Show Bluetooth power button** | On | The Bluetooth button in the flyout's title bar. |
-| **Bluetooth power button click action** | Ctrl+Left Click | **Left Click**, **Ctrl+Left Click**, **Alt+Left Click**, **Shift+Left Click**. Every other click opens Bluetooth quick settings. |
+| **Bluetooth power button click action** | Ctrl + left-click | **Left-click**, **Ctrl + left-click**, **Alt + left-click**, **Shift + left-click**. Every other click opens Bluetooth quick settings. |
 | **Use dynamic playback volume glyph for playback devices in flyout** | Off | On: the mute button follows the volume level. Off: a fixed speaker glyph. |
 | **Show default-format readout** | On | The channel/bit/Hz strip under each device name. |
 | **Show Bluetooth codec on the format strip** | Off | Needs the app running as administrator. |
@@ -108,15 +108,15 @@ Each of these has a **Playback** and a **Recording** switch.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| **Max apps before scrolling - Full sliders** | 24 | 1 to 200. |
+| **Max apps before scrolling - full sliders** | 24 | 1 to 200. |
 
 ### Recording Drawers
 
 | Setting | Default | Notes |
 | --- | --- | --- |
 | **App drawer display type** | Icon grid | Or **Full sliders**. |
-| **Max apps before scrolling - Full sliders** | 24 | 1 to 200. Only shown with **Full sliders**. |
-| **Max rows before scrolling - Icon grid** | 10 | 1 to 200. Only shown with **Icon grid**. |
+| **Max apps before scrolling - full sliders** | 24 | 1 to 200. Only shown with **Full sliders**. |
+| **Max rows before scrolling - icon grid** | 10 | 1 to 200. Only shown with **Icon grid**. |
 | **Visually indicate actively capturing apps** | Active glyph | **Dim inactive**, **Active glyph**, **Hide inactive**, **Don't indicate**. |
 | **Icon grid centering** | Off | **Off**, **Centered**, **Centered soft-max**. How the last, partly filled row lines up. |
 | **Soft-max width (icons)** | 7 | 1 to 16. Only shown with **Centered soft-max**. The row stays put where a centered row of this many icons would start, until it gets longer than that, then centers. |
@@ -132,8 +132,8 @@ All the icon grid cards only show while the display type is **Icon grid**.
 | --- | --- | --- |
 | **Mouse wheel** | On | Scroll over the tray icon to change the default device's volume. |
 | **Wheel volume step (%)** | 2 | 1 to 100. |
-| **Wheel volume step (%) - Fine** | 1 | 1 to 100. |
-| **Wheel volume step (%) - Coarse** | 5 | 1 to 100. |
+| **Wheel volume step (%) - fine** | 1 | 1 to 100. |
+| **Wheel volume step (%) - coarse** | 5 | 1 to 100. |
 | **Precision touchpad** | On | Two-finger touchpad scrolling in 1% steps. |
 | **Touchpad sensitivity** | 90 | 1 to 1000 raw touchpad units per 1% step. Lower is more sensitive. |
 
@@ -142,7 +142,7 @@ All the icon grid cards only show while the display type is **Icon grid**.
 | Setting | Default | Notes |
 | --- | --- | --- |
 | **Menu position** | Modern | Or **Classic** (at the cursor). |
-| **Playback device names** | Name+Model | **Name+Model**, **Name**, **Model**. For the per-device links. |
+| **Playback device names** | Name+Model | **Name and model**, **Name**, **Model**. For the per-device links. |
 | **Recording device names** | Name+Model | Same. |
 | **Device name max length** | 32 | 3 to 200 characters. Longer names end in `..`. |
 | **Show "Recording" link in tray menu** | Off | |
@@ -159,13 +159,13 @@ Set to **Nothing**, a Ctrl or Alt entry falls back to the plain action.
 | **Mouse wheel** | Wheel volume step (%) | **Nothing** or one of the three wheel steps |
 | **Ctrl + mouse wheel** | Wheel volume step (%) - Fine | Same |
 | **Alt + mouse wheel** | Wheel volume step (%) - Coarse | Same |
-| **Ctrl + left click** | Nothing | **Nothing**, **Open settings** |
-| **Alt + left click** | Nothing | Same |
-| **Ctrl + right click** | Nothing | Same |
-| **Alt + right click** | Nothing | Same |
-| **Double left click** | Nothing | Same. **Nothing** opens the flyout. |
-| **Ctrl + double left click** | Nothing | Same |
-| **Alt + double left click** | Nothing | Same |
+| **Ctrl + left-click** | Nothing | **Nothing**, **Open settings** |
+| **Alt + left-click** | Nothing | Same |
+| **Ctrl + right-click** | Nothing | Same |
+| **Alt + right-click** | Nothing | Same |
+| **Double-click** | Nothing | Same. **Nothing** opens the flyout. |
+| **Ctrl + double-click** | Nothing | Same |
+| **Alt + double-click** | Nothing | Same |
 
 The three wheel entries are greyed out while **Mouse wheel** is off.
 

@@ -1,6 +1,7 @@
-' Dark Theme for BrightnessTrayAppDotNET diagrams.
+' Dark Theme shared by every diagram under documentation/plantuml.
 '
-' Usage: place `!include dark-theme.puml` immediately after `@startuml <name>`,
+' Usage: place `!include dark-theme.puml` (`../dark-theme.puml` from a subfolder)
+' immediately after `@startuml <name>`,
 ' then use the $TINT_* variables for package / note backgrounds instead of
 ' hard-coded pastel hex codes.
 '

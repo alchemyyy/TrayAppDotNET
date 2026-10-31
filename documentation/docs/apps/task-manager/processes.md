@@ -121,7 +121,7 @@ Right-click a row to open its menu. If the row isn't selected yet, it becomes th
 | **Copy** | Always | Copies the value of the column you right-clicked, one line per selected row |
 | **Copy row** / **Copy rows** | Always | Copies every visible column of the selected rows as comma-separated values, one line per row, no header line |
 | **End task** / **End tasks** | Always | Ends the processes after a confirmation |
-| **End process tree** / **End process trees** | Always | Ends the processes and all their descendants after a confirmation |
+| **End task tree** / **End task trees** | Always | Ends the processes and all their descendants after a confirmation |
 | **Set priority** / **Set priorities** | Always | Submenu: **Realtime**, **High**, **Above normal**, **Normal**, **Below normal**, **Low**. Each level asks first |
 | **Set affinity** / **Set affinities** | Always | Opens the processor affinity window |
 | **Create memory dump file** | One process selected | Writes a full memory dump |
@@ -137,11 +137,11 @@ Hovering **Copy** or **Copy rows** underlines the text that's about to be copied
 
 Ending is immediate and forced. The program doesn't get a chance to save anything.
 
-**End process tree** asks too: **Do you want to end the process tree of** *name*? for one process, or **Do you want to end the process trees of** *N* **selected processes?** for several, with the same unsaved-data and system-instability warning. Confirm with **End process tree** (**End process trees** for several). It then finds every descendant of each selected process, ends them deepest first, then ends the selected processes themselves. Task Manager never ends itself, and critical Windows processes are skipped and reported.
+**End task tree** asks too: **Do you want to end the task tree of** *name*? for one process, or **Do you want to end the task trees of** *N* **selected tasks?** for several, with the same unsaved-data and system-instability warning. Confirm with **End task tree** (**End task trees** for several). It then finds every descendant of each selected process, ends them deepest first, then ends the selected processes themselves. Task Manager never ends itself, and critical Windows processes are skipped and reported.
 
 **Cancel** (or ++esc++) on either prompt ends nothing.
 
-If Windows refuses to end something because it's elevated, and elevated termination isn't on yet, you get the **Administrator approval required** prompt and then UAC, see [Administrator Rights](#administrator-rights). Approve and only the processes that were refused get ended again. With **End process tree** that can be a single elevated child, which is retried on its own even though its parent already ended. A child that still can't be ended shows up in the error as **Child process PID** *n*. Everything else was already handled on the first pass.
+If Windows refuses to end something because it's elevated, and elevated termination isn't on yet, you get the **Administrator approval required** prompt and then UAC, see [Administrator Rights](#administrator-rights). Approve and only the processes that were refused get ended again. With **End task tree** that can be a single elevated child, which is retried on its own even though its parent already ended. A child that still can't be ended shows up in the error as **Child process PID** *n*. Everything else was already handled on the first pass.
 
 ### Priority and Affinity
 
@@ -167,7 +167,7 @@ TADN's Task Manager normally runs as a regular user, so some actions on elevated
 
 **Priority, affinity and memory dumps** ask on their own. The first time Windows refuses one of those, you get an **Administrator approval required** prompt, then the Windows UAC prompt. Approve it once and the elevated helper stays until the app exits. Decline and nothing changes; you'll be asked again next time.
 
-**End task and End process tree** use a separate elevated termination helper, but they ask on demand the same way. When Windows refuses to end a process for lack of rights and elevated termination isn't on, you get **Administrator approval required**, then UAC. Approve and the refused processes (and only those) are ended again, now with administrator rights. Elevated termination then stays on until the app exits, so later ends don't prompt. Decline either prompt and the refused processes are left alone without an error message (other failures in the same selection still get reported); the next refused end asks again. Critical Windows processes never trigger the prompt, since nothing ends them anyway. Neither does a process the app can't even check for being critical (some of Windows' own SYSTEM processes): ending it just fails with an access error, and if you really mean it, turn elevated termination on from the **More** menu first. A process Windows protects from administrators too still fails with an access error after you approve. If you started the app itself as administrator, there's nothing to approve and you won't be asked.
+**End task** and **End task tree** use a separate elevated termination helper, but they ask on demand the same way. When Windows refuses to end a process for lack of rights and elevated termination isn't on, you get **Administrator approval required**, then UAC. Approve and the refused processes (and only those) are ended again, now with administrator rights. Elevated termination then stays on until the app exits, so later ends don't prompt. Decline either prompt and the refused processes are left alone without an error message (other failures in the same selection still get reported); the next refused end asks again. Critical Windows processes never trigger the prompt, since nothing ends them anyway. Neither does a process the app can't even check for being critical (some of Windows' own SYSTEM processes): ending it just fails with an access error, and if you really mean it, turn elevated termination on from the **More** menu first. A process Windows protects from administrators too still fails with an access error after you approve. If you started the app itself as administrator, there's nothing to approve and you won't be asked.
 
 **Restart explorer** never asks for administrator approval.
 

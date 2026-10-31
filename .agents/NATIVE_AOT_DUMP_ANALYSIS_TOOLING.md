@@ -83,10 +83,11 @@ $cimProcess | Select-Object ExecutablePath, CommandLine, ParentProcessId
 ```
 
 Use one direct full user-mode ProcDump capture. Run
-`.tadn_tools\download_procdump.ps1` from the repository root to download the
-reviewed official executable into the ignored tools directory. Alternatively,
-place an official ProcDump installation on PATH or pass its local path to the
-applicable capture script. Do not commit or redistribute the ProcDump
+`tools\download_procdump.ps1` from the repository root to download the
+reviewed official executable into `tools\`, where `.gitignore` excludes it.
+Alternatively, place an official ProcDump installation on PATH or pass its local
+path to the applicable capture script. Dumps go under the ignored `dumps\`
+folder. Do not commit or redistribute the ProcDump
 executable with this repository. Do not configure repeated dumps for a
 one-chance incident.
 

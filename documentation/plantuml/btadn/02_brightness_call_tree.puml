@@ -1,12 +1,13 @@
 @startuml brightness_call_tree
 ' Revised 2026-07-12: verified DDC targets and isolated helper transport
-!include dark-theme.puml
+' Revised 2026-10-30: Avalonia file names, Common tray presenter and notch-based tray wheel
+!include ../dark-theme.puml
 title Brightness change - full call tree (input sources -> MonitorService -> DDC/VCP)
 
 actor User
 participant "GlobalHotkeyService\n(WM_HOTKEY)"      as GHK
-participant "App.xaml.cs\n(HandleHotkey / wheel)"   as APP
-participant "BrightnessFlyout\n.xaml.cs"            as BFL
+participant "App.cs\n(OnHotkeyFired / tray wheel)"   as APP
+participant "BrightnessFlyoutWindow\n(Common FlyoutSlider rows)" as BFL
 participant "EnvironmentalCurveService\n(DispatcherTimer)" as ECS
 participant "MonitorInfo\n(model)"                  as MI
 participant "MonitorService"                        as MS
@@ -17,7 +18,7 @@ participant "DisplayService\n(IDisplayService)"     as DS
 participant "Per-monitor DDCHelperClient\n+ DDCHelperServer child" as HLP
 participant "Dxva2\n(P/Invoke)"                     as DXV
 participant "App.RequestTrayRefresh"                as RTR
-participant "TrayIconManager"                       as TIM
+participant "TrayIconPresenter\n(Common)"            as TIM
 
 note over MS
   External monitors use DDC/VCP through dxva2.
@@ -26,9 +27,9 @@ note over MS
 end note
 
 == Input source 1: slider drag ==
-User -> BFL : Slider_PreviewMouseLeftButtonDown\n(track-click branch only)
+User -> BFL : pointer press on a FlyoutSlider\n(BeginSliderGesture: IsDragging = true)
 loop while dragging (or scrubbing master)
-  User -> BFL : Slider.ValueChanged TwoWay binding\n-> MonitorInfo.Brightness setter
+  User -> BFL : FlyoutSlider value change\n-> MonitorInfo.Brightness setter
   BFL -> MI  : Brightness = newVal
   MI  -> BFL : PropertyChanged (gated to integer transitions)
   BFL -> BFL : OnMonitorPropertyChanged\nApplyMasterToEnabledMonitors /\nUpdateMasterFromEnabledIndividuals\n(filter by IsParticipatingInMaster)
@@ -39,16 +40,18 @@ loop while dragging (or scrubbing master)
     MS -> MS : skip - slider is pure visual state
   end
   BFL -> RTR : BrightnessUpdated event\n(via EffectiveRoundedBrightness)
-  RTR -> TIM : Update(GetBrightnessAndTooltip)\n(UpdateCooldownMs cooldown)
+  RTR -> TIM : Refresh(tooltip)\n(skipped when the render input is unchanged)
 end
 
 == Input source 2: scroll wheel (flyout row or tray icon) ==
-User -> BFL : MonitorGrid_PreviewMouseWheel
-BFL -> BFL : DisengageCurveForUserAdjustment\n+ AdjustSliderByScrollDelta\n(slider.Value = clamp(...))
+User -> BFL : wheel over a FlyoutSlider row\n(whole notches; horizontal input ignored)
+BFL -> BFL : DisengageCurveForUserAdjustment\n+ step the slider by Mouse wheel step\n(slider.Value = clamp(...))
 note right of BFL
-  Tray-icon wheel goes through App.OnTrayWheel:
-  for TrayWheelTarget.Brightness it writes
-  m.Brightness directly on each monitor
+  Tray-icon wheel goes through App.OnTrayScrolled
+  (whole notches x Mouse wheel step) ->
+  ApplyTrayWheelDelta: for TrayWheelTarget.Brightness
+  it calls AdjustAllMonitorBrightness, which writes
+  m.Brightness on each monitor
   (same setter -> same MonitorService hook).
 end note
 
@@ -197,7 +200,7 @@ else no candidates
 end
 
 note right of DRS
-  No per-monitor workers, no MaxRecoveryAttempts terminal state.
+  No per-monitor workers and no terminal give-up state.
   A Failed manual row with a previously verified projected bus value may
   use one best-effort write transport probe, followed immediately by one
   read-back attempt, to distinguish total transport failure from explicit

@@ -1,34 +1,47 @@
 # TaskManagerTrayAppDotNET
 
-`TaskManagerTrayAppDotNET` is the beginning of a Windows 11 Task Manager reimplementation built on
-`TrayAppDotNETCommon`.
+`TaskManagerTrayAppDotNET` is a Windows 11 Task Manager reimplementation built on `TrayAppDotNETCommon`, part of
+[TrayAppDotNET](../README.md). It is a regular window with a live tray graph, and it keeps running in the tray when
+the window is closed.
+
+User documentation: [documentation/docs/apps/task-manager](../documentation/docs/apps/task-manager/index.md)
+([Processes](../documentation/docs/apps/task-manager/processes.md),
+[Performance](../documentation/docs/apps/task-manager/performance.md),
+[Other Pages](../documentation/docs/apps/task-manager/other-pages.md)). Building: see the
+[root README](../README.md#development).
 
 ## Implemented
 
 - Shared TrayAppDotNET crash watcher, single-instance, install, startup, tray icon, theme, and custom window chrome.
-- A `SettingsWindowCommon<TaskManagerPage>` shell with the stock Task Manager page structure.
-- A functional Details page showing live process name, PID, status, approximate owner, CPU, private memory, and
-  working-set memory.
-- Task Manager-compatible Name/PID contains search plus typed column expressions, boolean operators, and regex.
-- A live Lifetime column formatted as `1d 8:10:22` or `16:12:01`.
-- Clickable sort headers and PID-stable row selection.
-- Desktop and packaged-app icons in the visible Details rows.
-- Native-first and managed-fallback `TerminateProcess` paths for End task.
+- The Task Manager page structure: Processes, Performance, App history, Startup apps, Users and Services, plus a
+  separate settings window.
+- A combined processes and details table with grouping, zoom and stretch, live column totals, multi-select, column
+  customization, saved searches and a search with typed column expressions, boolean operators and regex.
+- Native-first and managed-fallback `TerminateProcess` paths for End task and End process tree.
 - A preconstructed inline Run new task surface for executables, documents, and URIs.
+- Performance graphs for the CPU, memory, GPUs, network adapters and disks, recorded in the background.
+- Optional replacement of Windows Task Manager (needs the system-wide install) and of the Ctrl+Shift+Esc shortcut.
 - A tray menu that keeps the main window warm when it is hidden.
 - A rounded dynamic tray graph with current and recency-weighted marquee styles for average CPU, highest-core CPU,
   or physical-memory utilization.
 
 ## Efficiency baseline
 
-The Details list is one custom-painted Avalonia control. It creates no per-row controls or per-row view models,
+The Processes table is one custom-painted Avalonia control. It creates no per-row controls or per-row view models,
 uses arithmetic hit-testing, paints only the effective viewport plus one overscan row, and stores row order in a
 preallocated integer array. Static formatted text caches are keyed by process identity, so inserting or sorting processes does
 not invalidate every row after the insertion point.
 
-Sampling runs on one below-normal-priority dedicated thread. Two fixed 8,192-row buffers are swapped under a short
-lock, while the UI owns a third fixed buffer. UI notifications are coalesced to one pending dispatcher callback.
-End task is independent of the sampler and pre-opens handles when a process is selected.
+Process sampling runs on one dedicated normal-priority thread (below-normal starves whenever normal-priority work
+saturates every core). Each refresh is one `NtQuerySystemInformation(SystemProcessInformation)` query whose records are
+read in place from the native buffer, at most 8,192 rows. Two fixed row buffers are swapped under a short lock, while
+the UI owns a third fixed buffer. UI notifications are coalesced to one pending dispatcher callback. End task is
+independent of the sampler and pre-opens handles when a process is selected.
+
+Performance sampling runs on its own thread for the app's lifetime at the configured interval (250 ms to 60 s; the
+history holds at most 36,000 samples). PDH counters are set up lazily on that thread and retried with backoff when
+setup fails; the CPU sample covers every processor group; the D3D12 feature level is probed once per adapter without
+creating a device; physical-memory metadata is read from WMI in a background task with bounded waits and retries.
 
 ### Render-thread row hover
 
@@ -67,7 +80,10 @@ and managed process. End task waits briefly for the native helper result, then u
 managed pre-opened handle only if the native request fails or times out. The helper rejects the app, itself, changed
 process identities, and processes Windows marks critical. Declining UAC retains the standard helper. Losing either
 helper falls back to the managed path for that request and starts a standard-integrity replacement.
-End process tree routes each descendant through the same native-first path before terminating the root.
+End process tree routes each descendant through the same native-first path before terminating the root. The tree is
+collected from one `NtQuerySystemInformation` snapshot, and every parent/child edge must show the child created after
+its parent; an edge that fails (a recycled parent PID) drops that child and everything below it, the same rule the
+displayed tree uses. The helper refuses a target whose creation time is unknown.
 
 Process image paths and application IDs are resolved once when a process enters the sampler history. Icon extraction
 is requested only for viewport rows, runs serially on the thread pool, and shares one bitmap per case-insensitive shell
@@ -80,18 +96,38 @@ row strips or tile packing after measurement shows where raster caching wins.
 
 Managed code cannot guarantee that selected instructions or data remain resident in L3 cache. The practical
 baseline here is to keep the main window and critical controls constructed, avoid thread-pool dependency for
-sampling, keep sampling below UI priority, and keep termination independent from enumeration. The native helper
+sampling, keep sampling off the UI thread, and keep termination independent from enumeration. The native helper
 does reserve a small nonzero working set in exchange for remaining dispatchable during severe memory pressure.
 
-## Intentional shells
+## Elevation
 
-- Processes, Performance, App history, Startup apps, Users, Services, and Settings pages.
-- Accurate token-derived user names, suspended-state detection, publisher data, and command-line collection.
-- Column resizing, persistence, context menus, and process-tree operations.
-- A native `NtQuerySystemInformation` sampler. The current `System.Diagnostics.Process` sampler is a bring-up
-  backend and still allocates the process array and wrappers once per sample.
+The app runs `asInvoker`. Three separate channels touch other integrity levels or other processes:
 
-## Run
+- **Privileged-action broker** (`--elevated-broker`, `src/Services/ElevationBroker*.cs`): launched with `runas` on the
+  first admin action. Its command line names the UI's PID and start time; it verifies them, keeps a handle to the UI,
+  and serves only a pipe client with that PID, one connection, then exits. Requests are a closed op set validated on
+  the elevated side (startup approval writes only reach the three `Explorer\StartupApproved` subkeys with a named
+  value) and every served op is logged. The broker writes no log file: its lines travel to the UI over the pipe and
+  land in the UI's log. It creates no files either: for a memory dump the UI creates the empty file in its own temp
+  folder and sends the handle value; the broker duplicates it from the pinned UI process (`PROCESS_DUP_HANDLE`),
+  checks it is an empty regular disk file and writes the dump into it. The UI side uses asynchronous pipe I/O with
+  per-operation timeouts; a timed-out request is reported as possibly still completing. The full design is in
+  `../documentation/plantuml/tmtadn/elevated_broker_spec.md`.
+- **Kill helper** (above): anonymous section and events whose handle values go on the helper command line; the helper
+  duplicates them from its parent. An elevated Task Manager starts the standard helper directly so it inherits the
+  elevated token.
+- **Activation pipe** (`src/Services/TaskManagerActivationServer.cs`): lets a redirected `taskmgr.exe` launch bring the
+  running window forward. The name carries the user SID and session, the DACL and owner are the user SID, the client
+  connects at identification level and only trusts a pipe owned by its own user.
+
+## Known gaps
+
+- App history is collected only while its page is on screen and is kept in memory only.
+- The App history Notifications column stays empty, and Startup impact on the Startup apps page is always
+  "Not measured".
+- The table, tray and window key and mouse bindings are fixed; the Hotkeys settings page lists them read-only.
+
+## Process search
 
 Plain text uses a case-insensitive contains search against Name and PID. Column expressions support `=`, `!=`, `<`,
 `<=`, `>`, `>=`, `&&`, `||`, and parentheses. Column names use braces and offer mouse or arrow-key autocomplete;
@@ -111,6 +147,8 @@ syntax:
 Time operands accept `ms`, `s`, `m`/`min`, `h`, and `d`. Memory and byte operands accept binary `k`, `m`, `g`, and
 `t` suffixes. Other numeric columns accept decimal magnitude suffixes, and percentage columns accept `%`.
 
+## Running from source
+
 ```powershell
 dotnet run --project .\TaskManagerTrayAppDotNET\src\TaskManagerTrayAppDotNET.csproj -- --monitored
 ```
@@ -121,12 +159,12 @@ The elevated mailbox smoke test is opt-in because it can display UAC:
 
 ```powershell
 $env:TASK_MANAGER_RUN_ELEVATED_KILL_HELPER_TEST = '1'
-dotnet test .\tests\TaskManagerTrayAppDotNET.Tests\TaskManagerTrayAppDotNET.Tests.csproj `
+dotnet test .\TaskManagerTrayAppDotNET\tests\TaskManagerTrayAppDotNET.Tests\TaskManagerTrayAppDotNET.Tests.csproj `
   --filter 'FullyQualifiedName~ElevatedKillHelperSmokeTests'
 ```
 
 To run the same mailbox test while normal-priority workers saturate every logical processor:
 
 ```powershell
-.\tests\run_elevated_kill_helper_cpu_stress.ps1
+.\TaskManagerTrayAppDotNET\tests\run_elevated_kill_helper_cpu_stress.ps1
 ```

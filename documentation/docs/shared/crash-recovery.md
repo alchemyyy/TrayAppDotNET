@@ -8,20 +8,23 @@ When you start an app normally, the exe starts its watcher, and the watcher star
 
 - If the app crashes, the watcher waits one second and starts a fresh copy. The restart gets the same launch arguments as the original start, so an app that started hidden at sign-in comes back hidden, and a `--settings-dir` folder stays in use. See [Launch Arguments](../getting-started/launch-arguments.md).
 - Quitting with **Exit** from the tray menu is not a crash. The watcher quits along with the app.
-- If the watcher itself goes away, e.g. you end it in Task Manager, the app notices within about a second and shuts down too.
-- An error inside the UI that isn't fatal gets written to the log and the app keeps running.
+- When Windows signs out or shuts down, the app exits and tells the watcher so. If you then cancel the sign-out (for example because another program blocked it), the watcher waits five seconds, waits until Windows no longer reports the session as ending, and starts the app again. These restarts count toward the same repeated-crash limit as crash restarts.
+- If the watcher itself goes away, e.g. you end it in Task Manager, the app notices right away and shuts down too.
+- An error inside the UI that isn't fatal gets written to the log in full, with its stack trace, and the app keeps running. So does an error in background work that nothing waited for.
 
 ### Restart Limit
 
-If the app crashes five times within 30 seconds, the watcher stops trying and shows a message box titled `<App> Crash Handler`, where `<App>` is the app's name (e.g. `VolumeTrayAppDotNET`):
+If the app crashes five times within 30 seconds, the watcher stops trying and shows a message box titled `<App> crash handler`, where `<App>` is the app's name (e.g. `VolumeTrayAppDotNET`):
 
 `<App> has crashed repeatedly. The crash handler will not attempt further restarts. Please check for issues and restart manually.`
 
-Crashes older than 30 seconds don't count toward the limit, so an app that crashes once in a blue moon gets restarted every time. If the watcher can't launch the app at all, it shows `Failed to start <App>` (on the first start) or `Failed to restart <App>` (after a crash) instead.
+Crashes older than 30 seconds don't count toward the limit, so an app that crashes once in a blue moon gets restarted every time. If the watcher can't launch the app at all, it shows `Failed to start <App>.` (on the first start) or `Failed to restart <App>.` (after a crash) instead.
 
 ### Restarting by Hand
 
-Just start the app again, from the Start menu or its exe. A new start replaces the running copy (watcher and app both), so this also works when an app is stuck. You never end up with two copies of the same app running.
+Just start the app again, from the Start menu or its exe. A new start replaces the running copy, so you never end up with two copies of the same app running. The new start first asks the running copy to exit, and it exits the same way **Exit** does: Fan Control hands the fans back to the firmware, Brightness removes its Night Light tint, and settings get saved. Only if the running copy hasn't exited after five seconds (because it's stuck) does the new start end it by force. Installing, updating and uninstalling stop a running copy the same way.
+
+Every way the app exits runs that cleanup once: **Exit**, a sign-out, the watcher going away, installing an update, and the restarts after changing the rendering backend or after installing from **Settings** > **General**.
 
 ## Rendering Problems
 
@@ -41,7 +44,8 @@ Each app writes its log into its data folder, `%LocalAppData%\TrayAppDotNET\<App
 
 - `active.log` is the current log.
 - `old.log` is the previous one. When `active.log` hits 10 MB or is 7 days old, it becomes `old.log` (replacing the previous `old.log`) and a fresh `active.log` starts.
-- The log is written to disk about every two seconds, so a hard kill loses at most the last couple of seconds.
+- Helper processes write their own log in the same folder: Brightness writes `nightlight-helper.log` and `ddc-helper.log`, each with its own `.old.log`. Task Manager's elevated helpers write no file: the elevated broker sends its log lines to Task Manager, which writes them into `active.log` marked `[elevated broker]`, so nothing running as administrator writes into your folder.
+- The log is written to disk about every two seconds, so a hard kill loses at most the last couple of seconds. A write that fails because something else has the file open is retried and kept for the next write.
 - A crash shows up as a line starting with `FATAL`, followed by the error.
 
 The apps don't write crash dumps. The log is what I need for a bug report.

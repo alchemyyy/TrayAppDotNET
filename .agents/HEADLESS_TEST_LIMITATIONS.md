@@ -1,14 +1,18 @@
 # Headless Test Limitations
 
 Avalonia.Headless behaviors (Avalonia 12.1.1) that differ from a real Win32 session, found while testing tadn UI in
-`TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests`.
+`TrayAppDotNETCommon/tests/TrayAppDotNETCommon.Tests`.
 
 ## Sessions own their objects
 
-- Every `AvaloniaTestHost.Run*` call starts a `HeadlessUnitTestSession` on its own dispatcher thread, and an
-  `AvaloniaObject` belongs to the dispatcher that created it.
-- A static Avalonia object belongs to whichever session touches it first. Rendering it in a later session throws
-  "The calling thread cannot access this object", so failures depend on test order.
+- `AvaloniaTestHost` (TrayAppDotNETCommon.TestSupport) keeps one `HeadlessUnitTestSession` per theme (plain and
+  Fluent) for the whole test process; every `Run*` call gets its own isolated application on that session's
+  dispatcher thread. Sessions are never disposed: Avalonia 12.1.1's `HeadlessUnitTestSession.Dispose` races its own
+  dispatch loop and failed passing tests at random (InvalidOperationException from `BlockingCollection.Take`, or a
+  NullReferenceException on the loop task).
+- An `AvaloniaObject` belongs to the dispatcher thread that created it. A static Avalonia object touched first by a
+  plain-theme test and rendered by a Fluent-theme test (or the reverse) throws "The calling thread cannot access this
+  object", so failures depend on test order.
 - Only async tests (`RunAsync`) hit this, because awaiting lets render jobs run. Sync `Run` tests never render.
 - Known case: `TextDecorations.Underline`. tadn links use `TrayAppDotNETSettingsUI.Underline()`, a new collection
   per control. Do not hand shared static Avalonia objects to tadn controls.

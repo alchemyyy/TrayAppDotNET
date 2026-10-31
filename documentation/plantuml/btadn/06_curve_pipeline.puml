@@ -1,10 +1,11 @@
 @startuml curve_pipeline
 ' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
-!include dark-theme.puml
+' Revised 2026-10-30: tick range, event throttler, hardware recovery and timer arming match the code
+!include ../dark-theme.puml
 title Environmental-curve pipeline - sun/time inputs to per-monitor target to apply\nOwned by EnvironmentalCurveService; SliderState is the per-row gate
 
-participant "EnvironmentalCurveService\n._curveTimer (DispatcherTimer Background,\n interval = AppSettings.EnvironmentalCurveTickIntervalMs\n clamped to 250ms..60s)"  as TIM
-participant "EnvironmentalCurveService\n._curveEventThrottleTimer\n(trailing-edge, BrightnessUpdateRateMs)"  as THR
+participant "EnvironmentalCurveService\n._curveTimer (DispatcherTimer Background,\n interval = AppSettings.EnvironmentalCurveTickIntervalMs\n clamped to 250 ms..10 min, default 5 s)"  as TIM
+participant "EnvironmentalCurveService\n._curveEventEvaluationThrottler\n(AsyncThrottler, cooldown = BrightnessUpdateRateMs)"  as THR
 participant "EnvironmentalCurveService\n.Evaluate / .ApplyAt(t)"                       as EC
 participant "ProfileManager\n(SelectedIndex,\n SelectedProfileChanged)"                 as PM
 participant "EnvironmentalCurve\n(stored on profile)"                                   as STORED
@@ -41,10 +42,11 @@ note over TIM, APP
   Two driver paths into Evaluate():
   - Periodic: _curveTimer.Tick fires Evaluate while a curve resolves.
   - Event-driven: settings-window edits call BFL.RequestCurveReevaluation,
-    which calls service.RequestEvaluation; first call schedules
-    _curveEventThrottleTimer to fire Evaluate at +BrightnessUpdateRateMs;
-    further calls in-window fold into the pending fire.
-  Suspend()/Resume() pause both timers for the 24h preview sweep, which
+    which calls service.RequestEvaluation; the first call posts an
+    Evaluate right away through _curveEventEvaluationThrottler, and
+    calls during the BrightnessUpdateRateMs cooldown collapse into one
+    latest-pending evaluation.
+  Suspend()/Resume() pause both drivers for the 24h preview sweep, which
   drives ApplyAt(t) directly with a simulated day-fraction.
 end note
 
@@ -106,7 +108,7 @@ loop foreach m in _monitors
         CurveSleeping  -> CurveActive if !inDisabled
         CurveReleased  -> CurveReleased (PRESERVED at default arm)
         Disabled       -> unchanged
-        Failed         -> unchanged (HarmonizeRow gates on IsHardwareFunctional /\n                     IsHardwareFailed - H-27)
+        Failed         -> unchanged (HarmonizeRow gates on IsHardwareFunctional - H-27)
     end note
   end
 end
@@ -193,10 +195,10 @@ end
 
 == Out-of-band SliderState transitions (not in Evaluate) ==
 BFL -> SSM : OnUserToggleOff / OnUserToggleOn\n(group-membership icon click)
-BFL -> SSM : OnUserRelease (drag a curve-driven individual)\nOnUserReengage (double-click released individual)
+BFL -> SSM : OnUserRelease (drag a curve-driven individual;\nmaster manual override releases every curve-driven row)\nOnUserReengage (double-click released individual;\nmaster re-engage re-engages released rows)
 BFL -> EC  : EngageBrightnessCurveStates /\nEngageNightLightCurveStates /\nDisengage* (OnCurveToggleStateChanged)
 EC  -> SSM : OnCurveEngaged / OnCurveDisengaged per row
-MSE -> SSM : OnHardwareFailed / OnHardwareRecovered\n(MonitorService write/verify path)
+MSE -> SSM : OnHardwareFailed (write/verify path);\nrecovery restores ResolveHardwareRecoveredSliderState\n(pre-failure state; Disabled and released rows stay so)
 BFL -> EC  : Suspend / Resume / ApplyAt(t)\n(preview sweep)
 
 note over TIM
@@ -231,7 +233,7 @@ BFL  -> MSE : SuspendHardwareWrites() {
 BFL  -> MI  :   ApplyMasterToEnabledMonitors writes each individual's Brightness
 MI   -> MSE :   OnMonitorPropertyChanged subscribers - _hardwareWritesSuspendCount > 0,\n  short-circuit before OnUserRelease
 BFL  -> MSE :   EnqueueDirectBrightness(m, target) DIRECTLY per individual
-BFL  -> MSE : } ResumeHardwareWrites()
+BFL  -> MSE : } (suspension scope disposed)
 note right of MSE
   Wave-1 fix: disabled-period master propagation is wrapped in
   SuspendHardwareWrites; OnMonitorPropertyChanged sees suspendCount > 0
@@ -242,13 +244,13 @@ note right of MSE
 end note
 
 note right of TIM
-  Start() arming sites:
-   - BrightnessFlyout ctor end (UNCONDITIONAL - M-02 fix:\n     timer arms even with both curve flags persisted OFF)
+  Start() arming sites (BrightnessFlyoutWindow):
    - OnCurveToggleStateChanged (per toggle)
-   - OnAppSettingsChanged (per settings save)
-  With M-02 closed, _isInDisabledPeriod is computed live on every
-  tick regardless of curve-flag state. Disabled-period flags do not
-  go stale through the lifetime of a session.
+   - OnSettingsChanged (per settings change; pulls a new interval)
+  Start() runs the timer whenever a curve profile resolves and the
+  service is not suspended, even with both curve flags OFF (M-02), so
+  _isInDisabledPeriod is computed live on every tick and does not go
+  stale through a session. No resolvable profile = no timer.
 end note
 
 @enduml

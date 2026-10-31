@@ -23,6 +23,8 @@ For source edits that must update already-open UI, also read `AXAML_HOT_RELOAD_P
   - Caller-provided values
   - Values that are computed from runtime state
 - Preserve behavior. AXAML extraction should be a resource relocation, not a semantic rewrite.
+- Keep values that decide what an input does in C# constants even when they are numbers: slider ranges and steps,
+  wheel and keyboard increments, drag thresholds, auto-scroll edges, steps and timer intervals.
 - For broad extraction requests, list included and excluded folders before editing.
 - If the user says "everything in this folder", inspect helper/control files too, not only windows.
 
@@ -35,10 +37,12 @@ For source edits that must update already-open UI, also read `AXAML_HOT_RELOAD_P
   - `TrayAppDotNETCommon/src/UI/CommonBindings.cs`
   - Matching AXAML dictionary when present.
 - Common controls:
-  - `TrayAppDotNETCommon/src/UI/Controls`
-  - `TrayAppDotNETCommon/src/UI/Controls/ControlAXAMLResources.cs`
-- Resource reader:
-  - `TrayAppDotNETCommon/src/UI/HotReloadResourceReader.cs`
+  - `TrayAppDotNETCommon/src/UI/Controls` (each control's dictionary is `<Control>.axaml` plus an attributed
+    `<Control>Resources.cs`)
+- Typed resource getters and resource stores:
+  - `TrayAppDotNETCommon/generators/AxamlPropertyLinker/AxamlPropertyLinkerGenerator.cs`
+  - `TrayAppDotNETCommon/src/UI/AxamlResourceStoreAttribute.cs`
+  - Read values through the generated `owner.AxamlPrefix.Name` getters; there is no string-keyed resource reader.
 - Fan flyout:
   - `FanControlTrayAppDotNET/src/UI/Flyout`
 - Fan curves:

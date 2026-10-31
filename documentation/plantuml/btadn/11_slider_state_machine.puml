@@ -1,6 +1,6 @@
 @startuml slider_state_machine
 ' Revised 2026-07-12: explicit hardware-recovery destination arms
-!include dark-theme.puml
+!include ../dark-theme.puml
 title Slider state machine per row (MonitorInfo.SliderState)\nTransitions verified at MonitorInfo.cs:49-112 + EnvironmentalCurveService.cs:336-347
 
 state Enabled : user-owned slider drives DDC
@@ -23,12 +23,12 @@ Disabled --> CurveSleeping : OnUserToggleOn(c=true,d=true)
 Disabled --> Failed : OnHardwareFailed
 
 CurveActive --> CurveSleeping : HarmonizeRow(d=true)
-CurveActive --> CurveReleased : OnUserRelease (drag / hotkey individual / disabled-period master drag)
+CurveActive --> CurveReleased : OnUserRelease (drag / hotkey individual / disabled-period master drag /\nmaster manual override)
 CurveActive --> Enabled : OnCurveDisengaged
 CurveActive --> Failed : OnHardwareFailed
 
 CurveSleeping --> CurveActive : HarmonizeRow(d=false)
-CurveSleeping --> CurveReleased : OnUserRelease
+CurveSleeping --> CurveReleased : OnUserRelease (individual or master manual override)
 CurveSleeping --> Enabled : OnCurveDisengaged
 CurveSleeping --> Failed : OnHardwareFailed
 
@@ -79,6 +79,18 @@ note as N_FIX_PATHS $TINT_GREEN
      call NotifyUserBrightnessAdjustment first, matching the
      tray-scroll discipline. Hotkey individual writes route
      through the curve-release suppression window.
+end note
+
+note as N_MASTER_OVERRIDE $TINT_GREEN
+  Master manual override (its mode button, or a master slider press,
+  tray wheel, or hotkey outside the disabled period in absolute mode)
+  releases every CurveActive / CurveSleeping display row with it via
+  BrightnessFlyoutWindow.ReleaseCurveDrivenRows, whatever the row's
+  slider and curve values, so every row shows the same manual state.
+  Re-engaging the master re-engages them through
+  ReengageIndividualBrightnessCurveOverridesFromMaster. Rows that
+  join while the master is released are held in CurveSleeping by
+  HarmonizeBrightnessCurveStates.
 end note
 
 ' Dead helpers - documented for awareness, no transitions

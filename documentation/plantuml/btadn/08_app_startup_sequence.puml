@@ -1,15 +1,16 @@
 @startuml app_startup_sequence
-!include dark-theme.puml
+!include ../dark-theme.puml
 ' Revised 2026-07-12: DDC recovery wake-up and fresh-helper retry behavior
-title App startup - Program.Main -> CrashHandler -> App.OnStartup
+' Revised 2026-10-30: Common TrayAppDotNETProgram.Run, app host, tray presenter, WatcherMonitor
+title App startup - Program.Main -> TrayAppDotNETProgram.Run -> App.OnFrameworkInitializationCompleted
 
 ' Note on syntax: PlantUML parses a leading "--" inside an alt label as a sequence-arrow
 ' fragment, so flag names below are wrapped in quotes ("--watcher" etc) and rendered as text.
 
-participant "Program.Main"                  as MAIN
+participant "Program.Main\n-> TrayAppDotNETProgram.Run\n(Common ProgramStartup)" as MAIN
 participant "CrashHandler\n(--watcher proc)" as WAT
 participant "SingleInstanceCoordinator"     as SIC
-participant "App (Avalonia)\n(--monitored proc)" as APP
+participant "App (Avalonia)\n+ TrayAppDotNETAppHost\n(--monitored proc)" as APP
 participant "AppSettings"                   as AS
 participant "StartupManager"                as SM
 participant "NightLightProvider"            as NLP
@@ -18,78 +19,71 @@ participant "MonitorService"                as MS
 participant "DisplayEventManager"           as DEM
 participant "DDCRecoveryService"            as DRS
 participant "ProfileManager"                as PM
-participant "TrayIconManager"               as TIM
+participant "TrayIconPresenter\n(Common)"   as TIM
 participant "BrightnessFlyout"              as BFL
 participant "EnvironmentalCurveService"     as ECS
 participant "MonitorBrightnessRangeProvider" as MBR
 participant "GlobalHotkeyService"           as GHS
-participant "UpdateCheckService\n(GitHub poller; commit cf410f7)" as UCS
+participant "UpdateCheckService\n(GitHub poller)" as UCS
 
-== Program.Main: log + branch on argv ==
+== TrayAppDotNETProgram.Run: branch on argv ==
 
-MAIN -> MAIN : TADNLog.Initialize()\nhook ProcessExit -> Flush
-
-alt "--install-system"
-  MAIN -> MAIN : RunElevatedSystemInstall\n(invoked via runas); exit
-end
-
-alt "--uninstall <dir> [--scope user|system]"
-  MAIN -> MAIN : set IsUninstallerMode\n+ UninstallerInstallDir\n+ UninstallerScope
-  MAIN -> APP : new App + Run()\n(falls through to RunUninstallerMode below)
-end
+MAIN -> MAIN : apply "--settings-dir" (exit 2 when unusable)
 
 alt "--watcher" (running as crash handler)
-  MAIN -> WAT : CrashHandler.RunWatcher()
-  WAT -> SIC : AcquireOrTakeover()\n(named mutex + PID MMF\nkills any prior watcher tree)
-  WAT -> APP : LaunchApplication("--monitored --watcher-pid <PID>")
-  WAT -> SIC : RecordMonitoredPID(child)
-  WAT -> WAT : GC.Collect aggressive\nwait + restart loop\n(skip restart on exit 0/1,\n cap rapid restarts)
+  MAIN -> WAT : CrashHandler.RunWatcher(forwarded launch args)
+  WAT -> SIC : AcquireOrTakeover()\n(graceful exit request first,\nverified kill only after the timeout)
+  WAT -> APP : LaunchApplication("--monitored --watcher-pid <PID>" + forwarded args)
+  WAT -> WAT : wait + restart loop\n(stop on exit 0/1; exit 3 only while\nWindows ends the session; cap rapid restarts)
 end
 
-alt no flag and not Debugger.IsAttached
-  MAIN -> WAT : LaunchWatcherDetached()\n(cmd.exe /c start ... --watcher); exit 0
+alt no flag, no debugger, no TrayAppDotNET_NO_WATCHER
+  MAIN -> WAT : LaunchWatcherDetached()\n(starts "<exe> --watcher" hidden); exit 0
 end
 
-== Program.Main: monitored path (or debugger attached) ==
+MAIN -> MAIN : TADNLog.Initialize(app data folder)\nhook ProcessExit -> release + Flush
+MAIN -> MAIN : UpdateInstaller.TryRun ("--update-apply" / "--update-restart")
 
-MAIN -> MAIN : WatcherPID = ParseWatcherPID(args)
-note right of MAIN
-  Debug builds also call
-  AppIconGenerator.Generate
-  to refresh app.ico from
-  the current renderer.
-end note
-MAIN -> APP : new App + InitializeComponent + Run()
+alt "--install-system" / "--sync-start-menu" / "--uninstall-prepare" / headless install or uninstall
+  MAIN -> MAIN : run the install command; exit with its code
+end
 
-== App.OnStartup ==
+alt "--installer" / "--uninstall <dir> --scope <scope>"
+  MAIN -> MAIN : set IsInstallerMode / IsUninstallerMode
+end
 
-alt Program.IsUninstallerMode
-  APP -> AS  : LoadOrDefault (theme only)
-  APP -> AT  : LoadOrDefault + UpdateThemeResources
-  APP -> APP : show UninstallerWindow as MainWindow\nShutdownMode = OnLastWindowClose
+== Monitored path (or debugger attached) ==
+
+MAIN -> MAIN : WatcherPID = ParseWatcherPID(args)\nacquire single-instance + application mutexes
+MAIN -> APP : options.RunApplication\n-> TrayAppDotNETAppRunner.Run<App>\n(rendering backend + language read in one pass, STA)
+
+== App.OnFrameworkInitializationCompleted ==
+
+APP -> APP : host.InitializeShell()\n(logging, localization, crash handlers)
+
+alt host.TryRunAuxiliaryMode() (installer or uninstaller mode)
+  APP -> AS  : ReadOrDefault (styling only; nothing saved)
+  APP -> AT  : LoadOrDefault
+  APP -> APP : show the Common installer / uninstaller window
   note right of APP
     No tray, no monitors,
-    no hotkeys, no watcher poll.
+    no hotkeys, no startup shortcut,
+    no app cleanup wired.
   end note
 end
 
-APP -> APP : install crash handlers\n(UnhandledException, DispatcherUnhandledException,\n ProcessExit, SessionEnding)\neach calls TryDrainQuickly + TADNLog.Flush
-
-APP -> AS  : firstRun = !File.Exists(settingsPath)\n_appSettings = LoadOrDefault(path)
-alt firstRun
-  APP -> SM : SetRunOnStartup(_appSettings.RunOnStartup)
+APP -> AS  : host.BeginTrayMode(ConfigureSettings, ConfigureTheme)\nLoadOrDefault (missing / corrupt / locked handled\nby the Common settings store)
+alt first run (no settings.xml)
+  APP -> SM : create the Run on startup shortcut
 end
-APP -> SM : RemoveLegacyRunKey()\nRepairShortcutIfStale()
-APP -> APP : _appSettings.Changed += OnSettingsChanged\nProperties[AppSettings] = _appSettings
+APP -> APP : ConfigureSettings: settings.Changed += OnSettingsChanged
+APP -> AT  : ConfigureTheme: ThemeChanged subscribe\nApplyThemeVariant + ApplyThemeResources
 
-APP -> NLP : Initialize(_appSettings)
-APP -> APP : ApplyPDBDownloadTimeout(_appSettings)\n(clamped 5..600s -> PDBSymbolResolver.DownloadTimeout)
+APP -> NLP : StartServices: Initialize(_settings)\n(tray mode only; re-applies a saved tint)
+APP -> APP : ApplyPDBDownloadTimeout(_settings)\n(clamped -> PDBSymbolResolver.DownloadTimeout)
 
-APP -> AT  : LoadOrDefault + ThemeChanged subscribe\nProperties[AppTheme] = _theme\nUpdateThemeResources(effectiveIsLight)
-
-APP -> MS  : new MonitorService(new DisplayService(), _appSettings)
+APP -> MS  : new MonitorService(new DisplayService(), _settings, KnownDisplaysStore)\nMonitorsRefreshed += OnMonitorsRefreshed
 MS  -> MS  : ScheduleStartupRecoverySweep()\n(2s/5s ticks, gated on KnownDisplays;\n re-Refresh until every WasEverDDCCapable\n panel is IsDDCCISupported)
-APP -> APP : Properties[MonitorService] = _monitorService
 
 APP -> DEM : new DisplayEventManager(_monitorService, ProfileManager.GetDefaultPath())\nDisplayTopologyChanged += OnDisplayTopologyChanged\nStart()
 note right of DEM
@@ -102,19 +96,15 @@ end note
 
 APP -> DRS : new DDCRecoveryService(_monitorService) + Start()\n(subscribe to DDCRecoveryRequested + MonitorsRefreshed;\nno worker unless candidates exist)
 
-APP -> PM  : new ProfileManager\nProperties[ProfileManager] = pm
+APP -> PM  : new ProfileManager(ProfileManager.GetDefaultPath())\nAppServices.ProfileManager = pm
 
-APP -> TIM : CreateTrayIcon()\n(Shell_NotifyIcon + ContextMenu)\nLeftClick / DoubleClick / RightClick / RefreshNeeded / Scrolled subscriptions
-APP -> UCS : new UpdateCheckService(_appSettings)\nStateChanged += OnUpdateStateChanged\nStart()\n(constructed at App.OnStartup line 216; commit cf410f7)
-APP -> TIM : BalloonClicked += OnUpdateBalloonClicked
+APP -> GHS : host.StartHotkeyService\nInitialize() (message-only window on UI thread)\nFired += OnHotkeyFired\nApply(_settings.Hotkeys)\n(a service whose Initialize throws is never published)
+
+APP -> TIM : CreateTrayIcon()\n(TrayAppDotNETShellTrayIcon + TrayIconPresenter +\nTrayWindowToggle + TrayMenuController)\nLeftClick / LeftDoubleClick / KeySelect / RightClick /\nScrolled / RefreshNeeded / BalloonClicked
+APP -> UCS : host.StartCommonServices\n(WatcherMonitor: waits on the watcher's process handle;\n update checks + notifications; exit request listener)
 APP -> APP : RequestTrayRefresh()
 
-APP -> MBR : new MonitorBrightnessRangeProvider(_monitorService)\nProperties[MonitorBrightnessRangeProvider] = mbr
-
-APP -> GHS : new GlobalHotkeyService\nInitialize() (message-only HWND on UI thread)\nFired += OnHotkeyFired\nApply(_appSettings.Hotkeys)
-APP -> MS  : MonitorsRefreshed += OnMonitorsRefreshedForHotkeys
-
-APP -> APP : StartWatcherMonitor()\n(Task.Run polling Process.GetProcessById(WatcherPID);\n if it dies -> Dispatcher -> ExitApplication)
+APP -> MBR : new MonitorBrightnessRangeProvider(_monitorService)
 
 note over MS, BFL $TINT_GREEN
   Refresh() at MonitorService ctor performs Phase A
@@ -154,7 +144,7 @@ end
 MS -> MS  : ResortMonitors -> per-row Move events
 MS -> BFL : (each Move re-enters OnMonitorsCollectionChanged)
 MS -> APP : MonitorsRefreshed fan-out
-MS -> APP : OnMonitorsRefreshedForHotkeys\n(reapply per-monitor bindings)
+MS -> APP : App.OnMonitorsRefreshed\n(reapply per-monitor bindings,\ninvalidate tray menu, refresh icon)
 MS -> BFL : OnInitialMonitorEnrollmentRefreshed\n(startup-only master/offset rebaseline)
 MS -> ECS : OnMonitorsRefreshed -> Evaluate()
 ECS -> ECS : HarmonizeRow per monitor\n(Enabled -> CurveActive / CurveSleeping)
@@ -175,7 +165,7 @@ note right of MS
 end note
 
 note over APP, GHS
-  Subscriptions wired in App.xaml.cs:
+  Subscriptions wired in App.cs:
    - AppSettings.Changed
    - AppTheme.ThemeChanged
    - DisplayEventManager.DisplayTopologyChanged
@@ -184,22 +174,24 @@ note over APP, GHS
    - UpdateCheckService.StateChanged
      (OnUpdateStateChanged -> flyout NotifyUpdateStateChanged
       + tray balloon for new versions; cf410f7)
-   - 5 TrayIconManager events
-     (LeftClick, LeftDoubleClick, RightClick,
-      RefreshNeeded, Scrolled) + BalloonClicked
+   - TrayAppDotNETShellTrayIcon events
+     (LeftClick, LeftDoubleClick, KeySelect, RightClick,
+      Scrolled, PrecisionTouchpadScrolled, RefreshNeeded)
+     + BalloonClicked
      (OnUpdateBalloonClicked -> ShowBrightnessFlyout
       + RequestUpdatePrompt)
-   - 3 BrightnessFlyout events
-     (BrightnessUpdated, FlyoutDeactivated, SettingsRequested)
-     re-wired by ShowBrightnessFlyout's defensive recreate path
+   - BrightnessFlyout events
+     (BrightnessUpdated, SettingsRequested)
+     re-wired when the flyout is recreated
    - SettingsWindow.Closed (lazy, on first OpenSettings)
 end note
 
 note over AS $TINT_BLUE
-  AppSettings.Save now uses atomic temp+rename
-  (M-04 fix). IOExceptions are logged rather than
-  swallowed silently, so a locked file no longer
-  resets the flag on next launch without trace.
+  Settings go through the Common TrayXmlFileStore:
+  atomic temp+replace writes (AtomicFile), one writer,
+  failures logged. A corrupt file is moved aside as
+  settings.xml.corrupt-<UTC>; a locked file is left
+  alone and nothing is saved that session.
 end note
 
 @enduml

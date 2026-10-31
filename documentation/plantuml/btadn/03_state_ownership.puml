@@ -1,6 +1,6 @@
 @startuml state_ownership
 ' Revised 2026-07-12: DDC target, transport, and recovery ownership
-!include dark-theme.puml
+!include ../dark-theme.puml
 title State / source-of-truth audit - every fact and where it lives
 
 ' Forward-declare so notes can reference it from inside the package below.
@@ -41,7 +41,7 @@ N_THROTTLE .. MICT
 ' ----- DDC execution / synchronization -----
 package "DDC execution ownership" $TINT_AMBER {
   component "MonitorEntry.DDC\n(atomically replaced immutable snapshot)\n+ Max / EDIDKey / projections\n+ effective per-monitor DDC timings" as MEDDC
-  component "MonitorEntry brightness target\nGeneration / PendingPercentage /\nHasPending / LastVerifiedPercentage\n(under BrightnessTargetGate)" as METGT
+  component "MonitorEntry brightness target\nBrightnessTargetGeneration /\nPendingBrightnessPercentage /\nHasPendingBrightnessTarget /\nLastVerifiedBrightnessPercentage\n(under BrightnessTargetGate)" as METGT
   component "MonitorService._ddcLocks\nSemaphoreSlim per DeviceID fallback key" as MDL
   component "DisplayService._helperClients\nDDCHelperClient per stable identity" as DSH
   component "DDCHelperClient._gate\nserial command slot + helper process lifetime" as DHG
@@ -151,19 +151,19 @@ package "Hotkey registrations" $TINT_TEAL {
 
 ' ----- Tray icon -----
 package "Tray icon state" $TINT_AMBER {
-  [TrayIconManager._iconStyle\n+ _isOnCooldown / _updatePending]                       as TIM
+  [BrightnessTrayIcon render input\n(brightness, style, colors)\n+ Common TrayIconPresenter dedupe\n(last requested input + icon size)]   as TIM
   [AppSettings.TrayIconStyle\nAppSettings.DynamicIconBrightnessTracking\nAppSettings.TrayIcon{,Bright,Dim}Color] as ASTI
-  ASTI ..> TIM : settings-Changed -> reapply
+  ASTI ..> TIM : settings-Changed -> RequestTrayRefresh
 }
 
 ' ----- Theme -----
 package "Theme" $TINT_PINK {
   component "AppTheme\n(theme.xml; ThemeColor pairs,\nglyphs, profile-button defaults)" as APT
-  [AppTheme.IsLightTheme\n(runtime; SystemEvents.UserPreferenceChanged\nfiltered to UserPreferenceCategory.General;\nregkey read on-demand inside handler)] as APTL
+  [AppTheme.IsLightTheme\n(runtime; Windows mode SystemUsesLightTheme;\nSystemEvents.UserPreferenceChanged\nfiltered to UserPreferenceCategory.General)] as APTL
   [AppSettings.ThemeMode\n(System / Light / Dark)]            as ASTM
   [AppSettings NullableThemeColor overrides\n(Text, Background, TrayIcon*, Environmental*Curve, etc.)] as ASCOL
   APTL ..> APT
-  ASTM ..> APT : ResolveEffectiveIsLightTheme
+  ASTM ..> APT : AppTheme.ResolveIsLight\n(Common, the only resolver)
   ASCOL ..> APT : per-color override wins\nover ThemeColor default
 }
 

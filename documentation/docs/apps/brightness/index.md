@@ -9,7 +9,7 @@ I kept running into DDC failures with [Twinkle Tray](https://github.com/xanderfr
 Left-click the tray icon to open the flyout, click again (or press ++esc++) to hide it. From top to bottom:
 
 - One row per display: icon, name, brightness slider and the current value.
-- **All Displays**: the master slider.
+- **All displays**: the master slider.
 - **Night Light**: Windows Night Light on/off and strength.
 - The footer: profile buttons on the left, action buttons on the right.
 
@@ -40,14 +40,14 @@ When you're not dragging it, the master slider shows the **Average** of the disp
 
 ### Brightness Synchronization
 
-The icon next to **All Displays** is the sync button (tooltip **Sync displays**):
+The icon next to **All displays** is the sync button (tooltip **Sync displays**):
 
 - Click: every included display jumps to the master slider's value.
 - ++ctrl++ + click: master and every included display jump to the brightest included display.
 
 The **Normalize brightnesses to master** hotkey does the same as a plain click.
 
-The other button on the **All Displays** row toggles the day/night brightness curve. With a curve on, each row also gets a lock button for taking it off the curve by hand (control disengagement). All of that is on [Day/Night Curve](curve.md).
+The other button on the **All displays** row toggles the day/night brightness curve. With a curve on, each row also gets a lock button for taking it off the curve by hand (control disengagement). All of that is on [Day/Night Curve](curve.md).
 
 ### Night Light Row
 
@@ -107,7 +107,7 @@ Icon options are in **Settings** > **Theme** under **Tray icon**:
 - **Tray icon style**: **Eclipse (dynamic)** (default) follows brightness. **Eclipse (static)** locks the icon at a 50% eclipse.
 - **Dynamic icon brightness tracking**: which brightness the icon shows, **Lowest**, **Average** (default) or **Highest** of your displays.
 - **Track only enabled monitor sliders**: ignore excluded displays for the icon. Off by default.
-- **Bright color** / **Dim color**: the icon blends from the dim color at 0% to the bright color at 100%. **Static icon color** is the single color for the static style.
+- **Bright color** / **Dim color**: the icon blends from the dim color at 0% to the bright color at 100%. **Tray icon color** is the single color for the static style.
 
 Color picking works like everywhere else in the suite, see [Themes](../../shared/themes.md).
 
@@ -119,24 +119,24 @@ Precision touchpads work too: scroll on the touchpad while the pointer is over t
 
 This does *not* use an always-active global mouse hook. The app only listens for wheel and touchpad input while your pointer is actually over the icon.
 
-The switches live in **Settings** > **Tray Icon**: **Mouse wheel** (on), **Mouse wheel step**, **Precision touchpad** (on) and **Touchpad sensitivity**.
+The switches live in **Settings** > **Tray icon**: **Mouse wheel** (on), **Mouse wheel step**, **Precision touchpad** (on) and **Touchpad sensitivity**.
 
 ### Modified Actions
 
-**Settings** > **Tray Icon** > **Modified actions** assigns what scrolling and clicking do with ++ctrl++ or ++alt++ held, and what a double-click does. Anything set to **Nothing** falls back to the normal behavior.
+**Settings** > **Tray icon** > **Modified actions** assigns what scrolling and clicking do with ++ctrl++ or ++alt++ held, and what a double-click does. Anything set to **Nothing** falls back to the normal behavior.
 
 | Gesture | Default | Options |
 | --- | --- | --- |
 | **Mouse wheel** | Brightness | **Nothing**, **Brightness**, **Night Light** |
 | **Ctrl + mouse wheel** | Night Light | same |
 | **Alt + mouse wheel** | Nothing | same |
-| **Ctrl + left click** | Nothing (toggles the flyout) | **Nothing**, **All displays OFF**, **All displays ON**, **Full bright**, **Full dim** |
-| **Alt + left click** | Nothing | same |
-| **Ctrl + right click** | Nothing (opens the menu) | same |
-| **Alt + right click** | Nothing | same |
-| **Double left click** | Nothing | same |
-| **Ctrl + double left click** | Nothing (uses **Double left click**) | same |
-| **Alt + double left click** | Nothing (uses **Double left click**) | same |
+| **Ctrl + left-click** | Nothing (toggles the flyout) | **Nothing**, **All displays OFF**, **All displays ON**, **Full bright**, **Full dim** |
+| **Alt + left-click** | Nothing | same |
+| **Ctrl + right-click** | Nothing (opens the menu) | same |
+| **Alt + right-click** | Nothing | same |
+| **Double-click** | Nothing | same |
+| **Ctrl + double-click** | Nothing (uses **Double-click**) | same |
+| **Alt + double-click** | Nothing (uses **Double-click**) | same |
 
 **Full bright** sets every included display to 100%, **Full dim** to 0%. Run the same action again while they're still there and they go back to where they were. A double-click starts with a normal click, so the flyout still toggles before the double-click action runs.
 
@@ -153,11 +153,11 @@ Right-click the icon (or ++shift+f10++ / the menu key while it has keyboard focu
 
 ![The tray menu with the four profiles](../../images/brightness/tray-menu.png)
 
-The power entries only show when at least one display supports power control. These switches and **Menu position** are in **Settings** > **Tray Icon** > **Context menu**. The rest of the tray menu customization is shared, see [Tray and Flyouts](../../shared/tray-and-flyouts.md).
+The power entries only show when at least one display supports power control. These switches and **Menu position** are in **Settings** > **Tray icon** > **Context menu**. The rest of the tray menu customization is shared, see [Tray and Flyouts](../../shared/tray-and-flyouts.md).
 
 ## Settings
 
-The settings window works like in every TADN app, see [Settings Window](../../shared/settings-window.md). Pages: **General**, **Flyout**, **Tray Icon**, **Monitor options**, **Hotkeys**, **Environmental**, **Theme** and **About**. **Monitor options** is covered on [Displays](displays.md), **Environmental** on [Day/Night Curve](curve.md). The tray icon settings are above.
+The settings window works like in every TADN app, see [Settings Window](../../shared/settings-window.md). Pages: **General**, **Flyout**, **Tray icon**, **Monitor options**, **Hotkeys**, **Environmental**, **Theme** and **About**. **Monitor options** is covered on [Displays](displays.md), **Environmental** on [Day/Night Curve](curve.md). The tray icon settings are above.
 
 ### General
 
@@ -181,7 +181,7 @@ Language, run on startup, installation and rendering are shared, see [Settings W
 | **Show display number on monitor icons** | Off | Puts the Windows display number in front of each display name. |
 | **Show display settings button** | On | The **Display settings** footer button. |
 | **Show power button** | Off | The **Turn off displays** footer button. |
-| **Show master slider** | On | The **All Displays** row, including the sync button. |
+| **Show master slider** | On | The **All displays** row, including the sync button. |
 | **Show individual sliders** | On | The per-display rows. |
 | **Show environmental curves button** | On | The **Environmental curves** footer button. |
 | **Show kelvin label on night light slider** | Off | See [Night Light](night-light.md). |

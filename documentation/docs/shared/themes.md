@@ -1,16 +1,16 @@
 # Themes
 
-Every TADN app follows Windows light/dark mode out of the gate, and every app except Task Manager lets you override its colors. Color changes are live: the settings window, the flyout, and the tray icon update while you drag the color around, before you've committed anything.
+Every TADN app follows Windows light/dark mode out of the gate and lets you override its text and background colors. Color changes are live: the settings window, the flyout, and the tray icon update while you drag the color around, before you've committed anything.
 
 ## Where It Lives
 
-Open the app's settings and go to **Theme** (**Appearance** in Task Manager). The cards below are the ones most apps share. Each app adds its own on top, e.g. card colors in Fan Control, curve colors in Brightness, or peak meter colors in Volume; those are on the app pages.
+Open the app's settings and go to **Theme** (**Appearance** in Task Manager). Every app starts that page with the same **Appearance** cards and a **Context menu** font size card. Each app adds its own on top, e.g. card colors in Fan Control, curve colors in Brightness, peak meter colors in Volume, or the narrow-window navigation in Task Manager; those are on the app pages.
 
 Since the flyout stays open while the settings window has focus (see [Tray Icon and Flyouts](tray-and-flyouts.md)), the easiest way to theme an app is to open the flyout, open settings from the flyout's settings button, and watch the flyout while you pick.
 
 ## Theme Mode
 
-The theme mode card is called **Theme** in Battery, **Theme style** in Brightness, Fan Control, Network, and Volume, and **Theme mode** in Task Manager. The choices are **System**, **Light**, and **Dark**. The default is **System**.
+The first card is **Theme style**. The choices are **System**, **Light**, and **Dark**. The default is **System**.
 
 ***HERE IS THE TRICK*** **System** follows the Windows mode, i.e. **Choose your default Windows mode** in Windows' Personalization > Colors settings (the one the taskbar and Start use), not the app mode. If you run Windows dark with light apps, TADN comes out dark. Set **Light** or **Dark** here if you want it the other way. A change of the Windows mode is picked up while the app is running.
 
@@ -18,14 +18,15 @@ The theme mode card is called **Theme** in Battery, **Theme style** in Brightnes
 
 | Card | Default | What it does | Apps |
 | --- | --- | --- | --- |
-| **Font size** | 15 | Size of the right-click tray menu. Everything in the menu scales from it. | All but Task Manager |
+| **Theme style** | **System** | See above. | All |
 | **Windows 11-style settings menu** | Off (On in Task Manager) | Shows page glyphs and uses a Windows 11 style layout for the settings window's page list. | All |
-| **Text color** | App default | Overrides the text color. | All but Task Manager |
-| **Background color** | App default | Overrides the background color. | All but Task Manager |
+| **Text color** | App default | Overrides the text color. | All |
+| **Background color** | App default | Overrides the background color. | All |
 | **Rounded corners** | On | Rounded corners on the flyout, settings cards, buttons, and menus. Turn it off for a squared-off look. | All |
-| **Animations** | **System** | Whether tooltip fades and other UI animations are allowed. **System** follows the **Animation effects** setting in Windows; **Disabled** and **Enabled** override it. | Battery, Network, Task Manager, Volume |
-| **Tooltip delay** | 750 ms | How long the pointer has to hover before a tooltip appears, 0 to 10000 ms. | Battery, Network, Task Manager, Volume |
-| Tray icon color | App default | Overrides the tray icon color. Called **Tray icon color**, **Static icon color**, or **Static tray icon color** depending on the app. | All but Task Manager |
+| **Animations** | **System** | Whether tooltip fades and other UI animations are allowed. **System** follows the **Animation effects** setting in Windows; **Disabled** and **Enabled** override it. | All |
+| **Tooltip delay** | 750 ms | How long the pointer has to hover before a tooltip appears, 0 to 10000 ms. | All |
+| **Font size** (under **Context menu**) | 15 | Size of the right-click menus, 8 to 48. Everything in a menu scales from it. | All |
+| **Tray icon color** | App default | Overrides the tray icon color. In Network it's the color used with the **Static** tray icon style. | All but Task Manager |
 
 Battery and Fan Control also have flyout background and flyout title bar colors, and Brightness has a footer background color.
 
@@ -52,7 +53,7 @@ Everything on the Theme page is saved in the app's `settings.xml` along with the
 
 ### The theme.xml File
 
-Each app also reads a `theme.xml` from its data folder once, at startup, if one exists. The app never creates or writes this file, so normally it isn't there. The Theme page overrides win over anything in it. If you put one there and the app's colors look wrong, delete it and restart the app.
+Each app, Task Manager included, also reads a `theme.xml` from its data folder once, at startup, if one exists. The app never creates or writes this file, so normally it isn't there. The Theme page overrides win over anything in it. If the file can't be read (invalid XML, or a color that isn't a valid hex value), the app logs why in `active.log` and uses its built-in theme; the file is left as it is. If you put one there and the app's colors look wrong, check the log, or delete the file and restart the app.
 
 ## Resetting
 

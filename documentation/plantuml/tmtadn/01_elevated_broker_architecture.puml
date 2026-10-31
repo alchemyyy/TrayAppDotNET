@@ -1,5 +1,5 @@
 @startuml elevated_broker_architecture
-!include ../btadn/dark-theme.puml
+!include ../dark-theme.puml
 ' Added 2026-09-28; revised 2026-09-29: six ops wired through the broker, terminate still separate (deferred)
 title Elevated privileged-action broker - lazy per-action consent, six ops wired, terminate deferred
 

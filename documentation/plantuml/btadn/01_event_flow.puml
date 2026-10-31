@@ -1,6 +1,7 @@
 @startuml event_flow
 ' Revised 2026-07-12: direct DDC recovery wake-up and target replay ownership
-!include dark-theme.puml
+' Revised 2026-10-30: Common tray icon, presenter and click toggle (TrayAppDotNETCommon UI/Tray)
+!include ../dark-theme.puml
 title Event Flow - Win32 messages -> .NET events -> handlers
 
 ' ------------ Win32 / OS sources ------------
@@ -19,8 +20,8 @@ package "Win32 / OS" $TINT_NEUTRAL {
 ' ------------ Hidden HWNDs ------------
 package "Message-only HWNDs (3)" $TINT_BLUE {
   [DisplayEventManager\nWnd] as DEM
-  [GlobalHotkeyService\nHwndSource] as GHS
-  [ShellNotifyIcon\nWnd]     as SNI
+  [GlobalHotkeyService\nWin32Window] as GHS
+  [TrayAppDotNETShellTrayIcon\nWnd (Common)]     as SNI
 }
 
 ' ------------ App / services ------------
@@ -31,10 +32,10 @@ package "App + Services" $TINT_AMBER {
   [App.OnTrayLeftClick / RightClick / Scrolled / LeftDoubleClick]       as AOT
   [App.OnThemeChanged]                                                  as ATC
   [App.OnSettingsChanged]                                               as AOSC
-  [App.OnMonitorsRefreshedForHotkeys]                                   as AOMRH
-  [App.OnFlyoutDeactivated\n(suppress next tray click)]                 as AOFD
+  [App.OnMonitorsRefreshed]                                             as AOMRH
+  [TrayWindowToggle\n(Common close-on-click guard)]                     as AOFD
   [App.RequestTrayRefresh\n(single funnel)]                             as RTR
-  [TrayIconManager\n(cooldown, dispatcher gate)]                        as TIM
+  [TrayIconPresenter\n(Common: dedupe, render queue)]                   as TIM
   [BrightnessFlyout]                                                    as BFL
   [SettingsWindow]                                                      as SWN
   [EnvironmentalCurveService]                                           as ECS
@@ -50,8 +51,8 @@ package "App + Services" $TINT_AMBER {
 WM_DC    --> DEM   : OnMessage\nfast: 250 ms debounce\nslow: 1 s burst, up to 10 ticks
 WM_HK    --> GHS   : WndProc\nlooks up id in _byId
 WM_TRAY  --> SNI   : LBUTTONUP / RBUTTONUP /\nLBUTTONDBLCLK / NIN_POPUPOPEN /\nMOUSEMOVE
-WM_INPUT --> SNI   : raw mouse wheel\n(only while cursor in icon bounds)
-WM_TBC   --> SNI   : ScheduleTaskbarRecreate\n-> RefreshNeeded after 10 ticks
+WM_INPUT --> SNI   : raw mouse wheel\n(registered only while a Scrolled\nhandler exists; whole notches)
+WM_TBC   --> SNI   : re-add the icon\n-> RefreshNeeded
 
 ' ------------ SystemEvents (.NET wrappers) ------------
 SE_DSC --> DEM : Kick (debounce)
@@ -70,7 +71,7 @@ AOD --> NLR  : NightLightProvider.Reapply()
 AOD --> RTR
 
 MSR ..> AOMRH : MonitorsRefreshed event\n(fan-out: DEM short-circuit, DRS signal/clear fallback,\nECS immediate Evaluate, MBR resubscribe)
-AOMRH --> GHS : Apply(_appSettings.Hotkeys)\n(re-register per-monitor bindings)
+AOMRH --> GHS : Apply(_settings.Hotkeys)\n(re-register per-monitor bindings)\n+ tray menu invalidate + RequestTrayRefresh
 MSR ..> ECS  : MonitorsRefreshed -> OnMonitorsRefreshed\n(immediate Evaluate after read-only acquisition)
 MSR ..> MSR  : ReplayRecoveredBrightnessIntent\nafter synchronous refresh fan-out resolves final owner\n(force SET + normal read-back verification)
 MSR ..> DRS  : DDCRecoveryRequested(id) directly on demotion\n+ MonitorsRefreshed candidate reconciliation
@@ -98,29 +99,28 @@ AOH --> NLR : ToggleNightLight /\nIncr/Decr NightLight
 
 ' ------------ Tray icon callbacks ------------
 SNI --> AOT  : LeftClick / RightClick /\nLeftDoubleClick / Scrolled
-SNI --> RTR  : RefreshNeeded\n(taskbar restart timer)
-SNI --> TIM  : TooltipPopup\n-> SetTooltip (bypasses cooldown)
-TIM --> AUSC : BalloonClicked\n-> OnUpdateBalloonClicked\n-> ShowBrightnessFlyout + RequestUpdatePrompt
+SNI --> RTR  : RefreshNeeded\n(taskbar re-created, display or DPI change)
+SNI --> AUSC : BalloonClicked\n-> OnUpdateBalloonClicked\n-> ShowBrightnessFlyout + RequestUpdatePrompt
 
 ' ------------ Auto-update path ------------
 UCS  ..> AUSC : StateChanged -> OnUpdateStateChanged\n-> flyout.NotifyUpdateStateChanged
-UCS  --> TIM  : ShowBalloon (new version available)
+UCS  --> SNI  : ShowBalloon (new version available)
 AUSC --> BFL  : NotifyUpdateStateChanged /\nShow + RequestUpdatePrompt
 
-AOT --> BFL : ShowBrightnessFlyout / wheel adjust
+AOT --> AOFD : Decide(flyout)\n(show / bring forward / hide)
+AOFD --> BFL : ShowAt / Hide / wheel adjust
 AOT --> SWN : OpenSettings
-AOT --> AOFD : FlyoutDeactivated\n(_suppressNextTrayClick)
 
 ' ------------ Theme + settings funnel ------------
 ATC  --> RTR : Update tray colors
-AOSC --> RTR : push tray icon style /\ncooldown / scroll-enabled
-AOSC --> GHS : re-Apply(_appSettings.Hotkeys)
+AOSC --> RTR : push tray icon style /\nscroll-enabled
+AOSC --> GHS : re-Apply(_settings.Hotkeys)
 AOSC --> MSR : push WriteCooldownMs / ValidationDwellMs
 
 ' ------------ Flyout -> tray funnel ------------
 BFL --> RTR : BrightnessUpdated event
 BFL --> SWN : SettingsRequested
-BFL --> AOFD : FlyoutDeactivated
+BFL ..> AOFD : active / visible state\n(read on the next tray click)
 
 ' ------------ Curve service ------------
 ECS ..> MSR : EnqueueDirectBrightness\n(per-tick hardware writes,\nactive even when flyout hidden)
@@ -128,7 +128,7 @@ ECS ..> NLR : SetStrength via curve
 BFL ..> ECS : Engage / Disengage /\nSuspend / Resume / Evaluate
 
 ' ------------ Tray-refresh funnel ------------
-RTR --> TIM : Update(GetBrightnessAndTooltip)\n-> ApplyUpdate + StartCooldown
+RTR --> TIM : Refresh(tooltip) with the\nrender input (brightness, style)
 
 ' ------------ Notes ------------
 note right of DEM
@@ -142,9 +142,9 @@ end note
 note right of RTR
   Every tray-icon repaint flows through
   one funnel (App.RequestTrayRefresh
-  -> TrayIconManager.Update), which
-  honours the cooldown gate so rapid
-  brightness ticks don't thrash the icon.
+  -> TrayIconPresenter.Refresh), which
+  skips a render whose input and icon size
+  equal the last request and queues the rest.
 end note
 
 note bottom of GHS

@@ -65,7 +65,7 @@ You'd only touch this for a monitor that ignores the standard power-off command.
 
 ### Clear Displays
 
-**Clear Displays** (after a confirmation) deletes all name overrides, the custom order, every per-display override, and the history of known displays. The list then rebuilds from the displays connected right now.
+**Clear displays** (after a confirmation) deletes all name overrides, the custom order, every per-display override, and the history of known displays in `displays.json`, including which displays ever answered DDC/CI and their last confirmed brightness. The list then rebuilds from the displays connected right now. Disconnected displays you've used before are listed (dimmed) and offered as hotkey targets until you clear them.
 
 ## Monitor Options
 
@@ -89,6 +89,7 @@ The global settings at the top of **Settings** > **Monitor options**:
 - **Allow blind DDC writes during degraded state**: see [Degraded](#degraded).
 - **Power off mode**: what "turn off display" sends. **Sleep** is standby, **Power off (soft)** is DPM off, **Power off (hard)** is a write-only off. Some monitors ignore the soft one, and after a hard power-off you'll most likely have to press the monitor's power button to wake it.
 - **Identify displays by**: which attribute keys each physical monitor. **Display number** is the number Windows shows in Display settings, but it can change after a reboot or a topology change. **Hardware port** stays put across reboots as long as the monitor stays on the same cable/port. **EDID serial** sticks to the panel regardless of the port, but falls back to the port for monitors that don't report a serial. Changing it re-detects every display, and the app warns that saved profile entries can get orphaned.
+- **Identify displays**: the **Identify Displays** button shows each display's Windows display number on that display for a few seconds, so you can tell which row is which monitor.
 - **Default display sort order**: the order of display rows in the flyout. **Arrangement** goes left to right (then top to bottom) by where the displays sit in Windows display settings; **Display num** goes by display number. The (rev) versions flip it. Applied whenever displays are plugged in or removed.
 
 ## Verification, Recovery, and Fast Apply
@@ -131,7 +132,7 @@ The app keeps trying to read from a degraded display in the background, and it g
 
 ### Hard Power-Off
 
-++ctrl++-click the warning or degraded icon of a display to send it a hard power-off over DDC. This works on a display that has worked over DDC before and supports power control; for a degraded display, **Allow blind DDC writes during degraded state** also has to be on. The tooltip shows **Ctrl+Click to Attempt Hard Power-Off** where it's available on a degraded display.
+++ctrl++-click the warning or degraded icon of a display to send it a hard power-off over DDC. This works on a display that has worked over DDC before and supports power control; for a degraded display, **Allow blind DDC writes during degraded state** also has to be on. The tooltip shows **Ctrl + click to attempt hard power-off** where it's available on a degraded display.
 
 The point is power cycling: turning a monitor off and on usually clears a wedged DDC connection.
 

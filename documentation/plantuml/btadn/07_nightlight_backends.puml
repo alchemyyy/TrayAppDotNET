@@ -1,5 +1,5 @@
 @startuml nightlight_backends
-!include dark-theme.puml
+!include ../dark-theme.puml
 ' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
 title Night-light dispatch - two Windows backends (registry as source of truth) + app-owned gamma ramp
 
@@ -145,11 +145,14 @@ note right of NLP
   On GammaRamp, reads come from AppSettings
   (Windows knows nothing about that tint).
 
-  EnsureNonZeroStrengthBeforeEnable:
-  toggling on at strength 0 silently restores
+  ResolveEnableStrength:
+  toggling on at strength 0 restores
   AppSettings.NightLightLastNonZeroStrength
-  first, otherwise the user sees no visible
-  change.
+  (50 when none is stored) as part of the
+  enable, otherwise the user sees no visible
+  change. Registry backend: SetEnabled, then
+  EnqueueSetStrengthSpaced; SettingsHandler:
+  EnableSettingsHandlerBackendAsync.
 
   TurnOffNightLightAtZeroStrength:
   setting strength to 0 auto-disables when

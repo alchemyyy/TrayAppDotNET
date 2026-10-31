@@ -1,6 +1,7 @@
 @startuml class_dependencies
 ' Revised 2026-07-12: DDC helper isolation and verified target pipeline
-!include dark-theme.puml
+' Revised 2026-10-30: Common tray presenter, flyout base, confirmation window and uninstaller
+!include ../dark-theme.puml
 title Service & UI dependency graph (who depends on whom)
 
 skinparam classBackgroundColor<<orchestrator>> $STER_ORCHESTRATOR
@@ -12,7 +13,7 @@ skinparam classBackgroundColor<<lifecycle>>    $STER_LIFECYCLE
 ' ----- Process bootstrap / lifecycle -----
 class Program                          <<orchestrator>>
 class App                              <<orchestrator>>
-class TrayIconManager                  <<orchestrator>>
+class TrayIconPresenter                <<orchestrator>>
 class CrashHandler                     <<lifecycle>>
 class SingleInstanceCoordinator        <<lifecycle>>
 class DisplayEventManager              <<lifecycle>>
@@ -36,9 +37,9 @@ class StartMenuShortcut                <<service>>
 class AppSettings                      <<service>>
 class AppTheme                         <<service>>
 class KnownDisplaysStore               <<service>>
-class TrayIconRenderer                 <<service>>
-class NightLightIconRenderer           <<service>>
-class IconRenderingHelper              <<service>>
+class BrightnessTrayIcon               <<service>>
+class NightLightBulbGlyphIcon          <<ui>>
+class TrayIconRasterizer               <<service>>
 class GlyphCatalog                     <<service>>
 class SunShifter                       <<service>>
 class EnvironmentalCurveSampler        <<service>>
@@ -47,12 +48,11 @@ class EnvironmentalCurveSampler        <<service>>
 class BrightnessFlyout                 <<ui>>
 class SettingsWindow                   <<ui>>
 class CurveEditor                      <<ui>>
-class MapPickerOverlay                 <<ui>>
+class EnvironmentalMapPickerWindow     <<ui>>
 class DisplayIdentifierOverlayWindow   <<ui>>
-class UninstallerWindow                <<ui>>
-class NumericSpinner                   <<ui>>
-class WindowDragHelper                 <<ui>>
-class UpdateConfirmationWindow         <<ui>>
+class TrayAppDotNETUninstallerWindow   <<ui>>
+class FlyoutWindowCommon               <<ui>>
+class TrayAppDotNETConfirmationWindow  <<ui>>
 
 ' ----- Interop -----
 interface IDisplayService              <<interop>>
@@ -67,6 +67,7 @@ class NightLightRegistry               <<interop>>
 class NightLightSettingsHandler        <<interop>>
 class NightLightCloudStore             <<interop>>
 class NightLightKelvin                 <<interop>>
+class GammaRampNightLight              <<interop>>
 class PDBSymbolResolver                <<interop>>
 
 ' ===========================================================================
@@ -91,26 +92,24 @@ App --> MonitorBrightnessRangeProvider
 App --> ProfileManager
 App --> NightLightProvider
 App --> GlobalHotkeyService
-App --> TrayIconManager
+App --> TrayIconPresenter
 App --> BrightnessFlyout
 App --> SettingsWindow
-App --> UninstallerWindow                : --uninstall mode
+App --> TrayAppDotNETUninstallerWindow  : --uninstall mode\n(Common host)
 App --> StartupManager
 App --> PDBSymbolResolver                : DownloadTimeout
 App --> UpdateCheckService               : OnStartup -> StateChanged
-UpdateCheckService --> AppSettings       : CheckForUpdatesEnabled /\nUpdateCheckIntervalMinutes /\nUpdateChannel
+UpdateCheckService --> AppSettings       : CheckForUpdatesEnabled /\nUpdateCheckIntervalMs
 
 ' ===========================================================================
 ' Tray icon stack
 ' ===========================================================================
 
-TrayIconManager --> TrayIconRenderer
-TrayIconManager ..> AppTheme
-TrayIconRenderer --> AppTheme
-TrayIconRenderer --> IconRenderingHelper
-TrayIconRenderer --> GlyphCatalog
-NightLightIconRenderer --> IconRenderingHelper
-NightLightIconRenderer --> GlyphCatalog
+TrayIconPresenter --> BrightnessTrayIcon : ITrayIconRenderer\n(render input dedupe)
+BrightnessTrayIcon --> AppTheme
+BrightnessTrayIcon --> TrayIconRasterizer
+BrightnessTrayIcon --> GlyphCatalog
+NightLightBulbGlyphIcon --> GlyphCatalog
 
 ' ===========================================================================
 ' Service-to-service
@@ -136,6 +135,7 @@ EnvironmentalCurveService --> EnvironmentalCurveSampler
 NightLightProvider --> AppSettings
 NightLightProvider --> NightLightRegistry
 NightLightProvider --> NightLightSettingsHandler
+NightLightProvider --> GammaRampNightLight
 
 ' ===========================================================================
 ' Interop
@@ -165,11 +165,11 @@ BrightnessFlyout --> ProfileManager
 BrightnessFlyout --> MonitorService
 BrightnessFlyout --> EnvironmentalCurveService
 BrightnessFlyout --> NightLightProvider
-BrightnessFlyout --> NightLightIconRenderer
+BrightnessFlyout --> NightLightBulbGlyphIcon
 BrightnessFlyout --> AppTheme
-BrightnessFlyout *-- WindowDragHelper
+BrightnessFlyout --|> FlyoutWindowCommon        : ShowAt / Hide / docking /\nundock drag / owned dialogs
 BrightnessFlyout --> UpdateCheckService          : reads AvailableUpdate /\nNotifyUpdateStateChanged
-BrightnessFlyout *-- UpdateConfirmationWindow    : modal child on\nRequestUpdatePrompt
+BrightnessFlyout *-- TrayAppDotNETConfirmationWindow : modal child via\nShowInstallUpdatePrompt
 
 SettingsWindow --> AppSettings
 SettingsWindow --> ProfileManager
@@ -180,7 +180,7 @@ SettingsWindow --> DisplayIdentifierService
 SettingsWindow --> StartupManager
 SettingsWindow --> InstallationService
 SettingsWindow *-- CurveEditor
-SettingsWindow *-- MapPickerOverlay
+SettingsWindow --> EnvironmentalMapPickerWindow : opens (Environmental page)
 
 CurveEditor --> EnvironmentalCurveSampler
 CurveEditor --> ProfileManager
@@ -189,7 +189,7 @@ CurveEditor --> MonitorBrightnessRangeProvider
 ' DisplayIdentifierService is a static class that manages a private list
 ' of overlay windows internally (DisplayIdentifierService.cs:13, 18).
 DisplayIdentifierService ..> DisplayIdentifierOverlayWindow : owns N (one per monitor)
-UninstallerWindow --> InstallationService
+TrayAppDotNETUninstallerWindow --> InstallationService
 
 ' StartMenuShortcut wiring (cf410f7: Start Menu shortcuts).
 Program --> StartMenuShortcut            : --sync-start-menu
@@ -226,10 +226,10 @@ note bottom of BrightnessFlyout
 end note
 
 note bottom of SettingsWindow
-  Per-tab pages in UI/Settings/*.
-  CurveEditor + MapPickerOverlay are
-  hosted directly by the shell so the
-  preview sweep can dock either one.
+  Per-page partials in UI/Settings/*.
+  CurveEditor sits on the Environmental
+  page; the map picker is its own
+  window owned by the settings window.
 end note
 
 note top of DisplayEventManager
@@ -241,9 +241,11 @@ end note
 
 note bottom of NightLightProvider
   Backend resolved lazily:
-  Registry (CloudStore Bond blob) or
+  Registry (CloudStore Bond blob),
   SettingsHandler (kelvin via RVA into
-  SettingsHandlers_Display.dll).
+  SettingsHandlers_Display.dll), or
+  Gamma ramp (the app writes each
+  display's gamma table itself).
 end note
 
 @enduml

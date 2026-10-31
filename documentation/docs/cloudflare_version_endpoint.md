@@ -22,19 +22,39 @@ is contacted only by the updater during publication.
    repository Releases webhook sent directly to Cloudflare.
 2. The Actions workflow posts to its capability URL, checks the updater's
    verified release tag, and retries when the endpoint has not reached the
-   release that emitted the event.
+   release that emitted the event. A refusal (HTTP 409, below) is final and is
+   not retried.
 3. The repository webhook is authenticated with GitHub's HMAC-SHA256 signature.
    The updater accepts only stable `published` releases from this repository and
    uses the exact release tag in the signed payload.
 4. If either delivery succeeds, the updater prepares the published release's
    `versions.xml`. Duplicate deliveries are harmless because publication is
-   content-based and idempotent.
-5. If an app entry is missing, the updater walks backward through numbered
-   release tags and uses the first manifest containing that app. Each app entry
-   records the release tag that owns its ZIP.
-6. The updater uploads the completed XML directly to the
+   content-based and idempotent. Release tags must be `TrayAppDotNET_<number>`
+   with a number of at least 100; `publish.py` rejects any other
+   `--release-tag`.
+5. The updater reads `versions@version` from the XML the endpoint currently
+   serves. Identical XML is left unchanged, and a manifest with a lower version
+   is refused (HTTP 409, status `refused`) unless the trigger URL is called with
+   `?force=true` (see [Rolling back](#rolling-back)). Signed release webhooks
+   never force.
+6. The app set comes from the release itself: `publish.py` lists the apps a
+   release carries under `<applications>` in its `versions.xml`. Manifests
+   written before that list existed fall back to the app catalog (`apps.json`,
+   generated from `TrayAppDotNET.Apps.props`) bundled when the updater was
+   deployed, limited to apps whose `firstRelease` is not above the release
+   number. An app id the bundled catalog does not know is served like any other
+   app, so adding an app never requires redeploying the updater. If a required
+   app entry is missing, the updater walks backward through numbered release
+   tags and uses the first manifest containing that app. Each app entry records
+   the release tag that owns its ZIP.
+7. The updater uploads the completed XML directly to the
    `trayapp-version-endpoint` static-asset Worker through Cloudflare's API.
-7. The updater verifies the public endpoint before returning success.
+   The Worker module it uploads with the asset is compiled from
+   `.github/.cloudflare/version-endpoint/src/index.ts` into
+   `src/generated/version-endpoint-worker.ts` by
+   `npm run generate-endpoint-worker`, which Wrangler runs before every updater
+   deploy; a test fails when the generated file is stale.
+8. The updater verifies the public endpoint before returning success.
 
 No repository clone, Cloudflare Build, periodic poll, or GitHub-side
 Cloudflare credential is involved.
@@ -87,9 +107,11 @@ VERSION_ENDPOINT_TRIGGER_URL=<full trigger URL>
 ```
 
 The URL authorizes only an updater invocation. The updater ignores request
-content and always fetches the latest published release from the fixed GitHub
-repository. If the URL leaks, it can cause redundant invocations but does not
-expose the Cloudflare API token or permit arbitrary content deployment.
+content apart from the optional `force=true` query parameter and always fetches
+the latest published release from the fixed GitHub repository. If the URL
+leaks, it can cause redundant invocations or re-deploy the latest published
+release over a higher served version, but it does not expose the Cloudflare API
+token or permit arbitrary content deployment.
 
 ### 7. Configure the signed repository webhook
 
@@ -121,6 +143,19 @@ curl.exe -i https://version.trayapp.net/
 Then manually run `Trigger Version Endpoint Publish` from GitHub Actions. Both
 paths should report either `published` or `unchanged` for the latest release.
 
+## Rolling back
+
+To serve an older release, make that release GitHub's latest release (for
+example, delete or demote the newer one), then force the updater once: run
+`Trigger Version Endpoint Publish` manually with `force` checked, or call
+
+```console
+curl.exe --fail --request POST "<full trigger URL>?force=true"
+```
+
+Without `force=true`, the updater answers `409` with status `refused` and keeps
+serving the higher version.
+
 ## Relevant files
 
 - `.github/workflows/trigger-version-endpoint.yml`: release event notification
@@ -130,3 +165,4 @@ paths should report either `published` or `unchanged` for the latest release.
 - `.github/.cloudflare/version-endpoint-updater/src/index.ts`: secret trigger handler
 - `.github/.cloudflare/version-endpoint-updater/src/manifest.ts`: validation and repair
 - `.github/.cloudflare/version-endpoint-updater/src/cloudflare-deploy.ts`: direct asset deployment
+- `.github/.cloudflare/version-endpoint-updater/scripts/generate-endpoint-worker.ts`: compiles the endpoint Worker embedded by the updater

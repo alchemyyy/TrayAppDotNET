@@ -16,8 +16,15 @@ https://github.com/user-attachments/assets/945e9c37-30a7-40dd-910f-842f5ea4a049
 * Hot-swappable profiles
 * Flyout customization (visibility of features, docking, slider tracking, user inputs)
 * Themeability (live color pickers, light/dark mode, glyph customization, look and feel, etc.)
-* Single packaged portable exe with fully self-contained install and update system.
+* Runs portably or installed, with a self-contained install, update and uninstall system.
 * and more.
+
+User documentation: [documentation/docs/apps/brightness](../documentation/docs/apps/brightness/index.md)
+([Day/Night Curve](../documentation/docs/apps/brightness/curve.md),
+[Displays](../documentation/docs/apps/brightness/displays.md),
+[Night Light](../documentation/docs/apps/brightness/night-light.md)).
+
+Building: see the [root README](../README.md#development). Release builds publish Native AOT.
 
 ### Distant Future Features
 * nightlight - it is absolutely *possible* for it to work per-monitor. but it'd diverge from the built in night light, and would be a nightmare to get working right.

@@ -1,24 +1,20 @@
 # BatteryTrayAppDotNET
 
-Avalonia ReadyToRun Windows tray app for battery status.
+A tray battery monitor for laptops, part of [TrayAppDotNET](../README.md).
 
-This rewrite is based on `VolumeTrayAppDotNET` for the TrayAppDotNET shell, but the app logic is battery-specific and does not use LibreHardwareMonitor. Battery state comes from the Windows power manager:
+- Tray icon with a level and charging glyph (grayed out when no battery is present).
+- A flyout with the charge, a status line, charge or discharge rate in watts, remaining capacity, battery health,
+  time estimates (predicted life from learned usage, present discharge, time until full), a power mode slider and an
+  Energy Saver button.
+- A tray menu with Power options and a battery report (`powercfg /batteryreport`).
+- Three configurable triggers (condition plus action) and hotkey actions.
 
-* `GetSystemPowerStatus` for shell-visible percentage, AC/DC state, charging flag, and Windows' time estimate.
-* `Windows.Devices.Power.BatteryReport` for charge rate and battery capacity fields.
+Battery data comes from the Windows power manager (`GetSystemPowerStatus` and `Windows.Devices.Power.BatteryReport`);
+the app does not use LibreHardwareMonitor.
 
-## Features
+User documentation: [documentation/docs/apps/battery](../documentation/docs/apps/battery/index.md).
 
-* Native tray icon with level-aware battery/charging glyphs.
-* Left-click battery flyout with charge, status, power rate, capacity, and health.
-* Right-click menu for Power Options, Battery Report, settings folder, and exit.
-* Install/update/uninstall plumbing from `TrayAppDotNETCommon`.
+## Building
 
-## Build
-
-```powershell
-dotnet build .\BatteryTrayAppDotNET.slnx -c Debug
-dotnet build .\BatteryTrayAppDotNET.slnx -c Release
-```
-
-Release builds publish a self-contained ReadyToRun app-relative layout and increment `buildnumber.txt`.
+Build instructions, tooling and the per-app solution files are described in the [root README](../README.md#development).
+Release builds publish Native AOT; see `.agents/PROJECT_MAP.md` for the build files.

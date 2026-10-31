@@ -1,5 +1,5 @@
 @startuml 01_flyout_keep_open_control_flow
-!include dark-theme.puml
+!include ../dark-theme.puml
 title Shared flyout keep-open control flow\nSettingsFlyoutKeepOpenCoordinator + FlyoutWindowCommon
 
 participant "App-specific App\n(Brightness / Volume / Fan)" as APP
@@ -25,12 +25,15 @@ end note
 
 == Opening settings from the flyout or tray ==
 
-alt settings button pointer press inside flyout
-  APP -> FLY : SuppressNextAutoHideWhenPressed(settingsButton)
+alt settings button activated inside flyout
+  FLY -> FLY : OpensWindow(open settings)\n-> ArmNextAutoHideSuppression
   note right of FLY
-    The guard is armed before click/release handlers run.
-    The next auto-hide attempt from the flyout base or
-    coordinator is ignored, then the guard clears.
+    The guard is armed by the activation itself (click
+    released over the button, Enter, Space or an
+    accelerator), never by a press. The deactivation the
+    new window causes is ignored once; if no deactivation
+    followed by the time the dispatcher is idle, the
+    guard clears.
   end note
 end
 

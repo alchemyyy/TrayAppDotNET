@@ -28,11 +28,11 @@ Some apps keep a few more files next to those:
 | Brightness | `profiles.xml` (your profiles), `displays.json` (displays it has seen), and a `nightlight` folder used by the Night Light integration. |
 | Volume | `devices.xml` (per-device state). |
 
-Two things in `%LocalAppData%\TrayAppDotNET` itself are shared by all apps: `versions.xml`, the cached release info for [Updates](updates.md), and `apps`, the install folder of Local installs.
+Two things in `%LocalAppData%\TrayAppDotNET` itself are shared by all apps: `versions.xml`, the cached release info for [Updates](updates.md), and `apps`, the install folder of Local installs. Fan Control also keeps `fan-control-active.marker` there while it controls fans; it records machine state (fans left under software control by a crash in this boot), so it stays there even with `--settings-dir`.
 
 ## Editing settings.xml
 
-Each app reads `settings.xml` once at startup and writes it back whenever you change something in the app. It doesn't watch the file. So:
+Each app reads `settings.xml` once at startup and writes it back when settings change. It doesn't watch the file. So:
 
 1. Exit the app (**Exit** in its tray menu).
 2. Edit `settings.xml`.
@@ -40,8 +40,21 @@ Each app reads `settings.xml` once at startup and writes it back whenever you ch
 
 If you edit the file while the app is running, your change is ignored until the next start, and the app overwrites it the next time it saves.
 
-!!! warning "Keep a copy before editing"
-    If `settings.xml` isn't valid XML anymore, the app logs the error and quietly starts with default settings. The next time it saves, it overwrites your broken file with those defaults, and every setting you had is gone. Copy the file somewhere before you edit it.
+Every write goes to a temporary file first and then replaces `settings.xml`, so a crash or power loss mid-save leaves either the old file or the new one, never a half-written one. The same applies to the other data files listed above.
+
+When the app can't use a file at startup:
+
+- **Missing**: it starts with default settings and creates the file.
+- **Not valid XML anymore**: it renames the file to `settings.xml.corrupt-<UTC date and time>` next to it, logs that, and starts with default settings. Your broken file is never overwritten, so you can fix it and rename it back while the app is closed.
+- **Locked by another program** (after a few retries): it starts with default settings and saves nothing for the rest of that session, so the locked file stays as it was.
+
+`profiles.xml`, `devices.xml`, `displays.json` and `learned-battery-usage.txt` follow the same rules. A setting with a value this version doesn't know (for example one written by a newer version) keeps its default; a hotkey whose action this version doesn't know is dropped.
+
+## Autosave
+
+`settings.xml` has an `Autosave` setting in every app. When it is on (the default), changes are written shortly after they happen and once more when the app exits. When it is off, only changes you make in the settings window are written; changes made elsewhere, such as the flyout's undocked position or Task Manager's column widths and layout, are not saved, and nothing is written at exit. Only Task Manager shows it as a toggle (**Settings** > **General** > **Autosave settings**).
+
+Brightness and Fan Control used the `Autosave` element for something else before: in Brightness it's the **Autosave** toggle for brightness profiles, in Fan Control whether switching fan profiles also captures the live fan control state. Those keep their `Autosave` element; the app-wide switch is stored as `AutosaveSettings` in these two apps.
 
 ## Resetting to Defaults
 
@@ -63,7 +76,7 @@ Installing a portable copy is covered in [Installation](installation.md#installi
 
 ## Run on Startup
 
-**Settings** > **General** > **Run on startup** (**Run on startup automatically** in Brightness, Fan Control, Network and Volume) starts the app when you sign in. It's on by default: the first time an app runs without a `settings.xml`, it turns this on by itself.
+**Settings** > **General** > **Run on startup** starts the app when you sign in. It's on by default: the first time an app runs without a `settings.xml`, it turns this on by itself.
 
 It works with a plain shortcut, `<App>.lnk`, in your Startup folder (type `shell:startup` into the Run dialog to open it). The shortcut passes `--autostart`, which is how an app knows it was started at sign-in. The toggle just mirrors whether that shortcut exists, so deleting the shortcut by hand turns the setting off too. The card shows where the shortcut currently points.
 

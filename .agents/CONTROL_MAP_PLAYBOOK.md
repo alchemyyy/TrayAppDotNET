@@ -17,7 +17,7 @@ reports list where code falls short today.
   `TrayAppDotNETCommon.UI.ControlMapping.ControlMap`, which the AXAML root element `<ControlMap>` names
 - Generator: `TrayAppDotNETCommon/generators/AxamlPropertyLinker/ControlMaps`
 - Generator tests: `TrayAppDotNETCommon/tests/AxamlPropertyLinker.Tests/ControlMapGeneratorTests.cs`
-- Runtime tests for the common map: `TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests/ControlMapTests.cs`
+- Runtime tests for the common map: `TrayAppDotNETCommon/tests/TrayAppDotNETCommon.Tests/ControlMapTests.cs`
 
 ## Extraction Model
 
@@ -156,20 +156,34 @@ Common map (`TrayAppDotNETCommon/src/UI/ControlMap.axaml`) templates, by owner:
   order while the page holds focus. Space or Right on a page row opens the page and focuses its first control in
   map order; `Content.ReturnToPageList` (Left or Escape that nothing in the page uses) returns to the row. Caption
   buttons are pointer-only
-- `GeneralSection` = `StartupCard` then `InstallationSection` (`TrayAppDotNETGeneralSettingsSection`). Apps that put
-  their own cards between `BuildStartupCard` and `AddInstallationSection` instantiate the two halves separately
-- `RenderingSection`, `AboutPage`
-- Cards: `ResettableNumberCard`, `PairToggleCard`, `SingleColorCard`, `VariantColorCard`, `CoordinatorColorCard`
+- `GeneralSection` = `LanguageCard`, `StartupCard`, then `InstallationSection` (`TrayAppDotNETGeneralSettingsSection`).
+  Settings windows get the section from `CreateGeneralSettingsSection` and the installation cards from
+  `AddStandardInstallationSection`; apps that put their own cards between the startup card and the installation
+  cards instantiate the parts separately
+- `RenderingSection` (`AddRenderingSection`), `AboutPage` (`BuildCommonAboutPage`)
+- `AppearanceSection` and `ContextMenuAppearanceSection` (`AddAppearanceSection`, `AddContextMenuAppearanceSection`):
+  theme style, rounded corners, animations, tooltip delay, and the context menu's colors and font size
+- `HotkeysSection` (`TrayAppDotNETHotkeysSection`, built by `BuildHotkeysPage`): one row per binding plus the add
+  row. `RowLeading` and `RowTrailing` take the controls an app adds to each row, such as Brightness's monitor
+  target; the unnamed slot takes the app's cards after the rows
+- Cards: `ResettableNumberCard`, `PairToggleCard`, `SingleColorCard`, `VariantColorCard`
 - Scrolling: `ScrollBar`, `ScrollViewport`, `VerticalScrollViewport` (the viewports slot their content). The scroll
   bar's right-click menu is the common-map surface `ScrollBarMenu`, not a template
-- Dialogs: `UpdateConfirmation`, `ColorPicker`, `Installer`, `Uninstaller`
+- Dialogs: `Confirmation` (`TrayAppDotNETConfirmationWindow`: update, skip and backdate prompts plus app prompts such
+  as Task Manager's column reset and Volume's Equalizer APO download), `ColorPicker`, `Installer`, `Uninstaller`
+- Flyouts: `FlyoutConfirmOverlay` (`TrayAppDotNETConfirmOverlay`; Escape cancels, Confirm). A flyout surface
+  instantiates it on a scope with `Template="FlyoutConfirmOverlay"`. Every flyout surface declares a `Close` command
+  leaf with `Keys="Escape"` and `Source="FlyoutWindowCommon.FlyoutWindowCommon"`, which the app passes to the
+  `FlyoutWindowCommon` constructor; its undocked frame drag is a `Handle` leaf with
+  `Source="FlyoutChromeDragController.Attach"`. Dialog title bars built by `TrayAppDotNETDialogChrome.TitleBar` map
+  their move handle with `Source="TrayAppDotNETDialogChrome.TitleBar"`
 - Menus: `ContextMenu`, `EditableContextMenu` (their slot takes the app's entries), `EditableMenuEntry`. Menus own
   their selection keys as commands that follow Win32 popup menus: `SelectPrevious` (Up) and `SelectNext` (Down) wrap,
   and with no row selected Down and Home select the first row while Up and End select the last; `SelectFirst` (Home),
   `SelectLast` (End), and in `ContextMenu` also `CloseSubmenu` (Left). The focused row is the selection, and a hovered
-  row takes it while its menu is active. `ContextMenuWindow.MapSelectionCommands` registers them; surfaces that mirror
-  the template, `ScrollBarMenu` and Volume's `VolumeFlyoutMenu`, declare the same commands under their own ids, and
-  `MenuKeyboardSelection` holds the rule
+  row takes it while its menu is active. `ContextMenuWindow.MapSelectionCommands` registers them; `ScrollBarMenu`,
+  which mirrors the template, declares the same commands under its own ids, and `MenuKeyboardSelection` holds the
+  rule. Volume's device format and listen-target menus are `ContextMenu` instances
 - `SearchableListBox`
 
 Single-control common widgets, such as the flyout undock button and the caption close button, are plain `Leaf`
@@ -247,7 +261,7 @@ inside its `ReorderList` instance, so the column chooser's `Visible` toggle (`Sl
 | `TADNCM001` | Malformed XML, or two maps declare one `x:Class` |
 | `TADNCM002` | Unknown element, or an element outside its allowed parent (a `Slot` outside a `Template`) |
 | `TADNCM003` | Attribute not valid on that element |
-| `TADNCM004` | ID or slot name is not PascalCase ASCII, an ID is `ID`, equals its parent's ID, collides with a generated member or the class name `ControlMap`, or redefines a reference template |
+| `TADNCM004` | ID or slot name is not PascalCase ASCII, an ID is `ID` or `MapName` at any depth, a `Variant` is named `Variants`, an ID equals its parent's ID, collides with a generated member or the class name `ControlMap`, or redefines a reference template |
 | `TADNCM005` | Two siblings share an ID |
 | `TADNCM006` | Enum or boolean value not in the schema; enum names are case-sensitive |
 | `TADNCM007` | Malformed `Keys`, `FocusKeys`, or `Pointer` gesture |
@@ -260,6 +274,7 @@ inside its `ReorderList` instance, so the column chooser's `Visible` toggle (`Sl
 | `TADNCM014` | A template, surface, or scope with no children and no `Template` |
 | `TADNCM015` | A template instantiates itself |
 | `TADNCM016` | The `x:Class` has no hand-written partial owner deriving from `TrayAppDotNETCommon.UI.ControlMapping.ControlMap` |
+| `TADNCM018` | The owner exists but no constructor in any of its partial parts passes its own `MapName` to the base (`: base(MapName)`, or `MapName` qualified by the owner type), so node lookups would find nothing |
 | `TADNCM017` | A variant on a template instance or beside an unnamed slot, or an `Order` naming an unknown, repeated, or no child |
 | `TADNCM100` | Warning from `ControlMapTagAnalyzer`: a node the runtime needs is never tagged in code. Required are window and popup surfaces, scopes with `IsRepeated`, `IsArranged`, `IsFocusable`, `Entry`, a non-`Local` `Tab` or `Arrows`, keyboard leaves that are tab stops, commands with `Keys`, and template instances whose template the map instantiates more than once. Nothing under a `Tray` or `Global` surface is required, because Win32 delivers that input. A comment directly above a node that starts with `Suppress TADNCM100` exempts the node and its subtree; use it only for UI that some builds never create, such as Task Manager's Debug-only `ArchitectureSimulations` |
 
@@ -281,8 +296,8 @@ Tagging a control (`ControlMapBinding`, namespace `TrayAppDotNETCommon.UI.Contro
 Factories take the ID as a parameter because they create the control internally:
 
 - Settings cards take `node:`. `BoolCard`, `IntCard`, `DoubleCard`, `ComboCard`, and `StringComboCard` tag their
-  inner control; `ResettableDoubleCard`, `PairBoolCard`, `SingleColorCard`, `VariantColorCard`, and
-  `TrayAppDotNETSettingsColorCardCoordinator.ColorCard` tag the card with the instance ID.
+  inner control; `ResettableDoubleCard`, `PairBoolCard`, `SingleColorCard`, and `VariantColorCard` tag the card with
+  the instance ID.
 - `SettingsVerticalScrollViewport`, `SettingsScrollViewport`, and `SettingsSearchableListBox` take `node:` for the
   instance; `SettingsScrollHost` and `TrayAppDotNETSettingsUI.ScrollHost` take `scrollBarNode:`.
 - `ContextMenuEntry` and `EditableContextMenuEntry` take `Node = ...` for their row; `ContextMenuEntry.SubmenuNode`

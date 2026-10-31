@@ -73,15 +73,15 @@ The setting persisted and the warm window was reused, but four things hid the be
 
 The retained frame is used as the cold flyout rather than hidden:
 
-1. `FlyoutWindowCommon.ShowWithRetainedFrame` shows the window at the position resolved for its current
-   size. After the first reveal it keeps `Opacity = 1`, so DWM presents the retained frame at once.
-2. In the same dispatcher turn, `ShowAt` builds the fresh content generation, commits it, runs layout,
-   and positions the window. The first frame rendered afterwards is the fresh flyout, and it replaces
-   the retained frame directly.
-3. The `Loaded` callback calls `FlyoutWindowCommon.CompleteReveal`, which only matters for a flyout that
-   has never been revealed. That flyout has no retained frame, so it stays transparent until the complete
-   first frame is ready.
-4. `Hide()` no longer touches `Opacity`.
+1. `FlyoutWindowCommon.ShowAt` shows the window at the position resolved for its current size. After the
+   first reveal it keeps `Opacity = 1`, so DWM presents the retained frame at once.
+2. In the same dispatcher turn, `ShowAt` runs the app's `OnShowing` hook, rebuilds the content through the
+   app's `RebuildContent`, commits it, runs layout, and positions the window. The first frame rendered
+   afterwards is the fresh flyout, and it replaces the retained frame directly.
+3. At `Loaded` priority `ShowAt` positions the window again, runs the app's `OnRevealing` hook and completes
+   the reveal, which only matters for a flyout that has never been revealed. That flyout has no retained
+   frame, so it stays transparent until the complete first frame is ready.
+4. `Hide()`, sealed in `FlyoutWindowCommon`, no longer touches `Opacity`.
 
 The fresh controls replace the old frame in a single committed frame rather than being layered over a
 snapshot. On screen this is the same as drawing over it, and it needs no extra rendering.
@@ -166,9 +166,9 @@ Brightness open and close cycles few and spaced.
 ## Rules for future UI code
 
 1. Never set `Opacity = 0` to hide a flyout or tray menu that has already been revealed.
-2. Show a flyout through `ShowWithRetainedFrame`, then publish content, run layout, and position the
-   window in the same dispatcher turn.
-3. Call `CompleteReveal` from the `Loaded` callback.
+2. Show a flyout only through `FlyoutWindowCommon.ShowAt`; put per-app work in its `OnShowing`, `OnShown`,
+   `OnRevealing` and `OnHiding` hooks rather than in a second show path.
+3. Queue content changes through `QueueRebuild`; a hidden flyout only marks its content stale.
 4. Keep a hidden flyout's content attached and mark it stale instead of discarding it.
 5. Apply scroll offsets synchronously after layout, not in a deferred callback.
 6. Do not prime a warm window that already exists.

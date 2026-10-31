@@ -5,10 +5,10 @@
 Assumption: "refactor out `Visuals`" means removing both the seven physical
 `src/Visuals` directories and the corresponding `*.Visuals` namespaces.
 
-Current scope is 60 files:
+Current scope (inventory of 2026-10-30) is 55 files:
 
-- 57 C#/AXAML files
-- 3 assets
+- 52 C#/AXAML files: Common 14, Battery 7, Brightness 9, Fan 6, Network 7, Volume 6, Task Manager 3
+- 3 assets (Brightness map SVG, Fan font and glyph PNG)
 - 7 projects
 - Four mixed concerns: theming, glyphs, tray rendering, and assets
 
@@ -30,13 +30,28 @@ Manager only needs `UI/Glyphs`.
 ### Outliers
 
 - Move `BrightnessTrayAppDotNET/src/Visuals/BrightnessTrayIcon.cs` to
-  `BrightnessTrayAppDotNET/src/UI/Tray`.
+  `BrightnessTrayAppDotNET/src/UI/Tray` (that folder already holds
+  `BrightnessTrayMenuEntries.cs`).
 - Move `NetworkTrayAppDotNET/src/Visuals/NetworkTrayIcon.cs` to
-  `NetworkTrayAppDotNET/src/UI/Tray`.
-- Do not merely relocate `BatterySettingsPalette`. It is functionally identical
-  to the common `VolumeSettingsPalette`. Rename the common helper to
-  `AppSettingsPalette`, redirect Battery and Volume to it, and delete
-  `BatteryTrayAppDotNET/src/Visuals/BatterySettingsPalette.cs`.
+  `NetworkTrayAppDotNET/src/UI/Tray` (new folder).
+- Move `BatteryTrayAppDotNET/src/Visuals/BatteryGlyphResolver.cs` with Battery's
+  glyph catalog to `BatteryTrayAppDotNET/src/UI/Glyphs`.
+- Palette consolidation is done (audit 03-12): every app builds its
+  `SettingsPalette` through `TrayAppDotNETCommon/src/UI/AppSettingsPalette.cs`
+  (`Create(theme, settings, isLight)`, the core `Create(theme, background,
+  foreground, isLight)`, and `CreateForFlyout`). `VolumeSettingsPalette`,
+  `BatterySettingsPalette` and the per-window `CreatePalette` copies (Brightness,
+  Fan, Network, Task Manager, the Fan and Brightness curve editors) are gone.
+  When this plan runs, move `AppSettingsPalette.cs` with the other Common theming
+  files; there is nothing app-specific left to relocate.
+- The light/dark rule is likewise single: `AppTheme.ResolveIsLight(settings or
+  mode, theme)` in `TrayAppDotNETCommon/src/Visuals/AppTheme.cs` (audit 03-11);
+  the per-app `ResolveEffectiveIsLightTheme` statics no longer exist.
+- Already deleted instead of moved (audit 03-20): `CompositeGlyph`, `SkiaCompositeGlyphIcon`, Brightness's
+  `SkiaFlyoutGlyphIcon` wrapper, `Glyph.Fluent`/`Glyph.FanFont`, and the per-app icon loaders (`AppTheme.LoadAppIcon`,
+  `LoadAppNativeIcon`, Task Manager's `AppThemeStore` icon code; all apps use
+  `TrayAppDotNETCommon/src/UI/Tray/AppIconLoader.cs`). `TrayIconMetrics` already lives in `UI/Tray`, and Fan
+  registers its icon font through `TADNFontResolver.RegisterAppFont` instead of Common naming Fan's asset.
 
 ### Assets
 
@@ -59,24 +74,22 @@ during this refactor; deletion should be a separate cleanup.
 ### 1. Baseline
 
 - Record the current build and test state.
-- Preserve unrelated dirty changes. Two required consumer files are already
-  modified:
-  - `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUpdatePromptPresenter.cs`
-  - `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.cs`
+- Preserve unrelated dirty changes in the working tree; check `git status` for
+  modified consumers before moving files.
 
 ### 2. Move Common Glyph Infrastructure
 
-- Move glyph data, catalogs, readers, hot reload, fonts, and the applicator to
-  `UI/Glyphs`.
-- Move `SkiaFlyoutGlyphIcon` and `SkiaCompositeGlyphIcon` to `UI/Controls`.
+- Move glyph data, catalogs, their resource dictionaries and hot-reload stores,
+  fonts, and the applicator to `UI/Glyphs`.
+- Move `SkiaFlyoutGlyphIcon` to `UI/Controls`.
 - Update all C# aliases and AXAML namespace declarations solution-wide.
 - Build before proceeding.
 
 ### 3. Move Common Theming
 
 - Move the `AppTheme*` files to `UI/Theming`.
-- Keep `AppTheme.axaml` adjacent to its caller because debug hot reload resolves
-  it through `[CallerFilePath]` in `AppThemeHotReload.cs`.
+- Move each `.axaml` together with its resource class. Debug hot reload watches the
+  AXAML source file by path, so verify a reload after the move (see `AXAML_HOT_RELOAD_PLAYBOOK.md`).
 - Update `x:Class`, AXAML aliases, tests, and consumers.
 - Build and run common tests.
 
@@ -98,19 +111,20 @@ during this refactor; deletion should be a separate cleanup.
 ### 6. Move Outliers and Assets
 
 - Move the Brightness and Network tray renderers.
-- Consolidate the Battery and Volume palette helpers.
+- (Palette helpers are already consolidated; see Outliers.)
 - Update resource includes, links, and runtime URIs.
-- Required URI consumers include:
+- Required URI and path consumers include:
   - `BrightnessTrayAppDotNET/src/UI/Settings/Environmental/EnvironmentalMapPickerCanvas.cs`
-  - `TrayAppDotNETCommon/src/Visuals/TADNFontResolver.cs`
-  - `FanControlTrayAppDotNET/src/Constants.cs`
+    (`MapResourceUri`)
+  - `FanControlTrayAppDotNET/src/Constants.cs` (`FanFontRelativePath`)
   - `BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj`
   - `FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj`
+  - `NOTICE` (the map and fan artwork file paths)
 
 ### 7. Update Tests and Documentation
 
 - Update literal source paths and class names in
-  `TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests/DebugUIProvenanceTests.cs`.
+  `TrayAppDotNETCommon/tests/TrayAppDotNETCommon.Tests/DebugUIProvenanceTests.cs`.
 - Update `.agents/PROJECT_MAP.md`.
 - Do not alter or regenerate the SVG contents.
 

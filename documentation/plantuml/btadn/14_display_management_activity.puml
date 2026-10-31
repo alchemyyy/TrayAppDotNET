@@ -1,5 +1,5 @@
 @startuml display_management_activity
-!include dark-theme.puml
+!include ../dark-theme.puml
 title Display management activity - acquisition, value reads/writes, manual sliders, and curve mode
 
 start
@@ -87,7 +87,7 @@ partition "MonitorService.Refresh - acquisition" {
             :SyncBrightnessFromHardware(read percent)\nunder hardware-write suspension;
           endif
         endif
-        :SliderState = OnHardwareRecovered(curve flag,\ndisabled-period flag);
+        :SliderState = ResolveHardwareRecoveredSliderState(curve flag,\ndisabled-period flag) (pre-failure state;\nDisabled and released rows stay so);
         :Mark row acquired;
       else (no)
         :Keep row failed / read-degraded candidate;
@@ -165,7 +165,7 @@ partition "BrightnessFlyout enrollment" {
 
   if (any curve persisted on?) then (yes)
     :OnCurveToggleStateChanged();
-    :Engage row SliderStates;
+    :Engage row SliderState values;
     :CaptureOffsetsFromMaster again;
     :Evaluate immediately;
   endif
@@ -480,7 +480,7 @@ partition "Audit findings / boundaries" {
 
   :3. Night-light provider parity is intentional;
   note right $TINT_GREEN
-    BrightnessFlyout.OnAppSettingsChanged copies provider strength
+    BrightnessFlyout.OnSettingsChanged copies provider strength
     into NightLightMonitor.Brightness by design.
     Windows can change night-light externally, so the app should
     reflect the provider's current value and use that as the

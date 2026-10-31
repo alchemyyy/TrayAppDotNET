@@ -1,5 +1,5 @@
 @startuml ddc_acquisition_activity
-!include dark-theme.puml
+!include ../dark-theme.puml
 title DDC acquisition lifecycle - full refresh and targeted recovery
 
 start

@@ -8,7 +8,7 @@ There are two curves, one for brightness and one for Night Light. They're stored
 
 The curves do nothing until you engage them in the flyout:
 
-- The curve button on the **All Displays** row turns the brightness curve on or off (tooltip **Brightness curve**).
+- The curve button on the **All displays** row turns the brightness curve on or off (tooltip **Brightness curve**).
 - The curve button on the **Night Light** row turns the Night Light curve on or off (tooltip **Night-light curve**).
 - The **Environmental curves** button in the flyout footer flips both at once. If either curve is on, it turns both off; if both are off, it turns both on. This button only shows while **Settings** > **Flyout** > **Show environmental curves button** is on.
 
@@ -20,7 +20,7 @@ The Night Light curve only sets the strength. It doesn't turn Night Light on for
 
 ### How the Curve Moves Your Displays
 
-The brightness curve drives the **All Displays** (master) value. Each individual display follows it while keeping its own difference from the master, captured at the moment the curve engages. So if your second monitor sat 10 points below the master when you turned the curve on, it stays 10 points below the curve.
+The brightness curve drives the **All displays** (master) value. Each individual display follows it while keeping its own difference from the master, captured at the moment the curve engages. So if your second monitor sat 10 points below the master when you turned the curve on, it stays 10 points below the curve.
 
 If a display's difference would push it past 0% or 100%, it clips there. **Settings** > **Flyout** > **Preserve slider offsets** changes how those differences are remembered; see [the main Brightness page](index.md).
 
@@ -32,7 +32,7 @@ While the curve drives a row, the slider fill follows the curve and the thumb is
 
 ## Curve Control and Manual Override
 
-Every row that the curve can drive (each display, **All Displays**, and **Night Light**) gets a small lock button on its left while the curve is on.
+Every row that the curve can drive (each display, **All displays**, and **Night Light**) gets a small lock button on its left while the curve is on.
 
 - Unlocked (tooltip **Curve control**): the curve owns this row.
 - Locked (tooltip **Manual override**): you own this row, the curve leaves it alone.
@@ -50,7 +50,7 @@ In the default (absolute) mode, touching brightness yourself puts that row into 
 The rules differ a bit by row:
 
 - An individual display only releases itself. The master and the other displays keep following the curve.
-- The master (**All Displays**) releases itself ***and every display the curve was driving***, so all rows show the same manual state.
+- The master (**All displays**) releases itself ***and every display the curve was driving***, so all rows show the same manual state.
 - **Night Light** only releases itself.
 
 When you scroll the tray icon while the curve is driving, the app starts from the curve's current value, so brightness doesn't jump back to whatever your slider held before.
@@ -93,7 +93,7 @@ The stopwatch only exists in absolute mode.
 
 **Settings** > **General** > **Auto-engage environmental curve** lets the curve take the master back by itself. When the curve's value reaches or crosses the value you set the master to, the master and every display in manual override go back to the curve.
 
-Example: the curve is ramping down in the evening and sits at 70. You drag **All Displays** to 40. Later the curve comes down to 40, and from there on it's driving again.
+Example: the curve is ramping down in the evening and sits at 70. You drag **All displays** to 40. Later the curve comes down to 40, and from there on it's driving again.
 
 The number box next to the toggle is a delay in seconds (default 60). After every manual brightness change, the curve has to wait this long before it can re-engage; crossings during the delay don't count. That stops a click that happens to land on the other side of the curve from snapping you straight back. Set it to 0 for no delay.
 
@@ -124,10 +124,10 @@ Keyboard (click the editor first; the first node gets selected):
 | Keys | Action |
 |---|---|
 | ++tab++ / ++shift+tab++ | Select the next / previous node (brightness nodes first, then Night Light) |
+| ++left++ / ++right++ | Move the selected node 15 minutes earlier / later |
 | ++up++ / ++down++ | Move the selected node up / down a small step |
-| ++shift+up++ / ++shift+down++ | Move it by exactly one unit on the axis |
-| ++ctrl+up++ / ++ctrl+down++ | Move it by a coarse step |
-| ++shift+left++ / ++shift+right++ | Move it one minute earlier / later |
+| ++ctrl++ + arrow | Move it one hour earlier / later, or up / down a coarse step |
+| ++shift++ + arrow | Move it one minute earlier / later, or by exactly one unit on the axis |
 | ++space++ | Add a node next to the selected one |
 | ++delete++ / ++backspace++ | Delete the selected node (not the end nodes) |
 | ++esc++ | Clear the selection |
@@ -193,9 +193,9 @@ On the brightness curve you'll also see two faint dashed lines labeled **upper b
 
 ### Previewing Other Dates
 
-**Preview Date** shows the curve as it'll apply on another day. Type a date, use the calendar button, press ++up++ / ++down++ in the box to step a day (++ctrl++ for a month), or scroll the wheel while the box has focus.
+**Preview date** shows the curve as it'll apply on another day. Type a date, use the calendar button, press ++up++ / ++down++ in the box to step a day (++ctrl++ for a month), or scroll the wheel while the box has focus.
 
-While a date other than today is shown, the editor is read-only; click **Exit Preview Mode** in its bottom-right corner to get back to today. If a curve is on, your displays also show what that date's curve would do at the current time of day, until you return to today or leave the page.
+While a date other than today is shown, the editor is read-only; click **Exit preview mode** in its bottom-right corner to get back to today. If a curve is on, your displays also show what that date's curve would do at the current time of day, until you return to today or leave the page.
 
 **Preview next 24 hours** plays the next 24 hours of the curve (starting from now) on your actual displays and Night Light, squeezed into 10 seconds. Click **Cancel** to stop it. It needs at least one curve turned on in the flyout; otherwise the button is greyed out. If you're previewing another date, it plays that date's curve.
 
@@ -215,7 +215,7 @@ The default location is a spot near Seattle. If you're not there, set this befor
 
 ## Tick Interval
 
-**Settings** > **General** > **Environmental tick interval** is how often the curves are re-sampled and applied. Default 5000 ms. The box accepts 250 to 600000, but anything above 60000 runs at 60000.
+**Settings** > **General** > **Environmental tick interval** is how often the curves are re-sampled and applied. Default 5000 ms, range 250 to 600000 ms (10 minutes); a value outside that range in `settings.xml` is clamped to it.
 
 Lower reacts faster on steep parts of the curve; higher means less background work. I'd leave it alone. Values that didn't change aren't sent to the displays, so the default is cheap.
 
@@ -223,7 +223,7 @@ Lower reacts faster on steep parts of the curve; higher means less background wo
 
 | Setting | Where | Scope | Default |
 |---|---|---|---|
-| Brightness curve on/off | Flyout, **All Displays** row | Global | Off |
+| Brightness curve on/off | Flyout, **All displays** row | Global | Off |
 | Night Light curve on/off | Flyout, **Night Light** row | Global | Off |
 | **Show environmental curves button** | **Settings** > **Flyout** | Global | On |
 | **Auto-engage environmental curve** | **Settings** > **General** | Global | Off, 60 s delay (0 to 86400) |
