@@ -23,18 +23,18 @@ You can't hide any of them, only reorder them. Changes apply as you make them, s
 
 ### Run New Task
 
-Type an executable, a document, or a URI in the box and press ++enter++ or **Run**. ++esc++ or **Cancel** hides the panel.
+Type a program, a document, a folder, or a URI in the box, with arguments if it takes them, and press ++enter++ or **Run**. ++esc++ or **Cancel** hides the panel.
 
-- The text goes to Windows as one thing to open, the same as double-clicking it. Arguments aren't parsed, so `notepad C:\file.txt` won't work.
-- The new program is started through the desktop Explorer, not as a child of Task Manager.
+- The text is read the way the Windows **Run** dialog reads it, so `notepad C:\file.txt` opens the file in Notepad.
+- The program starts the way Windows Task Manager's **Create new task** starts one with its administrator box off: as you, never with Task Manager's administrator rights, and not as a child of Task Manager. Explorer takes no part, so it also works while Explorer isn't running.
 - There's no "run as administrator" option.
-- If it fails, you get a **Run new task failed** message and the panel stays open with your text in it.
+- If Windows can't take the command at all, you get a **Run new task failed** message and the panel stays open with your text in it. If Windows takes it but can't find what you typed, it shows the same message the **Run** dialog shows, and the panel has already closed.
 
 ### Restart Explorer
 
-Ends every running `explorer.exe` (the desktop, the taskbar, and all open File Explorer windows), then starts a fresh one. By default it asks first (**Restart Windows Explorer?**). Turn on **Skip Explorer restart confirmation** in **Settings** > **Processes** > **Actions** to restart immediately.
+Ends every `explorer.exe` running in your session (the desktop, the taskbar, and all open File Explorer windows), then starts a fresh one the same way **Run new task** starts a program. By default it asks first (**Restart Windows Explorer?**). Turn on **Skip Explorer restart confirmation** in **Settings** > **Processes** > **Actions** to restart immediately.
 
-The button stays disabled until the restart is done. If the desktop Explorer isn't running at all, the restart fails before anything gets closed.
+The button stays disabled until the restart is done. If Explorer isn't running at all, for example after it crashed, it just starts a fresh one.
 
 ## Grouping
 

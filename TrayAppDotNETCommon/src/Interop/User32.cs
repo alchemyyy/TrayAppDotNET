@@ -115,6 +115,13 @@ public static class User32
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
+    // AllowSetForegroundWindow: every process may take the foreground until the user's next input
+    public const uint ASFW_ANY = 0xFFFFFFFF;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
     [DllImport("user32.dll")]
     public static extern uint GetDoubleClickTime();
 

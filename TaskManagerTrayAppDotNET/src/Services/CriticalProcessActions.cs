@@ -203,24 +203,24 @@ internal static class CriticalProcessActions
             return false;
         }
 
-        return ExplorerProcessLauncher.TryShellExecute(
-            command.Trim(),
-            arguments: null,
-            workingDirectory: null,
-            verb: null,
-            out _,
-            out errorMessage);
+        return InteractiveUserLauncher.TryRun(command.Trim(), Environment.SystemDirectory, out errorMessage);
     }
 
-    /// <summary>Terminates every Explorer process captured at invocation, then starts a fresh shell.</summary>
+    /// <summary>
+    /// Terminates every Explorer process in this session captured at invocation, then starts a fresh shell as the
+    /// signed-in user. With no Explorer running it only starts the shell.
+    /// </summary>
     public static ExplorerRestartResult RestartExplorer(
         TryTerminateProcessAction terminateProcess)
     {
         ArgumentNullException.ThrowIfNull(terminateProcess);
 
+        int sessionID;
         Process[] explorerProcesses;
         try
         {
+            using Process currentProcess = Process.GetCurrentProcess();
+            sessionID = currentProcess.SessionId;
             explorerProcesses = Process.GetProcessesByName(ExplorerProcessName);
         }
         catch (Exception exception) when (
@@ -230,19 +230,6 @@ internal static class CriticalProcessActions
                 Succeeded: false,
                 $"Windows Explorer processes could not be enumerated: {exception.Message}");
         }
-
-        if (!ParentProcessLauncher.TryOpenDesktopExplorerParent(
-                out ProcessParentHandle? explorerParent,
-                out string parentErrorMessage) || explorerParent == null)
-        {
-            foreach (Process process in explorerProcesses)
-                process.Dispose();
-            return new ExplorerRestartResult(
-                Succeeded: false,
-                $"Windows Explorer's parent handle could not be retained: {parentErrorMessage}");
-        }
-
-        using ProcessParentHandle explorerParentHandle = explorerParent;
 
         List<Process> terminatedProcesses = new(explorerProcesses.Length);
         List<string> failures = [];
@@ -254,7 +241,7 @@ internal static class CriticalProcessActions
                 try
                 {
                     processID = process.Id;
-                    if (process.HasExited) continue;
+                    if (process.SessionId != sessionID || process.HasExited) continue;
 
                     ProcessTerminationTarget target = new(
                         processID,
@@ -302,7 +289,7 @@ internal static class CriticalProcessActions
                 process.Dispose();
         }
 
-        ExplorerRestartResult startResult = StartExplorer(explorerParentHandle);
+        ExplorerRestartResult startResult = StartExplorer();
         if (!startResult.Succeeded)
             failures.Add($"Starting {ExplorerExecutableName}: {startResult.ErrorMessage}");
         if (failures.Count > 0)
@@ -315,7 +302,7 @@ internal static class CriticalProcessActions
         return startResult;
     }
 
-    private static ExplorerRestartResult StartExplorer(ProcessParentHandle explorerParent)
+    private static ExplorerRestartResult StartExplorer()
     {
         string windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (string.IsNullOrWhiteSpace(windowsDirectory))
@@ -328,12 +315,8 @@ internal static class CriticalProcessActions
         }
 
         string explorerPath = Path.Combine(windowsDirectory, ExplorerExecutableName);
-        ProcessLaunchResult launchResult = ParentProcessLauncher.StartWithParent(
-            explorerParent,
-            explorerPath,
-            arguments: [],
-            windowsDirectory);
-        return new ExplorerRestartResult(launchResult.Succeeded, launchResult.ErrorMessage);
+        bool started = InteractiveUserLauncher.TryRun($"\"{explorerPath}\"", windowsDirectory, out string errorMessage);
+        return new ExplorerRestartResult(started, errorMessage);
     }
 
     private static string FormatExplorerFailure(int processID, string errorMessage)

@@ -170,7 +170,7 @@
     `IconExtraction.cs`, `ShellLink.cs`, `Ole32.cs` (`ComApartmentScope`), `NtDll.cs`, `Kernel32.cs`, `User32.cs`
   - `TrayAppDotNETCommon/src/Utils/ProcessCommandLine.cs`, `ProcessImagePath.cs`, `Safe.cs`
   - `TrayAppDotNETCommon/src/Services/ExplorerProcessLauncher.cs`: `TryShellExecute` through the desktop Explorer
-    (Task Manager's parent-process launcher and IFEO registry live in Task Manager)
+    (Task Manager's IFEO registry lives in Task Manager, whose launches use its own `InteractiveUserLauncher`)
 - Common app host (composition, no reflection), used by every app's `App.cs`:
   - `TrayAppDotNETCommon/src/UI/TrayAppDotNETAppHost.cs`: `TrayAppDotNETAppRunner.Run<TApp>` (rendering backend and
     language read in one pass), `TrayAppDotNETAppHost<TSettings,TTheme>` (`InitializeShell`, `TryRunAuxiliaryMode`,
@@ -344,6 +344,10 @@
   highest-privileges scheduled task, hand-off, task-start argument check) over the generated Task Scheduler COM client
   in `src/Interop/TaskSchedulerInterfaces.cs` and `TaskSchedulerSession.cs`; the elevated relaunch both machine-level
   toggles share is `src/Services/ElevatedSettingChange.cs`
+- Run new task, page shortcuts and Restart explorer's fresh shell:
+  `TaskManagerTrayAppDotNET/src/Services/InteractiveUserLauncher.cs` (Windows Task Manager's
+  `\Microsoft\Windows\Task Manager\Interactive` task through wdc.dll `WdcRunTaskAsInteractiveUser`; no Explorer
+  dependency); the restart itself is `CriticalProcessActions.RestartExplorer`
 - Tests: `TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests`
 
 ## Build And Packaging Files

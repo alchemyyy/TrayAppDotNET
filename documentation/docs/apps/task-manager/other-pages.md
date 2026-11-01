@@ -7,7 +7,7 @@ App history, Startup apps, Users and Services: the rest of the Windows 11 Task M
 Each page has a search box at the top of the window, a header with the page's buttons, and a table.
 
 - **Search** filters as you type. It matches any row that contains the text in any column, ignoring case. No expressions here; those are only on the Processes page.
-- **Run new task** is on every page and works exactly like on Processes: type an executable, document or URI, then ++enter++ or **Run**. See [Run New Task](processes.md#run-new-task).
+- **Run new task** is on every page and works exactly like on Processes: type a program (with its arguments), document, folder or URI, then ++enter++ or **Run**. See [Run New Task](processes.md#run-new-task).
 - **More** (the **...** button) opens the page's menu. It always has **Refresh**, plus the page's actions.
 - Click a column header to sort by it, click again to reverse. The first column (name) is the default sort.
 - Drag a divider in the header to resize a column. The widths go back to their defaults when the app restarts.

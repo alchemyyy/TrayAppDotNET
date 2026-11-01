@@ -101,7 +101,7 @@ does reserve a small nonzero working set in exchange for remaining dispatchable 
 
 ## Elevation
 
-The app runs `asInvoker`. Four separate channels touch other integrity levels or other processes:
+The app runs `asInvoker`. Five separate channels touch other integrity levels or other processes:
 
 - **Privileged-action broker** (`--elevated-broker`, `src/Services/ElevationBroker*.cs`): launched with `runas` on the
   first admin action. Its command line names the UI's PID and start time; it verifies them, keeps a handle to the UI,
@@ -131,6 +131,12 @@ The app runs `asInvoker`. Four separate channels touch other integrity levels or
   mode and accepts only `--autostart` and `--hidden` after it; anything else exits with code 2. Registration only ever
   targets the system install, because a copy in the user's profile can be replaced by any program the user runs. A
   system uninstall deletes every account's task (`TaskManagerUninstallGuard.BeforePrepare`).
+- **Interactive-user launches** (`src/Services/InteractiveUserLauncher.cs`): Run new task, the Services and Users page
+  shortcuts and Restart explorer's fresh shell call wdc.dll's `WdcRunTaskAsInteractiveUser`, which Windows Task
+  Manager's Create new task calls when its administrator box is off. It runs the stock
+  `\Microsoft\Windows\Task Manager\Interactive` task in the app's session, and that task's COM handler opens the command
+  with the Run dialog's `ShellExecCmdLine` as the interactive user. An elevated app never hands its token on, and
+  neither path needs Explorer running.
 
 ## Known gaps
 
